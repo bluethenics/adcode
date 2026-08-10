@@ -4,3 +4,5 @@ out/
 *.vsix
 .env
 .env.local
+.worktrees/
+.superpowers/
