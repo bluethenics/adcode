@@ -2050,3 +2050,681 @@ git commit -m "feat: add Firebase anonymous identity with token refresh and coal
 ```
 
 ---
+
+### Task 8: The API client
+
+Implements the degradation rule directly: **no method on this class throws for a network condition.** Failures return an empty result and engage backoff. A dead ad server must be indistinguishable from a quiet one.
+
+**Files:**
+- Create: `extensions/adcode-ads/src/client.ts`
+- Test: `extensions/adcode-ads/test/client.test.ts`
+
+**Interfaces:**
+- Consumes: `Creative`, `Receipt`, `Balance`, `RemoteConfig`, `ThemeKind` from `./types`; `validateCreatives` from `./validation`; `AuthProvider` from `./auth`.
+- Produces:
+  - `REQUEST_TIMEOUT_MS: number`, `BACKOFF_BASE_MS: number`, `BACKOFF_MAX_MS: number`
+  - `class AdClient` constructed with `{ baseUrl: string; assetHost: string; auth: AuthProvider; fetchImpl?: typeof fetch; now?: () => number; random?: () => number }`, exposing:
+    - `serve(tags: readonly string[], themeKind: ThemeKind, count: number): Promise<Creative[]>`
+    - `postReceipts(receipts: readonly Receipt[]): Promise<string[]>`
+    - `balance(): Promise<Balance | null>`
+    - `config(): Promise<RemoteConfig | null>`
+    - `readonly backedOff: boolean`
+
+- [ ] **Step 1: Write the failing tests**
+
+`extensions/adcode-ads/test/client.test.ts`:
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { AdClient, BACKOFF_BASE_MS } from '../src/client';
+import type { AuthProvider } from '../src/auth';
+
+const auth: AuthProvider = { getIdToken: async () => 'id-token-1' };
+
+const okJson = (body: unknown) =>
+  new Response(JSON.stringify(body), {
+    status: 200, headers: { 'content-type': 'application/json' },
+  });
+
+const creative = (id: string) => ({
+  creativeId: id, campaignId: 'cm_1',
+  headline: 'Sentry', body: 'Catch errors before your users do.',
+  logoLight: 'https://assets.adcode.dev/cr_1/light.svg',
+  logoDark: 'https://assets.adcode.dev/cr_1/dark.svg',
+  clickUrl: 'https://sentry.io', expiresAt: 1_800_000_000_000,
+});
+
+const make = (fetchImpl: typeof fetch, now: () => number = () => 1_000_000) =>
+  new AdClient({
+    baseUrl: 'https://api.example', assetHost: 'assets.adcode.dev',
+    auth, fetchImpl, now, random: () => 0.5,
+  });
+
+describe('serve', () => {
+  it('sends the bearer token and returns validated creatives', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okJson({ creatives: [creative('cr_1')] }));
+    const client = make(fetchImpl);
+
+    const out = await client.serve(['typescript'], 'dark', 3);
+    expect(out.map((c) => c.creativeId)).toEqual(['cr_1']);
+
+    const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers['authorization']).toBe('Bearer id-token-1');
+    expect(JSON.parse(init.body as string)).toEqual({
+      tags: ['typescript'], themeKind: 'dark', count: 3,
+    });
+  });
+
+  it('never sends an identifier in the request body', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okJson({ creatives: [] }));
+    await make(fetchImpl).serve([], 'light', 1);
+
+    const body = JSON.parse((fetchImpl.mock.calls[0]![1] as RequestInit).body as string);
+    expect(Object.keys(body).sort()).toEqual(['count', 'tags', 'themeKind']);
+  });
+
+  it('drops creatives that fail validation', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okJson({
+      creatives: [creative('cr_1'), { ...creative('cr_2'), clickUrl: 'http://evil.example' }],
+    }));
+    const out = await make(fetchImpl).serve([], 'light', 5);
+    expect(out.map((c) => c.creativeId)).toEqual(['cr_1']);
+  });
+
+  it('returns an empty array on a 500 rather than throwing', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('boom', { status: 500 }));
+    await expect(make(fetchImpl).serve([], 'light', 1)).resolves.toEqual([]);
+  });
+
+  it('returns an empty array on malformed json', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response('{not json', { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    await expect(make(fetchImpl).serve([], 'light', 1)).resolves.toEqual([]);
+  });
+
+  it('returns an empty array when the network rejects', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('ENOTFOUND'));
+    await expect(make(fetchImpl).serve([], 'light', 1)).resolves.toEqual([]);
+  });
+
+  it('returns an empty array when auth itself fails', async () => {
+    const failing: AuthProvider = { getIdToken: async () => { throw new Error('no network'); } };
+    const client = new AdClient({
+      baseUrl: 'https://api.example', assetHost: 'assets.adcode.dev',
+      auth: failing, fetchImpl: vi.fn(), now: () => 0, random: () => 0.5,
+    });
+    await expect(client.serve([], 'light', 1)).resolves.toEqual([]);
+  });
+
+  it('passes an abort signal so a hung server cannot block forever', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okJson({ creatives: [] }));
+    await make(fetchImpl).serve([], 'light', 1);
+    const init = fetchImpl.mock.calls[0]![1] as RequestInit;
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+describe('backoff', () => {
+  it('skips the network entirely while backed off', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('down'));
+    const client = make(fetchImpl, () => 1_000_000);
+
+    await client.serve([], 'light', 1);
+    expect(client.backedOff).toBe(true);
+
+    await client.serve([], 'light', 1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('resumes once the backoff window elapses', async () => {
+    let clock = 1_000_000;
+    const fetchImpl = vi.fn()
+      .mockRejectedValueOnce(new Error('down'))
+      .mockResolvedValueOnce(okJson({ creatives: [creative('cr_1')] }));
+    const client = make(fetchImpl, () => clock);
+
+    await client.serve([], 'light', 1);
+    clock += BACKOFF_BASE_MS + 1;
+    const out = await client.serve([], 'light', 1);
+
+    expect(out).toHaveLength(1);
+    expect(client.backedOff).toBe(false);
+  });
+
+  it('grows the window on repeated failures', async () => {
+    let clock = 1_000_000;
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('down'));
+    const client = make(fetchImpl, () => clock);
+
+    await client.serve([], 'light', 1);
+    clock += BACKOFF_BASE_MS + 1;
+    await client.serve([], 'light', 1);       // second failure, doubles
+
+    clock += BACKOFF_BASE_MS + 1;             // not enough for the doubled window
+    await client.serve([], 'light', 1);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears after a success', async () => {
+    let clock = 1_000_000;
+    const fetchImpl = vi.fn()
+      .mockRejectedValueOnce(new Error('down'))
+      .mockResolvedValue(okJson({ creatives: [] }));
+    const client = make(fetchImpl, () => clock);
+
+    await client.serve([], 'light', 1);
+    clock += BACKOFF_BASE_MS + 1;
+    await client.serve([], 'light', 1);
+    expect(client.backedOff).toBe(false);
+  });
+});
+
+describe('postReceipts', () => {
+  it('returns the acked ids', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okJson({ acked: ['r1', 'r2'] }));
+    const out = await make(fetchImpl).postReceipts([]);
+    expect(out).toEqual(['r1', 'r2']);
+  });
+
+  it('returns an empty array on failure so nothing is wrongly acked', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('down'));
+    await expect(make(fetchImpl).postReceipts([])).resolves.toEqual([]);
+  });
+
+  it('ignores non-string entries in the acked list', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okJson({ acked: ['r1', 7, null] }));
+    await expect(make(fetchImpl).postReceipts([])).resolves.toEqual(['r1']);
+  });
+});
+
+describe('balance and config', () => {
+  it('parses a balance', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      okJson({ availableMicros: 2000, lifetimeMicros: 5000 }));
+    await expect(make(fetchImpl).balance()).resolves.toEqual({
+      availableMicros: 2000, lifetimeMicros: 5000,
+    });
+  });
+
+  it('returns null for a balance with non-numeric fields', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okJson({ availableMicros: '2000' }));
+    await expect(make(fetchImpl).balance()).resolves.toBeNull();
+  });
+
+  it('parses a config', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      okJson({ enabled: true, minIntervalMs: 60_000, dailyCap: 4 }));
+    await expect(make(fetchImpl).config()).resolves.toEqual({
+      enabled: true, minIntervalMs: 60_000, dailyCap: 4,
+    });
+  });
+
+  it('returns null for a malformed config so shipped defaults stand', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okJson({ enabled: 'yes' }));
+    await expect(make(fetchImpl).config()).resolves.toBeNull();
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/client.test.ts`
+Expected: FAIL — `Failed to resolve import "../src/client"`.
+
+- [ ] **Step 3: Implement the client**
+
+`extensions/adcode-ads/src/client.ts`:
+
+```typescript
+import type { AuthProvider } from './auth';
+import type { Balance, Creative, Receipt, RemoteConfig, ThemeKind } from './types';
+import { validateCreatives } from './validation';
+
+export const REQUEST_TIMEOUT_MS = 3000;
+export const BACKOFF_BASE_MS = 30_000;
+export const BACKOFF_MAX_MS = 15 * 60_000;
+
+export interface AdClientOptions {
+  baseUrl: string;
+  assetHost: string;
+  auth: AuthProvider;
+  fetchImpl?: typeof fetch;
+  now?: () => number;
+  random?: () => number;
+}
+
+/**
+ * Talks to the serving contract. No method throws for a network condition —
+ * a failure yields an empty result and engages backoff, so a dead ad server
+ * is indistinguishable from a quiet one.
+ */
+export class AdClient {
+  private failureCount = 0;
+  private backoffUntilMs = 0;
+
+  private readonly baseUrl: string;
+  private readonly assetHost: string;
+  private readonly auth: AuthProvider;
+  private readonly fetchImpl: typeof fetch;
+  private readonly now: () => number;
+  private readonly random: () => number;
+
+  constructor(options: AdClientOptions) {
+    this.baseUrl = options.baseUrl.replace(/\/+$/, '');
+    this.assetHost = options.assetHost;
+    this.auth = options.auth;
+    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.now = options.now ?? (() => Date.now());
+    this.random = options.random ?? Math.random;
+  }
+
+  get backedOff(): boolean {
+    return this.now() < this.backoffUntilMs;
+  }
+
+  async serve(
+    tags: readonly string[],
+    themeKind: ThemeKind,
+    count: number,
+  ): Promise<Creative[]> {
+    // Identity travels in the token, never the body.
+    const body = await this.request('POST', '/v1/serve', { tags, themeKind, count });
+    if (body === null) return [];
+    return validateCreatives(
+      (body as Record<string, unknown>)['creatives'],
+      { assetHost: this.assetHost },
+    );
+  }
+
+  async postReceipts(receipts: readonly Receipt[]): Promise<string[]> {
+    const body = await this.request('POST', '/v1/receipts', { receipts });
+    if (body === null) return [];
+    const acked = (body as Record<string, unknown>)['acked'];
+    if (!Array.isArray(acked)) return [];
+    return acked.filter((id): id is string => typeof id === 'string');
+  }
+
+  async balance(): Promise<Balance | null> {
+    const body = await this.request('GET', '/v1/balance');
+    if (body === null) return null;
+    const b = body as Record<string, unknown>;
+    if (typeof b['availableMicros'] !== 'number' || typeof b['lifetimeMicros'] !== 'number') {
+      return null;
+    }
+    return { availableMicros: b['availableMicros'], lifetimeMicros: b['lifetimeMicros'] };
+  }
+
+  async config(): Promise<RemoteConfig | null> {
+    const body = await this.request('GET', '/v1/config');
+    if (body === null) return null;
+    const c = body as Record<string, unknown>;
+    if (
+      typeof c['enabled'] !== 'boolean' ||
+      typeof c['minIntervalMs'] !== 'number' ||
+      typeof c['dailyCap'] !== 'number'
+    ) {
+      return null;
+    }
+    return {
+      enabled: c['enabled'],
+      minIntervalMs: c['minIntervalMs'],
+      dailyCap: c['dailyCap'],
+    };
+  }
+
+  private async request(
+    method: 'GET' | 'POST',
+    path: string,
+    body?: unknown,
+  ): Promise<unknown | null> {
+    if (this.backedOff) return null;
+
+    try {
+      const token = await this.auth.getIdToken();
+      const init: RequestInit = {
+        method,
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+        },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      };
+      if (body !== undefined) init.body = JSON.stringify(body);
+
+      const res = await this.fetchImpl(`${this.baseUrl}${path}`, init);
+      if (!res.ok) {
+        this.recordFailure();
+        return null;
+      }
+
+      const parsed: unknown = await res.json();
+      this.recordSuccess();
+      return parsed;
+    } catch {
+      // Timeout, DNS failure, offline, malformed JSON, or auth failure.
+      this.recordFailure();
+      return null;
+    }
+  }
+
+  private recordSuccess(): void {
+    this.failureCount = 0;
+    this.backoffUntilMs = 0;
+  }
+
+  private recordFailure(): void {
+    this.failureCount += 1;
+    const window = Math.min(
+      BACKOFF_BASE_MS * 2 ** (this.failureCount - 1),
+      BACKOFF_MAX_MS,
+    );
+    // Jitter spreads reconnects so a recovering server is not stampeded.
+    const jittered = window * (0.5 + this.random() * 0.5);
+    this.backoffUntilMs = this.now() + jittered;
+  }
+}
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/client.test.ts`
+Expected: PASS, all 18 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add extensions/adcode-ads/src/client.ts extensions/adcode-ads/test/client.test.ts
+git commit -m "feat: add ad API client with timeout, jittered backoff, and no-throw contract"
+```
+
+---
+
+### Task 9: The asset cache
+
+Spec requires assets be fetched and cached by us, never hot-linked — hot-linking would hand every advertiser the users' IP addresses on every impression. This module is that boundary. It returns a `data:` URI so the notification and the webview can display a logo with no resource-root or CSP configuration.
+
+It also carries the **development origin override**: validation always demands `https` on the allowlisted host, and the override rewrites only the transport target. Validation stays a security boundary; only fetching is redirected.
+
+**Files:**
+- Create: `extensions/adcode-ads/src/assetCache.ts`
+- Test: `extensions/adcode-ads/test/assetCache.test.ts`
+
+**Interfaces:**
+- Consumes: nothing from earlier tasks.
+- Produces:
+  - `MAX_ASSET_BYTES: number`, `ALLOWED_ASSET_TYPES: ReadonlySet<string>`
+  - `class AssetCache` constructed with `{ dir: string; fetchImpl?: typeof fetch; devOriginOverride?: string; maxEntries?: number }`, exposing `getDataUri(url: string): Promise<string | null>`
+
+- [ ] **Step 1: Write the failing tests**
+
+`extensions/adcode-ads/test/assetCache.test.ts`:
+
+```typescript
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdtemp, rm, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { AssetCache, MAX_ASSET_BYTES } from '../src/assetCache';
+
+let dir: string;
+beforeEach(async () => { dir = await mkdtemp(join(tmpdir(), 'adcode-assets-')); });
+afterEach(async () => { await rm(dir, { recursive: true, force: true }); });
+
+const SVG = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>';
+const URL_LIGHT = 'https://assets.adcode.dev/cr_1/light.svg';
+
+const svgResponse = (body = SVG) =>
+  new Response(body, { status: 200, headers: { 'content-type': 'image/svg+xml' } });
+
+describe('AssetCache', () => {
+  it('fetches an asset and returns a data uri', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(svgResponse());
+    const uri = await new AssetCache({ dir, fetchImpl }).getDataUri(URL_LIGHT);
+
+    expect(uri).toMatch(/^data:image\/svg\+xml;base64,/);
+    expect(Buffer.from(uri!.split(',')[1]!, 'base64').toString('utf8')).toBe(SVG);
+  });
+
+  it('serves a second request from memory without refetching', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(svgResponse());
+    const cache = new AssetCache({ dir, fetchImpl });
+
+    await cache.getDataUri(URL_LIGHT);
+    await cache.getDataUri(URL_LIGHT);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves from disk across instances', async () => {
+    const first = vi.fn().mockResolvedValue(svgResponse());
+    await new AssetCache({ dir, fetchImpl: first }).getDataUri(URL_LIGHT);
+
+    const second = vi.fn().mockRejectedValue(new Error('should not be called'));
+    const uri = await new AssetCache({ dir, fetchImpl: second }).getDataUri(URL_LIGHT);
+
+    expect(uri).toMatch(/^data:image\/svg\+xml;base64,/);
+    expect(second).not.toHaveBeenCalled();
+  });
+
+  it('rewrites only the origin under the dev override', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(svgResponse());
+    await new AssetCache({
+      dir, fetchImpl, devOriginOverride: 'http://127.0.0.1:8787',
+    }).getDataUri(URL_LIGHT);
+
+    expect(fetchImpl.mock.calls[0]![0]).toBe('http://127.0.0.1:8787/cr_1/light.svg');
+  });
+
+  it('rejects a disallowed content type', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response('<html>', { status: 200, headers: { 'content-type': 'text/html' } }));
+    await expect(new AssetCache({ dir, fetchImpl }).getDataUri(URL_LIGHT)).resolves.toBeNull();
+  });
+
+  it('rejects an svg containing a script element', async () => {
+    const hostile = '<svg xmlns="http://www.w3.org/2000/svg"><script>x()</script></svg>';
+    const fetchImpl = vi.fn().mockResolvedValue(svgResponse(hostile));
+    await expect(new AssetCache({ dir, fetchImpl }).getDataUri(URL_LIGHT)).resolves.toBeNull();
+  });
+
+  it('rejects an oversized asset', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response('x'.repeat(MAX_ASSET_BYTES + 1), {
+        status: 200, headers: { 'content-type': 'image/svg+xml' },
+      }));
+    await expect(new AssetCache({ dir, fetchImpl }).getDataUri(URL_LIGHT)).resolves.toBeNull();
+  });
+
+  it('returns null on a network failure', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('offline'));
+    await expect(new AssetCache({ dir, fetchImpl }).getDataUri(URL_LIGHT)).resolves.toBeNull();
+  });
+
+  it('returns null on a 404', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('', { status: 404 }));
+    await expect(new AssetCache({ dir, fetchImpl }).getDataUri(URL_LIGHT)).resolves.toBeNull();
+  });
+
+  it('evicts the oldest entries past maxEntries', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(svgResponse());
+    const cache = new AssetCache({ dir, fetchImpl, maxEntries: 2 });
+
+    await cache.getDataUri('https://assets.adcode.dev/a/light.svg');
+    await cache.getDataUri('https://assets.adcode.dev/b/light.svg');
+    await cache.getDataUri('https://assets.adcode.dev/c/light.svg');
+
+    expect((await readdir(dir)).length).toBeLessThanOrEqual(2);
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/assetCache.test.ts`
+Expected: FAIL — `Failed to resolve import "../src/assetCache"`.
+
+- [ ] **Step 3: Implement the asset cache**
+
+`extensions/adcode-ads/src/assetCache.ts`:
+
+```typescript
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+export const MAX_ASSET_BYTES = 256 * 1024;
+
+export const ALLOWED_ASSET_TYPES: ReadonlySet<string> = new Set([
+  'image/svg+xml',
+  'image/png',
+  'image/webp',
+]);
+
+const DEFAULT_MAX_ENTRIES = 64;
+
+interface CacheEntry {
+  mime: string;
+  base64: string;
+}
+
+export interface AssetCacheOptions {
+  dir: string;
+  fetchImpl?: typeof fetch;
+  /** Development only. Rewrites the request origin; validation still demands https. */
+  devOriginOverride?: string;
+  maxEntries?: number;
+}
+
+/**
+ * Fetches and caches creative assets so they are never hot-linked from
+ * advertiser servers — hot-linking would leak the user's IP address to every
+ * advertiser on every impression.
+ */
+export class AssetCache {
+  private readonly memory = new Map<string, CacheEntry>();
+  private readonly dir: string;
+  private readonly fetchImpl: typeof fetch;
+  private readonly devOriginOverride: string | undefined;
+  private readonly maxEntries: number;
+
+  constructor(options: AssetCacheOptions) {
+    this.dir = options.dir;
+    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.devOriginOverride = options.devOriginOverride;
+    this.maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
+  }
+
+  async getDataUri(url: string): Promise<string | null> {
+    const key = createHash('sha256').update(url).digest('hex');
+
+    const cached = this.memory.get(key);
+    if (cached !== undefined) return toDataUri(cached);
+
+    const fromDisk = await this.readDisk(key);
+    if (fromDisk !== null) {
+      this.memory.set(key, fromDisk);
+      return toDataUri(fromDisk);
+    }
+
+    const fetched = await this.download(url);
+    if (fetched === null) return null;
+
+    this.memory.set(key, fetched);
+    await this.writeDisk(key, fetched);
+    return toDataUri(fetched);
+  }
+
+  private targetUrl(url: string): string {
+    if (this.devOriginOverride === undefined) return url;
+    const parsed = new URL(url);
+    return `${this.devOriginOverride.replace(/\/+$/, '')}${parsed.pathname}`;
+  }
+
+  private async download(url: string): Promise<CacheEntry | null> {
+    try {
+      const res = await this.fetchImpl(this.targetUrl(url), {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return null;
+
+      const mime = (res.headers.get('content-type') ?? '').split(';')[0]!.trim();
+      if (!ALLOWED_ASSET_TYPES.has(mime)) return null;
+
+      const buffer = Buffer.from(await res.arrayBuffer());
+      if (buffer.byteLength > MAX_ASSET_BYTES) return null;
+
+      // An <img> will not execute script inside an SVG, but rejecting it
+      // costs nothing and keeps the asset pipeline usable elsewhere.
+      if (mime === 'image/svg+xml' && /<script[\s>]/i.test(buffer.toString('utf8'))) {
+        return null;
+      }
+
+      return { mime, base64: buffer.toString('base64') };
+    } catch {
+      return null;
+    }
+  }
+
+  private async readDisk(key: string): Promise<CacheEntry | null> {
+    try {
+      const parsed: unknown = JSON.parse(await readFile(join(this.dir, key), 'utf8'));
+      if (typeof parsed !== 'object' || parsed === null) return null;
+      const e = parsed as Record<string, unknown>;
+      if (typeof e['mime'] !== 'string' || typeof e['base64'] !== 'string') return null;
+      if (!ALLOWED_ASSET_TYPES.has(e['mime'])) return null;
+      return { mime: e['mime'], base64: e['base64'] };
+    } catch {
+      return null;
+    }
+  }
+
+  private async writeDisk(key: string, entry: CacheEntry): Promise<void> {
+    try {
+      await mkdir(this.dir, { recursive: true });
+      const target = join(this.dir, key);
+      const temp = `${target}.tmp`;
+      await writeFile(temp, JSON.stringify(entry), 'utf8');
+      await rename(temp, target);
+      await this.evict();
+    } catch {
+      // A full or read-only disk must not break ad display. Memory cache stands.
+    }
+  }
+
+  private async evict(): Promise<void> {
+    const names = (await readdir(this.dir)).filter((n) => !n.endsWith('.tmp'));
+    if (names.length <= this.maxEntries) return;
+
+    const stamped = await Promise.all(
+      names.map(async (name) => {
+        const info = await stat(join(this.dir, name));
+        return { name, mtimeMs: info.mtimeMs };
+      }),
+    );
+    stamped.sort((a, b) => a.mtimeMs - b.mtimeMs);
+
+    for (const { name } of stamped.slice(0, stamped.length - this.maxEntries)) {
+      await unlink(join(this.dir, name)).catch(() => undefined);
+    }
+  }
+}
+
+function toDataUri(entry: CacheEntry): string {
+  return `data:${entry.mime};base64,${entry.base64}`;
+}
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/assetCache.test.ts`
+Expected: PASS, all 10 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add extensions/adcode-ads/src/assetCache.ts extensions/adcode-ads/test/assetCache.test.ts
+git commit -m "feat: add asset cache so creatives are never hot-linked from advertisers"
+```
+
+---
