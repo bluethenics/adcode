@@ -37,17 +37,22 @@ Every task's requirements implicitly include this section. Values are copied ver
 | `extensions/adcode-ads/src/receiptQueue.ts` | Disk-backed, capped, deduped receipt queue. |
 | `extensions/adcode-ads/src/auth.ts` | Firebase anonymous identity and ID-token refresh. |
 | `extensions/adcode-ads/src/client.ts` | HTTPS calls to the serving contract. Timeout, backoff, validation. |
+| `extensions/adcode-ads/src/assetCache.ts` | Fetches and caches creative assets so they are never hot-linked. |
 | `extensions/adcode-ads/src/ledger.ts` | Mirrors server balance; formats micros for display. |
 | `extensions/adcode-ads/src/renderer.ts` | Creative → notification, via a swappable `NotificationSink`. |
-| `extensions/adcode-ads/src/sponsorsView.ts` | Sidebar webview: history, balance, frequency setting. |
-| `extensions/adcode-ads/src/extension.ts` | Activation, 60s tick, VS Code adapters, wiring. Thin. |
+| `extensions/adcode-ads/src/sponsorsHtml.ts` | **Pure.** Builds the sidebar webview HTML with a nonce-locked CSP. |
+| `extensions/adcode-ads/src/extension.ts` | Activation, 60s tick, VS Code adapters, webview provider, wiring. Thin. |
 | `mock-server/src/server.ts` | Local implementation of all four endpoints + asset host. |
-| `patches/0001-product-rebrand.patch` | `product.json`, icons, Open VSX, telemetry strip. |
-| `patches/0002-sponsored-notification.patch` | Sponsored notification kind, slide-in motion, zen guard. |
+| `patches/0001-product-rebrand.patch` | `product.json`, icons, Open VSX, telemetry strip, theme defaults. |
+| `patches/0002-sponsored-notification.patch` | Sponsored notification kind, slide-in motion, zen guard, color token. |
+| `patches/0003-register-builtin-extension.patch` | Registers `adcode-ads` as a built-in in `build/npm/dirs.js`. |
 | `scripts/apply-patches.mjs` | Applies `patches/*.patch` onto `vscode/`. |
 | `scripts/verify-patches.mjs` | Dry-run apply; non-zero exit when a patch rots. |
+| `scripts/bundle-extension.mjs` | Compiles and copies the extension into `vscode/extensions/`. |
 
-The four `Pure` modules import nothing from `vscode`. That is what makes them testable in milliseconds and is the reason `extension.ts` stays thin — it is an adapter layer, not a logic layer.
+The five `Pure` modules import nothing from `vscode`. That is what makes them testable in milliseconds and is the reason `extension.ts` stays thin — it is an adapter layer, not a logic layer.
+
+**Patch budget: 3 patches, 7 files total.** Growth past that is a decision to be argued for, not drift to be absorbed.
 
 ---
 
@@ -105,6 +110,11 @@ The four `Pure` modules import nothing from `vscode`. That is what makes them te
           "description": "Ad serving endpoint."
         }
       }
+    },
+    "configurationDefaults": {
+      "window.autoDetectColorScheme": true,
+      "workbench.preferredLightColorTheme": "Default Light Modern",
+      "workbench.preferredDarkColorTheme": "Default Dark Modern"
     },
     "views": {
       "adcode": [
@@ -4047,16 +4057,1003 @@ export async function deactivate(): Promise<void> {
 Run: `cd extensions/adcode-ads && npx vitest run test/extension.test.ts`
 Expected: PASS, all 10 tests.
 
-- [ ] **Step 7: Run the full suite and typecheck**
+- [ ] **Step 7: Register the Sponsors webview provider**
+
+Task 12 built the HTML; nothing renders it yet. Add to `extension.ts`:
+
+```typescript
+import { randomBytes } from 'node:crypto';
+import { renderSponsorsHtml, type SponsorEntry } from './sponsorsHtml';
+
+const HISTORY_LIMIT = 20;
+
+class SponsorsViewProvider implements vscode.WebviewViewProvider {
+  private view: vscode.WebviewView | undefined;
+
+  constructor(
+    private readonly entries: SponsorEntry[],
+    private readonly ledger: Ledger,
+  ) {}
+
+  resolveWebviewView(view: vscode.WebviewView): void {
+    this.view = view;
+    view.webview.options = { enableScripts: true, localResourceRoots: [] };
+    view.webview.onDidReceiveMessage(async (message: { type: string; value?: string; url?: string }) => {
+      if (message.type === 'setFrequency' && message.value !== undefined) {
+        await vscode.workspace.getConfiguration()
+          .update('adcode.ads.frequency', message.value, true);
+        this.refresh();
+      }
+      if (message.type === 'open' && message.url !== undefined) {
+        // The HTML builder already dropped non-https hrefs; re-check anyway.
+        try {
+          if (new URL(message.url).protocol === 'https:') {
+            await vscode.env.openExternal(vscode.Uri.parse(message.url));
+          }
+        } catch { /* malformed url — ignore */ }
+      }
+    });
+    this.refresh();
+  }
+
+  refresh(): void {
+    if (this.view === undefined) return;
+    const config = vscode.workspace.getConfiguration();
+    this.view.webview.html = renderSponsorsHtml({
+      entries: this.entries.slice(-HISTORY_LIMIT).reverse(),
+      balanceDisplay: this.ledger.display,
+      frequency: config.get<FrequencyPref>('adcode.ads.frequency', 'standard'),
+      adsEnabled: config.get<boolean>('adcode.ads.enabled', true),
+    }, randomBytes(16).toString('base64'));
+  }
+}
+```
+
+Wire it inside `activate`, after the ledger is constructed:
+
+```typescript
+  const history: SponsorEntry[] = context.globalState.get<SponsorEntry[]>('adcode.history', []);
+  const sponsors = new SponsorsViewProvider(history, ledger);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('adcode.sponsors', sponsors),
+    vscode.commands.registerCommand('adcode.showSponsors', () =>
+      vscode.commands.executeCommand('workbench.view.extension.adcode')),
+  );
+```
+
+And record each shown creative in `tick`, immediately after `renderer.present` returns:
+
+```typescript
+      history.push({
+        creativeId: creative.creativeId,
+        headline: creative.headline,
+        body: creative.body,
+        logoDataUri: await assets.getDataUri(
+          themeKindOf(vscode.window.activeColorTheme.kind) === 'dark'
+            ? creative.logoDark : creative.logoLight),
+        clickUrl: creative.clickUrl,
+        seenAtMs: nowMs,
+      });
+      while (history.length > HISTORY_LIMIT) history.shift();
+      await context.globalState.update('adcode.history', history);
+      sponsors.refresh();
+```
+
+- [ ] **Step 8: Add the identifier reset command**
+
+Spec §6.1 requires a settings-level identifier reset that warns the balance is forfeit. Add to `package.json` `contributes`:
+
+```json
+    "commands": [
+      { "command": "adcode.showSponsors", "title": "ADCode: Show Sponsors" },
+      { "command": "adcode.resetIdentifier", "title": "ADCode: Reset Anonymous Identifier" }
+    ]
+```
+
+And register it in `activate`:
+
+```typescript
+  context.subscriptions.push(
+    vscode.commands.registerCommand('adcode.resetIdentifier', async () => {
+      const confirm = await vscode.window.showWarningMessage(
+        'Reset your anonymous identifier? Any unclaimed balance is permanently forfeit and cannot be recovered.',
+        { modal: true },
+        'Reset and forfeit balance',
+      );
+      if (confirm !== 'Reset and forfeit balance') return;
+
+      await context.secrets.delete(REFRESH_TOKEN_KEY);
+      await context.globalState.update('adcode.balance', undefined);
+      await context.globalState.update('adcode.shown', []);
+      await context.globalState.update('adcode.history', []);
+      shownTimestampsMs = [];
+      history.length = 0;
+      sponsors.refresh();
+
+      await vscode.window.showInformationMessage(
+        'Identifier reset. A new anonymous identity will be created on next launch.');
+    }),
+  );
+```
+
+Import `REFRESH_TOKEN_KEY` from `./auth` and add `delete(key: string): Promise<void>` to the stub's `secrets` object so the test suite still compiles.
+
+- [ ] **Step 9: Run the full suite and typecheck**
 
 Run: `cd extensions/adcode-ads && npx tsc -p . --noEmit && npx vitest run`
 Expected: `tsc` exits 0; every test from Tasks 1–13 passes.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add extensions/adcode-ads
-git commit -m "feat: wire the ad client into VS Code with a text-only fallback sink"
+git commit -m "feat: wire the ad client into VS Code with fallback sink, sponsors view, and identifier reset"
 ```
 
 ---
+
+### Task 14: Fork setup, patch tooling, and the rebrand
+
+From here the tasks are procedural rather than test-driven — the deliverable is a build, and the test is that it runs. The patch tooling comes first because it is what makes every later source change survivable.
+
+**Files:**
+- Create: `.gitmodules` (via `git submodule add`)
+- Create: `scripts/apply-patches.mjs`
+- Create: `scripts/verify-patches.mjs`
+- Create: `patches/0001-product-rebrand.patch` (generated, not hand-written)
+- Create: `.github/workflows/patch-canary.yml`
+- Modify: `package.json` at repo root (create if absent)
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: `npm run patches:apply`, `npm run patches:verify`, and a buildable `vscode/` tree.
+
+- [ ] **Step 1: Confirm build prerequisites**
+
+Code-OSS needs a native toolchain. On Windows:
+
+Run: `python --version` and `npx node-gyp --version`
+Expected: Python 3.x present. If either fails, install Python 3.11+ and Visual Studio Build Tools with the "Desktop development with C++" workload before continuing. On Linux, install `build-essential libx11-dev libxkbfile-dev libsecret-1-dev`.
+
+- [ ] **Step 2: Pin Code-OSS as a submodule**
+
+```bash
+git submodule add https://github.com/microsoft/vscode.git vscode
+cd vscode && git fetch --tags && git checkout 1.104.0 && cd ..
+git add .gitmodules vscode
+git commit -m "chore: pin Code-OSS submodule at 1.104.0"
+```
+
+Use whatever the current stable tag is at execution time in place of `1.104.0`; record the exact tag in the commit message. Pinning to a tag rather than a branch is what makes patch drift a deliberate, dated event.
+
+- [ ] **Step 3: Write the patch tooling**
+
+`scripts/apply-patches.mjs`:
+
+```javascript
+#!/usr/bin/env node
+import { readdir } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { join, resolve } from 'node:path';
+
+const root = resolve(import.meta.dirname, '..');
+const patchDir = join(root, 'patches');
+const check = process.argv.includes('--check');
+
+const patches = (await readdir(patchDir)).filter((f) => f.endsWith('.patch')).sort();
+if (patches.length === 0) {
+  console.log('[patches] none to apply');
+  process.exit(0);
+}
+
+let failed = 0;
+for (const patch of patches) {
+  const args = ['-C', 'vscode', 'apply', ...(check ? ['--check'] : []), join(patchDir, patch)];
+  try {
+    execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+    console.log(`[patches] ${check ? 'verified' : 'applied'} ${patch}`);
+  } catch (error) {
+    failed += 1;
+    console.error(`[patches] FAILED ${patch}`);
+    console.error(String(error.stderr ?? error.message));
+  }
+}
+
+if (failed > 0) {
+  console.error(`[patches] ${failed} of ${patches.length} failed against this vscode revision`);
+  process.exit(1);
+}
+```
+
+`scripts/verify-patches.mjs`:
+
+```javascript
+#!/usr/bin/env node
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
+
+const root = resolve(import.meta.dirname, '..');
+execFileSync('git', ['-C', 'vscode', 'checkout', '--', '.'], { cwd: root, stdio: 'inherit' });
+execFileSync(process.execPath, ['scripts/apply-patches.mjs', '--check'],
+  { cwd: root, stdio: 'inherit' });
+```
+
+Root `package.json`:
+
+```json
+{
+  "name": "adcode",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "patches:apply": "node scripts/apply-patches.mjs",
+    "patches:verify": "node scripts/verify-patches.mjs"
+  }
+}
+```
+
+- [ ] **Step 4: Make the rebrand edits in the working tree**
+
+Edit `vscode/product.json`. Set these keys (add them if absent), leaving every other key untouched:
+
+```json
+{
+  "nameShort": "ADCode",
+  "nameLong": "ADCode",
+  "applicationName": "adcode",
+  "dataFolderName": ".adcode",
+  "serverDataFolderName": ".adcode-server",
+  "urlProtocol": "adcode",
+  "win32AppUserModelId": "ADCode.ADCode",
+  "win32DirName": "ADCode",
+  "win32NameVersion": "ADCode",
+  "win32RegValueName": "ADCode",
+  "win32AppId": "{{GENERATE-A-FRESH-GUID}}",
+  "win32x64AppId": "{{GENERATE-A-FRESH-GUID}}",
+  "darwinBundleIdentifier": "dev.adcode.ADCode",
+  "linuxIconName": "adcode",
+  "reportIssueUrl": "https://github.com/YOUR-ORG/adcode/issues/new",
+  "licenseUrl": "https://github.com/YOUR-ORG/adcode/blob/main/LICENSE.txt",
+  "updateUrl": "https://update.adcode.dev",
+  "quality": "stable",
+  "extensionsGallery": {
+    "serviceUrl": "https://open-vsx.org/vscode/gallery",
+    "itemUrl": "https://open-vsx.org/vscode/item"
+  }
+}
+```
+
+Generate real GUIDs for the `win32*AppId` fields:
+
+Run: `node -e "const{randomUUID}=require('node:crypto');console.log('{'+randomUUID().toUpperCase()+'}');console.log('{'+randomUUID().toUpperCase()+'}')"`
+
+Then **delete** these keys entirely if present — they route user data to Microsoft:
+
+```
+aiConfig, msftInternalDomains, enableTelemetry, telemetryOptOutUrl,
+sendASmile, documentationUrl, requestFeatureUrl, twitterUrl,
+surveys, experimentsUrl, extensionEnabledApiProposals
+```
+
+Leave `extensionEnabledApiProposals` in place if removing it breaks the build; it is not a telemetry key and is listed here only because forks commonly trim it. Verify with a build in Task 16.
+
+- [ ] **Step 5: Generate the patch from those edits**
+
+```bash
+git -C vscode diff > patches/0001-product-rebrand.patch
+git -C vscode checkout -- .
+node scripts/apply-patches.mjs --check
+```
+
+Expected: `[patches] verified 0001-product-rebrand.patch`.
+
+Generating the patch from real edits — rather than hand-writing a diff — is the only way to get correct context lines against whatever tag you pinned.
+
+- [ ] **Step 6: Add the nightly canary**
+
+`.github/workflows/patch-canary.yml`:
+
+```yaml
+name: Patch canary
+on:
+  schedule: [{ cron: '0 6 * * *' }]
+  workflow_dispatch:
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: '24' }
+      - name: Move vscode submodule to upstream main
+        run: git -C vscode fetch origin main && git -C vscode checkout origin/main
+      - name: Check patches still apply
+        run: node scripts/apply-patches.mjs --check
+```
+
+This job is *expected* to go red eventually — that is its purpose. It converts "our patch broke" from a surprise discovered during a release into a dated signal weeks ahead of one.
+
+- [ ] **Step 7: Add patch verification to the main CI**
+
+Modify `.github/workflows/ci.yml` — add a third job at the same indentation as `extension`:
+
+```yaml
+  patches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: '24' }
+      - run: node scripts/apply-patches.mjs --check
+```
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add scripts patches package.json .github/workflows
+git commit -m "feat: add patch tooling, product rebrand patch, and nightly canary"
+```
+
+---
+
+### Task 15: The sponsored notification patch
+
+Adds the notification kind the product actually needs: a logo, a "Sponsored" label, and the slide-in motion. Confined to the notifications part plus one CSS file — five files, all adjacent.
+
+Exact line anchors are located at clone time by reading the pinned source — that is a procedure, not an unknown. The code below is what gets inserted.
+
+**Files:**
+- Modify (then revert): `vscode/src/vs/platform/notification/common/notification.ts`
+- Modify (then revert): `vscode/src/vs/workbench/browser/parts/notifications/notificationsViewer.ts`
+- Modify (then revert): `vscode/src/vs/workbench/browser/parts/notifications/notificationsToasts.ts`
+- Modify (then revert): `vscode/src/vs/workbench/browser/parts/notifications/media/notificationsToasts.css`
+- Modify (then revert): the notifications contribution file (colour token + command registration)
+- Create: `patches/0002-sponsored-notification.patch` (generated)
+- Modify: `extensions/adcode-ads/src/extension.ts`
+- Test: `extensions/adcode-ads/test/sponsoredSink.test.ts`
+
+**Interfaces:**
+- Consumes: `NotificationSink`, `SponsoredView`, `ShowResult` from `./renderer`.
+- Produces:
+  - Workbench command `_adcode.showSponsored`, taking `{ headline: string; body: string; logoDataUri: string | null; autoDismissMs: number }` and resolving to `{ outcome: 'clicked' | 'hidden' | 'dismissed' | 'timeout'; shownMs: number; focusedThroughout: boolean }`.
+  - `class SponsoredSink implements NotificationSink` in `extension.ts`
+  - `pickSink(available: readonly string[]): 'sponsored' | 'fallback'` exported from `extension.ts`
+
+- [ ] **Step 1: Locate the insertion points**
+
+```bash
+node scripts/apply-patches.mjs
+grep -n "severity" vscode/src/vs/platform/notification/common/notification.ts | head -30
+grep -n "class NotificationTemplateRenderer\|renderTemplate\|icon" vscode/src/vs/workbench/browser/parts/notifications/notificationsViewer.ts | head -30
+grep -n "addNotification\|isZenModeActive\|layoutService" vscode/src/vs/workbench/browser/parts/notifications/notificationsToasts.ts | head -30
+```
+
+Record the file and line for: the `INotification` interface declaration, the notification list template's icon element construction, and the toast-creation entry point. Those three are where the edits go.
+
+- [ ] **Step 2: Add the sponsor field to the notification model**
+
+In `notification.ts`, add to the `INotification` interface:
+
+```typescript
+	/**
+	 * Marks this notification as sponsored content. Set only by the bundled
+	 * ADCode extension via the _adcode.showSponsored command.
+	 */
+	readonly sponsor?: {
+		readonly logoDataUri: string | null;
+	};
+```
+
+- [ ] **Step 3: Render the logo and label**
+
+In `notificationsViewer.ts`, inside the template renderer where the severity icon is set, branch on the sponsor field:
+
+```typescript
+		if (notification.sponsor) {
+			template.icon.classList.add('sponsored-logo');
+			if (notification.sponsor.logoDataUri) {
+				template.icon.style.backgroundImage = `url("${notification.sponsor.logoDataUri}")`;
+			}
+			template.container.classList.add('sponsored-notification');
+			const label = document.createElement('span');
+			label.className = 'sponsored-label';
+			label.textContent = localize('sponsored', "Sponsored");
+			template.container.appendChild(label);
+		}
+```
+
+The data URI is interpolated into a CSS `url()`. `AssetCache` already restricted the value to `data:` with a known image MIME (Task 9), so it cannot become an arbitrary URL — but keep the double quotes, which prevent a crafted value from breaking out of the `url()`.
+
+- [ ] **Step 4: Add the zen-mode guard**
+
+In `notificationsToasts.ts`, at the top of the method that creates a toast, before any DOM work:
+
+```typescript
+		// Sponsored notifications never interrupt zen mode. Zen state is not
+		// exposed through the extension API, so the guard has to live here.
+		if (item.sponsor && this.layoutService.isZenModeActive()) {
+			return;
+		}
+```
+
+If the layout service exposes zen state under a different name in the pinned revision, use that name — confirm with:
+
+```bash
+grep -rn "ZenMode\|zenMode" vscode/src/vs/workbench/services/layout/browser/layoutService.ts
+```
+
+- [ ] **Step 5: Add the slide-in motion**
+
+Append to `notificationsToasts.css`:
+
+```css
+/* Sponsored notification: deliberate slide-in from the editor edge.
+   Only transform and opacity animate — both are GPU-composited, so no
+   layout or repaint occurs while the user is typing. */
+.monaco-workbench .notification-toast-container .sponsored-notification {
+	transform: translateX(calc(100% + 12px));
+	opacity: 0;
+	will-change: transform, opacity;
+	transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+	            opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.monaco-workbench .notification-toast-container .sponsored-notification.visible {
+	transform: translateX(0);
+	opacity: 1;
+}
+
+.monaco-workbench .notification-toast-container .sponsored-notification.hiding {
+	transform: translateX(calc(100% + 12px));
+	opacity: 0;
+	transition: transform 160ms ease-in, opacity 160ms ease-in;
+}
+
+.monaco-workbench .sponsored-logo {
+	width: 20px;
+	height: 20px;
+	border-radius: 4px;
+	background-size: cover;
+	background-position: center;
+}
+
+.monaco-workbench .sponsored-label {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	opacity: 0.7;
+	color: var(--vscode-adcode-sponsoredLabel-foreground, inherit);
+}
+
+/* Reduce motion: cross-fade only, no translation. VS Code sets this class
+   from its reduce-motion setting, which follows the OS on "auto". */
+.monaco-workbench.reduce-motion .notification-toast-container .sponsored-notification,
+.monaco-workbench.reduce-motion .notification-toast-container .sponsored-notification.visible,
+.monaco-workbench.reduce-motion .notification-toast-container .sponsored-notification.hiding {
+	transform: none;
+	transition: opacity 100ms linear;
+}
+```
+
+Confirm the reduce-motion class name against the pinned source:
+
+```bash
+grep -rn "reduce-motion\|reduceMotion" vscode/src/vs/workbench/browser/workbench.ts | head
+```
+
+- [ ] **Step 6: Register the Sponsored label color token**
+
+The CSS above reads `--vscode-adcode-sponsoredLabel-foreground`. Without registration that variable is never defined and the label silently falls back to `inherit`. In the same notifications contribution file:
+
+```typescript
+const sponsoredLabelForeground = registerColor('adcode.sponsoredLabel.foreground',
+	{ dark: descriptionForeground, light: descriptionForeground, hcDark: descriptionForeground, hcLight: descriptionForeground },
+	localize('sponsoredLabelForeground', "Foreground colour of the Sponsored label on sponsored notifications."));
+```
+
+Registering it is what lets third-party themes — which most developers use — style the label deliberately instead of the toast reading as a foreign object pasted onto Dracula.
+
+- [ ] **Step 7: Swap the logo live when the OS theme flips**
+
+Spec §9 requires a toast on screen at sunset to swap its logo rather than go invisible. The extension picks the asset once before showing, so the swap has to happen in the workbench. Extend the sponsor payload to carry both assets and select at paint time:
+
+```typescript
+	readonly sponsor?: {
+		readonly logoLightDataUri: string | null;
+		readonly logoDarkDataUri: string | null;
+	};
+```
+
+Then in `notificationsViewer.ts`, replace the single-asset assignment from Step 3 with a theme-reactive one:
+
+```typescript
+		if (notification.sponsor) {
+			const themeService = accessor.get(IThemeService);
+			const paintLogo = () => {
+				const uri = themeService.getColorTheme().type === ColorScheme.LIGHT
+					|| themeService.getColorTheme().type === ColorScheme.HIGH_CONTRAST_LIGHT
+					? notification.sponsor!.logoLightDataUri
+					: notification.sponsor!.logoDarkDataUri;
+				template.icon.style.backgroundImage = uri ? `url("${uri}")` : '';
+			};
+			paintLogo();
+			template.toDispose.add(themeService.onDidColorThemeChange(paintLogo));
+		}
+```
+
+`template.toDispose` is VS Code's existing per-row disposable store — using it means the listener dies with the notification row and cannot leak. Confirm its name in the pinned source with `grep -n "toDispose\|DisposableStore" vscode/src/vs/workbench/browser/parts/notifications/notificationsViewer.ts | head`.
+
+Update the corresponding pieces to match: the `_adcode.showSponsored` args in Step 8 take `logoLightDataUri` and `logoDarkDataUri`; `SponsoredView` in `renderer.ts` carries both; and `Renderer.present` resolves both assets rather than one. Adjust the Task 11 tests accordingly — `getDataUri` is then called twice, once per theme variant.
+
+- [ ] **Step 8: Register the command**
+
+In `notificationsToasts.ts` (or the notifications contribution file alongside it), register:
+
+```typescript
+CommandsRegistry.registerCommand('_adcode.showSponsored', async (accessor, args: {
+	headline: string;
+	body: string;
+	logoDataUri: string | null;
+	autoDismissMs: number;
+}) => {
+	const notificationService = accessor.get(INotificationService);
+	const hostService = accessor.get(IHostService);
+	const startedMs = Date.now();
+	let focusLost = !hostService.hasFocus;
+	const focusWatch = hostService.onDidChangeFocus(focused => { if (!focused) { focusLost = true; } });
+
+	return new Promise(resolve => {
+		let settled = false;
+		const finish = (outcome: string) => {
+			if (settled) { return; }
+			settled = true;
+			focusWatch.dispose();
+			resolve({ outcome, shownMs: Date.now() - startedMs, focusedThroughout: !focusLost });
+		};
+
+		const handle = notificationService.notify({
+			severity: Severity.Info,
+			message: `${args.headline} — ${args.body}`,
+			sponsor: { logoDataUri: args.logoDataUri },
+			actions: {
+				primary: [
+					toAction({ id: 'adcode.learnMore', label: localize('learnMore', "Learn more"), run: () => finish('clicked') }),
+					toAction({ id: 'adcode.hide', label: localize('hide', "Hide"), run: () => finish('hidden') })
+				]
+			}
+		});
+
+		handle.onDidClose(() => finish('dismissed'));
+		setTimeout(() => { handle.close(); finish('timeout'); }, args.autoDismissMs);
+	});
+});
+```
+
+- [ ] **Step 9: Generate the patch**
+
+```bash
+git -C vscode diff --stat
+git -C vscode diff > patches/0002-sponsored-notification.patch
+git -C vscode checkout -- .
+node scripts/apply-patches.mjs --check
+```
+
+Expected: `--stat` shows **5 files changed**. If it shows more, the patch has grown beyond its budget — reduce it before continuing. Both patches verify clean.
+
+- [ ] **Step 10: Write the failing sink test**
+
+`extensions/adcode-ads/test/sponsoredSink.test.ts`:
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest';
+import { SponsoredSink, pickSink } from '../src/extension';
+import { state, resetState } from './stubs/vscode';
+
+beforeEach(() => { resetState(); });
+
+describe('pickSink', () => {
+  it('picks the sponsored sink when the patched command exists', () => {
+    expect(pickSink(['_adcode.showSponsored', 'workbench.action.files.save']))
+      .toBe('sponsored');
+  });
+
+  it('falls back when the command is absent', () => {
+    expect(pickSink(['workbench.action.files.save'])).toBe('fallback');
+  });
+
+  it('falls back for an empty command list', () => {
+    expect(pickSink([])).toBe('fallback');
+  });
+});
+
+describe('SponsoredSink', () => {
+  it('invokes the patched command with the view and dismiss timeout', async () => {
+    await new SponsoredSink(5000).show({
+      headline: 'Sentry', body: 'Catch errors first.', logoDataUri: 'data:image/svg+xml;base64,AA',
+    });
+
+    expect(state.executedCommands[0]).toEqual({
+      command: '_adcode.showSponsored',
+      args: [{
+        headline: 'Sentry', body: 'Catch errors first.',
+        logoDataUri: 'data:image/svg+xml;base64,AA', autoDismissMs: 5000,
+      }],
+    });
+  });
+
+  it('reports a dismissed, unearned result when the command returns nothing', async () => {
+    const result = await new SponsoredSink(5000).show({
+      headline: 'x', body: 'y', logoDataUri: null,
+    });
+    expect(result).toEqual({ outcome: 'dismissed', shownMs: 0, focusedThroughout: false });
+  });
+});
+```
+
+- [ ] **Step 11: Implement the sponsored sink**
+
+Add to `extensions/adcode-ads/src/extension.ts`:
+
+```typescript
+const SPONSORED_COMMAND = '_adcode.showSponsored';
+
+export function pickSink(available: readonly string[]): 'sponsored' | 'fallback' {
+  return available.includes(SPONSORED_COMMAND) ? 'sponsored' : 'fallback';
+}
+
+/** Drives the patched workbench notification. Falls back safely if the patch is absent. */
+export class SponsoredSink implements NotificationSink {
+  constructor(private readonly autoDismissMs: number) {}
+
+  async show(view: SponsoredView): Promise<ShowResult> {
+    const result = await vscode.commands.executeCommand<ShowResult | undefined>(
+      SPONSORED_COMMAND,
+      {
+        headline: view.headline,
+        body: view.body,
+        logoDataUri: view.logoDataUri,
+        autoDismissMs: this.autoDismissMs,
+      },
+    );
+
+    // A missing or malformed result must never be treated as a valid impression.
+    if (result === undefined || typeof result.shownMs !== 'number') {
+      return { outcome: 'dismissed', shownMs: 0, focusedThroughout: false };
+    }
+    return result;
+  }
+}
+```
+
+Then replace the renderer's sink selection in `activate`:
+
+```typescript
+  const sink = pickSink(await vscode.commands.getCommands(true)) === 'sponsored'
+    ? new SponsoredSink(AUTO_DISMISS_MS)
+    : new FallbackSink();
+
+  const renderer = new Renderer({
+    sink,
+    assets,
+    openExternal: async (url) => vscode.env.openExternal(vscode.Uri.parse(url)),
+  });
+```
+
+- [ ] **Step 12: Run the tests**
+
+Run: `cd extensions/adcode-ads && npx tsc -p . --noEmit && npx vitest run`
+Expected: PASS, including the 5 new sink tests.
+
+- [ ] **Step 13: Commit**
+
+```bash
+git add patches/0002-sponsored-notification.patch extensions/adcode-ads
+git commit -m "feat: add sponsored notification patch with slide-in motion and zen guard"
+```
+
+---
+
+### Task 16: Bundle, build, and smoke test
+
+**Files:**
+- Create: `scripts/bundle-extension.mjs`
+- Create: `patches/0003-register-builtin-extension.patch` (generated)
+- Create: `extensions/adcode-ads/test/integration/runTest.ts`
+- Create: `extensions/adcode-ads/test/integration/suite/activation.test.ts`
+- Create: `docs/release-smoke-checklist.md`
+- Modify: `package.json` at repo root
+
+**Interfaces:**
+- Consumes: everything.
+- Produces: `npm run build:app`, a runnable branded IDE, and a release checklist.
+
+- [ ] **Step 1: Write the bundler**
+
+`scripts/bundle-extension.mjs`:
+
+```javascript
+#!/usr/bin/env node
+import { cp, rm, mkdir } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { join, resolve } from 'node:path';
+
+const root = resolve(import.meta.dirname, '..');
+const source = join(root, 'extensions', 'adcode-ads');
+const target = join(root, 'vscode', 'extensions', 'adcode-ads');
+
+execFileSync('npm', ['run', 'build'], { cwd: source, stdio: 'inherit', shell: true });
+
+await rm(target, { recursive: true, force: true });
+await mkdir(target, { recursive: true });
+
+for (const entry of ['package.json', 'out', 'media']) {
+  await cp(join(source, entry), join(target, entry), { recursive: true });
+}
+
+console.log('[bundle] adcode-ads copied into vscode/extensions');
+```
+
+- [ ] **Step 2: Register the extension as a built-in**
+
+Apply patches, then edit `vscode/build/npm/dirs.js` to add `'extensions/adcode-ads'` to the extensions directory list (find it with `grep -n "extensions/" vscode/build/npm/dirs.js | head -20`).
+
+Generate the patch:
+
+```bash
+git -C vscode diff -- build/npm/dirs.js > patches/0003-register-builtin-extension.patch
+git -C vscode checkout -- .
+node scripts/apply-patches.mjs --check
+```
+
+Expected: all three patches verify. The patch budget is now **3 patches touching 7 files total** — record that number and treat any growth as a decision, not a drift.
+
+- [ ] **Step 3: Add build scripts**
+
+Add to the root `package.json` scripts:
+
+```json
+    "bundle": "node scripts/bundle-extension.mjs",
+    "build:app": "npm run patches:apply && npm run bundle && npm --prefix vscode ci && npm --prefix vscode run gulp vscode-win32-x64",
+    "dev:app": "npm run patches:apply && npm run bundle && npm --prefix vscode run watch"
+```
+
+On macOS use `gulp vscode-darwin-arm64`; on Linux, `gulp vscode-linux-x64`.
+
+- [ ] **Step 4: Build it**
+
+```bash
+npm run build:app
+```
+
+Expected: completes in roughly 30–60 minutes on a first run and produces `../VSCode-win32-x64/ADCode.exe` (sibling of the `vscode/` directory — this is where the VS Code build places output). If the build fails on a missing `extensionEnabledApiProposals` key, restore it to `product.json` and regenerate patch 0001.
+
+- [ ] **Step 5: Run the app against the mock server**
+
+Terminal 1: `cd mock-server && PORT=8787 node src/server.ts`
+
+Terminal 2 — launch the built binary with dev settings:
+
+```bash
+ADCODE_DEV_ASSET_ORIGIN=http://127.0.0.1:8787/assets \
+ADCODE_FIREBASE_API_KEY=dev-key \
+"../VSCode-win32-x64/ADCode.exe" --user-data-dir /tmp/adcode-dev
+```
+
+In the running app set `adcode.serverUrl` to `http://127.0.0.1:8787` and `adcode.ads.frequency` to `max`.
+
+Expected: within about two minutes a sponsored toast slides in from the right with a logo, the status bar reads `$0.0000`, and after the toast auto-dismisses the balance becomes `$0.0020`.
+
+- [ ] **Step 6: Add the automated activation test**
+
+`extensions/adcode-ads/test/integration/runTest.ts`:
+
+```typescript
+import { runTests } from '@vscode/test-electron';
+import { resolve } from 'node:path';
+
+async function main(): Promise<void> {
+  await runTests({
+    extensionDevelopmentPath: resolve(__dirname, '../../'),
+    extensionTestsPath: resolve(__dirname, './suite/index'),
+    launchArgs: ['--disable-extensions', '--disable-gpu'],
+  });
+}
+
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});
+```
+
+`extensions/adcode-ads/test/integration/suite/activation.test.ts`:
+
+```typescript
+import * as assert from 'node:assert';
+import * as vscode from 'vscode';
+
+suite('activation', () => {
+  test('activates without throwing', async () => {
+    const ext = vscode.extensions.getExtension('adcode-ads');
+    assert.ok(ext, 'extension not found');
+    await ext!.activate();
+    assert.strictEqual(ext!.isActive, true);
+  });
+
+  test('contributes the sponsors view', async () => {
+    await vscode.commands.executeCommand('workbench.view.extension.adcode');
+    // Reaching here without throwing means the view container resolved.
+    assert.ok(true);
+  });
+
+  test('does not register the internal sponsored command itself', async () => {
+    const commands = await vscode.commands.getCommands(true);
+    assert.strictEqual(
+      commands.includes('_adcode.showSponsored'), false,
+      'the sponsored command must come from the workbench patch, not the extension',
+    );
+  });
+});
+```
+
+Add `"test:integration": "node ./out/test/integration/runTest.js"` to the extension's scripts and `@vscode/test-electron` plus `mocha` to its devDependencies.
+
+- [ ] **Step 7: Write the manual smoke checklist**
+
+`docs/release-smoke-checklist.md`:
+
+```markdown
+# Release smoke checklist
+
+Run against a built binary, once per release. Automated tests do not cover
+motion, theming, or annoyance.
+
+## Ad behavior
+- [ ] A sponsored toast slides in from the right edge, roughly 220ms, no jank
+- [ ] The toast never covers the editor or the minimap
+- [ ] Hovering pauses the auto-dismiss timer
+- [ ] "Learn more" opens the system browser, not an in-editor tab
+- [ ] "Hide" drops the frequency setting to Light
+- [ ] No toast appears within 60s of launch
+- [ ] No toast appears during an active debug session
+- [ ] No toast appears in Zen mode
+- [ ] No toast appears while the window is unfocused
+- [ ] With Do Not Disturb on, no toast appears
+
+## Theming
+- [ ] Light theme: logo is the light variant, label is legible
+- [ ] Dark theme: logo is the dark variant, label is legible
+- [ ] Switching the OS theme while a toast is on screen swaps the logo live
+- [ ] A third-party theme (Dracula) styles the toast without it looking pasted on
+- [ ] High contrast: the contrast border is respected
+
+## Motion
+- [ ] With reduce-motion on, the toast cross-fades with no horizontal movement
+- [ ] Typing continuously while a toast animates in shows no input latency
+
+## Earnings
+- [ ] Status bar shows a balance and increments after a valid impression
+- [ ] Killing the network mid-session leaves the editor entirely unaffected
+- [ ] Restoring the network flushes queued receipts and updates the balance
+
+## Identity
+- [ ] Settings offers an identifier reset, and warns that unclaimed balance is forfeit
+
+## The real test
+- [ ] Someone used this build as their actual editor for a full working day
+```
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add scripts patches package.json extensions/adcode-ads docs/release-smoke-checklist.md
+git commit -m "feat: bundle extension as built-in, add integration test and smoke checklist"
+```
+
+---
+
+### Task 17: Distribution and signing
+
+**Externally blocked.** Certificate procurement is calendar time, not work — start step 1 the day Task 14 begins, not the day this task begins.
+
+**Files:**
+- Create: `build/sign.md`
+- Create: `.github/workflows/release.yml`
+- Modify: root `package.json`
+
+**Interfaces:**
+- Consumes: the built app from Task 16.
+- Produces: signed installers and an update feed.
+
+- [ ] **Step 1: Start certificate procurement (do this first, in parallel with Task 14)**
+
+- **Windows:** buy an OV or EV code-signing certificate. Since June 2023 the private key must live on a hardware token or in a cloud HSM — a `.pfx` on disk is no longer issuable. Organization validation takes **1–3 weeks**. Without a signature, installers hit a SmartScreen "unrecognized app" wall.
+- **macOS:** enroll in the Apple Developer Program ($99/year). Create a "Developer ID Application" certificate and an app-specific password for notarization. Without notarization, Gatekeeper refuses to open the app at all.
+- **Linux:** generate a GPG key only if publishing apt/yum repositories.
+
+Record in `build/sign.md`: the certificate type, where the key lives, which CI secrets hold what, and the renewal date. A code-signing key that expires unnoticed breaks every future release.
+
+- [ ] **Step 2: Configure the release workflow**
+
+`.github/workflows/release.yml`:
+
+```yaml
+name: Release
+on:
+  push: { tags: ['v*'] }
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, target: vscode-win32-x64 }
+          - { os: macos-latest,   target: vscode-darwin-arm64 }
+          - { os: ubuntu-latest,  target: vscode-linux-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: true }
+      - uses: actions/setup-node@v4
+        with: { node-version: '24' }
+      - run: node scripts/apply-patches.mjs
+      - run: node scripts/bundle-extension.mjs
+      - run: npm --prefix vscode ci
+      - run: npm --prefix vscode run gulp ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: VSCode-*
+```
+
+Signing steps are added per platform once the certificates from step 1 exist. Leave the workflow producing unsigned artifacts until then — unsigned builds are useful for internal testing, and gating the whole pipeline on a certificate that is still in validation blocks work for no reason.
+
+- [ ] **Step 3: Stand up the update feed**
+
+`product.json` already points `updateUrl` at `https://update.adcode.dev` (Task 14). Serve VS Code's update contract: a request carrying platform, quality, and current commit returns either `204 No Content` when up to date, or JSON with `url`, `name`, `version`, `productVersion`, `hash`, `timestamp`, and `sha256hash`.
+
+Confirm the exact request path and response shape against the pinned source before implementing:
+
+```bash
+grep -rn "updateUrl\|/api/update" vscode/src/vs/platform/update/ | head -20
+```
+
+A static JSON file per platform behind a CDN satisfies this. Do not build a service.
+
+- [ ] **Step 4: Publish the extension gap disclosure**
+
+Spec §13 names this the largest threat to "user must not experience any issue." Add to the download page and `README.md`, before the download button:
+
+> ADCode is built on Code-OSS, the open-source core of VS Code, and installs
+> extensions from Open VSX. Some Microsoft extensions — the C/C++ tools, the
+> C# debugger, Pylance, and Remote-SSH — are licensed for Microsoft's own
+> builds and cannot be used here. Open alternatives exist for some of them.
+> If your work depends on those specific extensions, ADCode is not yet a
+> replacement for VS Code.
+
+Users discovering this themselves after installing is how a fork earns a reputation problem. Stating it up front costs some installs and buys the ones that remain.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add build/sign.md .github/workflows/release.yml package.json README.md
+git commit -m "feat: add release workflow, signing runbook, and extension gap disclosure"
+```
+
+---
+
+## Verification
+
+Project A is complete when all of the following hold:
+
+- [ ] `cd extensions/adcode-ads && npx tsc -p . --noEmit && npx vitest run` — green
+- [ ] `cd mock-server && npx vitest run` — green
+- [ ] `node scripts/apply-patches.mjs --check` — all three patches verify
+- [ ] `git -C vscode diff --stat` after applying — 7 files changed, no more
+- [ ] `npm run build:app` produces a launchable branded binary
+- [ ] Every box in `docs/release-smoke-checklist.md` is ticked against that binary
+- [ ] The nightly patch canary has run at least once and reported
