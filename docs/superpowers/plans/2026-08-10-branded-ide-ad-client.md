@@ -3274,3 +3274,789 @@ git commit -m "feat: add renderer with sink abstraction and impression validity 
 ```
 
 ---
+
+### Task 12: The Sponsors sidebar view
+
+Where dismissed ads remain reachable, and where the balance and frequency setting live. The HTML builder is a pure function so the security-critical parts — CSP, nonce, escaping — are unit-testable without a running webview.
+
+**Files:**
+- Create: `extensions/adcode-ads/src/sponsorsHtml.ts`
+- Create: `extensions/adcode-ads/media/sponsors.svg`
+- Test: `extensions/adcode-ads/test/sponsorsHtml.test.ts`
+
+**Interfaces:**
+- Consumes: `FrequencyPref` from `./types`.
+- Produces:
+  - `interface SponsorEntry { creativeId: string; headline: string; body: string; logoDataUri: string | null; clickUrl: string; seenAtMs: number }`
+  - `interface SponsorsViewModel { entries: readonly SponsorEntry[]; balanceDisplay: string; frequency: FrequencyPref; adsEnabled: boolean }`
+  - `escapeHtml(value: string): string`
+  - `renderSponsorsHtml(model: SponsorsViewModel, nonce: string): string`
+
+- [ ] **Step 1: Write the failing tests**
+
+`extensions/adcode-ads/test/sponsorsHtml.test.ts`:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { renderSponsorsHtml, escapeHtml, type SponsorsViewModel } from '../src/sponsorsHtml';
+
+const model = (over: Partial<SponsorsViewModel> = {}): SponsorsViewModel => ({
+  entries: [{
+    creativeId: 'cr_1', headline: 'Sentry', body: 'Catch errors first.',
+    logoDataUri: 'data:image/svg+xml;base64,AA', clickUrl: 'https://sentry.io',
+    seenAtMs: 1_700_000_000_000,
+  }],
+  balanceDisplay: '$0.0160',
+  frequency: 'standard',
+  adsEnabled: true,
+  ...over,
+});
+
+describe('escapeHtml', () => {
+  it.each([
+    ['<script>', '&lt;script&gt;'],
+    ['a & b', 'a &amp; b'],
+    ['"quoted"', '&quot;quoted&quot;'],
+    ["it's", 'it&#39;s'],
+  ])('escapes %s', (input, expected) => {
+    expect(escapeHtml(input)).toBe(expected);
+  });
+});
+
+describe('renderSponsorsHtml', () => {
+  it('locks the content security policy to the nonce', () => {
+    const html = renderSponsorsHtml(model(), 'NONCE123');
+    expect(html).toContain("default-src 'none'");
+    expect(html).toContain("script-src 'nonce-NONCE123'");
+    expect(html).toContain('img-src data:');
+    expect(html).toContain('<script nonce="NONCE123">');
+  });
+
+  it('escapes creative text rather than rendering it as markup', () => {
+    const html = renderSponsorsHtml(
+      model({ entries: [{ ...model().entries[0]!, headline: '<img onerror=x>' }] }),
+      'N');
+    expect(html).not.toContain('<img onerror');
+    expect(html).toContain('&lt;img onerror=x&gt;');
+  });
+
+  it('renders the balance', () => {
+    expect(renderSponsorsHtml(model(), 'N')).toContain('$0.0160');
+  });
+
+  it('marks the active frequency option as selected', () => {
+    const html = renderSponsorsHtml(model({ frequency: 'light' }), 'N');
+    expect(html).toMatch(/<option value="light" selected>/);
+    expect(html).not.toMatch(/<option value="standard" selected>/);
+  });
+
+  it('shows an empty state when there are no entries', () => {
+    const html = renderSponsorsHtml(model({ entries: [] }), 'N');
+    expect(html).toContain('No sponsors yet');
+  });
+
+  it('omits the img element when there is no logo', () => {
+    const html = renderSponsorsHtml(
+      model({ entries: [{ ...model().entries[0]!, logoDataUri: null }] }), 'N');
+    expect(html).not.toContain('<img');
+  });
+
+  it('drops a non-https click url rather than linking it', () => {
+    const html = renderSponsorsHtml(
+      model({ entries: [{ ...model().entries[0]!, clickUrl: 'javascript:alert(1)' }] }), 'N');
+    expect(html).not.toContain('javascript:');
+  });
+
+  it('styles from VS Code theme variables so third-party themes apply', () => {
+    const html = renderSponsorsHtml(model(), 'N');
+    expect(html).toContain('var(--vscode-foreground)');
+    expect(html).toContain('var(--vscode-editor-background)');
+  });
+
+  it('announces that ads are off when disabled', () => {
+    expect(renderSponsorsHtml(model({ adsEnabled: false }), 'N')).toContain('Ads are off');
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/sponsorsHtml.test.ts`
+Expected: FAIL — `Failed to resolve import "../src/sponsorsHtml"`.
+
+- [ ] **Step 3: Implement the HTML builder**
+
+`extensions/adcode-ads/src/sponsorsHtml.ts`:
+
+```typescript
+import type { FrequencyPref } from './types';
+
+export interface SponsorEntry {
+  creativeId: string;
+  headline: string;
+  body: string;
+  logoDataUri: string | null;
+  clickUrl: string;
+  seenAtMs: number;
+}
+
+export interface SponsorsViewModel {
+  entries: readonly SponsorEntry[];
+  balanceDisplay: string;
+  frequency: FrequencyPref;
+  adsEnabled: boolean;
+}
+
+const FREQUENCY_LABELS: Array<[FrequencyPref, string]> = [
+  ['off', 'Off — no ads, no earnings'],
+  ['light', 'Light — about 4 per day'],
+  ['standard', 'Standard — about 8 per day'],
+  ['max', 'Max — about 20 per day'],
+];
+
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function safeHref(url: string): string | null {
+  try {
+    return new URL(url).protocol === 'https:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+function renderEntry(entry: SponsorEntry): string {
+  const href = safeHref(entry.clickUrl);
+  const logo = entry.logoDataUri === null
+    ? ''
+    : `<img class="logo" src="${escapeHtml(entry.logoDataUri)}" alt="">`;
+  const title = href === null
+    ? `<span class="headline">${escapeHtml(entry.headline)}</span>`
+    : `<a class="headline" href="${escapeHtml(href)}">${escapeHtml(entry.headline)}</a>`;
+
+  return `<li class="entry">${logo}<div class="text">${title}` +
+    `<p class="body">${escapeHtml(entry.body)}</p></div></li>`;
+}
+
+export function renderSponsorsHtml(model: SponsorsViewModel, nonce: string): string {
+  const options = FREQUENCY_LABELS
+    .map(([value, label]) =>
+      `<option value="${value}"${value === model.frequency ? ' selected' : ''}>` +
+      `${escapeHtml(label)}</option>`)
+    .join('');
+
+  const list = model.entries.length === 0
+    ? '<p class="empty">No sponsors yet. They will appear here after you see one.</p>'
+    : `<ul class="entries">${model.entries.map(renderEntry).join('')}</ul>`;
+
+  const status = model.adsEnabled ? '' : '<p class="notice">Ads are off. Earnings are paused.</p>';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
+<style nonce="${nonce}">
+  body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size);
+         color: var(--vscode-foreground); background: var(--vscode-editor-background);
+         padding: 12px; margin: 0; }
+  .balance { font-size: 1.6em; font-weight: 600; }
+  .balance-label, .empty, .body { color: var(--vscode-descriptionForeground); }
+  .notice { color: var(--vscode-editorWarning-foreground); }
+  .entries { list-style: none; padding: 0; margin: 16px 0 0; }
+  .entry { display: flex; gap: 10px; padding: 10px 0;
+           border-top: 1px solid var(--vscode-panel-border); }
+  .logo { width: 32px; height: 32px; border-radius: 6px; flex: 0 0 auto; }
+  .headline { font-weight: 600; color: var(--vscode-textLink-foreground);
+              text-decoration: none; }
+  .body { margin: 4px 0 0; }
+  select { width: 100%; margin-top: 6px; background: var(--vscode-dropdown-background);
+           color: var(--vscode-dropdown-foreground);
+           border: 1px solid var(--vscode-dropdown-border); padding: 4px; }
+</style>
+</head>
+<body>
+  <div class="balance-label">Earned</div>
+  <div class="balance">${escapeHtml(model.balanceDisplay)}</div>
+  ${status}
+  <label class="balance-label" for="frequency">Ad frequency</label>
+  <select id="frequency">${options}</select>
+  ${list}
+<script nonce="${nonce}">
+  const vscode = acquireVsCodeApi();
+  document.getElementById('frequency').addEventListener('change', (e) => {
+    vscode.postMessage({ type: 'setFrequency', value: e.target.value });
+  });
+  document.querySelectorAll('a.headline').forEach((a) => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      vscode.postMessage({ type: 'open', url: a.getAttribute('href') });
+    });
+  });
+</script>
+</body>
+</html>`;
+}
+```
+
+- [ ] **Step 4: Create the activity bar icon**
+
+`extensions/adcode-ads/media/sponsors.svg`:
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M12 3l2.6 5.6 6.1.8-4.4 4.3 1.1 6.1L12 17l-5.4 2.8 1.1-6.1L3.3 9.4l6.1-.8z"/>
+</svg>
+```
+
+- [ ] **Step 5: Run the tests to verify they pass**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/sponsorsHtml.test.ts`
+Expected: PASS, all 13 tests.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add extensions/adcode-ads/src/sponsorsHtml.ts extensions/adcode-ads/media extensions/adcode-ads/test/sponsorsHtml.test.ts
+git commit -m "feat: add sponsors webview html builder with nonce-locked CSP"
+```
+
+---
+
+### Task 13: Wiring and VS Code adapters
+
+The only file that imports `vscode`. Everything here is adapter code — it reads VS Code state, hands primitives to the pure modules, and applies the result. Tests run against a stub `vscode` module aliased in by vitest, which is what makes the wiring verifiable without launching an editor.
+
+**Files:**
+- Create: `extensions/adcode-ads/src/extension.ts`
+- Create: `extensions/adcode-ads/test/stubs/vscode.ts`
+- Modify: `extensions/adcode-ads/vitest.config.ts`
+- Test: `extensions/adcode-ads/test/extension.test.ts`
+
+**Interfaces:**
+- Consumes: everything from Tasks 2–12.
+- Produces:
+  - `activate(context: vscode.ExtensionContext): Promise<void>`
+  - `deactivate(): Promise<void>`
+  - `TICK_MS: number`
+  - `buildSnapshot(input: SnapshotInput): SchedulerState` — exported for testing
+  - `themeKindOf(kind: number): ThemeKind` — exported for testing
+
+- [ ] **Step 1: Add the vscode alias to vitest**
+
+Replace `extensions/adcode-ads/vitest.config.ts` with:
+
+```typescript
+import { defineConfig } from 'vitest/config';
+import { resolve } from 'node:path';
+
+export default defineConfig({
+  resolve: {
+    alias: { vscode: resolve(__dirname, 'test/stubs/vscode.ts') },
+  },
+  test: {
+    include: ['test/**/*.test.ts'],
+    environment: 'node',
+  },
+});
+```
+
+- [ ] **Step 2: Write the vscode stub**
+
+`extensions/adcode-ads/test/stubs/vscode.ts`:
+
+```typescript
+/** Minimal stand-in for the vscode module — only what extension.ts touches. */
+
+type Listener<T> = (e: T) => void;
+
+export function makeEmitter<T>() {
+  const listeners: Array<Listener<T>> = [];
+  const event = (l: Listener<T>) => {
+    listeners.push(l);
+    return { dispose: () => { listeners.splice(listeners.indexOf(l), 1); } };
+  };
+  return { event, fire: (e: T) => { for (const l of [...listeners]) l(e); } };
+}
+
+export const ColorThemeKind = { Light: 1, Dark: 2, HighContrast: 3, HighContrastLight: 4 } as const;
+
+export const state = {
+  config: new Map<string, unknown>(),
+  focused: true,
+  activeDebugSession: undefined as unknown,
+  themeKind: ColorThemeKind.Dark as number,
+  openedExternal: [] as string[],
+  infoMessages: [] as string[],
+  statusBarText: '',
+  executedCommands: [] as Array<{ command: string; args: unknown[] }>,
+  availableCommands: [] as string[],
+};
+
+export function resetState(): void {
+  state.config = new Map<string, unknown>([
+    ['adcode.ads.enabled', true],
+    ['adcode.ads.frequency', 'standard'],
+    ['adcode.serverUrl', 'https://api.example'],
+  ]);
+  state.focused = true;
+  state.activeDebugSession = undefined;
+  state.themeKind = ColorThemeKind.Dark;
+  state.openedExternal = [];
+  state.infoMessages = [];
+  state.statusBarText = '';
+  state.executedCommands = [];
+  state.availableCommands = [];
+}
+resetState();
+
+export const onDidChangeWindowStateEmitter = makeEmitter<{ focused: boolean }>();
+export const onDidChangeActiveColorThemeEmitter = makeEmitter<{ kind: number }>();
+
+export const workspace = {
+  getConfiguration: () => ({
+    get: <T>(key: string, fallback?: T): T | undefined =>
+      (state.config.has(key) ? state.config.get(key) as T : fallback),
+    update: async (key: string, value: unknown) => { state.config.set(key, value); },
+  }),
+  workspaceFolders: undefined as unknown,
+  findFiles: async () => [],
+  textDocuments: [] as Array<{ languageId: string }>,
+};
+
+export const window = {
+  get state() { return { focused: state.focused }; },
+  get activeColorTheme() { return { kind: state.themeKind }; },
+  onDidChangeWindowState: onDidChangeWindowStateEmitter.event,
+  onDidChangeActiveColorTheme: onDidChangeActiveColorThemeEmitter.event,
+  showInformationMessage: async (message: string, ..._items: string[]) => {
+    state.infoMessages.push(message);
+    return undefined;
+  },
+  createStatusBarItem: () => ({
+    text: '', tooltip: '', command: '',
+    show() { state.statusBarText = this.text; },
+    hide() { /* no-op */ },
+    dispose() { /* no-op */ },
+  }),
+  registerWebviewViewProvider: () => ({ dispose: () => undefined }),
+};
+
+export const debug = {
+  get activeDebugSession() { return state.activeDebugSession; },
+  onDidStartDebugSession: makeEmitter<unknown>().event,
+  onDidTerminateDebugSession: makeEmitter<unknown>().event,
+};
+
+export const env = {
+  openExternal: async (uri: { toString(): string }) => {
+    state.openedExternal.push(uri.toString());
+    return true;
+  },
+};
+
+export const commands = {
+  getCommands: async () => state.availableCommands,
+  executeCommand: async (command: string, ...args: unknown[]) => {
+    state.executedCommands.push({ command, args });
+    return undefined;
+  },
+  registerCommand: () => ({ dispose: () => undefined }),
+};
+
+export const Uri = { parse: (value: string) => ({ toString: () => value }) };
+export const StatusBarAlignment = { Left: 1, Right: 2 } as const;
+export const ExtensionMode = { Production: 1, Development: 2, Test: 3 } as const;
+```
+
+- [ ] **Step 3: Write the failing tests**
+
+`extensions/adcode-ads/test/extension.test.ts`:
+
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest';
+import { buildSnapshot, themeKindOf, TICK_MS } from '../src/extension';
+import { ColorThemeKind, resetState } from './stubs/vscode';
+import { FREQUENCY_CAPS, decide } from '../src/scheduler';
+
+beforeEach(() => { resetState(); });
+
+describe('themeKindOf', () => {
+  it('maps light and high-contrast-light to light', () => {
+    expect(themeKindOf(ColorThemeKind.Light)).toBe('light');
+    expect(themeKindOf(ColorThemeKind.HighContrastLight)).toBe('light');
+  });
+
+  it('maps dark and high-contrast to dark', () => {
+    expect(themeKindOf(ColorThemeKind.Dark)).toBe('dark');
+    expect(themeKindOf(ColorThemeKind.HighContrast)).toBe('dark');
+  });
+
+  it('falls back to dark for an unknown kind', () => {
+    expect(themeKindOf(99)).toBe('dark');
+  });
+});
+
+describe('buildSnapshot', () => {
+  const input = {
+    nowMs: 5_000_000,
+    appStartedMs: 4_000_000,
+    shownTimestampsMs: [],
+    frequencyPref: 'standard' as const,
+    remoteConfig: null,
+    windowFocused: true,
+    debugSessionActive: false,
+    doNotDisturb: false,
+    adsEnabled: true,
+    cacheHasCreative: true,
+  };
+
+  it('uses the shipped caps when there is no remote config', () => {
+    expect(buildSnapshot(input).caps).toEqual(FREQUENCY_CAPS.standard);
+  });
+
+  it('applies a stricter remote config', () => {
+    const snap = buildSnapshot({
+      ...input,
+      remoteConfig: { enabled: true, minIntervalMs: 90 * 60_000, dailyCap: 2 },
+    });
+    expect(snap.caps).toEqual({ minIntervalMs: 90 * 60_000, dailyCap: 2 });
+  });
+
+  it('refuses a looser remote config', () => {
+    const snap = buildSnapshot({
+      ...input,
+      remoteConfig: { enabled: true, minIntervalMs: 1000, dailyCap: 500 },
+    });
+    expect(snap.caps).toEqual(FREQUENCY_CAPS.standard);
+  });
+
+  it('treats a disabled remote config as the kill switch', () => {
+    const snap = buildSnapshot({
+      ...input,
+      remoteConfig: { enabled: false, minIntervalMs: 30 * 60_000, dailyCap: 8 },
+    });
+    expect(snap.remoteKillSwitch).toBe(true);
+    expect(decide(snap)).toEqual({ show: false, reason: 'kill-switch' });
+  });
+
+  it('uses a zero cap for the off preference so nothing can slip through', () => {
+    const snap = buildSnapshot({ ...input, frequencyPref: 'off' });
+    expect(snap.caps.dailyCap).toBe(0);
+    expect(decide(snap)).toEqual({ show: false, reason: 'frequency-off' });
+  });
+
+  it('produces a state the scheduler accepts', () => {
+    expect(decide(buildSnapshot(input))).toEqual({ show: true });
+  });
+});
+
+describe('TICK_MS', () => {
+  it('ticks well inside the shortest minimum interval', () => {
+    expect(TICK_MS).toBeLessThan(FREQUENCY_CAPS.max.minIntervalMs);
+  });
+});
+```
+
+- [ ] **Step 4: Run the tests to verify they fail**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/extension.test.ts`
+Expected: FAIL — `Failed to resolve import "../src/extension"`.
+
+- [ ] **Step 5: Implement the extension entry point**
+
+`extensions/adcode-ads/src/extension.ts`:
+
+```typescript
+import { join } from 'node:path';
+import * as vscode from 'vscode';
+
+import { AdClient } from './client';
+import { AssetCache } from './assetCache';
+import { FirebaseAnonymousAuth, type TokenStore } from './auth';
+import { Ledger, type BalanceStore } from './ledger';
+import { ReceiptQueue } from './receiptQueue';
+import { Renderer, type NotificationSink, type ShowResult, type SponsoredView } from './renderer';
+import { deriveTags } from './tagger';
+import {
+  FREQUENCY_CAPS, decide, tightenCaps, trimTimestamps,
+} from './scheduler';
+import type {
+  Balance, Creative, FrequencyPref, RemoteConfig, SchedulerState, ThemeKind,
+} from './types';
+
+export const TICK_MS = 60_000;
+const PREFETCH_COUNT = 10;
+const RECEIPT_BATCH = 50;
+const AUTO_DISMISS_MS = 8000;
+
+const FIREBASE_API_KEY = process.env['ADCODE_FIREBASE_API_KEY'] ?? '';
+const ASSET_HOST = 'assets.adcode.dev';
+
+export function themeKindOf(kind: number): ThemeKind {
+  return kind === vscode.ColorThemeKind.Light || kind === vscode.ColorThemeKind.HighContrastLight
+    ? 'light'
+    : 'dark';
+}
+
+export interface SnapshotInput {
+  nowMs: number;
+  appStartedMs: number;
+  shownTimestampsMs: number[];
+  frequencyPref: FrequencyPref;
+  remoteConfig: RemoteConfig | null;
+  windowFocused: boolean;
+  debugSessionActive: boolean;
+  doNotDisturb: boolean;
+  adsEnabled: boolean;
+  cacheHasCreative: boolean;
+}
+
+export function buildSnapshot(input: SnapshotInput): SchedulerState {
+  const shipped = input.frequencyPref === 'off'
+    ? { minIntervalMs: Number.MAX_SAFE_INTEGER, dailyCap: 0 }
+    : FREQUENCY_CAPS[input.frequencyPref];
+
+  const caps = input.remoteConfig === null
+    ? shipped
+    : tightenCaps(shipped, input.remoteConfig);
+
+  return {
+    nowMs: input.nowMs,
+    appStartedMs: input.appStartedMs,
+    shownTimestampsMs: input.shownTimestampsMs,
+    frequencyPref: input.frequencyPref,
+    caps,
+    windowFocused: input.windowFocused,
+    debugSessionActive: input.debugSessionActive,
+    doNotDisturb: input.doNotDisturb,
+    adsEnabled: input.adsEnabled,
+    remoteKillSwitch: input.remoteConfig !== null && !input.remoteConfig.enabled,
+    cacheHasCreative: input.cacheHasCreative,
+  };
+}
+
+/**
+ * Text-only sink using the public notification API. Used in stock VS Code and
+ * as the fallback when the sponsored notification patch is absent.
+ */
+class FallbackSink implements NotificationSink {
+  async show(view: SponsoredView): Promise<ShowResult> {
+    const startedMs = Date.now();
+    let focusLost = !vscode.window.state.focused;
+    const watch = vscode.window.onDidChangeWindowState((e) => {
+      if (!e.focused) focusLost = true;
+    });
+
+    try {
+      const choice = await Promise.race([
+        vscode.window.showInformationMessage(
+          `$(megaphone) Sponsored — ${view.headline}: ${view.body}`,
+          'Learn more', 'Hide',
+        ),
+        new Promise<undefined>((r) => setTimeout(() => r(undefined), AUTO_DISMISS_MS)),
+      ]);
+
+      const outcome = choice === 'Learn more' ? 'clicked'
+        : choice === 'Hide' ? 'hidden'
+        : 'timeout';
+
+      return {
+        outcome,
+        shownMs: Date.now() - startedMs,
+        focusedThroughout: !focusLost,
+      };
+    } finally {
+      watch.dispose();
+    }
+  }
+}
+
+class SecretTokenStore implements TokenStore {
+  constructor(private readonly secrets: vscode.SecretStorage) {}
+  get(key: string): Promise<string | undefined> { return Promise.resolve(this.secrets.get(key)); }
+  set(key: string, value: string): Promise<void> { return Promise.resolve(this.secrets.store(key, value)); }
+}
+
+class GlobalStateBalanceStore implements BalanceStore {
+  private static readonly KEY = 'adcode.balance';
+  constructor(private readonly memento: vscode.Memento) {}
+  read(): Balance | undefined { return this.memento.get<Balance>(GlobalStateBalanceStore.KEY); }
+  async write(balance: Balance): Promise<void> {
+    await this.memento.update(GlobalStateBalanceStore.KEY, balance);
+  }
+}
+
+interface Runtime {
+  timer: ReturnType<typeof setInterval>;
+  queue: ReceiptQueue;
+}
+
+let runtime: Runtime | undefined;
+
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  const appStartedMs = Date.now();
+  const config = () => vscode.workspace.getConfiguration();
+
+  const auth = new FirebaseAnonymousAuth({
+    apiKey: FIREBASE_API_KEY,
+    store: new SecretTokenStore(context.secrets),
+  });
+
+  const client = new AdClient({
+    baseUrl: config().get<string>('adcode.serverUrl', 'https://api.adcode.dev'),
+    assetHost: ASSET_HOST,
+    auth,
+  });
+
+  const assets = new AssetCache({
+    dir: join(context.globalStorageUri.fsPath, 'assets'),
+    ...(process.env['ADCODE_DEV_ASSET_ORIGIN'] !== undefined
+      ? { devOriginOverride: process.env['ADCODE_DEV_ASSET_ORIGIN'] }
+      : {}),
+  });
+
+  const queue = await ReceiptQueue.open(
+    join(context.globalStorageUri.fsPath, 'receipts.json'));
+
+  const ledger = new Ledger({
+    source: client,
+    store: new GlobalStateBalanceStore(context.globalState),
+  });
+
+  const renderer = new Renderer({
+    sink: new FallbackSink(),
+    assets,
+    openExternal: async (url) => vscode.env.openExternal(vscode.Uri.parse(url)),
+  });
+
+  const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  status.command = 'adcode.showSponsors';
+  const paintStatus = () => {
+    status.text = `$(megaphone) ${ledger.display}`;
+    status.tooltip = 'ADCode earnings — click to open Sponsors';
+    status.show();
+  };
+  paintStatus();
+  context.subscriptions.push(status);
+
+  let cache: Creative[] = [];
+  let shownTimestampsMs: number[] = context.globalState.get<number[]>('adcode.shown', []);
+  let remoteConfig: RemoteConfig | null = null;
+  let ticking = false;
+
+  async function tick(): Promise<void> {
+    if (ticking) return;              // A slow network must not overlap ticks.
+    ticking = true;
+    try {
+      remoteConfig = (await client.config()) ?? remoteConfig;
+
+      const pending = queue.peekBatch(RECEIPT_BATCH);
+      if (pending.length > 0) {
+        const acked = await client.postReceipts(pending);
+        if (acked.length > 0) {
+          queue.ack(acked);
+          await queue.persist();
+          await ledger.refresh();
+          paintStatus();
+        }
+      }
+
+      const nowMs = Date.now();
+      shownTimestampsMs = trimTimestamps(shownTimestampsMs, nowMs);
+
+      const snapshot = buildSnapshot({
+        nowMs,
+        appStartedMs,
+        shownTimestampsMs,
+        frequencyPref: config().get<FrequencyPref>('adcode.ads.frequency', 'standard'),
+        remoteConfig,
+        windowFocused: vscode.window.state.focused,
+        debugSessionActive: vscode.debug.activeDebugSession !== undefined,
+        doNotDisturb: config().get<boolean>('notifications.doNotDisturbMode', false),
+        adsEnabled: config().get<boolean>('adcode.ads.enabled', true),
+        cacheHasCreative: cache.length > 0,
+      });
+
+      if (cache.length < 3 && !snapshot.remoteKillSwitch) {
+        const tags = deriveTags({
+          openLanguageIds: vscode.workspace.textDocuments.map((d) => d.languageId),
+          workspaceFileNames: await workspaceMarkers(),
+          userInterests: [],
+        });
+        const fetched = await client.serve(
+          tags, themeKindOf(vscode.window.activeColorTheme.kind), PREFETCH_COUNT);
+        if (fetched.length > 0) cache = fetched;
+      }
+
+      if (!decide(snapshot).show) return;
+
+      const creative = cache.shift();
+      if (creative === undefined) return;
+
+      shownTimestampsMs = [...shownTimestampsMs, nowMs];
+      await context.globalState.update('adcode.shown', shownTimestampsMs);
+
+      const { receipts, hideRequested } = await renderer.present(
+        creative, themeKindOf(vscode.window.activeColorTheme.kind));
+
+      for (const receipt of receipts) queue.enqueue(receipt);
+      if (receipts.length > 0) await queue.persist();
+
+      if (hideRequested) {
+        await config().update('adcode.ads.frequency', 'light', true);
+      }
+    } catch {
+      // The degradation rule: any failure means no ad, never a broken editor.
+    } finally {
+      ticking = false;
+    }
+  }
+
+  const timer = setInterval(() => { void tick(); }, TICK_MS);
+  runtime = { timer, queue };
+  context.subscriptions.push({ dispose: () => clearInterval(timer) });
+}
+
+/** Filename-level markers only. Never reads file contents. */
+async function workspaceMarkers(): Promise<string[]> {
+  const found = await vscode.workspace.findFiles(
+    '{package.json,go.mod,Cargo.toml,requirements.txt,pyproject.toml,Dockerfile,pom.xml,Gemfile,composer.json,angular.json,main.tf,Chart.yaml}',
+    '**/node_modules/**',
+    20,
+  );
+  return found.map((uri) => uri.path.split('/').pop() ?? '');
+}
+
+export async function deactivate(): Promise<void> {
+  if (runtime === undefined) return;
+  clearInterval(runtime.timer);
+  await runtime.queue.persist();
+  runtime = undefined;
+}
+```
+
+- [ ] **Step 6: Run the tests to verify they pass**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/extension.test.ts`
+Expected: PASS, all 10 tests.
+
+- [ ] **Step 7: Run the full suite and typecheck**
+
+Run: `cd extensions/adcode-ads && npx tsc -p . --noEmit && npx vitest run`
+Expected: `tsc` exits 0; every test from Tasks 1–13 passes.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add extensions/adcode-ads
+git commit -m "feat: wire the ad client into VS Code with a text-only fallback sink"
+```
+
+---
