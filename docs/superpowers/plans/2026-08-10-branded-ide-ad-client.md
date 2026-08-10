@@ -2728,3 +2728,549 @@ git commit -m "feat: add asset cache so creatives are never hot-linked from adve
 ```
 
 ---
+
+### Task 10: The ledger mirror
+
+The client never computes money. This module holds a cached copy of the server's number and formats it.
+
+One product decision is embedded in the formatter. At $4 CPM the user's half of an impression is 2000 micros — two tenths of a cent. Under the default 8/day cap that is about 1.6¢ a day, so a plain two-decimal display would read `$0.00` for the better part of a week and look broken. Balances under $1 therefore show four decimals. Formatting always **truncates, never rounds**: a balance must never display higher than it is.
+
+**Files:**
+- Create: `extensions/adcode-ads/src/ledger.ts`
+- Test: `extensions/adcode-ads/test/ledger.test.ts`
+
+**Interfaces:**
+- Consumes: `Balance`, `Micros` from `./types`.
+- Produces:
+  - `formatMicros(micros: Micros): string`
+  - `interface BalanceStore { read(): Balance | undefined; write(balance: Balance): Promise<void> }`
+  - `interface BalanceSource { balance(): Promise<Balance | null> }`
+  - `ZERO_BALANCE: Balance`
+  - `class Ledger` constructed with `{ source: BalanceSource; store: BalanceStore }`, exposing `readonly current: Balance`, `readonly display: string`, `refresh(): Promise<Balance>`
+
+- [ ] **Step 1: Write the failing tests**
+
+`extensions/adcode-ads/test/ledger.test.ts`:
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { Ledger, formatMicros, ZERO_BALANCE, type BalanceStore } from '../src/ledger';
+import type { Balance } from '../src/types';
+
+function memoryStore(seed?: Balance): BalanceStore {
+  let value = seed;
+  return {
+    read: () => value,
+    write: async (b) => { value = b; },
+  };
+}
+
+describe('formatMicros', () => {
+  it.each([
+    [0, '$0.0000'],
+    [2000, '$0.0020'],
+    [16_000, '$0.0160'],
+    [999_999, '$0.9999'],
+    [1_000_000, '$1.00'],
+    [1_234_567, '$1.23'],
+    [12_345_678, '$12.34'],
+  ])('formats %i micros as %s', (micros, expected) => {
+    expect(formatMicros(micros)).toBe(expected);
+  });
+
+  it('truncates rather than rounds, so a balance never reads high', () => {
+    expect(formatMicros(1_999_999)).toBe('$1.99');
+    expect(formatMicros(99_999)).toBe('$0.0999');
+  });
+
+  it('clamps a negative balance to zero', () => {
+    expect(formatMicros(-5000)).toBe('$0.0000');
+  });
+
+  it('clamps a non-finite value to zero', () => {
+    expect(formatMicros(Number.NaN)).toBe('$0.0000');
+  });
+});
+
+describe('Ledger', () => {
+  it('starts at zero with no cached balance', () => {
+    const ledger = new Ledger({
+      source: { balance: async () => null }, store: memoryStore(),
+    });
+    expect(ledger.current).toEqual(ZERO_BALANCE);
+    expect(ledger.display).toBe('$0.0000');
+  });
+
+  it('starts from the cached balance so the status bar is right offline', () => {
+    const cached: Balance = { availableMicros: 5000, lifetimeMicros: 9000 };
+    const ledger = new Ledger({
+      source: { balance: async () => null }, store: memoryStore(cached),
+    });
+    expect(ledger.current).toEqual(cached);
+    expect(ledger.display).toBe('$0.0050');
+  });
+
+  it('adopts and persists a fresh server balance', async () => {
+    const store = memoryStore();
+    const fresh: Balance = { availableMicros: 2_500_000, lifetimeMicros: 3_000_000 };
+    const ledger = new Ledger({ source: { balance: async () => fresh }, store });
+
+    await ledger.refresh();
+    expect(ledger.display).toBe('$2.50');
+    expect(store.read()).toEqual(fresh);
+  });
+
+  it('keeps the cached balance when the server is unreachable', async () => {
+    const cached: Balance = { availableMicros: 5000, lifetimeMicros: 9000 };
+    const store = memoryStore(cached);
+    const ledger = new Ledger({ source: { balance: async () => null }, store });
+
+    await expect(ledger.refresh()).resolves.toEqual(cached);
+    expect(store.read()).toEqual(cached);
+  });
+
+  it('does not write when the balance is unchanged', async () => {
+    const same: Balance = { availableMicros: 1000, lifetimeMicros: 1000 };
+    const store = memoryStore(same);
+    const write = vi.spyOn(store, 'write');
+    const ledger = new Ledger({ source: { balance: async () => ({ ...same }) }, store });
+
+    await ledger.refresh();
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('survives a store that throws on write', async () => {
+    const store: BalanceStore = {
+      read: () => undefined,
+      write: async () => { throw new Error('storage full'); },
+    };
+    const ledger = new Ledger({
+      source: { balance: async () => ({ availableMicros: 1, lifetimeMicros: 1 }) }, store,
+    });
+    await expect(ledger.refresh()).resolves.toEqual({ availableMicros: 1, lifetimeMicros: 1 });
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/ledger.test.ts`
+Expected: FAIL — `Failed to resolve import "../src/ledger"`.
+
+- [ ] **Step 3: Implement the ledger**
+
+`extensions/adcode-ads/src/ledger.ts`:
+
+```typescript
+import type { Balance, Micros } from './types';
+
+const MICROS_PER_DOLLAR = 1_000_000;
+
+export const ZERO_BALANCE: Balance = { availableMicros: 0, lifetimeMicros: 0 };
+
+export interface BalanceStore {
+  read(): Balance | undefined;
+  write(balance: Balance): Promise<void>;
+}
+
+export interface BalanceSource {
+  balance(): Promise<Balance | null>;
+}
+
+/**
+ * Integer arithmetic throughout. Truncates rather than rounds so a displayed
+ * balance is never higher than the real one. Sub-dollar balances show four
+ * decimals because a valid impression is worth two tenths of a cent.
+ */
+export function formatMicros(micros: Micros): string {
+  const safe = Number.isFinite(micros) && micros > 0 ? Math.floor(micros) : 0;
+  const dollars = Math.floor(safe / MICROS_PER_DOLLAR);
+
+  if (dollars === 0) {
+    const tenThousandths = Math.floor(safe / 100);
+    return `$0.${String(tenThousandths).padStart(4, '0')}`;
+  }
+
+  const cents = Math.floor((safe % MICROS_PER_DOLLAR) / 10_000);
+  return `$${dollars}.${String(cents).padStart(2, '0')}`;
+}
+
+/**
+ * Mirrors the server-authoritative balance. This module never adds, subtracts,
+ * or derives a monetary amount — it copies one and formats it.
+ */
+export class Ledger {
+  private balance: Balance;
+
+  private readonly source: BalanceSource;
+  private readonly store: BalanceStore;
+
+  constructor(options: { source: BalanceSource; store: BalanceStore }) {
+    this.source = options.source;
+    this.store = options.store;
+    this.balance = options.store.read() ?? ZERO_BALANCE;
+  }
+
+  get current(): Balance {
+    return this.balance;
+  }
+
+  get display(): string {
+    return formatMicros(this.balance.availableMicros);
+  }
+
+  async refresh(): Promise<Balance> {
+    const fresh = await this.source.balance();
+    if (fresh === null) return this.balance;      // Offline. Cached value stands.
+
+    if (
+      fresh.availableMicros === this.balance.availableMicros &&
+      fresh.lifetimeMicros === this.balance.lifetimeMicros
+    ) {
+      return this.balance;
+    }
+
+    this.balance = fresh;
+    try {
+      await this.store.write(fresh);
+    } catch {
+      // A failed cache write must not break the status bar.
+    }
+    return this.balance;
+  }
+}
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/ledger.test.ts`
+Expected: PASS, all 13 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add extensions/adcode-ads/src/ledger.ts extensions/adcode-ads/test/ledger.test.ts
+git commit -m "feat: add ledger mirror with truncating micros formatter"
+```
+
+---
+
+### Task 11: The renderer
+
+Turns a creative into a shown notification and decides which receipts that produced. The VS Code coupling is isolated behind a `NotificationSink` interface, which is what lets this be unit-tested and what lets the extension run in stock VS Code (fallback sink) before the fork exists (sponsored sink, Task 15).
+
+**Files:**
+- Create: `extensions/adcode-ads/src/renderer.ts`
+- Test: `extensions/adcode-ads/test/renderer.test.ts`
+
+**Interfaces:**
+- Consumes: `Creative`, `Receipt`, `ThemeKind` from `./types`.
+- Produces:
+  - `MIN_IMPRESSION_MS: number`
+  - `interface SponsoredView { headline: string; body: string; logoDataUri: string | null }`
+  - `type ShowOutcome = 'clicked' | 'hidden' | 'dismissed' | 'timeout'`
+  - `interface ShowResult { outcome: ShowOutcome; shownMs: number; focusedThroughout: boolean }`
+  - `interface NotificationSink { show(view: SponsoredView): Promise<ShowResult> }`
+  - `interface AssetSource { getDataUri(url: string): Promise<string | null> }`
+  - `interface PresentResult { receipts: Receipt[]; hideRequested: boolean }`
+  - `class Renderer` constructed with `{ sink: NotificationSink; assets: AssetSource; openExternal: (url: string) => Promise<boolean>; now?: () => number; newId?: () => string }`, exposing `present(creative: Creative, themeKind: ThemeKind): Promise<PresentResult>`
+
+- [ ] **Step 1: Write the failing tests**
+
+`extensions/adcode-ads/test/renderer.test.ts`:
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { Renderer, MIN_IMPRESSION_MS, type NotificationSink, type ShowResult } from '../src/renderer';
+import type { Creative } from '../src/types';
+
+const creative: Creative = {
+  creativeId: 'cr_1', campaignId: 'cm_1',
+  headline: 'Sentry', body: 'Catch errors before your users do.',
+  logoLight: 'https://assets.adcode.dev/cr_1/light.svg',
+  logoDark: 'https://assets.adcode.dev/cr_1/dark.svg',
+  clickUrl: 'https://sentry.io', expiresAt: 1_800_000_000_000,
+};
+
+const sinkReturning = (result: ShowResult) => {
+  const show = vi.fn().mockResolvedValue(result);
+  return { sink: { show } as NotificationSink, show };
+};
+
+const valid: ShowResult = {
+  outcome: 'timeout', shownMs: MIN_IMPRESSION_MS, focusedThroughout: true,
+};
+
+function make(sink: NotificationSink, overrides: Partial<{
+  getDataUri: (url: string) => Promise<string | null>;
+  openExternal: (url: string) => Promise<boolean>;
+}> = {}) {
+  let counter = 0;
+  return new Renderer({
+    sink,
+    assets: { getDataUri: overrides.getDataUri ?? (async () => 'data:image/svg+xml;base64,AA') },
+    openExternal: overrides.openExternal ?? (async () => true),
+    now: () => 1_700_000_000_000,
+    newId: () => `rcpt_${++counter}`,
+  });
+}
+
+describe('asset selection', () => {
+  it('uses the dark logo for a dark theme', async () => {
+    const getDataUri = vi.fn().mockResolvedValue('data:image/svg+xml;base64,AA');
+    const { sink } = sinkReturning(valid);
+    await make(sink, { getDataUri }).present(creative, 'dark');
+    expect(getDataUri).toHaveBeenCalledWith(creative.logoDark);
+  });
+
+  it('uses the light logo for a light theme', async () => {
+    const getDataUri = vi.fn().mockResolvedValue('data:image/svg+xml;base64,AA');
+    const { sink } = sinkReturning(valid);
+    await make(sink, { getDataUri }).present(creative, 'light');
+    expect(getDataUri).toHaveBeenCalledWith(creative.logoLight);
+  });
+
+  it('still shows the ad when the logo cannot be fetched', async () => {
+    const { sink, show } = sinkReturning(valid);
+    const result = await make(sink, { getDataUri: async () => null })
+      .present(creative, 'light');
+
+    expect(show).toHaveBeenCalledWith(expect.objectContaining({ logoDataUri: null }));
+    expect(result.receipts).toHaveLength(1);
+  });
+});
+
+describe('impression receipts', () => {
+  it('emits an impression at exactly the minimum duration', async () => {
+    const { sink } = sinkReturning(valid);
+    const { receipts } = await make(sink).present(creative, 'light');
+
+    expect(receipts).toEqual([{
+      receiptId: 'rcpt_1', creativeId: 'cr_1', kind: 'impression',
+      shownMs: MIN_IMPRESSION_MS, focused: true, clientTs: 1_700_000_000_000,
+    }]);
+  });
+
+  it('emits nothing one millisecond short of the minimum', async () => {
+    const { sink } = sinkReturning({ ...valid, shownMs: MIN_IMPRESSION_MS - 1 });
+    const { receipts } = await make(sink).present(creative, 'light');
+    expect(receipts).toEqual([]);
+  });
+
+  it('emits nothing when focus was lost during display', async () => {
+    const { sink } = sinkReturning({ ...valid, focusedThroughout: false });
+    const { receipts } = await make(sink).present(creative, 'light');
+    expect(receipts).toEqual([]);
+  });
+
+  it('emits an impression when the user dismissed it after the minimum', async () => {
+    const { sink } = sinkReturning({ ...valid, outcome: 'dismissed', shownMs: 6000 });
+    const { receipts } = await make(sink).present(creative, 'light');
+    expect(receipts.map((r) => r.kind)).toEqual(['impression']);
+  });
+});
+
+describe('clicks', () => {
+  it('opens the click url externally and emits both receipts', async () => {
+    const openExternal = vi.fn().mockResolvedValue(true);
+    const { sink } = sinkReturning({ ...valid, outcome: 'clicked', shownMs: 5000 });
+    const { receipts } = await make(sink, { openExternal }).present(creative, 'light');
+
+    expect(openExternal).toHaveBeenCalledWith('https://sentry.io');
+    expect(receipts.map((r) => r.kind)).toEqual(['impression', 'click']);
+    expect(new Set(receipts.map((r) => r.receiptId)).size).toBe(2);
+  });
+
+  it('emits a click receipt even when the impression was too short', async () => {
+    const { sink } = sinkReturning({ ...valid, outcome: 'clicked', shownMs: 500 });
+    const { receipts } = await make(sink).present(creative, 'light');
+    expect(receipts.map((r) => r.kind)).toEqual(['click']);
+  });
+
+  it('refuses to open a non-https url', async () => {
+    const openExternal = vi.fn();
+    const { sink } = sinkReturning({ ...valid, outcome: 'clicked', shownMs: 5000 });
+    const renderer = make(sink, { openExternal });
+
+    await renderer.present({ ...creative, clickUrl: 'http://sentry.io' }, 'light');
+    expect(openExternal).not.toHaveBeenCalled();
+  });
+
+  it('refuses to open a javascript url', async () => {
+    const openExternal = vi.fn();
+    const { sink } = sinkReturning({ ...valid, outcome: 'clicked', shownMs: 5000 });
+    const renderer = make(sink, { openExternal });
+
+    await renderer.present({ ...creative, clickUrl: 'javascript:alert(1)' }, 'light');
+    expect(openExternal).not.toHaveBeenCalled();
+  });
+});
+
+describe('hide', () => {
+  it('reports a hide request without suppressing a valid impression', async () => {
+    const { sink } = sinkReturning({ ...valid, outcome: 'hidden', shownMs: 5000 });
+    const result = await make(sink).present(creative, 'light');
+
+    expect(result.hideRequested).toBe(true);
+    expect(result.receipts.map((r) => r.kind)).toEqual(['impression']);
+  });
+
+  it('reports no hide request otherwise', async () => {
+    const { sink } = sinkReturning(valid);
+    expect((await make(sink).present(creative, 'light')).hideRequested).toBe(false);
+  });
+});
+
+describe('sink failure', () => {
+  it('returns no receipts when the sink throws', async () => {
+    const sink = { show: vi.fn().mockRejectedValue(new Error('notification failed')) };
+    await expect(make(sink).present(creative, 'light'))
+      .resolves.toEqual({ receipts: [], hideRequested: false });
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/renderer.test.ts`
+Expected: FAIL — `Failed to resolve import "../src/renderer"`.
+
+- [ ] **Step 3: Implement the renderer**
+
+`extensions/adcode-ads/src/renderer.ts`:
+
+```typescript
+import { randomUUID } from 'node:crypto';
+import type { Creative, Receipt, ThemeKind } from './types';
+
+/** An impression must be on screen at least this long, focused, to count. */
+export const MIN_IMPRESSION_MS = 4000;
+
+export interface SponsoredView {
+  headline: string;
+  body: string;
+  logoDataUri: string | null;
+}
+
+export type ShowOutcome = 'clicked' | 'hidden' | 'dismissed' | 'timeout';
+
+export interface ShowResult {
+  outcome: ShowOutcome;
+  shownMs: number;
+  focusedThroughout: boolean;
+}
+
+/** The only VS Code coupling in the display path. Swapped for the patched sink in Task 15. */
+export interface NotificationSink {
+  show(view: SponsoredView): Promise<ShowResult>;
+}
+
+export interface AssetSource {
+  getDataUri(url: string): Promise<string | null>;
+}
+
+export interface PresentResult {
+  receipts: Receipt[];
+  hideRequested: boolean;
+}
+
+export interface RendererOptions {
+  sink: NotificationSink;
+  assets: AssetSource;
+  openExternal: (url: string) => Promise<boolean>;
+  now?: () => number;
+  newId?: () => string;
+}
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export class Renderer {
+  private readonly sink: NotificationSink;
+  private readonly assets: AssetSource;
+  private readonly openExternal: (url: string) => Promise<boolean>;
+  private readonly now: () => number;
+  private readonly newId: () => string;
+
+  constructor(options: RendererOptions) {
+    this.sink = options.sink;
+    this.assets = options.assets;
+    this.openExternal = options.openExternal;
+    this.now = options.now ?? (() => Date.now());
+    this.newId = options.newId ?? (() => `rcpt_${randomUUID()}`);
+  }
+
+  async present(creative: Creative, themeKind: ThemeKind): Promise<PresentResult> {
+    const logoUrl = themeKind === 'dark' ? creative.logoDark : creative.logoLight;
+    // A missing logo degrades the ad, it does not cancel it.
+    const logoDataUri = await this.assets.getDataUri(logoUrl).catch(() => null);
+
+    let result: ShowResult;
+    try {
+      result = await this.sink.show({
+        headline: creative.headline,
+        body: creative.body,
+        logoDataUri,
+      });
+    } catch {
+      return { receipts: [], hideRequested: false };
+    }
+
+    const clientTs = this.now();
+    const receipts: Receipt[] = [];
+
+    if (result.focusedThroughout && result.shownMs >= MIN_IMPRESSION_MS) {
+      receipts.push({
+        receiptId: this.newId(),
+        creativeId: creative.creativeId,
+        kind: 'impression',
+        shownMs: result.shownMs,
+        focused: true,
+        clientTs,
+      });
+    }
+
+    if (result.outcome === 'clicked') {
+      receipts.push({
+        receiptId: this.newId(),
+        creativeId: creative.creativeId,
+        kind: 'click',
+        shownMs: result.shownMs,
+        focused: result.focusedThroughout,
+        clientTs,
+      });
+      // Validation already enforced https, but this is the last gate before
+      // handing a URL to the operating system. Check it here too.
+      if (isHttpsUrl(creative.clickUrl)) {
+        await this.openExternal(creative.clickUrl).catch(() => false);
+      }
+    }
+
+    return { receipts, hideRequested: result.outcome === 'hidden' };
+  }
+}
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/renderer.test.ts`
+Expected: PASS, all 14 tests.
+
+- [ ] **Step 5: Run the whole suite and typecheck**
+
+Run: `cd extensions/adcode-ads && npx tsc -p . --noEmit && npx vitest run`
+Expected: `tsc` exits 0; every test from Tasks 1–11 passes.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add extensions/adcode-ads/src/renderer.ts extensions/adcode-ads/test/renderer.test.ts
+git commit -m "feat: add renderer with sink abstraction and impression validity rules"
+```
+
+---
