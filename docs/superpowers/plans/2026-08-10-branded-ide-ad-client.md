@@ -1320,3 +1320,733 @@ git commit -m "feat: add bounded disk-backed receipt queue with atomic persist"
 ```
 
 ---
+
+### Task 6: The mock server
+
+Implements all four endpoints of the serving contract plus an asset host, so the extension is completable and testable without Project B. Node 24 strips TypeScript types natively, so this runs with no build step.
+
+**Files:**
+- Create: `mock-server/package.json`
+- Create: `mock-server/src/server.ts`
+- Test: `mock-server/test/server.test.ts`
+
+**Interfaces:**
+- Consumes: nothing. Deliberately shares no code with the extension — a mock that imports the client's own types cannot catch a contract mismatch.
+- Produces (HTTP, all requiring `Authorization: Bearer <token>`):
+  - `POST /v1/serve` → `{ creatives: Creative[] }`
+  - `POST /v1/receipts` → `{ acked: string[] }`
+  - `GET /v1/balance` → `{ availableMicros: number, lifetimeMicros: number }`
+  - `GET /v1/config` → `{ enabled: boolean, minIntervalMs: number, dailyCap: number }`
+  - `GET /assets/:creativeId/:theme.svg` → `image/svg+xml`
+  - `POST /__test__/reset` → resets state between tests
+- Also produces `startServer(port: number): Promise<{ port: number; close: () => Promise<void> }>` for use by tests.
+
+- [ ] **Step 1: Create the package manifest**
+
+`mock-server/package.json`:
+
+```json
+{
+  "name": "adcode-mock-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node src/server.ts",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
+```
+
+- [ ] **Step 2: Write the failing tests**
+
+`mock-server/test/server.test.ts`:
+
+```typescript
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { startServer } from '../src/server.ts';
+
+let base: string;
+let close: () => Promise<void>;
+
+const AUTH = { authorization: 'Bearer fake-id-token', 'content-type': 'application/json' };
+
+beforeAll(async () => {
+  const server = await startServer(0);
+  base = `http://127.0.0.1:${server.port}`;
+  close = server.close;
+});
+afterAll(async () => { await close(); });
+beforeEach(async () => {
+  await fetch(`${base}/__test__/reset`, { method: 'POST' });
+});
+
+describe('auth', () => {
+  it('rejects a request with no bearer token', async () => {
+    const res = await fetch(`${base}/v1/config`);
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /v1/serve', () => {
+  it('returns creatives with light and dark assets on the allowlisted host', async () => {
+    const res = await fetch(`${base}/v1/serve`, {
+      method: 'POST',
+      headers: AUTH,
+      body: JSON.stringify({ tags: ['typescript'], themeKind: 'dark', count: 3 }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { creatives: Array<Record<string, string>> };
+    expect(body.creatives.length).toBeGreaterThan(0);
+    for (const c of body.creatives) {
+      expect(c.logoLight).toMatch(/^https:\/\/assets\.adcode\.dev\//);
+      expect(c.logoDark).toMatch(/^https:\/\/assets\.adcode\.dev\//);
+      expect(c.clickUrl).toMatch(/^https:\/\//);
+    }
+  });
+
+  it('honors the requested count', async () => {
+    const res = await fetch(`${base}/v1/serve`, {
+      method: 'POST', headers: AUTH,
+      body: JSON.stringify({ tags: [], themeKind: 'light', count: 2 }),
+    });
+    const body = await res.json() as { creatives: unknown[] };
+    expect(body.creatives).toHaveLength(2);
+  });
+
+  it('prefers creatives matching the requested tags', async () => {
+    const res = await fetch(`${base}/v1/serve`, {
+      method: 'POST', headers: AUTH,
+      body: JSON.stringify({ tags: ['kubernetes'], themeKind: 'light', count: 1 }),
+    });
+    const body = await res.json() as { creatives: Array<{ campaignId: string }> };
+    expect(body.creatives[0]!.campaignId).toBe('cm_infra');
+  });
+});
+
+describe('POST /v1/receipts', () => {
+  const receipt = (id: string) => ({
+    receiptId: id, creativeId: 'cr_sentry', kind: 'impression',
+    shownMs: 8000, focused: true, clientTs: Date.now(),
+  });
+
+  it('acks submitted receipts and credits half the bid', async () => {
+    const res = await fetch(`${base}/v1/receipts`, {
+      method: 'POST', headers: AUTH,
+      body: JSON.stringify({ receipts: [receipt('r1')] }),
+    });
+    expect(await res.json()).toEqual({ acked: ['r1'] });
+
+    const balance = await (await fetch(`${base}/v1/balance`, { headers: AUTH })).json();
+    expect(balance).toEqual({ availableMicros: 2000, lifetimeMicros: 2000 });
+  });
+
+  it('is idempotent by receipt id', async () => {
+    await fetch(`${base}/v1/receipts`, {
+      method: 'POST', headers: AUTH, body: JSON.stringify({ receipts: [receipt('r1')] }),
+    });
+    const res = await fetch(`${base}/v1/receipts`, {
+      method: 'POST', headers: AUTH, body: JSON.stringify({ receipts: [receipt('r1')] }),
+    });
+    expect(await res.json()).toEqual({ acked: ['r1'] });
+
+    const balance = await (await fetch(`${base}/v1/balance`, { headers: AUTH })).json() as
+      { lifetimeMicros: number };
+    expect(balance.lifetimeMicros).toBe(2000);
+  });
+
+  it('acks but does not credit a receipt under 4 seconds', async () => {
+    await fetch(`${base}/v1/receipts`, {
+      method: 'POST', headers: AUTH,
+      body: JSON.stringify({ receipts: [{ ...receipt('r2'), shownMs: 3999 }] }),
+    });
+    const balance = await (await fetch(`${base}/v1/balance`, { headers: AUTH })).json() as
+      { lifetimeMicros: number };
+    expect(balance.lifetimeMicros).toBe(0);
+  });
+
+  it('acks but does not credit an unfocused receipt', async () => {
+    await fetch(`${base}/v1/receipts`, {
+      method: 'POST', headers: AUTH,
+      body: JSON.stringify({ receipts: [{ ...receipt('r3'), focused: false }] }),
+    });
+    const balance = await (await fetch(`${base}/v1/balance`, { headers: AUTH })).json() as
+      { lifetimeMicros: number };
+    expect(balance.lifetimeMicros).toBe(0);
+  });
+});
+
+describe('GET /v1/config', () => {
+  it('returns caps at least as loose as the client defaults', async () => {
+    const res = await fetch(`${base}/v1/config`, { headers: AUTH });
+    expect(await res.json()).toEqual({
+      enabled: true, minIntervalMs: 30 * 60_000, dailyCap: 8,
+    });
+  });
+});
+
+describe('GET /assets', () => {
+  it('serves distinct svg for light and dark', async () => {
+    const light = await (await fetch(`${base}/assets/cr_sentry/light.svg`)).text();
+    const dark = await (await fetch(`${base}/assets/cr_sentry/dark.svg`)).text();
+    expect(light).toContain('<svg');
+    expect(dark).toContain('<svg');
+    expect(light).not.toBe(dark);
+  });
+
+  it('404s an unknown asset path', async () => {
+    expect((await fetch(`${base}/assets/nope/light.svg`)).status).toBe(404);
+  });
+});
+```
+
+- [ ] **Step 3: Run the tests to verify they fail**
+
+Run: `cd mock-server && npm install && npx vitest run`
+Expected: FAIL — cannot resolve `../src/server.ts`.
+
+- [ ] **Step 4: Implement the server**
+
+`mock-server/src/server.ts`:
+
+```typescript
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
+
+const ASSET_HOST = 'https://assets.adcode.dev';
+
+/** $4 CPM. The user's half of this is what a valid impression is worth. */
+const BID_MICROS = 4000;
+const USER_SHARE_NUMERATOR = 1;
+const USER_SHARE_DENOMINATOR = 2;
+
+/** An impression must have been on screen this long, focused, to earn. */
+const MIN_SHOWN_MS = 4000;
+
+interface Fixture {
+  creativeId: string;
+  campaignId: string;
+  headline: string;
+  body: string;
+  clickUrl: string;
+  tags: string[];
+}
+
+const FIXTURES: Fixture[] = [
+  {
+    creativeId: 'cr_sentry', campaignId: 'cm_observability',
+    headline: 'Sentry', body: 'Catch errors before your users do.',
+    clickUrl: 'https://sentry.io', tags: ['typescript', 'javascript', 'python'],
+  },
+  {
+    creativeId: 'cr_linear', campaignId: 'cm_pm',
+    headline: 'Linear', body: 'Issue tracking built for speed.',
+    clickUrl: 'https://linear.app', tags: ['react', 'typescript'],
+  },
+  {
+    creativeId: 'cr_pulumi', campaignId: 'cm_infra',
+    headline: 'Pulumi', body: 'Infrastructure as real code.',
+    clickUrl: 'https://pulumi.com', tags: ['kubernetes', 'terraform', 'docker', 'go'],
+  },
+  {
+    creativeId: 'cr_planetscale', campaignId: 'cm_data',
+    headline: 'PlanetScale', body: 'Serverless MySQL that scales.',
+    clickUrl: 'https://planetscale.com', tags: ['sql', 'data', 'backend'],
+  },
+];
+
+interface State {
+  seenReceipts: Set<string>;
+  lifetimeMicros: number;
+  availableMicros: number;
+}
+
+const freshState = (): State => ({
+  seenReceipts: new Set(),
+  lifetimeMicros: 0,
+  availableMicros: 0,
+});
+
+function svg(label: string, fg: string, bg: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">` +
+    `<rect width="48" height="48" rx="10" fill="${bg}"/>` +
+    `<text x="24" y="31" font-family="sans-serif" font-size="20" font-weight="700" ` +
+    `text-anchor="middle" fill="${fg}">${label}</text></svg>`;
+}
+
+function toCreative(f: Fixture) {
+  return {
+    creativeId: f.creativeId,
+    campaignId: f.campaignId,
+    headline: f.headline,
+    body: f.body,
+    logoLight: `${ASSET_HOST}/${f.creativeId}/light.svg`,
+    logoDark: `${ASSET_HOST}/${f.creativeId}/dark.svg`,
+    clickUrl: f.clickUrl,
+    expiresAt: Date.now() + 60 * 60_000,
+  };
+}
+
+async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  if (chunks.length === 0) return {};
+  try {
+    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return typeof parsed === 'object' && parsed !== null
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function json(res: ServerResponse, status: number, body: unknown): void {
+  const payload = JSON.stringify(body);
+  res.writeHead(status, {
+    'content-type': 'application/json',
+    'content-length': Buffer.byteLength(payload),
+  });
+  res.end(payload);
+}
+
+export async function startServer(
+  port: number,
+): Promise<{ port: number; close: () => Promise<void> }> {
+  let state = freshState();
+
+  const server = createServer((req, res) => {
+    void handle(req, res).catch(() => json(res, 500, { error: 'internal' }));
+  });
+
+  async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const path = url.pathname;
+
+    if (req.method === 'POST' && path === '/__test__/reset') {
+      state = freshState();
+      json(res, 200, { ok: true });
+      return;
+    }
+
+    // Assets are public — the IDE fetches them before any token is minted.
+    const asset = /^\/assets\/([A-Za-z0-9_-]+)\/(light|dark)\.svg$/.exec(path);
+    if (req.method === 'GET' && asset !== null) {
+      const [, creativeId, theme] = asset;
+      const fixture = FIXTURES.find((f) => f.creativeId === creativeId);
+      if (fixture === undefined) {
+        json(res, 404, { error: 'no such asset' });
+        return;
+      }
+      const body = theme === 'light'
+        ? svg(fixture.headline.slice(0, 1), '#ffffff', '#1f2328')
+        : svg(fixture.headline.slice(0, 1), '#1f2328', '#f0f2f4');
+      res.writeHead(200, {
+        'content-type': 'image/svg+xml',
+        'content-length': Buffer.byteLength(body),
+      });
+      res.end(body);
+      return;
+    }
+
+    const auth = req.headers['authorization'];
+    if (typeof auth !== 'string' || !auth.startsWith('Bearer ')) {
+      json(res, 401, { error: 'missing bearer token' });
+      return;
+    }
+
+    if (req.method === 'GET' && path === '/v1/config') {
+      json(res, 200, { enabled: true, minIntervalMs: 30 * 60_000, dailyCap: 8 });
+      return;
+    }
+
+    if (req.method === 'GET' && path === '/v1/balance') {
+      json(res, 200, {
+        availableMicros: state.availableMicros,
+        lifetimeMicros: state.lifetimeMicros,
+      });
+      return;
+    }
+
+    if (req.method === 'POST' && path === '/v1/serve') {
+      const body = await readJson(req);
+      const tags = Array.isArray(body['tags']) ? body['tags'] as string[] : [];
+      const count = typeof body['count'] === 'number' ? body['count'] : 1;
+
+      const scored = FIXTURES
+        .map((f) => ({ f, score: f.tags.filter((t) => tags.includes(t)).length }))
+        .sort((a, b) => b.score - a.score);
+
+      json(res, 200, {
+        creatives: scored.slice(0, Math.max(0, Math.min(count, FIXTURES.length)))
+          .map(({ f }) => toCreative(f)),
+      });
+      return;
+    }
+
+    if (req.method === 'POST' && path === '/v1/receipts') {
+      const body = await readJson(req);
+      const receipts = Array.isArray(body['receipts'])
+        ? body['receipts'] as Array<Record<string, unknown>>
+        : [];
+      const acked: string[] = [];
+
+      for (const r of receipts) {
+        const id = r['receiptId'];
+        if (typeof id !== 'string') continue;
+        acked.push(id);
+        if (state.seenReceipts.has(id)) continue;
+        state.seenReceipts.add(id);
+
+        const valid = r['kind'] === 'impression' &&
+          r['focused'] === true &&
+          typeof r['shownMs'] === 'number' &&
+          r['shownMs'] >= MIN_SHOWN_MS;
+
+        if (valid) {
+          // Integer arithmetic only. Never floats for money.
+          const credit = Math.floor(
+            (BID_MICROS * USER_SHARE_NUMERATOR) / USER_SHARE_DENOMINATOR,
+          );
+          state.lifetimeMicros += credit;
+          state.availableMicros += credit;
+        }
+      }
+
+      // Acked regardless of validity: the client must stop retrying a receipt
+      // the server has already judged, valid or not.
+      json(res, 200, { acked });
+      return;
+    }
+
+    json(res, 404, { error: 'no such route' });
+  }
+
+  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
+
+  return {
+    port: (server.address() as AddressInfo).port,
+    close: () => new Promise<void>((resolve, reject) => {
+      server.close((err) => (err !== undefined && err !== null ? reject(err) : resolve()));
+    }),
+  };
+}
+
+// Started directly rather than imported by a test.
+if (process.argv[1] !== undefined && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'))) {
+  const port = Number(process.env['PORT'] ?? 8787);
+  void startServer(port).then((s) => {
+    console.log(`[adcode-mock] listening on http://127.0.0.1:${s.port}`);
+  });
+}
+```
+
+- [ ] **Step 5: Run the tests to verify they pass**
+
+Run: `cd mock-server && npx vitest run`
+Expected: PASS, all 11 tests.
+
+- [ ] **Step 6: Confirm it runs standalone**
+
+Run: `cd mock-server && PORT=8787 node src/server.ts`
+Expected: prints `[adcode-mock] listening on http://127.0.0.1:8787`. Stop it with Ctrl-C.
+
+- [ ] **Step 7: Add it to CI**
+
+Modify `.github/workflows/ci.yml` — add a second job below the existing `extension` job, at the same indentation:
+
+```yaml
+  mock-server:
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: mock-server }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24' }
+      - run: npm ci
+      - run: npm test
+```
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add mock-server .github/workflows/ci.yml
+git commit -m "feat: add mock ad server implementing the serving contract"
+```
+
+---
+
+### Task 7: Firebase anonymous identity
+
+Uses the Firebase Auth REST API rather than the JS SDK. The SDK assumes browser storage and pulls in a large dependency tree; three REST calls is the entire requirement, and it keeps the extension's activation cost near zero.
+
+Account *linking* at cash-out is out of scope for Project A (spec §12) — this task delivers anonymous identity and token refresh only.
+
+**Files:**
+- Create: `extensions/adcode-ads/src/auth.ts`
+- Test: `extensions/adcode-ads/test/auth.test.ts`
+
+**Interfaces:**
+- Consumes: nothing from earlier tasks.
+- Produces:
+  - `interface TokenStore { get(key: string): Promise<string | undefined>; set(key: string, value: string): Promise<void> }`
+  - `interface AuthProvider { getIdToken(): Promise<string> }`
+  - `REFRESH_TOKEN_KEY: string`
+  - `class FirebaseAnonymousAuth implements AuthProvider`, constructed with
+    `{ apiKey: string; store: TokenStore; fetchImpl?: typeof fetch; now?: () => number }`
+
+- [ ] **Step 1: Write the failing tests**
+
+`extensions/adcode-ads/test/auth.test.ts`:
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { FirebaseAnonymousAuth, REFRESH_TOKEN_KEY, type TokenStore } from '../src/auth';
+
+function memoryStore(seed: Record<string, string> = {}): TokenStore {
+  const map = new Map(Object.entries(seed));
+  return {
+    get: async (k) => map.get(k),
+    set: async (k, v) => { map.set(k, v); },
+  };
+}
+
+const okJson = (body: unknown) =>
+  new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+
+describe('FirebaseAnonymousAuth', () => {
+  it('signs up anonymously when no refresh token is stored', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okJson({
+      idToken: 'id-1', refreshToken: 'refresh-1', expiresIn: '3600', localId: 'uid-1',
+    }));
+    const store = memoryStore();
+    const auth = new FirebaseAnonymousAuth({ apiKey: 'KEY', store, fetchImpl });
+
+    expect(await auth.getIdToken()).toBe('id-1');
+    expect(fetchImpl.mock.calls[0]![0]).toContain('accounts:signUp?key=KEY');
+    expect(await store.get(REFRESH_TOKEN_KEY)).toBe('refresh-1');
+  });
+
+  it('reuses a cached token without a second network call', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okJson({
+      idToken: 'id-1', refreshToken: 'refresh-1', expiresIn: '3600', localId: 'uid-1',
+    }));
+    const auth = new FirebaseAnonymousAuth({ apiKey: 'KEY', store: memoryStore(), fetchImpl });
+
+    await auth.getIdToken();
+    await auth.getIdToken();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes rather than signing up again when a refresh token exists', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(okJson({
+      id_token: 'id-2', refresh_token: 'refresh-2', expires_in: '3600', user_id: 'uid-1',
+    }));
+    const store = memoryStore({ [REFRESH_TOKEN_KEY]: 'refresh-1' });
+    const auth = new FirebaseAnonymousAuth({ apiKey: 'KEY', store, fetchImpl });
+
+    expect(await auth.getIdToken()).toBe('id-2');
+    expect(fetchImpl.mock.calls[0]![0]).toContain('securetoken.googleapis.com');
+    expect(await store.get(REFRESH_TOKEN_KEY)).toBe('refresh-2');
+  });
+
+  it('refreshes once the cached token is inside the expiry skew', async () => {
+    let clock = 1_000_000;
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(okJson({
+        idToken: 'id-1', refreshToken: 'refresh-1', expiresIn: '3600', localId: 'uid-1',
+      }))
+      .mockResolvedValueOnce(okJson({
+        id_token: 'id-2', refresh_token: 'refresh-2', expires_in: '3600', user_id: 'uid-1',
+      }));
+    const auth = new FirebaseAnonymousAuth({
+      apiKey: 'KEY', store: memoryStore(), fetchImpl, now: () => clock,
+    });
+
+    expect(await auth.getIdToken()).toBe('id-1');
+    clock += 3600_000 - 30_000;        // inside the 60s skew
+    expect(await auth.getIdToken()).toBe('id-2');
+  });
+
+  it('falls back to anonymous sign-up when the refresh token is rejected', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response('{"error":{"message":"TOKEN_EXPIRED"}}', { status: 400 }))
+      .mockResolvedValueOnce(okJson({
+        idToken: 'id-3', refreshToken: 'refresh-3', expiresIn: '3600', localId: 'uid-2',
+      }));
+    const store = memoryStore({ [REFRESH_TOKEN_KEY]: 'stale' });
+    const auth = new FirebaseAnonymousAuth({ apiKey: 'KEY', store, fetchImpl });
+
+    expect(await auth.getIdToken()).toBe('id-3');
+    expect(await store.get(REFRESH_TOKEN_KEY)).toBe('refresh-3');
+  });
+
+  it('throws when sign-up itself fails', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('nope', { status: 500 }));
+    const auth = new FirebaseAnonymousAuth({ apiKey: 'KEY', store: memoryStore(), fetchImpl });
+    await expect(auth.getIdToken()).rejects.toThrow(/sign-up failed/i);
+  });
+
+  it('coalesces concurrent callers into a single sign-up', async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      return okJson({
+        idToken: 'id-1', refreshToken: 'refresh-1', expiresIn: '3600', localId: 'uid-1',
+      });
+    });
+    const auth = new FirebaseAnonymousAuth({ apiKey: 'KEY', store: memoryStore(), fetchImpl });
+
+    const [a, b, c] = await Promise.all([
+      auth.getIdToken(), auth.getIdToken(), auth.getIdToken(),
+    ]);
+    expect([a, b, c]).toEqual(['id-1', 'id-1', 'id-1']);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/auth.test.ts`
+Expected: FAIL — `Failed to resolve import "../src/auth"`.
+
+- [ ] **Step 3: Implement auth**
+
+`extensions/adcode-ads/src/auth.ts`:
+
+```typescript
+const SIGN_UP_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:signUp';
+const REFRESH_URL = 'https://securetoken.googleapis.com/v1/token';
+
+/** Refresh this long before actual expiry, to survive clock skew and slow networks. */
+const EXPIRY_SKEW_MS = 60_000;
+
+export const REFRESH_TOKEN_KEY = 'adcode.auth.refreshToken';
+
+export interface TokenStore {
+  get(key: string): Promise<string | undefined>;
+  set(key: string, value: string): Promise<void>;
+}
+
+export interface AuthProvider {
+  getIdToken(): Promise<string>;
+}
+
+interface CachedToken {
+  idToken: string;
+  expiresAtMs: number;
+}
+
+export interface FirebaseAnonymousAuthOptions {
+  apiKey: string;
+  store: TokenStore;
+  fetchImpl?: typeof fetch;
+  now?: () => number;
+}
+
+/**
+ * Anonymous Firebase identity for the IDE client. No UI, no sign-in wall.
+ * The resulting UID is stable and pseudonymous — see spec section 6.1.
+ */
+export class FirebaseAnonymousAuth implements AuthProvider {
+  private cached: CachedToken | null = null;
+  private inflight: Promise<string> | null = null;
+
+  private readonly apiKey: string;
+  private readonly store: TokenStore;
+  private readonly fetchImpl: typeof fetch;
+  private readonly now: () => number;
+
+  constructor(options: FirebaseAnonymousAuthOptions) {
+    this.apiKey = options.apiKey;
+    this.store = options.store;
+    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.now = options.now ?? (() => Date.now());
+  }
+
+  async getIdToken(): Promise<string> {
+    if (this.cached !== null && this.now() < this.cached.expiresAtMs - EXPIRY_SKEW_MS) {
+      return this.cached.idToken;
+    }
+    // Coalesce: several modules may ask for a token in the same tick.
+    if (this.inflight !== null) return this.inflight;
+
+    this.inflight = this.acquire().finally(() => { this.inflight = null; });
+    return this.inflight;
+  }
+
+  private async acquire(): Promise<string> {
+    const refreshToken = await this.store.get(REFRESH_TOKEN_KEY);
+    if (refreshToken !== undefined) {
+      const refreshed = await this.refresh(refreshToken);
+      if (refreshed !== null) return refreshed;
+      // Refresh token rejected — fall through to a fresh anonymous identity.
+    }
+    return this.signUp();
+  }
+
+  private async refresh(refreshToken: string): Promise<string | null> {
+    const res = await this.fetchImpl(`${REFRESH_URL}?key=${this.apiKey}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken }),
+    });
+    if (!res.ok) return null;
+
+    const body = await res.json() as
+      { id_token?: string; refresh_token?: string; expires_in?: string };
+    if (typeof body.id_token !== 'string' || typeof body.refresh_token !== 'string') {
+      return null;
+    }
+    await this.store.set(REFRESH_TOKEN_KEY, body.refresh_token);
+    return this.cache(body.id_token, body.expires_in);
+  }
+
+  private async signUp(): Promise<string> {
+    const res = await this.fetchImpl(`${SIGN_UP_URL}?key=${this.apiKey}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ returnSecureToken: true }),
+    });
+    if (!res.ok) {
+      throw new Error(`anonymous sign-up failed with status ${res.status}`);
+    }
+
+    const body = await res.json() as
+      { idToken?: string; refreshToken?: string; expiresIn?: string };
+    if (typeof body.idToken !== 'string' || typeof body.refreshToken !== 'string') {
+      throw new Error('anonymous sign-up failed: malformed response');
+    }
+    await this.store.set(REFRESH_TOKEN_KEY, body.refreshToken);
+    return this.cache(body.idToken, body.expiresIn);
+  }
+
+  private cache(idToken: string, expiresIn: string | undefined): string {
+    const seconds = Number(expiresIn ?? '3600');
+    const ttlMs = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 3600_000;
+    this.cached = { idToken, expiresAtMs: this.now() + ttlMs };
+    return idToken;
+  }
+}
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `cd extensions/adcode-ads && npx vitest run test/auth.test.ts`
+Expected: PASS, all 7 tests.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add extensions/adcode-ads/src/auth.ts extensions/adcode-ads/test/auth.test.ts
+git commit -m "feat: add Firebase anonymous identity with token refresh and coalescing"
+```
+
+---
