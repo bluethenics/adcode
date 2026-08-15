@@ -117,9 +117,11 @@ makes that a compile-time guarantee rather than a convention someone breaks in m
    sponsorsView
 ```
 
-Pure modules import `types.ts` and nothing else — enforced by
-`pure-modules-import-only-types` and `pure-modules-no-node-builtins`. I/O modules receive
-every capability through a port. `adService.ts` is the only file that constructs anything real.
+Pure modules import `types.ts` or one another, and nothing else — enforced by
+`pure-modules-import-only-pure` and `pure-modules-no-node-builtins`. Purity is transitive
+across that set, so `sponsorsView` composing `ledger.formatMicros` stays pure while reaching
+an I/O module or an adapter does not. I/O modules receive every capability through a port.
+`adService.ts` is the only file that constructs anything real.
 
 ### 4.2 The six ports
 
