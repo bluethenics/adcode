@@ -22,6 +22,16 @@ const post = (path: string, body: unknown, headers: Record<string, string> = aut
 const get = (path: string, headers: Record<string, string> = auth) =>
   fetch(`${server.url}${path}`, { headers });
 
+/**
+ * Read a response body loosely.
+ *
+ * These tests assert on the *wire shape* the mock produces. Typing them through the
+ * client's interfaces would couple the two sides again and defeat the independence
+ * that makes this mock able to catch a contract mismatch at all.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const jsonOf = async (res: Response): Promise<any> => await res.json();
+
 describe("authentication", () => {
   // Brief §10: "All requests carry Authorization: Bearer <firebase-id-token>. Identity
   // comes from the token, never from a body field."
@@ -43,7 +53,7 @@ describe("POST /v1/serve", () => {
     const res = await post("/v1/serve", { tags: ["lang:typescript"], themeKind: "dark", count: 3 });
     expect(res.status).toBe(200);
 
-    const body = await res.json();
+    const body = await jsonOf(res);
     expect(Array.isArray(body.creatives)).toBe(true);
     expect(body.creatives.length).toBeGreaterThan(0);
     expect(body.creatives.length).toBeLessThanOrEqual(3);
@@ -66,7 +76,7 @@ describe("POST /v1/serve", () => {
 
   it("honours the requested count", async () => {
     const res = await post("/v1/serve", { tags: [], themeKind: "light", count: 1 });
-    expect((await res.json()).creatives).toHaveLength(1);
+    expect((await jsonOf(res)).creatives).toHaveLength(1);
   });
 
   it("rejects a malformed body", async () => {
@@ -88,7 +98,7 @@ describe("POST /v1/serve", () => {
       },
     ]);
 
-    const body = await (await post("/v1/serve", { tags: [], themeKind: "dark", count: 5 })).json();
+    const body = await jsonOf(await post("/v1/serve", { tags: [], themeKind: "dark", count: 5 }));
     expect(body.creatives).toHaveLength(1);
     expect(body.creatives[0].creativeId).toBe("seeded-1");
   });
@@ -106,7 +116,7 @@ describe("POST /v1/receipts", () => {
 
   it("acks the receipts it stored", async () => {
     const res = await post("/v1/receipts", { receipts: [receipt("r1"), receipt("r2")] });
-    expect((await res.json()).acked.sort()).toEqual(["r1", "r2"]);
+    expect((await jsonOf(res)).acked.sort()).toEqual(["r1", "r2"]);
   });
 
   it("is idempotent by receiptId", async () => {
@@ -114,12 +124,12 @@ describe("POST /v1/receipts", () => {
     await post("/v1/receipts", { receipts: [receipt("r1")] });
     const second = await post("/v1/receipts", { receipts: [receipt("r1")] });
 
-    expect((await second.json()).acked).toEqual(["r1"]);
+    expect((await jsonOf(second)).acked).toEqual(["r1"]);
     expect(server.receiptCount()).toBe(1);
   });
 
   it("accepts an empty batch", async () => {
-    expect((await (await post("/v1/receipts", { receipts: [] })).json()).acked).toEqual([]);
+    expect((await jsonOf(await post("/v1/receipts", { receipts: [] }))).acked).toEqual([]);
   });
 
   it("rejects a malformed receipt", async () => {
@@ -129,14 +139,14 @@ describe("POST /v1/receipts", () => {
 
 describe("GET /v1/balance", () => {
   it("returns money as decimal strings, never numbers", async () => {
-    const body = await (await get("/v1/balance")).json();
+    const body = await jsonOf(await get("/v1/balance"));
     expect(typeof body.availableMicros).toBe("string");
     expect(typeof body.lifetimeMicros).toBe("string");
     expect(body.availableMicros).toMatch(/^-?[0-9]+$/);
   });
 
   it("accrues as receipts arrive, because the server owns the balance", async () => {
-    const before = BigInt((await (await get("/v1/balance")).json()).availableMicros);
+    const before = BigInt((await jsonOf(await get("/v1/balance"))).availableMicros);
     await post("/v1/receipts", {
       receipts: [
         {
@@ -149,27 +159,27 @@ describe("GET /v1/balance", () => {
         },
       ],
     });
-    const after = BigInt((await (await get("/v1/balance")).json()).availableMicros);
+    const after = BigInt((await jsonOf(await get("/v1/balance"))).availableMicros);
     expect(after).toBeGreaterThan(before);
   });
 });
 
 describe("GET /v1/config", () => {
   it("serves a projection for every preset", async () => {
-    const body = await (await get("/v1/config")).json();
+    const body = await jsonOf(await get("/v1/config"));
     expect(Object.keys(body.projections).sort()).toEqual(["light", "max", "off", "standard"]);
     for (const value of Object.values(body.projections)) expect(value).toMatch(/^[0-9]+$/);
   });
 
   it("serves a kill switch and caps", async () => {
-    const body = await (await get("/v1/config")).json();
+    const body = await jsonOf(await get("/v1/config"));
     expect(typeof body.killSwitch).toBe("boolean");
     expect(typeof body.caps).toBe("object");
   });
 
   it("can be driven to kill-switch on", async () => {
     server.setKillSwitch(true);
-    expect((await (await get("/v1/config")).json()).killSwitch).toBe(true);
+    expect((await jsonOf(await get("/v1/config"))).killSwitch).toBe(true);
   });
 });
 
@@ -225,6 +235,6 @@ describe("POST /__test__/reset", () => {
     await fetch(`${server.url}/__test__/reset`, { method: "POST" });
 
     expect(server.receiptCount()).toBe(0);
-    expect((await (await get("/v1/config")).json()).killSwitch).toBe(false);
+    expect((await jsonOf(await get("/v1/config"))).killSwitch).toBe(false);
   });
 });

@@ -8,7 +8,7 @@
  * parameter properties, which type stripping cannot erase.
  */
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { AddressInfo } from "node:net";
+import type { AddressInfo } from "node:net";
 import type {
   BalanceResponseBody,
   CadenceName,
