@@ -42,6 +42,17 @@ export interface FrequencyCaps {
 }
 
 /**
+ * Caps as they arrive from the network: every field optional, and explicitly allowed to
+ * be `undefined`. `Partial<FrequencyCaps>` would not do under `exactOptionalPropertyTypes`
+ * - it rejects `{ dailyCap: undefined }`, which is precisely one of the shapes a
+ * misconfigured server sends and which `tightenCaps` must survive.
+ */
+export interface RemoteCaps {
+  readonly minIntervalMs?: number | undefined;
+  readonly dailyCap?: number | undefined;
+}
+
+/**
  * Brief §8.1. `off` is short-circuited by the `frequency-off` reason before caps are
  * ever consulted; its zeros exist so no code path can read an undefined cap.
  */
@@ -165,7 +176,7 @@ export interface Balance {
 export interface RemoteConfig {
   readonly killSwitch: boolean;
   /** §1: may only *tighten* local caps, never loosen them. */
-  readonly caps: Partial<FrequencyCaps>;
+  readonly caps: RemoteCaps;
   /** Spec deviation D1: server-computed micros per hour, per preset. */
   readonly projections: Readonly<Record<FrequencyPreset, Micros>>;
 }
