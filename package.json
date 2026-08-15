@@ -1,0 +1,28 @@
+{
+  "name": "adcode",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ADCode - an ad-supported, AI-native IDE",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24",
+    "npm": ">=11"
+  },
+  "//workspaces": "NOT npm workspaces: the repo lives on a FAT32 volume, which has no symlinks, and npm workspace linking is symlink-based (EISDIR on install). Package boundaries are enforced by dependency-cruiser + tsconfig paths instead. See docs/specs/2026-08-16-ad-core-design.md deviation D6.",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "firewall": "depcruise --config .dependency-cruiser.cjs packages mock-server",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "mock-server": "node mock-server/src/cli.ts",
+    "verify": "npm run typecheck && npm run firewall && npm run test"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "dependency-cruiser": "^18.2.0",
+    "fast-check": "^4.9.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

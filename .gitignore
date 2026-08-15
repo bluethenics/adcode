@@ -1,0 +1,12 @@
+node_modules/
+dist/
+build/out/
+coverage/
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+.adcode-cache/
+mock-server/.data/

@@ -1,0 +1,14 @@
+{
+  "name": "@adcode/mock-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local implementation of the serving contract. Deliberately shares NO types with the client.",
+  "main": "./src/server.ts",
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "scripts": {
+    "start": "node src/cli.ts"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@adcode/memory",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared AI memory store. Firewalled from @adcode/ads by CI rule.",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  }
+}
