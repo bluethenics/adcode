@@ -11,6 +11,14 @@
 const PURE_MODULES =
   "^packages/ads/src/(scheduler|validation|tagger|ledger|sponsorsView)\\.ts$";
 
+/**
+ * What a pure module is allowed to reach: `types.ts`, or another pure module.
+ * Purity is transitive across this set, so `sponsorsView` composing `ledger.formatMicros`
+ * stays pure. Anything outside it - an I/O module, an adapter, an npm package - does not.
+ */
+const PURE_OR_TYPES =
+  "^packages/ads/src/(types|scheduler|validation|tagger|ledger|sponsorsView)\\.ts$";
+
 module.exports = {
   forbidden: [
     {
@@ -42,13 +50,14 @@ module.exports = {
       to: { path: "^packages/" },
     },
     {
-      name: "pure-modules-import-only-types",
+      name: "pure-modules-import-only-pure",
       comment:
         "§8: the five pure modules are pure functions of their arguments. They may " +
-        "import types.ts and nothing else in this repo.",
+        "import types.ts or each other, and nothing else in this repo - reaching an " +
+        "I/O module or an adapter would make them untestable in milliseconds.",
       severity: "error",
       from: { path: PURE_MODULES },
-      to: { path: "^(packages|mock-server|apps)/", pathNot: "^packages/ads/src/types\\.ts$" },
+      to: { path: "^(packages|mock-server|apps)/", pathNot: PURE_OR_TYPES },
     },
     {
       name: "pure-modules-no-node-builtins",
