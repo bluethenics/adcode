@@ -11,7 +11,9 @@
   },
   "//workspaces": "NOT npm workspaces: the repo lives on a FAT32 volume, which has no symlinks, and npm workspace linking is symlink-based (EISDIR on install). Package boundaries are enforced by dependency-cruiser + tsconfig paths instead. See docs/specs/2026-08-16-ad-core-design.md deviation D6.",
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json",
+    "desktop": "npm --prefix apps/desktop run dev",
+    "desktop:build": "npm --prefix apps/desktop run build",
     "firewall": "depcruise --config .dependency-cruiser.cjs packages mock-server",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -21,8 +23,25 @@
   "devDependencies": {
     "@types/node": "^26.2.0",
     "dependency-cruiser": "^18.2.0",
+    "electron": "^43.4.0",
+    "electron-vite": "^5.0.0",
     "fast-check": "^4.9.0",
     "typescript": "^5.9.3",
+    "vite": "^7.3.6",
     "vitest": "^4.1.10"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "node-pty@1.1.0": true,
+    "electron@43.4.0": true
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-search": "^0.16.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
+    "monaco-editor": "^0.56.0",
+    "node-pty": "^1.1.0"
   }
 }

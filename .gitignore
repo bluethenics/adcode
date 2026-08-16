@@ -10,3 +10,5 @@ Thumbs.db
 !.env.example
 .adcode-cache/
 mock-server/.data/
+
+apps/desktop/out/

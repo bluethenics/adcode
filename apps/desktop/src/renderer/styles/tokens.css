@@ -1,0 +1,136 @@
+/*
+ * Design tokens - brief §3.
+ *
+ * One semantic set, defined once. Light and dark follow the OS. Only `transform` and
+ * `opacity` are ever animated (§1): both are GPU-composited, and animating anything
+ * else forces layout every frame while the user is typing, which surfaces as input
+ * latency in the one application where latency is unforgivable.
+ */
+
+:root {
+  /* Type - SF Pro on macOS, Inter elsewhere; SF Mono / JetBrains Mono for code. */
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", "Cascadia Code", ui-monospace, "Consolas", monospace;
+
+  /* Scale: 11 / 13 / 15 / 17 / 22 / 28 */
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+
+  /* Shape - continuous-curvature radii, not circles. */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+
+  /* Motion */
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-toast: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-enter: 220ms;
+  --duration-exit: 160ms;
+
+  /* Density - `comfortable` by default; §3 makes this a setting, not a decision. */
+  --density-row: 26px;
+  --density-gap: 8px;
+
+  /* Light palette */
+  --bg-app: #f2f2f7;
+  --bg-chrome: rgba(246, 246, 248, 0.72);
+  --bg-elevated: #ffffff;
+  --bg-editor: #ffffff;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --bg-selected: rgba(0, 122, 255, 0.12);
+
+  --text-primary: #1c1c1e;
+  --text-secondary: #6c6c70;
+  --text-tertiary: #a1a1a6;
+  --text-on-accent: #ffffff;
+
+  --border-hairline: rgba(0, 0, 0, 0.1);
+  --accent: #007aff;
+  --danger: #ff3b30;
+  --success: #34c759;
+  --warning: #ff9500;
+
+  --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+:root[data-theme="dark"],
+:root:not([data-theme="light"]) {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-app: #1c1c1e;
+    --bg-chrome: rgba(28, 28, 30, 0.72);
+    --bg-elevated: #2c2c2e;
+    --bg-editor: #1e1e20;
+    --bg-hover: rgba(255, 255, 255, 0.06);
+    --bg-active: rgba(255, 255, 255, 0.1);
+    --bg-selected: rgba(10, 132, 255, 0.22);
+
+    --text-primary: #f5f5f7;
+    --text-secondary: #a1a1a6;
+    --text-tertiary: #6c6c70;
+
+    --border-hairline: rgba(255, 255, 255, 0.12);
+    --accent: #0a84ff;
+    --danger: #ff453a;
+    --success: #30d158;
+    --warning: #ff9f0a;
+
+    --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg-app: #1c1c1e;
+  --bg-chrome: rgba(28, 28, 30, 0.72);
+  --bg-elevated: #2c2c2e;
+  --bg-editor: #1e1e20;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(255, 255, 255, 0.1);
+  --bg-selected: rgba(10, 132, 255, 0.22);
+
+  --text-primary: #f5f5f7;
+  --text-secondary: #a1a1a6;
+  --text-tertiary: #6c6c70;
+
+  --border-hairline: rgba(255, 255, 255, 0.12);
+  --accent: #0a84ff;
+  --danger: #ff453a;
+  --success: #30d158;
+  --warning: #ff9f0a;
+
+  --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-density="compact"] {
+  --density-row: 22px;
+  --density-gap: 5px;
+}
+
+/* §1: reduce-motion is honored everywhere, following the OS setting. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-enter: 100ms;
+    --duration-exit: 100ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 100ms !important;
+  }
+}
+
+:root[data-reduced-motion="true"] * {
+  transition-duration: 100ms !important;
+  animation-duration: 0.01ms !important;
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@adcode/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The ADCode workbench: Electron shell, Monaco editing surface, xterm terminal.",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview"
+  }
+}

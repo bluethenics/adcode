@@ -1,8 +1,8 @@
-import { defineConfig } from "vitest/config";
+﻿import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    include: ["packages/**/test/**/*.test.ts", "mock-server/test/**/*.test.ts"],
+    include: ["packages/**/test/**/*.test.ts", "mock-server/test/**/*.test.ts", "apps/**/test/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/__fixtures__/**"],
     environment: "node",
     // The pure modules exist to be testable in milliseconds (§2). If the suite ever
@@ -11,3 +11,4 @@ export default defineConfig({
     reporters: ["default"],
   },
 });
+
