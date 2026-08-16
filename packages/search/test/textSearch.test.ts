@@ -219,3 +219,112 @@ describe("bounds and cancellation", () => {
     await iterator.return?.();
   });
 });
+
+describe("replaceAll", () => {
+  /** Read a file back through the same encoding the replacer writes with. */
+  const read = async (path: string): Promise<string> =>
+    (await import("node:fs/promises")).readFile(join(dir, path), "utf8");
+
+  it("replaces every occurrence across files", async () => {
+    await write("a.ts", "target one\ntarget two\n");
+    await write("b.ts", "nothing here\n");
+    await write("c.ts", "a target\n");
+
+    const summary = await search.replaceAll({ pattern: "target" }, "hit");
+
+    expect(summary.files).toBe(2);
+    expect(summary.replacements).toBe(3);
+    expect(await read("a.ts")).toBe("hit one\nhit two\n");
+    expect(await read("b.ts")).toBe("nothing here\n");
+  });
+
+  it("leaves files untouched when nothing matches", async () => {
+    await write("a.ts", "unchanged\n");
+
+    const summary = await search.replaceAll({ pattern: "absent" }, "x");
+
+    expect(summary.files).toBe(0);
+    expect(await read("a.ts")).toBe("unchanged\n");
+  });
+
+  it("treats a literal replacement literally", async () => {
+    await write("a.ts", "cost: X\n");
+
+    await search.replaceAll({ pattern: "X" }, "$0.50");
+    expect(await read("a.ts")).toBe("cost: $0.50\n");
+  });
+
+  it("honours capture groups when the pattern is a regex", async () => {
+    await write("a.ts", "get(name)\nget(age)\n");
+
+    await search.replaceAll({ pattern: "get\\((\\w+)\\)", isRegex: true }, "read($1)");
+    expect(await read("a.ts")).toBe("read(name)\nread(age)\n");
+  });
+
+  it("respects case sensitivity", async () => {
+    await write("a.ts", "Target target\n");
+
+    await search.replaceAll({ pattern: "target", caseSensitive: true }, "x");
+    expect(await read("a.ts")).toBe("Target x\n");
+  });
+
+  it("respects whole-word matching", async () => {
+    await write("a.ts", "cat catalogue\n");
+
+    await search.replaceAll({ pattern: "cat", wholeWord: true }, "dog");
+    expect(await read("a.ts")).toBe("dog catalogue\n");
+  });
+
+  it("respects include and exclude globs", async () => {
+    await write("a.ts", "target\n");
+    await write("b.md", "target\n");
+
+    await search.replaceAll({ pattern: "target", include: "*.ts" }, "x");
+
+    expect(await read("a.ts")).toBe("x\n");
+    expect(await read("b.md")).toBe("target\n");
+  });
+
+  it("skips binary files", async () => {
+    await writeFile(join(dir, "blob.bin"), Buffer.from([0x74, 0x00, 0x74]));
+
+    const summary = await search.replaceAll({ pattern: "t" }, "x");
+    expect(summary.files).toBe(0);
+  });
+
+  it("refuses an empty pattern rather than rewriting every file", async () => {
+    await write("a.ts", "untouched\n");
+
+    const summary = await search.replaceAll({ pattern: "" }, "x");
+
+    expect(summary).toEqual({ files: 0, replacements: 0 });
+    expect(await read("a.ts")).toBe("untouched\n");
+  });
+
+  it("refuses a pattern that can match nothing at all", async () => {
+    await write("a.ts", "untouched\n");
+
+    // `a*` matches the empty string everywhere; replacing that would shred the file.
+    const summary = await search.replaceAll({ pattern: "x*", isRegex: true }, "!");
+
+    expect(summary).toEqual({ files: 0, replacements: 0 });
+    expect(await read("a.ts")).toBe("untouched\n");
+  });
+
+  it("returns nothing for an invalid regex instead of throwing", async () => {
+    await write("a.ts", "target\n");
+
+    const summary = await search.replaceAll({ pattern: "(unclosed", isRegex: true }, "x");
+    expect(summary).toEqual({ files: 0, replacements: 0 });
+  });
+
+  it("stops when the caller aborts", async () => {
+    for (let i = 0; i < 40; i++) await write(`f${i}.ts`, "target\n");
+
+    const controller = new AbortController();
+    controller.abort();
+
+    const summary = await search.replaceAll({ pattern: "target" }, "x", controller.signal);
+    expect(summary.files).toBe(0);
+  });
+});

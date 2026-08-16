@@ -328,3 +328,123 @@
   color: var(--accent);
   font-weight: 700;
 }
+
+/* ── File timeline ────────────────────────────────────────────────────── */
+
+.timeline-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.timeline-row:hover {
+  background: var(--bg-hover);
+}
+
+.timeline-subject {
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-meta {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Git decorations in the editor ────────────────────────────────────── */
+
+/*
+ * The gutter bars sit in Monaco's `linesDecorations` margin. Colours come from the
+ * token file so the marks follow the theme rather than fighting it.
+ */
+.git-gutter {
+  width: 3px !important;
+  margin-left: 3px;
+  border-radius: 2px;
+}
+
+.git-gutter-added {
+  background: var(--success);
+}
+
+.git-gutter-modified {
+  background: var(--warning);
+}
+
+/* A deletion has no lines of its own, so it is drawn as a wedge on the line above. */
+.git-gutter-deleted {
+  background: linear-gradient(to bottom, transparent 55%, var(--danger) 55%);
+}
+
+.git-blame-inline {
+  color: var(--text-tertiary) !important;
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+/* ── Merge conflicts ──────────────────────────────────────────────────── */
+
+.conflict-current {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.conflict-incoming {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.conflict-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-hairline);
+  box-shadow: var(--shadow-floating);
+  white-space: nowrap;
+}
+
+.conflict-action {
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 560;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+
+.conflict-action:hover {
+  background: var(--bg-hover);
+}
+
+.search-replace-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.search-replace-row .search-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-replace-all {
+  flex: none;
+  white-space: nowrap;
+}

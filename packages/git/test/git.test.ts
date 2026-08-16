@@ -313,6 +313,36 @@ describe("blame", () => {
   });
 });
 
+describe("showFile", () => {
+  it("returns the file as it was at a commit", async () => {
+    await write("a.txt", "first version\n");
+    await git.stage(["a.txt"]);
+    await git.commit("first");
+
+    const [commit] = await git.log(1);
+    await write("a.txt", "second version\n");
+
+    expect(await git.showFile(commit!.hash, "a.txt")).toBe("first version\n");
+  });
+
+  it("returns null when the file did not exist at that commit", async () => {
+    await write("a.txt", "one\n");
+    await git.stage(["a.txt"]);
+    await git.commit("first");
+
+    const [commit] = await git.log(1);
+    expect(await git.showFile(commit!.hash, "never-existed.txt")).toBeNull();
+  });
+
+  it("refuses a ref that would be read as an option", async () => {
+    expect(await git.showFile("--output=/tmp/x", "a.txt")).toBeNull();
+  });
+
+  it("refuses a path outside the repository", async () => {
+    expect(await git.showFile("HEAD", "../escape.txt")).toBeNull();
+  });
+});
+
 describe("remotes", () => {
   it("reports no remote on a fresh repository", async () => {
     expect(await git.remotes()).toEqual([]);

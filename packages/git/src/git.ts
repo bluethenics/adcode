@@ -96,6 +96,8 @@ export interface Git {
   log(limit?: number): Promise<GitCommit[]>;
   fileHistory(path: string, limit?: number): Promise<GitCommit[]>;
   blame(path: string): Promise<BlameLine[]>;
+  /** A file's contents at a revision, or null if it was not there. */
+  showFile(ref: string, path: string): Promise<string | null>;
 }
 
 export function createGit(deps: GitDeps): Git {
@@ -421,6 +423,16 @@ export function createGit(deps: GitDeps): Git {
       }
 
       return lines;
+    },
+
+    async showFile(ref: string, path: string): Promise<string | null> {
+      if (!isSafeRef(ref) || !isSafePathArg(path)) return null;
+
+      // `<ref>:<path>` is one argument, so a path that looked like a flag would still be
+      // hidden behind the ref - but both halves are checked anyway, because relying on
+      // the concatenation to sanitise the path is the kind of reasoning that ages badly.
+      const result = await run("show", `${ref}:${path}`);
+      return result.code === 0 ? result.stdout : null;
     },
   };
 }

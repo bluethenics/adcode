@@ -14,6 +14,7 @@ export {
 
 export {
   createWorkspaceSearch,
+  type ReplaceSummary,
   type SearchQuery,
   type SearchResult,
   type WorkspaceSearch,

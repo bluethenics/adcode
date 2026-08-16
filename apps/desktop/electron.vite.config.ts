@@ -7,6 +7,11 @@ const alias = {
   "@adcode/memory": resolve(import.meta.dirname, "../../packages/memory/src/index.ts"),
   "@adcode/settings": resolve(import.meta.dirname, "../../packages/settings/src/index.ts"),
   "@adcode/ai": resolve(import.meta.dirname, "../../packages/ai/src/index.ts"),
+  // The renderer wants the conflict parser without dragging in the exec adapter, which
+  // reaches for node:child_process and has no business in a sandboxed window. This entry
+  // sits above the bare `@adcode/git` alias because the resolver takes the first key that
+  // matches, and a prefix match on the shorter key would rewrite the path to nonsense.
+  "@adcode/git/conflicts": resolve(import.meta.dirname, "../../packages/git/src/conflicts.ts"),
   "@adcode/git": resolve(import.meta.dirname, "../../packages/git/src/index.ts"),
   "@adcode/search": resolve(import.meta.dirname, "../../packages/search/src/index.ts"),
 };

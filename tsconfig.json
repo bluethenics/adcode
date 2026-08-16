@@ -32,6 +32,7 @@
       "@adcode/settings": ["./packages/settings/src/index.ts"],
       "@adcode/ai": ["./packages/ai/src/index.ts"],
       "@adcode/git": ["./packages/git/src/index.ts"],
+      "@adcode/git/conflicts": ["./packages/git/src/conflicts.ts"],
       "@adcode/search": ["./packages/search/src/index.ts"]
     }
   },

@@ -8,7 +8,7 @@
  *
  * No Electron and no DOM; the only dependency is `node:fs`.
  */
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
 /** Directories nobody means to search, skipped before they are walked. */
@@ -51,9 +51,23 @@ export interface SearchResult {
   readonly matchLength: number;
 }
 
+/** What a replace-all actually did, for the summary line the panel shows. */
+export interface ReplaceSummary {
+  readonly files: number;
+  readonly replacements: number;
+}
+
 export interface WorkspaceSearch {
   listFiles(): Promise<string[]>;
   search(query: SearchQuery, signal?: AbortSignal): AsyncIterable<SearchResult>;
+  /**
+   * Rewrite every match in the workspace.
+   *
+   * With a literal pattern the replacement is literal too - `$1` in a replacement box is
+   * a dollar sign and a one unless the user asked for a regex, and silently treating it
+   * as a capture reference would corrupt files that mention prices.
+   */
+  replaceAll(query: SearchQuery, replacement: string, signal?: AbortSignal): Promise<ReplaceSummary>;
 }
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -160,6 +174,76 @@ export function createWorkspaceSearch(deps: WorkspaceSearchDeps): WorkspaceSearc
       const files: string[] = [];
       for await (const file of walkFiles(deps.root)) files.push(file);
       return files;
+    },
+
+    async replaceAll(
+      query: SearchQuery,
+      replacement: string,
+      signal?: AbortSignal,
+    ): Promise<ReplaceSummary> {
+      const matcher = buildMatcher(query);
+      if (matcher === null) return { files: 0, replacements: 0 };
+
+      // A pattern that matches the empty string matches between every pair of characters.
+      // Running that over a workspace would interleave the replacement through every file
+      // in it, so refuse rather than "succeed".
+      matcher.lastIndex = 0;
+      if (matcher.exec("")?.[0] === "") return { files: 0, replacements: 0 };
+
+      const aborted = (): boolean => signal?.aborted === true;
+
+      const include = query.include === undefined ? null : globToRegex(query.include);
+      const exclude = query.exclude === undefined ? null : globToRegex(query.exclude);
+
+      let files = 0;
+      let replacements = 0;
+
+      for await (const path of walkFiles(deps.root, signal)) {
+        if (aborted()) break;
+
+        if (include !== null && !include.test(path)) continue;
+        if (exclude !== null && exclude.test(path)) continue;
+
+        const full = join(deps.root, path);
+
+        let contents: string;
+        try {
+          const info = await stat(full);
+          if (info.size > MAX_FILE_BYTES) continue;
+
+          contents = await readFile(full, "utf8");
+        } catch {
+          continue;
+        }
+
+        if (looksBinary(contents)) continue;
+
+        matcher.lastIndex = 0;
+        const found = contents.match(matcher)?.length ?? 0;
+        if (found === 0) continue;
+
+        // `String.replace` reads `$&` and `$1` out of a replacement *string*. That is what
+        // a regex search should do and what a literal one must not, so literal mode passes
+        // a function instead - which switches the substitution off entirely rather than
+        // trying to out-escape it.
+        matcher.lastIndex = 0;
+        const rewritten =
+          query.isRegex === true
+            ? contents.replace(matcher, replacement)
+            : contents.replace(matcher, () => replacement);
+
+        try {
+          await writeFile(full, rewritten, "utf8");
+        } catch {
+          // A read-only file is the user's business, not a reason to abandon the rest.
+          continue;
+        }
+
+        files += 1;
+        replacements += found;
+      }
+
+      return { files, replacements };
     },
 
     async *search(query: SearchQuery, signal?: AbortSignal): AsyncIterable<SearchResult> {

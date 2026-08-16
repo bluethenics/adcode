@@ -134,33 +134,64 @@ export function registerGitIpc(): void {
     (await gitForWorkspace()?.diff(isString(path) ? path : undefined)) ?? "",
   );
 
+  ipcMain.handle(CHANNELS.gitShowFile, async (_event, ref: unknown, path: unknown) =>
+    isString(ref) && isString(path)
+      ? ((await gitForWorkspace()?.showFile(ref, path)) ?? null)
+      : null,
+  );
+
   /* ── Search ───────────────────────────────────────────────────────────── */
 
-  ipcMain.handle(CHANNELS.searchRun, async (_event, query: unknown) => {
-    const search = searchForWorkspace();
-    if (search === null) return [];
-
+  /** The renderer's query object, narrowed once and reused by search and replace. */
+  const readQuery = (query: unknown) => {
     const q = (query ?? {}) as Record<string, unknown>;
-    if (!isString(q["pattern"])) return [];
+    if (!isString(q["pattern"]) || q["pattern"].length === 0) return null;
 
-    const results = [];
-    // Collected rather than streamed: `ipcMain.handle` is request/response, and a search
-    // panel that fills incrementally needs a channel of its own. Bounded meanwhile, so a
-    // broad pattern cannot return a hundred thousand rows.
-    for await (const hit of search.search({
+    return {
       pattern: q["pattern"],
       isRegex: q["isRegex"] === true,
       caseSensitive: q["caseSensitive"] === true,
       wholeWord: q["wholeWord"] === true,
       ...(isString(q["include"]) && q["include"].length > 0 ? { include: q["include"] } : {}),
       ...(isString(q["exclude"]) && q["exclude"].length > 0 ? { exclude: q["exclude"] } : {}),
-      maxResults: 1000,
-    })) {
+    };
+  };
+
+  ipcMain.handle(CHANNELS.searchRun, async (_event, query: unknown) => {
+    const search = searchForWorkspace();
+    if (search === null) return [];
+
+    const parsed = readQuery(query);
+    if (parsed === null) return [];
+
+    const results = [];
+    // Collected rather than streamed: `ipcMain.handle` is request/response, and a search
+    // panel that fills incrementally needs a channel of its own. Bounded meanwhile, so a
+    // broad pattern cannot return a hundred thousand rows.
+    for await (const hit of search.search({ ...parsed, maxResults: 1000 })) {
       results.push(hit);
     }
 
     return results;
   });
+
+  ipcMain.handle(
+    CHANNELS.searchReplace,
+    async (_event, query: unknown, replacement: unknown) => {
+      const search = searchForWorkspace();
+      const parsed = readQuery(query);
+
+      if (search === null || parsed === null || !isString(replacement)) {
+        return { files: 0, replacements: 0 };
+      }
+
+      const summary = await search.replaceAll(parsed, replacement);
+      // Files on disk just changed under the editor; the source-control view and the
+      // quick-open index are both stale now.
+      invalidateFileCache();
+      return summary;
+    },
+  );
 
   ipcMain.handle(CHANNELS.quickOpen, async (_event, query: unknown) =>
     isString(query) ? quickOpen(query) : [],

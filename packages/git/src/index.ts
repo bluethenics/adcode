@@ -10,6 +10,13 @@
 export { createGit, type Git, type GitDeps } from "./git.ts";
 export { nodeGitExec } from "./nodeExec.ts";
 export { isSafeCloneUrl, isSafePathArg, isSafeRef } from "./argSafety.ts";
+export {
+  applyResolution,
+  findConflicts,
+  hasConflictMarkers,
+  type ConflictBlock,
+  type Resolution,
+} from "./conflicts.ts";
 export type {
   BlameLine,
   FileChange,

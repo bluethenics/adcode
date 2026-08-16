@@ -6,6 +6,7 @@
  * - a compromised renderer talks to `ipcRenderer` directly.
  */
 import { BrowserWindow, app, ipcMain } from "electron";
+import { restoreSession, saveSession } from "./session.ts";
 import { CHANNELS } from "../shared/api.ts";
 import { getAdRuntime } from "./adRuntime.ts";
 import { onSettingsChanged, readSettings, resetSettings, writeSetting } from "./settings.ts";
@@ -50,6 +51,22 @@ export function registerIpc(): void {
 
   ipcMain.handle(CHANNELS.workspaceOpen, () => openWorkspace());
   ipcMain.handle(CHANNELS.workspaceCurrent, () => currentWorkspace());
+
+  ipcMain.handle(CHANNELS.sessionRestore, () => restoreSession());
+
+  ipcMain.on(CHANNELS.sessionSave, (_event, state: unknown) => {
+    const raw = (state ?? {}) as Record<string, unknown>;
+    const asString = (value: unknown): string | null =>
+      typeof value === "string" && value.length > 0 ? value : null;
+
+    void saveSession({
+      root: asString(raw["root"]),
+      openFiles: Array.isArray(raw["openFiles"])
+        ? raw["openFiles"].filter((value): value is string => typeof value === "string")
+        : [],
+      activeFile: asString(raw["activeFile"]),
+    });
+  });
 
   ipcMain.handle(CHANNELS.fsList, (_event, dirPath: unknown) => {
     if (!isString(dirPath)) throw new Error("expected a path");

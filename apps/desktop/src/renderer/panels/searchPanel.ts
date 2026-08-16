@@ -18,6 +18,9 @@ export interface SearchPanel {
 
 export interface SearchPanelDeps {
   readonly openAt: (path: string, line: number, column: number) => void;
+  /** Called after a replace-all, so open editors can be re-read from disk. */
+  readonly afterReplace: () => void;
+  readonly notify: (message: string) => void;
 }
 
 export function createSearchPanel(deps: SearchPanelDeps): SearchPanel {
@@ -56,6 +59,23 @@ export function createSearchPanel(deps: SearchPanelDeps): SearchPanel {
   const wholeWord = toggle("W", "Whole word");
   const isRegex = toggle(".*", "Regular expression");
 
+  // §4 lists "global regex search and replace" as one feature, so the replacement box
+  // lives with the query rather than behind a mode switch.
+  const replacement = document.createElement("input");
+  replacement.className = "search-input";
+  replacement.placeholder = "Replace";
+  replacement.setAttribute("aria-label", "Replacement text");
+
+  const replaceAll = document.createElement("button");
+  replaceAll.className = "ghost-button search-replace-all";
+  replaceAll.type = "button";
+  replaceAll.textContent = "Replace all";
+  replaceAll.title = "Rewrite every match in the workspace";
+
+  const replaceRow = document.createElement("div");
+  replaceRow.className = "search-replace-row";
+  replaceRow.append(replacement, replaceAll);
+
   const include = document.createElement("input");
   include.className = "search-glob";
   include.placeholder = "files to include, e.g. *.ts";
@@ -66,7 +86,7 @@ export function createSearchPanel(deps: SearchPanelDeps): SearchPanel {
   exclude.placeholder = "files to exclude";
   exclude.setAttribute("aria-label", "Files to exclude");
 
-  form.append(input, options, include, exclude);
+  form.append(input, options, replaceRow, include, exclude);
 
   const summary = document.createElement("p");
   summary.className = "search-summary";
@@ -130,6 +150,52 @@ export function createSearchPanel(deps: SearchPanelDeps): SearchPanel {
     }
   }
 
+  /** The query, in the shape both search and replace take. */
+  function currentQuery(): {
+    pattern: string;
+    isRegex: boolean;
+    caseSensitive: boolean;
+    wholeWord: boolean;
+    include: string;
+    exclude: string;
+  } {
+    return {
+      pattern: input.value,
+      isRegex: isRegex.checked,
+      caseSensitive: caseSensitive.checked,
+      wholeWord: wholeWord.checked,
+      include: include.value.trim(),
+      exclude: exclude.value.trim(),
+    };
+  }
+
+  replaceAll.addEventListener("click", () => {
+    const query = currentQuery();
+    if (query.pattern.length === 0) {
+      deps.notify("Type something to search for first.");
+      return;
+    }
+
+    replaceAll.disabled = true;
+    summary.textContent = "Replacing…";
+
+    void window.adcode.search
+      .replace(query, replacement.value)
+      .then((result) => {
+        deps.notify(
+          result.files === 0
+            ? "Nothing to replace."
+            : `Replaced ${result.replacements} in ${result.files} file${result.files === 1 ? "" : "s"}.`,
+        );
+        deps.afterReplace();
+        run();
+      })
+      .catch(() => deps.notify("Replace failed."))
+      .finally(() => {
+        replaceAll.disabled = false;
+      });
+  });
+
   function run(): void {
     const pattern = input.value;
     const mine = ++generation;
@@ -143,14 +209,7 @@ export function createSearchPanel(deps: SearchPanelDeps): SearchPanel {
     summary.textContent = "Searching…";
 
     void window.adcode.search
-      .run({
-        pattern,
-        isRegex: isRegex.checked,
-        caseSensitive: caseSensitive.checked,
-        wholeWord: wholeWord.checked,
-        include: include.value.trim(),
-        exclude: exclude.value.trim(),
-      })
+      .run(currentQuery())
       .then((hits) => {
         // A slower earlier search must never overwrite a newer one's results.
         if (mine !== generation) return;

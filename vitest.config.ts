@@ -11,6 +11,9 @@ const alias = {
   "@adcode/memory": resolve(import.meta.dirname, "packages/memory/src/index.ts"),
   "@adcode/settings": resolve(import.meta.dirname, "packages/settings/src/index.ts"),
   "@adcode/ai": resolve(import.meta.dirname, "packages/ai/src/index.ts"),
+  // Ahead of the bare alias: the resolver takes the first matching key, and a prefix
+  // match on `@adcode/git` would rewrite this specifier to a path that does not exist.
+  "@adcode/git/conflicts": resolve(import.meta.dirname, "packages/git/src/conflicts.ts"),
   "@adcode/git": resolve(import.meta.dirname, "packages/git/src/index.ts"),
   "@adcode/search": resolve(import.meta.dirname, "packages/search/src/index.ts"),
 };

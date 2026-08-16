@@ -62,6 +62,8 @@ function applySettings(values: Record<string, boolean | string>): void {
   document.documentElement.dataset["density"] = density === "compact" ? "compact" : "comfortable";
 
   editorHost.applySettings(values);
+  sourceControl.setTimelineEnabled(values["adcode.git.fileTimeline"] !== false);
+  void refreshGitOverlay();
   syncTheme();
 }
 
@@ -128,6 +130,8 @@ function activateTab(path: string): void {
   el("status-language").textContent = tab === undefined ? "" : languageForFilename(tab.name);
 
   renderTabs();
+  void refreshGitOverlay();
+  rememberSession();
 }
 
 function closeTab(path: string): void {
@@ -144,6 +148,7 @@ function closeTab(path: string): void {
       el("editor-placeholder").hidden = false;
       el("status-language").textContent = "";
       el("status-position").textContent = "Ln 1, Col 1";
+      editorHost.git.clear();
     } else {
       activateTab(next.path);
       return;
@@ -151,6 +156,7 @@ function closeTab(path: string): void {
   }
 
   renderTabs();
+  rememberSession();
 }
 
 async function openFile(path: string): Promise<void> {
@@ -175,6 +181,11 @@ async function openFile(path: string): Promise<void> {
 async function saveActive(): Promise<void> {
   if (activePath === null) return;
 
+  if (editorHost.isReadOnly(activePath)) {
+    setStatus("This is a past revision - open the working copy to edit it.", 3000);
+    return;
+  }
+
   const text = editorHost.text(activePath);
   if (text === null) return;
 
@@ -183,6 +194,7 @@ async function saveActive(): Promise<void> {
     editorHost.markSaved(activePath);
     setStatus("Saved", 1200);
     void sourceControl.refresh();
+    void refreshGitOverlay();
   } else {
     setStatus(result.reason ?? "save failed", 3000);
   }
@@ -276,6 +288,9 @@ async function openFolder(): Promise<void> {
   el("titlebar-title").textContent = `${opened.name} — ADCode`;
 
   await renderTree(opened.root);
+  rememberSession();
+  void sourceControl.refresh();
+  void refreshGitOverlay();
 }
 
 /* ── Terminal ─────────────────────────────────────────────────────────── */
@@ -422,6 +437,23 @@ const settingsView = createSettingsView({
 
 window.adcode.settings.onChanged((values) => applySettings(values));
 
+/* ── Session (§4) ─────────────────────────────────────────────────────── */
+
+let sessionReady = false;
+
+/** Record the folder and the open editors, so the next launch can reopen them. */
+function rememberSession(): void {
+  if (!sessionReady) return;
+
+  window.adcode.session.save({
+    root: workspaceRoot,
+    // Historical revisions are views, not files; reopening one on launch would show a
+    // tab whose content came from a commit the user has probably forgotten opening.
+    openFiles: tabs.filter((tab) => !editorHost.isReadOnly(tab.path)).map((tab) => tab.path),
+    activeFile: activePath !== null && !editorHost.isReadOnly(activePath) ? activePath : null,
+  });
+}
+
 /* ── Source control and search (§4) ───────────────────────────────────── */
 
 const absolutePath = (relativePath: string): string => {
@@ -430,17 +462,96 @@ const absolutePath = (relativePath: string): string => {
   return `${workspaceRoot}${separator}${relativePath.split("/").join(separator)}`;
 };
 
+/** A workspace-relative path, which is the only shape the git bridge accepts. */
+const relativePath = (absolute: string): string | null => {
+  if (workspaceRoot === null) return null;
+
+  const root = workspaceRoot.replace(/[\/]+$/, "");
+  const normalise = (value: string): string => value.split("\\").join("/");
+
+  const normalisedRoot = normalise(root);
+  const normalisedPath = normalise(absolute);
+
+  if (!normalisedPath.startsWith(`${normalisedRoot}/`)) return null;
+  return normalisedPath.slice(normalisedRoot.length + 1);
+};
+
 const sourceControl = createSourceControlPanel({
   openFile: (path) => void openFile(absolutePath(path)),
   workspaceRoot: () => workspaceRoot,
   notify: (text) => setStatus(text, 4000),
+  openRevision: (path, ref, shortHash) => void openRevision(path, ref, shortHash),
 });
+
+/**
+ * Open a file as it was at a commit, read-only.
+ *
+ * §4's file timeline is only useful if a row leads somewhere. Historical revisions are
+ * kept in their own tabs, keyed by hash, so opening one never shadows the working copy.
+ */
+async function openRevision(path: string, ref: string, shortHash: string): Promise<void> {
+  const text = await window.adcode.git.showFile(ref, path);
+  if (text === null) {
+    setStatus("That revision has no copy of this file.", 3000);
+    return;
+  }
+
+  const name = `${basename(path)} @ ${shortHash}`;
+  const key = `adcode-revision:${shortHash}:${path}`;
+
+  if (tabs.some((tab) => tab.path === key)) {
+    activateTab(key);
+    return;
+  }
+
+  editorHost.open(key, text, languageForFilename(path));
+  editorHost.setReadOnly(key, true);
+  tabs.push({ path: key, name, dirty: false });
+  activateTab(key);
+}
 
 const searchPanel = createSearchPanel({
   openAt: (path, line) => {
     void openFile(absolutePath(path)).then(() => editorHost.revealLine(line));
   },
+  // A replace-all rewrites files that may be open. Reloading them from disk is the only
+  // honest answer: the buffer the user is looking at is no longer what is on disk.
+  afterReplace: () => void reloadOpenFiles(),
+  notify: (text) => setStatus(text, 4000),
 });
+
+/**
+ * Re-read every open file that is not dirty.
+ *
+ * A file with unsaved edits is left alone and flagged instead - silently discarding
+ * someone's typing to pick up a replace is worse than telling them the two disagree.
+ */
+async function reloadOpenFiles(): Promise<void> {
+  let stale = 0;
+
+  for (const tab of [...tabs]) {
+    if (editorHost.isReadOnly(tab.path)) continue;
+
+    if (editorHost.isDirty(tab.path)) {
+      stale += 1;
+      continue;
+    }
+
+    try {
+      const file = await window.adcode.files.read(tab.path);
+      editorHost.replaceText(tab.path, file.text);
+    } catch {
+      // The replace may have been part of a rename or a delete; the tab can stay.
+    }
+  }
+
+  if (stale > 0) {
+    setStatus(`${stale} unsaved file${stale === 1 ? "" : "s"} left as they are.`, 5000);
+  }
+
+  void sourceControl.refresh();
+  void refreshGitOverlay();
+}
 
 const quickOpen = createQuickOpen({
   openFile: (path) => void openFile(absolutePath(path)),
@@ -468,6 +579,52 @@ function showView(view: string): void {
   if (view === "scm") void sourceControl.refresh();
   if (view === "search") searchPanel.focus();
 }
+
+/**
+ * Redraw the git layer for whatever is open.
+ *
+ * Called on activation and after every save, because both are moments where the file on
+ * disk and the file in the editor can disagree about what has changed. It is deliberately
+ * quiet when there is nothing to say: no workspace, no repository, or a tab that is not a
+ * file at all just clears the decorations.
+ */
+async function refreshGitOverlay(): Promise<void> {
+  const overlay = editorHost.git;
+
+  if (activePath === null) {
+    overlay.clear();
+    sourceControl.setActiveFile(null);
+    return;
+  }
+
+  const relative = editorHost.isReadOnly(activePath) ? null : relativePath(activePath);
+  if (relative === null) {
+    overlay.setLineChanges([]);
+    overlay.setBlame(null);
+    sourceControl.setActiveFile(null);
+    return;
+  }
+
+  sourceControl.setActiveFile(relative);
+
+  // §4: "gutter diff decorations `on`" and "blame `off`" - both are settings, so both ask
+  // before doing any work. Blame in particular costs a `git blame` per file.
+  const wantsGutter = settingsValues["adcode.git.gutterDiff"] !== false;
+  const wantsBlame =
+    settingsValues["adcode.git.blame"] === true ||
+    settingsValues["adcode.editing.inlineGitBlame"] === true;
+
+  overlay.setLineChanges(wantsGutter ? await window.adcode.git.lineChanges(relative) : []);
+  overlay.setBlame(wantsBlame ? await window.adcode.git.blame(relative) : null);
+
+  if (settingsValues["adcode.git.mergeConflict"] !== false) overlay.refreshConflicts();
+}
+
+// Accepting a side leaves the file dirty on purpose: the user sees the result before it
+// is written, the same as any other edit.
+editorHost.git.onResolved(() => {
+  setStatus("Conflict resolved - save to keep it.", 3000);
+});
 
 /* ── Assistant (§5.3) ─────────────────────────────────────────────────── */
 
@@ -523,6 +680,10 @@ async function boot(): Promise<void> {
     select.append(option);
   }
 
+  // §4: "Restore workspace" reopens the folder in the main process, so the workspace is
+  // already set by the time this asks for it.
+  const restored = await window.adcode.session.restore();
+
   const existing = await window.adcode.workspace.current();
   if (existing !== null) {
     workspaceRoot = existing.root;
@@ -531,6 +692,16 @@ async function boot(): Promise<void> {
     el("status-workspace").textContent = existing.name;
     await renderTree(existing.root);
   }
+
+  for (const file of restored.openFiles) await openFile(file);
+  if (restored.activeFile !== null && tabs.some((tab) => tab.path === restored.activeFile)) {
+    activateTab(restored.activeFile);
+  }
+
+  // Only start recording once the restore is done, so a failed reopen cannot save an
+  // empty session over a good one.
+  sessionReady = true;
+  rememberSession();
 }
 
 void boot();

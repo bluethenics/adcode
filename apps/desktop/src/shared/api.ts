@@ -130,8 +130,12 @@ export const CHANNELS = {
   gitBlame: "git:blame",
   gitLineChanges: "git:line-changes",
   gitDiff: "git:diff",
+  gitShowFile: "git:show-file",
   searchRun: "search:run",
   quickOpen: "search:quick-open",
+  searchReplace: "search:replace",
+  sessionRestore: "session:restore",
+  sessionSave: "session:save",
 } as const;
 
 /** Mirrors @adcode/git's shapes, so the renderer needs no import from that package. */
@@ -176,12 +180,41 @@ export interface LineChangeView {
   readonly lineCount: number;
 }
 
+export interface BlameLineView {
+  readonly line: number;
+  readonly hash: string;
+  readonly author: string;
+  readonly date: string;
+  readonly summary: string;
+}
+
 export interface SearchHitView {
   readonly path: string;
   readonly line: number;
   readonly column: number;
   readonly text: string;
   readonly matchLength: number;
+}
+
+/** What the shell reopens on launch (§4's "Restore workspace"). */
+export interface SessionStateView {
+  readonly root: string | null;
+  readonly openFiles: readonly string[];
+  readonly activeFile: string | null;
+}
+
+export interface SearchQueryView {
+  readonly pattern: string;
+  readonly isRegex?: boolean;
+  readonly caseSensitive?: boolean;
+  readonly wholeWord?: boolean;
+  readonly include?: string;
+  readonly exclude?: string;
+}
+
+export interface ReplaceSummaryView {
+  readonly files: number;
+  readonly replacements: number;
 }
 
 export interface QuickOpenHit {
@@ -293,18 +326,20 @@ export interface AdcodeApi {
     log(limit?: number): Promise<GitCommitView[]>;
     fileHistory(path: string): Promise<GitCommitView[]>;
     lineChanges(path: string): Promise<LineChangeView[]>;
+    blame(path: string): Promise<BlameLineView[]>;
     diff(path?: string): Promise<string>;
+    /** A file as it was at a revision, or null if it was not there. */
+    showFile(ref: string, path: string): Promise<string | null>;
   };
   readonly search: {
-    run(query: {
-      pattern: string;
-      isRegex?: boolean;
-      caseSensitive?: boolean;
-      wholeWord?: boolean;
-      include?: string;
-      exclude?: string;
-    }): Promise<SearchHitView[]>;
+    run(query: SearchQueryView): Promise<SearchHitView[]>;
+    /** §4's "global regex search and replace". Returns what it changed. */
+    replace(query: SearchQueryView, replacement: string): Promise<ReplaceSummaryView>;
     quickOpen(query: string): Promise<QuickOpenHit[]>;
+  };
+  readonly session: {
+    restore(): Promise<SessionStateView>;
+    save(state: SessionStateView): void;
   };
   readonly settings: {
     read(): Promise<Record<string, boolean | string>>;

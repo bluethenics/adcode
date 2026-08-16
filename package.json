@@ -18,6 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "mock-server": "node mock-server/src/cli.ts",
+    "smoke": "node scripts/smoke.mjs",
     "verify": "npm run typecheck && npm run firewall && npm run test"
   },
   "devDependencies": {

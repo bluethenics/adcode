@@ -76,11 +76,21 @@ const api: AdcodeApi = {
     log: (limit) => ipcRenderer.invoke(CHANNELS.gitLog, limit),
     fileHistory: (path) => ipcRenderer.invoke(CHANNELS.gitFileHistory, path),
     lineChanges: (path) => ipcRenderer.invoke(CHANNELS.gitLineChanges, path),
+    blame: (path) => ipcRenderer.invoke(CHANNELS.gitBlame, path),
     diff: (path) => ipcRenderer.invoke(CHANNELS.gitDiff, path),
+    showFile: (ref, path) => ipcRenderer.invoke(CHANNELS.gitShowFile, ref, path),
   },
   search: {
     run: (query) => ipcRenderer.invoke(CHANNELS.searchRun, query),
+    replace: (query, replacement) =>
+      ipcRenderer.invoke(CHANNELS.searchReplace, query, replacement),
     quickOpen: (query) => ipcRenderer.invoke(CHANNELS.quickOpen, query),
+  },
+  session: {
+    restore: () => ipcRenderer.invoke(CHANNELS.sessionRestore),
+    // Fire-and-forget: the renderer saves this on every tab change, and waiting on a
+    // disk write to close a tab would be felt.
+    save: (state) => ipcRenderer.send(CHANNELS.sessionSave, state),
   },
   settings: {
     read: () => ipcRenderer.invoke(CHANNELS.settingsRead),

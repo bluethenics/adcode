@@ -151,7 +151,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   /* ── Editing (§4) ───────────────────────────────────────────────────── */
   bool("adcode.editing.bracketPairColorization", "editing", "Bracket pair colorization", "Colour matching brackets by depth.", true, true),
   bool("adcode.editing.inlineErrorLens", "editing", "Inline error and warning lens", "Show diagnostics at the end of the line they belong to.", true),
-  bool("adcode.editing.inlineGitBlame", "editing", "Inline git blame", "Show the last author and commit beside the cursor's line.", false),
+  bool("adcode.editing.inlineGitBlame", "editing", "Inline git blame", "Show the last author and commit beside the cursor's line.", false, true),
   bool("adcode.editing.stickyScroll", "editing", "Sticky scroll", "Pin enclosing scopes to the top of the editor while scrolling.", true, true),
   bool("adcode.editing.indentGuides", "editing", "Indent guides", "Vertical rules showing indentation depth.", true, true),
   bool("adcode.editing.todoHighlighting", "editing", "TODO and FIXME highlighting", "Highlight TODO, FIXME, and HACK comments.", true),
@@ -169,17 +169,17 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   bool("adcode.formatting.organizeImportsOnSave", "formatting", "Organize imports on save", "Sort and prune imports when saving.", false),
 
   /* ── Git (§4) ───────────────────────────────────────────────────────── */
-  bool("adcode.git.gutterDiff", "git", "Gutter diff decorations", "Mark added, changed, and deleted lines in the gutter.", true),
-  bool("adcode.git.blame", "git", "Blame", "Attribute each line to its last commit.", false),
-  bool("adcode.git.stageCommitUi", "git", "Stage, unstage, and commit", "Source-control UI for staging and committing.", true),
-  bool("adcode.git.branchSwitcher", "git", "Branch switcher", "Switch and create branches from the status bar.", true),
-  bool("adcode.git.mergeConflict", "git", "Merge conflict resolution", "Inline resolution for conflicted files.", true),
-  bool("adcode.git.fileTimeline", "git", "File timeline", "The commit history of the open file.", true),
+  bool("adcode.git.gutterDiff", "git", "Gutter diff decorations", "Mark added, changed, and deleted lines in the gutter.", true, true),
+  bool("adcode.git.blame", "git", "Blame", "Attribute each line to its last commit.", false, true),
+  bool("adcode.git.stageCommitUi", "git", "Stage, unstage, and commit", "Source-control UI for staging and committing.", true, true),
+  bool("adcode.git.branchSwitcher", "git", "Branch switcher", "Switch and create branches from the status bar.", true, true),
+  bool("adcode.git.mergeConflict", "git", "Merge conflict resolution", "Inline resolution for conflicted files.", true, true),
+  bool("adcode.git.fileTimeline", "git", "File timeline", "The commit history of the open file.", true, true),
 
   /* ── Navigation (§4) ────────────────────────────────────────────────── */
-  bool("adcode.navigation.fuzzyFileOpen", "navigation", "Fuzzy file open", "Open any file by typing part of its name.", true),
+  bool("adcode.navigation.fuzzyFileOpen", "navigation", "Fuzzy file open", "Open any file by typing part of its name.", true, true),
   bool("adcode.navigation.symbolSearch", "navigation", "Symbol search", "Jump to a symbol across the workspace.", true),
-  bool("adcode.navigation.globalSearch", "navigation", "Global search and replace", "Regex search and replace across the workspace.", true),
+  bool("adcode.navigation.globalSearch", "navigation", "Global search and replace", "Regex search and replace across the workspace.", true, true),
   bool("adcode.navigation.goToDefinition", "navigation", "Go to definition and references", "Definition, references, and implementations.", true),
   bool("adcode.navigation.breadcrumbs", "navigation", "Breadcrumbs", "The path and symbol trail above the editor.", true),
   bool("adcode.navigation.outline", "navigation", "Outline", "The symbol tree for the open file.", true),
@@ -190,7 +190,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   bool("adcode.language.treeSitterHighlighting", "language", "Tree-sitter highlighting", "Syntax highlighting driven by a real parse tree.", true),
 
   /* ── Session (§4) ───────────────────────────────────────────────────── */
-  bool("adcode.session.workspaceRestore", "session", "Restore workspace", "Reopen the last folder and editors on launch.", true),
+  bool("adcode.session.workspaceRestore", "session", "Restore workspace", "Reopen the last folder and editors on launch.", true, true),
   bool("adcode.session.autoSave", "session", "Auto-save after delay", "Save automatically once typing pauses.", true),
   bool("adcode.session.localFileHistory", "session", "Local file history", "Keep local versions of edited files.", true),
   bool("adcode.session.crashRecovery", "session", "Crash recovery", "Recover unsaved buffers after an unexpected exit.", true),

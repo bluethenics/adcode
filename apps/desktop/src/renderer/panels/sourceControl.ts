@@ -10,12 +10,18 @@ import type { GitStatusView } from "../../shared/api.ts";
 export interface SourceControlPanel {
   readonly element: HTMLElement;
   refresh(): Promise<void>;
+  /** The file whose history the timeline shows; null hides it. */
+  setActiveFile(path: string | null): void;
+  /** §4: the timeline is a setting, so the shell can switch it off. */
+  setTimelineEnabled(enabled: boolean): void;
 }
 
 export interface SourceControlDeps {
   readonly openFile: (path: string) => void;
   readonly workspaceRoot: () => string | null;
   readonly notify: (message: string) => void;
+  /** Show a file as it was at a revision, read-only. */
+  readonly openRevision: (path: string, ref: string, shortHash: string) => void;
 }
 
 const CHANGE_LABEL: Readonly<Record<string, string>> = {
@@ -124,7 +130,73 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   const empty = document.createElement("p");
   empty.className = "empty-hint";
 
-  element.append(header, actions, commitBox, list, empty);
+  /* §4: file timeline. The history of whatever is open, not of the whole repository -
+     "what happened to this file" is the question people actually ask. */
+  const timeline = document.createElement("div");
+  timeline.className = "scm-section scm-timeline";
+  timeline.hidden = true;
+
+  const timelineTitle = document.createElement("div");
+  timelineTitle.className = "scm-section-title";
+
+  const timelineList = document.createElement("div");
+  timeline.append(timelineTitle, timelineList);
+
+  element.append(header, actions, commitBox, list, empty, timeline);
+
+  let activeFile: string | null = null;
+  let timelineEnabled = true;
+  let timelineGeneration = 0;
+
+  async function renderTimeline(): Promise<void> {
+    const mine = ++timelineGeneration;
+
+    if (!timelineEnabled || activeFile === null) {
+      timeline.hidden = true;
+      timelineList.replaceChildren();
+      return;
+    }
+
+    const commits = await window.adcode.git.fileHistory(activeFile);
+    // A file opened, closed, and reopened while the history was loading must not end up
+    // showing the previous file's commits.
+    if (mine !== timelineGeneration) return;
+
+    const file = activeFile;
+    timelineTitle.textContent = `Timeline · ${file.split("/").pop() ?? file}`;
+
+    timelineList.replaceChildren();
+
+    if (commits.length === 0) {
+      const none = document.createElement("p");
+      none.className = "empty-hint";
+      none.textContent = "No commits touch this file yet.";
+      timelineList.append(none);
+      timeline.hidden = false;
+      return;
+    }
+
+    for (const commit of commits) {
+      const row = document.createElement("button");
+      row.className = "timeline-row";
+      row.type = "button";
+      row.title = `${commit.hash}\n${commit.author}\n${commit.date}`;
+
+      const subject = document.createElement("span");
+      subject.className = "timeline-subject";
+      subject.textContent = commit.subject;
+
+      const meta = document.createElement("span");
+      meta.className = "timeline-meta";
+      meta.textContent = `${commit.shortHash} · ${commit.author} · ${formatDate(commit.date)}`;
+
+      row.append(subject, meta);
+      row.addEventListener("click", () => deps.openRevision(file, commit.hash, commit.shortHash));
+      timelineList.append(row);
+    }
+
+    timeline.hidden = false;
+  }
 
   function fileRow(entry: GitStatusView["entries"][number], staged: boolean): HTMLElement {
     const row = document.createElement("div");
@@ -212,6 +284,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
 
     async refresh(): Promise<void> {
       if (deps.workspaceRoot() === null) {
+        timeline.hidden = true;
         list.replaceChildren();
         empty.textContent = "Open a folder to use source control.";
         empty.hidden = false;
@@ -224,6 +297,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       const status = await window.adcode.git.status();
 
       if (!status.isRepo) {
+        timeline.hidden = true;
         list.replaceChildren();
         header.hidden = true;
         actions.hidden = true;
@@ -275,8 +349,29 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
 
       empty.textContent = status.isClean ? "No changes." : "";
       empty.hidden = !status.isClean;
+
+      await renderTimeline();
+    },
+
+    setActiveFile(path) {
+      if (path === activeFile) return;
+      activeFile = path;
+      void renderTimeline();
+    },
+
+    setTimelineEnabled(enabled) {
+      timelineEnabled = enabled;
+      void renderTimeline();
     },
   };
 
   return api;
+}
+
+/** A commit date, short enough for a sidebar. */
+function formatDate(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+
+  return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }

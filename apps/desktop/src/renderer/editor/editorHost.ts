@@ -17,6 +17,7 @@ import jsonWorker from "monaco-editor/language/json/json.worker?worker";
 import cssWorker from "monaco-editor/language/css/css.worker?worker";
 import htmlWorker from "monaco-editor/language/html/html.worker?worker";
 import tsWorker from "monaco-editor/language/typescript/ts.worker?worker";
+import { createGitOverlay, type GitOverlay } from "./gitOverlay.ts";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -73,9 +74,16 @@ export interface EditorHost {
   text(path: string): string | null;
   markSaved(path: string): void;
   isDirty(path: string): boolean;
+  /** Historical revisions open read-only; the working copy never does. */
+  setReadOnly(path: string, readOnly: boolean): void;
+  isReadOnly(path: string): boolean;
+  /** Replace a buffer's contents with what is now on disk, keeping the tab open. */
+  replaceText(path: string, text: string): void;
   layout(): void;
   /** Scroll to a one-based line and put the cursor on it. */
   revealLine(line: number): void;
+  /** Gutter diff marks, inline blame, and merge-conflict resolution (§4's Git group). */
+  readonly git: GitOverlay;
   applyTheme(theme: "light" | "dark"): void;
   /** Apply the §4 editing settings the shell can honour today. */
   applySettings(values: Record<string, boolean | string>): void;
@@ -89,6 +97,7 @@ interface OpenModel {
   readonly model: monaco.editor.ITextModel;
   savedVersionId: number;
   viewState: monaco.editor.ICodeEditorViewState | null;
+  readOnly: boolean;
 }
 
 export function createEditorHost(container: HTMLElement): EditorHost {
@@ -114,6 +123,8 @@ export function createEditorHost(container: HTMLElement): EditorHost {
     folding: true,
     multiCursorModifier: "ctrlCmd",
   });
+
+  const git = createGitOverlay(editor);
 
   const models = new Map<string, OpenModel>();
   let active: string | null = null;
@@ -141,6 +152,8 @@ export function createEditorHost(container: HTMLElement): EditorHost {
   }
 
   return {
+    git,
+
     open(path, text, languageId) {
       if (models.has(path)) return;
 
@@ -149,6 +162,7 @@ export function createEditorHost(container: HTMLElement): EditorHost {
         model,
         savedVersionId: model.getAlternativeVersionId(),
         viewState: null,
+        readOnly: false,
       };
       models.set(path, entry);
 
@@ -166,6 +180,7 @@ export function createEditorHost(container: HTMLElement): EditorHost {
 
       editor.setModel(entry.model);
       if (entry.viewState !== null) editor.restoreViewState(entry.viewState);
+      editor.updateOptions({ readOnly: entry.readOnly });
       active = path;
 
       container.dataset["ready"] = "true";
@@ -202,6 +217,34 @@ export function createEditorHost(container: HTMLElement): EditorHost {
       const entry = models.get(path);
       if (entry === undefined) return false;
       return entry.model.getAlternativeVersionId() !== entry.savedVersionId;
+    },
+
+    replaceText(path, text) {
+      const entry = models.get(path);
+      if (entry === undefined || entry.model.getValue() === text) return;
+
+      // Through the edit stack rather than `setValue`, so the change is undoable and the
+      // cursor and folds survive - the same reason conflict resolution edits this way.
+      entry.model.pushEditOperations(
+        [],
+        [{ range: entry.model.getFullModelRange(), text }],
+        () => null,
+      );
+
+      entry.savedVersionId = entry.model.getAlternativeVersionId();
+      notifyDirty(path);
+    },
+
+    setReadOnly(path, readOnly) {
+      const entry = models.get(path);
+      if (entry === undefined) return;
+
+      entry.readOnly = readOnly;
+      if (active === path) editor.updateOptions({ readOnly });
+    },
+
+    isReadOnly(path) {
+      return models.get(path)?.readOnly === true;
     },
 
     layout() {
