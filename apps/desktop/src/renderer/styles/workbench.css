@@ -33,26 +33,52 @@ select {
 
 /* ── Titlebar ─────────────────────────────────────────────────────────── */
 
+/*
+ * `z-index` here is what lets the menu's dropdown paint over the workbench.
+ *
+ * `backdrop-filter` makes an element a stacking context, and both this bar and `.sidebar`
+ * have one - which puts them on the same level, where DOM order decides. `.workbench`
+ * comes second in index.html, so the sidebar was painting over an open menu. Kept below
+ * `.quickopen` (90) and the settings overlay (100), which should still cover the bar.
+ */
 .titlebar {
+  position: relative;
+  z-index: 20;
   display: flex;
   align-items: center;
-  justify-content: center;
   background: var(--bg-chrome);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--border-hairline);
 }
 
+/*
+ * The drag region takes the space the menu bar leaves, rather than the whole bar.
+ *
+ * It used to be `width: 100%` with the menu bar floating above it on `no-drag`, and that
+ * silently ate every menu click: draggable regions are resolved by the OS through
+ * WM_NCHITTEST, before the renderer ever sees the press, and Chromium accumulates those
+ * regions in document order - so a full-width `drag` declared after the menu bar's
+ * `no-drag` painted straight back over the carve-out. The click became a caption drag.
+ *
+ * CDP could not see any of this, because it injects input below the OS hit test, which is
+ * why the DOM looked healthy while the bar was dead to an actual mouse. Siblings that
+ * never overlap need no carve-out to survive, so the ordering rule stops mattering.
+ */
 .titlebar-drag {
   -webkit-app-region: drag;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
+/* Centred on the window rather than on the drag region, which no longer spans it.
+   `pointer-events: none` keeps the label from punching a hole in the drag area. */
 .titlebar-title {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
   font-size: var(--text-xs);
   font-weight: 590;
   color: var(--text-secondary);
@@ -254,18 +280,41 @@ select {
   background: var(--bg-editor);
 }
 
+/*
+ * The strip scrolls, and says so.
+ *
+ * It was already `overflow-x: auto`, but with the scrollbar hidden and no wheel handler
+ * there was no way to reach a tab that had slid off the end - the strip scrolled in
+ * principle and was stuck in practice. A thin bar restores the affordance; `main.ts`
+ * adds wheel-to-horizontal and keeps the active tab in view.
+ */
 .tabs {
   display: flex;
   gap: 2px;
   padding: 6px 8px 0;
   overflow-x: auto;
-  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hairline) transparent;
   background: var(--bg-chrome);
   border-bottom: 1px solid var(--border-hairline);
 }
 
 .tabs::-webkit-scrollbar {
-  display: none;
+  height: 6px;
+}
+
+.tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabs::-webkit-scrollbar-thumb {
+  background: var(--border-hairline);
+  border-radius: 3px;
+}
+
+.tabs::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
 }
 
 .tab {
@@ -281,6 +330,18 @@ select {
   cursor: pointer;
   white-space: nowrap;
   max-width: 220px;
+  /* Without this a full strip squeezes every tab toward zero width instead of
+     overflowing, so nothing scrolls and every label becomes unreadable at once. */
+  flex: none;
+  /* `max-width` caps the box, not the text. A long filename used to run straight out of
+     its own tab and across the next one's label. */
+  overflow: hidden;
+}
+
+.tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tab:hover {
@@ -316,6 +377,8 @@ select {
   height: 16px;
   line-height: 1;
   cursor: pointer;
+  /* Never squeezed out by a long label - it is how the tab gets closed. */
+  flex: none;
 }
 
 .tab-close:hover {

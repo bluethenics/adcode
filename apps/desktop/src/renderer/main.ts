@@ -10,6 +10,7 @@ import "./styles/settings.css";
 import "./styles/ai.css";
 import "./styles/panels.css";
 import "./styles/menubar.css";
+import "./styles/dialogs.css";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
 import { createCommandRegistry } from "./workbench/commands.ts";
 import { createMenuBar } from "./workbench/menuBar.ts";
@@ -22,6 +23,7 @@ import { createSettingsView } from "./settings/settingsView.ts";
 import { createEditorHost, languageForFilename, type EditorHost } from "./editor/editorHost.ts";
 import { createTerminalPanel, type TerminalPanel } from "./terminal/terminalPanel.ts";
 import { createNotificationCentre } from "./notifications/notifications.ts";
+import { createResultDialog } from "./dialogs/resultDialog.ts";
 import type { AdcodeApi, DirEntry, TerminalProfile } from "../shared/api.ts";
 
 declare global {
@@ -110,6 +112,7 @@ function renderTabs(): void {
     dot.className = "tab-dirty";
 
     const label = document.createElement("span");
+    label.className = "tab-label";
     label.textContent = tab.name;
 
     // The tab name may carry a revision suffix, so the icon is chosen from the file the
@@ -129,7 +132,49 @@ function renderTabs(): void {
     button.addEventListener("click", () => activateTab(tab.path));
     host.append(button);
   }
+
+  revealActiveTab();
 }
+
+/**
+ * Keep the selected tab on screen.
+ *
+ * Opening the twentieth file used to put its tab past the right edge with no way to reach
+ * it: the strip scrolled, but the scrollbar was hidden and nothing ever scrolled it. The
+ * tab you just opened is the one you are about to type in, so it has to be the one in view.
+ */
+function revealActiveTab(): void {
+  const host = el("tabs");
+  const selected = host.querySelector<HTMLElement>('.tab[aria-selected="true"]');
+  if (selected === null) return;
+
+  // `scrollIntoView` on a fresh element is a no-op until layout has run.
+  requestAnimationFrame(() => {
+    selected.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
+}
+
+/*
+ * A wheel over the tab strip scrolls it sideways.
+ *
+ * A plain mouse only reports vertical deltas, and the strip only scrolls horizontally, so
+ * without this the wheel does nothing at all over the one row that most needs it. Trackpad
+ * users already send `deltaX`; that is honoured as-is rather than doubled.
+ */
+el("tabs").addEventListener(
+  "wheel",
+  (event) => {
+    const strip = el("tabs");
+    if (strip.scrollWidth <= strip.clientWidth) return;
+
+    const delta = event.deltaX !== 0 ? event.deltaX : event.deltaY;
+    if (delta === 0) return;
+
+    event.preventDefault();
+    strip.scrollLeft += delta;
+  },
+  { passive: false },
+);
 
 function activateTab(path: string): void {
   activePath = path;
@@ -557,10 +602,14 @@ const relativePath = (absolute: string): string | null => {
   return normalisedPath.slice(normalisedRoot.length + 1);
 };
 
+/* Git's heavyweight actions report here rather than into the status bar's corner. */
+const gitResultDialog = createResultDialog(document.body);
+
 const sourceControl = createSourceControlPanel({
   openFile: (path) => void openFile(absolutePath(path)),
   workspaceRoot: () => workspaceRoot,
   notify: (text) => setStatus(text, 4000),
+  reportResult: (result) => gitResultDialog.show(result),
   openRevision: (path, ref, shortHash) => void openRevision(path, ref, shortHash),
   openLocalVersion: (path, id, savedAt) => void openLocalVersion(path, id, savedAt),
   absolutePath,
@@ -1130,6 +1179,11 @@ const KEYBINDINGS: ReadonlyArray<{
 ];
 
 window.addEventListener("keydown", (event) => {
+  // A modal result owns the keyboard while it is up. Without this, Ctrl+S saved and Alt
+  // opened the menu bar behind a dialog the user was still reading. Escape is deliberately
+  // not handled here: `<dialog>` closes itself on cancel, and doing it twice would race.
+  if (gitResultDialog.isOpen()) return;
+
   // Escape dismisses whatever transient surface is on top, wherever focus happens to be.
   // Leaving this to each surface's own input meant a palette opened by shortcut could not
   // be closed by keyboard once focus moved - and an overlay that will not close is an

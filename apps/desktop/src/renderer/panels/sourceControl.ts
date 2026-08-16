@@ -5,7 +5,8 @@
  * plumbing the user asked for directly - init, clone, push, pull - lives on the same
  * surface, because a source-control panel that cannot push is a diff viewer.
  */
-import type { GitStatusView } from "../../shared/api.ts";
+import type { GitOutcome, GitStatusView } from "../../shared/api.ts";
+import type { GitResult } from "../dialogs/resultDialog.ts";
 
 export interface SourceControlPanel {
   readonly element: HTMLElement;
@@ -20,6 +21,14 @@ export interface SourceControlDeps {
   readonly openFile: (path: string) => void;
   readonly workspaceRoot: () => string | null;
   readonly notify: (message: string) => void;
+  /**
+   * Report a heavyweight action's outcome somewhere the user will actually look.
+   *
+   * `notify` writes to a corner of the status bar and erases itself after four seconds,
+   * which is the right weight for staging a file and the wrong weight for a push that
+   * talked to a remote and may have failed.
+   */
+  readonly reportResult: (result: GitResult) => void;
   /** Show a file as it was at a revision, read-only. */
   readonly openRevision: (path: string, ref: string, shortHash: string) => void;
   /** Show a locally kept version of a file, read-only. §4's local file history. */
@@ -56,21 +65,61 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   const actions = document.createElement("div");
   actions.className = "scm-actions";
 
-  function actionButton(label: string, title: string, run: () => Promise<{ ok: boolean; message: string }>): HTMLButtonElement {
+  /** The last status rendered, so an action can report the state it acted on. */
+  let lastStatus: GitStatusView | null = null;
+
+  type Detail = readonly [label: string, value: string];
+
+  const branchDetails = (before: GitStatusView | null): Detail[] => [
+    ["Branch", before?.branch ?? "detached"],
+    ["Upstream", before?.upstream ?? "none"],
+  ];
+
+  function actionButton(
+    label: string,
+    title: string,
+    pendingLabel: string,
+    run: () => Promise<GitOutcome>,
+    details: (before: GitStatusView | null) => Detail[],
+  ): HTMLButtonElement {
     const button = document.createElement("button");
     button.className = "ghost-button";
     button.textContent = label;
     button.title = title;
 
     button.addEventListener("click", () => {
+      // Captured before the action, because the action is what changes it: reporting
+      // "3 commits pushed" needs the count from before the push zeroed it.
+      const before = lastStatus;
+
       button.disabled = true;
+      button.textContent = pendingLabel;
+
       void run()
-        .then((result) => {
-          deps.notify(result.message || (result.ok ? "Done." : "Failed."));
-          return api.refresh();
+        .then(
+          (result): GitOutcome => result,
+          // A rejection used to disappear here. `.then` with no `.catch` meant a thrown
+          // IPC or network error skipped the reporting branch entirely, leaving an
+          // unhandled rejection in a console the user does not have open - the exact
+          // case where they most need to be told something went wrong.
+          (error: unknown): GitOutcome => ({
+            ok: false,
+            message: error instanceof Error ? error.message : String(error),
+          }),
+        )
+        .then(async (outcome) => {
+          // The redraw is worth attempting and not worth losing the report over.
+          try {
+            await api.refresh();
+          } catch {
+            /* refresh failing is its own problem; the outcome still gets reported */
+          }
+
+          deps.reportResult({ action: label, ok: outcome.ok, message: outcome.message, details: details(before) });
         })
         .finally(() => {
           button.disabled = false;
+          button.textContent = label;
         });
     });
 
@@ -78,9 +127,15 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   }
 
   actions.append(
-    actionButton("Pull", "Fetch and fast-forward", () => window.adcode.git.pull()),
-    actionButton("Push", "Push the current branch", () => window.adcode.git.push()),
-    actionButton("Fetch", "Fetch all remotes", () => window.adcode.git.fetch()),
+    actionButton("Pull", "Fetch and fast-forward", "Pulling…", () => window.adcode.git.pull(), (before) => [
+      ...branchDetails(before),
+      ["Commits behind", String(before?.behind ?? 0)],
+    ]),
+    actionButton("Push", "Push the current branch", "Pushing…", () => window.adcode.git.push(), (before) => [
+      ...branchDetails(before),
+      ["Commits ahead", String(before?.ahead ?? 0)],
+    ]),
+    actionButton("Fetch", "Fetch all remotes", "Fetching…", () => window.adcode.git.fetch(), branchDetails),
   );
 
   const commitBox = document.createElement("form");
@@ -107,16 +162,42 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       return;
     }
 
+    const before = lastStatus;
+    const staged = before?.entries.filter((entry) => entry.staged !== "none").length ?? 0;
+
     commitButton.disabled = true;
+    commitButton.textContent = "Committing…";
+
     void window.adcode.git
       .commit(text)
-      .then((result) => {
-        deps.notify(result.message);
-        if (result.ok) message.value = "";
-        return api.refresh();
+      .then(
+        (result): GitOutcome => result,
+        (error: unknown): GitOutcome => ({
+          ok: false,
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      )
+      .then(async (outcome) => {
+        // Only clear the box on success. Losing a written message to a failed commit is
+        // the kind of small betrayal that teaches people to draft somewhere else first.
+        if (outcome.ok) message.value = "";
+
+        try {
+          await api.refresh();
+        } catch {
+          /* the outcome still gets reported */
+        }
+
+        deps.reportResult({
+          action: "Commit",
+          ok: outcome.ok,
+          message: outcome.message,
+          details: [...branchDetails(before), ["Files staged", String(staged)]],
+        });
       })
       .finally(() => {
         commitButton.disabled = false;
+        commitButton.textContent = "Commit";
       });
   });
 
@@ -299,6 +380,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       }
 
       const status = await window.adcode.git.status();
+      lastStatus = status;
 
       if (!status.isRepo) {
         timeline.hidden = true;

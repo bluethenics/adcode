@@ -7,16 +7,21 @@
 
 /* ── Menu bar ─────────────────────────────────────────────────────────── */
 
+/*
+ * An in-flow flex item, not an overlay.
+ *
+ * Overlaying it on the drag region and relying on `no-drag` to carve a hole did not
+ * survive contact with a real mouse - see the note on `.titlebar-drag`. Sitting beside
+ * the drag region instead of on top of it means there is no hole to carve.
+ */
 .menubar-slot {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 36px;
   display: flex;
   align-items: center;
+  flex: none;
+  height: 100%;
   padding-left: 8px;
-  /* Above the drag region, or the buttons would be draggable instead of clickable. */
-  z-index: 2;
+  /* Still declared: it keeps the buttons clickable if the bar is ever nested inside a
+     draggable ancestor again, and costs nothing when nothing overlaps. */
   -webkit-app-region: no-drag;
 }
 

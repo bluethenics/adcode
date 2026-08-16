@@ -230,15 +230,88 @@ checks.terminalStarts = await evaluate(
 // so all three are driven here rather than assumed.
 checks.menuBarPresent = await evaluate("document.querySelectorAll('.menubar-item').length");
 
-checks.menuOpens = await evaluate(
+/**
+ * A click at real page coordinates, routed through the renderer's own hit testing.
+ *
+ * `element.click()` dispatches straight at a node: it cannot tell you whether anything
+ * covers the element, whether `pointer-events` is off, or whether the coordinates are
+ * even reachable. This check used to use it, and so it passed for a build in which the
+ * menu bar was completely dead to a mouse.
+ */
+async function clickAt(x, y) {
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1, buttons: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1, buttons: 0 });
+  await sleep(250);
+}
+
+const filePoint = await evaluate(
   `(() => {
      const file = [...document.querySelectorAll('.menubar-item')].find((b) => b.textContent === 'File');
-     if (!file) return 'no File menu';
-     file.click();
-     const items = document.querySelectorAll('.menu-panel .menu-item');
-     const labels = [...items].map((i) => i.querySelector('.menu-item-label')?.textContent);
-     document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-     return labels.includes('Save') && labels.includes('Open Folder…') ? true : labels.join(',');
+     if (!file) return null;
+     const r = file.getBoundingClientRect();
+     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+   })()`,
+);
+
+if (filePoint === null) {
+  checks.menuOpens = "no File menu";
+} else {
+  await clickAt(filePoint.x, filePoint.y);
+  checks.menuOpens = await evaluate(
+    `(() => {
+       const items = document.querySelectorAll('.menu-panel .menu-item');
+       const labels = [...items].map((i) => i.querySelector('.menu-item-label')?.textContent);
+       return labels.includes('Save') && labels.includes('Open Folder…') ? true : labels.join(',');
+     })()`,
+  );
+
+  /*
+   * An open menu has to be the thing on top of itself.
+   *
+   * Counting the items only proves they were built. The sidebar and the title bar both
+   * get a stacking context from `backdrop-filter`, which puts them on the same level and
+   * lets DOM order decide - and the sidebar comes second, so it painted straight over an
+   * open menu while every item-count assertion stayed green.
+   */
+  checks.menuPanelOnTop = await evaluate(
+    `(() => {
+       const item = document.querySelector('.menu-panel .menu-item');
+       if (!item) return 'no menu open';
+       const r = item.getBoundingClientRect();
+       const hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
+       return item === hit || item.contains(hit) ? true : 'covered by ' + (hit?.className ?? 'null');
+     })()`,
+  );
+
+  await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
+}
+
+/*
+ * No draggable region may sit under the menu bar.
+ *
+ * Draggable regions are resolved by the OS through WM_NCHITTEST before the renderer sees
+ * the press, and CDP injects input below that layer - so no amount of driving the app
+ * from here can catch this. What can be checked is the geometry that causes it: a `drag`
+ * rect overlapping a menu button means real clicks become window drags, which is exactly
+ * the bug that shipped.
+ */
+checks.menuBarNotInDragRegion = await evaluate(
+  `(() => {
+     const dragRects = [...document.querySelectorAll('*')]
+       .filter((el) => getComputedStyle(el).getPropertyValue('-webkit-app-region').trim() === 'drag')
+       .map((el) => ({ el, r: el.getBoundingClientRect() }));
+
+     const overlaps = (a, b) =>
+       a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+
+     const clashes = [];
+     for (const button of document.querySelectorAll('.menubar-item')) {
+       const br = button.getBoundingClientRect();
+       for (const { el, r } of dragRects) {
+         if (overlaps(br, r)) clashes.push(button.textContent + ' under ' + (el.className || el.tagName));
+       }
+     }
+     return clashes.length === 0 ? true : clashes.join(', ');
    })()`,
 );
 
@@ -294,6 +367,45 @@ checks.multipleTerminals = await evaluate(
 
 checks.fileIcons = await evaluate(
   "document.querySelectorAll('#filetree .file-icon').length > 5",
+);
+
+/*
+ * A full tab strip stays usable: it overflows rather than crushing every tab, the tab you
+ * just opened is on screen, and no label escapes its own tab.
+ *
+ * All three broke at once when the strip's scrollbar was hidden with nothing scrolling it,
+ * and the third came back the moment the tabs were told to stop shrinking.
+ */
+checks.tabStripStaysUsable = await evaluate(
+  `(async () => {
+     const files = [...document.querySelectorAll('.tree-row')]
+       .filter((r) => r.querySelector('.tree-twisty')?.textContent === '');
+     for (const row of files.slice(0, 14)) {
+       row.click();
+       await new Promise((r) => setTimeout(r, 180));
+     }
+     await new Promise((r) => setTimeout(r, 600));
+
+     const strip = document.getElementById('tabs');
+     const tabs = [...strip.querySelectorAll('.tab')];
+     if (tabs.length < 4) return 'only ' + tabs.length + ' tabs opened';
+
+     const spilling = tabs.filter((tab) => {
+       const label = tab.querySelector('.tab-label');
+       if (!label) return false;
+       return label.getBoundingClientRect().right > tab.getBoundingClientRect().right + 1;
+     });
+     if (spilling.length > 0) return spilling.length + ' label(s) overflow their tab';
+
+     const active = strip.querySelector('.tab[aria-selected="true"]');
+     const sr = strip.getBoundingClientRect();
+     const ar = active?.getBoundingClientRect();
+     if (!ar) return 'no active tab';
+     if (ar.left < sr.left - 1 || ar.right > sr.right + 1) return 'active tab is off screen';
+
+     // Overflow is the point: if it all fits, the scrolling path went untested.
+     return strip.scrollWidth > strip.clientWidth ? true : 'strip did not overflow';
+   })()`,
 );
 
 // The gutter decorations for the restored file.

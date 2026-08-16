@@ -1,0 +1,129 @@
+/*
+ * The centred result dialog.
+ *
+ * A native <dialog> renders in the top layer, above every stacking context in the page,
+ * so none of the workbench's z-indexes are involved and none of them can bury it.
+ */
+
+.result-dialog {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-primary);
+  max-width: min(520px, calc(100vw - 48px));
+  /* Overrides the UA's `margin: auto` only-when-open centring quirk in older engines. */
+  margin: auto;
+}
+
+.result-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.result-card {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 24px 26px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-floating);
+  font-family: var(--font-ui);
+  text-align: center;
+}
+
+.result-badge {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+
+.result-dialog[data-ok="true"] .result-badge {
+  background: var(--success);
+}
+
+.result-dialog[data-ok="false"] .result-badge {
+  background: var(--danger);
+}
+
+.result-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 620;
+  letter-spacing: -0.01em;
+}
+
+.result-summary {
+  margin: 0;
+  max-width: 42ch;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* Label/value pairs in two columns, so "Branch  main" lines up down the card. */
+.result-details {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 3px 14px;
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+}
+
+.result-details dt {
+  color: var(--text-tertiary);
+  text-align: right;
+}
+
+.result-details dd {
+  margin: 0;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Git's own output, verbatim: wrapped, scrollable, never truncated into uselessness. */
+.result-output {
+  width: 100%;
+  max-height: 190px;
+  overflow: auto;
+  margin: 2px 0 0;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+  border: 1px solid var(--border-hairline);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.result-close {
+  margin-top: 6px;
+  min-width: 96px;
+  padding: 7px 18px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: var(--text-sm);
+  font-weight: 560;
+  cursor: pointer;
+}
+
+.result-close:hover {
+  filter: brightness(1.08);
+}
+
+.result-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
