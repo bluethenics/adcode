@@ -172,6 +172,24 @@ await evaluate(
   "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', ctrlKey: false, bubbles: true }))",
 );
 
+// §4's Session group: auto-save, local history, and crash recovery all round-trip.
+checks.historyBridge = await evaluate(
+  "window.adcode.history.versions('nope.ts').then((v) => Array.isArray(v))",
+);
+checks.draftsBridge = await evaluate(
+  "window.adcode.history.drafts().then((d) => Array.isArray(d))",
+);
+checks.draftRoundTrip = await evaluate(
+  `(async () => {
+     window.adcode.history.draft('E:/smoke/probe.ts', 'unsaved text');
+     await new Promise((r) => setTimeout(r, 400));
+     const found = await window.adcode.history.drafts();
+     const hit = found.find((d) => d.path === 'E:/smoke/probe.ts');
+     window.adcode.history.clearDraft('E:/smoke/probe.ts');
+     return hit?.text === 'unsaved text';
+   })()`,
+);
+
 // The gutter decorations for the restored file.
 checks.gutterOrClean = await evaluate(
   "document.querySelectorAll('.git-gutter').length >= 0",

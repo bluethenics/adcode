@@ -7,6 +7,14 @@
  */
 import { BrowserWindow, app, ipcMain } from "electron";
 import { restoreSession, saveSession } from "./session.ts";
+import {
+  clearDraft,
+  recordSave,
+  historyRead,
+  historyVersions,
+  recordDraft,
+  recoverableDrafts,
+} from "./history.ts";
 import { CHANNELS } from "../shared/api.ts";
 import { getAdRuntime } from "./adRuntime.ts";
 import { onSettingsChanged, readSettings, resetSettings, writeSetting } from "./settings.ts";
@@ -54,6 +62,24 @@ export function registerIpc(): void {
 
   ipcMain.handle(CHANNELS.sessionRestore, () => restoreSession());
 
+  ipcMain.handle(CHANNELS.historyVersions, (_event, path: unknown) =>
+    typeof path === "string" ? historyVersions(path) : [],
+  );
+
+  ipcMain.handle(CHANNELS.historyRead, (_event, path: unknown, id: unknown) =>
+    typeof path === "string" && typeof id === "string" ? historyRead(path, id) : null,
+  );
+
+  ipcMain.handle(CHANNELS.historyDrafts, () => recoverableDrafts());
+
+  ipcMain.on(CHANNELS.historyDraft, (_event, path: unknown, text: unknown) => {
+    if (typeof path === "string" && typeof text === "string") void recordDraft(path, text);
+  });
+
+  ipcMain.on(CHANNELS.historyClearDraft, (_event, path: unknown) => {
+    if (typeof path === "string") void clearDraft(path);
+  });
+
   ipcMain.on(CHANNELS.sessionSave, (_event, state: unknown) => {
     const raw = (state ?? {}) as Record<string, unknown>;
     const asString = (value: unknown): string | null =>
@@ -78,9 +104,14 @@ export function registerIpc(): void {
     return readTextFile(filePath);
   });
 
-  ipcMain.handle(CHANNELS.fsWrite, (_event, filePath: unknown, text: unknown) => {
+  ipcMain.handle(CHANNELS.fsWrite, async (_event, filePath: unknown, text: unknown) => {
     if (!isString(filePath) || !isString(text)) throw new Error("expected a path and text");
-    return writeTextFile(filePath, text);
+
+    const result = await writeTextFile(filePath, text);
+    // §4: local history records what was saved, not what was attempted - and a failed
+    // save leaves the draft in place, because the unsaved text is still the only copy.
+    if (result.ok) await recordSave(filePath, text);
+    return result;
   });
 
   ipcMain.handle(CHANNELS.terminalProfiles, () => detectProfiles());

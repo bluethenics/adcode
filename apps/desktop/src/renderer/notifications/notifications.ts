@@ -15,7 +15,17 @@ import type { SponsoredToast } from "../../shared/api.ts";
 const ENTER_MS = 220;
 const EXIT_MS = 160;
 
+/** An ordinary notification: the editor talking to the user about the user's own work. */
+export interface Notification {
+  readonly title: string;
+  readonly body?: string;
+  readonly actions?: ReadonlyArray<{ readonly label: string; readonly run: () => void }>;
+  /** Omit to leave it up until dismissed - the right default for anything with actions. */
+  readonly autoDismissMs?: number;
+}
+
 export interface NotificationCentre {
+  show(notification: Notification): void;
   showSponsored(toast: SponsoredToast): void;
   dismissAll(): void;
 }
@@ -43,7 +53,84 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
     if (notify) window.adcode.ads.dismissed(creativeId);
   }
 
+  /** Plain toasts stack; only the sponsored kind is limited to one at a time. */
+  const plain = new Set<HTMLElement>();
+
+  function dismissPlain(card: HTMLElement): void {
+    if (!plain.delete(card)) return;
+
+    card.style.willChange = "transform, opacity";
+    card.dataset["state"] = "exiting";
+    window.setTimeout(() => card.remove(), EXIT_MS);
+  }
+
   return {
+    show(notification: Notification): void {
+      const card = document.createElement("article");
+      card.className = "toast";
+      card.dataset["state"] = "entering";
+      card.style.willChange = "transform, opacity";
+      card.setAttribute("role", "status");
+
+      const content = document.createElement("div");
+      content.className = "toast-content";
+
+      const title = document.createElement("p");
+      title.className = "toast-title";
+      title.textContent = notification.title;
+      content.append(title);
+
+      if (notification.body !== undefined) {
+        const body = document.createElement("p");
+        body.className = "toast-body";
+        body.textContent = notification.body;
+        content.append(body);
+      }
+
+      if (notification.actions !== undefined && notification.actions.length > 0) {
+        const row = document.createElement("div");
+        row.className = "toast-actions";
+
+        for (const action of notification.actions) {
+          const button = document.createElement("button");
+          button.className = "ghost-button";
+          button.type = "button";
+          button.textContent = action.label;
+          button.addEventListener("click", () => {
+            action.run();
+            dismissPlain(card);
+          });
+          row.append(button);
+        }
+
+        content.append(row);
+      }
+
+      const close = document.createElement("button");
+      close.className = "toast-close";
+      close.textContent = "×";
+      close.setAttribute("aria-label", "Dismiss");
+      close.addEventListener("click", () => dismissPlain(card));
+
+      card.append(content, close);
+      host.append(card);
+      plain.add(card);
+
+      // Same two-frame dance as the sponsored kind, and for the same reason.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          card.dataset["state"] = "entered";
+          window.setTimeout(() => {
+            card.style.willChange = "auto";
+          }, ENTER_MS);
+        });
+      });
+
+      if (notification.autoDismissMs !== undefined) {
+        window.setTimeout(() => dismissPlain(card), notification.autoDismissMs);
+      }
+    },
+
     showSponsored(toast: SponsoredToast): void {
       // One sponsored toast at a time. Replacing a live one would cost the user the
       // impression they were part way through earning.
@@ -154,6 +241,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
 
     dismissAll(): void {
       if (live !== null) teardown(live.creativeId, true);
+      for (const card of [...plain]) dismissPlain(card);
     },
   };
 }

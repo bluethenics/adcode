@@ -164,3 +164,10 @@
   font-weight: 560;
   font-variant-numeric: tabular-nums;
 }
+
+/* Ordinary notifications: the editor talking about the user's own work. */
+.toast-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}

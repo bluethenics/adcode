@@ -22,6 +22,10 @@ export interface SourceControlDeps {
   readonly notify: (message: string) => void;
   /** Show a file as it was at a revision, read-only. */
   readonly openRevision: (path: string, ref: string, shortHash: string) => void;
+  /** Show a locally kept version of a file, read-only. §4's local file history. */
+  readonly openLocalVersion: (path: string, id: string, savedAt: string) => void;
+  /** The absolute path of the open file, which local history is keyed by. */
+  readonly absolutePath: (relative: string) => string;
 }
 
 const CHANGE_LABEL: Readonly<Record<string, string>> = {
@@ -374,4 +378,18 @@ function formatDate(iso: string): string {
   if (Number.isNaN(parsed.getTime())) return iso;
 
   return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+/** Local history is fine-grained enough that the time is what identifies a version. */
+function formatTime(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+
+  return parsed.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

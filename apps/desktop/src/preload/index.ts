@@ -86,6 +86,15 @@ const api: AdcodeApi = {
       ipcRenderer.invoke(CHANNELS.searchReplace, query, replacement),
     quickOpen: (query) => ipcRenderer.invoke(CHANNELS.quickOpen, query),
   },
+  history: {
+    versions: (path) => ipcRenderer.invoke(CHANNELS.historyVersions, path),
+    read: (path, id) => ipcRenderer.invoke(CHANNELS.historyRead, path, id),
+    // Fire-and-forget: a draft is written while the user is typing, and nothing in the
+    // editor should wait on it.
+    draft: (path, text) => ipcRenderer.send(CHANNELS.historyDraft, path, text),
+    clearDraft: (path) => ipcRenderer.send(CHANNELS.historyClearDraft, path),
+    drafts: () => ipcRenderer.invoke(CHANNELS.historyDrafts),
+  },
   session: {
     restore: () => ipcRenderer.invoke(CHANNELS.sessionRestore),
     // Fire-and-forget: the renderer saves this on every tab change, and waiting on a

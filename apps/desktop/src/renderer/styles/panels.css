@@ -448,3 +448,9 @@
   flex: none;
   white-space: nowrap;
 }
+
+/* Local-history rows read as a different kind of thing than a commit. */
+.timeline-row[data-kind="local"] .timeline-subject {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}

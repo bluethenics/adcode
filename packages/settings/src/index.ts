@@ -191,9 +191,9 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
 
   /* ── Session (§4) ───────────────────────────────────────────────────── */
   bool("adcode.session.workspaceRestore", "session", "Restore workspace", "Reopen the last folder and editors on launch.", true, true),
-  bool("adcode.session.autoSave", "session", "Auto-save after delay", "Save automatically once typing pauses.", true),
-  bool("adcode.session.localFileHistory", "session", "Local file history", "Keep local versions of edited files.", true),
-  bool("adcode.session.crashRecovery", "session", "Crash recovery", "Recover unsaved buffers after an unexpected exit.", true),
+  bool("adcode.session.autoSave", "session", "Auto-save after delay", "Save automatically once typing pauses.", true, true),
+  bool("adcode.session.localFileHistory", "session", "Local file history", "Keep local versions of edited files.", true, true),
+  bool("adcode.session.crashRecovery", "session", "Crash recovery", "Recover unsaved buffers after an unexpected exit.", true, true),
 
   /* ── AI (§5) ────────────────────────────────────────────────────────── */
   {

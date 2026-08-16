@@ -186,15 +186,29 @@ async function saveActive(): Promise<void> {
     return;
   }
 
-  const text = editorHost.text(activePath);
-  if (text === null) return;
+  await savePath(activePath);
+}
 
-  const result = await window.adcode.files.write(activePath, text);
+/**
+ * Save one buffer.
+ *
+ * Separate from `saveActive` because auto-save fires for whichever file stopped being
+ * typed in, which is not necessarily the one the user is now looking at.
+ */
+async function savePath(path: string): Promise<void> {
+  if (editorHost.isReadOnly(path)) return;
+
+  const text = editorHost.text(path);
+  if (text === null || !editorHost.isDirty(path)) return;
+
+  const result = await window.adcode.files.write(path, text);
   if (result.ok) {
-    editorHost.markSaved(activePath);
-    setStatus("Saved", 1200);
+    editorHost.markSaved(path);
+    if (path === activePath) {
+      setStatus("Saved", 1200);
+      void refreshGitOverlay();
+    }
     void sourceControl.refresh();
-    void refreshGitOverlay();
   } else {
     setStatus(result.reason ?? "save failed", 3000);
   }
@@ -355,6 +369,9 @@ editorHost.onDirtyChange((path, dirty) => {
 
   tab.dirty = dirty;
   renderTabs();
+
+  if (dirty) scheduleAutoSave(path);
+  else cancelPending(path);
 });
 
 editorHost.onSaveRequested(() => void saveActive());
@@ -437,6 +454,102 @@ const settingsView = createSettingsView({
 
 window.adcode.settings.onChanged((values) => applySettings(values));
 
+/* ── Auto-save and crash recovery (§4) ────────────────────────────────── */
+
+/** Long enough that it fires in a pause, short enough to be worth having. */
+const AUTO_SAVE_MS = 1200;
+/** A draft is a safety net, so it is written sooner and more often than a save. */
+const DRAFT_MS = 800;
+
+const pendingSaves = new Map<string, number>();
+const pendingDrafts = new Map<string, number>();
+
+function cancelPending(path: string): void {
+  const save = pendingSaves.get(path);
+  if (save !== undefined) window.clearTimeout(save);
+  pendingSaves.delete(path);
+
+  const draft = pendingDrafts.get(path);
+  if (draft !== undefined) window.clearTimeout(draft);
+  pendingDrafts.delete(path);
+}
+
+/**
+ * Save shortly after typing stops, and keep a draft in the meantime.
+ *
+ * The draft is written whether or not auto-save is on, because §4 lists the two as
+ * separate settings: someone who saves by hand still wants their work back after a crash.
+ */
+function scheduleAutoSave(path: string): void {
+  cancelPending(path);
+
+  if (editorHost.isReadOnly(path)) return;
+
+  pendingDrafts.set(
+    path,
+    window.setTimeout(() => {
+      pendingDrafts.delete(path);
+      const text = editorHost.text(path);
+      if (text !== null && editorHost.isDirty(path)) window.adcode.history.draft(path, text);
+    }, DRAFT_MS),
+  );
+
+  if (settingsValues["adcode.session.autoSave"] === false) return;
+
+  pendingSaves.set(
+    path,
+    window.setTimeout(() => {
+      pendingSaves.delete(path);
+      void savePath(path);
+    }, AUTO_SAVE_MS),
+  );
+}
+
+/**
+ * Offer back anything that was unsaved when the editor last stopped.
+ *
+ * Nothing is written without asking. A draft that matches what is on disk is dropped
+ * silently - it was saved before the exit, and prompting about it would be noise.
+ */
+async function offerRecovery(): Promise<void> {
+  const drafts = await window.adcode.history.drafts();
+  if (drafts.length === 0) return;
+
+  for (const draft of drafts) {
+    let onDisk: string | null = null;
+    try {
+      onDisk = (await window.adcode.files.read(draft.path)).text;
+    } catch {
+      // The file may have been deleted; the draft is then the only copy there is.
+    }
+
+    if (onDisk === draft.text) {
+      window.adcode.history.clearDraft(draft.path);
+      continue;
+    }
+
+    notifications.show({
+      title: "Unsaved work recovered",
+      body: `${basename(draft.path)} had unsaved changes when ADCode last closed.`,
+      actions: [
+        {
+          label: "Restore",
+          run: () => {
+            void openFile(draft.path).then(() => {
+              editorHost.replaceText(draft.path, draft.text, { keepDirty: true });
+              setStatus("Restored - save to keep it.", 4000);
+            });
+          },
+        },
+        {
+          label: "Discard",
+          run: () => window.adcode.history.clearDraft(draft.path),
+        },
+      ],
+    });
+  }
+}
+
 /* ── Session (§4) ─────────────────────────────────────────────────────── */
 
 let sessionReady = false;
@@ -481,7 +594,36 @@ const sourceControl = createSourceControlPanel({
   workspaceRoot: () => workspaceRoot,
   notify: (text) => setStatus(text, 4000),
   openRevision: (path, ref, shortHash) => void openRevision(path, ref, shortHash),
+  openLocalVersion: (path, id, savedAt) => void openLocalVersion(path, id, savedAt),
+  absolutePath,
 });
+
+/** Open a locally kept version of a file, read-only. §4's local file history. */
+async function openLocalVersion(path: string, id: string, savedAt: string): Promise<void> {
+  const text = await window.adcode.history.read(path, id);
+  if (text === null) {
+    setStatus("That local version is no longer on disk.", 3000);
+    return;
+  }
+
+  const when = new Date(savedAt);
+  const label = Number.isNaN(when.getTime())
+    ? savedAt
+    : when.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+  const key = `adcode-local:${id}:${path}`;
+  const name = `${basename(path)} @ ${label}`;
+
+  if (tabs.some((tab) => tab.path === key)) {
+    activateTab(key);
+    return;
+  }
+
+  editorHost.open(key, text, languageForFilename(path));
+  editorHost.setReadOnly(key, true);
+  tabs.push({ path: key, name, dirty: false });
+  activateTab(key);
+}
 
 /**
  * Open a file as it was at a commit, read-only.
@@ -702,6 +844,8 @@ async function boot(): Promise<void> {
   // empty session over a good one.
   sessionReady = true;
   rememberSession();
+
+  await offerRecovery();
 }
 
 void boot();

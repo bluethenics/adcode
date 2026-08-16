@@ -77,8 +77,13 @@ export interface EditorHost {
   /** Historical revisions open read-only; the working copy never does. */
   setReadOnly(path: string, readOnly: boolean): void;
   isReadOnly(path: string): boolean;
-  /** Replace a buffer's contents with what is now on disk, keeping the tab open. */
-  replaceText(path: string, text: string): void;
+  /**
+   * Replace a buffer's contents, keeping the tab open.
+   *
+   * `keepDirty` is for recovered work: the text did not come from disk, so marking it
+   * saved would be a lie that costs the user the thing they just recovered.
+   */
+  replaceText(path: string, text: string, options?: { keepDirty?: boolean }): void;
   layout(): void;
   /** Scroll to a one-based line and put the cursor on it. */
   revealLine(line: number): void;
@@ -219,7 +224,7 @@ export function createEditorHost(container: HTMLElement): EditorHost {
       return entry.model.getAlternativeVersionId() !== entry.savedVersionId;
     },
 
-    replaceText(path, text) {
+    replaceText(path, text, options) {
       const entry = models.get(path);
       if (entry === undefined || entry.model.getValue() === text) return;
 
@@ -231,7 +236,7 @@ export function createEditorHost(container: HTMLElement): EditorHost {
         () => null,
       );
 
-      entry.savedVersionId = entry.model.getAlternativeVersionId();
+      if (options?.keepDirty !== true) entry.savedVersionId = entry.model.getAlternativeVersionId();
       notifyDirty(path);
     },
 

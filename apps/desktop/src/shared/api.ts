@@ -136,6 +136,11 @@ export const CHANNELS = {
   searchReplace: "search:replace",
   sessionRestore: "session:restore",
   sessionSave: "session:save",
+  historyVersions: "history:versions",
+  historyRead: "history:read",
+  historyDraft: "history:draft",
+  historyClearDraft: "history:clear-draft",
+  historyDrafts: "history:drafts",
 } as const;
 
 /** Mirrors @adcode/git's shapes, so the renderer needs no import from that package. */
@@ -194,6 +199,20 @@ export interface SearchHitView {
   readonly column: number;
   readonly text: string;
   readonly matchLength: number;
+}
+
+/** One saved version of a file, kept locally (§4's "local file history"). */
+export interface HistoryEntryView {
+  readonly id: string;
+  readonly savedAt: string;
+  readonly bytes: number;
+}
+
+/** An unsaved buffer found after an unexpected exit (§4's "crash recovery"). */
+export interface RecoveredDraftView {
+  readonly path: string;
+  readonly text: string;
+  readonly savedAt: string;
 }
 
 /** What the shell reopens on launch (§4's "Restore workspace"). */
@@ -340,6 +359,14 @@ export interface AdcodeApi {
   readonly session: {
     restore(): Promise<SessionStateView>;
     save(state: SessionStateView): void;
+  };
+  readonly history: {
+    versions(path: string): Promise<HistoryEntryView[]>;
+    read(path: string, id: string): Promise<string | null>;
+    /** Keep a copy of an unsaved buffer, in case the editor does not come back. */
+    draft(path: string, text: string): void;
+    clearDraft(path: string): void;
+    drafts(): Promise<RecoveredDraftView[]>;
   };
   readonly settings: {
     read(): Promise<Record<string, boolean | string>>;
