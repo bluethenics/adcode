@@ -14,6 +14,10 @@ export interface TerminalHost {
   dispose(): void;
   fit(): void;
   focus(): void;
+  /** Wipe the scrollback, as `clear` would. */
+  clear(): void;
+  /** Type a line into the shell and press return. */
+  send(text: string): void;
   applyTheme(theme: "light" | "dark"): void;
 }
 
@@ -110,6 +114,14 @@ export async function createTerminalHost(
     },
     focus() {
       terminal.focus();
+    },
+    clear() {
+      terminal.clear();
+    },
+    send(text) {
+      // Straight to the pty rather than into xterm: the shell is what should see the
+      // keystrokes, and it echoes them back itself.
+      window.adcode.terminal.write(id, `${text}`);
     },
     applyTheme(theme) {
       terminal.options.theme = { ...THEMES[theme] };

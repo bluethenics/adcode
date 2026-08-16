@@ -46,6 +46,7 @@ asarUnpack:
   - "**/node_modules/node-pty/**"
 
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]
@@ -62,9 +63,11 @@ nsis:
   shortcutName: ADCode
 
 mac:
+  icon: build/icon.png
   target: [dmg]
   category: public.app-category.developer-tools
 
 linux:
+  icon: build/icon.png
   target: [AppImage]
   category: Development

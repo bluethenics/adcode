@@ -62,6 +62,26 @@ export function registerIpc(): void {
 
   ipcMain.handle(CHANNELS.sessionRestore, () => restoreSession());
 
+  /* ── Window ───────────────────────────────────────────────────────────── */
+
+  ipcMain.on(CHANNELS.windowFullScreen, (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    window?.setFullScreen(!window.isFullScreen());
+  });
+
+  ipcMain.on(CHANNELS.windowDevTools, (event) => {
+    event.sender.toggleDevTools();
+  });
+
+  ipcMain.on(CHANNELS.windowZoom, (event, direction: unknown) => {
+    if (typeof direction !== "number") return;
+
+    // Electron's zoom level is logarithmic; ±0.5 steps land on the same sequence of sizes
+    // the browser's own zoom uses, and clamping stops the UI from becoming unusable.
+    const next = direction === 0 ? 0 : event.sender.getZoomLevel() + Math.sign(direction) * 0.5;
+    event.sender.setZoomLevel(Math.max(-3, Math.min(4, next)));
+  });
+
   ipcMain.handle(CHANNELS.historyVersions, (_event, path: unknown) =>
     typeof path === "string" ? historyVersions(path) : [],
   );

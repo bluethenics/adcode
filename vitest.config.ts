@@ -15,6 +15,7 @@ const alias = {
   // match on `@adcode/git` would rewrite this specifier to a path that does not exist.
   "@adcode/git/conflicts": resolve(import.meta.dirname, "packages/git/src/conflicts.ts"),
   "@adcode/git": resolve(import.meta.dirname, "packages/git/src/index.ts"),
+  "@adcode/search/fuzzy": resolve(import.meta.dirname, "packages/search/src/fuzzy.ts"),
   "@adcode/search": resolve(import.meta.dirname, "packages/search/src/index.ts"),
 };
 

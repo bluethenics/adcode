@@ -222,7 +222,7 @@ select {
 }
 
 .tree-twisty {
-  width: 12px;
+  width: 10px;
   color: var(--text-tertiary);
   font-size: 9px;
   flex: none;
@@ -340,6 +340,10 @@ select {
   opacity: 1;
 }
 
+/*
+ * The placeholder fades rather than vanishing, so it is switched with a data attribute:
+ * `hidden` now means `display: none` unconditionally, which would cut the fade short.
+ */
 .editor-placeholder {
   position: absolute;
   inset: 0;
@@ -349,8 +353,7 @@ select {
   transition: opacity var(--duration-exit) var(--ease-sheet);
 }
 
-.editor-placeholder[hidden] {
-  display: grid;
+.editor-placeholder[data-visible="false"] {
   opacity: 0;
 }
 

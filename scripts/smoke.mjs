@@ -180,7 +180,11 @@ await evaluate(
 await sleep(600);
 checks.quickOpenVisible = await evaluate("document.querySelector('.quickopen')?.hidden === false");
 await evaluate(
-  "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', ctrlKey: false, bubbles: true }))",
+  "window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))",
+);
+await sleep(200);
+checks.quickOpenClosesOnEscape = await evaluate(
+  "document.querySelector('.quickopen')?.hidden === true",
 );
 
 // §4's Session group: auto-save, local history, and crash recovery all round-trip.
@@ -220,6 +224,76 @@ checks.terminalStarts = await evaluate(
      window.adcode.terminal.dispose(created.id ?? created);
      return received.length > 0 ? true : 'no output from the shell';
    })()`,
+);
+
+// §3's workbench chrome: the menu bar, the palette, and the terminal panel are all ours,
+// so all three are driven here rather than assumed.
+checks.menuBarPresent = await evaluate("document.querySelectorAll('.menubar-item').length");
+
+checks.menuOpens = await evaluate(
+  `(() => {
+     const file = [...document.querySelectorAll('.menubar-item')].find((b) => b.textContent === 'File');
+     if (!file) return 'no File menu';
+     file.click();
+     const items = document.querySelectorAll('.menu-panel .menu-item');
+     const labels = [...items].map((i) => i.querySelector('.menu-item-label')?.textContent);
+     document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+     return labels.includes('Save') && labels.includes('Open Folder…') ? true : labels.join(',');
+   })()`,
+);
+
+// Nothing may be left covering the window - the bug that made the app unclickable.
+checks.nothingCoversWindow = await evaluate(
+  `(() => {
+     const covering = [...document.body.querySelectorAll('*')].filter((el) => {
+       const s = getComputedStyle(el);
+       if (s.display === 'none' || s.visibility === 'hidden' || s.pointerEvents === 'none') return false;
+       if (s.position !== 'fixed') return false;
+       const r = el.getBoundingClientRect();
+       return r.width >= innerWidth * 0.9 && r.height >= innerHeight * 0.9;
+     });
+     return covering.length === 0 ? true : covering.map((e) => e.className).join(',');
+   })()`,
+);
+
+checks.paletteFinds = await evaluate(
+  `(async () => {
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'P', ctrlKey: true, shiftKey: true, bubbles: true }));
+     await new Promise((r) => setTimeout(r, 300));
+
+     const input = document.querySelector('.quickopen-input[aria-label="Command palette"]');
+     if (!input) return 'palette did not open';
+
+     input.value = 'split term';
+     input.dispatchEvent(new Event('input', { bubbles: true }));
+     await new Promise((r) => setTimeout(r, 200));
+
+     const first = document.querySelector('.palette-row span')?.textContent;
+     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+     return first ?? 'no rows';
+   })()`,
+);
+
+checks.multipleTerminals = await evaluate(
+  `(async () => {
+     const tabsOf = () => document.querySelectorAll('.terminal-tab').length;
+     const panesOf = () => document.querySelectorAll('.terminal-pane').length;
+
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: '\`', ctrlKey: true, shiftKey: true, bubbles: true }));
+     await new Promise((r) => setTimeout(r, 2000));
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: '\`', ctrlKey: true, shiftKey: true, bubbles: true }));
+     await new Promise((r) => setTimeout(r, 2000));
+
+     const tabs = tabsOf();
+     document.getElementById('terminal-split').click();
+     await new Promise((r) => setTimeout(r, 2000));
+
+     return JSON.stringify({ tabs, panes: panesOf() });
+   })()`,
+);
+
+checks.fileIcons = await evaluate(
+  "document.querySelectorAll('#filetree .file-icon').length > 5",
 );
 
 // The gutter decorations for the restored file.

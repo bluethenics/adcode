@@ -13,6 +13,9 @@ const alias = {
   // matches, and a prefix match on the shorter key would rewrite the path to nonsense.
   "@adcode/git/conflicts": resolve(import.meta.dirname, "../../packages/git/src/conflicts.ts"),
   "@adcode/git": resolve(import.meta.dirname, "../../packages/git/src/index.ts"),
+  // Same reasoning as the git alias above: the renderer wants the fuzzy matcher without
+  // the workspace walker, which imports node:fs and cannot run in a sandboxed window.
+  "@adcode/search/fuzzy": resolve(import.meta.dirname, "../../packages/search/src/fuzzy.ts"),
   "@adcode/search": resolve(import.meta.dirname, "../../packages/search/src/index.ts"),
 };
 

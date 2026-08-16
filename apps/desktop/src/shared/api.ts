@@ -141,6 +141,10 @@ export const CHANNELS = {
   historyDraft: "history:draft",
   historyClearDraft: "history:clear-draft",
   historyDrafts: "history:drafts",
+  menuCommand: "menu:command",
+  windowFullScreen: "window:full-screen",
+  windowDevTools: "window:dev-tools",
+  windowZoom: "window:zoom",
 } as const;
 
 /** Mirrors @adcode/git's shapes, so the renderer needs no import from that package. */
@@ -359,6 +363,14 @@ export interface AdcodeApi {
   readonly session: {
     restore(): Promise<SessionStateView>;
     save(state: SessionStateView): void;
+  };
+  readonly window: {
+    /** Menu choices arrive here; the renderer's command registry runs them. */
+    onCommand(listener: (command: string) => void): () => void;
+    toggleFullScreen(): void;
+    toggleDevTools(): void;
+    /** `+1`, `-1`, or `0` to reset. */
+    zoom(direction: number): void;
   };
   readonly history: {
     versions(path: string): Promise<HistoryEntryView[]>;

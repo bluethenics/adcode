@@ -7,6 +7,21 @@
  * latency in the one application where latency is unforgivable.
  */
 
+/*
+ * `hidden` is this app's visibility switch, and the rule that implements it lives in the
+ * user-agent stylesheet at zero specificity - so any `.thing { display: flex }` silently
+ * outranks it and the element stays on screen. That is not a cosmetic bug: a `position:
+ * fixed` overlay that never leaves swallows every click in the window, and the app looks
+ * perfectly rendered while being completely unusable.
+ *
+ * One declaration, at the top of the first stylesheet, makes the attribute mean what it
+ * says everywhere. Anything that needs to fade rather than vanish animates a data
+ * attribute instead - `hidden` is not a transition hook.
+ */
+[hidden] {
+  display: none !important;
+}
+
 :root {
   /* Type - SF Pro on macOS, Inter elsewhere; SF Mono / JetBrains Mono for code. */
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;

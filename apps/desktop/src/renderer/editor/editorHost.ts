@@ -89,6 +89,12 @@ export interface EditorHost {
   revealLine(line: number): void;
   /** Gutter diff marks, inline blame, and merge-conflict resolution (§4's Git group). */
   readonly git: GitOverlay;
+  /** Trigger a Monaco action by id - how the menu reaches the editing commands. */
+  runAction(actionId: string): void;
+  /** Toggle word wrap, which is an option rather than an action. */
+  toggleWordWrap(): void;
+  /** Current cursor line, for "go to line" and the status bar. */
+  cursorLine(): number;
   applyTheme(theme: "light" | "dark"): void;
   /** Apply the §4 editing settings the shell can honour today. */
   applySettings(values: Record<string, boolean | string>): void;
@@ -255,6 +261,28 @@ export function createEditorHost(container: HTMLElement): EditorHost {
     layout() {
       editor.layout();
     },
+
+    runAction(actionId) {
+      // Monaco owns multi-cursor, selection growth, and comment toggling; §2 says use it
+      // rather than rebuild it, so the menu triggers the real action by id.
+      editor.focus();
+
+      const action = editor.getAction(actionId);
+      if (action !== null) {
+        void action.run();
+        return;
+      }
+
+      // Some commands are keybinding-only and have no registered action.
+      editor.trigger("menu", actionId, undefined);
+    },
+
+    toggleWordWrap() {
+      const current = editor.getOption(monaco.editor.EditorOption.wordWrap);
+      editor.updateOptions({ wordWrap: current === "on" ? "off" : "on" });
+    },
+
+    cursorLine: () => editor.getPosition()?.lineNumber ?? 1,
 
     revealLine(line) {
       const target = Math.max(1, Math.floor(line));

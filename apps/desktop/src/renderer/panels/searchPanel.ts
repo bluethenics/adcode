@@ -8,6 +8,7 @@
  * on anything.
  */
 import type { QuickOpenHit, SearchHitView } from "../../shared/api.ts";
+import { fileIcon } from "../workbench/fileIcons.ts";
 
 const DEBOUNCE_MS = 90;
 
@@ -116,7 +117,10 @@ export function createSearchPanel(deps: SearchPanelDeps): SearchPanel {
 
       const heading = document.createElement("summary");
       heading.className = "search-group-title";
-      heading.textContent = `${path} · ${fileHits.length}`;
+      heading.append(
+        fileIcon(path.split("/").pop() ?? path),
+        document.createTextNode(`${path} · ${fileHits.length}`),
+      );
       group.append(heading);
 
       for (const hit of fileHits) {
@@ -250,6 +254,7 @@ export function createSearchPanel(deps: SearchPanelDeps): SearchPanel {
 export interface QuickOpen {
   toggle(): void;
   close(): void;
+  isOpen(): boolean;
 }
 
 export function createQuickOpen(deps: { openFile: (path: string) => void }): QuickOpen {
@@ -285,6 +290,7 @@ export function createQuickOpen(deps: { openFile: (path: string) => void }): Qui
       row.className = "quickopen-row";
       row.type = "button";
       row.ariaSelected = String(index === selected);
+      row.append(fileIcon(hit.path.split("/").pop() ?? hit.path));
 
       // Highlight the matched characters, so the ranking is legible rather than magic.
       const positions = new Set(hit.positions);
@@ -364,6 +370,8 @@ export function createQuickOpen(deps: { openFile: (path: string) => void }): Qui
     close(): void {
       overlay.hidden = true;
     },
+
+    isOpen: () => !overlay.hidden,
   };
 
   return api;

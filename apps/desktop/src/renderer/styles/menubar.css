@@ -1,0 +1,280 @@
+/*
+ * The in-window menu bar and the terminal panel's tab strip.
+ *
+ * Both exist because the shell owns its chrome (§3): a hidden title bar leaves no room
+ * for a native menu, and one terminal per window is not a terminal people can work in.
+ */
+
+/* ── Menu bar ─────────────────────────────────────────────────────────── */
+
+.menubar-slot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  /* Above the drag region, or the buttons would be draggable instead of clickable. */
+  z-index: 2;
+  -webkit-app-region: no-drag;
+}
+
+.menubar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 100%;
+}
+
+.menubar-item {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  padding: 4px 9px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.menubar-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.menubar-item[aria-expanded="true"] {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.menu-panel {
+  position: absolute;
+  top: 32px;
+  min-width: 260px;
+  max-height: 78vh;
+  overflow-y: auto;
+  padding: 5px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-floating);
+  z-index: 120;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  text-align: left;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.menu-item[data-nested="true"] {
+  padding-left: 22px;
+}
+
+.menu-item:hover,
+.menu-item:focus {
+  background: var(--accent);
+  color: #fff;
+  outline: none;
+}
+
+.menu-item:hover .menu-item-accelerator,
+.menu-item:focus .menu-item-accelerator {
+  color: #ffffffcc;
+}
+
+.menu-item-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.menu-item-accelerator {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.menu-heading {
+  padding: 6px 10px 3px;
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+}
+
+.menu-separator {
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--border-hairline);
+}
+
+/* ── Terminal tabs ────────────────────────────────────────────────────── */
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  flex: none;
+}
+
+.icon-button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.icon-button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.terminal-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-right: auto;
+}
+
+.terminal-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  padding: 3px 6px 3px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.terminal-tab:hover {
+  background: var(--bg-hover);
+}
+
+.terminal-tab[aria-selected="true"] {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.terminal-tab-close {
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  border-radius: 4px;
+  width: 15px;
+  height: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.terminal-tab-close:hover {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+}
+
+.terminal-surface {
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.terminal-tab-body {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 1px;
+  padding: 6px 8px;
+}
+
+/* Split panes divide the width evenly, with a hairline between them. */
+.terminal-pane {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.terminal-tab-body[data-panes]:not([data-panes="1"]) .terminal-pane + .terminal-pane {
+  border-left: 1px solid var(--border-hairline);
+  padding-left: 8px;
+}
+
+/* ── File icons ───────────────────────────────────────────────────────── */
+
+.file-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+/* In tabs the icon sits between the dirty dot and the label. */
+.tab .file-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.quickopen-row .file-icon,
+.search-group-title .file-icon {
+  vertical-align: -3px;
+  margin-right: 6px;
+}
+
+/* ── Command palette rows ─────────────────────────────────────────────── */
+
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--font-ui);
+}
+
+.palette-row > span:first-child {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.palette-id {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.quickopen-row[aria-selected="true"] .palette-id {
+  color: var(--text-secondary);
+}
+
+/* The sidebar can be collapsed from the View menu. */
+.workbench[data-sidebar="hidden"] {
+  grid-template-columns: 48px 0 1fr;
+}

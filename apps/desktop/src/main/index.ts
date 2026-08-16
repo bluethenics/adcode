@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { BrowserWindow, app, shell } from "electron";
 import { registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "./protocol.ts";
 import { registerIpc } from "./ipc.ts";
+import { installApplicationMenu } from "./menu.ts";
 import { disposeAllTerminals } from "./terminal.ts";
 import { getAdRuntime } from "./adRuntime.ts";
 import { loadSettings } from "./settings.ts";
@@ -64,6 +65,7 @@ function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
+    icon: join(import.meta.dirname, "../../../../build/icon.png"),
     minWidth: 680,
     minHeight: 420,
     // Painting the frame before the renderer is ready is what produces the white flash
@@ -117,6 +119,8 @@ function createWindow(): BrowserWindow {
 void app.whenReady().then(() => {
   registerAppProtocol(useDevServer);
   registerIpc();
+  // Before the first window, so its accelerators are live from the first keystroke.
+  installApplicationMenu();
 
   createWindow();
 

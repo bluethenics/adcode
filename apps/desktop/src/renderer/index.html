@@ -7,6 +7,7 @@
   </head>
   <body>
     <div id="titlebar" class="titlebar">
+      <div class="menubar-slot" id="menubar-slot"></div>
       <div class="titlebar-drag">
         <span class="titlebar-title" id="titlebar-title">ADCode</span>
       </div>
@@ -60,10 +61,22 @@
         <section class="panel" id="panel" hidden>
           <header class="panel-header">
             <span class="panel-title">Terminal</span>
+            <div class="terminal-tabs" id="terminal-tabs" role="tablist" hidden></div>
             <select class="profile-select" id="profile-select" aria-label="Terminal profile"></select>
-            <button class="ghost-button" id="panel-close" aria-label="Close panel">Close</button>
+            <button class="icon-button" id="terminal-new" title="New terminal (Ctrl+Shift+`)" aria-label="New terminal">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>
+            </button>
+            <button class="icon-button" id="terminal-split" title="Split terminal (Ctrl+Shift+5)" aria-label="Split terminal">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3h11v10h-11z M8 3v10"/></svg>
+            </button>
+            <button class="icon-button" id="terminal-kill" title="Kill terminal" aria-label="Kill terminal">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5v5M8 6.5v5M10.5 6.5v5M3 4h10M6 4V2.5h4V4M4.5 4l.6 9.5h5.8L11.5 4"/></svg>
+            </button>
+            <button class="icon-button" id="panel-close" title="Close panel (Ctrl+J)" aria-label="Close panel">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+            </button>
           </header>
-          <div class="terminal-host" id="terminal-host"></div>
+          <div class="terminal-surface" id="terminal-surface"></div>
         </section>
       </main>
     </div>

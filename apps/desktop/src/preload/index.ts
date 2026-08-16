@@ -86,6 +86,12 @@ const api: AdcodeApi = {
       ipcRenderer.invoke(CHANNELS.searchReplace, query, replacement),
     quickOpen: (query) => ipcRenderer.invoke(CHANNELS.quickOpen, query),
   },
+  window: {
+    onCommand: (listener) => subscribe(CHANNELS.menuCommand, listener),
+    toggleFullScreen: () => ipcRenderer.send(CHANNELS.windowFullScreen),
+    toggleDevTools: () => ipcRenderer.send(CHANNELS.windowDevTools),
+    zoom: (direction) => ipcRenderer.send(CHANNELS.windowZoom, direction),
+  },
   history: {
     versions: (path) => ipcRenderer.invoke(CHANNELS.historyVersions, path),
     read: (path, id) => ipcRenderer.invoke(CHANNELS.historyRead, path, id),
