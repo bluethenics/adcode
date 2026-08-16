@@ -36,6 +36,32 @@ export async function openWorkspace(): Promise<OpenedWorkspace | null> {
   return currentWorkspace();
 }
 
+/**
+ * Ask where to save, then write there.
+ *
+ * The chosen path becomes part of the workspace only if it is already inside it - "save
+ * as" must not silently widen what the renderer is allowed to reach, so a file saved
+ * outside the open folder is written once and then not readable through the file bridge.
+ */
+export async function saveTextFileAs(text: string, suggestedName: string): Promise<string | null> {
+  if (typeof text !== "string") return null;
+
+  const result = await dialog.showSaveDialog({
+    title: "Save As",
+    defaultPath: workspaceRoot === null ? suggestedName : join(workspaceRoot, suggestedName),
+  });
+
+  const picked = result.filePath;
+  if (result.canceled || picked === undefined || picked === "") return null;
+
+  try {
+    await writeFile(picked, text, "utf8");
+    return picked;
+  } catch {
+    return null;
+  }
+}
+
 /** Used by tests and by session restore, which supplies a previously opened root. */
 export function setWorkspaceRoot(root: string | null): void {
   workspaceRoot = root;

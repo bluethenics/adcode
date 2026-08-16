@@ -141,6 +141,8 @@ export const CHANNELS = {
   historyDraft: "history:draft",
   historyClearDraft: "history:clear-draft",
   historyDrafts: "history:drafts",
+  fsSaveAs: "fs:save-as",
+  workspaceClose: "workspace:close",
   menuCommand: "menu:command",
   windowFullScreen: "window:full-screen",
   windowDevTools: "window:dev-tools",
@@ -297,12 +299,15 @@ export interface McpConnectionInfo {
 export interface AdcodeApi {
   readonly workspace: {
     open(): Promise<OpenedWorkspace | null>;
+    close(): Promise<void>;
     current(): Promise<OpenedWorkspace | null>;
     list(dirPath: string): Promise<DirEntry[]>;
   };
   readonly files: {
     read(filePath: string): Promise<FileContent>;
     write(filePath: string, text: string): Promise<SaveResult>;
+    /** Ask where to put it; resolves to the chosen path, or null if cancelled. */
+    saveAs(text: string, suggestedName: string): Promise<string | null>;
   };
   readonly terminal: {
     profiles(): Promise<TerminalProfile[]>;

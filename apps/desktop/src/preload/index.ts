@@ -25,12 +25,14 @@ function subscribe<Args extends unknown[]>(
 const api: AdcodeApi = {
   workspace: {
     open: () => ipcRenderer.invoke(CHANNELS.workspaceOpen),
+    close: () => ipcRenderer.invoke(CHANNELS.workspaceClose),
     current: () => ipcRenderer.invoke(CHANNELS.workspaceCurrent),
     list: (dirPath) => ipcRenderer.invoke(CHANNELS.fsList, dirPath),
   },
   files: {
     read: (filePath) => ipcRenderer.invoke(CHANNELS.fsRead, filePath),
     write: (filePath, text) => ipcRenderer.invoke(CHANNELS.fsWrite, filePath, text),
+    saveAs: (text, suggestedName) => ipcRenderer.invoke(CHANNELS.fsSaveAs, text, suggestedName),
   },
   terminal: {
     profiles: () => ipcRenderer.invoke(CHANNELS.terminalProfiles),

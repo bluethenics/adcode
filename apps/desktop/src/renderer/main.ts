@@ -850,6 +850,35 @@ function runnerFor(relative: string): string | null {
   return runners[extension] ?? null;
 }
 
+/** The grey line the sidebar shows when there is nothing to list. */
+function hint(text: string): HTMLElement {
+  const paragraph = document.createElement("p");
+  paragraph.className = "empty-hint";
+  paragraph.textContent = text;
+  return paragraph;
+}
+
+/**
+ * Save the active buffer under a new name.
+ *
+ * The old tab is replaced rather than duplicated: "save as" moves where you are working,
+ * it does not leave you editing the file you just copied from.
+ */
+async function saveActiveAs(): Promise<void> {
+  if (activePath === null) return;
+
+  const text = editorHost.text(activePath);
+  if (text === null) return;
+
+  const target = await window.adcode.files.saveAs(text, basename(activePath));
+  if (target === null) return;
+
+  closeTab(activePath);
+  await openFile(target);
+  setStatus("Saved.", 1500);
+  void sourceControl.refresh();
+}
+
 /** Move to the next or previous open editor, wrapping at the ends. */
 function stepEditor(step: number): void {
   if (tabs.length < 2 || activePath === null) return;
@@ -892,6 +921,23 @@ function registerCommands(): void {
     activateTab(key);
   });
   add("workspace.open", "Open Folder", () => openFolder());
+  add("workspace.close", "Close Folder", async () => {
+    await window.adcode.workspace.close();
+
+    for (const tab of [...tabs]) closeTab(tab.path);
+
+    workspaceRoot = null;
+    chat.setWorkspace(null);
+    el("sidebar-title").textContent = "No Folder Opened";
+    el("status-workspace").textContent = "No folder";
+    el("titlebar-title").textContent = "ADCode";
+    el("filetree").replaceChildren(hint("Open a folder to get started."));
+
+    editorHost.git.clear();
+    rememberSession();
+    void sourceControl.refresh();
+  });
+  add("file.saveAs", "Save As", () => saveActiveAs());
   add("file.save", "Save", () => saveActive());
   add("file.saveAll", "Save All", async () => {
     for (const tab of [...tabs]) await savePath(tab.path);

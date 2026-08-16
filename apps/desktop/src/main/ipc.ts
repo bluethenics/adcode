@@ -20,6 +20,7 @@ import { getAdRuntime } from "./adRuntime.ts";
 import { onSettingsChanged, readSettings, resetSettings, writeSetting } from "./settings.ts";
 import { mcpConnection } from "./memory.ts";
 import { registerGitIpc } from "./gitIpc.ts";
+import { invalidateFileCache } from "./sourceControl.ts";
 import {
   aiApplyHunks,
   aiCancel,
@@ -41,6 +42,8 @@ import {
   listDirectory,
   openWorkspace,
   readTextFile,
+  saveTextFileAs,
+  setWorkspaceRoot,
   writeTextFile,
 } from "./workspace.ts";
 
@@ -59,6 +62,16 @@ export function registerIpc(): void {
 
   ipcMain.handle(CHANNELS.workspaceOpen, () => openWorkspace());
   ipcMain.handle(CHANNELS.workspaceCurrent, () => currentWorkspace());
+
+  ipcMain.handle(CHANNELS.fsSaveAs, (_event, text: unknown, suggestedName: unknown) =>
+    isString(text) && isString(suggestedName) ? saveTextFileAs(text, suggestedName) : null,
+  );
+
+  ipcMain.handle(CHANNELS.workspaceClose, () => {
+    setWorkspaceRoot(null);
+    // The quick-open index and the git handle were both bound to the old root.
+    invalidateFileCache();
+  });
 
   ipcMain.handle(CHANNELS.sessionRestore, () => restoreSession());
 
