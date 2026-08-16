@@ -71,6 +71,13 @@ export interface EditorHost {
   open(path: string, text: string, languageId: string): void;
   activate(path: string): void;
   close(path: string): void;
+  /**
+   * Follow a renamed file, keeping its text, cursor, dirty state and read-only flag.
+   *
+   * A buffer left under the old path saves to a name that no longer exists, recreating it
+   * and forking the file in two.
+   */
+  rename(oldPath: string, newPath: string): void;
   text(path: string): string | null;
   markSaved(path: string): void;
   isDirty(path: string): boolean;
@@ -210,6 +217,52 @@ export function createEditorHost(container: HTMLElement): EditorHost {
         editor.setModel(null);
         if (models.size === 0) delete container.dataset["ready"];
       }
+    },
+
+    rename(oldPath, newPath) {
+      const entry = models.get(oldPath);
+      if (entry === undefined || oldPath === newPath) return;
+
+      /*
+       * A rename is a new model, not a re-keyed map entry.
+       *
+       * A Monaco model's URI is fixed when it is created, and the URI is what selects the
+       * language - so re-keying would leave a file renamed from `.txt` to `.ts` still
+       * highlighted as plain text, and would leave the change listener below reporting
+       * dirtiness against a path that no longer exists.
+       */
+      const wasDirty = entry.model.getAlternativeVersionId() !== entry.savedVersionId;
+      const isActive = active === oldPath;
+      const viewState = isActive ? editor.saveViewState() : entry.viewState;
+
+      const model = monaco.editor.createModel(
+        entry.model.getValue(),
+        languageForFilename(newPath.split(/[\\/]/).at(-1) ?? newPath),
+        monaco.Uri.file(newPath),
+      );
+
+      const next: OpenModel = {
+        model,
+        // A fresh model starts at its own first version. Matching it means "saved";
+        // deliberately not matching it is what carries an unsaved edit across the rename.
+        savedVersionId: wasDirty ? -1 : model.getAlternativeVersionId(),
+        viewState,
+        readOnly: entry.readOnly,
+      };
+
+      models.delete(oldPath);
+      models.set(newPath, next);
+      model.onDidChangeContent(() => notifyDirty(newPath));
+
+      if (isActive) {
+        editor.setModel(model);
+        if (viewState !== null) editor.restoreViewState(viewState);
+        editor.updateOptions({ readOnly: next.readOnly });
+        active = newPath;
+      }
+
+      entry.model.dispose();
+      notifyDirty(newPath);
     },
 
     text(path) {

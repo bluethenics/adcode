@@ -87,6 +87,40 @@
   padding-left: 22px;
 }
 
+/*
+ * The right-click menu shares this panel rather than restyling a second one.
+ *
+ * `fixed` because it is anchored to the pointer, not to a bar: the tree scrolls, and an
+ * absolutely positioned panel would ride along with it while the row it describes moved
+ * out from under it.
+ */
+.menu-panel[data-context="true"] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  min-width: 210px;
+}
+
+.menu-item:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+
+.menu-item:disabled:hover {
+  background: transparent;
+}
+
+.menu-item[data-danger="true"] {
+  color: var(--danger);
+}
+
+/* Still white on the accent fill: a red-on-blue row is unreadable in both themes. */
+.menu-item[data-danger="true"]:hover,
+.menu-item[data-danger="true"]:focus {
+  background: var(--danger);
+  color: #fff;
+}
+
 .menu-item:hover,
 .menu-item:focus {
   background: var(--accent);

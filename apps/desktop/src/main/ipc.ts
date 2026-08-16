@@ -5,7 +5,7 @@
  * (brief §1), so "the preload only sends well-formed messages" is not a safety property
  * - a compromised renderer talks to `ipcRenderer` directly.
  */
-import { BrowserWindow, app, ipcMain } from "electron";
+import { BrowserWindow, app, clipboard, ipcMain } from "electron";
 import { restoreSession, saveSession } from "./session.ts";
 import {
   clearDraft,
@@ -46,6 +46,7 @@ import {
   setWorkspaceRoot,
   writeTextFile,
 } from "./workspace.ts";
+import { createFile, createFolder, deleteEntry, renameEntry, revealEntry, trashEntry } from "./fileOps.ts";
 
 const isString = (value: unknown): value is string => typeof value === "string";
 const isFiniteNumber = (value: unknown): value is number =>
@@ -145,6 +146,37 @@ export function registerIpc(): void {
     // save leaves the draft in place, because the unsaved text is still the only copy.
     if (result.ok) await recordSave(filePath, text);
     return result;
+  });
+
+  /*
+   * Structural file operations.
+   *
+   * The arguments are only shape-checked here; `fileOps` owns the rules that matter -
+   * the name is one storable segment, the path stays inside the workspace, and neither
+   * the workspace root nor anything in `.git` can be renamed or deleted. Each returns an
+   * outcome rather than throwing, so the renderer always has something to report.
+   */
+  ipcMain.handle(CHANNELS.fsCreateFile, (_event, parentDir: unknown, name: unknown) =>
+    createFile(parentDir, name),
+  );
+
+  ipcMain.handle(CHANNELS.fsCreateFolder, (_event, parentDir: unknown, name: unknown) =>
+    createFolder(parentDir, name),
+  );
+
+  ipcMain.handle(CHANNELS.fsRename, (_event, target: unknown, name: unknown) =>
+    renameEntry(target, name),
+  );
+
+  ipcMain.handle(CHANNELS.fsTrash, (_event, target: unknown) => trashEntry(target));
+
+  ipcMain.handle(CHANNELS.fsDelete, (_event, target: unknown) => deleteEntry(target));
+
+  ipcMain.handle(CHANNELS.fsReveal, (_event, target: unknown) => revealEntry(target));
+
+  ipcMain.handle(CHANNELS.clipboardWrite, (_event, text: unknown) => {
+    if (!isString(text)) throw new Error("expected text");
+    clipboard.writeText(text);
   });
 
   ipcMain.handle(CHANNELS.terminalProfiles, () => detectProfiles());

@@ -24,6 +24,9 @@ import { createEditorHost, languageForFilename, type EditorHost } from "./editor
 import { createTerminalPanel, type TerminalPanel } from "./terminal/terminalPanel.ts";
 import { createNotificationCentre } from "./notifications/notifications.ts";
 import { createResultDialog } from "./dialogs/resultDialog.ts";
+import { createConfirmDialog } from "./dialogs/confirmDialog.ts";
+import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "./workbench/contextMenu.ts";
+import { createInlineEditor } from "./workbench/inlineEdit.ts";
 import type { AdcodeApi, DirEntry, TerminalProfile } from "../shared/api.ts";
 
 declare global {
@@ -277,7 +280,14 @@ function makeRow(entry: DirEntry, depth: number): HTMLElement {
   const row = document.createElement("div");
   row.className = "tree-row";
   row.dataset["path"] = entry.path;
+  // Carried on the row so a refresh can rebuild children at the right indent without
+  // re-deriving it from the padding it set.
+  row.dataset["depth"] = String(depth);
+  row.dataset["kind"] = entry.isDirectory ? "directory" : "file";
   row.style.paddingLeft = `${8 + depth * 10}px`;
+  // Focusable, but not in the tab order: the tree is navigated by pointer, and F2 and
+  // Delete have to land on a row rather than on whatever last had focus.
+  row.tabIndex = -1;
 
   const twisty = document.createElement("span");
   twisty.className = "tree-twisty";
@@ -357,6 +367,408 @@ async function renderTree(root: string): Promise<void> {
     host.append(message);
   }
 }
+
+/* ── Tree structure changes ───────────────────────────────────────────── */
+
+/**
+ * Follow a renamed file with its tab.
+ *
+ * A tab left pointing at the old path is not a cosmetic problem: the next save writes to
+ * a name that no longer exists, recreating it and forking the file in two without saying
+ * so. The editor model moves with it for the same reason.
+ */
+function retitleTab(oldPath: string, newPath: string): void {
+  const tab = tabs.find((candidate) => candidate.path === oldPath);
+  if (tab === undefined) return;
+
+  const index = tabs.indexOf(tab);
+  tabs[index] = { ...tab, path: newPath, name: baseName(newPath) };
+
+  editorHost.rename(oldPath, newPath);
+  if (activePath === oldPath) activePath = newPath;
+
+  renderTabs();
+  rememberSession();
+}
+
+/**
+ * Mark a deleted file's tab rather than closing it.
+ *
+ * Closing would discard unsaved edits at the exact moment the file stopped existing on
+ * disk, which is when the buffer is the only copy left.
+ */
+function markTabStale(path: string): void {
+  const SUFFIX = " (deleted)";
+  let changed = false;
+
+  // A deleted folder takes every open file beneath it, so descendants are marked too.
+  // Matching only the exact path left those tabs looking healthy while pointing at
+  // files that no longer existed.
+  for (const [index, tab] of tabs.entries()) {
+    if (!samePath(tab.path, path) && !isUnder(path, tab.path)) continue;
+    if (tab.name.endsWith(SUFFIX)) continue;
+
+    tabs[index] = { ...tab, name: `${tab.name}${SUFFIX}` };
+    changed = true;
+  }
+
+  if (changed) renderTabs();
+}
+
+/** The row for a path, or null if that part of the tree is not built. */
+function rowFor(path: string): HTMLElement | null {
+  // Iterated rather than selected: a path holds backslashes and may hold quotes, and
+  // escaping it into an attribute selector correctly is more fragile than a scan of a
+  // list that is only ever as long as what is expanded on screen.
+  for (const row of document.querySelectorAll<HTMLElement>("#filetree .tree-row")) {
+    if (row.dataset["path"] !== undefined && samePath(row.dataset["path"], path)) return row;
+  }
+  return null;
+}
+
+/**
+ * Compare two paths the way the platform's filesystem does.
+ *
+ * `===` is not good enough. The workspace root arrives from a restored session or the
+ * folder dialog, while tree paths are built by the main process with `join`, so the same
+ * directory can legitimately show up as `E:/project` and `E:\project`. Comparing those as
+ * strings made the root's own refresh silently do nothing - the box was never found, so
+ * a deleted row simply stayed in the tree.
+ *
+ * Mirrors `pathSafety.normalizeForCompare` in main: case matters only where the platform
+ * says it does, and the two separators are the same character only on Windows.
+ */
+function normalizePath(value: string): string {
+  const trimmed = value.replace(/[\\/]+$/, "");
+  if (platform === "win32") return trimmed.replace(/\//g, "\\").toLowerCase();
+  return platform === "darwin" ? trimmed.toLowerCase() : trimmed;
+}
+
+function samePath(a: string, b: string): boolean {
+  return normalizePath(a) === normalizePath(b);
+}
+
+/** Is `candidate` inside `dir`? Compared on a separator boundary, not as a prefix. */
+function isUnder(dir: string, candidate: string): boolean {
+  const parent = normalizePath(dir);
+  const child = normalizePath(candidate);
+  // The separator matters: a plain `startsWith` would place `src-old/a.ts` inside `src`.
+  return child.startsWith(parent + (platform === "win32" ? "\\" : "/"));
+}
+
+const isWorkspaceRoot = (dirPath: string): boolean =>
+  workspaceRoot !== null && samePath(dirPath, workspaceRoot);
+
+/** Where a directory's children live: the tree itself for the root, else its own box. */
+function childrenBoxFor(dirPath: string): HTMLElement | null {
+  if (isWorkspaceRoot(dirPath)) return el("filetree");
+
+  const row = rowFor(dirPath);
+  const box = row?.parentElement?.querySelector<HTMLElement>(":scope > .tree-children");
+  return box ?? null;
+}
+
+function depthOf(dirPath: string): number {
+  if (isWorkspaceRoot(dirPath)) return 0;
+  const row = rowFor(dirPath);
+  return row === null ? 0 : Number(row.dataset["depth"] ?? "0") + 1;
+}
+
+/**
+ * Re-list one directory, keeping the rows that are still there.
+ *
+ * Rebuilding the box wholesale would be shorter and would collapse every expanded folder
+ * inside it, so renaming one file would fold up the part of the tree the user had spent
+ * the last minute opening. Matching on path keeps those subtrees and their state.
+ */
+async function refreshDirectory(dirPath: string): Promise<void> {
+  const box = childrenBoxFor(dirPath);
+  if (box === null) return;
+
+  let entries;
+  try {
+    entries = await window.adcode.workspace.list(dirPath);
+  } catch {
+    return;
+  }
+
+  const existing = new Map<string, Element>();
+  for (const wrapper of box.children) {
+    const path = wrapper.querySelector<HTMLElement>(":scope > .tree-row")?.dataset["path"];
+    if (path !== undefined) existing.set(path, wrapper);
+  }
+
+  const depth = depthOf(dirPath);
+  const next = entries.map((entry) => existing.get(entry.path) ?? makeRow(entry, depth));
+
+  // Anything left in `existing` is gone from disk, and dropping it here is what removes it.
+  box.replaceChildren(...next);
+}
+
+/** Expand a directory so something created inside it is actually visible. */
+async function expandDirectory(dirPath: string): Promise<void> {
+  if (isWorkspaceRoot(dirPath)) return;
+
+  const row = rowFor(dirPath);
+  if (row === null || row.dataset["open"] === "true") return;
+
+  row.click();
+  // The click handler lists the directory before revealing it, so the box is not
+  // populated on the next tick.
+  await new Promise((resolve) => setTimeout(resolve, 120));
+}
+
+/**
+ * The directory that holds `path` - always its parent, never itself.
+ *
+ * This is the one to refresh after something is renamed or removed. Conflating it with
+ * `createTargetFor` meant deleting a folder refreshed the folder that had just stopped
+ * existing, which failed silently and left its row in the tree.
+ */
+function containingDirOf(path: string): string {
+  const cut = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  return cut <= 0 ? (workspaceRoot ?? path) : path.slice(0, cut);
+}
+
+/** Where a new item goes when `path` was right-clicked: inside a folder, beside a file. */
+function createTargetFor(path: string): string {
+  return rowFor(path)?.dataset["kind"] === "directory" ? path : containingDirOf(path);
+}
+
+const baseName = (path: string): string => path.split(/[\\/]/).at(-1) ?? path;
+
+/** Open the inline editor for a new file or folder inside `dirPath`. */
+async function beginCreate(dirPath: string, kind: "file" | "folder"): Promise<void> {
+  await expandDirectory(dirPath);
+
+  const box = childrenBoxFor(dirPath);
+  if (box === null) {
+    setStatus("That folder is not open in the tree.", 3000);
+    return;
+  }
+
+  const editor = createInlineEditor({
+    depth: depthOf(dirPath),
+    placeholder: kind === "file" ? "File name" : "Folder name",
+    cancel: () => {},
+    commit: async (value) => {
+      const result =
+        kind === "file"
+          ? await window.adcode.files.createFile(dirPath, value)
+          : await window.adcode.files.createFolder(dirPath, value);
+
+      if (!result.ok) return result.message;
+
+      await refreshDirectory(dirPath);
+      setStatus(result.message, 3000);
+
+      // A new file is opened; a new folder is not, because there is nothing in it yet.
+      if (kind === "file" && result.path !== undefined) void openFile(result.path);
+      void sourceControl.refresh();
+      return null;
+    },
+  });
+
+  box.prepend(editor);
+}
+
+/** Replace a row with an editor holding its current name. */
+function beginRename(path: string): void {
+  const row = rowFor(path);
+  if (row === null) return;
+
+  const wrapper = row.parentElement;
+  if (wrapper === null) return;
+
+  const editor = createInlineEditor({
+    depth: Number(row.dataset["depth"] ?? "0"),
+    value: baseName(path),
+    cancel: () => {
+      row.hidden = false;
+    },
+    commit: async (value) => {
+      const result = await window.adcode.files.rename(path, value);
+      if (!result.ok) return result.message;
+
+      row.hidden = false;
+      await refreshDirectory(containingDirOf(path));
+
+      // The tab for a renamed file points at a path that no longer exists; left alone,
+      // the next save would recreate the old name and quietly fork the file in two.
+      if (result.path !== undefined) retitleTab(path, result.path);
+
+      setStatus(result.message, 3000);
+      void sourceControl.refresh();
+      return null;
+    },
+  });
+
+  row.hidden = true;
+  wrapper.prepend(editor);
+}
+
+/**
+ * Whether this workspace's drive turned out to have no Recycle Bin.
+ *
+ * Windows only implements one on NTFS, so on a FAT32 or removable volume - which this
+ * repository is on - `trashItem` always fails. Once that is known, later deletes ask the
+ * honest question first rather than promising a Recycle Bin that is not there.
+ */
+let recycleBinUnavailable = false;
+
+async function afterRemoval(path: string, said: string): Promise<void> {
+  await refreshDirectory(containingDirOf(path));
+  markTabStale(path);
+  setStatus(said, 4000);
+  void sourceControl.refresh();
+}
+
+async function deleteForGood(path: string, name: string): Promise<void> {
+  const result = await window.adcode.files.delete(path);
+  if (!result.ok) {
+    gitResultDialog.show({ action: "Delete", ok: false, message: result.message });
+    return;
+  }
+  await afterRemoval(path, `${name} deleted`);
+}
+
+async function confirmAndTrash(path: string): Promise<void> {
+  const name = baseName(path);
+
+  // Already known to be a drive without a bin: ask the question that is actually true.
+  if (recycleBinUnavailable) {
+    const sure = await confirmDialog.ask({
+      title: `Permanently delete ${name}?`,
+      body: "This drive has no Recycle Bin, so this cannot be undone.",
+      confirmLabel: "Delete permanently",
+      danger: true,
+    });
+    if (sure) await deleteForGood(path, name);
+    return;
+  }
+
+  const confirmed = await confirmDialog.ask({
+    title: `Delete ${name}?`,
+    body: "It goes to the Recycle Bin, so it can be restored from Windows.",
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  const result = await window.adcode.files.trash(path);
+  if (result.ok) {
+    await afterRemoval(path, `${name} moved to the Recycle Bin`);
+    return;
+  }
+
+  if (result.code !== "trash-failed") {
+    gitResultDialog.show({ action: "Delete", ok: false, message: result.message });
+    return;
+  }
+
+  /*
+   * The bin was not available. Ask again rather than deleting anyway.
+   *
+   * Falling through to a permanent delete here would turn the recoverable action the user
+   * agreed to into an irreversible one they were never offered - and they would find out
+   * by looking in a Recycle Bin that never received the file.
+   */
+  recycleBinUnavailable = true;
+
+  const sure = await confirmDialog.ask({
+    title: `Delete ${name} permanently?`,
+    body: "Windows could not move it to the Recycle Bin: this drive does not have one. Deleting it now cannot be undone.",
+    confirmLabel: "Delete permanently",
+    danger: true,
+  });
+  if (sure) await deleteForGood(path, name);
+}
+
+async function copyText(text: string, said: string): Promise<void> {
+  await window.adcode.clipboard.writeText(text);
+  setStatus(said, 2500);
+}
+
+async function revealInExplorer(path: string): Promise<void> {
+  const result = await window.adcode.files.reveal(path);
+  if (!result.ok) setStatus(result.message, 4000);
+}
+
+/** The menu for a row, or - when `path` is null - for empty space, meaning the root. */
+function treeMenuNodes(path: string | null): ContextMenuNode[] {
+  if (workspaceRoot === null) return [];
+
+  // New items go inside a clicked folder and beside a clicked file, which is where
+  // people expect them and saves a step in both cases.
+  const createIn = path === null ? workspaceRoot : createTargetFor(path);
+
+  const nodes: ContextMenuNode[] = [
+    { label: "New File", run: () => void beginCreate(createIn, "file") },
+    { label: "New Folder", run: () => void beginCreate(createIn, "folder") },
+  ];
+
+  if (path === null) return nodes;
+
+  nodes.push(
+    { kind: "separator" },
+    { label: "Copy Path", run: () => void copyText(path, "Path copied") },
+    {
+      label: "Copy Relative Path",
+      run: () => void copyText(relativePath(path) ?? path, "Relative path copied"),
+    },
+    { label: "Reveal in File Explorer", run: () => void revealInExplorer(path) },
+    { kind: "separator" },
+    { label: "Rename", accelerator: "F2", run: () => beginRename(path) },
+    { label: "Delete", accelerator: "Del", danger: true, run: () => void confirmAndTrash(path) },
+  );
+
+  return nodes;
+}
+
+/**
+ * The row the menu was opened on, so focus can go back to it.
+ *
+ * Returning focus to the editor instead would make the Rename and Delete accelerators the
+ * menu advertises unusable in the one flow where anybody discovers them - right-click,
+ * read the menu, press the key it just showed you.
+ */
+let menuRow: HTMLElement | null = null;
+
+el("filetree").addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+  if (workspaceRoot === null) return;
+
+  const row = (event.target as HTMLElement | null)?.closest<HTMLElement>(".tree-row") ?? null;
+
+  // Right-clicking selects, so the highlight and the menu cannot disagree about which
+  // row the next action is going to act on.
+  if (row !== null) {
+    for (const selected of document.querySelectorAll<HTMLElement>('.tree-row[aria-selected="true"]')) {
+      selected.ariaSelected = "false";
+    }
+    row.ariaSelected = "true";
+    row.focus();
+  }
+
+  menuRow = row;
+  treeMenu.open(event.clientX, event.clientY, treeMenuNodes(row?.dataset["path"] ?? null));
+});
+
+el("filetree").addEventListener("keydown", (event) => {
+  const path = (event.target as HTMLElement | null)?.closest<HTMLElement>(".tree-row")?.dataset["path"];
+  if (path === undefined) return;
+
+  if (event.key === "F2") {
+    event.preventDefault();
+    beginRename(path);
+    return;
+  }
+
+  if (event.key === "Delete") {
+    event.preventDefault();
+    void confirmAndTrash(path);
+  }
+});
 
 async function openFolder(): Promise<void> {
   const opened = await window.adcode.workspace.open();
@@ -604,6 +1016,12 @@ const relativePath = (absolute: string): string | null => {
 
 /* Git's heavyweight actions report here rather than into the status bar's corner. */
 const gitResultDialog = createResultDialog(document.body);
+
+/* Anything that destroys work asks first, through here. */
+const confirmDialog = createConfirmDialog(document.body);
+
+const treeMenu = createContextMenu(document.body);
+attachContextMenuDismissal(treeMenu, () => (menuRow ?? editorHost).focus());
 
 const sourceControl = createSourceControlPanel({
   openFile: (path) => void openFile(absolutePath(path)),

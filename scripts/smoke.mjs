@@ -11,7 +11,7 @@
  * Run after `npm run build`:  node scripts/smoke.mjs
  */
 import { spawn } from "node:child_process";
-import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
@@ -244,6 +244,50 @@ async function clickAt(x, y) {
   await sleep(250);
 }
 
+async function rightClickAt(x, y) {
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "right", clickCount: 1, buttons: 2 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "right", clickCount: 1, buttons: 0 });
+  await sleep(350);
+}
+
+async function typeText(text) {
+  for (const character of text) await send("Input.dispatchKeyEvent", { type: "char", text: character });
+  await sleep(120);
+}
+
+async function pressEnter() {
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await sleep(500);
+}
+
+/**
+ * Centre of the context-menu entry with this label.
+ *
+ * Throws with what the menu actually contained rather than returning null: a null here
+ * used to surface as `Cannot read properties of null`, which says nothing about whether
+ * the menu failed to open or simply lacked the entry.
+ */
+async function contextItemPoint(label) {
+  const found = await evaluate(
+    `(() => {
+       const panel = document.querySelector('.menu-panel[data-context]');
+       if (!panel) return { error: 'no context menu is open' };
+       const item = [...panel.querySelectorAll('.menu-item')]
+         .find((i) => i.querySelector('.menu-item-label')?.textContent === ${JSON.stringify(label)});
+       if (!item) {
+         const labels = [...panel.querySelectorAll('.menu-item-label')].map(l => l.textContent);
+         return { error: 'menu had: ' + labels.join(', ') };
+       }
+       const r = item.getBoundingClientRect();
+       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+     })()`,
+  );
+
+  if (found?.error !== undefined) throw new Error(`${label}: ${found.error}`);
+  return found;
+}
+
 const filePoint = await evaluate(
   `(() => {
      const file = [...document.querySelectorAll('.menubar-item')].find((b) => b.textContent === 'File');
@@ -407,6 +451,176 @@ checks.tabStripStaysUsable = await evaluate(
      return strip.scrollWidth > strip.clientWidth ? true : 'strip did not overflow';
    })()`,
 );
+
+/*
+ * The explorer's structural operations, end to end and at real coordinates.
+ *
+ * Everything happens inside a scratch folder created through the UI and removed at the
+ * end, so a smoke run never leaves the repository modified. The `finally` matters: a
+ * failed assertion partway through must not leave the folder behind.
+ */
+const SCRATCH = ".adcode-smoke-tmp";
+try {
+  // The search and source-control checks above left the sidebar on another view, which
+  // hides the tree entirely - so every coordinate below would be measured against a box
+  // of zero size.
+  await evaluate(`document.querySelector('.activity[data-view="explorer"]').click(); true`);
+  await sleep(500);
+
+  const emptySpace = await evaluate(
+    `(() => {
+       const tree = document.getElementById('filetree');
+       const box = tree.getBoundingClientRect();
+       const rows = tree.querySelectorAll('.tree-row');
+       const last = rows[rows.length - 1]?.getBoundingClientRect();
+       const y = last ? Math.min(last.bottom + 40, box.bottom - 20) : box.top + 40;
+       return { x: Math.round(box.left + box.width / 2), y: Math.round(y) };
+     })()`,
+  );
+
+  await rightClickAt(emptySpace.x, emptySpace.y);
+  checks.contextMenuOpens = await evaluate(
+    `(() => {
+       const panel = document.querySelector('.menu-panel[data-context]');
+       if (!panel) {
+         const tree = document.getElementById('filetree').getBoundingClientRect();
+         const hit = document.elementFromPoint(${emptySpace.x}, ${emptySpace.y});
+         return 'no context menu; point ' + ${emptySpace.x} + ',' + ${emptySpace.y} +
+           ' hit ' + (hit ? hit.tagName + '.' + hit.className : 'null') +
+           ' tree ' + JSON.stringify({ l: Math.round(tree.left), t: Math.round(tree.top), r: Math.round(tree.right), b: Math.round(tree.bottom) });
+       }
+       const item = panel.querySelector('.menu-item');
+       const r = item.getBoundingClientRect();
+       const hit = document.elementFromPoint(Math.round(r.left + r.width/2), Math.round(r.top + r.height/2));
+       // Built *and* on top: the menu bar shipped dead behind a count that stayed green.
+       return item === hit || item.contains(hit) ? true : 'covered by ' + (hit?.className ?? 'null');
+     })()`,
+  );
+
+  let point = await contextItemPoint("New Folder");
+  await clickAt(point.x, point.y);
+  await typeText(SCRATCH);
+  await pressEnter();
+  await sleep(600);
+
+  checks.createFolder = await evaluate(
+    `[...document.querySelectorAll('#filetree .tree-row')].some(r => r.dataset.path?.endsWith(${JSON.stringify(SCRATCH)}))`,
+  );
+
+  const folderPoint = await evaluate(
+    `(() => {
+       const row = [...document.querySelectorAll('#filetree .tree-row')]
+         .find(r => r.dataset.path?.endsWith(${JSON.stringify(SCRATCH)}));
+       if (!row) return null;
+       const r = row.getBoundingClientRect();
+       return { x: Math.round(r.left + r.width/2), y: Math.round(r.top + r.height/2) };
+     })()`,
+  );
+
+  // A reserved device name has to be refused with a reason, and leave the editor open.
+  await rightClickAt(folderPoint.x, folderPoint.y);
+  point = await contextItemPoint("New File");
+  await clickAt(point.x, point.y);
+  await typeText("CON.txt");
+  await pressEnter();
+
+  checks.badNameRefused = await evaluate(
+    `(() => {
+       const row = document.querySelector('.tree-edit-row');
+       if (!row) return 'the editor closed on a name that should have been refused';
+       const message = document.querySelector('.tree-edit-error')?.textContent ?? '';
+       return /reserved/i.test(message) ? true : 'unexpected message: ' + message;
+     })()`,
+  );
+
+  await evaluate("document.querySelector('.tree-edit-input').value = ''; true");
+  await typeText("smoke-note.md");
+  await pressEnter();
+  await sleep(800);
+
+  checks.createFileOpensIt = await evaluate(
+    `(() => ({
+       inTree: [...document.querySelectorAll('#filetree .tree-row')].some(r => r.dataset.path?.endsWith('smoke-note.md')),
+       tabOpen: [...document.querySelectorAll('.tab .tab-label')].some(l => l.textContent === 'smoke-note.md'),
+     }))()`,
+  );
+
+  // Rename, and the tab has to follow it or the next save forks the file in two.
+  const filePoint = await evaluate(
+    `(() => {
+       const row = [...document.querySelectorAll('#filetree .tree-row')].find(r => r.dataset.path?.endsWith('smoke-note.md'));
+       const r = row.getBoundingClientRect();
+       return { x: Math.round(r.left + r.width/2), y: Math.round(r.top + r.height/2) };
+     })()`,
+  );
+
+  await rightClickAt(filePoint.x, filePoint.y);
+  point = await contextItemPoint("Rename");
+  await clickAt(point.x, point.y);
+  await evaluate("document.querySelector('.tree-edit-input').value = ''; true");
+  await typeText("smoke-renamed.md");
+  await pressEnter();
+  await sleep(800);
+
+  checks.renameMovesTab = await evaluate(
+    `(() => ({
+       renamed: [...document.querySelectorAll('#filetree .tree-row')].some(r => r.dataset.path?.endsWith('smoke-renamed.md')),
+       tabFollowed: [...document.querySelectorAll('.tab .tab-label')].some(l => l.textContent === 'smoke-renamed.md'),
+     }))()`,
+  );
+
+  // Delete, through however many confirmations this volume needs. A drive with no
+  // Recycle Bin asks a second time before anything is removed for good.
+  await rightClickAt(folderPoint.x, folderPoint.y);
+  point = await contextItemPoint("Delete");
+  await clickAt(point.x, point.y);
+
+  let asked = 0;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const button = await evaluate(
+      `(() => {
+         const b = document.querySelector('.confirm-dialog[open] .result-close');
+         if (!b) return null;
+         const r = b.getBoundingClientRect();
+         return { x: Math.round(r.left + r.width/2), y: Math.round(r.top + r.height/2) };
+       })()`,
+    );
+    if (button === null) break;
+    asked++;
+    await clickAt(button.x, button.y);
+    await sleep(1000);
+  }
+
+  checks.deleteAsksFirst = asked > 0 ? true : "deleted without asking";
+  checks.deleteRemovesRow = await evaluate(
+    `(() => ({
+       goneFromTree: ![...document.querySelectorAll('#filetree .tree-row')].some(r => r.dataset.path?.endsWith(${JSON.stringify(SCRATCH)})),
+       tabMarkedStale: [...document.querySelectorAll('.tab .tab-label')].some(l => l.textContent === 'smoke-renamed.md (deleted)'),
+     }))()`,
+  );
+
+  // The renderer is hostile by assumption, so the guards are asserted through the bridge
+  // rather than trusted because the UI never offers these.
+  checks.guardsHold = await evaluate(
+    `(async () => {
+       const { root } = await window.adcode.workspace.current();
+       const results = {
+         root: await window.adcode.files.trash(root),
+         rename: await window.adcode.files.rename(root, 'hijacked'),
+         traversal: await window.adcode.files.createFile(root, '../escaped.txt'),
+         dotGit: await window.adcode.files.trash(root + '/.git'),
+       };
+       const allowed = Object.entries(results).filter(([, r]) => r.ok).map(([name]) => name);
+       return allowed.length === 0 ? true : 'ALLOWED: ' + allowed.join(', ');
+     })()`,
+  );
+} catch (error) {
+  // Recorded as a failed check rather than crashing the run, so the checks that already
+  // passed still get printed and the cleanup below still happens.
+  checks.explorerFlow = `THREW: ${error instanceof Error ? error.message : String(error)}`;
+} finally {
+  await rm(join(REPO, SCRATCH), { recursive: true, force: true }).catch(() => {});
+}
 
 // The gutter decorations for the restored file.
 checks.gutterOrClean = await evaluate(

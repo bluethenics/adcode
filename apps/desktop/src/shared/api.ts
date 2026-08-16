@@ -34,6 +34,28 @@ export interface SaveResult {
   readonly reason?: string;
 }
 
+/**
+ * The outcome of a structural file operation.
+ *
+ * Always an outcome, never a throw: the renderer has to be able to say what happened
+ * whether it worked or not, and a rejection that crosses the bridge loses its message.
+ */
+export interface FileOpResult {
+  readonly ok: boolean;
+  readonly message: string;
+  /** Where the item ended up, when there is one. */
+  readonly path?: string;
+  /**
+   * A machine-readable cause, where the caller has to branch on it.
+   *
+   * `trash-failed` is the one that matters: Windows only implements the Recycle Bin on
+   * NTFS, so on a FAT32 or removable volume there is nowhere for a deleted file to go.
+   * The caller asks again for an explicit permanent delete rather than escalating on its
+   * own - quietly turning a recoverable action into an irreversible one is not a fallback.
+   */
+  readonly code?: "trash-failed";
+}
+
 export interface TerminalProfile {
   readonly id: string;
   readonly label: string;
@@ -83,6 +105,13 @@ export const CHANNELS = {
   fsList: "fs:list",
   fsRead: "fs:read",
   fsWrite: "fs:write",
+  fsCreateFile: "fs:create-file",
+  fsCreateFolder: "fs:create-folder",
+  fsRename: "fs:rename",
+  fsTrash: "fs:trash",
+  fsDelete: "fs:delete",
+  fsReveal: "fs:reveal",
+  clipboardWrite: "clipboard:write",
   terminalCreate: "terminal:create",
   terminalWrite: "terminal:write",
   terminalResize: "terminal:resize",
@@ -308,6 +337,22 @@ export interface AdcodeApi {
     write(filePath: string, text: string): Promise<SaveResult>;
     /** Ask where to put it; resolves to the chosen path, or null if cancelled. */
     saveAs(text: string, suggestedName: string): Promise<string | null>;
+    /** Structural changes. `name` is one path segment; the main process validates it. */
+    createFile(parentDir: string, name: string): Promise<FileOpResult>;
+    createFolder(parentDir: string, name: string): Promise<FileOpResult>;
+    rename(target: string, name: string): Promise<FileOpResult>;
+    /** To the Recycle Bin, not `rm` - deleting the wrong row stays recoverable. */
+    trash(target: string): Promise<FileOpResult>;
+    /** Irreversible. Only for when `trash` reports `trash-failed` and the user agrees. */
+    delete(target: string): Promise<FileOpResult>;
+    reveal(target: string): Promise<FileOpResult>;
+  };
+  /**
+   * Electron's clipboard rather than `navigator.clipboard`, which needs a secure context
+   * the app's custom protocol does not reliably provide.
+   */
+  readonly clipboard: {
+    writeText(text: string): Promise<void>;
   };
   readonly terminal: {
     profiles(): Promise<TerminalProfile[]>;

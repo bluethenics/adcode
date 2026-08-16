@@ -33,6 +33,15 @@ const api: AdcodeApi = {
     read: (filePath) => ipcRenderer.invoke(CHANNELS.fsRead, filePath),
     write: (filePath, text) => ipcRenderer.invoke(CHANNELS.fsWrite, filePath, text),
     saveAs: (text, suggestedName) => ipcRenderer.invoke(CHANNELS.fsSaveAs, text, suggestedName),
+    createFile: (parentDir, name) => ipcRenderer.invoke(CHANNELS.fsCreateFile, parentDir, name),
+    createFolder: (parentDir, name) => ipcRenderer.invoke(CHANNELS.fsCreateFolder, parentDir, name),
+    rename: (target, name) => ipcRenderer.invoke(CHANNELS.fsRename, target, name),
+    trash: (target) => ipcRenderer.invoke(CHANNELS.fsTrash, target),
+    delete: (target) => ipcRenderer.invoke(CHANNELS.fsDelete, target),
+    reveal: (target) => ipcRenderer.invoke(CHANNELS.fsReveal, target),
+  },
+  clipboard: {
+    writeText: (text) => ipcRenderer.invoke(CHANNELS.clipboardWrite, text),
   },
   terminal: {
     profiles: () => ipcRenderer.invoke(CHANNELS.terminalProfiles),

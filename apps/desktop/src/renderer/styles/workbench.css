@@ -247,6 +247,42 @@ select {
   background: var(--bg-selected);
 }
 
+/* ── Inline naming ────────────────────────────────────────────────────── */
+
+/*
+ * Sits where the row it stands in for would be, so creating and renaming happen in the
+ * place the result will appear rather than in a dialog over the top of it.
+ */
+.tree-edit-row {
+  padding: 1px 8px 3px;
+}
+
+.tree-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  outline: none;
+}
+
+.tree-edit-row[data-invalid="true"] .tree-edit-input {
+  border-color: var(--danger);
+}
+
+/* Under the box rather than in a toast: the name causing it is right there to fix. */
+.tree-edit-error {
+  margin-top: 3px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--danger);
+  white-space: normal;
+}
+
 .tree-twisty {
   width: 10px;
   color: var(--text-tertiary);
