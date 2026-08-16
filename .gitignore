@@ -12,3 +12,6 @@ Thumbs.db
 mock-server/.data/
 
 apps/desktop/out/
+
+# Packaged installers - build artefacts, not source.
+release/

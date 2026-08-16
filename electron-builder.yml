@@ -1,0 +1,70 @@
+# Packaging ADCode into something a person can double-click.
+#
+# The app manifest is the repo's own package.json rather than apps/desktop's, because the
+# repo is not an npm workspace (deviation D6: FAT32 has no symlinks) and every runtime
+# dependency therefore lives in the root node_modules. `extraMetadata.main` retargets the
+# entry point at the built main process.
+
+appId: com.adcode.ide
+productName: ADCode
+copyright: ADCode
+
+# node-pty ships N-API prebuilds, which are ABI-stable across Node and Electron versions
+# and need no rebuild. Letting electron-builder run @electron/rebuild anyway drags in
+# node-gyp and winpty's build scripts, which need a full MSVC toolchain to produce a
+# binary identical to the one already in the box.
+npmRebuild: false
+
+directories:
+  output: release
+  buildResources: build
+
+extraMetadata:
+  main: apps/desktop/out/main/index.js
+
+files:
+  - apps/desktop/out/**/*
+  - package.json
+  # Vite bundles these into the renderer at build time; the copies in node_modules would
+  # be about a hundred megabytes of dead weight inside the installer.
+  - "!node_modules/monaco-editor/**"
+  - "!node_modules/@xterm/**"
+  - "!node_modules/typescript/**"
+  - "!node_modules/electron/**"
+  - "!node_modules/electron-builder/**"
+  - "!node_modules/app-builder-lib/**"
+  - "!node_modules/vite/**"
+  - "!node_modules/vitest/**"
+  - "!node_modules/esbuild/**"
+  - "!node_modules/@esbuild/**"
+  - "!node_modules/dependency-cruiser/**"
+  - "!node_modules/.cache/**"
+
+# node-pty resolves its native binary by building a path at runtime, which cannot be read
+# from inside an asar archive.
+asarUnpack:
+  - "**/node_modules/node-pty/**"
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    # A portable build for anyone who would rather not run an installer.
+    - target: portable
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ADCode
+
+mac:
+  target: [dmg]
+  category: public.app-category.developer-tools
+
+linux:
+  target: [AppImage]
+  category: Development

@@ -17,12 +17,23 @@ import { join } from "node:path";
 import process from "node:process";
 import { createRequire } from "node:module";
 
-const REPO = "E:\\adcode-sourcecode";
+const REPO = process.cwd();
 
 // The `electron` package's main export is the path to the real executable, which is what
 // has to be spawned: the `.bin` shim is a .cmd on Windows and `spawn` refuses it.
-const require = createRequire(`${REPO}\\package.json`);
-const electronPath = require("electron");
+//
+// `--packaged` points the same checks at the installer's output instead, which is the
+// only way to find out whether packaging produced a working app rather than a working
+// developer machine.
+const require = createRequire(join(REPO, "package.json"));
+
+const packaged = process.argv.includes("--packaged");
+const electronPath = packaged
+  ? join(REPO, "release", "win-unpacked", "ADCode.exe")
+  : require("electron");
+
+// A packaged app *is* the app; an unpackaged Electron has to be told where it lives.
+const appArgs = packaged ? [] : ["apps/desktop"];
 
 const PORT = 9333;
 
@@ -47,7 +58,7 @@ await writeFile(
 
 const child = spawn(
   electronPath,
-  ["apps/desktop", "--enable-logging", `--remote-debugging-port=${PORT}`, `--user-data-dir=${userData}`],
+  [...appArgs, "--enable-logging", `--remote-debugging-port=${PORT}`, `--user-data-dir=${userData}`],
   {
     cwd: REPO,
     env: { ...process.env, ELECTRON_ENABLE_LOGGING: "1" },
@@ -190,6 +201,27 @@ checks.draftRoundTrip = await evaluate(
    })()`,
 );
 
+// The terminal is the one surface that needs a native module at runtime, so it is the
+// one most likely to survive `npm run verify` and still be broken in the built app.
+checks.terminalStarts = await evaluate(
+  `(async () => {
+     const profiles = await window.adcode.terminal.profiles();
+     if (profiles.length === 0) return 'no profiles';
+
+     let received = '';
+     window.adcode.terminal.onData((_id, data) => { received += data; });
+
+     const created = await window.adcode.terminal.create({
+       profileId: profiles[0].id, cols: 80, rows: 24,
+     });
+     if (created === null || created === undefined) return 'create returned nothing';
+
+     await new Promise((r) => setTimeout(r, 2500));
+     window.adcode.terminal.dispose(created.id ?? created);
+     return received.length > 0 ? true : 'no output from the shell';
+   })()`,
+);
+
 // The gutter decorations for the restored file.
 checks.gutterOrClean = await evaluate(
   "document.querySelectorAll('.git-gutter').length >= 0",
@@ -209,7 +241,7 @@ const bad = output
   // Chromium's GPU and cache chatter on a headless Windows box is noise.
   .filter(
     (line) =>
-      !/gpu|dxgi|passthrough|swiftshader|d3d|vulkan|GLES|cache_util|registration_protocol|Autofill|DevTools listening/i.test(
+      !/gpu|dxgi|passthrough|swiftshader|d3d|vulkan|GLES|cache_util|registration_protocol|Autofill|DevTools listening|AttachConsole/i.test(
         line,
       ),
   );

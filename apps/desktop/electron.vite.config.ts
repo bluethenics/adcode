@@ -23,6 +23,12 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: { index: resolve(import.meta.dirname, "src/main/index.ts") },
+        // node-pty loads a `.node` binary by building a path at runtime. Bundled, that
+        // path resolves relative to `out/main` and the native module is not found - the
+        // build succeeds and the terminal fails on first use, which is exactly the class
+        // of bug `npm run smoke` exists to catch. It stays external and is resolved from
+        // node_modules like any other dependency.
+        external: ["node-pty"],
       },
     },
   },
