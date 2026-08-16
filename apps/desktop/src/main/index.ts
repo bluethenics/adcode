@@ -17,6 +17,7 @@ import { registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "
 import { registerIpc } from "./ipc.ts";
 import { disposeAllTerminals } from "./terminal.ts";
 import { getAdRuntime } from "./adRuntime.ts";
+import { loadSettings } from "./settings.ts";
 
 /**
  * Whether to load from Vite's dev server.
@@ -119,10 +120,11 @@ void app.whenReady().then(() => {
 
   createWindow();
 
-  // Started after the window exists and deliberately not awaited: §9 requires the ad
+  // Settings first, so the ad service's very first tick reads the user's real choices
+  // rather than defaults. Still not awaited by window creation: §9 requires the ad
   // module never be on the critical path to first paint.
-  void getAdRuntime()
-    .start()
+  void loadSettings()
+    .then(() => getAdRuntime().start())
     .catch(() => undefined);
 
   app.on("activate", () => {

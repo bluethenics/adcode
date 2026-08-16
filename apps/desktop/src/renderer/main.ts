@@ -6,6 +6,8 @@
 import "./styles/tokens.css";
 import "./styles/workbench.css";
 import "./styles/notifications.css";
+import "./styles/settings.css";
+import { createSettingsView } from "./settings/settingsView.ts";
 import { createEditorHost, languageForFilename, type EditorHost } from "./editor/editorHost.ts";
 import { createTerminalHost, type TerminalHost } from "./terminal/terminalHost.ts";
 import { createNotificationCentre } from "./notifications/notifications.ts";
@@ -41,10 +43,34 @@ let theme: "light" | "dark" = "dark";
 
 const editorHost: EditorHost = createEditorHost(el("editor-host"));
 
+/* ── Settings ─────────────────────────────────────────────────────────── */
+
+let settingsValues: Record<string, boolean | string> = {};
+let serverProjections: Record<string, string> | null = null;
+
+/** Everything a settings change has to reach. */
+function applySettings(values: Record<string, boolean | string>): void {
+  settingsValues = values;
+
+  // §3: "Density is a setting, not a decision."
+  const density = values["adcode.appearance.density"];
+  document.documentElement.dataset["density"] = density === "compact" ? "compact" : "comfortable";
+
+  editorHost.applySettings(values);
+  syncTheme();
+}
+
 /* ── Theme ────────────────────────────────────────────────────────────── */
 
 function syncTheme(): void {
-  theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  const preference = settingsValues["adcode.appearance.theme"];
+  theme =
+    preference === "light" || preference === "dark"
+      ? preference
+      : window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+
   document.documentElement.dataset["theme"] = theme;
   editorHost.applyTheme(theme);
   terminal?.applyTheme(theme);
@@ -312,6 +338,7 @@ editorHost.onDirtyChange((path, dirty) => {
 editorHost.onSaveRequested(() => void saveActive());
 
 el("open-folder").addEventListener("click", () => void openFolder());
+el("open-settings").addEventListener("click", () => settingsView.toggle());
 el("panel-close").addEventListener("click", () => void toggleTerminal());
 
 for (const activity of document.querySelectorAll<HTMLElement>(".activity")) {
@@ -342,10 +369,26 @@ window.addEventListener("keydown", (event) => {
   if (mod && event.key.toLowerCase() === "o") {
     event.preventDefault();
     void openFolder();
+    return;
+  }
+
+  if (mod && event.key === ",") {
+    event.preventDefault();
+    settingsView.toggle();
   }
 });
 
 /* ── Sponsored notifications ──────────────────────────────────────────── */
+
+const settingsView = createSettingsView({
+  host: document.body,
+  read: () => window.adcode.settings.read(),
+  write: (id, value) => window.adcode.settings.write(id, value),
+  reset: () => window.adcode.settings.reset(),
+  projections: () => serverProjections,
+});
+
+window.adcode.settings.onChanged((values) => applySettings(values));
 
 const notifications = createNotificationCentre(el("toast-layer"));
 
@@ -373,7 +416,7 @@ resizeObserver.observe(el("terminal-host"));
 /* ── Boot ─────────────────────────────────────────────────────────────── */
 
 async function boot(): Promise<void> {
-  syncTheme();
+  applySettings(await window.adcode.settings.read());
 
   // §1: reduce-motion follows the OS. Chromium's media query is the single source of
   // truth for it; the attribute just lets JS-driven animations read the same value.

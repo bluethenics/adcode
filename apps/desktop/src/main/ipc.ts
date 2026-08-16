@@ -8,6 +8,7 @@
 import { BrowserWindow, app, ipcMain } from "electron";
 import { CHANNELS } from "../shared/api.ts";
 import { getAdRuntime } from "./adRuntime.ts";
+import { onSettingsChanged, readSettings, resetSettings, writeSetting } from "./settings.ts";
 import {
   createTerminal,
   detectProfiles,
@@ -90,6 +91,18 @@ export function registerIpc(): void {
     platform: process.platform,
     isPackaged: app.isPackaged,
   }));
+
+  ipcMain.handle(CHANNELS.settingsRead, () => readSettings());
+
+  ipcMain.handle(CHANNELS.settingsWrite, (_event, id: unknown, value: unknown) => {
+    if (!isString(id)) throw new Error("expected a setting id");
+    if (typeof value !== "boolean" && !isString(value)) throw new Error("expected a value");
+    return writeSetting(id, value);
+  });
+
+  ipcMain.handle(CHANNELS.settingsReset, () => resetSettings());
+
+  onSettingsChanged((values) => broadcast(CHANNELS.settingsChanged, values));
 
   const ads = getAdRuntime();
 

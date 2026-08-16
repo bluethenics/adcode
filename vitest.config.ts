@@ -1,6 +1,19 @@
-﻿import { defineConfig } from "vitest/config";
+import { resolve } from "node:path";
+import { defineConfig } from "vitest/config";
+
+/**
+ * Deviation D6: the repo is on a FAT32 volume, which has no symlinks, so npm workspaces
+ * cannot link local packages. These aliases replace that mechanism, and must stay in step
+ * with `tsconfig.json`'s `paths` and `apps/desktop/electron.vite.config.ts`.
+ */
+const alias = {
+  "@adcode/ads": resolve(import.meta.dirname, "packages/ads/src/index.ts"),
+  "@adcode/memory": resolve(import.meta.dirname, "packages/memory/src/index.ts"),
+  "@adcode/settings": resolve(import.meta.dirname, "packages/settings/src/index.ts"),
+};
 
 export default defineConfig({
+  resolve: { alias },
   test: {
     include: ["packages/**/test/**/*.test.ts", "mock-server/test/**/*.test.ts", "apps/**/test/**/*.test.ts"],
     exclude: ["**/node_modules/**", "**/__fixtures__/**"],
@@ -11,4 +24,3 @@ export default defineConfig({
     reporters: ["default"],
   },
 });
-

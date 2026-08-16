@@ -102,6 +102,12 @@ select {
   transform: scale(0.94);
 }
 
+/* The settings gear sits at the foot of the activity bar, as it does everywhere else. */
+.activity-bottom {
+  margin-top: auto;
+  margin-bottom: 8px;
+}
+
 .activity[aria-selected="true"] {
   background: var(--bg-active);
   color: var(--accent);

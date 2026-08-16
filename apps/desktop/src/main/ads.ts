@@ -33,6 +33,7 @@ import {
 } from "@adcode/ads";
 import { CHANNELS, type EarningsSnapshot, type SponsoredToast } from "../shared/api.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock, toDataUrl } from "./adPorts.ts";
+import { currentSettings } from "./settings.ts";
 
 /** §8.1: the 60s tick that asks the scheduler whether now is a moment to interrupt. */
 const TICK_MS = 60_000;
@@ -185,9 +186,19 @@ export function createAdRuntime(): AdRuntime {
     client,
     assets,
     tokens,
+    // Getters, not values: `adService` reads these on every tick, so a live view is
+    // what makes the settings screen's switches take effect immediately rather than at
+    // the next launch. §4's promise is that the user can switch anything off - a toggle
+    // that needs a restart to mean anything does not keep it.
     settings: {
-      adsEnabled: process.env["ADCODE_ADS_DISABLED"] !== "1",
-      preset: (process.env["ADCODE_AD_PRESET"] as FrequencyPreset | undefined) ?? "standard",
+      get adsEnabled(): boolean {
+        if (process.env["ADCODE_ADS_DISABLED"] === "1") return false;
+        return currentSettings()["adcode.ads.enabled"] !== false;
+      },
+      get preset(): FrequencyPreset {
+        const value = currentSettings()["adcode.ads.frequency"];
+        return typeof value === "string" ? (value as FrequencyPreset) : "standard";
+      },
       // Development only. Never remote-configurable - see AdServiceSettings.settleMs.
       ...(process.env["ADCODE_SETTLE_MS"] === undefined
         ? {}

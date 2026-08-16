@@ -28,7 +28,12 @@ function depcruise(config: string, targets: string[]): string {
 
 describe("the ads <-> memory firewall", { timeout: 120_000 }, () => {
   it("passes on the real source tree", () => {
-    expect(() => depcruise(".dependency-cruiser.cjs", ["packages", "mock-server"])).not.toThrow();
+    // `apps` is included deliberately. The static rule stops `packages/ads` importing
+    // `packages/memory`, but the app layer is where both are in scope at once and where
+    // a leak would actually be written, so it has to be inside the cruise.
+    expect(() =>
+      depcruise(".dependency-cruiser.cjs", ["packages", "mock-server", "apps"]),
+    ).not.toThrow();
   });
 
   it("fires on a planted violation", () => {

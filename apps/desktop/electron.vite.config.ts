@@ -5,6 +5,7 @@ import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 const alias = {
   "@adcode/ads": resolve(import.meta.dirname, "../../packages/ads/src/index.ts"),
   "@adcode/memory": resolve(import.meta.dirname, "../../packages/memory/src/index.ts"),
+  "@adcode/settings": resolve(import.meta.dirname, "../../packages/settings/src/index.ts"),
 };
 
 export default defineConfig({

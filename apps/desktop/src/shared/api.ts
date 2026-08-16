@@ -98,6 +98,10 @@ export const CHANNELS = {
   adClicked: "ads:clicked",
   adSuppressionChanged: "ads:suppression",
   earningsChanged: "ads:earnings",
+  settingsRead: "settings:read",
+  settingsWrite: "settings:write",
+  settingsReset: "settings:reset",
+  settingsChanged: "settings:changed",
 } as const;
 
 /** What `window.adcode` exposes. Nothing else crosses the boundary. */
@@ -123,6 +127,12 @@ export interface AdcodeApi {
   readonly platform: {
     info(): Promise<PlatformInfo>;
     onFocusChange(listener: (focused: boolean) => void): () => void;
+  };
+  readonly settings: {
+    read(): Promise<Record<string, boolean | string>>;
+    write(id: string, value: boolean | string): Promise<Record<string, boolean | string>>;
+    reset(): Promise<Record<string, boolean | string>>;
+    onChanged(listener: (values: Record<string, boolean | string>) => void): () => void;
   };
   readonly ads: {
     /** The main process asks the renderer to show a toast. */

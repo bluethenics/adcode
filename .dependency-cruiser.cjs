@@ -104,7 +104,9 @@ module.exports = {
 
   options: {
     doNotFollow: { path: "node_modules" },
-    exclude: { path: "(^|/)(__fixtures__|node_modules)/" },
+    // `out/` and `dist/` are build artefacts: cruising them re-reports every rule
+    // against bundled Monaco and tells you nothing about the source tree.
+    exclude: { path: "(^|/)(__fixtures__|node_modules|out|dist)/" },
     tsConfig: { fileName: "tsconfig.json" },
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {

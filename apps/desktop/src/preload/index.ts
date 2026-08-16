@@ -45,6 +45,12 @@ const api: AdcodeApi = {
     info: () => ipcRenderer.invoke(CHANNELS.platformInfo),
     onFocusChange: (listener) => subscribe(CHANNELS.windowFocus, listener),
   },
+  settings: {
+    read: () => ipcRenderer.invoke(CHANNELS.settingsRead),
+    write: (id, value) => ipcRenderer.invoke(CHANNELS.settingsWrite, id, value),
+    reset: () => ipcRenderer.invoke(CHANNELS.settingsReset),
+    onChanged: (listener) => subscribe(CHANNELS.settingsChanged, listener),
+  },
   ads: {
     onShow: (listener) => subscribe(CHANNELS.adShow, listener),
     onEarnings: (listener) => subscribe(CHANNELS.earningsChanged, listener),

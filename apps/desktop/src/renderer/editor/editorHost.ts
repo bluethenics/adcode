@@ -75,6 +75,8 @@ export interface EditorHost {
   isDirty(path: string): boolean;
   layout(): void;
   applyTheme(theme: "light" | "dark"): void;
+  /** Apply the §4 editing settings the shell can honour today. */
+  applySettings(values: Record<string, boolean | string>): void;
   onDirtyChange(listener: (path: string, dirty: boolean) => void): void;
   onCursorChange(listener: (line: number, column: number) => void): void;
   onSaveRequested(listener: () => void): void;
@@ -206,6 +208,27 @@ export function createEditorHost(container: HTMLElement): EditorHost {
 
     applyTheme(theme) {
       monaco.editor.setTheme(theme === "dark" ? "adcode-dark" : "adcode-light");
+    },
+
+    applySettings(values) {
+      const on = (id: string): boolean => values[id] !== false;
+
+      editor.updateOptions({
+        minimap: { enabled: on("adcode.editing.minimap"), renderCharacters: false },
+        stickyScroll: { enabled: on("adcode.editing.stickyScroll") },
+        bracketPairColorization: { enabled: on("adcode.editing.bracketPairColorization") },
+        guides: {
+          indentation: on("adcode.editing.indentGuides"),
+          bracketPairs: on("adcode.editing.bracketPairColorization"),
+        },
+        renderWhitespace: values["adcode.editing.trailingWhitespace"] === true ? "trailing" : "none",
+        folding: on("adcode.editing.codeFolding"),
+        multiCursorModifier: "ctrlCmd",
+        // Monaco has no switch for multi-cursor itself; the closest honest mapping is to
+        // cap column selection, so this setting is applied where it can be and the row
+        // says so rather than pretending otherwise.
+        columnSelection: values["adcode.editing.multiCursor"] === true,
+      });
     },
 
     onDirtyChange(listener) {

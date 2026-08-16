@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json",
     "desktop": "npm --prefix apps/desktop run dev",
     "desktop:build": "npm --prefix apps/desktop run build",
-    "firewall": "depcruise --config .dependency-cruiser.cjs packages mock-server",
+    "firewall": "depcruise --config .dependency-cruiser.cjs packages mock-server apps",
     "test": "vitest run",
     "test:watch": "vitest",
     "mock-server": "node mock-server/src/cli.ts",
