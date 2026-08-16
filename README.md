@@ -2,14 +2,22 @@
 
 An ad-supported, AI-native IDE. See `2026-08-15-scratch-ide-build-prompt.md` for the brief.
 
-**Status: slice 1 complete.** The whole ad client and the mock serving contract are built
-and tested, headless. No editor shell yet — that is the next slice.
+**Status: ad core complete; editor shell runs.** The whole ad client and mock serving
+contract are built and tested headless, and the Electron shell opens a folder, edits files
+in Monaco, saves them, and runs a real terminal.
 
 ```
 npm install
-npm run verify        # typecheck + architecture rules + full suite
-npm run mock-server   # serving contract on :8787, no build step
+npm run verify          # typecheck + architecture rules + full suite (226 tests)
+npm run desktop         # run the IDE in development
+npm run desktop:build   # production build
+npm run mock-server     # serving contract on :8787, no build step
 ```
+
+> After `npm install`, npm's allow-scripts policy blocks install scripts. Electron's
+> binary, node-pty's prebuilds, and esbuild all need theirs:
+> `npm approve-scripts electron node-pty esbuild`. If `node_modules/electron/dist` is
+> still missing, run `node node_modules/electron/install.js`.
 
 ## What exists
 
@@ -17,8 +25,12 @@ npm run mock-server   # serving contract on :8787, no build step
 |---|---|
 | `packages/ads` | All twelve modules from brief §8. Complete, 194 tests. |
 | `mock-server` | All four `/v1/*` endpoints, an asset host, `POST /__test__/reset`, fault injection. 21 tests. |
-| `packages/memory` | An empty boundary so the firewall rule has a real target. Slice 2. |
-| `apps/desktop` | Not started. The long pole. |
+| `apps/desktop` | Shell running: window, file tree, tabs, Monaco, save, pty terminal. 11 tests. |
+| `packages/memory` | An empty boundary so the firewall rule has a real target. Not built. |
+
+Not started: LSP/DAP, git UI, search, settings screen, the AI layer, the memory store and
+MCP server, sponsored-toast integration, packaging, and the whole advertiser-facing
+platform (backend, portal, landing page, payments).
 
 Design decisions and the nine documented deviations from the brief are in
 `docs/specs/2026-08-16-ad-core-design.md`. The build order is in
