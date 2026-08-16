@@ -181,6 +181,18 @@ select {
   padding: 6px 6px 12px;
 }
 
+/* Search and source control share the sidebar's content row with the file tree. */
+.sidebar-view {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-view[hidden] {
+  display: none;
+}
+
 .empty-hint {
   margin: 12px;
   color: var(--text-tertiary);

@@ -112,7 +112,82 @@ export const CHANNELS = {
   aiEvent: "ai:event",
   aiProposedEdit: "ai:proposed-edit",
   aiApplyHunks: "ai:apply-hunks",
+  gitStatus: "git:status",
+  gitStage: "git:stage",
+  gitUnstage: "git:unstage",
+  gitDiscard: "git:discard",
+  gitCommit: "git:commit",
+  gitPush: "git:push",
+  gitPull: "git:pull",
+  gitFetch: "git:fetch",
+  gitInit: "git:init",
+  gitClone: "git:clone",
+  gitBranches: "git:branches",
+  gitCheckout: "git:checkout",
+  gitCreateBranch: "git:create-branch",
+  gitLog: "git:log",
+  gitFileHistory: "git:file-history",
+  gitBlame: "git:blame",
+  gitLineChanges: "git:line-changes",
+  gitDiff: "git:diff",
+  searchRun: "search:run",
+  quickOpen: "search:quick-open",
 } as const;
+
+/** Mirrors @adcode/git's shapes, so the renderer needs no import from that package. */
+export interface GitStatusView {
+  readonly branch: string | null;
+  readonly upstream: string | null;
+  readonly ahead: number;
+  readonly behind: number;
+  readonly isRepo: boolean;
+  readonly isClean: boolean;
+  readonly hasConflicts: boolean;
+  readonly entries: ReadonlyArray<{
+    readonly path: string;
+    readonly staged: string;
+    readonly worktree: string;
+    readonly isConflicted: boolean;
+  }>;
+}
+
+export interface GitCommitView {
+  readonly hash: string;
+  readonly shortHash: string;
+  readonly subject: string;
+  readonly author: string;
+  readonly date: string;
+}
+
+export interface GitBranchView {
+  readonly name: string;
+  readonly current: boolean;
+  readonly upstream: string | null;
+}
+
+export interface GitOutcome {
+  readonly ok: boolean;
+  readonly message: string;
+}
+
+export interface LineChangeView {
+  readonly kind: "added" | "modified" | "deleted";
+  readonly startLine: number;
+  readonly lineCount: number;
+}
+
+export interface SearchHitView {
+  readonly path: string;
+  readonly line: number;
+  readonly column: number;
+  readonly text: string;
+  readonly matchLength: number;
+}
+
+export interface QuickOpenHit {
+  readonly path: string;
+  readonly positions: readonly number[];
+}
 
 /** One provider, as the chat widget's model picker needs to see it. */
 export interface AiProviderInfo {
@@ -200,6 +275,36 @@ export interface AdcodeApi {
     onEvent(listener: (event: unknown) => void): () => void;
     onProposedEdit(listener: (edit: ProposedEditView) => void): () => void;
     applyHunks(path: string, acceptedHunkIds: readonly string[]): Promise<boolean>;
+  };
+  readonly git: {
+    status(): Promise<GitStatusView>;
+    stage(paths: readonly string[]): Promise<GitOutcome>;
+    unstage(paths: readonly string[]): Promise<GitOutcome>;
+    discard(paths: readonly string[]): Promise<GitOutcome>;
+    commit(message: string): Promise<GitOutcome>;
+    push(): Promise<GitOutcome>;
+    pull(): Promise<GitOutcome>;
+    fetch(): Promise<GitOutcome>;
+    init(): Promise<GitOutcome>;
+    clone(url: string, target: string): Promise<GitOutcome>;
+    branches(): Promise<GitBranchView[]>;
+    checkout(ref: string): Promise<GitOutcome>;
+    createBranch(name: string): Promise<GitOutcome>;
+    log(limit?: number): Promise<GitCommitView[]>;
+    fileHistory(path: string): Promise<GitCommitView[]>;
+    lineChanges(path: string): Promise<LineChangeView[]>;
+    diff(path?: string): Promise<string>;
+  };
+  readonly search: {
+    run(query: {
+      pattern: string;
+      isRegex?: boolean;
+      caseSensitive?: boolean;
+      wholeWord?: boolean;
+      include?: string;
+      exclude?: string;
+    }): Promise<SearchHitView[]>;
+    quickOpen(query: string): Promise<QuickOpenHit[]>;
   };
   readonly settings: {
     read(): Promise<Record<string, boolean | string>>;

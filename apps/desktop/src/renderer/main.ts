@@ -8,6 +8,9 @@ import "./styles/workbench.css";
 import "./styles/notifications.css";
 import "./styles/settings.css";
 import "./styles/ai.css";
+import "./styles/panels.css";
+import { createSourceControlPanel } from "./panels/sourceControl.ts";
+import { createQuickOpen, createSearchPanel } from "./panels/searchPanel.ts";
 import { createChatWidget } from "./ai/chatWidget.ts";
 import { createSettingsView } from "./settings/settingsView.ts";
 import { createEditorHost, languageForFilename, type EditorHost } from "./editor/editorHost.ts";
@@ -179,6 +182,7 @@ async function saveActive(): Promise<void> {
   if (result.ok) {
     editorHost.markSaved(activePath);
     setStatus("Saved", 1200);
+    void sourceControl.refresh();
   } else {
     setStatus(result.reason ?? "save failed", 3000);
   }
@@ -345,14 +349,12 @@ el("open-settings").addEventListener("click", () => settingsView.toggle());
 el("panel-close").addEventListener("click", () => void toggleTerminal());
 
 for (const activity of document.querySelectorAll<HTMLElement>(".activity")) {
-  activity.addEventListener("click", () => {
-    for (const other of document.querySelectorAll<HTMLElement>(".activity")) {
-      other.ariaSelected = String(other === activity);
-    }
-  });
+  const view = activity.dataset["view"];
+  if (view === undefined) continue;
+  activity.addEventListener("click", () => showView(view));
 }
 
-document.querySelector<HTMLElement>('.activity[data-view="explorer"]')?.setAttribute("aria-selected", "true");
+showView("explorer");
 
 window.addEventListener("keydown", (event) => {
   const mod = event.ctrlKey || event.metaKey;
@@ -385,6 +387,25 @@ window.addEventListener("keydown", (event) => {
   if (mod && event.key.toLowerCase() === "i") {
     event.preventDefault();
     chat.toggle();
+    return;
+  }
+
+  // §4's fuzzy file open.
+  if (mod && !event.shiftKey && event.key.toLowerCase() === "p") {
+    event.preventDefault();
+    quickOpen.toggle();
+    return;
+  }
+
+  if (mod && event.shiftKey && event.key.toLowerCase() === "f") {
+    event.preventDefault();
+    showView("search");
+    return;
+  }
+
+  if (mod && event.shiftKey && event.key.toLowerCase() === "g") {
+    event.preventDefault();
+    showView("scm");
   }
 });
 
@@ -400,6 +421,53 @@ const settingsView = createSettingsView({
 });
 
 window.adcode.settings.onChanged((values) => applySettings(values));
+
+/* ── Source control and search (§4) ───────────────────────────────────── */
+
+const absolutePath = (relativePath: string): string => {
+  if (workspaceRoot === null) return relativePath;
+  const separator = workspaceRoot.includes("\\") ? "\\" : "/";
+  return `${workspaceRoot}${separator}${relativePath.split("/").join(separator)}`;
+};
+
+const sourceControl = createSourceControlPanel({
+  openFile: (path) => void openFile(absolutePath(path)),
+  workspaceRoot: () => workspaceRoot,
+  notify: (text) => setStatus(text, 4000),
+});
+
+const searchPanel = createSearchPanel({
+  openAt: (path, line) => {
+    void openFile(absolutePath(path)).then(() => editorHost.revealLine(line));
+  },
+});
+
+const quickOpen = createQuickOpen({
+  openFile: (path) => void openFile(absolutePath(path)),
+});
+
+el("view-scm").append(sourceControl.element);
+el("view-search").append(searchPanel.element);
+
+/** Switch which sidebar view is showing. */
+function showView(view: string): void {
+  const views: Record<string, HTMLElement> = {
+    explorer: el("filetree"),
+    search: el("view-search"),
+    scm: el("view-scm"),
+  };
+
+  for (const [name, node] of Object.entries(views)) node.hidden = name !== view;
+
+  for (const activity of document.querySelectorAll<HTMLElement>(".activity")) {
+    if (activity.dataset["view"] !== undefined) {
+      activity.ariaSelected = String(activity.dataset["view"] === view);
+    }
+  }
+
+  if (view === "scm") void sourceControl.refresh();
+  if (view === "search") searchPanel.focus();
+}
 
 /* ── Assistant (§5.3) ─────────────────────────────────────────────────── */
 

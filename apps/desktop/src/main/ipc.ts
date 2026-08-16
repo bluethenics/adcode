@@ -10,6 +10,7 @@ import { CHANNELS } from "../shared/api.ts";
 import { getAdRuntime } from "./adRuntime.ts";
 import { onSettingsChanged, readSettings, resetSettings, writeSetting } from "./settings.ts";
 import { mcpConnection } from "./memory.ts";
+import { registerGitIpc } from "./gitIpc.ts";
 import {
   aiApplyHunks,
   aiCancel,
@@ -45,6 +46,8 @@ function broadcast(channel: string, ...args: unknown[]): void {
 }
 
 export function registerIpc(): void {
+  registerGitIpc();
+
   ipcMain.handle(CHANNELS.workspaceOpen, () => openWorkspace());
   ipcMain.handle(CHANNELS.workspaceCurrent, () => currentWorkspace());
 

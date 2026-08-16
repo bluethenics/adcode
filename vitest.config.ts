@@ -11,6 +11,8 @@ const alias = {
   "@adcode/memory": resolve(import.meta.dirname, "packages/memory/src/index.ts"),
   "@adcode/settings": resolve(import.meta.dirname, "packages/settings/src/index.ts"),
   "@adcode/ai": resolve(import.meta.dirname, "packages/ai/src/index.ts"),
+  "@adcode/git": resolve(import.meta.dirname, "packages/git/src/index.ts"),
+  "@adcode/search": resolve(import.meta.dirname, "packages/search/src/index.ts"),
 };
 
 export default defineConfig({

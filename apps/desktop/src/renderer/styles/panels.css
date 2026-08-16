@@ -1,0 +1,330 @@
+/*
+ * Source control, search, and quick open - brief §4's Git and Navigation groups.
+ */
+
+/* ── Source control ───────────────────────────────────────────────────── */
+
+.scm-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.scm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scm-branch {
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.scm-sync {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.scm-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.scm-commit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scm-message {
+  resize: vertical;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  padding: 6px 8px;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.scm-message:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.scm-section {
+  margin-top: 6px;
+}
+
+.scm-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  padding: 4px 2px;
+}
+
+.scm-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: var(--density-row);
+  padding: 0 4px;
+  border-radius: 6px;
+}
+
+.scm-row:hover {
+  background: var(--bg-hover);
+}
+
+.scm-row[data-conflicted="true"] .scm-status {
+  color: var(--danger);
+}
+
+.scm-status {
+  width: 12px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  flex: none;
+  color: var(--text-tertiary);
+}
+
+.scm-status[data-kind="added"],
+.scm-status[data-kind="untracked"] {
+  color: var(--success);
+}
+
+.scm-status[data-kind="modified"] {
+  color: var(--warning);
+}
+
+.scm-status[data-kind="deleted"] {
+  color: var(--danger);
+}
+
+.scm-path {
+  flex: 1;
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  direction: rtl;
+  text-align: left;
+}
+
+.scm-stage {
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  border-radius: 5px;
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  cursor: pointer;
+  flex: none;
+}
+
+.scm-stage:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+/* ── Search ───────────────────────────────────────────────────────────── */
+
+.search-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.search-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.search-input,
+.search-glob {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  padding: 6px 8px;
+  font-size: var(--text-xs);
+}
+
+.search-input:focus,
+.search-glob:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.search-options {
+  display: flex;
+  gap: 4px;
+}
+
+.search-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 5px;
+}
+
+.search-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.search-summary {
+  margin: 0;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.search-results {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.search-group-title {
+  font-size: 10px;
+  color: var(--text-secondary);
+  padding: 3px 2px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-hit {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 2px 4px 2px 14px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.search-hit:hover {
+  background: var(--bg-hover);
+}
+
+.search-hit-line {
+  color: var(--text-tertiary);
+  min-width: 26px;
+  text-align: right;
+  flex: none;
+}
+
+.search-hit-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-hit mark {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+  border-radius: 2px;
+}
+
+/* ── Quick open ───────────────────────────────────────────────────────── */
+
+.quickopen {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  padding-top: 12vh;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.quickopen-box {
+  width: min(620px, 88vw);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-floating);
+  overflow: hidden;
+}
+
+.quickopen-input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--border-hairline);
+  background: transparent;
+  color: var(--text-primary);
+  padding: 12px 14px;
+  font-size: var(--text-md);
+  font-family: var(--font-ui);
+}
+
+.quickopen-input:focus {
+  outline: none;
+}
+
+.quickopen-list {
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.quickopen-row {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quickopen-row:hover,
+.quickopen-row[aria-selected="true"] {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+}
+
+.quickopen-match {
+  color: var(--accent);
+  font-weight: 700;
+}

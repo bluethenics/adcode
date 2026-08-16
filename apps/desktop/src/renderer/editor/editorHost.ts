@@ -74,6 +74,8 @@ export interface EditorHost {
   markSaved(path: string): void;
   isDirty(path: string): boolean;
   layout(): void;
+  /** Scroll to a one-based line and put the cursor on it. */
+  revealLine(line: number): void;
   applyTheme(theme: "light" | "dark"): void;
   /** Apply the §4 editing settings the shell can honour today. */
   applySettings(values: Record<string, boolean | string>): void;
@@ -204,6 +206,13 @@ export function createEditorHost(container: HTMLElement): EditorHost {
 
     layout() {
       editor.layout();
+    },
+
+    revealLine(line) {
+      const target = Math.max(1, Math.floor(line));
+      editor.revealLineInCenter(target);
+      editor.setPosition({ lineNumber: target, column: 1 });
+      editor.focus();
     },
 
     applyTheme(theme) {

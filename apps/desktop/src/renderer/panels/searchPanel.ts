@@ -1,0 +1,311 @@
+/**
+ * The search view and the quick-open palette.
+ *
+ * Brief §4's Navigation group: fuzzy file open and global regex search. §7 budgets first
+ * results at under 100ms over 50,000 files, which is why quick open debounces rather
+ * than querying on every keystroke - the ranking is fast, but a round trip per character
+ * is not, and the same rule as inline completion applies: nothing the user types waits
+ * on anything.
+ */
+import type { QuickOpenHit, SearchHitView } from "../../shared/api.ts";
+
+const DEBOUNCE_MS = 90;
+
+export interface SearchPanel {
+  readonly element: HTMLElement;
+  focus(): void;
+}
+
+export interface SearchPanelDeps {
+  readonly openAt: (path: string, line: number, column: number) => void;
+}
+
+export function createSearchPanel(deps: SearchPanelDeps): SearchPanel {
+  const element = document.createElement("div");
+  element.className = "search-panel";
+
+  const form = document.createElement("form");
+  form.className = "search-form";
+
+  const input = document.createElement("input");
+  input.className = "search-input";
+  input.type = "search";
+  input.placeholder = "Search";
+  input.setAttribute("aria-label", "Search the workspace");
+
+  const options = document.createElement("div");
+  options.className = "search-options";
+
+  function toggle(label: string, title: string): HTMLInputElement {
+    const wrapper = document.createElement("label");
+    wrapper.className = "search-toggle";
+    wrapper.title = title;
+
+    const box = document.createElement("input");
+    box.type = "checkbox";
+
+    const text = document.createElement("span");
+    text.textContent = label;
+
+    wrapper.append(box, text);
+    options.append(wrapper);
+    return box;
+  }
+
+  const caseSensitive = toggle("Aa", "Match case");
+  const wholeWord = toggle("W", "Whole word");
+  const isRegex = toggle(".*", "Regular expression");
+
+  const include = document.createElement("input");
+  include.className = "search-glob";
+  include.placeholder = "files to include, e.g. *.ts";
+  include.setAttribute("aria-label", "Files to include");
+
+  const exclude = document.createElement("input");
+  exclude.className = "search-glob";
+  exclude.placeholder = "files to exclude";
+  exclude.setAttribute("aria-label", "Files to exclude");
+
+  form.append(input, options, include, exclude);
+
+  const summary = document.createElement("p");
+  summary.className = "search-summary";
+
+  const results = document.createElement("div");
+  results.className = "search-results";
+
+  element.append(form, summary, results);
+
+  let timer: number | undefined;
+  let generation = 0;
+
+  function render(hits: readonly SearchHitView[]): void {
+    results.replaceChildren();
+
+    const byFile = new Map<string, SearchHitView[]>();
+    for (const hit of hits) {
+      const existing = byFile.get(hit.path);
+      if (existing === undefined) byFile.set(hit.path, [hit]);
+      else existing.push(hit);
+    }
+
+    for (const [path, fileHits] of byFile) {
+      const group = document.createElement("details");
+      group.className = "search-group";
+      group.open = byFile.size <= 12;
+
+      const heading = document.createElement("summary");
+      heading.className = "search-group-title";
+      heading.textContent = `${path} · ${fileHits.length}`;
+      group.append(heading);
+
+      for (const hit of fileHits) {
+        const row = document.createElement("button");
+        row.className = "search-hit";
+        row.type = "button";
+
+        const where = document.createElement("span");
+        where.className = "search-hit-line";
+        where.textContent = String(hit.line);
+
+        // Built from text nodes, never innerHTML: this is file content, and a repository
+        // containing a `<script>` tag is not an attack, it is Tuesday.
+        const text = document.createElement("span");
+        text.className = "search-hit-text";
+
+        const before = hit.text.slice(0, hit.column - 1);
+        const matched = hit.text.slice(hit.column - 1, hit.column - 1 + hit.matchLength);
+        const after = hit.text.slice(hit.column - 1 + hit.matchLength);
+
+        const mark = document.createElement("mark");
+        mark.textContent = matched;
+        text.append(document.createTextNode(before), mark, document.createTextNode(after));
+
+        row.append(where, text);
+        row.addEventListener("click", () => deps.openAt(hit.path, hit.line, hit.column));
+        group.append(row);
+      }
+
+      results.append(group);
+    }
+  }
+
+  function run(): void {
+    const pattern = input.value;
+    const mine = ++generation;
+
+    if (pattern.length === 0) {
+      results.replaceChildren();
+      summary.textContent = "";
+      return;
+    }
+
+    summary.textContent = "Searching…";
+
+    void window.adcode.search
+      .run({
+        pattern,
+        isRegex: isRegex.checked,
+        caseSensitive: caseSensitive.checked,
+        wholeWord: wholeWord.checked,
+        include: include.value.trim(),
+        exclude: exclude.value.trim(),
+      })
+      .then((hits) => {
+        // A slower earlier search must never overwrite a newer one's results.
+        if (mine !== generation) return;
+
+        summary.textContent =
+          hits.length === 0
+            ? "No results."
+            : `${hits.length} result${hits.length === 1 ? "" : "s"}`;
+        render(hits);
+      })
+      .catch(() => {
+        if (mine === generation) summary.textContent = "Search failed.";
+      });
+  }
+
+  function schedule(): void {
+    if (timer !== undefined) window.clearTimeout(timer);
+    timer = window.setTimeout(run, DEBOUNCE_MS);
+  }
+
+  input.addEventListener("input", schedule);
+  for (const box of [caseSensitive, wholeWord, isRegex]) box.addEventListener("change", run);
+  for (const glob of [include, exclude]) glob.addEventListener("input", schedule);
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    run();
+  });
+
+  return {
+    element,
+    focus: () => input.focus(),
+  };
+}
+
+/* ── Quick open (Ctrl+P) ────────────────────────────────────────────────── */
+
+export interface QuickOpen {
+  toggle(): void;
+  close(): void;
+}
+
+export function createQuickOpen(deps: { openFile: (path: string) => void }): QuickOpen {
+  const overlay = document.createElement("div");
+  overlay.className = "quickopen";
+  overlay.hidden = true;
+
+  const box = document.createElement("div");
+  box.className = "quickopen-box";
+
+  const input = document.createElement("input");
+  input.className = "quickopen-input";
+  input.placeholder = "Go to file";
+  input.setAttribute("aria-label", "Go to file");
+
+  const list = document.createElement("div");
+  list.className = "quickopen-list";
+
+  box.append(input, list);
+  overlay.append(box);
+  document.body.append(overlay);
+
+  let hits: QuickOpenHit[] = [];
+  let selected = 0;
+  let timer: number | undefined;
+  let generation = 0;
+
+  function render(): void {
+    list.replaceChildren();
+
+    hits.forEach((hit, index) => {
+      const row = document.createElement("button");
+      row.className = "quickopen-row";
+      row.type = "button";
+      row.ariaSelected = String(index === selected);
+
+      // Highlight the matched characters, so the ranking is legible rather than magic.
+      const positions = new Set(hit.positions);
+      for (let i = 0; i < hit.path.length; i++) {
+        const span = document.createElement("span");
+        span.textContent = hit.path[i]!;
+        if (positions.has(i)) span.className = "quickopen-match";
+        row.append(span);
+      }
+
+      row.addEventListener("click", () => {
+        deps.openFile(hit.path);
+        api.close();
+      });
+
+      list.append(row);
+    });
+  }
+
+  function query(): void {
+    const mine = ++generation;
+
+    void window.adcode.search.quickOpen(input.value).then((found) => {
+      if (mine !== generation) return;
+
+      hits = found;
+      selected = 0;
+      render();
+    });
+  }
+
+  input.addEventListener("input", () => {
+    if (timer !== undefined) window.clearTimeout(timer);
+    timer = window.setTimeout(query, 40);
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      selected = Math.min(selected + 1, hits.length - 1);
+      render();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      selected = Math.max(selected - 1, 0);
+      render();
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const hit = hits[selected];
+      if (hit !== undefined) {
+        deps.openFile(hit.path);
+        api.close();
+      }
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      api.close();
+    }
+  });
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) api.close();
+  });
+
+  const api: QuickOpen = {
+    toggle(): void {
+      if (overlay.hidden) {
+        overlay.hidden = false;
+        input.value = "";
+        hits = [];
+        render();
+        input.focus();
+        query();
+      } else {
+        api.close();
+      }
+    },
+
+    close(): void {
+      overlay.hidden = true;
+    },
+  };
+
+  return api;
+}
