@@ -1,0 +1,11 @@
+{
+  "name": "@adcode/ai",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Provider-neutral agent loop, inline diff, and completion scheduling. No Electron, no DOM.",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

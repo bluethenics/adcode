@@ -7,6 +7,8 @@ import "./styles/tokens.css";
 import "./styles/workbench.css";
 import "./styles/notifications.css";
 import "./styles/settings.css";
+import "./styles/ai.css";
+import { createChatWidget } from "./ai/chatWidget.ts";
 import { createSettingsView } from "./settings/settingsView.ts";
 import { createEditorHost, languageForFilename, type EditorHost } from "./editor/editorHost.ts";
 import { createTerminalHost, type TerminalHost } from "./terminal/terminalHost.ts";
@@ -264,6 +266,7 @@ async function openFolder(): Promise<void> {
   if (opened === null) return;
 
   workspaceRoot = opened.root;
+  chat.setWorkspace(opened.root);
   el("sidebar-title").textContent = opened.name;
   el("status-workspace").textContent = opened.name;
   el("titlebar-title").textContent = `${opened.name} — ADCode`;
@@ -375,6 +378,13 @@ window.addEventListener("keydown", (event) => {
   if (mod && event.key === ",") {
     event.preventDefault();
     settingsView.toggle();
+    return;
+  }
+
+  // §5.3: the chat widget is "summoned by keyboard shortcut".
+  if (mod && event.key.toLowerCase() === "i") {
+    event.preventDefault();
+    chat.toggle();
   }
 });
 
@@ -390,6 +400,14 @@ const settingsView = createSettingsView({
 });
 
 window.adcode.settings.onChanged((values) => applySettings(values));
+
+/* ── Assistant (§5.3) ─────────────────────────────────────────────────── */
+
+const chat = createChatWidget({
+  host: document.body,
+  // Applying a proposal reopens the file so the user sees the result in the editor.
+  openExternalPath: (path) => void openFile(path),
+});
 
 const notifications = createNotificationCentre(el("toast-layer"));
 
@@ -440,6 +458,7 @@ async function boot(): Promise<void> {
   const existing = await window.adcode.workspace.current();
   if (existing !== null) {
     workspaceRoot = existing.root;
+    chat.setWorkspace(existing.root);
     el("sidebar-title").textContent = existing.name;
     el("status-workspace").textContent = existing.name;
     await renderTree(existing.root);

@@ -196,11 +196,44 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   bool("adcode.session.crashRecovery", "session", "Crash recovery", "Recover unsaved buffers after an unexpected exit.", true),
 
   /* ── AI (§5) ────────────────────────────────────────────────────────── */
-  bool("adcode.ai.chatWidget", "ai", "Chat widget", "The floating chat card, summoned by keyboard shortcut.", true),
-  bool("adcode.ai.inlineCompletion", "ai", "Inline completion", "Ghost text suggestions, accepted with Tab.", true),
+  {
+    id: "adcode.ai.provider",
+    group: "ai",
+    kind: "enum",
+    label: "Provider",
+    description:
+      "Bring your own key. Keys are stored in the OS keychain, never in this settings file. The local option needs no key.",
+    default: "anthropic",
+    available: true,
+    options: [
+      { value: "anthropic", label: "Anthropic" },
+      { value: "openai", label: "OpenAI" },
+      { value: "google", label: "Google" },
+      { value: "ollama", label: "Local" },
+    ],
+  },
+  {
+    id: "adcode.ai.model",
+    group: "ai",
+    kind: "enum",
+    label: "Model",
+    description: "Which model the built-in chat uses. Switching takes effect on the next message.",
+    default: "claude-opus-5",
+    available: true,
+    options: [
+      { value: "claude-opus-5", label: "Opus 5" },
+      { value: "claude-sonnet-5", label: "Sonnet 5" },
+      { value: "claude-haiku-4-5", label: "Haiku 4.5" },
+      { value: "gpt-5", label: "GPT-5" },
+      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+      { value: "qwen2.5-coder", label: "Qwen2.5 Coder" },
+    ],
+  },
+  bool("adcode.ai.chatWidget", "ai", "Chat widget", "The floating chat card, summoned by keyboard shortcut.", true, true),
+  bool("adcode.ai.inlineCompletion", "ai", "Inline completion", "Ghost text suggestions, accepted with Tab.", true, true),
   bool("adcode.ai.terminalAgentDetection", "ai", "Terminal agent detection", "Recognise CLI agents running in the built-in terminal.", true),
-  bool("adcode.ai.memoryCapture", "ai", "Memory capture", "Record decisions and conventions to the shared project memory.", true),
-  bool("adcode.ai.mcpServer", "ai", "MCP server", "Let external agents read and write the same memory.", true),
+  bool("adcode.ai.memoryCapture", "ai", "Memory capture", "Record decisions and conventions to the shared project memory.", true, true),
+  bool("adcode.ai.mcpServer", "ai", "MCP server", "Let external agents read and write the same memory.", true, true),
 ];
 
 const BY_ID = new Map<SettingId, Setting>(SETTINGS_SCHEMA.map((s) => [s.id, s]));

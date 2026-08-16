@@ -103,7 +103,48 @@ export const CHANNELS = {
   settingsReset: "settings:reset",
   settingsChanged: "settings:changed",
   memoryConnection: "memory:connection",
+  aiProviders: "ai:providers",
+  aiSetKey: "ai:set-key",
+  aiClearKey: "ai:clear-key",
+  aiSend: "ai:send",
+  aiCancel: "ai:cancel",
+  aiReset: "ai:reset",
+  aiEvent: "ai:event",
+  aiProposedEdit: "ai:proposed-edit",
+  aiApplyHunks: "ai:apply-hunks",
 } as const;
+
+/** One provider, as the chat widget's model picker needs to see it. */
+export interface AiProviderInfo {
+  readonly id: string;
+  readonly displayName: string;
+  readonly models: readonly string[];
+  /** False until the user supplies a key. Ollama needs none, so it is always true. */
+  readonly hasKey: boolean;
+  readonly needsKey: boolean;
+}
+
+export interface AiStatus {
+  readonly providers: readonly AiProviderInfo[];
+  readonly activeProvider: string;
+  readonly activeModel: string;
+  readonly ready: boolean;
+}
+
+/** A hunk of a proposed change, as rendered in the inline diff widget. */
+export interface DiffHunkView {
+  readonly id: string;
+  readonly startLine: number;
+  readonly original: readonly string[];
+  readonly replacement: readonly string[];
+}
+
+export interface ProposedEditView {
+  readonly path: string;
+  readonly displayPath: string;
+  readonly summary: string;
+  readonly hunks: readonly DiffHunkView[];
+}
 
 /**
  * Everything a user needs to connect an external agent to the shared memory.
@@ -147,6 +188,18 @@ export interface AdcodeApi {
   };
   readonly memory: {
     connection(): Promise<McpConnectionInfo>;
+  };
+  readonly ai: {
+    status(): Promise<AiStatus>;
+    setKey(provider: string, key: string): Promise<AiStatus>;
+    clearKey(provider: string): Promise<AiStatus>;
+    send(text: string): Promise<void>;
+    cancel(): void;
+    reset(): void;
+    /** The agent's workings, live - this is what the trace widget renders (§5.3). */
+    onEvent(listener: (event: unknown) => void): () => void;
+    onProposedEdit(listener: (edit: ProposedEditView) => void): () => void;
+    applyHunks(path: string, acceptedHunkIds: readonly string[]): Promise<boolean>;
   };
   readonly settings: {
     read(): Promise<Record<string, boolean | string>>;

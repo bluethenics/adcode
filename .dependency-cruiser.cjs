@@ -40,6 +40,25 @@ module.exports = {
       to: { path: "^packages/ads" },
     },
     {
+      name: "ads-must-not-import-ai",
+      comment:
+        "The firewall's third face. The AI layer holds the user's code, their prompts, " +
+        "and model output about both - exactly the material §1 promises never leaves " +
+        "the machine through an ad request. Same rule as packages/memory, same reason.",
+      severity: "error",
+      from: { path: "^packages/ads" },
+      to: { path: "^packages/ai" },
+    },
+    {
+      name: "ai-must-not-import-ads",
+      severity: "error",
+      comment:
+        "And the reverse: the AI layer must never reach into the ad client, or a " +
+        "refactor could route user code outward through the ad client's own transport.",
+      from: { path: "^packages/ai" },
+      to: { path: "^packages/ads" },
+    },
+    {
       name: "mock-server-must-not-import-client",
       comment:
         "§10: 'The mock server must not import the client's types.' A mock that shares " +

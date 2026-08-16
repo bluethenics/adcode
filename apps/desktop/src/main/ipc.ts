@@ -11,6 +11,15 @@ import { getAdRuntime } from "./adRuntime.ts";
 import { onSettingsChanged, readSettings, resetSettings, writeSetting } from "./settings.ts";
 import { mcpConnection } from "./memory.ts";
 import {
+  aiApplyHunks,
+  aiCancel,
+  aiReset,
+  aiSend,
+  aiStatus,
+  clearProviderKey,
+  setProviderKey,
+} from "./ai.ts";
+import {
   createTerminal,
   detectProfiles,
   disposeTerminal,
@@ -106,6 +115,32 @@ export function registerIpc(): void {
   ipcMain.handle(CHANNELS.settingsReset, () => resetSettings());
 
   onSettingsChanged((values) => broadcast(CHANNELS.settingsChanged, values));
+
+  ipcMain.handle(CHANNELS.aiProviders, () => aiStatus());
+
+  ipcMain.handle(CHANNELS.aiSetKey, (_event, provider: unknown, key: unknown) => {
+    if (!isString(provider) || !isString(key)) throw new Error("expected a provider and key");
+    return setProviderKey(provider, key);
+  });
+
+  ipcMain.handle(CHANNELS.aiClearKey, (_event, provider: unknown) => {
+    if (!isString(provider)) throw new Error("expected a provider");
+    return clearProviderKey(provider);
+  });
+
+  ipcMain.handle(CHANNELS.aiSend, (_event, text: unknown) => {
+    if (!isString(text)) throw new Error("expected text");
+    return aiSend(text);
+  });
+
+  ipcMain.on(CHANNELS.aiCancel, () => aiCancel());
+  ipcMain.on(CHANNELS.aiReset, () => aiReset());
+
+  ipcMain.handle(CHANNELS.aiApplyHunks, (_event, path: unknown, ids: unknown) => {
+    if (!isString(path)) throw new Error("expected a path");
+    if (!Array.isArray(ids) || !ids.every(isString)) throw new Error("expected hunk ids");
+    return aiApplyHunks(path, ids);
+  });
 
   const ads = getAdRuntime();
 

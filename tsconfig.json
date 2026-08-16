@@ -29,7 +29,8 @@
     "paths": {
       "@adcode/ads": ["./packages/ads/src/index.ts"],
       "@adcode/memory": ["./packages/memory/src/index.ts"],
-      "@adcode/settings": ["./packages/settings/src/index.ts"]
+      "@adcode/settings": ["./packages/settings/src/index.ts"],
+      "@adcode/ai": ["./packages/ai/src/index.ts"]
     }
   },
   "include": ["packages/**/*.ts", "mock-server/**/*.ts", "vitest.config.ts"],

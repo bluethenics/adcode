@@ -48,6 +48,17 @@ const api: AdcodeApi = {
   memory: {
     connection: () => ipcRenderer.invoke(CHANNELS.memoryConnection),
   },
+  ai: {
+    status: () => ipcRenderer.invoke(CHANNELS.aiProviders),
+    setKey: (provider, key) => ipcRenderer.invoke(CHANNELS.aiSetKey, provider, key),
+    clearKey: (provider) => ipcRenderer.invoke(CHANNELS.aiClearKey, provider),
+    send: (text) => ipcRenderer.invoke(CHANNELS.aiSend, text),
+    cancel: () => ipcRenderer.send(CHANNELS.aiCancel),
+    reset: () => ipcRenderer.send(CHANNELS.aiReset),
+    onEvent: (listener) => subscribe(CHANNELS.aiEvent, listener),
+    onProposedEdit: (listener) => subscribe(CHANNELS.aiProposedEdit, listener),
+    applyHunks: (path, ids) => ipcRenderer.invoke(CHANNELS.aiApplyHunks, path, ids),
+  },
   settings: {
     read: () => ipcRenderer.invoke(CHANNELS.settingsRead),
     write: (id, value) => ipcRenderer.invoke(CHANNELS.settingsWrite, id, value),
