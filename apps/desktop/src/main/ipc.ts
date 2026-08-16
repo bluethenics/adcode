@@ -9,6 +9,7 @@ import { BrowserWindow, app, ipcMain } from "electron";
 import { CHANNELS } from "../shared/api.ts";
 import { getAdRuntime } from "./adRuntime.ts";
 import { onSettingsChanged, readSettings, resetSettings, writeSetting } from "./settings.ts";
+import { mcpConnection } from "./memory.ts";
 import {
   createTerminal,
   detectProfiles,
@@ -91,6 +92,8 @@ export function registerIpc(): void {
     platform: process.platform,
     isPackaged: app.isPackaged,
   }));
+
+  ipcMain.handle(CHANNELS.memoryConnection, () => mcpConnection());
 
   ipcMain.handle(CHANNELS.settingsRead, () => readSettings());
 

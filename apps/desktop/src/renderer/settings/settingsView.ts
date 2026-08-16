@@ -35,6 +35,64 @@ export interface SettingsViewDeps {
   readonly reset: () => Promise<Record<string, SettingValue>>;
   /** Projected hourly earnings per frequency preset, from the server (deviation D1). */
   readonly projections?: () => Record<string, string> | null;
+  /** How to connect an external agent to the shared memory (§5.2). */
+  readonly mcpConnection?: () => Promise<{ command: string; storePath: string | null; available: boolean }>;
+}
+
+/**
+ * The MCP connection card.
+ *
+ * §5.2: "Write the connection instructions into the IDE's own onboarding - a user who
+ * has to figure out MCP configuration by themselves will not do it, and the entire
+ * feature dies there." So the exact command is shown, ready to copy, rather than
+ * described in documentation the user would have to go and find.
+ */
+function connectionCard(
+  load: () => Promise<{ command: string; storePath: string | null; available: boolean }>,
+): HTMLElement {
+  const card = document.createElement("div");
+  card.className = "connection-card";
+
+  const heading = document.createElement("div");
+  heading.className = "settings-row-label";
+  heading.textContent = "Connect an external agent";
+
+  const explanation = document.createElement("p");
+  explanation.className = "settings-row-description";
+  explanation.textContent =
+    "Claude Code, Codex, and anything else that speaks MCP can read and write this project's memory. Run this once, from the project folder.";
+
+  const code = document.createElement("code");
+  code.className = "connection-command";
+  code.textContent = "Loading…";
+
+  const actions = document.createElement("div");
+  actions.className = "connection-actions";
+
+  const copy = document.createElement("button");
+  copy.className = "ghost-button";
+  copy.textContent = "Copy";
+  copy.addEventListener("click", () => {
+    void navigator.clipboard.writeText(code.textContent ?? "").then(() => {
+      copy.textContent = "Copied";
+      window.setTimeout(() => (copy.textContent = "Copy"), 1400);
+    });
+  });
+
+  const location = document.createElement("p");
+  location.className = "settings-row-description";
+
+  actions.append(copy);
+  card.append(heading, explanation, code, actions, location);
+
+  void load().then((info) => {
+    code.textContent = info.command;
+    copy.disabled = !info.available;
+    location.textContent =
+      info.storePath === null ? "" : `Memories are stored as markdown in ${info.storePath}`;
+  });
+
+  return card;
 }
 
 function iosSwitch(checked: boolean, disabled: boolean, onChange: (next: boolean) => void): HTMLElement {
@@ -253,6 +311,13 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
       }
 
       section.append(heading, caption, list);
+
+      // The AI group carries the onboarding §5.2 requires, but only when the user is not
+      // filtering - a search for "minimap" should not surface MCP setup.
+      if (group.id === "ai" && deps.mcpConnection !== undefined && query.trim().length === 0) {
+        section.append(connectionCard(deps.mcpConnection));
+      }
+
       body.append(section);
     }
 

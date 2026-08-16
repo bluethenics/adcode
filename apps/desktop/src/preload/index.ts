@@ -45,6 +45,9 @@ const api: AdcodeApi = {
     info: () => ipcRenderer.invoke(CHANNELS.platformInfo),
     onFocusChange: (listener) => subscribe(CHANNELS.windowFocus, listener),
   },
+  memory: {
+    connection: () => ipcRenderer.invoke(CHANNELS.memoryConnection),
+  },
   settings: {
     read: () => ipcRenderer.invoke(CHANNELS.settingsRead),
     write: (id, value) => ipcRenderer.invoke(CHANNELS.settingsWrite, id, value),

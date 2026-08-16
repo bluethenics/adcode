@@ -386,6 +386,7 @@ const settingsView = createSettingsView({
   write: (id, value) => window.adcode.settings.write(id, value),
   reset: () => window.adcode.settings.reset(),
   projections: () => serverProjections,
+  mcpConnection: () => window.adcode.memory.connection(),
 });
 
 window.adcode.settings.onChanged((values) => applySettings(values));

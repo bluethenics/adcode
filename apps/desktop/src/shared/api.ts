@@ -102,7 +102,24 @@ export const CHANNELS = {
   settingsWrite: "settings:write",
   settingsReset: "settings:reset",
   settingsChanged: "settings:changed",
+  memoryConnection: "memory:connection",
 } as const;
+
+/**
+ * Everything a user needs to connect an external agent to the shared memory.
+ *
+ * §5.2 is blunt about why this is surfaced in the app rather than left to documentation:
+ * "a user who has to figure out MCP configuration by themselves will not do it, and the
+ * entire feature dies there."
+ */
+export interface McpConnectionInfo {
+  /** The exact command to run, ready to paste. */
+  readonly command: string;
+  /** Where the memory lives on disk, so the user can go and look at it. */
+  readonly storePath: string | null;
+  /** False when no folder is open, since the store is per-workspace. */
+  readonly available: boolean;
+}
 
 /** What `window.adcode` exposes. Nothing else crosses the boundary. */
 export interface AdcodeApi {
@@ -127,6 +144,9 @@ export interface AdcodeApi {
   readonly platform: {
     info(): Promise<PlatformInfo>;
     onFocusChange(listener: (focused: boolean) => void): () => void;
+  };
+  readonly memory: {
+    connection(): Promise<McpConnectionInfo>;
   };
   readonly settings: {
     read(): Promise<Record<string, boolean | string>>;
