@@ -20,7 +20,16 @@
     "erasableSyntaxOnly": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+
+    // Deviation D6: this repo is on a FAT32 volume, which has no symlinks, so npm
+    // workspaces cannot link local packages. Path mapping gives the same import
+    // specifiers without node_modules symlinks; the matching Vite aliases live in
+    // apps/desktop/electron.vite.config.ts.
+    "paths": {
+      "@adcode/ads": ["./packages/ads/src/index.ts"],
+      "@adcode/memory": ["./packages/memory/src/index.ts"]
+    }
   },
   "include": ["packages/**/*.ts", "mock-server/**/*.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "**/__fixtures__/**"]

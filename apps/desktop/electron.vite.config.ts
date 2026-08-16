@@ -1,9 +1,16 @@
 import { resolve } from "node:path";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 
+/** Deviation D6: no npm workspaces on FAT32, so local packages resolve by alias. */
+const alias = {
+  "@adcode/ads": resolve(import.meta.dirname, "../../packages/ads/src/index.ts"),
+  "@adcode/memory": resolve(import.meta.dirname, "../../packages/memory/src/index.ts"),
+};
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    resolve: { alias },
     build: {
       rollupOptions: {
         input: { index: resolve(import.meta.dirname, "src/main/index.ts") },
@@ -25,6 +32,7 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(import.meta.dirname, "src/renderer"),
+    resolve: { alias },
     build: {
       rollupOptions: {
         input: { index: resolve(import.meta.dirname, "src/renderer/index.html") },

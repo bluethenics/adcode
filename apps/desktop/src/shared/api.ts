@@ -51,6 +51,31 @@ export interface PlatformInfo {
   readonly isPackaged: boolean;
 }
 
+/**
+ * A sponsored creative, resolved for display.
+ *
+ * The logo arrives as a `data:` URL rather than a remote URL. That is the §1 rule made
+ * structural: "Creative assets are https only, from an allowlisted host, fetched and
+ * cached by us. Never hot-linked from advertiser servers." The bytes are fetched in the
+ * main process, cached, and handed over inline - so the renderer never opens a
+ * connection to an advertiser, and there is no request that could carry the user's IP.
+ */
+export interface SponsoredToast {
+  readonly creativeId: string;
+  readonly advertiser: string;
+  readonly headline: string;
+  readonly body: string | null;
+  readonly logoDataUrl: string | null;
+  readonly autoDismissMs: number;
+}
+
+export interface EarningsSnapshot {
+  /** Preformatted by the ledger. The renderer never does arithmetic on money (§1). */
+  readonly availableLabel: string;
+  readonly lifetimeLabel: string;
+  readonly hasServerBalance: boolean;
+}
+
 /** Every channel name in one place, so main and preload cannot disagree. */
 export const CHANNELS = {
   workspaceOpen: "workspace:open",
@@ -67,6 +92,12 @@ export const CHANNELS = {
   terminalExit: "terminal:exit",
   platformInfo: "platform:info",
   windowFocus: "window:focus",
+  adShow: "ads:show",
+  adPainted: "ads:painted",
+  adDismissed: "ads:dismissed",
+  adClicked: "ads:clicked",
+  adSuppressionChanged: "ads:suppression",
+  earningsChanged: "ads:earnings",
 } as const;
 
 /** What `window.adcode` exposes. Nothing else crosses the boundary. */
@@ -92,5 +123,19 @@ export interface AdcodeApi {
   readonly platform: {
     info(): Promise<PlatformInfo>;
     onFocusChange(listener: (focused: boolean) => void): () => void;
+  };
+  readonly ads: {
+    /** The main process asks the renderer to show a toast. */
+    onShow(listener: (toast: SponsoredToast) => void): () => void;
+    onEarnings(listener: (earnings: EarningsSnapshot) => void): () => void;
+    /**
+     * The toast actually painted. One of the three conditions §1 requires before an
+     * impression may be reported; the renderer is the only place that knows it.
+     */
+    painted(creativeId: string): void;
+    dismissed(creativeId: string): void;
+    clicked(creativeId: string): void;
+    /** Zen, full-screen, and presentation mode (§8.3). */
+    setSuppressed(suppressed: boolean): void;
   };
 }

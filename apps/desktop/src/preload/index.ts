@@ -45,6 +45,14 @@ const api: AdcodeApi = {
     info: () => ipcRenderer.invoke(CHANNELS.platformInfo),
     onFocusChange: (listener) => subscribe(CHANNELS.windowFocus, listener),
   },
+  ads: {
+    onShow: (listener) => subscribe(CHANNELS.adShow, listener),
+    onEarnings: (listener) => subscribe(CHANNELS.earningsChanged, listener),
+    painted: (creativeId) => ipcRenderer.send(CHANNELS.adPainted, creativeId),
+    dismissed: (creativeId) => ipcRenderer.send(CHANNELS.adDismissed, creativeId),
+    clicked: (creativeId) => ipcRenderer.send(CHANNELS.adClicked, creativeId),
+    setSuppressed: (suppressed) => ipcRenderer.send(CHANNELS.adSuppressionChanged, suppressed),
+  },
 };
 
 contextBridge.exposeInMainWorld("adcode", api);

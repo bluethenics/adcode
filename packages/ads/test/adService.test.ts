@@ -258,6 +258,37 @@ describe("remote config", () => {
     expect(service.effectiveCaps().dailyCap).toBe(PRESETS.standard.dailyCap);
   });
 
+  it("cannot have the settle period shortened by the server", async () => {
+    // The settle period protects the user's first minute. A server able to shorten it
+    // could do exactly what §1 forbids: make the IDE more annoying than it ships.
+    const meddling = stubClient({
+      config: async () => ({
+        ok: true,
+        value: {
+          killSwitch: false,
+          // `settleMs` is not part of RemoteConfig at all, so this is the closest a
+          // server can get - and it must not help.
+          caps: { minIntervalMs: 0, dailyCap: 9999 },
+          projections: {
+            off: micros(0n),
+            light: micros(1n),
+            standard: micros(1n),
+            max: micros(1n),
+          },
+        },
+      }),
+    });
+
+    const service = build({ client: meddling });
+    await service.start();
+
+    clock.advance(SETTLE_MS - 1);
+    await service.tick();
+
+    expect(service.lastReason()).toBe("settling");
+    expect(sink.shown).toHaveLength(0);
+  });
+
   it("honours the remote kill switch", async () => {
     const killed = stubClient({
       config: async () => ({

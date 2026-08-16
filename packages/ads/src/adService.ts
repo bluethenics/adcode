@@ -38,6 +38,15 @@ import type { AdRenderer } from "./renderer.ts";
 export interface AdServiceSettings {
   readonly adsEnabled: boolean;
   readonly preset: FrequencyPreset;
+  /**
+   * Launch grace period, defaulting to §1's 60s.
+   *
+   * Local only, and deliberately not part of `RemoteConfig`: the settle period exists to
+   * protect the user's first minute, so a server that could shorten it would be able to
+   * do the one thing §1 says a compromised server must never do - make the IDE more
+   * annoying than it ships. Overridden only by tests and by development runs.
+   */
+  readonly settleMs?: number;
 }
 
 export interface AdServiceDeps {
@@ -187,7 +196,7 @@ export function createAdService(deps: AdServiceDeps): AdService {
           preset: deps.settings.preset,
           caps: effectiveCaps(),
           launchedAt,
-          settleMs: SETTLE_MS,
+          settleMs: deps.settings.settleMs ?? SETTLE_MS,
           windowFocused: signal(() => deps.ide.windowFocused(), false),
           debugActive: signal(() => deps.ide.debugActive(), true),
           doNotDisturb: signal(() => deps.ide.doNotDisturb(), true),

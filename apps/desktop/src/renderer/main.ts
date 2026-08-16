@@ -5,8 +5,10 @@
  */
 import "./styles/tokens.css";
 import "./styles/workbench.css";
+import "./styles/notifications.css";
 import { createEditorHost, languageForFilename, type EditorHost } from "./editor/editorHost.ts";
 import { createTerminalHost, type TerminalHost } from "./terminal/terminalHost.ts";
+import { createNotificationCentre } from "./notifications/notifications.ts";
 import type { AdcodeApi, DirEntry, TerminalProfile } from "../shared/api.ts";
 
 declare global {
@@ -341,6 +343,24 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     void openFolder();
   }
+});
+
+/* ── Sponsored notifications ──────────────────────────────────────────── */
+
+const notifications = createNotificationCentre(el("toast-layer"));
+
+window.adcode.ads.onShow((toast) => notifications.showSponsored(toast));
+
+window.adcode.ads.onEarnings((earnings) => {
+  // A cached mirror of a server value (§1). The renderer never computes money.
+  el("status-earnings").textContent = earnings.hasServerBalance
+    ? `${earnings.availableLabel} earned`
+    : "";
+});
+
+document.addEventListener("keydown", (event) => {
+  // Escape dismisses a sponsored toast, matching every other transient surface.
+  if (event.key === "Escape") notifications.dismissAll();
 });
 
 const resizeObserver = new ResizeObserver(() => {

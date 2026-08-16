@@ -7,6 +7,7 @@
  */
 import { BrowserWindow, app, ipcMain } from "electron";
 import { CHANNELS } from "../shared/api.ts";
+import { getAdRuntime } from "./adRuntime.ts";
 import {
   createTerminal,
   detectProfiles,
@@ -89,4 +90,22 @@ export function registerIpc(): void {
     platform: process.platform,
     isPackaged: app.isPackaged,
   }));
+
+  const ads = getAdRuntime();
+
+  ipcMain.on(CHANNELS.adPainted, (_event, creativeId: unknown) => {
+    if (isString(creativeId)) ads.notePainted(creativeId);
+  });
+
+  ipcMain.on(CHANNELS.adDismissed, (_event, creativeId: unknown) => {
+    if (isString(creativeId)) ads.noteDismissed(creativeId);
+  });
+
+  ipcMain.on(CHANNELS.adClicked, (_event, creativeId: unknown) => {
+    if (isString(creativeId)) ads.noteClicked(creativeId);
+  });
+
+  ipcMain.on(CHANNELS.adSuppressionChanged, (_event, suppressed: unknown) => {
+    if (typeof suppressed === "boolean") ads.setSuppressed(suppressed);
+  });
 }

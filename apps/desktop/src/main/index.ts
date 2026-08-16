@@ -16,6 +16,7 @@ import { BrowserWindow, app, shell } from "electron";
 import { registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "./protocol.ts";
 import { registerIpc } from "./ipc.ts";
 import { disposeAllTerminals } from "./terminal.ts";
+import { getAdRuntime } from "./adRuntime.ts";
 
 /**
  * Whether to load from Vite's dev server.
@@ -88,8 +89,20 @@ function createWindow(): BrowserWindow {
 
   window.once("ready-to-show", () => window.show());
 
-  window.on("focus", () => window.webContents.send("window:focus", true));
-  window.on("blur", () => window.webContents.send("window:focus", false));
+  window.on("focus", () => {
+    window.webContents.send("window:focus", true);
+    getAdRuntime().setWindowFocused(true);
+  });
+
+  window.on("blur", () => {
+    window.webContents.send("window:focus", false);
+    getAdRuntime().setWindowFocused(false);
+  });
+
+  // §8.3: full-screen suppresses at render time - a second layer beneath the scheduler,
+  // so a bug there still cannot put an ad over a demo.
+  window.on("enter-full-screen", () => getAdRuntime().setSuppressed(true));
+  window.on("leave-full-screen", () => getAdRuntime().setSuppressed(false));
 
   if (useDevServer && devUrl !== undefined) {
     void window.loadURL(devUrl);
@@ -105,6 +118,12 @@ void app.whenReady().then(() => {
   registerIpc();
 
   createWindow();
+
+  // Started after the window exists and deliberately not awaited: §9 requires the ad
+  // module never be on the critical path to first paint.
+  void getAdRuntime()
+    .start()
+    .catch(() => undefined);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
