@@ -165,3 +165,34 @@
 .confirm-dialog[data-danger="true"] .result-close {
   background: var(--danger);
 }
+
+/* ── Text prompt ──────────────────────────────────────────────────────── */
+
+.prompt-form {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.prompt-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  outline: none;
+}
+
+.prompt-input:focus {
+  border-color: var(--accent);
+}
+
+.prompt-form .confirm-buttons {
+  margin-top: 0;
+}

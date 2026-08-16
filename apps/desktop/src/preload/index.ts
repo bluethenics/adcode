@@ -5,7 +5,7 @@
  *
  * Runs in a sandboxed preload, so only `electron`'s own module is available; no Node.
  */
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { CHANNELS } from "../shared/api.ts";
 import type { AdcodeApi } from "../shared/api.ts";
 
@@ -39,6 +39,11 @@ const api: AdcodeApi = {
     trash: (target) => ipcRenderer.invoke(CHANNELS.fsTrash, target),
     delete: (target) => ipcRenderer.invoke(CHANNELS.fsDelete, target),
     reveal: (target) => ipcRenderer.invoke(CHANNELS.fsReveal, target),
+    duplicate: (target) => ipcRenderer.invoke(CHANNELS.fsDuplicate, target),
+    copy: (source, targetDir) => ipcRenderer.invoke(CHANNELS.fsCopy, source, targetDir),
+    move: (source, targetDir) => ipcRenderer.invoke(CHANNELS.fsMove, source, targetDir),
+    importFrom: (source, targetDir) => ipcRenderer.invoke(CHANNELS.fsImport, source, targetDir),
+    pathForDropped: (file) => webUtils.getPathForFile(file),
   },
   clipboard: {
     writeText: (text) => ipcRenderer.invoke(CHANNELS.clipboardWrite, text),

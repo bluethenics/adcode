@@ -46,7 +46,18 @@ import {
   setWorkspaceRoot,
   writeTextFile,
 } from "./workspace.ts";
-import { createFile, createFolder, deleteEntry, renameEntry, revealEntry, trashEntry } from "./fileOps.ts";
+import {
+  copyEntry,
+  createFile,
+  createFolder,
+  deleteEntry,
+  duplicateEntry,
+  importEntry,
+  moveEntry,
+  renameEntry,
+  revealEntry,
+  trashEntry,
+} from "./fileOps.ts";
 
 const isString = (value: unknown): value is string => typeof value === "string";
 const isFiniteNumber = (value: unknown): value is number =>
@@ -171,6 +182,20 @@ export function registerIpc(): void {
   ipcMain.handle(CHANNELS.fsTrash, (_event, target: unknown) => trashEntry(target));
 
   ipcMain.handle(CHANNELS.fsDelete, (_event, target: unknown) => deleteEntry(target));
+
+  ipcMain.handle(CHANNELS.fsDuplicate, (_event, target: unknown) => duplicateEntry(target));
+
+  ipcMain.handle(CHANNELS.fsCopy, (_event, source: unknown, targetDir: unknown) =>
+    copyEntry(source, targetDir),
+  );
+
+  ipcMain.handle(CHANNELS.fsMove, (_event, source: unknown, targetDir: unknown) =>
+    moveEntry(source, targetDir),
+  );
+
+  ipcMain.handle(CHANNELS.fsImport, (_event, source: unknown, targetDir: unknown) =>
+    importEntry(source, targetDir),
+  );
 
   ipcMain.handle(CHANNELS.fsReveal, (_event, target: unknown) => revealEntry(target));
 

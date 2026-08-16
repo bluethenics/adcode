@@ -15,6 +15,8 @@ export interface SourceControlPanel {
   setActiveFile(path: string | null): void;
   /** §4: the timeline is a setting, so the shell can switch it off. */
   setTimelineEnabled(enabled: boolean): void;
+  /** Put the cursor in the commit box - where staging from the tree hands over to. */
+  focusCommitMessage(): void;
 }
 
 export interface SourceControlDeps {
@@ -29,6 +31,20 @@ export interface SourceControlDeps {
    * talked to a remote and may have failed.
    */
   readonly reportResult: (result: GitResult) => void;
+  /**
+   * Ask the user for a line of text.
+   *
+   * Injected rather than imported so the panel does not own a dialog, and because
+   * `window.prompt` - which this replaces - throws in Electron.
+   */
+  readonly promptFor: (request: {
+    title: string;
+    body?: string;
+    value?: string;
+    placeholder?: string;
+    confirmLabel?: string;
+    suggestions?: readonly string[];
+  }) => Promise<string | null>;
   /** Show a file as it was at a revision, read-only. */
   readonly openRevision: (path: string, ref: string, shortHash: string) => void;
   /** Show a locally kept version of a file, read-only. §4's local file history. */
@@ -343,29 +359,73 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
     return wrapper;
   }
 
+  /**
+   * Switch to an existing branch, or create one by typing a name that is not in the list.
+   *
+   * This used to call `window.prompt`, which throws outright in Electron - "prompt() is
+   * not supported." - inside a `void`-ed async function, so the rejection was swallowed
+   * and clicking the branch name did nothing whatsoever.
+   */
   async function showBranchSwitcher(): Promise<void> {
-    const branches = await window.adcode.git.branches();
-    if (branches.length === 0) return;
+    const branches = await window.adcode.git.branches().catch(() => []);
+    if (branches.length === 0) {
+      deps.notify("No branches yet - make a commit first.");
+      return;
+    }
 
-    const names = branches.map((branch) => (branch.current ? `${branch.name} (current)` : branch.name));
-    const chosen = window.prompt(`Switch to branch:\n\n${names.join("\n")}\n\nName, or a new name to create:`);
-    if (chosen === null || chosen.trim().length === 0) return;
+    const current = branches.find((branch) => branch.current);
 
-    const target = chosen.trim();
-    const exists = branches.some((branch) => branch.name === target);
+    const chosen = await deps.promptFor({
+      title: "Switch branch",
+      body: "Pick a branch, or type a new name to create one from here.",
+      value: current?.name ?? "",
+      placeholder: "Branch name",
+      confirmLabel: "Switch",
+      suggestions: branches.map((branch) => branch.name),
+    });
+    if (chosen === null) return;
 
-    const result = exists
-      ? await window.adcode.git.checkout(target)
-      : await window.adcode.git.createBranch(target);
+    if (current !== undefined && chosen === current.name) return;
 
-    deps.notify(result.message);
-    await api.refresh();
+    const exists = branches.some((branch) => branch.name === chosen);
+    const action = exists ? "Switch branch" : "Create branch";
+
+    const result = await (exists
+      ? window.adcode.git.checkout(chosen)
+      : window.adcode.git.createBranch(chosen)
+    ).catch(
+      (error: unknown): GitOutcome => ({
+        ok: false,
+        message: error instanceof Error ? error.message : String(error),
+      }),
+    );
+
+    try {
+      await api.refresh();
+    } catch {
+      /* the outcome still gets reported */
+    }
+
+    deps.reportResult({
+      action,
+      ok: result.ok,
+      message: result.message,
+      details: [
+        ["From", current?.name ?? "detached"],
+        ["To", chosen],
+      ],
+    });
   }
 
   branchButton.addEventListener("click", () => void showBranchSwitcher());
 
   const api: SourceControlPanel = {
     element,
+
+    focusCommitMessage() {
+      message.focus();
+    },
+
 
     async refresh(): Promise<void> {
       if (deps.workspaceRoot() === null) {

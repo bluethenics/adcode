@@ -23,11 +23,11 @@
  * the renderer has to be able to tell the user what happened either way - a `.then` with
  * no `.catch` losing a failure is the exact bug that made the git panel feel dead.
  */
-import { mkdir, rename, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join, relative, sep } from "node:path";
+import { cp, mkdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { shell } from "electron";
 import { isInsideWorkspace, normalizeForCompare } from "./pathSafety.ts";
-import { validateFileName } from "./fileNames.ts";
+import { suffixedName, validateFileName } from "./fileNames.ts";
 import { currentWorkspace } from "./workspace.ts";
 import type { FileOpResult } from "../shared/api.ts";
 
@@ -202,6 +202,171 @@ export async function deleteEntry(target: unknown): Promise<FileOpResult> {
   } catch (error) {
     return fail(error instanceof Error ? error.message : "Could not delete.");
   }
+}
+
+/**
+ * A name in `dir` that nothing is using yet.
+ *
+ * Copying onto an existing file is the one outcome nobody wants from a paste, and
+ * refusing outright makes "duplicate this" a two-step chore. Suffixing is what every file
+ * manager does, and `suffixedName` keeps the extension so the copy stays the same kind of
+ * file. The ceiling is there because a directory that somehow defeats a hundred attempts
+ * is a bug, not a case to keep grinding at.
+ */
+async function freeNameIn(dir: string, name: string): Promise<string | null> {
+  if (!(await exists(join(dir, name)))) return name;
+
+  for (let index = 1; index < 100; index++) {
+    const candidate = suffixedName(name, index);
+    if (!(await exists(join(dir, candidate)))) return candidate;
+  }
+
+  return null;
+}
+
+/** Shared checks for copy, move and import: a real destination directory inside the tree. */
+async function prepareInto(
+  targetDir: unknown,
+  name: string,
+): Promise<{ dir: string } | FileOpResult> {
+  if (typeof targetDir !== "string") return fail("Expected a folder.");
+
+  const workspace = root();
+  if (workspace === null) return fail("No folder is open.");
+  if (!isInsideWorkspace(workspace, targetDir)) return fail("That folder is outside the opened folder.");
+
+  const check = validateFileName(name);
+  if (!check.ok) return fail(`Cannot bring in “${name}”: ${check.reason}`);
+
+  const info = await stat(targetDir).catch(() => null);
+  if (info === null || !info.isDirectory()) return fail("That is not a folder.");
+
+  const problem = targetDir === workspace ? null : checkTarget(targetDir, "folder");
+  if (problem !== null) return fail(problem);
+
+  return { dir: targetDir };
+}
+
+export async function duplicateEntry(target: unknown): Promise<FileOpResult> {
+  if (typeof target !== "string") return fail("Expected a path.");
+
+  const problem = checkTarget(target, "item");
+  if (problem !== null) return fail(problem);
+  if (!(await exists(target))) return fail("That item no longer exists.");
+
+  const dir = dirname(target);
+  const name = await freeNameIn(dir, basename(target));
+  if (name === null) return fail("Could not find a free name for the copy.");
+
+  try {
+    await cp(target, join(dir, name), { recursive: true, errorOnExist: true, force: false });
+    return done(`Duplicated as ${name}`, join(dir, name));
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : "Could not duplicate.");
+  }
+}
+
+export async function copyEntry(source: unknown, targetDir: unknown): Promise<FileOpResult> {
+  if (typeof source !== "string") return fail("Expected a path.");
+
+  const problem = checkTarget(source, "item");
+  if (problem !== null) return fail(problem);
+  if (!(await exists(source))) return fail("That item no longer exists.");
+
+  const prepared = await prepareInto(targetDir, basename(source));
+  if ("ok" in prepared) return prepared;
+
+  // Copying a folder into itself would recurse until the disk gave out.
+  if (prepared.dir === source || isWithin(source, prepared.dir)) {
+    return fail("A folder cannot be copied into itself.");
+  }
+
+  const name = await freeNameIn(prepared.dir, basename(source));
+  if (name === null) return fail("Could not find a free name in that folder.");
+
+  try {
+    await cp(source, join(prepared.dir, name), { recursive: true, errorOnExist: true, force: false });
+    return done(`Copied ${name}`, join(prepared.dir, name));
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : "Could not copy.");
+  }
+}
+
+export async function moveEntry(source: unknown, targetDir: unknown): Promise<FileOpResult> {
+  if (typeof source !== "string") return fail("Expected a path.");
+
+  const problem = checkTarget(source, "item");
+  if (problem !== null) return fail(problem);
+  if (!(await exists(source))) return fail("That item no longer exists.");
+
+  const prepared = await prepareInto(targetDir, basename(source));
+  if ("ok" in prepared) return prepared;
+
+  if (normalizeForCompare(dirname(source)) === normalizeForCompare(prepared.dir)) {
+    return done("It is already there.", source);
+  }
+
+  // Moving a folder inside itself detaches it from the tree along with everything in it.
+  if (isWithin(source, prepared.dir)) return fail("A folder cannot be moved into itself.");
+
+  const destination = join(prepared.dir, basename(source));
+  if (await exists(destination)) return fail(`${basename(source)} already exists there.`);
+
+  try {
+    await rename(source, destination);
+    return done(`Moved ${basename(source)}`, destination);
+  } catch (error) {
+    // `rename` cannot cross a volume boundary, which a drag from another drive does
+    // routinely. Copy-then-remove is the same operation the shell falls back to.
+    if ((error as NodeJS.ErrnoException).code !== "EXDEV") {
+      return fail(error instanceof Error ? error.message : "Could not move.");
+    }
+
+    try {
+      await cp(source, destination, { recursive: true, errorOnExist: true, force: false });
+      await rm(source, { recursive: true, force: false });
+      return done(`Moved ${basename(source)}`, destination);
+    } catch (fallback) {
+      return fail(fallback instanceof Error ? fallback.message : "Could not move across drives.");
+    }
+  }
+}
+
+/**
+ * Copy something from outside the workspace in - what a drop from Explorer is.
+ *
+ * The source is deliberately *not* confined to the workspace; the whole point is that it
+ * comes from elsewhere. Only the destination is checked, which is the direction that
+ * matters: this reads a file the user just handed over and writes it where they dropped
+ * it. Nothing leaves the workspace.
+ */
+export async function importEntry(source: unknown, targetDir: unknown): Promise<FileOpResult> {
+  if (typeof source !== "string" || source.length === 0) return fail("Expected a path.");
+  if (source.includes(" ")) return fail("That path is not usable.");
+
+  if (!(await exists(source))) return fail(`${basename(source)} no longer exists.`);
+
+  const prepared = await prepareInto(targetDir, basename(source));
+  if ("ok" in prepared) return prepared;
+
+  // Dropping a folder onto something inside it is the same recursion as an internal copy.
+  if (isWithin(source, prepared.dir)) return fail("A folder cannot be copied into itself.");
+
+  const name = await freeNameIn(prepared.dir, basename(source));
+  if (name === null) return fail("Could not find a free name in that folder.");
+
+  try {
+    await cp(source, join(prepared.dir, name), { recursive: true, errorOnExist: true, force: false });
+    return done(`Added ${name}`, join(prepared.dir, name));
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : "Could not add that file.");
+  }
+}
+
+/** Is `candidate` inside `parent`? Compared on a separator boundary, not as a prefix. */
+function isWithin(parent: string, candidate: string): boolean {
+  const rel = relative(normalizeForCompare(parent), normalizeForCompare(candidate));
+  return rel.length > 0 && !rel.startsWith("..") && !isAbsolute(rel);
 }
 
 export async function revealEntry(target: unknown): Promise<FileOpResult> {

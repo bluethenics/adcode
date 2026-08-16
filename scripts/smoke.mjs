@@ -244,10 +244,21 @@ async function clickAt(x, y) {
   await sleep(250);
 }
 
+/**
+ * Right-click, then wait for the menu rather than for a guessed number of milliseconds.
+ *
+ * The tree's menu fetches git status before it opens, so what it costs varies with the
+ * repository. A fixed sleep passed on a warm run and failed on a cold one.
+ */
 async function rightClickAt(x, y) {
   await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "right", clickCount: 1, buttons: 2 });
   await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "right", clickCount: 1, buttons: 0 });
-  await sleep(350);
+
+  for (let attempt = 0; attempt < 40; attempt++) {
+    if (await evaluate("document.querySelector('.menu-panel[data-context] .menu-item') !== null")) return true;
+    await sleep(100);
+  }
+  return false;
 }
 
 async function typeText(text) {
@@ -568,6 +579,141 @@ try {
        tabFollowed: [...document.querySelectorAll('.tab .tab-label')].some(l => l.textContent === 'smoke-renamed.md'),
      }))()`,
   );
+
+  // The row's own New File / New Folder buttons, which is how most people will reach them.
+  checks.folderRowHasActions = await evaluate(
+    `(() => {
+       const row = [...document.querySelectorAll('#filetree .tree-row')]
+         .find(r => r.dataset.path?.endsWith(${JSON.stringify(SCRATCH)}));
+       const actions = row?.querySelector('.tree-actions');
+       if (!actions) return 'no action group on the folder row';
+       const titles = [...actions.querySelectorAll('.tree-action')].map(b => b.title);
+       // Out of the way until wanted: a resting tree is a list of names, not of buttons.
+       if (getComputedStyle(actions).opacity !== '0') return 'actions are visible at rest';
+       return titles.join(',') === 'New File,New Folder' ? true : 'buttons were ' + titles.join(',');
+     })()`,
+  );
+
+  /*
+   * Drag and drop, driven with real DragEvents.
+   *
+   * CDP's Input domain cannot produce an HTML5 drag - it is a browser-internal sequence
+   * rather than a stream of mouse events - so the handlers are fed the events and the
+   * DataTransfer they actually consume, and the result is checked on disk.
+   */
+  // Made through the UI, not the bridge: the tree re-lists a directory when it changes
+  // one, and a folder created behind its back has no row to drop onto.
+  await rightClickAt(folderPoint.x, folderPoint.y);
+  point = await contextItemPoint("New Folder");
+  await clickAt(point.x, point.y);
+  await typeText("nested");
+  await pressEnter();
+  await sleep(700);
+
+  checks.dragMovesFile = await evaluate(
+    `(async () => {
+       const root = (await window.adcode.workspace.current()).root;
+       const base = root + '\\\\' + ${JSON.stringify(SCRATCH)};
+       const rows = () => [...document.querySelectorAll('#filetree .tree-row')];
+       const file = rows().find(r => r.dataset.path?.endsWith('smoke-renamed.md'));
+       let folder = rows().find(r => r.dataset.path?.endsWith('nested'));
+       if (!file || !folder) return 'rows missing (file: ' + !!file + ', folder: ' + !!folder + ')';
+
+       const dt = new DataTransfer();
+       file.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+       folder.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+       const highlighted = !!document.querySelector('[data-drop-target="true"]');
+       folder.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+       await new Promise(r => setTimeout(r, 1500));
+       file.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt }));
+
+       const inside = await window.adcode.workspace.list(base + '\\\\nested');
+       return highlighted && inside.some(e => e.name === 'smoke-renamed.md')
+         ? true
+         : 'highlighted=' + highlighted + ' nested=' + inside.map(e => e.name).join(',');
+     })()`,
+  );
+
+  // Copy collisions suffix rather than overwrite, and a folder cannot swallow itself.
+  checks.copyAndGuards = await evaluate(
+    `(async () => {
+       const root = (await window.adcode.workspace.current()).root;
+       const base = root + '\\\\' + ${JSON.stringify(SCRATCH)};
+       const source = base + '\\\\nested\\\\smoke-renamed.md';
+
+       const first = await window.adcode.files.copy(source, base);
+       const second = await window.adcode.files.copy(source, base);
+       const intoSelf = await window.adcode.files.move(base, base + '\\\\nested');
+
+       if (!first.ok || !second.ok) return 'copy failed: ' + first.message + ' / ' + second.message;
+       if (first.path === second.path) return 'the second copy overwrote the first';
+       if (intoSelf.ok) return 'a folder was allowed to move into itself';
+       return true;
+     })()`,
+  );
+
+  // The git group describes this file as it is now, and Push is repo-wide but present.
+  const trackedPoint = await evaluate(
+    `(() => {
+       const row = [...document.querySelectorAll('#filetree .tree-row')].find(r => r.dataset.path?.endsWith('README.md'));
+       if (!row) return null;
+       const r = row.getBoundingClientRect();
+       return { x: Math.round(r.left + r.width/2), y: Math.round(r.top + r.height/2) };
+     })()`,
+  );
+
+  if (trackedPoint !== null) {
+    await rightClickAt(trackedPoint.x, trackedPoint.y);
+    checks.gitGroupInMenu = await evaluate(
+      `(() => {
+         const panel = document.querySelector('.menu-panel[data-context]');
+         if (!panel) return 'no menu';
+         const headings = [...panel.querySelectorAll('.menu-heading')].map(h => h.textContent);
+         const labels = [...panel.querySelectorAll('.menu-item-label')].map(l => l.textContent);
+         if (!headings.includes('Git')) return 'no Git heading';
+         const wanted = ['Discard Changes', 'Commit…', 'Push'];
+         const missing = wanted.filter(w => !labels.includes(w));
+         if (missing.length > 0) return 'missing ' + missing.join(', ');
+         // Exactly one of the pair, chosen from the file's actual staged state.
+         const staged = labels.includes('Stage');
+         const unstaged = labels.includes('Unstage');
+         return staged !== unstaged ? true : 'Stage/Unstage both ' + (staged ? 'present' : 'absent');
+       })()`,
+    );
+    await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
+    await sleep(200);
+  }
+
+  /*
+   * The branch switcher opens a dialog instead of throwing.
+   *
+   * It called `window.prompt`, which Electron does not implement, inside a `void`-ed async
+   * function - so the rejection was swallowed and the button did nothing at all.
+   */
+  checks.branchSwitcherOpens = await evaluate(
+    `(async () => {
+       document.querySelector('.activity[data-view="scm"]').click();
+       await new Promise(r => setTimeout(r, 800));
+       const button = document.querySelector('.scm-branch');
+       if (!button) return 'no branch button';
+
+       button.click();
+       await new Promise(r => setTimeout(r, 1200));
+
+       const dialog = document.querySelector('.prompt-dialog');
+       if (!dialog?.open) return 'no dialog opened';
+
+       const suggestions = [...dialog.querySelectorAll('datalist option')].map(o => o.value);
+       dialog.querySelector('.confirm-cancel').click();
+       await new Promise(r => setTimeout(r, 300));
+
+       if (dialog.open) return 'cancel did not close it';
+       return suggestions.length > 0 ? true : 'no branches offered';
+     })()`,
+  );
+
+  await evaluate(`document.querySelector('.activity[data-view="explorer"]').click(); true`);
+  await sleep(400);
 
   // Delete, through however many confirmations this volume needs. A drive with no
   // Recycle Bin asks a second time before anything is removed for good.

@@ -110,6 +110,10 @@ export const CHANNELS = {
   fsRename: "fs:rename",
   fsTrash: "fs:trash",
   fsDelete: "fs:delete",
+  fsDuplicate: "fs:duplicate",
+  fsCopy: "fs:copy",
+  fsMove: "fs:move",
+  fsImport: "fs:import",
   fsReveal: "fs:reveal",
   clipboardWrite: "clipboard:write",
   terminalCreate: "terminal:create",
@@ -346,6 +350,18 @@ export interface AdcodeApi {
     /** Irreversible. Only for when `trash` reports `trash-failed` and the user agrees. */
     delete(target: string): Promise<FileOpResult>;
     reveal(target: string): Promise<FileOpResult>;
+    duplicate(target: string): Promise<FileOpResult>;
+    copy(source: string, targetDir: string): Promise<FileOpResult>;
+    move(source: string, targetDir: string): Promise<FileOpResult>;
+    /** Copy something from outside the workspace in - a drop from the file manager. */
+    importFrom(source: string, targetDir: string): Promise<FileOpResult>;
+    /**
+     * The real path behind a dropped `File`.
+     *
+     * `File.path` was removed in Electron 32; `webUtils.getPathForFile` replaces it and
+     * has to be called on this side of the bridge, with the object itself.
+     */
+    pathForDropped(file: File): string;
   };
   /**
    * Electron's clipboard rather than `navigator.clipboard`, which needs a secure context

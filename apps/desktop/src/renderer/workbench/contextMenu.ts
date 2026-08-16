@@ -165,8 +165,12 @@ export function createContextMenu(host: HTMLElement): ContextMenu {
 export function attachContextMenuDismissal(menu: ContextMenu, restoreFocus: () => void): void {
   document.addEventListener("pointerdown", (event) => {
     if (!menu.isOpen()) return;
-    const panel = (event.target as HTMLElement | null)?.closest(".menu-panel[data-context]");
-    if (panel === null || panel === undefined) menu.close();
+
+    // Not every target is an element - an event dispatched at `document` has no `closest`,
+    // and the exception left the menu open with no way to dismiss it.
+    const target = event.target;
+    const inside = target instanceof Element && target.closest(".menu-panel[data-context]") !== null;
+    if (!inside) menu.close();
   });
 
   // A menu anchored to a row that has scrolled away is pointing at the wrong thing.

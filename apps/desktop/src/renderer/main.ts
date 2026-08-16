@@ -25,9 +25,10 @@ import { createTerminalPanel, type TerminalPanel } from "./terminal/terminalPane
 import { createNotificationCentre } from "./notifications/notifications.ts";
 import { createResultDialog } from "./dialogs/resultDialog.ts";
 import { createConfirmDialog } from "./dialogs/confirmDialog.ts";
+import { createPromptDialog } from "./dialogs/promptDialog.ts";
 import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "./workbench/contextMenu.ts";
 import { createInlineEditor } from "./workbench/inlineEdit.ts";
-import type { AdcodeApi, DirEntry, TerminalProfile } from "../shared/api.ts";
+import type { AdcodeApi, DirEntry, GitOutcome, GitStatusView, TerminalProfile } from "../shared/api.ts";
 
 declare global {
   interface Window {
@@ -274,6 +275,40 @@ async function savePath(path: string): Promise<void> {
 
 /* ── File tree ────────────────────────────────────────────────────────── */
 
+const NEW_FILE_ICON = "M9 2.5H4.5v11h7V5M9 2.5 11.5 5M9 2.5V5h2.5";
+const NEW_FOLDER_ICON = "M2 4.5A1 1 0 0 1 3 3.5h2.6l1 1.2H13a1 1 0 0 1 1 1v6.3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z";
+const PLUS_ICON = "M8 6v4M6 8h4";
+
+/** A small icon button that lives on a tree row. */
+function rowActionButton(label: string, path: string, run: () => void): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.className = "tree-action";
+  button.type = "button";
+  button.title = label;
+  button.ariaLabel = label;
+
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("aria-hidden", "true");
+
+  for (const data of [path, PLUS_ICON]) {
+    const shape = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    shape.setAttribute("d", data);
+    svg.append(shape);
+  }
+
+  button.append(svg);
+
+  // The row's own click toggles the folder, which would fold away the thing being
+  // created the instant the editor appeared inside it.
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    run();
+  });
+
+  return button;
+}
+
 function makeRow(entry: DirEntry, depth: number): HTMLElement {
   const wrapper = document.createElement("div");
 
@@ -300,6 +335,21 @@ function makeRow(entry: DirEntry, depth: number): HTMLElement {
   name.textContent = entry.name;
 
   row.append(twisty, icon, name);
+
+  // The two things people reach for most, on the row itself rather than four clicks away
+  // through a menu. Hidden until the row is hovered or focused, so a still tree stays a
+  // list of names rather than a wall of buttons.
+  if (entry.isDirectory) {
+    const actions = document.createElement("div");
+    actions.className = "tree-actions";
+    actions.append(
+      rowActionButton("New File", NEW_FILE_ICON, () => void beginCreate(entry.path, "file")),
+      rowActionButton("New Folder", NEW_FOLDER_ICON, () => void beginCreate(entry.path, "folder")),
+    );
+    row.append(actions);
+  }
+
+  attachRowDragAndDrop(row, entry);
   wrapper.append(row);
 
   if (entry.isDirectory) {
@@ -684,6 +734,147 @@ async function confirmAndTrash(path: string): Promise<void> {
   if (sure) await deleteForGood(path, name);
 }
 
+/* ── Drag and drop ────────────────────────────────────────────────────── */
+
+/**
+ * Our own MIME type for an internal drag.
+ *
+ * `text/plain` would also work and would be worse: it makes every tree row draggable into
+ * the editor as a path-shaped string, and it makes any dragged text look like a file move.
+ */
+const TREE_DRAG_TYPE = "application/x-adcode-path";
+
+/** The dragged path, kept alongside the transfer because `getData` is empty during dragover. */
+let draggingPath: string | null = null;
+
+function clearDropHighlight(): void {
+  for (const marked of document.querySelectorAll<HTMLElement>("[data-drop-target]")) {
+    delete marked.dataset["dropTarget"];
+  }
+}
+
+/** Where a drop on this row lands: into a folder, beside a file. */
+function dropTargetFor(path: string): string {
+  return createTargetFor(path);
+}
+
+/**
+ * Run a drop: external files are copied in, an internal drag moves (or copies with Ctrl).
+ *
+ * External sources are deliberately not confined to the workspace - being from elsewhere
+ * is the point of a drop - while the destination always is. That is the direction that
+ * matters: files come in, nothing goes out.
+ */
+async function handleDrop(event: DragEvent, targetDir: string): Promise<void> {
+  const transfer = event.dataTransfer;
+  if (transfer === null) return;
+
+  const external = [...transfer.files];
+  if (external.length > 0) {
+    const outcomes: string[] = [];
+    for (const file of external) {
+      const source = window.adcode.files.pathForDropped(file);
+      if (source === "") {
+        outcomes.push(`${file.name}: not a file on disk`);
+        continue;
+      }
+      const result = await window.adcode.files.importFrom(source, targetDir);
+      if (!result.ok) outcomes.push(`${file.name}: ${result.message}`);
+    }
+
+    await refreshDirectory(targetDir);
+    void sourceControl.refresh();
+
+    if (outcomes.length > 0) {
+      gitResultDialog.show({ action: "Add files", ok: false, message: outcomes.join("\n") });
+    } else {
+      setStatus(`Added ${external.length} item${external.length === 1 ? "" : "s"}`, 3500);
+    }
+    return;
+  }
+
+  const source = transfer.getData(TREE_DRAG_TYPE) || draggingPath;
+  if (source === null || source === "") return;
+
+  // Ctrl turns a move into a copy, which is what every file manager does and what the
+  // `copy` drop effect shown during the drag already promised.
+  const copying = event.ctrlKey;
+  const result = copying
+    ? await window.adcode.files.copy(source, targetDir)
+    : await window.adcode.files.move(source, targetDir);
+
+  if (!result.ok) {
+    gitResultDialog.show({ action: copying ? "Copy" : "Move", ok: false, message: result.message });
+    return;
+  }
+
+  // Both ends change: the item left one folder and arrived in another.
+  await refreshDirectory(containingDirOf(source));
+  await refreshDirectory(targetDir);
+  if (!copying && result.path !== undefined) retitleTab(source, result.path);
+
+  setStatus(result.message, 3500);
+  void sourceControl.refresh();
+}
+
+function attachRowDragAndDrop(row: HTMLElement, entry: DirEntry): void {
+  row.draggable = true;
+
+  row.addEventListener("dragstart", (event) => {
+    draggingPath = entry.path;
+    event.dataTransfer?.setData(TREE_DRAG_TYPE, entry.path);
+    if (event.dataTransfer !== null) event.dataTransfer.effectAllowed = "copyMove";
+    row.dataset["dragging"] = "true";
+  });
+
+  row.addEventListener("dragend", () => {
+    draggingPath = null;
+    delete row.dataset["dragging"];
+    clearDropHighlight();
+  });
+
+  row.addEventListener("dragover", (event) => {
+    const target = dropTargetFor(entry.path);
+    // Dropping a folder into itself or its own descendant would detach the subtree; the
+    // main process refuses it too, but refusing here keeps the cursor honest.
+    if (draggingPath !== null && (samePath(draggingPath, target) || isUnder(draggingPath, target))) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer !== null) event.dataTransfer.dropEffect = event.ctrlKey ? "copy" : "move";
+
+    clearDropHighlight();
+    // Highlight the folder that will receive it, which for a file row is its parent.
+    const marked = entry.isDirectory ? row : (rowFor(target) ?? el("filetree"));
+    marked.dataset["dropTarget"] = "true";
+  });
+
+  row.addEventListener("drop", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    clearDropHighlight();
+    void handleDrop(event, dropTargetFor(entry.path));
+  });
+}
+
+/**
+ * Re-read a file from disk into its open buffer.
+ *
+ * Used by Revert and by discarding changes. Both leave the file on disk different from
+ * the buffer, and a buffer that still holds the old text will write it straight back
+ * over the restored file on the next save.
+ */
+async function reloadFile(path: string): Promise<boolean> {
+  try {
+    const file = await window.adcode.files.read(path);
+    editorHost.replaceText(path, file.text);
+    return true;
+  } catch {
+    setStatus("Could not re-read that file.", 3000);
+    return false;
+  }
+}
+
 async function copyText(text: string, said: string): Promise<void> {
   await window.adcode.clipboard.writeText(text);
   setStatus(said, 2500);
@@ -694,8 +885,85 @@ async function revealInExplorer(path: string): Promise<void> {
   if (!result.ok) setStatus(result.message, 4000);
 }
 
+/* ── The file clipboard ───────────────────────────────────────────────── */
+
+/**
+ * What Cut or Copy last put down.
+ *
+ * Deliberately not the system clipboard. A path in the OS clipboard is a string that
+ * pasting into an editor would drop as text, and reading files *out* of the system
+ * clipboard would mean honouring whatever any other application had put there.
+ */
+let fileClipboard: { readonly path: string; readonly mode: "cut" | "copy" } | null = null;
+
+async function pasteInto(targetDir: string): Promise<void> {
+  const held = fileClipboard;
+  if (held === null) return;
+
+  const result =
+    held.mode === "copy"
+      ? await window.adcode.files.copy(held.path, targetDir)
+      : await window.adcode.files.move(held.path, targetDir);
+
+  if (!result.ok) {
+    gitResultDialog.show({ action: "Paste", ok: false, message: result.message });
+    return;
+  }
+
+  // A cut is spent once pasted; leaving it armed would move the file again on the next
+  // paste, from a location it no longer occupies.
+  if (held.mode === "cut") {
+    fileClipboard = null;
+    await refreshDirectory(containingDirOf(held.path));
+    if (result.path !== undefined) retitleTab(held.path, result.path);
+  }
+
+  await refreshDirectory(targetDir);
+  setStatus(result.message, 3500);
+  void sourceControl.refresh();
+}
+
+async function duplicate(path: string): Promise<void> {
+  const result = await window.adcode.files.duplicate(path);
+  if (!result.ok) {
+    gitResultDialog.show({ action: "Duplicate", ok: false, message: result.message });
+    return;
+  }
+
+  await refreshDirectory(containingDirOf(path));
+  setStatus(result.message, 3500);
+  void sourceControl.refresh();
+}
+
+/* ── Git actions on one file ──────────────────────────────────────────── */
+
+/** The staged/worktree state of one file within a status snapshot. */
+function gitEntryFor(status: GitStatusView | null, relative: string): { staged: string } | null {
+  const entry = status?.entries.find((candidate) => samePath(candidate.path, relative));
+  return entry === undefined ? null : { staged: entry.staged };
+}
+
+async function runGitOnFile(action: string, path: string, run: () => Promise<GitOutcome>): Promise<void> {
+  const outcome = await run().catch(
+    (error: unknown): GitOutcome => ({
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+    }),
+  );
+
+  gitResultDialog.show({
+    action,
+    ok: outcome.ok,
+    message: outcome.message,
+    details: [["File", baseName(path)]],
+  });
+
+  void sourceControl.refresh();
+  void refreshGitOverlay();
+}
+
 /** The menu for a row, or - when `path` is null - for empty space, meaning the root. */
-function treeMenuNodes(path: string | null): ContextMenuNode[] {
+function treeMenuNodes(path: string | null, status: GitStatusView | null): ContextMenuNode[] {
   if (workspaceRoot === null) return [];
 
   // New items go inside a clicked folder and beside a clicked file, which is where
@@ -707,9 +975,30 @@ function treeMenuNodes(path: string | null): ContextMenuNode[] {
     { label: "New Folder", run: () => void beginCreate(createIn, "folder") },
   ];
 
-  if (path === null) return nodes;
+  if (path === null) {
+    nodes.push(
+      { kind: "separator" },
+      {
+        label: "Paste",
+        accelerator: "Ctrl+V",
+        disabled: fileClipboard === null,
+        run: () => void pasteInto(workspaceRoot as string),
+      },
+    );
+    return nodes;
+  }
 
   nodes.push(
+    { kind: "separator" },
+    { label: "Cut", accelerator: "Ctrl+X", run: () => { fileClipboard = { path, mode: "cut" }; setStatus(`Cut ${baseName(path)}`, 3000); } },
+    { label: "Copy", accelerator: "Ctrl+C", run: () => { fileClipboard = { path, mode: "copy" }; setStatus(`Copied ${baseName(path)}`, 3000); } },
+    {
+      label: "Paste",
+      accelerator: "Ctrl+V",
+      disabled: fileClipboard === null,
+      run: () => void pasteInto(createIn),
+    },
+    { label: "Duplicate", run: () => void duplicate(path) },
     { kind: "separator" },
     { label: "Copy Path", run: () => void copyText(path, "Path copied") },
     {
@@ -717,12 +1006,73 @@ function treeMenuNodes(path: string | null): ContextMenuNode[] {
       run: () => void copyText(relativePath(path) ?? path, "Relative path copied"),
     },
     { label: "Reveal in File Explorer", run: () => void revealInExplorer(path) },
+  );
+
+  /* The git group, only where there is a repository and only for tracked-able files. */
+  const relative = relativePath(path);
+  if (status?.isRepo === true && relative !== null) {
+    const entry = gitEntryFor(status, relative);
+    const isStaged = entry !== null && entry.staged !== "none";
+
+    nodes.push({ kind: "heading", label: "Git" });
+
+    nodes.push(
+      isStaged
+        ? { label: "Unstage", run: () => void runGitOnFile("Unstage", path, () => window.adcode.git.unstage([relative])) }
+        : { label: "Stage", run: () => void runGitOnFile("Stage", path, () => window.adcode.git.stage([relative])) },
+    );
+
+    nodes.push({
+      label: "Discard Changes",
+      danger: true,
+      disabled: entry === null,
+      run: () => void discardFileChanges(path, relative),
+    });
+
+    nodes.push(
+      { label: "Commit…", run: () => void commitFromTree(path, relative) },
+      { label: "Push", run: () => void runGitOnFile("Push", path, () => window.adcode.git.push()) },
+    );
+  }
+
+  nodes.push(
     { kind: "separator" },
     { label: "Rename", accelerator: "F2", run: () => beginRename(path) },
     { label: "Delete", accelerator: "Del", danger: true, run: () => void confirmAndTrash(path) },
   );
 
   return nodes;
+}
+
+/** Discarding throws away uncommitted work, so it asks first and says what it costs. */
+async function discardFileChanges(path: string, relative: string): Promise<void> {
+  const sure = await confirmDialog.ask({
+    title: `Discard changes to ${baseName(path)}?`,
+    body: "The file goes back to its last committed state. Uncommitted edits cannot be recovered from git.",
+    confirmLabel: "Discard changes",
+    danger: true,
+  });
+  if (!sure) return;
+
+  await runGitOnFile("Discard", path, () => window.adcode.git.discard([relative]));
+
+  // The buffer still holds the old text, so it is reloaded rather than left disagreeing
+  // with the file the user just restored.
+  if (tabs.some((tab) => samePath(tab.path, path))) await reloadFile(path);
+}
+
+/** Stage this one file, then hand over to the commit box with it ready to go. */
+async function commitFromTree(path: string, relative: string): Promise<void> {
+  const staged = await window.adcode.git.stage([relative]);
+  if (!staged.ok) {
+    gitResultDialog.show({ action: "Stage", ok: false, message: staged.message });
+    return;
+  }
+
+  showView("scm");
+  await sourceControl.refresh();
+  sourceControl.focusCommitMessage();
+  setStatus(`${baseName(path)} staged - write a message and commit`, 5000);
 }
 
 /**
@@ -733,6 +1083,50 @@ function treeMenuNodes(path: string | null): ContextMenuNode[] {
  * read the menu, press the key it just showed you.
  */
 let menuRow: HTMLElement | null = null;
+
+/*
+ * A drop anywhere else must not navigate the window.
+ *
+ * Chromium's default for a dropped file is to open it as the document, which in a
+ * packaged app replaces the entire workbench with the file's contents and offers no way
+ * back. The tree's own handlers call `preventDefault` first; this covers everywhere else.
+ */
+for (const type of ["dragover", "drop"] as const) {
+  window.addEventListener(type, (event) => {
+    // `event.target` is not always an element - dragging over the page reports `document`,
+    // which has no `closest` - and an exception here would abort the handler before the
+    // `preventDefault` that stops the drop navigating the window away.
+    const target = event.target;
+    if (target instanceof Element && target.closest("#filetree") !== null) return;
+
+    event.preventDefault();
+    if (type === "drop") clearDropHighlight();
+  });
+}
+
+/* Empty space below the rows drops into the workspace root. */
+el("filetree").addEventListener("dragover", (event) => {
+  if (workspaceRoot === null) return;
+  if (event.target instanceof Element && event.target.closest(".tree-row") !== null) return;
+
+  event.preventDefault();
+  if (event.dataTransfer !== null) event.dataTransfer.dropEffect = event.ctrlKey ? "copy" : "move";
+  clearDropHighlight();
+  el("filetree").dataset["dropTarget"] = "true";
+});
+
+el("filetree").addEventListener("dragleave", (event) => {
+  if (event.target === el("filetree")) clearDropHighlight();
+});
+
+el("filetree").addEventListener("drop", (event) => {
+  if (workspaceRoot === null) return;
+  if (event.target instanceof Element && event.target.closest(".tree-row") !== null) return;
+
+  event.preventDefault();
+  clearDropHighlight();
+  void handleDrop(event, workspaceRoot);
+});
 
 el("filetree").addEventListener("contextmenu", (event) => {
   event.preventDefault();
@@ -751,7 +1145,16 @@ el("filetree").addEventListener("contextmenu", (event) => {
   }
 
   menuRow = row;
-  treeMenu.open(event.clientX, event.clientY, treeMenuNodes(row?.dataset["path"] ?? null));
+  const path = row?.dataset["path"] ?? null;
+  const { clientX, clientY } = event;
+
+  // Fetched per open rather than cached: the git group has to describe this file as it
+  // is now, and a menu offering "Stage" for something already staged is worse than one
+  // that took an extra moment to appear.
+  void window.adcode.git
+    .status()
+    .catch(() => null)
+    .then((status) => treeMenu.open(clientX, clientY, treeMenuNodes(path, status)));
 });
 
 el("filetree").addEventListener("keydown", (event) => {
@@ -767,6 +1170,24 @@ el("filetree").addEventListener("keydown", (event) => {
   if (event.key === "Delete") {
     event.preventDefault();
     void confirmAndTrash(path);
+    return;
+  }
+
+  // The clipboard keys the menu advertises. Only while focus is on a row, so Ctrl+C in
+  // the editor still copies text rather than picking up a file.
+  if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return;
+
+  const key = event.key.toLowerCase();
+  if (key === "x" || key === "c") {
+    event.preventDefault();
+    fileClipboard = { path, mode: key === "x" ? "cut" : "copy" };
+    setStatus(`${key === "x" ? "Cut" : "Copied"} ${baseName(path)}`, 3000);
+    return;
+  }
+
+  if (key === "v" && fileClipboard !== null) {
+    event.preventDefault();
+    void pasteInto(createTargetFor(path));
   }
 });
 
@@ -1020,6 +1441,9 @@ const gitResultDialog = createResultDialog(document.body);
 /* Anything that destroys work asks first, through here. */
 const confirmDialog = createConfirmDialog(document.body);
 
+/* The replacement for `window.prompt`, which Electron does not implement. */
+const promptDialog = createPromptDialog(document.body);
+
 const treeMenu = createContextMenu(document.body);
 attachContextMenuDismissal(treeMenu, () => (menuRow ?? editorHost).focus());
 
@@ -1028,6 +1452,7 @@ const sourceControl = createSourceControlPanel({
   workspaceRoot: () => workspaceRoot,
   notify: (text) => setStatus(text, 4000),
   reportResult: (result) => gitResultDialog.show(result),
+  promptFor: (request) => promptDialog.ask(request),
   openRevision: (path, ref, shortHash) => void openRevision(path, ref, shortHash),
   openLocalVersion: (path, id, savedAt) => void openLocalVersion(path, id, savedAt),
   absolutePath,
@@ -1412,14 +1837,7 @@ function registerCommands(): void {
   });
   add("file.revert", "Revert File", async () => {
     if (activePath === null || editorHost.isReadOnly(activePath)) return;
-
-    try {
-      const file = await window.adcode.files.read(activePath);
-      editorHost.replaceText(activePath, file.text);
-      setStatus("Reverted.", 1500);
-    } catch {
-      setStatus("Could not re-read that file.", 3000);
-    }
+    if (await reloadFile(activePath)) setStatus("Reverted.", 1500);
   });
   add("editor.close", "Close Editor", () => {
     if (activePath !== null) closeTab(activePath);
@@ -1600,7 +2018,7 @@ window.addEventListener("keydown", (event) => {
   // A modal result owns the keyboard while it is up. Without this, Ctrl+S saved and Alt
   // opened the menu bar behind a dialog the user was still reading. Escape is deliberately
   // not handled here: `<dialog>` closes itself on cancel, and doing it twice would race.
-  if (gitResultDialog.isOpen()) return;
+  if (gitResultDialog.isOpen() || confirmDialog.isOpen() || promptDialog.isOpen()) return;
 
   // Escape dismisses whatever transient surface is on top, wherever focus happens to be.
   // Leaving this to each surface's own input meant a palette opened by shortcut could not

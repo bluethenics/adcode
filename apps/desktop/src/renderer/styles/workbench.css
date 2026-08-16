@@ -247,6 +247,73 @@ select {
   background: var(--bg-selected);
 }
 
+/* ── Row actions and drag targets ─────────────────────────────────────── */
+
+/*
+ * New File / New Folder on the folder row itself.
+ *
+ * Revealed on hover and on keyboard focus - `:focus-within` matters, or the buttons can
+ * be tabbed to while still invisible, which is worse than not having them.
+ */
+.tree-actions {
+  display: flex;
+  gap: 1px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 90ms linear;
+}
+
+.tree-row:hover .tree-actions,
+.tree-row:focus-within .tree-actions {
+  opacity: 1;
+}
+
+.tree-action {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.tree-action:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.tree-action svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The row being dragged fades, so it is obvious which one is in flight. */
+.tree-row[data-dragging="true"] {
+  opacity: 0.4;
+}
+
+/* The folder that will receive the drop - outlined rather than filled, so the row's own
+   hover and selection states stay readable underneath it. */
+[data-drop-target="true"] {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  border-radius: 7px;
+  background: var(--bg-selected);
+}
+
+.filetree[data-drop-target="true"] {
+  outline-offset: -2px;
+}
+
 /* ── Inline naming ────────────────────────────────────────────────────── */
 
 /*
