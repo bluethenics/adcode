@@ -12,8 +12,8 @@ npm install
 npm start               # build if needed, then launch
 npm run package         # installer + portable .exe into release/
 
-npm run verify          # typecheck + architecture rules + full suite (740 tests)
-npm run smoke           # launch the built app and drive it (48 checks)
+npm run verify          # typecheck + architecture rules + full suite (759 tests)
+npm run smoke           # launch the built app and drive it (52 checks)
 npm run icons           # rasterise build/icon.svg into icon.ico and icon.png
 npm run dev             # electron-vite dev server, with hot reload
 npm run mock-server     # ad serving contract on :8787, no build step
@@ -35,7 +35,7 @@ npm run mock-server     # ad serving contract on :8787, no build step
 | `packages/settings` | 44 settings across 9 groups. 61 tests. |
 | `packages/ai` | Completion state machine, diff review, agent loop, four providers. 70 tests. |
 | `mock-server` | All four `/v1/*` endpoints, an asset host, fault injection. 21 tests. |
-| `apps/desktop` | The shell: menu bar, command palette, tabs, tree with right-click actions and drag-and-drop, git and search panels, commit browser, multi-terminal, settings, chat, session restore. |
+| `apps/desktop` | The shell: menu bar, command palette, tabs, tree with right-click actions and drag-and-drop, git and search panels, commit browser, multi-terminal, resizable layout, settings, chat, session restore. |
 
 **Not built:** the Language group (LSP client, DAP client, tree-sitter), and the Navigation
 rows that depend on it — symbol search, go-to-definition, breadcrumbs, outline. Nothing on

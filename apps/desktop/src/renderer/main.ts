@@ -17,6 +17,13 @@ import { createMenuBar } from "./workbench/menuBar.ts";
 import { createPalette } from "./workbench/palette.ts";
 import { fileIcon, folderIcon } from "./workbench/fileIcons.ts";
 import { brandMark } from "./workbench/brandMark.ts";
+import { createSplitter } from "./workbench/splitter.ts";
+import {
+  DEFAULT_PANEL_HEIGHT,
+  DEFAULT_SIDEBAR_WIDTH,
+  clampPanelHeight,
+  clampSidebarWidth,
+} from "./workbench/layoutSizes.ts";
 import { MENU_BAR, formatAccelerator } from "../shared/menuModel.ts";
 import { createQuickOpen, createSearchPanel } from "./panels/searchPanel.ts";
 import { createChatWidget } from "./ai/chatWidget.ts";
@@ -1226,6 +1233,9 @@ function terminalPanel(): TerminalPanel {
     theme: () => theme,
     notify: (message) => setStatus(message, 4000),
     onLayoutChange: () => {
+      // The divider belongs to the panel: hidden together, or it hangs under the editor
+      // as a grabbable line that resizes something nobody can see.
+      el("splitter-panel").hidden = el("panel").hidden;
       editorHost.layout();
       if (el("panel").hidden) editorHost.focus();
     },
@@ -1235,6 +1245,64 @@ function terminalPanel(): TerminalPanel {
 }
 
 const toggleTerminal = (): Promise<void> => terminalPanel().toggle();
+
+/* ── Adjustable layout ────────────────────────────────────────────────── */
+
+let sidebarWidth = DEFAULT_SIDEBAR_WIDTH;
+let panelHeight = DEFAULT_PANEL_HEIGHT;
+
+/**
+ * Push both sizes into CSS, re-clamped against the window as it is now.
+ *
+ * Called on every drag frame and on every window resize. Shrinking the window would
+ * otherwise leave a sidebar wider than the screen, with its own divider off the right
+ * edge and no way to drag it back.
+ */
+function applyLayout(): void {
+  sidebarWidth = clampSidebarWidth(sidebarWidth, window.innerWidth);
+  panelHeight = clampPanelHeight(panelHeight, window.innerHeight);
+
+  const workbench = el("workbench");
+  workbench.style.setProperty("--sidebar-width", `${sidebarWidth}px`);
+  workbench.style.setProperty("--panel-height", `${panelHeight}px`);
+
+  // Monaco and xterm both measure their own container; neither notices a CSS variable.
+  // xterm is the one that shows it: a pty left at the old column count wraps its output
+  // in the wrong place until something else happens to refit it.
+  editorHost.layout();
+  terminal?.fit();
+}
+
+createSplitter({
+  element: el("splitter-sidebar"),
+  axis: "x",
+  label: "Resize sidebar",
+  sign: 1,
+  reset: DEFAULT_SIDEBAR_WIDTH,
+  current: () => sidebarWidth,
+  apply: (size) => {
+    sidebarWidth = size;
+    applyLayout();
+  },
+  commit: () => rememberSession(),
+});
+
+createSplitter({
+  element: el("splitter-panel"),
+  axis: "y",
+  label: "Resize terminal panel",
+  // The panel sits below the editor, so it grows as the pointer moves up.
+  sign: -1,
+  reset: DEFAULT_PANEL_HEIGHT,
+  current: () => panelHeight,
+  apply: (size) => {
+    panelHeight = size;
+    applyLayout();
+  },
+  commit: () => rememberSession(),
+});
+
+window.addEventListener("resize", () => applyLayout());
 
 /* ── Status ───────────────────────────────────────────────────────────── */
 
@@ -1411,6 +1479,7 @@ function rememberSession(): void {
     // tab whose content came from a commit the user has probably forgotten opening.
     openFiles: tabs.filter((tab) => !editorHost.isReadOnly(tab.path)).map((tab) => tab.path),
     activeFile: activePath !== null && !editorHost.isReadOnly(activePath) ? activePath : null,
+    layout: { sidebarWidth, panelHeight },
   });
 }
 
@@ -1762,6 +1831,14 @@ async function boot(): Promise<void> {
   // §4: "Restore workspace" reopens the folder in the main process, so the workspace is
   // already set by the time this asks for it.
   const restored = await window.adcode.session.restore();
+
+  // Before the tree and the editors, so nothing is laid out at the default width and then
+  // moved - which shows up as a visible jump on every launch.
+  if (restored.layout !== undefined) {
+    sidebarWidth = restored.layout.sidebarWidth;
+    panelHeight = restored.layout.panelHeight;
+    applyLayout();
+  }
 
   const existing = await window.adcode.workspace.current();
   if (existing !== null) {

@@ -843,6 +843,96 @@ try {
   await rm(join(REPO, SCRATCH), { recursive: true, force: true }).catch(() => {});
 }
 
+/*
+ * The adjustable layout, dragged for real.
+ *
+ * `Input.dispatchMouseEvent` is what exercises pointer capture: a drag that leaves the
+ * 4px divider - which every drag does immediately - only keeps receiving moves because
+ * the handle captured the pointer. Setting the CSS variable directly would prove nothing
+ * about that, which is the part most likely to break.
+ */
+async function dragBy(handleId, dx, dy) {
+  const from = await evaluate(
+    `(() => {
+       const el = document.getElementById(${JSON.stringify(handleId)});
+       if (!el || el.hidden) return null;
+       const r = el.getBoundingClientRect();
+       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+     })()`,
+  );
+  if (from === null) return false;
+
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", x: from.x, y: from.y, button: "left", clickCount: 1, buttons: 1 });
+  // Two moves: one small, one to the target. A single jump can be coalesced away.
+  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from.x + Math.sign(dx) * 2, y: from.y + Math.sign(dy) * 2, button: "left", buttons: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from.x + dx, y: from.y + dy, button: "left", buttons: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: from.x + dx, y: from.y + dy, button: "left", buttons: 0 });
+  await sleep(300);
+  return true;
+}
+
+const sidebarWidthNow = () =>
+  evaluate("Math.round(document.getElementById('sidebar').getBoundingClientRect().width)");
+
+checks.sidebarResizes = await (async () => {
+  const before = await sidebarWidthNow();
+  if (!(await dragBy("splitter-sidebar", 120, 0))) return "no sidebar handle";
+  const after = await sidebarWidthNow();
+  if (after <= before) return `width did not grow: ${before} -> ${after}`;
+
+  // Roughly the distance dragged, not merely "bigger": a handle that jumps to some fixed
+  // size would also pass a `>` check.
+  return Math.abs(after - before - 120) <= 8 ? true : `expected ~+120, got ${after - before}`;
+})();
+
+checks.sidebarClampsAndResets = await (async () => {
+  // Far past the ceiling in one throw; it must stop rather than eat the window.
+  await dragBy("splitter-sidebar", 4000, 0);
+  const clamped = await sidebarWidthNow();
+  if (clamped > 600) return `not clamped: ${clamped}`;
+
+  await evaluate(
+    `(() => {
+       const el = document.getElementById('splitter-sidebar');
+       el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+       return true;
+     })()`,
+  );
+  await sleep(250);
+
+  const reset = await sidebarWidthNow();
+  return reset === 240 ? true : `double-click reset to ${reset}, expected 240`;
+})();
+
+checks.panelResizes = await (async () => {
+  // The panel is open from the terminal checks above, and so is its divider.
+  const height = () => evaluate("Math.round(document.getElementById('panel').getBoundingClientRect().height)");
+  const before = await height();
+  if (before === 0) return "panel is not open";
+
+  // Upwards makes the panel taller, which is the sign the splitter has to get right.
+  if (!(await dragBy("splitter-panel", 0, -90))) return "no panel handle";
+  const after = await height();
+
+  return after > before && Math.abs(after - before - 90) <= 8
+    ? true
+    : `expected ~+90, got ${after - before}`;
+})();
+
+checks.panelDividerFollowsPanel = await evaluate(
+  `(async () => {
+     const divider = document.getElementById('splitter-panel');
+     const panel = document.getElementById('panel');
+     if (divider.hidden !== panel.hidden) return 'divider and panel disagree while open';
+
+     document.getElementById('panel-close').click();
+     await new Promise(r => setTimeout(r, 400));
+
+     // A handle left behind under the editor resizes something nobody can see.
+     return divider.hidden && panel.hidden ? true : 'divider survived the panel closing';
+   })()`,
+);
+
 // The `<$>` mark is drawn, not typed, so it cannot fall back to a missing font.
 checks.brandMarkDrawn = await evaluate(
   `(() => {

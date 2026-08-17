@@ -101,3 +101,86 @@ describe("failing soft", () => {
     expect(restored.openFiles[0]).toBe("file-0.ts");
   });
 });
+
+/**
+ * The adjustable layout's half of the session.
+ *
+ * The store's job here is narrow on purpose: it rejects what could never be a size, and
+ * leaves "is 900px a sensible sidebar" to the renderer, which is the only layer that can
+ * see how big the window actually is.
+ */
+describe("layout", () => {
+  it("round-trips the sizes the user dragged to", async () => {
+    const store = createSessionStore(dir);
+    await store.save({
+      root: null,
+      openFiles: [],
+      activeFile: null,
+      layout: { sidebarWidth: 320, panelHeight: 400 },
+    });
+
+    expect((await store.load()).layout).toEqual({ sidebarWidth: 320, panelHeight: 400 });
+  });
+
+  it("omits the layout entirely for a session written before it existed", async () => {
+    const store = createSessionStore(dir);
+    await store.save({ root: null, openFiles: [], activeFile: null });
+
+    expect((await store.load()).layout).toBeUndefined();
+  });
+
+  it("rejects sizes that could never be sizes", async () => {
+    const store = createSessionStore(dir);
+
+    for (const layout of [
+      { sidebarWidth: -40, panelHeight: 300 },
+      { sidebarWidth: 0, panelHeight: 300 },
+      { sidebarWidth: 240, panelHeight: Number.NaN },
+      { sidebarWidth: 99_999, panelHeight: 300 },
+      { sidebarWidth: "wide", panelHeight: 300 } as unknown as { sidebarWidth: number; panelHeight: number },
+    ]) {
+      await store.save({ root: null, openFiles: [], activeFile: null, layout });
+      expect((await store.load()).layout, JSON.stringify(layout)).toBeUndefined();
+    }
+  });
+
+  it("keeps a large-but-plausible size, leaving the window fit to the renderer", async () => {
+    // Stored on a wide monitor and opened on a laptop: still a number, still worth
+    // keeping, and clamped where the window size is actually known.
+    const store = createSessionStore(dir);
+    await store.save({
+      root: null,
+      openFiles: [],
+      activeFile: null,
+      layout: { sidebarWidth: 900, panelHeight: 800 },
+    });
+
+    expect((await store.load()).layout).toEqual({ sidebarWidth: 900, panelHeight: 800 });
+  });
+
+  it("takes both sizes or neither", async () => {
+    // Half a layout would restore one dimension and silently default the other, which
+    // reads as the app forgetting at random.
+    const store = createSessionStore(dir);
+    await store.save({
+      root: null,
+      openFiles: [],
+      activeFile: null,
+      layout: { sidebarWidth: 320 } as unknown as { sidebarWidth: number; panelHeight: number },
+    });
+
+    expect((await store.load()).layout).toBeUndefined();
+  });
+
+  it("rounds to whole pixels", async () => {
+    const store = createSessionStore(dir);
+    await store.save({
+      root: null,
+      openFiles: [],
+      activeFile: null,
+      layout: { sidebarWidth: 320.7, panelHeight: 260.2 },
+    });
+
+    expect((await store.load()).layout).toEqual({ sidebarWidth: 321, panelHeight: 260 });
+  });
+});

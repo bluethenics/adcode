@@ -271,10 +271,18 @@ export interface RecoveredDraftView {
 }
 
 /** What the shell reopens on launch (§4's "Restore workspace"). */
+/** Sizes the user dragged the workbench to. Pixels. */
+export interface LayoutView {
+  readonly sidebarWidth: number;
+  readonly panelHeight: number;
+}
+
 export interface SessionStateView {
   readonly root: string | null;
   readonly openFiles: readonly string[];
   readonly activeFile: string | null;
+  /** Absent in sessions written before the layout was adjustable. */
+  readonly layout?: LayoutView;
 }
 
 export interface SearchQueryView {

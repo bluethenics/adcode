@@ -130,12 +130,24 @@ export function registerIpc(): void {
     const asString = (value: unknown): string | null =>
       typeof value === "string" && value.length > 0 ? value : null;
 
+    // Shape only. `sessionStore` decides what a usable layout is, and the renderer
+    // clamps it to the real window - neither of which this layer can judge.
+    const layout = raw["layout"];
+
     void saveSession({
       root: asString(raw["root"]),
       openFiles: Array.isArray(raw["openFiles"])
         ? raw["openFiles"].filter((value): value is string => typeof value === "string")
         : [],
       activeFile: asString(raw["activeFile"]),
+      ...(typeof layout === "object" && layout !== null
+        ? {
+            layout: {
+              sidebarWidth: Number((layout as Record<string, unknown>)["sidebarWidth"]),
+              panelHeight: Number((layout as Record<string, unknown>)["panelHeight"]),
+            },
+          }
+        : {}),
     });
   });
 
