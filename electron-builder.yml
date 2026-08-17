@@ -25,6 +25,11 @@ extraMetadata:
 files:
   - apps/desktop/out/**/*
   - package.json
+  # The main process reads this at runtime for the window icon, so it has to be inside the
+  # asar. `buildResources` above only feeds the installer and the executable's own embedded
+  # icon; it puts nothing where a running app can read it, which is why the packaged build
+  # logged "Failed to load image from path ...app.asar\build\icon.png" on every launch.
+  - build/icon.png
   # Vite bundles these into the renderer at build time; the copies in node_modules would
   # be about a hundred megabytes of dead weight inside the installer.
   - "!node_modules/monaco-editor/**"
