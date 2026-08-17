@@ -667,3 +667,27 @@ kbd {
   background: var(--text-tertiary);
   background-clip: content-box;
 }
+
+/* ── Brand mark ───────────────────────────────────────────────────────── */
+
+.placeholder-mark {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+  /* Dimmer than the heading: the mark introduces the app, it does not shout at someone
+     who has not opened anything yet. */
+  color: var(--text-tertiary);
+}
+
+.brand-mark {
+  display: block;
+}
+
+/* In the About card the mark replaces the outcome badge, so the badge's own circular
+   plate and fill have to get out of its way. */
+.result-badge:has(.brand-mark) {
+  width: auto;
+  height: auto;
+  background: none;
+  color: var(--text-primary);
+}

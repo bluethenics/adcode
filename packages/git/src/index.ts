@@ -22,6 +22,8 @@ export type {
   FileChange,
   GitBranch,
   GitCommit,
+  GitCommitDetail,
+  GitCommitFile,
   GitExec,
   GitExecResult,
   GitRemote,

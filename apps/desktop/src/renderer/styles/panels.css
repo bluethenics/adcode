@@ -4,13 +4,50 @@
 
 /* ── Source control ───────────────────────────────────────────────────── */
 
+/*
+ * The panel itself does not scroll; its two lists do.
+ *
+ * One scrollbar for the whole column put the history below however many changed files
+ * there happened to be - on this repository, twenty-two of them, which is several screens
+ * of scrolling before the commit list is even visible. Splitting the scroll means both
+ * halves are always reachable: the changes take what they need up to a share of the
+ * height, and the history gets the rest.
+ */
 .scm-panel {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 8px;
-  overflow-y: auto;
+  overflow: hidden;
   height: 100%;
+}
+
+/* Header, actions and commit box keep their natural height. */
+.scm-panel > .scm-header,
+.scm-panel > .scm-actions,
+.scm-panel > .scm-commit {
+  flex: none;
+}
+
+/* A floor as well as a ceiling: `flex: 0 1 auto` alone let the history squeeze the
+   changes down to a single visible row. */
+.scm-list {
+  flex: 1 1 auto;
+  min-height: 108px;
+  max-height: 45%;
+  overflow-y: auto;
+}
+
+.scm-timeline {
+  flex: none;
+  max-height: 22%;
+  overflow-y: auto;
+}
+
+.scm-history {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow-y: auto;
 }
 
 .scm-header {
@@ -453,4 +490,202 @@
 .timeline-row[data-kind="local"] .timeline-subject {
   font-family: var(--font-mono);
   color: var(--text-secondary);
+}
+
+/* ── Commit browser ───────────────────────────────────────────────────── */
+
+/*
+ * GitHub's commit list, at sidebar width: subject first because it is what people scan,
+ * author and age underneath, hash last because it is the part you copy rather than read.
+ */
+.history-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.history-commit {
+  border-radius: 7px;
+}
+
+.history-commit[data-open="true"] {
+  background: var(--bg-hover);
+}
+
+.history-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1px 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-head:hover {
+  background: var(--bg-hover);
+}
+
+.history-subject {
+  grid-column: 1;
+  font-size: var(--text-xs);
+  font-weight: 560;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-meta {
+  grid-column: 1;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-hash {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.history-detail {
+  padding: 2px 8px 8px;
+}
+
+/*
+ * The body scrolls rather than growing without limit.
+ *
+ * A long commit message pushed the file list - the part with the Restore buttons on it,
+ * and the reason anyone opened the commit - clean off the bottom of the panel.
+ */
+.history-body {
+  max-height: 88px;
+  overflow-y: auto;
+  margin: 0 0 6px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+
+.history-summary {
+  margin-bottom: 4px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-file {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+}
+
+.history-file:hover {
+  background: var(--bg-active);
+}
+
+.history-file-open {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* One letter, coloured by what happened - the same vocabulary as the changes list. */
+.history-file-letter {
+  flex: none;
+  width: 11px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+
+.history-file[data-kind="added"] .history-file-letter {
+  color: var(--success);
+}
+
+.history-file[data-kind="deleted"] .history-file-letter {
+  color: var(--danger);
+}
+
+.history-file[data-kind="modified"] .history-file-letter {
+  color: var(--warning);
+}
+
+.history-file-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  /* Truncated at the *start*: the filename matters more than the folders above it. */
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.history-file-stat {
+  display: flex;
+  gap: 5px;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-added {
+  color: var(--success);
+}
+
+.stat-removed {
+  color: var(--danger);
+}
+
+/* Revealed on hover, like the tree's row actions: restoring is deliberate, not ambient. */
+.history-restore {
+  flex: none;
+  margin-right: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 90ms linear;
+}
+
+.history-file:hover .history-restore,
+.history-restore:focus-visible {
+  opacity: 1;
+}
+
+.history-restore:hover {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+}
+
+.history-more {
+  align-self: flex-start;
+  margin-top: 4px;
 }

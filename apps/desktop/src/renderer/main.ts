@@ -16,6 +16,7 @@ import { createCommandRegistry } from "./workbench/commands.ts";
 import { createMenuBar } from "./workbench/menuBar.ts";
 import { createPalette } from "./workbench/palette.ts";
 import { fileIcon, folderIcon } from "./workbench/fileIcons.ts";
+import { brandMark } from "./workbench/brandMark.ts";
 import { MENU_BAR, formatAccelerator } from "../shared/menuModel.ts";
 import { createQuickOpen, createSearchPanel } from "./panels/searchPanel.ts";
 import { createChatWidget } from "./ai/chatWidget.ts";
@@ -1453,6 +1454,8 @@ const sourceControl = createSourceControlPanel({
   notify: (text) => setStatus(text, 4000),
   reportResult: (result) => gitResultDialog.show(result),
   promptFor: (request) => promptDialog.ask(request),
+  openCommitDiff: (ref, shortHash, path) => void openCommitDiff(ref, shortHash, path),
+  restoreFile: (ref, shortHash, path) => restoreFileFromCommit(ref, shortHash, path),
   openRevision: (path, ref, shortHash) => void openRevision(path, ref, shortHash),
   openLocalVersion: (path, id, savedAt) => void openLocalVersion(path, id, savedAt),
   absolutePath,
@@ -1510,6 +1513,80 @@ async function openRevision(path: string, ref: string, shortHash: string): Promi
   editorHost.setReadOnly(key, true);
   tabs.push({ path: key, name, dirty: false });
   activateTab(key);
+}
+
+/**
+ * Show what one commit did to one file, as a diff.
+ *
+ * The diff rather than the resulting file: the question being asked from a commit row is
+ * "what changed here", and answering it with the whole file makes the reader find the
+ * change themselves. Read-only, in its own tab keyed by hash and path, so it can never
+ * shadow the working copy or be saved over it.
+ */
+async function openCommitDiff(ref: string, shortHash: string, path: string): Promise<void> {
+  const diff = await window.adcode.git.commitFileDiff(ref, path).catch(() => "");
+  if (diff.trim().length === 0) {
+    setStatus("No changes to show for that file.", 3000);
+    return;
+  }
+
+  const key = `adcode-commit-diff:${shortHash}:${path}`;
+  const name = `${basename(path)} @ ${shortHash}`;
+
+  if (tabs.some((tab) => tab.path === key)) {
+    activateTab(key);
+    return;
+  }
+
+  editorHost.open(key, diff, "diff");
+  editorHost.setReadOnly(key, true);
+  tabs.push({ path: key, name, dirty: false });
+  activateTab(key);
+}
+
+/**
+ * Put a file back as it was at a commit.
+ *
+ * Confirmed first, because it overwrites whatever is in the working tree right now - the
+ * one thing here that git cannot get back for you. What it produces is an uncommitted
+ * change: history is untouched, so the restore itself is reviewed and then committed or
+ * discarded like any other edit. That is why this offers no reset.
+ */
+async function restoreFileFromCommit(ref: string, shortHash: string, path: string): Promise<void> {
+  const sure = await confirmDialog.ask({
+    title: `Restore ${basename(path)} from ${shortHash}?`,
+    body: "It is written over the current file as an uncommitted change. No commits are rewritten, so you can review it and then keep or discard it.",
+    confirmLabel: "Restore",
+    danger: true,
+  });
+  if (!sure) return;
+
+  const result = await window.adcode.git.restoreFile(ref, path).catch(
+    (error: unknown): GitOutcome => ({
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+    }),
+  );
+
+  gitResultDialog.show({
+    action: "Restore",
+    ok: result.ok,
+    message: result.message,
+    details: [
+      ["File", basename(path)],
+      ["From", shortHash],
+    ],
+  });
+  if (!result.ok) return;
+
+  // The buffer still holds what was there a moment ago, and would write it straight back
+  // over the restored file on the next save.
+  const absolute = absolutePath(path);
+  if (tabs.some((tab) => samePath(tab.path, absolute))) await reloadFile(absolute);
+
+  await refreshDirectory(containingDirOf(absolute));
+  void sourceControl.refresh();
+  void refreshGitOverlay();
 }
 
 const searchPanel = createSearchPanel({
@@ -1946,10 +2023,9 @@ function registerCommands(): void {
   add("help.shortcuts", "Keyboard Shortcuts", () => showShortcuts());
   add("help.devTools", "Toggle Developer Tools", () => window.adcode.window.toggleDevTools());
   add("help.about", "About ADCode", () => {
-    notifications.show({
+    gitResultDialog.showBrand({
       title: "ADCode",
       body: "An ad-supported, AI-native IDE. Everything ships in the binary - there is no marketplace.",
-      autoDismissMs: 8000,
     });
   });
   add("app.quit", "Exit", () => window.close());
@@ -1973,6 +2049,8 @@ const menuBar =
         platform,
         restoreFocus: () => editorHost.focus(),
       });
+
+el("placeholder-mark").append(brandMark({ size: 72, accent: true }));
 
 if (menuBar !== null) el("menubar-slot").append(menuBar.element);
 

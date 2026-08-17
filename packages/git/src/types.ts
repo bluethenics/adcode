@@ -53,6 +53,25 @@ export interface GitCommit {
   readonly date: string;
 }
 
+/** One file as a commit changed it. */
+export interface GitCommitFile {
+  readonly path: string;
+  readonly kind: FileChange;
+  readonly added: number;
+  readonly removed: number;
+}
+
+/**
+ * A commit, opened.
+ *
+ * `body` is separate from `subject` because they are read differently: the subject is a
+ * row in a list, the body is prose that only matters once the commit is open.
+ */
+export interface GitCommitDetail extends GitCommit {
+  readonly body: string;
+  readonly files: readonly GitCommitFile[];
+}
+
 export interface GitRemote {
   readonly name: string;
   readonly url: string;

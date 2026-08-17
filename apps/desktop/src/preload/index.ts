@@ -95,6 +95,9 @@ const api: AdcodeApi = {
     blame: (path) => ipcRenderer.invoke(CHANNELS.gitBlame, path),
     diff: (path) => ipcRenderer.invoke(CHANNELS.gitDiff, path),
     showFile: (ref, path) => ipcRenderer.invoke(CHANNELS.gitShowFile, ref, path),
+    commitDetail: (ref) => ipcRenderer.invoke(CHANNELS.gitCommitDetail, ref),
+    commitFileDiff: (ref, path) => ipcRenderer.invoke(CHANNELS.gitCommitFileDiff, ref, path),
+    restoreFile: (ref, path) => ipcRenderer.invoke(CHANNELS.gitRestoreFile, ref, path),
   },
   search: {
     run: (query) => ipcRenderer.invoke(CHANNELS.searchRun, query),

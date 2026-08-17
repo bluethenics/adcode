@@ -17,6 +17,8 @@ import type {
   FileChange,
   GitBranch,
   GitCommit,
+  GitCommitDetail,
+  GitCommitFile,
   GitExec,
   GitRemote,
   GitResult,
@@ -30,6 +32,8 @@ export type {
   FileChange,
   GitBranch,
   GitCommit,
+  GitCommitDetail,
+  GitCommitFile,
   GitExec,
   GitRemote,
   GitResult,
@@ -98,6 +102,19 @@ export interface Git {
   blame(path: string): Promise<BlameLine[]>;
   /** A file's contents at a revision, or null if it was not there. */
   showFile(ref: string, path: string): Promise<string | null>;
+
+  /** One commit, opened: its full message and every file it touched. Null if not found. */
+  commitDetail(ref: string): Promise<GitCommitDetail | null>;
+  /** The diff of a single file within a single commit. Empty when unavailable. */
+  commitFileDiff(ref: string, path: string): Promise<string>;
+  /**
+   * Put one file back the way it was at a commit.
+   *
+   * The file lands in the working tree as an uncommitted change. Nothing already
+   * committed is rewritten, so a restore chosen by mistake is undone by discarding it
+   * rather than by rescuing the branch out of the reflog.
+   */
+  restoreFile(ref: string, path: string): Promise<GitResult>;
 }
 
 export function createGit(deps: GitDeps): Git {
@@ -377,6 +394,84 @@ export function createGit(deps: GitDeps): Git {
         `--format=%H${FIELD}%h${FIELD}%an${FIELD}%aI${FIELD}%s${RECORD}`,
       );
       return result.code === 0 ? parseCommits(result.stdout) : [];
+    },
+
+    async commitDetail(ref: string): Promise<GitCommitDetail | null> {
+      if (!isSafeRef(ref)) return null;
+
+      const header = await run(
+        "show",
+        "--no-patch",
+        `--format=%H${FIELD}%h${FIELD}%an${FIELD}%aI${FIELD}%s${FIELD}%b`,
+        ref,
+      );
+      if (header.code !== 0) return null;
+
+      const [hash, shortHash, author, date, subject, ...rest] = header.stdout.split(FIELD);
+      if (hash === undefined || shortHash === undefined) return null;
+
+      /*
+       * Two passes, because no single format gives both.
+       *
+       * `--name-status` says *how* each file changed and `--numstat` says by how much,
+       * and neither carries the other's column. They are keyed together by path.
+       *
+       * `--root` is what makes the first commit in a repository openable: without it
+       * `git show` has no parent to diff against and reports no files at all, so a new
+       * project's only commit would appear to have touched nothing.
+       */
+      const kinds = new Map<string, FileChange>();
+      const statusOut = await run("show", "--no-renames", "--root", "--name-status", "--format=", ref);
+      for (const line of statusOut.stdout.split("\n")) {
+        const [code, path] = line.trim().split("\t");
+        if (code === undefined || path === undefined || path.length === 0) continue;
+        // The same letters porcelain v2 uses, so the vocabulary matches `status`.
+        kinds.set(path, toFileChange(code[0] ?? ""));
+      }
+
+      const files: GitCommitFile[] = [];
+      const numstat = await run("show", "--no-renames", "--root", "--numstat", "--format=", ref);
+      for (const line of numstat.stdout.split("\n")) {
+        const [added, removed, path] = line.trim().split("\t");
+        if (path === undefined || path.length === 0) continue;
+
+        files.push({
+          path,
+          kind: kinds.get(path) ?? "modified",
+          // Binary files report "-" rather than a count; zero is the honest answer for
+          // "how many lines changed" in a file that has no lines.
+          added: Number.parseInt(added ?? "0", 10) || 0,
+          removed: Number.parseInt(removed ?? "0", 10) || 0,
+        });
+      }
+
+      return {
+        hash,
+        shortHash,
+        author: author ?? "",
+        date: date ?? "",
+        subject: subject ?? "",
+        // A body containing the field separator would have been split; rejoining restores it.
+        body: rest.join(FIELD).trim(),
+        files,
+      };
+    },
+
+    async commitFileDiff(ref: string, path: string): Promise<string> {
+      if (!isSafeRef(ref) || !isSafePathArg(path)) return "";
+
+      const result = await run("show", "--no-renames", "--root", "--format=", ref, "--", path);
+      return result.code === 0 ? result.stdout : "";
+    },
+
+    async restoreFile(ref: string, path: string): Promise<GitResult> {
+      if (!isSafeRef(ref)) return fail("that revision is not a usable name");
+      if (!isSafePathArg(path)) return fail("that path is not a usable argument");
+
+      // `--` separates the ref from the pathspec, so a file called `main` cannot be
+      // mistaken for a branch. `checkout <ref> -- <path>` writes only the working tree
+      // and the index; the branch and its history are untouched.
+      return runResult(["checkout", ref, "--", path], `Restored ${path} from ${ref.slice(0, 7)}`);
     },
 
     async fileHistory(path: string, limit = 50): Promise<GitCommit[]> {

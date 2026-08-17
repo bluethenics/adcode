@@ -25,6 +25,12 @@ async function gitRaw(...args: string[]): Promise<string> {
   return stdout;
 }
 
+/** Read a working-tree file with newlines normalised, so assertions are platform-neutral. */
+async function readBack(path: string): Promise<string> {
+  const text = await readFile(join(dir, path), "utf8");
+  return text.replace(/\r\n/g, "\n");
+}
+
 async function write(path: string, contents: string): Promise<void> {
   const full = join(dir, path);
   await mkdir(join(full, ".."), { recursive: true });
@@ -420,5 +426,144 @@ describe("failure handling", () => {
   it("survives being pointed at a directory that does not exist", async () => {
     const missing = createGit({ exec: nodeGitExec, root: join(dir, "nope") });
     await expect(missing.isRepo()).resolves.toBe(false);
+  });
+});
+
+/**
+ * The commit browser (§4's Git group, GitHub-shaped).
+ *
+ * These are the operations behind "click a past commit, see what it touched, put one of
+ * those files back". Restoring is deliberately the *safe* half of that idea: the file
+ * lands in the working tree as an uncommitted edit, and nothing already committed is
+ * rewritten - so a mistaken restore is undone by discarding it, not by a reflog rescue.
+ */
+describe("commit detail and restore", () => {
+  beforeEach(async () => {
+    await write("keep.txt", "original\n");
+    await write("gone.txt", "doomed\n");
+    await git.stageAll();
+    await git.commit("first commit");
+
+    await write("keep.txt", "changed\n");
+    await write("added.txt", "new file\n");
+    await rm(join(dir, "gone.txt"));
+    await git.stageAll();
+    await git.commit("second commit\n\nA body that explains the change.\n");
+  });
+
+  it("returns the full message, not just the subject", async () => {
+    const [head] = await git.log(1);
+    const detail = await git.commitDetail(head!.hash);
+
+    expect(detail?.subject).toBe("second commit");
+    expect(detail?.body).toContain("A body that explains the change.");
+  });
+
+  it("lists the files a commit touched, with how each changed", async () => {
+    const [head] = await git.log(1);
+    const detail = await git.commitDetail(head!.hash);
+
+    const byPath = Object.fromEntries((detail?.files ?? []).map((f) => [f.path, f.kind]));
+    expect(byPath).toEqual({
+      "keep.txt": "modified",
+      "added.txt": "added",
+      "gone.txt": "deleted",
+    });
+  });
+
+  it("counts the lines added and removed per file", async () => {
+    const [head] = await git.log(1);
+    const detail = await git.commitDetail(head!.hash);
+
+    const keep = detail?.files.find((f) => f.path === "keep.txt");
+    expect(keep?.added).toBe(1);
+    expect(keep?.removed).toBe(1);
+  });
+
+  it("describes the very first commit, which has no parent", async () => {
+    // `git show` against a root commit has nothing to diff against; a browser that
+    // cannot open the first commit in a repository is broken for every new project.
+    const log = await git.log(10);
+    const first = log.at(-1);
+    const detail = await git.commitDetail(first!.hash);
+
+    expect(detail?.subject).toBe("first commit");
+    expect(detail?.files.map((f) => f.path).sort()).toEqual(["gone.txt", "keep.txt"]);
+  });
+
+  it("returns null for a hash that is not a commit", async () => {
+    expect(await git.commitDetail("0000000000000000000000000000000000000000")).toBeNull();
+  });
+
+  it("refuses a ref that would be read as an option", async () => {
+    expect(await git.commitDetail("--all")).toBeNull();
+  });
+
+  it("restores a file to how it was at a commit", async () => {
+    const log = await git.log(10);
+    const first = log.at(-1);
+
+    const result = await git.restoreFile(first!.hash, "keep.txt");
+    expect(result.ok).toBe(true);
+    // Normalised because git's `core.autocrlf` rewrites newlines on checkout under
+    // Windows. What is being asserted is that the old contents came back, not which
+    // newline the platform prefers.
+    expect(await readBack("keep.txt")).toBe("original\n");
+  });
+
+  it("brings back a file the commit had deleted", async () => {
+    const log = await git.log(10);
+    const first = log.at(-1);
+
+    const result = await git.restoreFile(first!.hash, "gone.txt");
+    expect(result.ok).toBe(true);
+    expect(await readBack("gone.txt")).toBe("doomed\n");
+  });
+
+  it("leaves the restored file as an uncommitted change rather than rewriting history", async () => {
+    const log = await git.log(10);
+    const before = log.length;
+    await git.restoreFile(log.at(-1)!.hash, "keep.txt");
+
+    const status = await git.status();
+    expect(status.isClean).toBe(false);
+    // History is untouched: the restore is a working-tree edit awaiting review.
+    expect((await git.log(10)).length).toBe(before);
+  });
+
+  it("refuses a path that would be read as an option", async () => {
+    const [head] = await git.log(1);
+    expect((await git.restoreFile(head!.hash, "--force")).ok).toBe(false);
+  });
+
+  it("refuses a ref that would be read as an option", async () => {
+    expect((await git.restoreFile("--exec=evil", "keep.txt")).ok).toBe(false);
+  });
+
+  it("reports a failure rather than throwing when the file is not in that commit", async () => {
+    const [head] = await git.log(1);
+    const result = await git.restoreFile(head!.hash, "never-existed.txt");
+    expect(result.ok).toBe(false);
+    expect(result.message.length).toBeGreaterThan(0);
+  });
+
+  it("returns the diff of one file within one commit", async () => {
+    const [head] = await git.log(1);
+    const diff = await git.commitFileDiff(head!.hash, "keep.txt");
+
+    expect(diff).toContain("-original");
+    expect(diff).toContain("+changed");
+  });
+
+  it("returns the diff of a file added by the first commit", async () => {
+    const log = await git.log(10);
+    const diff = await git.commitFileDiff(log.at(-1)!.hash, "keep.txt");
+    expect(diff).toContain("+original");
+  });
+
+  it("refuses unsafe arguments to the diff", async () => {
+    const [head] = await git.log(1);
+    expect(await git.commitFileDiff(head!.hash, "--output=/tmp/x")).toBe("");
+    expect(await git.commitFileDiff("--all", "keep.txt")).toBe("");
   });
 });

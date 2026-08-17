@@ -12,8 +12,9 @@ npm install
 npm start               # build if needed, then launch
 npm run package         # installer + portable .exe into release/
 
-npm run verify          # typecheck + architecture rules + full suite (698 tests)
-npm run smoke           # launch the built app and drive it (28 checks)
+npm run verify          # typecheck + architecture rules + full suite (740 tests)
+npm run smoke           # launch the built app and drive it (48 checks)
+npm run icons           # rasterise build/icon.svg into icon.ico and icon.png
 npm run dev             # electron-vite dev server, with hot reload
 npm run mock-server     # ad serving contract on :8787, no build step
 ```
@@ -28,13 +29,13 @@ npm run mock-server     # ad serving contract on :8787, no build step
 | Path | State |
 |---|---|
 | `packages/ads` | All twelve modules from brief §8. 194 tests. |
-| `packages/git` | init, clone, status, stage, commit, push, pull, branches, blame, line changes, conflicts. 121 tests. |
+| `packages/git` | init, clone, status, stage, commit, push, pull, branches, blame, line changes, conflicts, commit detail, per-file restore. 136 tests. |
 | `packages/search` | Fuzzy file ranking and workspace search/replace. 57 tests. |
 | `packages/memory` | Shared memory store, frontmatter, mirrors, FTS index, MCP server. 116 tests. |
 | `packages/settings` | 44 settings across 9 groups. 61 tests. |
 | `packages/ai` | Completion state machine, diff review, agent loop, four providers. 70 tests. |
 | `mock-server` | All four `/v1/*` endpoints, an asset host, fault injection. 21 tests. |
-| `apps/desktop` | The shell: menu bar, command palette, tabs, tree, git and search panels, multi-terminal, settings, chat, session restore. |
+| `apps/desktop` | The shell: menu bar, command palette, tabs, tree with right-click actions and drag-and-drop, git and search panels, commit browser, multi-terminal, settings, chat, session restore. |
 
 **Not built:** the Language group (LSP client, DAP client, tree-sitter), and the Navigation
 rows that depend on it — symbol search, go-to-definition, breadcrumbs, outline. Nothing on
@@ -63,10 +64,19 @@ on "happens to be".
 
 **A green suite is not a working app.** `npm run smoke` launches the built binary, attaches
 over CDP, and drives the real thing: it opens menus, starts terminals, runs `git blame`
-through the IPC bridge, and fails on any console error. It has already caught two bugs that
-698 unit tests, a clean typecheck, and a successful build all missed — a bundled `node-pty`
-that broke every terminal, and a hidden overlay that made the whole window unclickable.
+through the IPC bridge, creates and renames and deletes files in a scratch folder, and fails
+on any console error. It has already caught four bugs that a clean typecheck, a successful
+build, and the whole unit suite all missed — a bundled `node-pty` that broke every terminal,
+a hidden overlay that made the window unclickable, a menu bar that was dead to a real mouse,
+and a dropdown that opened behind the sidebar.
 `npm run smoke -- --packaged` runs the same checks against the installer's output.
+
+**Drive at coordinates, not at nodes.** The menu bar shipped completely unclickable while its
+check stayed green, because the check called `element.click()` — which dispatches straight at
+a node and so cannot see that a `-webkit-app-region: drag` region was swallowing every real
+press before the renderer got it. Smoke now clicks real coordinates through CDP's Input
+domain, and asserts the geometry that CDP *cannot* reach: no drag region may overlap a menu
+button, and an open menu must be the topmost thing at its own centre.
 
 ## Architecture
 

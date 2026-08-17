@@ -712,6 +712,81 @@ try {
      })()`,
   );
 
+  /*
+   * The commit browser: history, a commit opened, and a restore that asks first.
+   *
+   * The confirmation is *cancelled* rather than accepted. A restore writes over a tracked
+   * file, and a smoke run that edits the repository it is testing is a smoke run nobody
+   * will be willing to execute.
+   */
+  checks.historyListsCommits = await evaluate(
+    `(async () => {
+       document.querySelector('.activity[data-view="scm"]').click();
+       for (let i = 0; i < 30 && document.querySelectorAll('.history-commit').length === 0; i++) {
+         await new Promise(r => setTimeout(r, 200));
+       }
+       const rows = [...document.querySelectorAll('.history-commit')];
+       if (rows.length === 0) return 'no commits listed';
+
+       const first = rows[0];
+       return {
+         count: rows.length,
+         subject: first.querySelector('.history-subject')?.textContent?.slice(0, 40),
+         hasHash: /^[0-9a-f]{7,}$/.test(first.querySelector('.history-hash')?.textContent ?? ''),
+         hasMeta: (first.querySelector('.history-meta')?.textContent ?? '').includes('·'),
+       };
+     })()`,
+  );
+
+  checks.commitOpensItsFiles = await evaluate(
+    `(async () => {
+       const first = document.querySelector('.history-commit .history-head');
+       if (!first) return 'no commit row';
+       first.click();
+
+       for (let i = 0; i < 40 && !document.querySelector('.history-file'); i++) {
+         await new Promise(r => setTimeout(r, 200));
+       }
+       const files = [...document.querySelectorAll('.history-file')];
+       if (files.length === 0) return 'the commit showed no files';
+
+       const stat = files[0].querySelector('.history-file-stat')?.textContent ?? '';
+       return {
+         files: files.length,
+         // Both counts always, so a lone "+4" cannot be misread as a total.
+         hasBothCounts: stat.includes('+') && stat.includes('−'),
+         hasRestore: !!files[0].querySelector('.history-restore'),
+         summary: document.querySelector('.history-summary')?.textContent,
+       };
+     })()`,
+  );
+
+  checks.restoreAsksAndCanCancel = await evaluate(
+    `(async () => {
+       const restore = document.querySelector('.history-file .history-restore');
+       if (!restore) return 'no restore button';
+       restore.click();
+
+       for (let i = 0; i < 25 && !document.querySelector('.confirm-dialog[open]'); i++) {
+         await new Promise(r => setTimeout(r, 200));
+       }
+       const dialog = document.querySelector('.confirm-dialog[open]');
+       if (!dialog) return 'restore did not ask first';
+
+       const title = dialog.querySelector('.result-title')?.textContent ?? '';
+       const body = dialog.querySelector('.result-summary')?.textContent ?? '';
+
+       // Cancelled: nothing in the working tree is touched by this check.
+       dialog.querySelector('.confirm-cancel').click();
+       await new Promise(r => setTimeout(r, 400));
+       if (document.querySelector('.confirm-dialog[open]')) return 'cancel did not close it';
+
+       return /restore/i.test(title) && /uncommitted|rewritten/i.test(body)
+         ? true
+         : 'unexpected wording: ' + title + ' / ' + body;
+     })()`,
+  );
+
   await evaluate(`document.querySelector('.activity[data-view="explorer"]').click(); true`);
   await sleep(400);
 
@@ -767,6 +842,17 @@ try {
 } finally {
   await rm(join(REPO, SCRATCH), { recursive: true, force: true }).catch(() => {});
 }
+
+// The `<$>` mark is drawn, not typed, so it cannot fall back to a missing font.
+checks.brandMarkDrawn = await evaluate(
+  `(() => {
+     const mark = document.querySelector('#placeholder-mark .brand-mark');
+     if (!mark) return 'no mark on the empty-editor screen';
+     const paths = mark.querySelectorAll('path').length;
+     const box = mark.getBoundingClientRect();
+     return paths === 4 && box.width > 0 ? true : 'paths=' + paths + ' width=' + box.width;
+   })()`,
+);
 
 // The gutter decorations for the restored file.
 checks.gutterOrClean = await evaluate(

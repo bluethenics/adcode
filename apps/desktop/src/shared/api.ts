@@ -164,6 +164,9 @@ export const CHANNELS = {
   gitLineChanges: "git:line-changes",
   gitDiff: "git:diff",
   gitShowFile: "git:show-file",
+  gitCommitDetail: "git:commit-detail",
+  gitCommitFileDiff: "git:commit-file-diff",
+  gitRestoreFile: "git:restore-file",
   searchRun: "search:run",
   quickOpen: "search:quick-open",
   searchReplace: "search:replace",
@@ -205,6 +208,19 @@ export interface GitCommitView {
   readonly subject: string;
   readonly author: string;
   readonly date: string;
+}
+
+/** One file as a commit changed it. */
+export interface GitCommitFileView {
+  readonly path: string;
+  readonly kind: "none" | "added" | "modified" | "deleted" | "renamed" | "untracked";
+  readonly added: number;
+  readonly removed: number;
+}
+
+export interface GitCommitDetailView extends GitCommitView {
+  readonly body: string;
+  readonly files: readonly GitCommitFileView[];
 }
 
 export interface GitBranchView {
@@ -419,6 +435,15 @@ export interface AdcodeApi {
     diff(path?: string): Promise<string>;
     /** A file as it was at a revision, or null if it was not there. */
     showFile(ref: string, path: string): Promise<string | null>;
+    commitDetail(ref: string): Promise<GitCommitDetailView | null>;
+    commitFileDiff(ref: string, path: string): Promise<string>;
+    /**
+     * Put one file back as it was at a commit.
+     *
+     * Lands as an uncommitted working-tree change; nothing already committed is
+     * rewritten, so a restore chosen by mistake is undone by discarding it.
+     */
+    restoreFile(ref: string, path: string): Promise<GitOutcome>;
   };
   readonly search: {
     run(query: SearchQueryView): Promise<SearchHitView[]>;

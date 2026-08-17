@@ -140,6 +140,35 @@ export function registerGitIpc(): void {
       : null,
   );
 
+  /*
+   * The commit browser.
+   *
+   * `restoreFile` is the only one of these that writes, and it writes only the working
+   * tree: no commit is rewritten, so a restore is reviewed and then kept or discarded
+   * like any other edit.
+   */
+  ipcMain.handle(CHANNELS.gitCommitDetail, async (_event, ref: unknown) =>
+    isString(ref) ? ((await gitForWorkspace()?.commitDetail(ref)) ?? null) : null,
+  );
+
+  ipcMain.handle(CHANNELS.gitCommitFileDiff, async (_event, ref: unknown, path: unknown) =>
+    isString(ref) && isString(path)
+      ? ((await gitForWorkspace()?.commitFileDiff(ref, path)) ?? "")
+      : "",
+  );
+
+  ipcMain.handle(CHANNELS.gitRestoreFile, async (_event, ref: unknown, path: unknown): Promise<GitOutcome> => {
+    if (!isString(ref) || !isString(path)) return { ok: false, message: "Expected a revision and a path." };
+
+    const git = gitForWorkspace();
+    if (git === null) return NO_WORKSPACE;
+
+    const result = await git.restoreFile(ref, path);
+    // The restored file differs from what the cache last read for it.
+    if (result.ok) invalidateFileCache();
+    return result;
+  });
+
   /* ── Search ───────────────────────────────────────────────────────────── */
 
   /** The renderer's query object, narrowed once and reused by search and replace. */

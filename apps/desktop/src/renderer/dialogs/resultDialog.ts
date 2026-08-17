@@ -15,6 +15,8 @@
  * and the top-layer stacking with it - all of which are easy to reimplement badly.
  */
 
+import { brandMark } from "../workbench/brandMark.ts";
+
 export interface GitResult {
   /** What was attempted, in the user's words: "Push", "Pull", "Commit". */
   readonly action: string;
@@ -27,6 +29,8 @@ export interface GitResult {
 
 export interface ResultDialog {
   show(result: GitResult): void;
+  /** The About card: the mark and a sentence, with no outcome attached. */
+  showBrand(about: { readonly title: string; readonly body: string }): void;
   close(): void;
   isOpen(): boolean;
 }
@@ -72,7 +76,8 @@ export function createResultDialog(host: HTMLElement): ResultDialog {
   return {
     show(result) {
       dialog.dataset["ok"] = String(result.ok);
-      badge.textContent = result.ok ? "✓" : "!";
+      // `replaceChildren` rather than assigning text: About leaves the mark in here.
+      badge.replaceChildren(result.ok ? "✓" : "!");
       badge.setAttribute("aria-hidden", "true");
 
       title.textContent = result.ok ? `${result.action} succeeded` : `${result.action} failed`;
@@ -95,6 +100,23 @@ export function createResultDialog(host: HTMLElement): ResultDialog {
       const text = result.message.trim();
       output.textContent = text;
       output.hidden = text.length === 0;
+
+      if (!dialog.open) dialog.showModal();
+      close.focus();
+    },
+
+    showBrand(about) {
+      // Reuses the card, swapping the outcome badge for the mark: About is the same
+      // shape of thing - a centred statement with one way out - and a second dialog
+      // built to say one sentence would drift from this one's styling.
+      delete dialog.dataset["ok"];
+      badge.replaceChildren(brandMark({ size: 44, accent: true }));
+
+      title.textContent = about.title;
+      summary.textContent = about.body;
+      detailList.replaceChildren();
+      detailList.hidden = true;
+      output.hidden = true;
 
       if (!dialog.open) dialog.showModal();
       close.focus();

@@ -23,7 +23,8 @@
     "test:watch": "vitest",
     "mock-server": "node mock-server/src/cli.ts",
     "smoke": "node scripts/smoke.mjs",
-    "verify": "npm run typecheck && npm run firewall && npm run test"
+    "verify": "npm run typecheck && npm run firewall && npm run test",
+    "icons": "electron scripts/make-icons.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

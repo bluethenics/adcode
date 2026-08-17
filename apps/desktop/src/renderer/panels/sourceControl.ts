@@ -7,6 +7,7 @@
  */
 import type { GitOutcome, GitStatusView } from "../../shared/api.ts";
 import type { GitResult } from "../dialogs/resultDialog.ts";
+import { createCommitBrowser, type CommitBrowserDeps } from "./commitBrowser.ts";
 
 export interface SourceControlPanel {
   readonly element: HTMLElement;
@@ -17,6 +18,8 @@ export interface SourceControlPanel {
   setTimelineEnabled(enabled: boolean): void;
   /** Put the cursor in the commit box - where staging from the tree hands over to. */
   focusCommitMessage(): void;
+  /** Re-read the commit list, discarding cached commit details. */
+  refreshHistory(): Promise<void>;
 }
 
 export interface SourceControlDeps {
@@ -51,6 +54,10 @@ export interface SourceControlDeps {
   readonly openLocalVersion: (path: string, id: string, savedAt: string) => void;
   /** The absolute path of the open file, which local history is keyed by. */
   readonly absolutePath: (relative: string) => string;
+  /** Show one file's changes within one commit, read-only. */
+  readonly openCommitDiff: CommitBrowserDeps["openCommitDiff"];
+  /** Put a file back as it was at a commit, after asking. */
+  readonly restoreFile: CommitBrowserDeps["restoreFile"];
 }
 
 const CHANGE_LABEL: Readonly<Record<string, string>> = {
@@ -243,7 +250,14 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   const timelineList = document.createElement("div");
   timeline.append(timelineTitle, timelineList);
 
-  element.append(header, actions, commitBox, list, empty, timeline);
+  /* §4's Git group, GitHub-shaped: what happened, and putting one file back. */
+  const history = createCommitBrowser({
+    openCommitDiff: deps.openCommitDiff,
+    restoreFile: deps.restoreFile,
+    notify: deps.notify,
+  });
+
+  element.append(header, actions, commitBox, list, empty, timeline, history.element);
 
   let activeFile: string | null = null;
   let timelineEnabled = true;
@@ -426,6 +440,11 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       message.focus();
     },
 
+    refreshHistory() {
+      history.invalidate();
+      return history.refresh();
+    },
+
 
     async refresh(): Promise<void> {
       if (deps.workspaceRoot() === null) {
@@ -441,6 +460,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
 
       const status = await window.adcode.git.status();
       lastStatus = status;
+      history.element.hidden = !status.isRepo;
 
       if (!status.isRepo) {
         timeline.hidden = true;
@@ -497,6 +517,10 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       empty.hidden = !status.isClean;
 
       await renderTimeline();
+
+      // Last, and not awaited into the same failure: a slow `git log` should not stop the
+      // changes list - the part people look at first - from having already appeared.
+      void history.refresh();
     },
 
     setActiveFile(path) {
