@@ -21,6 +21,7 @@
     "firewall": "depcruise --config .dependency-cruiser.cjs packages mock-server apps services",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:emulator": "firebase emulators:exec --only firestore --project adcode-test \"vitest run services/api/test/emulator\"",
     "mock-server": "node mock-server/src/cli.ts",
     "smoke": "node scripts/smoke.mjs",
     "verify": "npm run typecheck && npm run firewall && npm run test",
@@ -55,5 +56,8 @@
     "node-pty": "^1.1.0",
     "ws": "^8.21.3",
     "yjs": "^13.6.32"
+  },
+  "optionalDependencies": {
+    "firebase-admin": "^14.2.0"
   }
 }

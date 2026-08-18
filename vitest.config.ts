@@ -31,7 +31,9 @@ export default defineConfig({
       "services/**/test/**/*.test.ts",
       "apps/**/test/**/*.test.ts",
     ],
-    exclude: ["**/node_modules/**", "**/__fixtures__/**"],
+    // The emulator suite is the only one needing external tooling; `npm run test:emulator`
+    // runs it. Keeping it out of the default run is what lets CI stay credential-free.
+    exclude: ["**/node_modules/**", "**/__fixtures__/**", "**/test/emulator/**"],
     environment: "node",
     // The pure modules exist to be testable in milliseconds (§2). If the suite ever
     // needs longer than this per test, something has acquired I/O it should not have.
