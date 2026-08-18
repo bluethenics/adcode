@@ -196,3 +196,130 @@
 .prompt-form .confirm-buttons {
   margin-top: 0;
 }
+
+/* ── The report form ────────────────────────────────────────────────────── */
+
+/*
+ * Wider than the result dialogs, and left-aligned: `.result-card` centres everything,
+ * which reads well for a one-line verdict and badly for a form. Fields whose labels and
+ * text start at different x-positions are measurably harder to scan.
+ */
+.report-dialog {
+  max-width: min(560px, calc(100vw - 48px));
+}
+
+.report-card {
+  justify-items: stretch;
+  gap: 14px;
+  padding: 22px 24px 18px;
+  text-align: left;
+}
+
+.report-form {
+  display: grid;
+  gap: 12px;
+}
+
+/* Two columns: four choices sit as a 2x2 block rather than a long column. */
+.report-kinds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.report-kind {
+  display: grid;
+  gap: 2px;
+  padding: 9px 11px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--duration-exit) var(--ease-toast),
+    border-color var(--duration-exit) var(--ease-toast);
+}
+
+.report-kind:hover {
+  background: var(--bg-hover);
+}
+
+.report-kind[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--bg-selected);
+}
+
+.report-kind-label {
+  font-size: var(--text-sm);
+  font-weight: 560;
+}
+
+.report-kind-hint {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.report-kind[aria-checked="true"] .report-kind-hint {
+  color: var(--accent);
+}
+
+.report-input,
+.report-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+}
+
+.report-textarea {
+  resize: vertical;
+  min-height: 120px;
+  line-height: 1.45;
+}
+
+.report-input:focus-visible,
+.report-textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.report-status {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--danger);
+}
+
+.report-status[data-tone="ok"] {
+  color: var(--success);
+}
+
+/*
+ * Says exactly what is sent. A form that collects context silently is how people learn
+ * not to file reports at all.
+ */
+.report-footnote {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+
+.report-card .confirm-buttons {
+  justify-content: flex-end;
+}
+
+.report-card .result-close {
+  margin-top: 0;
+}
+
+.report-card .result-close:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

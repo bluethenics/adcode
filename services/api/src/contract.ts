@@ -170,3 +170,60 @@ export function parseReceiptsRequest(raw: unknown): ReceiptsRequestBody | null {
 
   return { receipts: parsed };
 }
+
+/* ── Reports ────────────────────────────────────────────────────────────── */
+
+/**
+ * Bug reports, feature requests, and help asks, from inside the editor.
+ *
+ * Additive, so no existing client is affected. The report carries the app version and
+ * the platform because those are the first two things triage asks for - and carries
+ * nothing else about the machine. File contents, paths, and workspace names never leave
+ * the editor: a bug report is not a licence to read someone's source.
+ */
+export type ReportKind = "bug" | "feature" | "help" | "other";
+
+export interface SubmitReportBody {
+  kind: ReportKind;
+  title: string;
+  body: string;
+  appVersion: string;
+  platform: string;
+}
+
+export interface SubmitReportResponse {
+  reportId: string;
+}
+
+export const REPORT_LIMITS = {
+  title: 120,
+  body: 4000,
+  appVersion: 40,
+  platform: 40,
+} as const;
+
+const REPORT_KINDS: ReadonlySet<string> = new Set<ReportKind>(["bug", "feature", "help", "other"]);
+
+export function parseReportRequest(raw: unknown): SubmitReportBody | null {
+  if (!isRecord(raw)) return null;
+  const { kind, title, body, appVersion, platform } = raw;
+
+  if (typeof kind !== "string" || !REPORT_KINDS.has(kind)) return null;
+
+  // Trimmed before measuring, so "   " is empty rather than three characters long.
+  const bounded = (v: unknown, max: number): string | null => {
+    if (typeof v !== "string") return null;
+    const trimmed = v.trim();
+    if (trimmed.length === 0 || trimmed.length > max) return null;
+    return trimmed;
+  };
+
+  const t = bounded(title, REPORT_LIMITS.title);
+  const b = bounded(body, REPORT_LIMITS.body);
+  const v = bounded(appVersion, REPORT_LIMITS.appVersion);
+  const p = bounded(platform, REPORT_LIMITS.platform);
+
+  if (t === null || b === null || v === null || p === null) return null;
+
+  return { kind: kind as ReportKind, title: t, body: b, appVersion: v, platform: p };
+}

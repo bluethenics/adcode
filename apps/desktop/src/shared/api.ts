@@ -21,6 +21,35 @@ export interface OpenedWorkspace {
   readonly name: string;
 }
 
+/** A folder this editor has opened before, newest first. */
+export interface RecentFolderView {
+  readonly path: string;
+  readonly name: string;
+  readonly openedAt: number;
+}
+
+/** What the welcome screen and the settings footer say about this build. */
+/** What the in-editor report form can file. Mirrors `services/api/src/contract.ts`. */
+export type ReportKind = "bug" | "feature" | "help" | "other";
+
+export interface ReportInput {
+  readonly kind: ReportKind;
+  readonly title: string;
+  readonly body: string;
+}
+
+export type ReportResult =
+  | { readonly ok: true; readonly reportId: string }
+  | { readonly ok: false; readonly message: string };
+
+export interface AppInfo {
+  readonly version: string;
+  readonly electron: string;
+  readonly chrome: string;
+  readonly node: string;
+  readonly platform: string;
+}
+
 export interface FileContent {
   readonly path: string;
   readonly text: string;
@@ -91,11 +120,112 @@ export interface SponsoredToast {
   readonly autoDismissMs: number;
 }
 
+/**
+ * One frequency preset, as the earnings report shows it.
+ *
+ * `projectionLabel` is `null` until `/v1/config` has delivered a projections table. Null
+ * rather than an estimate computed here: §1 forbids the client computing money, and
+ * deviation D1 records that this is exactly why the server sends the table pre-computed.
+ */
+export interface EarningsPreset {
+  readonly preset: string;
+  /** True for the preset currently in effect, so the report can mark it. */
+  readonly active: boolean;
+  readonly minIntervalMs: number;
+  readonly dailyCap: number;
+  readonly projectionLabel: string | null;
+}
+
 export interface EarningsSnapshot {
   /** Preformatted by the ledger. The renderer never does arithmetic on money (§1). */
   readonly availableLabel: string;
   readonly lifetimeLabel: string;
   readonly hasServerBalance: boolean;
+  /**
+   * Whether ads are running at all.
+   *
+   * The report has to distinguish "you have earned nothing" from "you turned this off",
+   * because the first is a number and the second is a setting.
+   */
+  readonly enabled: boolean;
+  /**
+   * Receipts written but not yet accepted by the server.
+   *
+   * Deliberately *not* labelled as an impression count anywhere in the UI. The receipt queue
+   * is an outbox, not a ledger - entries are deleted once posted - so this number goes down
+   * when things go right, and presenting it as "ads seen" would make a successful sync look
+   * like lost earnings. It is shown as what it is: work waiting to be sent.
+   */
+  readonly pendingReceipts: number;
+  readonly presets: readonly EarningsPreset[];
+}
+
+/* ── Live collaboration ────────────────────────────────────────────────────── */
+
+/**
+ * Mirrors of `@adcode/collab`'s types, restated here rather than imported.
+ *
+ * This file has to stay importable from a sandboxed preload, where only `electron`'s own module
+ * exists - so it declares its own shapes and imports nothing. The same reason the diagnostics
+ * and preview types are restated here.
+ */
+export type CollabRole = "host" | "editor" | "viewer";
+
+export interface CollabParticipantView {
+  readonly id: string;
+  readonly name: string;
+  readonly role: CollabRole;
+  /** Their cursor colour, agreed by join order so every machine draws the same one. */
+  readonly colour: string;
+  readonly terminalWrite: boolean;
+}
+
+export interface CollabCapabilitiesView {
+  readonly read: boolean;
+  readonly edit: boolean;
+  readonly save: boolean;
+  readonly commitDirectly: boolean;
+  readonly requestCommit: boolean;
+  readonly readTerminal: boolean;
+  readonly writeTerminal: boolean;
+  readonly administer: boolean;
+}
+
+export interface CollabStatusView {
+  readonly mode: "off" | "hosting" | "joined" | "connecting";
+  readonly participants: readonly CollabParticipantView[];
+  /** Our own id, so the renderer knows which cursor is its own and does not draw it twice. */
+  readonly selfId: string | null;
+  /** The invite code. Host only - a guest has nothing to pass on. */
+  readonly invite: string | null;
+  readonly addresses: readonly string[];
+  readonly port: number | null;
+  readonly error: string | null;
+  /**
+   * What *we* may do.
+   *
+   * Used to disable controls that would be refused anyway. It is a courtesy to the user, not a
+   * security measure: the host re-checks every message it receives, because a guest's renderer
+   * runs on a machine the host does not administer.
+   */
+  readonly can: CollabCapabilitiesView | null;
+}
+
+export interface CollabPresenceView {
+  readonly participantId: string;
+  readonly path: string | null;
+  readonly cursor: { readonly line: number; readonly column: number };
+  readonly selection: {
+    readonly start: { readonly line: number; readonly column: number };
+    readonly end: { readonly line: number; readonly column: number };
+  } | null;
+}
+
+export interface CollabCommitRequestView {
+  readonly id: string;
+  readonly participantId: string;
+  readonly participantName: string;
+  readonly message: string;
 }
 
 /** Every channel name in one place, so main and preload cannot disagree. */
@@ -130,6 +260,7 @@ export const CHANNELS = {
   adDismissed: "ads:dismissed",
   adClicked: "ads:clicked",
   adSuppressionChanged: "ads:suppression",
+  adRefreshEarnings: "ads:refresh-earnings",
   earningsChanged: "ads:earnings",
   settingsRead: "settings:read",
   settingsWrite: "settings:write",
@@ -155,6 +286,8 @@ export const CHANNELS = {
   gitFetch: "git:fetch",
   gitInit: "git:init",
   gitClone: "git:clone",
+  gitAddRemote: "git:add-remote",
+  gitRemotes: "git:remotes",
   gitBranches: "git:branches",
   gitCheckout: "git:checkout",
   gitCreateBranch: "git:create-branch",
@@ -183,7 +316,128 @@ export const CHANNELS = {
   windowFullScreen: "window:full-screen",
   windowDevTools: "window:dev-tools",
   windowZoom: "window:zoom",
+  previewStart: "preview:start",
+  previewStop: "preview:stop",
+  previewStatus: "preview:status",
+  previewOpenExternal: "preview:open-external",
+  previewChanged: "preview:changed",
+  previewDetect: "preview:detect",
+  previewLog: "preview:log",
+  previewOutput: "preview:output",
+  lspOpened: "lsp:opened",
+  lspChanged: "lsp:changed",
+  lspClosed: "lsp:closed",
+  lspCompletion: "lsp:completion",
+  lspHover: "lsp:hover",
+  lspStates: "lsp:states",
+  lspDiagnostics: "lsp:diagnostics",
+  lspStateChanged: "lsp:state-changed",
+  collabHost: "collab:host",
+  collabJoin: "collab:join",
+  collabLeave: "collab:leave",
+  collabStatus: "collab:status",
+  collabSetRole: "collab:set-role",
+  collabSetTerminalWrite: "collab:set-terminal-write",
+  collabOpenDoc: "collab:open-doc",
+  collabPushUpdate: "collab:push-update",
+  collabSaveDoc: "collab:save-doc",
+  collabPresence: "collab:presence",
+  collabRequestCommit: "collab:request-commit",
+  collabDecideCommit: "collab:decide-commit",
+  collabStatusChanged: "collab:status-changed",
+  collabDocUpdate: "collab:doc-update",
+  collabPresenceChanged: "collab:presence-changed",
+  collabCommitRequested: "collab:commit-requested",
+  collabNotice: "collab:notice",
+  collabAddresses: "collab:addresses",
+  collabReencodeInvite: "collab:reencode-invite",
+  workspaceOpenPath: "workspace:open-path",
+  workspaceRecents: "workspace:recents",
+  workspaceForgetRecent: "workspace:forget-recent",
+  workspaceClearRecents: "workspace:clear-recents",
+  filesOpenDialog: "fs:open-dialog",
+  appInfo: "app:info",
+  supportSubmitReport: "support:submit-report",
 } as const;
+
+/**
+ * Which of the two preview engines is in charge.
+ *
+ * `static` is ADCode's own file server over the folder. `project` runs the project's own
+ * dev script and watches for the address it prints. They are genuinely different things
+ * and the bar says which one is running, because "why isn't my React app working" and "why
+ * isn't my HTML file loading" have completely different answers.
+ */
+export type PreviewMode = "static" | "project";
+
+/**
+ * The live preview's state.
+ *
+ * `error` carries the reason a start failed, and is shown to the user as written. A preview
+ * that is simply not there, with no explanation, is the failure mode this field exists to
+ * prevent.
+ */
+export interface PreviewStatus {
+  readonly running: boolean;
+  readonly url: string | null;
+  readonly root: string | null;
+  readonly error: string | null;
+  readonly mode: PreviewMode;
+  /** Project mode: what is being run, e.g. "Vite · npm run dev". */
+  readonly label: string | null;
+  /** Project mode: the process is up but has not announced an address yet. */
+  readonly starting: boolean;
+}
+
+/** What `preview.detect()` found, or null when the folder has no dev script. */
+export interface PreviewProject {
+  readonly label: string;
+}
+
+/**
+ * What a language server is doing, per language.
+ *
+ * `missing` is the common case and is not a failure: most people have not installed a Rust
+ * toolchain. `detail` then carries the exact command that would change that, which is the
+ * whole difference between "this editor has no Rust support" and "this editor needs one
+ * more install".
+ */
+export interface LanguageServerState {
+  readonly languageId: string;
+  readonly label: string;
+  readonly status: "starting" | "running" | "missing" | "failed";
+  readonly detail: string | null;
+}
+
+/** Mirrors @adcode/diagnostics' `Diagnostic`, so the preload imports no package. */
+export interface LanguageDiagnostic {
+  readonly file: string;
+  readonly line: number;
+  readonly column: number;
+  readonly endLine: number;
+  readonly endColumn: number;
+  readonly severity: "error" | "warning" | "info";
+  readonly source: string;
+  readonly code: string;
+  readonly message: string;
+}
+
+/**
+ * A completion, flattened for the wire.
+ *
+ * Deliberately not the server's own object. A language server's reply is arbitrary JSON
+ * from a subprocess, and forwarding it whole would hand the renderer a shape nothing has
+ * checked - so it is reduced here to the fields the suggest widget actually reads.
+ */
+export interface LanguageCompletion {
+  readonly label: string;
+  readonly kind: number | null;
+  readonly detail: string | null;
+  readonly documentation: string | null;
+  readonly insertText: string;
+  readonly isSnippet: boolean;
+  readonly sortText: string | null;
+}
 
 /** Mirrors @adcode/git's shapes, so the renderer needs no import from that package. */
 export interface GitStatusView {
@@ -356,12 +610,24 @@ export interface McpConnectionInfo {
 export interface AdcodeApi {
   readonly workspace: {
     open(): Promise<OpenedWorkspace | null>;
+    /** Open a known folder without a dialog - the recents list and the welcome screen. */
+    openPath(root: string): Promise<OpenedWorkspace | null>;
     close(): Promise<void>;
     current(): Promise<OpenedWorkspace | null>;
     list(dirPath: string): Promise<DirEntry[]>;
+    /** Folders opened before, newest first, with the ones that no longer exist removed. */
+    recents(): Promise<readonly RecentFolderView[]>;
+    forgetRecent(root: string): Promise<readonly RecentFolderView[]>;
+    clearRecents(): Promise<void>;
+  };
+  /** Version and runtime, for the welcome screen and the settings footer. */
+  readonly app: {
+    info(): Promise<AppInfo>;
   };
   readonly files: {
     read(filePath: string): Promise<FileContent>;
+    /** Ask for a file to open; resolves to its path, or null if cancelled. */
+    openDialog(): Promise<string | null>;
     write(filePath: string, text: string): Promise<SaveResult>;
     /** Ask where to put it; resolves to the chosen path, or null if cancelled. */
     saveAs(text: string, suggestedName: string): Promise<string | null>;
@@ -407,6 +673,54 @@ export interface AdcodeApi {
     info(): Promise<PlatformInfo>;
     onFocusChange(listener: (focused: boolean) => void): () => void;
   };
+  /**
+   * The built-in static server over the open folder (slice 2 of the learner surfaces).
+   *
+   * `openExternal` takes no URL: the renderer names the intent, and the main process
+   * supplies the address from the server it actually started. A renderer that could hand
+   * over an arbitrary URL to `shell.openExternal` would be a way out of the sandbox
+   * dressed as a convenience.
+   */
+  readonly preview: {
+    /** Omit the mode to let ADCode pick: the project's dev script when there is one. */
+    start(mode?: PreviewMode): Promise<PreviewStatus>;
+    stop(): Promise<PreviewStatus>;
+    status(): Promise<PreviewStatus>;
+    /** What running this project would start, without starting it. */
+    detect(): Promise<PreviewProject | null>;
+    openExternal(): Promise<void>;
+    onChange(listener: (status: PreviewStatus) => void): () => void;
+    /**
+     * The dev server's own output.
+     *
+     * Surfaced rather than swallowed: when a project fails to start, the toolchain's own
+     * words are the useful thing, and every message we could invent instead is worse.
+     */
+    onOutput(listener: (chunk: string) => void): () => void;
+    log(): Promise<string>;
+  };
+  /**
+   * Language intelligence from a real language server (§4's Language group).
+   *
+   * Document synchronisation is fire-and-forget: the renderer tells the main process what
+   * changed and never waits, because everything here sits on the keystroke path and §7 is
+   * explicit that nothing the user types may wait on anything.
+   */
+  readonly language: {
+    opened(path: string, languageId: string, text: string): void;
+    changed(path: string, languageId: string, text: string): void;
+    closed(path: string, languageId: string): void;
+    completion(
+      path: string,
+      languageId: string,
+      line: number,
+      column: number,
+    ): Promise<LanguageCompletion[]>;
+    hover(path: string, languageId: string, line: number, column: number): Promise<string | null>;
+    states(): Promise<LanguageServerState[]>;
+    onDiagnostics(listener: (file: string, diagnostics: LanguageDiagnostic[]) => void): () => void;
+    onState(listener: (states: LanguageServerState[]) => void): () => void;
+  };
   readonly memory: {
     connection(): Promise<McpConnectionInfo>;
   };
@@ -433,6 +747,10 @@ export interface AdcodeApi {
     fetch(): Promise<GitOutcome>;
     init(): Promise<GitOutcome>;
     clone(url: string, target: string): Promise<GitOutcome>;
+    /** Connect this repository to a remote, or correct the URL of one it already has. */
+    addRemote(name: string, url: string): Promise<GitOutcome>;
+    /** The remotes configured, so the panel can offer to add one when there are none. */
+    remotes(): Promise<readonly { readonly name: string; readonly url: string }[]>;
     branches(): Promise<GitBranchView[]>;
     checkout(ref: string): Promise<GitOutcome>;
     createBranch(name: string): Promise<GitOutcome>;
@@ -464,8 +782,13 @@ export interface AdcodeApi {
     save(state: SessionStateView): void;
   };
   readonly window: {
-    /** Menu choices arrive here; the renderer's command registry runs them. */
-    onCommand(listener: (command: string) => void): () => void;
+    /**
+     * Menu choices arrive here; the renderer's command registry runs them.
+     *
+     * `arg` is what the command is being asked to act on - a recent folder's path, so
+     * far. It is absent for every command that acts on the current state instead.
+     */
+    onCommand(listener: (command: string, arg?: string) => void): () => void;
     toggleFullScreen(): void;
     toggleDevTools(): void;
     /** `+1`, `-1`, or `0` to reset. */
@@ -485,6 +808,10 @@ export interface AdcodeApi {
     reset(): Promise<Record<string, boolean | string>>;
     onChanged(listener: (values: Record<string, boolean | string>) => void): () => void;
   };
+  readonly support: {
+    /** Never rejects: a failure comes back as `{ ok: false, message }` to show the user. */
+    submitReport(input: ReportInput): Promise<ReportResult>;
+  };
   readonly ads: {
     /** The main process asks the renderer to show a toast. */
     onShow(listener: (toast: SponsoredToast) => void): () => void;
@@ -496,7 +823,67 @@ export interface AdcodeApi {
     painted(creativeId: string): void;
     dismissed(creativeId: string): void;
     clicked(creativeId: string): void;
+    /**
+     * Ask the server for the balance now.
+     *
+     * The tick refreshes it every sixty seconds anyway; this is how the report's refresh button
+     * answers "is this stuck?" without the user waiting one out.
+     */
+    refreshEarnings(): Promise<EarningsSnapshot>;
     /** Zen, full-screen, and presentation mode (§8.3). */
     setSuppressed(suppressed: boolean): void;
+  };
+  /**
+   * Live collaboration.
+   *
+   * The transport runs in the main process, and that follows from the CSP rather than from
+   * taste - exactly as it does for the ad client. §1 requires `connect-src 'self'`, and a
+   * renderer under that policy cannot open a socket to another machine at all. So the renderer's
+   * job here is to draw a roster, bind Monaco to a document, and paint other people's cursors.
+   */
+  readonly collab: {
+    /**
+     * Start sharing the open folder.
+     *
+     * `bind: "lan"` publishes to the local network. It is never a default anywhere in this
+     * codebase and the caller has to ask for it - see `lanTransport.ts` for why that matters.
+     */
+    host(options: {
+      bind: "lan" | "loopback";
+      port: number;
+      displayName: string;
+    }): Promise<CollabStatusView>;
+    join(code: string, displayName: string): Promise<CollabStatusView>;
+    leave(): Promise<CollabStatusView>;
+    status(): Promise<CollabStatusView>;
+    /** Every address the session could be reached on, so the user can pick the right one. */
+    addresses(): Promise<readonly string[]>;
+    /** Re-issue the invite code against a different local address. */
+    reencodeInvite(address: string): Promise<string | null>;
+    setRole(participantId: string, role: CollabRole): Promise<CollabStatusView>;
+    setTerminalWrite(participantId: string, allowed: boolean): Promise<CollabStatusView>;
+    /**
+     * Join a document, receiving its state as base64 for the renderer's Yjs replica.
+     *
+     * `null` when the path is not shareable - outside the folder, or unreadable. The renderer
+     * treats that as "edit this file normally, alone", never as an error worth a dialog.
+     */
+    openDoc(path: string): Promise<string | null>;
+    /** A local edit, as a base64 Yjs update. Fire-and-forget: it sits on the keystroke path. */
+    pushUpdate(path: string, update: string): void;
+    saveDoc(path: string): Promise<boolean>;
+    presence(
+      path: string | null,
+      cursor: { line: number; column: number },
+      selection: { start: { line: number; column: number }; end: { line: number; column: number } } | null,
+    ): void;
+    /** A guest asking the host to commit. The host approves or declines. */
+    requestCommit(message: string): void;
+    decideCommit(id: string, approved: boolean, detail: string): void;
+    onStatus(listener: (status: CollabStatusView) => void): () => void;
+    onDocUpdate(listener: (path: string, update: string) => void): () => void;
+    onPresence(listener: (presence: readonly CollabPresenceView[]) => void): () => void;
+    onCommitRequest(listener: (request: CollabCommitRequestView) => void): () => void;
+    onNotice(listener: (detail: string) => void): () => void;
   };
 }

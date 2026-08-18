@@ -338,19 +338,103 @@ if (filePoint === null) {
      })()`,
   );
 
+  /*
+   * A submenu has to fly out beside its row.
+   *
+   * The recents used to be a picker precisely because a long list inlined into File was a
+   * wall, so the list only earns its place in the menu if the flyout works - and the
+   * flyout is positioned from three offsets that a unit test cannot see.
+   */
+  checks.menuSubmenuFliesOut = await (async () => {
+    const point = await evaluate(
+      `(() => {
+         const row = [...document.querySelectorAll('.menu-panel .menu-item')]
+           .find((i) => i.querySelector('.menu-item-label')?.textContent === 'Open Recent');
+         if (!row) return null;
+         const r = row.getBoundingClientRect();
+         return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+       })()`,
+    );
+    if (point === null) return "no Open Recent row";
+
+    await clickAt(point.x, point.y);
+    await sleep(150);
+
+    return evaluate(
+      `(() => {
+         const sub = document.querySelector('.menu-panel[data-depth="1"]');
+         if (!sub) return 'no submenu opened';
+         const parent = document.querySelector('.menu-panel[data-depth="0"]');
+         const s = sub.getBoundingClientRect();
+         const p = parent.getBoundingClientRect();
+         if (s.left < p.right - 12) return 'the submenu opened on top of its parent';
+         if (s.right > window.innerWidth) return 'the submenu hangs off the window';
+         return true;
+       })()`,
+    );
+  })();
+
   await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
 }
 
 /*
- * No draggable region may sit under the menu bar.
+ * Alt+G opens Git, from wherever you were.
+ *
+ * The mnemonic table is asserted in unit tests; what cannot be asserted there is that the
+ * keystroke survives the trip - Monaco stops propagation on the Alt combinations it owns,
+ * and this listener has to run in the capture phase to be ahead of it.
+ */
+checks.altLetterOpensMenu = await (async () => {
+  await evaluate("document.querySelector('.monaco-editor textarea')?.focus(); true");
+
+  await send("Input.dispatchKeyEvent", {
+    type: "rawKeyDown", key: "g", code: "KeyG", windowsVirtualKeyCode: 71, modifiers: 1,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp", key: "g", code: "KeyG", windowsVirtualKeyCode: 71, modifiers: 1,
+  });
+  await sleep(250);
+
+  const opened = await evaluate(
+    `(() => {
+       const open = document.querySelector('.menubar-item[aria-expanded="true"]');
+       if (!open) return 'no menu opened';
+       if (open.textContent !== 'Git') return 'Alt+G opened ' + open.textContent;
+       const labels = [...document.querySelectorAll('.menu-panel .menu-item-label')].map((l) => l.textContent);
+       return labels.includes('Commit…') && labels.includes('Push') ? true : 'Git menu had: ' + labels.join(',');
+     })()`,
+  );
+
+  await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
+  return opened;
+})();
+
+/* The bottom-left corner names the folder in full, and the build after it. */
+checks.statusBarSaysWhereAndWhat = await evaluate(
+  `(() => {
+     const path = document.getElementById('status-workspace');
+     const version = document.getElementById('status-version');
+     if (!path || !version) return 'the status bar is missing an element';
+     if (!path.title.includes('/') && !path.title.includes('\')) return 'the folder is not a path: ' + path.title;
+     if (!/^ADCode \\d+\\.\\d+\\.\\d+/.test(version.textContent ?? '')) return 'the version reads: ' + version.textContent;
+     return true;
+   })()`,
+);
+
+/*
+ * No draggable region may sit under anything in the title bar you are meant to click.
  *
  * Draggable regions are resolved by the OS through WM_NCHITTEST before the renderer sees
  * the press, and CDP injects input below that layer - so no amount of driving the app
  * from here can catch this. What can be checked is the geometry that causes it: a `drag`
- * rect overlapping a menu button means real clicks become window drags, which is exactly
- * the bug that shipped.
+ * rect overlapping a control means real clicks become window drags, which is exactly the
+ * bug that shipped.
+ *
+ * The selector covers every control in the bar, not just the menus. The assistant button
+ * and the command centre are newer and sit in the same bar for the same reasons, and the
+ * failure would look identical: a control that works under CDP and is dead to a mouse.
  */
-checks.menuBarNotInDragRegion = await evaluate(
+checks.titleBarNotInDragRegion = await evaluate(
   `(() => {
      const dragRects = [...document.querySelectorAll('*')]
        .filter((el) => getComputedStyle(el).getPropertyValue('-webkit-app-region').trim() === 'drag')
@@ -359,11 +443,16 @@ checks.menuBarNotInDragRegion = await evaluate(
      const overlaps = (a, b) =>
        a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 
+     const controls = document.querySelectorAll('.menubar-item, .titlebar-action, .command-centre');
+     if (controls.length === 0) return 'no title bar controls found';
+
      const clashes = [];
-     for (const button of document.querySelectorAll('.menubar-item')) {
-       const br = button.getBoundingClientRect();
+     for (const control of controls) {
+       const br = control.getBoundingClientRect();
        for (const { el, r } of dragRects) {
-         if (overlaps(br, r)) clashes.push(button.textContent + ' under ' + (el.className || el.tagName));
+         if (overlaps(br, r)) {
+           clashes.push((control.textContent || control.ariaLabel) + ' under ' + (el.className || el.tagName));
+         }
        }
      }
      return clashes.length === 0 ? true : clashes.join(', ');
@@ -417,6 +506,219 @@ checks.multipleTerminals = await evaluate(
      await new Promise((r) => setTimeout(r, 2000));
 
      return JSON.stringify({ tabs, panes: panesOf() });
+   })()`,
+);
+
+/*
+ * The shell launcher on the panel's split button, driven at real coordinates.
+ *
+ * Asserts what the dropdown is for rather than that it renders: picking a shell has to
+ * start that shell, and the tab has to say which one it is - the tab strip is the only
+ * place that information exists once two different shells are running.
+ */
+checks.terminalProfileLauncher = await (async () => {
+  const chevron = await evaluate(
+    `(() => {
+       const button = document.getElementById('terminal-profiles');
+       if (!button) return null;
+       const r = button.getBoundingClientRect();
+       if (r.width === 0) return null;
+       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+     })()`,
+  );
+
+  if (chevron === null) return "no profile chevron (is the panel open?)";
+
+  await clickAt(chevron.x, chevron.y);
+
+  const shells = await evaluate(
+    `(() => {
+       const panel = document.querySelector('.menu-panel[data-context]');
+       if (!panel) return null;
+       return [...panel.querySelectorAll('.menu-item-label')].map((l) => l.textContent);
+     })()`,
+  );
+
+  if (shells === null || shells.length === 0) return "launcher did not open";
+
+  const before = await evaluate("document.querySelectorAll('.terminal-tab').length");
+  const point = await contextItemPoint(shells[0]);
+  await clickAt(point.x, point.y);
+  await sleep(2500);
+
+  const after = await evaluate(
+    `(() => {
+       const titles = [...document.querySelectorAll('.terminal-tab')]
+         .map((t) => t.querySelector('span')?.textContent);
+       return JSON.stringify({ count: titles.length, titles });
+     })()`,
+  );
+
+  const { count, titles } = JSON.parse(after);
+  if (count <= before) return `picking ${shells[0]} started nothing (${before} -> ${count})`;
+
+  // "Terminal 1" was the old numbered title; a tab still called that means the shell's
+  // name never reached the strip.
+  const named = titles.some((t) => typeof t === "string" && t.includes(shells[0]));
+  return named ? true : `tabs are ${titles.join(', ')}, expected one saying ${shells[0]}`;
+})();
+
+/*
+ * Alt is a menu key only when it is pressed alone.
+ *
+ * Alt+Up is Move Line Up. Deciding the menu on the `Alt` keydown - which always arrives
+ * first - opened the bar and pulled focus off the editor, so the arrow walked a menu
+ * instead of moving the line. Dispatched as real key events because the ordering *is* the
+ * bug: nothing about it is visible from a single synthesised event.
+ */
+checks.altChordLeavesMenuShut = await (async () => {
+  const altDown = { type: "rawKeyDown", key: "Alt", code: "AltLeft", windowsVirtualKeyCode: 18, modifiers: 1 };
+  const altUp = { type: "keyUp", key: "Alt", code: "AltLeft", windowsVirtualKeyCode: 18 };
+
+  await send("Input.dispatchKeyEvent", altDown);
+  await send("Input.dispatchKeyEvent", {
+    type: "rawKeyDown", key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38, modifiers: 1,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp", key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38, modifiers: 1,
+  });
+  await send("Input.dispatchKeyEvent", altUp);
+  await sleep(250);
+
+  const takenByChord = await evaluate(
+    "document.activeElement?.classList.contains('menubar-item') === true",
+  );
+  if (takenByChord) return "Alt+Up moved focus to the menu bar";
+
+  /*
+   * And the other half of the contract: a bare Alt still reaches the bar.
+   *
+   * Focus rather than an open dropdown. Alt puts the bar into the state where the next
+   * key decides - a letter picks a menu, an arrow opens one - which is what Windows has
+   * always done and what the mnemonics are for. It used to open File outright, so every
+   * Alt+F cost you a File menu you then had to leave.
+   */
+  await send("Input.dispatchKeyEvent", altDown);
+  await send("Input.dispatchKeyEvent", altUp);
+  await sleep(250);
+
+  const focused = await evaluate(
+    `(() => {
+       const active = document.activeElement;
+       if (active?.classList.contains('menubar-item') !== true) return 'focus is on ' + (active?.className ?? 'nothing');
+       if (document.querySelector('.menu-panel') !== null) return 'Alt opened a dropdown as well';
+       if (document.querySelector('.menubar')?.dataset.mnemonics !== 'true') return 'the mnemonics stayed hidden';
+       return true;
+     })()`,
+  );
+
+  await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
+
+  return focused === true ? true : `a bare Alt: ${focused}`;
+})();
+
+/* The assistant button and the command centre, clicked where they actually are. */
+checks.titleBarControlsWork = await (async () => {
+  const pointOf = async (selector) =>
+    evaluate(
+      `(() => {
+         const el = document.querySelector(${JSON.stringify(selector)});
+         if (!el) return null;
+         const r = el.getBoundingClientRect();
+         if (r.width === 0) return null;
+         return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+       })()`,
+    );
+
+  const ai = await pointOf("#ai-toggle");
+  if (ai === null) return "no assistant button";
+
+  await clickAt(ai.x, ai.y);
+  const chatOpen = await evaluate("document.querySelector('.chat-card')?.hidden === false");
+  if (!chatOpen) return "the assistant button did not open the chat";
+
+  const pressed = await evaluate("document.getElementById('ai-toggle')?.getAttribute('aria-pressed')");
+  if (pressed !== "true") return `aria-pressed is ${pressed} while the chat is open`;
+
+  await clickAt(ai.x, ai.y);
+  await sleep(300);
+
+  const centre = await pointOf(".command-centre");
+  if (centre === null) return "no command centre";
+
+  await clickAt(centre.x, centre.y);
+  const quickOpen = await evaluate("document.querySelector('.quickopen')?.hidden === false");
+  if (!quickOpen) return "the command centre did not open quick open";
+
+  await evaluate(
+    "document.querySelector('.quickopen-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true",
+  );
+  await sleep(200);
+  return true;
+})();
+
+/*
+ * The feedback button, which sits immediately after the command centre.
+ *
+ * Deliberately stops short of submitting: a real send would reach the live API from a
+ * test run, and what is worth checking here is that the button is reachable and the form
+ * opens - the round trip has its own tests in services/api.
+ */
+checks.reportDialogOpens = await (async () => {
+  const geometry = await evaluate(
+    `(() => {
+       const button = document.getElementById('report-toggle');
+       if (!button) return 'no feedback button';
+       const centre = document.querySelector('.command-centre-slot');
+       if (!centre) return 'no command centre slot';
+       const b = button.getBoundingClientRect();
+       const c = centre.getBoundingClientRect();
+       if (b.width === 0) return 'the feedback button has no width';
+       if (b.left < c.right) return 'the feedback button is not after the command centre';
+       return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2) };
+     })()`,
+  );
+
+  if (typeof geometry === "string") return geometry;
+
+  await clickAt(geometry.x, geometry.y);
+  await sleep(250);
+
+  const form = await evaluate(
+    `(() => {
+       const dialog = document.querySelector('.report-dialog');
+       if (!dialog?.open) return 'the button did not open the form';
+       if (dialog.querySelectorAll('.report-kind').length !== 4) return 'the four report kinds are not all there';
+       if (dialog.querySelector('.report-kind[aria-checked="true"]') === null) return 'no kind is selected by default';
+       if (!dialog.querySelector('.report-input')) return 'no summary field';
+       if (!dialog.querySelector('.report-textarea')) return 'no detail field';
+       return true;
+     })()`,
+  );
+
+  await evaluate("document.querySelector('.report-dialog')?.close(); true");
+  await sleep(150);
+
+  const closed = await evaluate("document.querySelector('.report-dialog')?.open === false");
+  if (closed !== true) return "the form would not close";
+
+  return form === true ? true : `the feedback form: ${form}`;
+})();
+
+/*
+ * Dragging the mouse across a line selects the line.
+ *
+ * It did not: the "Multi-cursor" settings row was wired to Monaco's `columnSelection`, and
+ * that row defaults to on - so every install shipped in column-select mode and a drag
+ * produced a rectangular block. Read off the live editor rather than the settings file,
+ * because the setting being right is not the same as the option being right.
+ */
+checks.dragSelectsWholeLine = await evaluate(
+  `(() => {
+     const host = document.getElementById('editor-host');
+     const mode = host?.dataset?.columnSelection;
+     if (mode === undefined) return 'the editor never reported its selection mode';
+     return mode === 'false' ? true : 'the editor is in column-selection mode';
    })()`,
 );
 
@@ -478,16 +780,27 @@ try {
   await evaluate(`document.querySelector('.activity[data-view="explorer"]').click(); true`);
   await sleep(500);
 
-  const emptySpace = await evaluate(
-    `(() => {
-       const tree = document.getElementById('filetree');
-       const box = tree.getBoundingClientRect();
-       const rows = tree.querySelectorAll('.tree-row');
-       const last = rows[rows.length - 1]?.getBoundingClientRect();
-       const y = last ? Math.min(last.bottom + 40, box.bottom - 20) : box.top + 40;
-       return { x: Math.round(box.left + box.width / 2), y: Math.round(y) };
-     })()`,
-  );
+  /*
+   * Recomputed before every use, never cached.
+   *
+   * Each file this flow creates adds a row, so the blank area below the tree moves up. A
+   * coordinate captured once and reused lands on a row later in the run, and the right
+   * click then opens the *file* menu - which has no "New File" - and the failure reads as
+   * "no context menu is open" rather than as a stale coordinate.
+   */
+  const emptyTreeSpace = () =>
+    evaluate(
+      `(() => {
+         const tree = document.getElementById('filetree');
+         const box = tree.getBoundingClientRect();
+         const rows = tree.querySelectorAll('.tree-row');
+         const last = rows[rows.length - 1]?.getBoundingClientRect();
+         const y = last ? Math.min(last.bottom + 40, box.bottom - 20) : box.top + 40;
+         return { x: Math.round(box.left + box.width / 2), y: Math.round(y) };
+       })()`,
+    );
+
+  const emptySpace = await emptyTreeSpace();
 
   await rightClickAt(emptySpace.x, emptySpace.y);
   checks.contextMenuOpens = await evaluate(
@@ -820,6 +1133,225 @@ try {
      }))()`,
   );
 
+  /*
+   * The Problems panel, end to end.
+   *
+   * A real file, created through the real menu, typed into with real key events, checked
+   * by Monaco's real TypeScript worker. Every unit test in this feature passes against a
+   * hand-built `Diagnostic`; none of them can tell whether a marker ever reaches the
+   * panel, which is the only thing a user experiences.
+   */
+  const brokenSpace = await emptyTreeSpace();
+  await rightClickAt(brokenSpace.x, brokenSpace.y);
+  point = await contextItemPoint("New File");
+  await clickAt(point.x, point.y);
+  await evaluate("document.querySelector('.tree-edit-input').value = ''; true");
+  // Created at the workspace root, like every other file this flow makes, so the cleanup
+  // below has to name it. A smoke run that leaves a stray `.ts` behind has modified the
+  // repository, which is the one thing this whole block promises not to do.
+  await typeText("smoke-broken.ts");
+  await pressEnter();
+  await sleep(1000);
+
+  const editorPoint = await evaluate(
+    `(() => {
+       const r = document.getElementById('editor-host').getBoundingClientRect();
+       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 40) };
+     })()`,
+  );
+  await clickAt(editorPoint.x, editorPoint.y);
+
+  // No quotes and no brackets: auto-closing pairs would rewrite anything containing them,
+  // and this needs to be exactly the source that produces TS2322.
+  await typeText("let x: number = true;");
+
+  // The TypeScript worker is a web worker doing a real compile. It is the slowest thing
+  // in this run and the only one worth waiting seconds for.
+  await sleep(6000);
+
+  checks.problemsBadgeAppears = await evaluate(
+    `(() => {
+       const badge = document.getElementById('problems-badge');
+       if (!badge) return 'no badge element';
+       if (badge.hidden) return 'badge stayed hidden with an error on screen';
+       return { text: badge.textContent, tone: badge.dataset.tone };
+     })()`,
+  );
+
+  await evaluate(`document.querySelector('.activity[data-view="problems"]').click(); true`);
+  await sleep(600);
+
+  checks.problemsPanelExplains = await evaluate(
+    `(() => {
+       const view = document.getElementById('view-problems');
+       if (view.hidden) return 'the problems view did not show';
+
+       const rows = view.querySelectorAll('.problems-row');
+       if (rows.length === 0) return 'panel listed nothing: ' + (view.textContent ?? '').trim().slice(0, 120);
+
+       const headline = view.querySelector('.problems-headline')?.textContent ?? '';
+       const raw = view.querySelector('.problems-raw')?.textContent ?? '';
+
+       const files = [...view.querySelectorAll('.problems-file-name')].map((f) => f.textContent);
+
+       return {
+         // Grouped under the file that has the error, and that file is the one just typed
+         // into. A regression in the "is this an editable tab" predicate shows up here as
+         // a list of files the user never opened.
+         files,
+         worstFirst: files[0] === 'smoke-broken.ts',
+         // The rewrite happened, in words with no type-system vocabulary in them.
+         rewritten: /true or false/.test(headline) && !/assignable/.test(headline),
+         // And the compiler's own sentence is still on the row. Demoted, never dropped -
+         // a rewrite is only safe to ship because this is one glance away.
+         keepsRaw: /not assignable/.test(raw),
+       };
+     })()`,
+  );
+
+  checks.problemsRowJumpsToTheColumn = await evaluate(
+    `(async () => {
+       const row = document.querySelector('#view-problems .problems-row');
+       if (!row) return 'no row to click';
+
+       row.click();
+       await new Promise((r) => setTimeout(r, 700));
+
+       const position = document.getElementById('status-position')?.textContent ?? '';
+       // The column is the point: landing on column 1 of a long line makes the reader do
+       // the search the panel was supposed to do for them.
+       return /Ln \\d+, Col [2-9]\\d*/.test(position) ? position : 'cursor at ' + position;
+     })()`,
+  );
+
+  /*
+   * The language-server chain, end to end, on a machine with no language servers installed.
+   *
+   * That is the point: this repository has no Python toolchain, and the useful behaviour in
+   * that situation is not silence. Creating a `.py` file has to walk the whole path -
+   * Monaco model, IPC, PATH lookup, "missing" state, back through the bridge - and arrive
+   * as a row that names the program and the command that installs it.
+   *
+   * If a machine running this *does* have pyright, the server starts instead and publishes
+   * real diagnostics; the check accepts either, because both prove the chain is connected
+   * and only one of them is under our control.
+   */
+  /*
+   * The Go Live / Run button, in the corner it is supposed to be in.
+   *
+   * `smoke-broken.ts` is open and active from the checks above, so the button should be
+   * offering to run it - which is the interesting half, because the label is generated from
+   * the recipe table and a wrong language id shows up as a button that says nothing or is
+   * not there at all.
+   */
+  checks.runButtonOffersTheActiveFile = await evaluate(
+    `(() => {
+       const button = document.querySelector('#status-run-slot .status-action');
+       if (button === null) return 'no run button in the status bar';
+       if (button.hidden) return 'button is hidden with a runnable file open';
+
+       const bar = document.getElementById('statusbar').getBoundingClientRect();
+       const box = button.getBoundingClientRect();
+
+       return {
+         says: button.textContent?.trim(),
+         // Bottom-right corner, where Live Server has trained everyone to look. Reaching
+         // the right edge is what makes the whole corner a target rather than a small box.
+         inTheCorner: Math.abs(box.right - bar.right) < 2 && box.height > 12,
+         // Built *and* on top - the rule the dead menu bar taught this repository.
+         topmost: (() => {
+           const hit = document.elementFromPoint(
+             Math.round(box.left + box.width / 2),
+             Math.round(box.top + box.height / 2),
+           );
+           return button === hit || button.contains(hit);
+         })(),
+       };
+     })()`,
+  );
+
+  /*
+   * And the other half of the fork: an HTML file is served, not executed.
+   *
+   * Which branch a file takes is the one guess `runCommands.ts` makes, and the guess that
+   * decides whether pressing the button previews the user's page or runs it as a program.
+   */
+  // Back to the explorer before measuring anything in it. The problems checks above left
+  // the sidebar on another view, and a hidden tree measures as a zero-sized box - so the
+  // coordinate lands on the title bar and the failure reads as "no context menu is open".
+  await evaluate(`document.querySelector('.activity[data-view="explorer"]').click(); true`);
+  await sleep(400);
+
+  const pageSpace = await emptyTreeSpace();
+  await rightClickAt(pageSpace.x, pageSpace.y);
+  point = await contextItemPoint("New File");
+  await clickAt(point.x, point.y);
+  await evaluate("document.querySelector('.tree-edit-input').value = ''; true");
+  await typeText("smoke-page.html");
+  await pressEnter();
+  await sleep(1200);
+
+  checks.runButtonGoesLiveOnAPage = await evaluate(
+    `(() => {
+       const button = document.querySelector('#status-run-slot .status-action');
+       if (button === null || button.hidden) return 'no button on an HTML file';
+
+       const says = button.textContent?.trim();
+       return says === 'Go Live' ? true : 'said ' + JSON.stringify(says);
+     })()`,
+  );
+
+  const pythonSpace = await emptyTreeSpace();
+  await rightClickAt(pythonSpace.x, pythonSpace.y);
+  point = await contextItemPoint("New File");
+  await clickAt(point.x, point.y);
+  await evaluate("document.querySelector('.tree-edit-input').value = ''; true");
+  await typeText("smoke-lang.py");
+  await pressEnter();
+  await sleep(3000);
+
+  checks.languageServerReportsItself = await evaluate(
+    `(async () => {
+       const states = await window.adcode.language.states();
+       const python = states.find((state) => state.languageId === 'python');
+       if (python === undefined) return 'no state for python; got ' + JSON.stringify(states);
+
+       return {
+         label: python.label,
+         status: python.status,
+         // The whole value of the "missing" path: a command the user can act on.
+         explains: python.status !== 'missing' || (python.detail ?? '').length > 0,
+       };
+     })()`,
+  );
+
+  await evaluate(`document.querySelector('.activity[data-view="problems"]').click(); true`);
+  await sleep(800);
+
+  checks.missingServerBecomesAHint = await evaluate(
+    `(() => {
+       const view = document.getElementById('view-problems');
+       const rows = [...view.querySelectorAll('.problems-row')];
+       const hint = rows.find((row) => /smoke-lang|install|pyright/i.test(row.textContent ?? ''));
+
+       if (hint === undefined) {
+         // A machine with pyright installed reports real diagnostics instead, and an empty
+         // Python file has none - which is a pass, not a failure.
+         return 'no hint row (pyright may be installed)';
+       }
+
+       return {
+         // An \`info\`, never an error: a tool the user has not installed is not a problem
+         // with their code, and the badge is reserved for things that are.
+         severity: hint.className.includes('problems-row-info'),
+         mentionsTheFix: /install/i.test(hint.textContent ?? ''),
+       };
+     })()`,
+  );
+
+  await evaluate(`document.querySelector('.activity[data-view="explorer"]').click(); true`);
+  await sleep(300);
+
   // The renderer is hostile by assumption, so the guards are asserted through the bridge
   // rather than trusted because the UI never offers these.
   checks.guardsHold = await evaluate(
@@ -841,7 +1373,114 @@ try {
   checks.explorerFlow = `THREW: ${error instanceof Error ? error.message : String(error)}`;
 } finally {
   await rm(join(REPO, SCRATCH), { recursive: true, force: true }).catch(() => {});
+  await rm(join(REPO, "smoke-broken.ts"), { force: true }).catch(() => {});
+  await rm(join(REPO, "smoke-lang.py"), { force: true }).catch(() => {});
+  await rm(join(REPO, "smoke-page.html"), { force: true }).catch(() => {});
 }
+
+/*
+ * The live preview.
+ *
+ * The unit tests cover request resolution and script injection against strings. What they
+ * cannot cover is whether a socket actually binds, whether the CSP lets the frame render
+ * at all, and whether the editor gives up the width - and a `frame-src` that still said
+ * `'none'` would fail silently, as a blank white rectangle with the console error hidden
+ * inside a frame nobody was reading.
+ */
+checks.previewStartsOnLoopback = await evaluate(
+  `window.adcode.preview.start().then((status) => {
+     if (!status.running) return 'did not start: ' + (status.error ?? 'no reason given');
+     // Never 0.0.0.0: binding a project folder to the LAN is not a default anyone asked for.
+     return /^http:\\/\\/127\\.0\\.0\\.1:\\d+\\/$/.test(status.url)
+       ? true
+       : 'bound somewhere unexpected: ' + status.url;
+   })`,
+);
+
+checks.previewPaneRendersIt = await evaluate(
+  `(async () => {
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'P', ctrlKey: true, shiftKey: true, bubbles: true }));
+     await new Promise((r) => setTimeout(r, 300));
+
+     const input = document.querySelector('.quickopen-input[aria-label="Command palette"]');
+     if (!input) return 'palette did not open';
+
+     input.value = 'live preview';
+     input.dispatchEvent(new Event('input', { bubbles: true }));
+     await new Promise((r) => setTimeout(r, 250));
+
+     const rows = [...document.querySelectorAll('.palette-row')];
+     const titles = rows.map((r) => r.querySelector('span')?.textContent);
+     // By title, not by position: "Reload Live Preview" also matches this query and ranks
+     // above it, and clicking whatever came first tested the wrong command.
+     const row = rows.find((r) => r.querySelector('span')?.textContent === 'Toggle Live Preview');
+     if (!row) return 'no Toggle command; palette had [' + titles.join(' | ') + ']';
+     row.click();
+     await new Promise((r) => setTimeout(r, 2500));
+
+     const pane = document.querySelector('.preview-pane');
+     if (!pane || pane.hidden) {
+       const status = await window.adcode.preview.status();
+       return 'pane never showed; palette had [' + titles.join(' | ') + ']; server ' +
+         JSON.stringify(status);
+     }
+
+     const frame = pane.querySelector('.preview-frame');
+     const box = pane.getBoundingClientRect();
+     const editor = document.getElementById('editor-host').getBoundingClientRect();
+
+     return {
+       framed: /^http:\\/\\/127\\.0\\.0\\.1:\\d+\\//.test(frame?.getAttribute('src') ?? ''),
+       // The pane has real width, and the editor actually gave it up rather than the two
+       // overlapping - which is what a stacking bug looks like from the outside.
+       paneWide: box.width > 100,
+       editorYielded: editor.right <= box.left + 2,
+     };
+   })()`,
+);
+
+/*
+ * Project detection, without running anything.
+ *
+ * This repository has a `dev` script and no framework config at its root, which is exactly
+ * the case the automatic choice must not act on: `npm run dev` here launches Electron and
+ * serves no page. So the bar should offer it and the preview should still have started the
+ * static server, which the checks above already proved it did.
+ */
+checks.previewDetectsProjectWithoutRunningIt = await evaluate(
+  `(async () => {
+     const project = await window.adcode.preview.detect();
+     if (project === null) return 'detect() found no dev script in a repo that has one';
+
+     const status = await window.adcode.preview.status();
+     return {
+       offered: project.label,
+       // Never auto-started: a bare \`dev\` script is offered, not executed.
+       stayedStatic: status.mode === 'static' || status.running === false,
+     };
+   })()`,
+);
+
+checks.previewStopsCleanly = await evaluate(
+  `(async () => {
+     const close = document.querySelector('.preview-pane .icon-button[aria-label="Close preview"]');
+     if (!close) return 'no close button';
+     close.click();
+     await new Promise((r) => setTimeout(r, 800));
+
+     const status = await window.adcode.preview.status();
+     const pane = document.querySelector('.preview-pane');
+     const editor = document.getElementById('editor-host').getBoundingClientRect();
+
+     return {
+       serverStopped: status.running === false,
+       paneHidden: pane?.hidden === true,
+       // The editor took the width back. A pane that hides without releasing it leaves a
+       // dead strip down the side of the window.
+       editorFullWidth: editor.width > 200,
+     };
+   })()`,
+);
 
 /*
  * The adjustable layout, dragged for real.
@@ -936,17 +1575,533 @@ checks.panelDividerFollowsPanel = await evaluate(
 // The `<$>` mark is drawn, not typed, so it cannot fall back to a missing font.
 checks.brandMarkDrawn = await evaluate(
   `(() => {
-     const mark = document.querySelector('#placeholder-mark .brand-mark');
-     if (!mark) return 'no mark on the empty-editor screen';
+     const mark = document.querySelector('.welcome-mark .brand-mark');
+     if (!mark) return 'no mark on the welcome screen';
      const paths = mark.querySelectorAll('path').length;
      const box = mark.getBoundingClientRect();
      return paths === 4 && box.width > 0 ? true : 'paths=' + paths + ' width=' + box.width;
    })()`,
 );
 
+/*
+ * A hidden welcome screen takes no clicks.
+ *
+ * The other half of the same problem, and the one that would be invisible: with a file open the
+ * screen is faded out but still in the DOM, directly over the editor. If it kept accepting the
+ * pointer, every click in the editor would land on it instead - the window would look perfect
+ * and be unusable, which is a bug this repository has shipped before.
+ */
+checks.hiddenWelcomeDoesNotSwallowClicks = await evaluate(
+  `(async () => {
+     const placeholder = document.getElementById('editor-placeholder');
+     if (!placeholder) return 'no placeholder';
+     if (placeholder.dataset.visible !== 'false') return 'expected a file to be open by now';
+
+     const editor = document.getElementById('editor-host').getBoundingClientRect();
+     const hit = document.elementFromPoint(
+       editor.left + editor.width / 2,
+       editor.top + editor.height / 2,
+     );
+
+     return {
+       fadedOut: getComputedStyle(placeholder).opacity === '0',
+       // Nothing at the centre of the editor belongs to the welcome screen.
+       editorReceivesTheClick: hit !== null && !placeholder.contains(hit),
+     };
+   })()`,
+);
+
+/*
+ * The welcome screen offers what it names, and can be clicked.
+ *
+ * The clickability half is the one worth asserting. `.editor-placeholder` is `position:
+ * absolute; inset: 0` with `pointer-events: none`, which was correct while it was decorative -
+ * and would have made every button on it inert. The fix puts the two properties on different
+ * elements, and the only way to know it worked is to hit-test a real button in a real window.
+ */
+checks.welcomeScreenIsUsable = await evaluate(
+  `(async () => {
+     /*
+      * Close every editor first, so the screen being measured is actually on screen.
+      *
+      * The first version of this check ran with a restored file open, which leaves the welcome
+      * screen faded out and hidden by visibility - so the hit test found the editor underneath
+      * and reported the button as unclickable. It was measuring a hidden element and calling it
+      * a failure, the mirror of the preview check that measured a hidden element and called it
+      * a pass.
+      */
+     for (const close of [...document.querySelectorAll('.tab-close')]) close.click();
+     await new Promise((r) => setTimeout(r, 500));
+
+     const placeholder = document.getElementById('editor-placeholder');
+     if (placeholder?.dataset.visible === 'false') return 'the welcome screen did not come back';
+
+     const inner = document.querySelector('.welcome-inner');
+     if (!inner) return 'no welcome screen';
+
+     const labels = [...inner.querySelectorAll('.welcome-action strong')].map((n) => n.textContent);
+     const primary = inner.querySelector('.welcome-action-primary');
+     if (!primary) return 'no primary action';
+
+     const box = primary.getBoundingClientRect();
+     // What the pointer would actually reach at the button's centre.
+     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+
+     return {
+       offers: labels.join(','),
+       primaryClickable: primary.contains(hit) || primary === hit,
+       // The version is on screen, because it is what a bug report asks for.
+       showsVersion: /Version \\d/.test(inner.querySelector('.welcome-version')?.textContent ?? ''),
+       marked: inner.querySelector('.welcome-mark svg') !== null,
+     };
+   })()`,
+);
+
+// New file and new folder, at the root, beside the folder's own name.
+checks.rootCreateButtonsExist = await evaluate(
+  `(() => {
+     const file = document.getElementById('new-root-file');
+     const folder = document.getElementById('new-root-folder');
+     if (!file || !folder) return 'missing root create buttons';
+
+     return {
+       // A folder is open in this run, so both are live rather than greyed out.
+       enabled: !file.disabled && !folder.disabled,
+       inHeader: file.closest('.sidebar-header') !== null,
+       // Right of the folder name, which is where they act on what is named beside them.
+       afterTitle:
+         file.getBoundingClientRect().left >
+         document.getElementById('sidebar-title').getBoundingClientRect().left,
+     };
+   })()`,
+);
+
+// The recents list records the folder this run opened.
+checks.recentFoldersRecorded = await evaluate(
+  `window.adcode.workspace.recents().then((list) => ({
+     count: list.length,
+     hasNames: list.every((f) => typeof f.name === 'string' && f.name.length > 0),
+   }))`,
+);
+
+// The version the welcome screen shows comes from the main process, not a constant.
+checks.appInfoIsReal = await evaluate(
+  `window.adcode.app.info().then((info) => ({
+     version: /^\\d+\\.\\d+\\.\\d+/.test(info.version),
+     electron: info.electron.length > 0,
+     node: info.node.length > 0,
+   }))`,
+);
+
 // The gutter decorations for the restored file.
 checks.gutterOrClean = await evaluate(
   "document.querySelectorAll('.git-gutter').length >= 0",
+);
+
+/*
+ * Every icon-only control has its icon in the middle of it.
+ *
+ * This is the check the bug it was written for demanded. Four close buttons drew the
+ * character "×" in a box with no centring mechanism, and no unit test can see it: the glyph
+ * is positioned by font metrics at paint time, so the only place the truth exists is a laid
+ * out box in a real window. Measured as centres rather than as CSS, because `place-items:
+ * center` being present is not the same claim as the ink being centred - `.icon-button-
+ * chevron` had the property set and was still half a pixel off from its own border.
+ *
+ * Half a pixel of tolerance: subpixel layout means an odd-sized icon in an even-sized box
+ * lands on a .5 legitimately, and failing on that would make the check noise.
+ */
+checks.iconsCentredInTheirButtons = await evaluate(
+  `(async () => {
+     /*
+      * Sweep every view, because the measurement can only see laid-out boxes.
+      *
+      * A button in a closed panel is a button this check silently skips. The first version
+      * opened nothing and passed while \`.icon-button\` and \`.scm-stage\` were both off centre;
+      * the second opened only source control, which *replaces* the file tree - so it stopped
+      * measuring \`.tree-action\`, one of the two buttons the whole exercise started from.
+      * Sweeping after each view and taking the union is the only version that stays honest as
+      * the workbench grows.
+      */
+     const offenders = [];
+     const seen = {};
+
+     const sweep = () => {
+       for (const host of document.querySelectorAll('button, .problems-glyph, .activity')) {
+         measure(host);
+       }
+     };
+
+     function measure(host) {
+       const box = host.getBoundingClientRect();
+       if (box.width === 0 || box.height === 0) return;
+
+       const icons = host.querySelectorAll('svg');
+       // Icon-only controls. A button with a label is centred by its flex row, not by this
+       // rule, and asserting on it would be asserting the wrong geometry.
+       if (icons.length !== 1) return;
+       if ((host.textContent ?? '').trim() !== '') return;
+
+       const icon = icons[0].getBoundingClientRect();
+       if (icon.width === 0 || icon.height === 0) return;
+
+       const dx = icon.left + icon.width / 2 - (box.left + box.width / 2);
+       const dy = icon.top + icon.height / 2 - (box.top + box.height / 2);
+
+       const name = String(host.className || host.tagName).split(' ')[0];
+       seen[name] = true;
+
+       if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+         // One entry per class, not per instance: fourteen identical tree rows produced
+         // fourteen identical lines and buried the one class that mattered.
+         const line = name + ' dx=' + dx.toFixed(2) + ' dy=' + dy.toFixed(2);
+         if (!offenders.includes(line)) offenders.push(line);
+       }
+     }
+
+     // Explorer first, for the tree rows. Hovering is not needed - the row actions are laid
+     // out either way, they are only made visible by the hover.
+     document.querySelector('.activity[data-view="explorer"]')?.click();
+     await new Promise((r) => setTimeout(r, 350));
+     sweep();
+
+     // Source control, which replaces the tree, for the staging buttons.
+     document.querySelector('.activity[data-view="scm"]')?.click();
+     await new Promise((r) => setTimeout(r, 450));
+     sweep();
+
+     // The terminal panel, for its tab close buttons and toolbar.
+     document.dispatchEvent(
+       new KeyboardEvent('keydown', { key: '\`', ctrlKey: true, bubbles: true }),
+     );
+     await new Promise((r) => setTimeout(r, 600));
+     sweep();
+
+     // The two popovers, each of which owns a close button.
+     document.getElementById('open-earnings')?.click();
+     await new Promise((r) => setTimeout(r, 300));
+     sweep();
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+     document.getElementById('status-collab')?.click();
+     await new Promise((r) => setTimeout(r, 300));
+     sweep();
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+     document.querySelector('.activity[data-view="explorer"]')?.click();
+
+     if (offenders.length > 0) return 'off centre: ' + offenders.join(' | ');
+
+     // The families are reported so a future reader can tell "all centred" from "nothing was
+     // measured", which are the same \`true\` otherwise.
+     return { families: Object.keys(seen).sort().join(',') };
+   })()`,
+);
+
+/*
+ * No control draws its icon as a text character.
+ *
+ * The companion to the check above, and the one that actually catches a regression of the
+ * original bug: a button holding "×" has no `svg` at all, so the centring check skips it
+ * entirely and passes. These characters are maths operators and letters - they sit on a
+ * baseline and on the font's maths axis, so they cannot be centred in a square box by any
+ * amount of CSS. `workbench/icons.ts` exists to make a path the only option.
+ */
+checks.noTextGlyphIcons = await evaluate(
+  `(() => {
+     const banned = ['\\u00d7', '\\u2715', '\\u2716', '\\u2717', '\\u2718', '\\u274c', '\\u2713'];
+     const offenders = [];
+
+     for (const host of document.querySelectorAll('button, .problems-glyph')) {
+       const text = (host.textContent ?? '').trim();
+       if (text.length === 0) continue;
+       if (banned.includes(text)) {
+         offenders.push((host.className || host.tagName) + ' = ' + JSON.stringify(text));
+       }
+     }
+
+     return offenders.length === 0 ? true : 'glyph icons remain: ' + offenders.join(' | ');
+   })()`,
+);
+
+/*
+ * The earnings report opens, and opens as a popover rather than a view.
+ *
+ * `topmost` is asserted the same way the menu bar's check is, and for the same reason: a
+ * card can be present, positioned and painted and still sit behind the sidebar, which is a
+ * bug this repository has already shipped once.
+ */
+checks.earningsPopoverOpens = await evaluate(
+  `(async () => {
+     const button = document.getElementById('open-earnings');
+     if (!button) return 'no earnings button in the activity bar';
+
+     const problems = document.querySelector('.activity[data-view="problems"]');
+     if (!problems) return 'no problems button to sit under';
+
+     const under =
+       button.getBoundingClientRect().top > problems.getBoundingClientRect().top;
+
+     button.click();
+     await new Promise((r) => setTimeout(r, 300));
+
+     const card = document.querySelector('.earnings-card');
+     if (!card || card.hidden) return 'popover did not open';
+
+     const box = card.getBoundingClientRect();
+     const centre = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+
+     const result = {
+       belowProblems: under,
+       topmost: card.contains(centre),
+       onScreen: box.left >= 0 && box.right <= window.innerWidth && box.top >= 0,
+       // A figure, or an honest dash. Never blank.
+       showsAFigure: (card.querySelector('.earnings-hero-value')?.textContent ?? '').length > 0,
+       // Four presets, from the server's own table.
+       presetRows: card.querySelectorAll('.earnings-preset').length,
+       // The sidebar must not have changed: this is a popover, not a view.
+       explorerStillSelected:
+         document.querySelector('.activity[data-view="explorer"]')?.ariaSelected === 'true',
+     };
+
+     // Escape closes it, and the check leaves the window as it found it.
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+     await new Promise((r) => setTimeout(r, 250));
+     result.escapeCloses = document.querySelector('.earnings-card')?.hidden === true;
+
+     return result;
+   })()`,
+);
+
+/*
+ * The one button inside the earnings popover actually does something.
+ *
+ * It did not. "Ad settings" called \`showView("settings")\`, and settings is an overlay rather
+ * than a sidebar view - so the call matched no view, hid all four of them, and deselected every
+ * activity button. The popover closed and left an empty sidebar with nothing highlighted, which
+ * reads as the window having broken. Reported by a user as "a pop-up showed, I was not able to
+ * do anything".
+ *
+ * Both halves are asserted, because fixing only the first would still leave the sidebar blank.
+ */
+checks.earningsSettingsButtonWorks = await evaluate(
+  `(async () => {
+     document.querySelector('.activity[data-view="explorer"]')?.click();
+     await new Promise((r) => setTimeout(r, 250));
+
+     document.getElementById('open-earnings')?.click();
+     await new Promise((r) => setTimeout(r, 300));
+
+     const card = document.querySelector('.earnings-card');
+     if (!card || card.hidden) return 'the popover did not open';
+
+     const button = [...card.querySelectorAll('button')].find(
+       (b) => (b.textContent ?? '').trim() === 'Ad settings',
+     );
+     if (!button) return 'no Ad settings button in the popover';
+
+     button.click();
+     await new Promise((r) => setTimeout(r, 500));
+
+     const settings = document.querySelector('.settings-sheet');
+     const settingsVisible =
+       settings instanceof HTMLElement &&
+       settings.hidden !== true &&
+       settings.getBoundingClientRect().height > 100;
+
+     const result = {
+       settingsOpened: settingsVisible,
+       // The sidebar must not have been blanked on the way there.
+       explorerStillShown: document.getElementById('filetree')?.hidden === false,
+       explorerStillSelected:
+         document.querySelector('.activity[data-view="explorer"]')?.ariaSelected === 'true',
+     };
+
+     // Put the window back.
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+     await new Promise((r) => setTimeout(r, 300));
+
+     return result;
+   })()`,
+);
+
+// The earnings icon is a drawn dollar sign, not the character "$".
+checks.earningsIconIsADrawnDollar = await evaluate(
+  `(() => {
+     const button = document.getElementById('open-earnings');
+     if (!button) return 'no earnings button';
+
+     if ((button.textContent ?? '').includes('$')) return 'the icon is a text character';
+
+     const paths = button.querySelectorAll('svg path');
+     if (paths.length !== 2) return 'expected an S and a bar, got ' + paths.length + ' paths';
+
+     const box = button.getBoundingClientRect();
+     const icon = button.querySelector('svg').getBoundingClientRect();
+     const dx = icon.left + icon.width / 2 - (box.left + box.width / 2);
+
+     return Math.abs(dx) <= 0.5 ? true : 'off centre by ' + dx.toFixed(2);
+   })()`,
+);
+
+/*
+ * Undocking the preview floats it without reloading the page inside it.
+ *
+ * The last property is the whole reason the implementation looks the way it does. The
+ * obvious build - append the iframe into a floating container - reloads the document, and a
+ * reload is invisible to every assertion except one that watches the frame's identity and
+ * its `src` across the move. So that is what this watches.
+ */
+checks.previewUndocksWithoutReloading = await evaluate(
+  `(async () => {
+     /*
+      * Opened through the palette, not through \`preview.start()\`.
+      *
+      * The first version of this check called the IPC method directly, which starts the
+      * server and never unhides the pane - so every assertion below ran against an element
+      * that \`[hidden]\` had collapsed to 0x0, and three of them passed for that reason. A
+      * check that measures a hidden element is not measuring the feature.
+      */
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'P', ctrlKey: true, shiftKey: true, bubbles: true }));
+     await new Promise((r) => setTimeout(r, 300));
+
+     const input = document.querySelector('.quickopen-input[aria-label="Command palette"]');
+     if (!input) return 'palette did not open';
+     input.value = 'live preview';
+     input.dispatchEvent(new Event('input', { bubbles: true }));
+     await new Promise((r) => setTimeout(r, 250));
+
+     const row = [...document.querySelectorAll('.palette-row')].find(
+       (r) => r.querySelector('span')?.textContent === 'Toggle Live Preview',
+     );
+     if (!row) return 'no Toggle Live Preview command';
+     row.click();
+     await new Promise((r) => setTimeout(r, 2500));
+
+     const pane = document.querySelector('.preview-pane');
+     if (!pane) return 'no preview pane';
+     if (pane.hidden) return 'pane still hidden after the toggle command';
+
+     const frameBefore = pane.querySelector('iframe');
+     if (!frameBefore) return 'no preview frame';
+     const srcBefore = frameBefore.getAttribute('src');
+
+     const dock = pane.querySelector('.icon-button[aria-label="Undock preview"]');
+     if (!dock) return 'no undock button in the preview bar';
+     dock.click();
+     await new Promise((r) => setTimeout(r, 400));
+
+     const box = pane.getBoundingClientRect();
+     const centre = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+     const frameAfter = pane.querySelector('iframe');
+     const editor = document.getElementById('editor-host').getBoundingClientRect();
+
+     const result = {
+       floating: pane.dataset.placement === 'floating',
+       // Not hidden and not collapsed. Asserted explicitly because the previous version of
+       // this check was silently measuring a 0x0 box.
+       hasSize: box.width > 300 && box.height > 200,
+       onScreen: box.left >= 0 && box.top >= 0 && box.right <= window.innerWidth + 1,
+       // Identity, not equality: a reparented iframe is a different node, and that is the
+       // one thing this whole implementation exists to avoid.
+       sameFrameNode: frameAfter === frameBefore,
+       sameSrc: frameAfter?.getAttribute('src') === srcBefore,
+       topmost: pane.contains(centre),
+       // The editor took the column back, since the card now floats over it.
+       editorReclaimedWidth: editor.width > 200,
+       gripVisible: (pane.querySelector('.preview-grip')?.getBoundingClientRect().width ?? 0) > 0,
+     };
+
+     // Back to docked, then closed, so later checks see the layout they expect.
+     pane.querySelector('.icon-button[aria-label="Dock preview"]')?.click();
+     await new Promise((r) => setTimeout(r, 300));
+     result.docksAgain = pane.dataset.placement === 'docked';
+
+     pane.querySelector('.icon-button[aria-label="Close preview"]')?.click();
+     await new Promise((r) => setTimeout(r, 600));
+
+     return result;
+   })()`,
+);
+
+/*
+ * A live session, started and ended in the real app.
+ *
+ * Bound to loopback rather than `lan`, so running the suite does not publish this repository to
+ * whatever network the machine is on. Everything either side of the bind is the same code path.
+ *
+ * The assertions worth having here are the ones the unit suite cannot reach: that the panel
+ * actually opens and is the topmost thing at its own centre, that the status bar changes its
+ * words rather than only a colour, and that starting a session produces a code which decodes to
+ * the port the server really bound.
+ */
+checks.collabSessionStartsAndStops = await evaluate(
+  `(async () => {
+     const button = document.getElementById('status-collab');
+     if (!button) return 'no live-session button in the status bar';
+     if ((document.getElementById('status-collab-label')?.textContent ?? '') !== 'Share') {
+       return 'the button should read "Share" before a session starts';
+     }
+
+     button.click();
+     await new Promise((r) => setTimeout(r, 300));
+
+     const card = document.querySelector('.collab-card');
+     if (!card || card.hidden) return 'the session panel did not open';
+
+     const box = card.getBoundingClientRect();
+     const centre = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+
+     const opened = {
+       topmost: card.contains(centre),
+       onScreen: box.left >= 0 && box.top >= 0 && box.bottom <= window.innerHeight + 1,
+       offersShare: /Share this folder/i.test(card.textContent ?? ''),
+       offersJoin: /Join with a code/i.test(card.textContent ?? ''),
+     };
+
+     // Close the panel, then drive the session over IPC - the confirm dialog in the click path
+     // is a deliberate speed bump for a human, not something to click through here.
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+     await new Promise((r) => setTimeout(r, 200));
+
+     const started = await window.adcode.collab.host({
+       bind: 'loopback',
+       port: 0,
+       displayName: 'Smoke',
+     });
+
+     if (started.mode !== 'hosting') {
+       return 'did not start: ' + (started.error ?? 'no reason given') ;
+     }
+
+     await new Promise((r) => setTimeout(r, 300));
+
+     const hosting = {
+       // The host is in its own roster, as the host.
+       roster: started.participants.length === 1 && started.participants[0].role === 'host',
+       hasInvite: typeof started.invite === 'string' && started.invite.startsWith('adcode1:'),
+       hasPort: Number.isInteger(started.port) && started.port > 0,
+       // The word, not just the colour. This is the only indicator that other people can reach
+       // these files, so it has to be legible without knowing the colour code.
+       label: document.getElementById('status-collab-label')?.textContent,
+       state: document.getElementById('status-collab')?.dataset.state,
+       // The renderer knows what it may do, and a host may do everything.
+       canAdminister: started.can?.administer === true,
+     };
+
+     // A document joins the session and comes back with real state.
+     const openDoc = await window.adcode.collab.openDoc('README.md');
+
+     const stopped = await window.adcode.collab.leave();
+
+     return {
+       ...opened,
+       ...hosting,
+       docJoined: typeof openDoc === 'string' && openDoc.length > 0,
+       stopped: stopped.mode === 'off',
+       labelAfter: document.getElementById('status-collab-label')?.textContent,
+     };
+   })()`,
 );
 
 socket.close();

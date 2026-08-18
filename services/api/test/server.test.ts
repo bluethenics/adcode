@@ -91,6 +91,45 @@ describe("routing", () => {
   });
 });
 
+describe("reports", () => {
+  const report = {
+    kind: "bug",
+    title: "Terminal freezes",
+    body: "Splitting a third time stops accepting input.",
+    appVersion: "0.1.0",
+    platform: "win32",
+  };
+
+  it("accepts a report and returns its id", async () => {
+    const res = await post("/v1/reports", report);
+    expect(res.status).toBe(200);
+    expect((await res.json()) as Record<string, unknown>).toHaveProperty("reportId");
+  });
+
+  it("400s a malformed report", async () => {
+    expect((await post("/v1/reports", { ...report, kind: "lawsuit" })).status).toBe(400);
+    expect((await post("/v1/reports", { ...report, title: "" })).status).toBe(400);
+  });
+
+  it("requires a token", async () => {
+    expect((await post("/v1/reports", report, {})).status).toBe(401);
+  });
+
+  it("refuses a non-admin listing reports", async () => {
+    expect((await get("/v1/admin/reports")).status).toBe(403);
+  });
+
+  it("lets an admin read what was filed", async () => {
+    await post("/v1/reports", report);
+    const adminHeaders = { authorization: "Bearer admin", "content-type": "application/json" };
+    const body = (await (await get("/v1/admin/reports", adminHeaders)).json()) as {
+      rows: Record<string, unknown>[];
+    };
+    expect(body.rows).toHaveLength(1);
+    expect(body.rows[0]?.["title"]).toBe("Terminal freezes");
+  });
+});
+
 describe("rate limiting", () => {
   it("429s a user over the ceiling, and says when to come back", async () => {
     const cfg = await store.getConfig();

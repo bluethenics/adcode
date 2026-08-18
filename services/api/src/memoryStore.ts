@@ -14,6 +14,8 @@ import type {
   EntryPage,
   Page,
   ReceiptRecord,
+  ReportPage,
+  ReportRecord,
   ServeRecord,
   ServingConfig,
   Store,
@@ -43,6 +45,7 @@ export function createMemoryStore(): Store & { reset(): void } {
   let balances = new Map<string, Balance>();
   let spend = new Map<string, bigint>();
   let requestCounts = new Map<string, number>();
+  let reports = new Map<string, ReportRecord>();
   let audit: AuditRecord[] = [];
   let config: ServingConfig = { ...DEFAULT_CONFIG };
 
@@ -57,6 +60,7 @@ export function createMemoryStore(): Store & { reset(): void } {
       balances = new Map();
       spend = new Map();
       requestCounts = new Map();
+      reports = new Map();
       audit = [];
       config = { ...DEFAULT_CONFIG };
     },
@@ -154,6 +158,21 @@ export function createMemoryStore(): Store & { reset(): void } {
       const next = (requestCounts.get(key) ?? 0) + 1;
       requestCounts.set(key, next);
       return next;
+    },
+
+    async createReport(report) {
+      reports.set(report.reportId, report);
+    },
+
+    async listReports(page: Page): Promise<ReportPage> {
+      const all = [...reports.values()].sort(
+        (a, b) => b.createdAt - a.createdAt || b.reportId.localeCompare(a.reportId),
+      );
+      const start = page.cursor === null ? 0 : all.findIndex((r) => r.reportId === page.cursor) + 1;
+      const rows = all.slice(start, start + page.limit);
+      const last = rows.at(-1);
+      const more = start + rows.length < all.length;
+      return { rows, nextCursor: more && last !== undefined ? last.reportId : null };
     },
 
     async getConfig() {

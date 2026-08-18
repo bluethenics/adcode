@@ -12,7 +12,8 @@ import { handleReceipts } from "./receipts.ts";
 import { handleBalance, handleLedger } from "./balance.ts";
 import { handleConfig } from "./config.ts";
 import { handleAdminLedger } from "./admin.ts";
-import { parseReceiptsRequest, parseServeRequest } from "./contract.ts";
+import { parseReceiptsRequest, parseReportRequest, parseServeRequest } from "./contract.ts";
+import { handleAdminListReports, handleSubmitReport } from "./reports.ts";
 import { checkRate } from "./rateLimit.ts";
 import { createMemoryStore } from "./memoryStore.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
@@ -99,6 +100,15 @@ export async function createApiServer(
       return;
     }
 
+    if (path === "/v1/admin/reports" && req.method === "GET") {
+      if (!auth.isAdmin) {
+        send(res, 403, { error: "not-admin" });
+        return;
+      }
+      send(res, 200, await handleAdminListReports({ store, clock, ids }, auth.uid, pageFrom(url)));
+      return;
+    }
+
     const admin = ADMIN_LEDGER.exec(path);
     if (admin !== null && req.method === "GET") {
       if (!auth.isAdmin) {
@@ -141,6 +151,23 @@ export async function createApiServer(
         return;
       }
       send(res, 200, await handleReceipts({ store, clock, ids }, auth.uid, body));
+      return;
+    }
+
+    if (path === "/v1/reports" && req.method === "POST") {
+      let raw: unknown;
+      try {
+        raw = JSON.parse(await readBody(req));
+      } catch {
+        send(res, 400, { error: "malformed body" });
+        return;
+      }
+      const body = parseReportRequest(raw);
+      if (body === null) {
+        send(res, 400, { error: "malformed report" });
+        return;
+      }
+      send(res, 200, await handleSubmitReport({ store, clock, ids }, auth.uid, body));
       return;
     }
 

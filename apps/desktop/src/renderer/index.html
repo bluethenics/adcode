@@ -6,11 +6,23 @@
     <title>ADCode</title>
   </head>
   <body>
+    <!--
+      Left to right: the assistant, the menus, then the command centre floating between two
+      drag regions. The spacers are siblings of the centre rather than a single drag region
+      underneath it, for the reason spelled out on `.titlebar-drag` - a draggable rect over
+      a control is resolved by the OS before the renderer ever sees the press.
+    -->
     <div id="titlebar" class="titlebar">
+      <button class="titlebar-action" id="ai-toggle" type="button" title="Assistant (Ctrl+I)" aria-label="Assistant" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M17.5 15.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"/></svg>
+      </button>
       <div class="menubar-slot" id="menubar-slot"></div>
-      <div class="titlebar-drag">
-        <span class="titlebar-title" id="titlebar-title">ADCode</span>
-      </div>
+      <div class="titlebar-drag"></div>
+      <div class="command-centre-slot" id="command-centre-slot"></div>
+      <button class="titlebar-action" id="report-toggle" type="button" title="Send feedback" aria-label="Send feedback">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a7 7 0 0 1 7 7v3.2l1.3 2.6a.8.8 0 0 1-.7 1.2H4.4a.8.8 0 0 1-.7-1.2L5 13.7v-3.2a7 7 0 0 1 7-7z"/><path d="M9.8 20.2a2.4 2.4 0 0 0 4.4 0"/></svg>
+      </button>
+      <div class="titlebar-drag"></div>
     </div>
 
     <div id="workbench" class="workbench">
@@ -24,6 +36,37 @@
         <button class="activity" data-view="scm" title="Source control (Ctrl+Shift+G)" aria-label="Source control">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="6" r="2.5"/><circle cx="7" cy="18" r="2.5"/><circle cx="17" cy="12" r="2.5"/><path d="M7 8.5v7M9.5 6h3a2 2 0 0 1 2 2v2"/></svg>
         </button>
+        <!--
+          The badge is this feature's whole discoverability answer: it is visible without
+          the user knowing what the icon means, and it is the only thing in the activity
+          bar that ever changes on its own.
+        -->
+        <button class="activity" data-view="problems" title="Problems (Ctrl+Shift+M)" aria-label="Problems">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5l8 14.5H4z"/><path d="M12 10v4M12 16.6v.4"/></svg>
+          <span class="activity-badge" id="problems-badge" hidden></span>
+        </button>
+        <!--
+          Earnings, directly under Problems.
+
+          No `data-view`, unlike every button above it, and that is deliberate rather than an
+          omission: this one opens a popover instead of swapping the sidebar. Both loops in
+          `main.ts` that wire the activity bar skip a button with no `data-view`, so leaving
+          it off is what keeps this button out of the sidebar's selection model - a popover
+          that also marked itself as the selected view would leave the explorer looking
+          unselected while the explorer was still on screen.
+        -->
+        <button class="activity" id="open-earnings" title="Earnings" aria-label="Earnings" aria-haspopup="dialog" aria-expanded="false">
+          <!--
+            A dollar sign, drawn rather than typed.
+
+            The obvious implementation is the character "$", and it is wrong here for the same
+            reason "×" was wrong on the close buttons: a glyph is positioned by font metrics, so
+            it sits on a baseline and cannot be centred in a square button by any amount of CSS.
+            This path has 180° rotational symmetry about (12, 12), so it is centred by
+            construction - see `workbench/icons.ts` for the full reasoning.
+          -->
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 9.1C15.5 7.5 13.9 6.5 12 6.5S8.5 7.5 8.5 9.1c0 1.8 1.8 2.4 3.5 2.9s3.5 1.1 3.5 2.9c0 1.6-1.6 2.6-3.5 2.6s-3.5-1-3.5-2.6"/><path d="M12 4.5v15"/></svg>
+        </button>
         <button class="activity activity-bottom" id="open-settings" data-view="settings" title="Settings (Ctrl+,)" aria-label="Settings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6L18 18M18 6l-1.4 1.4M7.4 16.6L6 18"/></svg>
         </button>
@@ -32,13 +75,37 @@
       <aside class="sidebar" id="sidebar">
         <header class="sidebar-header">
           <span class="sidebar-title" id="sidebar-title">No Folder Opened</span>
-          <button class="ghost-button" id="open-folder">Open</button>
+          <!--
+            The folder's name on the left, everything that acts on it grouped on the right.
+
+            Grouped rather than spread. The header used to be four flex children under
+            `space-between`, which distributes the *free* space between them - so the wider
+            the sidebar got, the further the three controls drifted apart, until they read
+            as three unrelated things rather than one set of actions. In a group they stay
+            together at the right edge whatever the sidebar is doing, and the name gets all
+            the room that is left.
+
+            New file and new folder first: the tree's own row actions create *inside a
+            folder row*, so creating something at the top level meant finding a row to hover
+            first. These act on the folder named beside them, and are disabled with none
+            open, because there is nowhere to put a file.
+          -->
+          <div class="sidebar-actions">
+            <button class="tree-action" id="new-root-file" type="button" title="New File" aria-label="New File" disabled>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.75H4.5a1.25 1.25 0 0 0-1.25 1.25v10a1.25 1.25 0 0 0 1.25 1.25h7a1.25 1.25 0 0 0 1.25-1.25V5.5z"/><path d="M9 1.75V5.5h3.75"/><path d="M8 8v3.5M6.25 9.75h3.5"/></svg>
+            </button>
+            <button class="tree-action" id="new-root-folder" type="button" title="New Folder" aria-label="New Folder" disabled>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.75 4.25A1.5 1.5 0 0 1 3.25 2.75h2.1c.3 0 .6.12.83.34l.72.72c.22.22.52.34.83.34h4.02a1.5 1.5 0 0 1 1.5 1.5v6.1a1.5 1.5 0 0 1-1.5 1.5H3.25a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M8 7.25v3.5M6.25 9h3.5"/></svg>
+            </button>
+            <button class="ghost-button" id="open-folder">Open</button>
+          </div>
         </header>
         <nav class="filetree" id="filetree" aria-label="Files">
           <p class="empty-hint">Open a folder to get started.</p>
         </nav>
         <div class="sidebar-view" id="view-search" hidden></div>
         <div class="sidebar-view" id="view-scm" hidden></div>
+        <div class="sidebar-view" id="view-problems" hidden></div>
       </aside>
 
       <div class="splitter" id="splitter-sidebar"></div>
@@ -46,31 +113,31 @@
       <main class="main">
         <div class="tabs" id="tabs" role="tablist"></div>
 
-        <section class="editor-area">
+        <section class="editor-area" id="editor-area">
           <div class="editor-host" id="editor-host"></div>
-          <div class="editor-placeholder" id="editor-placeholder">
-            <div class="placeholder-inner">
-              <div class="placeholder-mark" id="placeholder-mark"></div>
-              <h1>ADCode</h1>
-              <p>Open a folder, pick a file, and start editing.</p>
-              <dl class="shortcuts">
-                <div><dt>Save</dt><dd><kbd>Ctrl</kbd><kbd>S</kbd></dd></div>
-                <div><dt>Terminal</dt><dd><kbd>Ctrl</kbd><kbd>`</kbd></dd></div>
-              </dl>
-            </div>
-          </div>
+          <!--
+            The welcome screen. Built by `workbench/welcomeView.ts`, which replaces whatever is
+            here - so this element is left empty rather than duplicating the markup in two
+            places where only one of them would get updated.
+          -->
+          <div class="editor-placeholder" id="editor-placeholder"></div>
         </section>
 
         <div class="splitter" id="splitter-panel" hidden></div>
 
         <section class="panel" id="panel" hidden>
           <header class="panel-header">
-            <span class="panel-title">Terminal</span>
+            <span class="panel-title" id="panel-title">Terminal</span>
             <div class="terminal-tabs" id="terminal-tabs" role="tablist" hidden></div>
-            <select class="profile-select" id="profile-select" aria-label="Terminal profile"></select>
-            <button class="icon-button" id="terminal-new" title="New terminal (Ctrl+Shift+`)" aria-label="New terminal">
-              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>
-            </button>
+            <!-- Split button: the plus opens the current default shell, the chevron picks one. -->
+            <div class="split-button">
+              <button class="icon-button" id="terminal-new" title="New terminal (Ctrl+Shift+`)" aria-label="New terminal">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>
+              </button>
+              <button class="icon-button icon-button-chevron" id="terminal-profiles" title="New terminal with profile" aria-label="New terminal with profile" aria-haspopup="menu" aria-expanded="false">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg>
+              </button>
+            </div>
             <button class="icon-button" id="terminal-split" title="Split terminal (Ctrl+Shift+5)" aria-label="Split terminal">
               <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3h11v10h-11z M8 3v10"/></svg>
             </button>
@@ -87,12 +154,39 @@
     </div>
 
     <footer class="statusbar" id="statusbar">
-      <span class="status-item" id="status-workspace">No folder</span>
+      <!--
+        Where you are, and what you are running it in.
+
+        The full path rather than the folder name: two checkouts of one project is the
+        normal state of affairs, and this is the only corner with room to say which of
+        them this window has open. The version sits after it because it answers a
+        different question - one asked far less often, and never urgently.
+      -->
+      <span class="status-item status-path" id="status-workspace">No folder</span>
+      <span class="status-item status-version" id="status-version"></span>
       <span class="status-spacer"></span>
       <span class="status-item" id="status-position">Ln 1, Col 1</span>
       <span class="status-item" id="status-language"></span>
       <span class="status-item" id="status-earnings"></span>
+      <!--
+        The live session control.
+
+        A button rather than a label, because it is how a session is started as well as how it
+        is inspected. It sits in the status bar next to the other things that describe the
+        current state of the window, and it is the only one of them that reports something
+        reaching outside this machine - so when a session is running it says so in words rather
+        than with an icon alone.
+      -->
+      <button class="status-action" id="status-collab" type="button" title="Live session" aria-label="Live session" aria-haspopup="dialog" aria-expanded="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5.5" cy="6" r="2"/><circle cx="11" cy="6" r="1.6"/><path d="M2 13c0-2 1.6-3.2 3.5-3.2S9 11 9 13M9.6 9.9c1.6.1 2.9 1.2 2.9 3.1"/></svg>
+        <span id="status-collab-label">Share</span>
+      </button>
       <span class="status-item" id="status-dirty"></span>
+      <!--
+        Last, so it sits in the bottom-right corner where Live Server has trained everyone
+        to look for it. The button is built in `run/runButton.ts` and mounted here.
+      -->
+      <span class="status-slot" id="status-run-slot"></span>
     </footer>
 
     <div class="toast-layer" id="toast-layer" aria-live="polite"></div>

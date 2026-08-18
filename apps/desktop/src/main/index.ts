@@ -15,8 +15,11 @@ import { join } from "node:path";
 import { BrowserWindow, app, shell } from "electron";
 import { registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "./protocol.ts";
 import { registerIpc } from "./ipc.ts";
+import { registerSupportIpc } from "./supportIpc.ts";
 import { installApplicationMenu } from "./menu.ts";
 import { disposeAllTerminals } from "./terminal.ts";
+import { shutdownAllServers } from "./lsp.ts";
+import { stopPreview } from "./preview.ts";
 import { getAdRuntime } from "./adRuntime.ts";
 import { loadSettings } from "./settings.ts";
 
@@ -119,8 +122,10 @@ function createWindow(): BrowserWindow {
 void app.whenReady().then(() => {
   registerAppProtocol(useDevServer);
   registerIpc();
-  // Before the first window, so its accelerators are live from the first keystroke.
-  installApplicationMenu();
+  registerSupportIpc();
+  // Before the first window, so its accelerators are live from the first keystroke. Not
+  // awaited: it reads the recents off disk, and a menu is not worth delaying a window for.
+  void installApplicationMenu();
 
   createWindow();
 
@@ -143,4 +148,12 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => disposeAllTerminals());
+app.on("before-quit", () => {
+  disposeAllTerminals();
+
+  // Language servers and a project's dev server are both children that outlive us if
+  // nobody says otherwise: an orphaned rust-analyzer keeps a core busy indexing a
+  // workspace nobody has open, and an orphaned dev server keeps its port until reboot.
+  void shutdownAllServers();
+  void stopPreview();
+});

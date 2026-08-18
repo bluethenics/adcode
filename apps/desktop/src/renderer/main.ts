@@ -14,9 +14,12 @@ import "./styles/dialogs.css";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
 import { createCommandRegistry } from "./workbench/commands.ts";
 import { createMenuBar } from "./workbench/menuBar.ts";
+import { shortenPath } from "./workbench/pathLabel.ts";
+import { createAltMenuActivation } from "./workbench/altMenuActivation.ts";
+import { createCommandCentre } from "./workbench/commandCentre.ts";
 import { createPalette } from "./workbench/palette.ts";
 import { fileIcon, folderIcon } from "./workbench/fileIcons.ts";
-import { brandMark } from "./workbench/brandMark.ts";
+import { createWelcomeView } from "./workbench/welcomeView.ts";
 import { createSplitter } from "./workbench/splitter.ts";
 import {
   DEFAULT_PANEL_HEIGHT,
@@ -24,9 +27,19 @@ import {
   clampPanelHeight,
   clampSidebarWidth,
 } from "./workbench/layoutSizes.ts";
-import { MENU_BAR, formatAccelerator } from "../shared/menuModel.ts";
+import { buildMenuBar, formatAccelerator, stripMnemonic, type MenuEntry } from "../shared/menuModel.ts";
 import { createQuickOpen, createSearchPanel } from "./panels/searchPanel.ts";
+import { createProblemsPanel } from "./panels/problemsPanel.ts";
+import { createEarningsPopover } from "./panels/earningsPopover.ts";
+import { createCollabPanel } from "./collab/collabPanel.ts";
+import { createCollabSession } from "./collab/collabSession.ts";
+import { createPreviewPane } from "./preview/previewPane.ts";
+import { createRunButton } from "./run/runButton.ts";
+import { createDiagnosticsHost } from "./diagnostics/diagnosticsHost.ts";
+import { createLanguageBridge } from "./diagnostics/languageBridge.ts";
+import { badgeFor, countBySeverity, summarise } from "@adcode/diagnostics";
 import { createChatWidget } from "./ai/chatWidget.ts";
+import { ICON, createIcon, iconButton } from "./workbench/icons.ts";
 import { createSettingsView } from "./settings/settingsView.ts";
 import { createEditorHost, languageForFilename, type EditorHost } from "./editor/editorHost.ts";
 import { createTerminalPanel, type TerminalPanel } from "./terminal/terminalPanel.ts";
@@ -34,9 +47,17 @@ import { createNotificationCentre } from "./notifications/notifications.ts";
 import { createResultDialog } from "./dialogs/resultDialog.ts";
 import { createConfirmDialog } from "./dialogs/confirmDialog.ts";
 import { createPromptDialog } from "./dialogs/promptDialog.ts";
+import { createReportDialog } from "./dialogs/reportDialog.ts";
 import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "./workbench/contextMenu.ts";
 import { createInlineEditor } from "./workbench/inlineEdit.ts";
-import type { AdcodeApi, DirEntry, GitOutcome, GitStatusView, TerminalProfile } from "../shared/api.ts";
+import type {
+  AdcodeApi,
+  DirEntry,
+  GitOutcome,
+  GitStatusView,
+  OpenedWorkspace,
+  TerminalProfile,
+} from "../shared/api.ts";
 
 declare global {
   interface Window {
@@ -82,6 +103,9 @@ function applySettings(values: Record<string, boolean | string>): void {
   document.documentElement.dataset["density"] = density === "compact" ? "compact" : "comfortable";
 
   editorHost.applySettings(values);
+  // The panel caches nothing, but it only redraws on a marker change - so switching the
+  // rewrites off would otherwise leave the old wording on screen until the next keystroke.
+  problemsPanel.render(diagnosticsHost.current());
   sourceControl.setTimelineEnabled(values["adcode.git.fileTimeline"] !== false);
   void refreshGitOverlay();
   syncTheme();
@@ -131,10 +155,7 @@ function renderTabs(): void {
     // tab is *of* rather than from its label.
     const icon = fileIcon(basename(tab.path.split(":").at(-1) ?? tab.name));
 
-    const close = document.createElement("button");
-    close.className = "tab-close";
-    close.textContent = "×";
-    close.ariaLabel = `Close ${tab.name}`;
+    const close = iconButton(`Close ${tab.name}`, ICON.close, "tab-close");
     close.addEventListener("click", (event) => {
       event.stopPropagation();
       closeTab(tab.path);
@@ -197,7 +218,11 @@ function activateTab(path: string): void {
   el("status-language").textContent = tab === undefined ? "" : languageForFilename(tab.name);
 
   renderTabs();
+  runButton.refresh();
   void refreshGitOverlay();
+  // Remote carets are per-file: switching tabs has to redraw them, or the previous file's
+  // cursors stay on screen pointing at unrelated lines.
+  collabSession.refreshCursors();
   rememberSession();
 }
 
@@ -206,6 +231,8 @@ function closeTab(path: string): void {
   if (index === -1) return;
 
   tabs.splice(index, 1);
+  // Before `editorHost.close`, which disposes the model the binding is listening to.
+  collabSession.untrackFile(path);
   editorHost.close(path);
 
   if (activePath === path) {
@@ -215,6 +242,7 @@ function closeTab(path: string): void {
       el("editor-placeholder").dataset["visible"] = "true";
       el("status-language").textContent = "";
       el("status-position").textContent = "Ln 1, Col 1";
+      runButton.refresh();
       editorHost.git.clear();
     } else {
       activateTab(next.path);
@@ -240,6 +268,10 @@ async function openFile(path: string): Promise<void> {
     editorHost.open(path, file.text, languageForFilename(name));
     tabs.push({ path, name, dirty: false });
     activateTab(path);
+
+    // Joins the file to a running session, if there is one. A no-op otherwise, so this costs
+    // nothing when nobody is sharing.
+    collabSession.trackFile(path);
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "could not open file");
   }
@@ -295,17 +327,7 @@ function rowActionButton(label: string, path: string, run: () => void): HTMLButt
   button.title = label;
   button.ariaLabel = label;
 
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 16 16");
-  svg.setAttribute("aria-hidden", "true");
-
-  for (const data of [path, PLUS_ICON]) {
-    const shape = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    shape.setAttribute("d", data);
-    svg.append(shape);
-  }
-
-  button.append(svg);
+  button.append(createIcon([path, PLUS_ICON]));
 
   // The row's own click toggles the folder, which would fold away the thing being
   // created the instant the editor appeared inside it.
@@ -540,6 +562,11 @@ function depthOf(dirPath: string): number {
  * the last minute opening. Matching on path keeps those subtrees and their state.
  */
 async function refreshDirectory(dirPath: string): Promise<void> {
+  // Before the box check, and deliberately: the root's children render straight into the
+  // tree rather than into a disclosure box, so a guard placed after it would never run for
+  // the one directory the run button needs to know about.
+  if (workspaceRoot !== null && samePath(dirPath, workspaceRoot)) void refreshRootFiles();
+
   const box = childrenBoxFor(dirPath);
   if (box === null) return;
 
@@ -1199,20 +1226,97 @@ el("filetree").addEventListener("keydown", (event) => {
   }
 });
 
+/**
+ * Close every open editor, keeping anything unsaved.
+ *
+ * Called when the open folder changes. Tabs hold absolute paths into the folder that was open,
+ * so leaving them behind after a switch gives you editors pointing at another project - saving
+ * one writes to a file outside the folder on screen, and the tab strip describes a workspace
+ * that is no longer loaded.
+ *
+ * Drafts are flushed first rather than trusted to their timer. Dirty buffers are already
+ * recorded for recovery a few seconds after the last keystroke, but "a few seconds" is exactly
+ * the window someone lands in when they type something and immediately switch projects - so the
+ * draft is written now, and the text is recoverable from the same prompt that handles a crash.
+ */
+async function closeAllTabs(): Promise<void> {
+  for (const tab of [...tabs]) {
+    if (!editorHost.isReadOnly(tab.path) && editorHost.isDirty(tab.path)) {
+      const text = editorHost.text(tab.path);
+      if (text !== null) window.adcode.history.draft(tab.path, text);
+    }
+  }
+
+  for (const tab of [...tabs]) closeTab(tab.path);
+}
+
+/**
+ * The bottom-left corner: where you are, and what you are running.
+ *
+ * The full path rather than the folder name. A name alone is ambiguous the moment you
+ * have two checkouts of the same project - which is the normal state of affairs - and the
+ * status bar is the one place with room to say which one this window is looking at. The
+ * whole path is always the tooltip, however much of it is drawn.
+ */
+function setStatusWorkspace(root: string | null): void {
+  const label = el("status-workspace");
+  label.textContent = root === null ? "No folder" : shortenPath(root);
+  label.title = root ?? "No folder is open";
+}
+
+/**
+ * Hand the menu bar the recent folders it names.
+ *
+ * The renderer's bar and the main process's native menu are refreshed independently from
+ * the same list: main rebuilds its own when the list changes, this rebuilds ours.
+ */
+async function refreshMenuRecents(): Promise<void> {
+  if (menuBar === null) return;
+
+  const recents = await window.adcode.workspace.recents().catch(() => []);
+  menuBar.setContext({ recents });
+}
+
+/** Point the whole workbench at a folder that has already been opened in the main process. */
+async function adoptWorkspace(opened: OpenedWorkspace): Promise<void> {
+  await closeAllTabs();
+
+  workspaceRoot = opened.root;
+  void refreshRootFiles();
+  setRendererWorkspace(opened.root);
+  el("sidebar-title").textContent = opened.name;
+  setStatusWorkspace(opened.root);
+  commandCentre.setWorkspace(opened.name);
+
+  await renderTree(opened.root);
+  rememberSession();
+  void refreshMenuRecents();
+  void sourceControl.refresh();
+  void refreshGitOverlay();
+  void welcome.refresh();
+  syncRootCreateButtons();
+}
+
 async function openFolder(): Promise<void> {
   const opened = await window.adcode.workspace.open();
   if (opened === null) return;
 
-  workspaceRoot = opened.root;
-  chat.setWorkspace(opened.root);
-  el("sidebar-title").textContent = opened.name;
-  el("status-workspace").textContent = opened.name;
-  el("titlebar-title").textContent = `${opened.name} — ADCode`;
+  await adoptWorkspace(opened);
+}
 
-  await renderTree(opened.root);
-  rememberSession();
-  void sourceControl.refresh();
-  void refreshGitOverlay();
+/** Open a folder the user picked from the recents list or the welcome screen. */
+async function openFolderAt(root: string): Promise<void> {
+  const opened = await window.adcode.workspace.openPath(root);
+
+  if (opened === null) {
+    // The folder has been moved or deleted since it was last opened. Saying so beats opening
+    // an empty tree, which reads as the project being empty rather than gone.
+    setStatus("That folder is no longer there. It has been removed from Recent.", 6000);
+    void welcome.refresh();
+    return;
+  }
+
+  await adoptWorkspace(opened);
 }
 
 /* ── Terminal ─────────────────────────────────────────────────────────── */
@@ -1223,15 +1327,32 @@ async function openFolder(): Promise<void> {
  * Built lazily because §7 budgets cold start, and xterm plus a pty is real work that
  * most launches never need.
  */
+/**
+ * The detected shells, and which one the plain "+" opens.
+ *
+ * Filled at boot from the main process, which only reports shells that exist on this
+ * machine. Picking a shell from the launcher makes it the default, so opening a second one
+ * of the same kind is one click rather than two.
+ */
+let terminalProfiles: TerminalProfile[] = [];
+let defaultProfileId = "";
+
+const profileLabel = (id: string): string =>
+  terminalProfiles.find((profile) => profile.id === id)?.label ?? "Terminal";
+
 function terminalPanel(): TerminalPanel {
   terminal ??= createTerminalPanel({
     panel: el("panel"),
     tabStrip: el("terminal-tabs"),
     surface: el("terminal-surface"),
-    profileId: () => el<HTMLSelectElement>("profile-select").value,
+    profileId: () => defaultProfileId,
+    profileLabel,
     cwd: () => workspaceRoot,
     theme: () => theme,
     notify: (message) => setStatus(message, 4000),
+    onActiveTitle: (title) => {
+      el("panel-title").textContent = title ?? "Terminal";
+    },
     onLayoutChange: () => {
       // The divider belongs to the panel: hidden together, or it hangs under the editor
       // as a grabbable line that resizes something nobody can see.
@@ -1324,6 +1445,8 @@ function setStatus(message: string, clearAfterMs?: number): void {
 
 editorHost.onCursorChange((line, column) => {
   el("status-position").textContent = `Ln ${line}, Col ${column}`;
+  // Where everyone else's cursor comes from. Cheap, and a no-op when nothing is shared.
+  collabSession.publishCursor(line, column);
 });
 
 editorHost.onDirtyChange((path, dirty) => {
@@ -1343,6 +1466,23 @@ el("open-folder").addEventListener("click", () => void openFolder());
 el("open-settings").addEventListener("click", () => settingsView.toggle());
 el("panel-close").addEventListener("click", () => terminalPanel().close());
 el("terminal-new").addEventListener("click", () => void terminalPanel().create());
+/*
+ * Opened on pointerdown, with the event kept off `document`.
+ *
+ * The menu's own outside-click dismissal also listens on `document` for pointerdown, so
+ * letting this through meant a second click on the chevron closed the menu and then
+ * immediately reopened it - the button appeared not to toggle at all.
+ */
+el("terminal-profiles").addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  openProfileLauncher(el("terminal-profiles"));
+});
+
+// Keyboard activation fires a click with no pointer behind it, and no pointerdown at all.
+el("terminal-profiles").addEventListener("click", (event) => {
+  if (event.detail === 0) openProfileLauncher(el("terminal-profiles"));
+});
 el("terminal-split").addEventListener("click", () => void terminalPanel().split());
 el("terminal-kill").addEventListener("click", () => terminalPanel().killActive());
 
@@ -1514,8 +1654,89 @@ const confirmDialog = createConfirmDialog(document.body);
 /* The replacement for `window.prompt`, which Electron does not implement. */
 const promptDialog = createPromptDialog(document.body);
 
+/**
+ * Feedback, from the button beside the command centre.
+ *
+ * The dialog does the round trip itself so it can stay open and show why a send failed;
+ * the toast here only fires on success, once there is a report id to point at.
+ */
+const reportDialog = createReportDialog(document.body, async (input) => {
+  const result = await window.adcode.support.submitReport(input);
+  if (result.ok) setStatus("Thanks - your report was sent.", 5000);
+  return result;
+});
+
+el<HTMLButtonElement>("report-toggle").addEventListener("click", () => reportDialog.open());
+
 const treeMenu = createContextMenu(document.body);
 attachContextMenuDismissal(treeMenu, () => (menuRow ?? editorHost).focus());
+
+/**
+ * The shell launcher on the terminal panel's split button.
+ *
+ * Its own menu rather than the tree's, because dismissing it should return focus to the
+ * terminal - the tree's dismissal aims at whichever row was last right-clicked, which in
+ * the panel is a row nobody touched.
+ */
+const panelMenu = createContextMenu(document.body);
+attachContextMenuDismissal(panelMenu, () => (terminal ?? editorHost).focus());
+
+/**
+ * Open the profile launcher under `anchor`.
+ *
+ * Anchored to the button rather than to the pointer, so it reads as that button's menu and
+ * appears in the same place whether it was opened by mouse or by keyboard.
+ */
+function openProfileLauncher(anchor: HTMLElement): void {
+  if (panelMenu.isOpen()) {
+    panelMenu.close();
+    return;
+  }
+
+  const nodes: ContextMenuNode[] =
+    terminalProfiles.length === 0
+      ? [{ label: "No shells detected", run: () => undefined, disabled: true }]
+      : terminalProfiles.map((profile) => ({
+          label: profile.label,
+          run: () => {
+            // Picking a shell also makes it what the plain "+" opens, so a second one of
+            // the same kind is one click rather than two.
+            defaultProfileId = profile.id;
+            return terminalPanel().create({ profileId: profile.id });
+          },
+        }));
+
+  const rect = anchor.getBoundingClientRect();
+  anchor.setAttribute("aria-expanded", "true");
+  panelMenu.open(rect.left, rect.bottom + 2, [{ kind: "heading", label: "New Terminal" }, ...nodes], () =>
+    anchor.setAttribute("aria-expanded", "false"),
+  );
+}
+
+/**
+ * A palette command per detected shell.
+ *
+ * Registered here rather than declared in `menuModel.ts` because which shells exist is
+ * decided by what is installed on the machine, and that model is also what macOS builds a
+ * *native* menu from - a hardcoded row for a shell that is not there would be a menu item
+ * that silently does nothing.
+ */
+function registerProfileCommands(): void {
+  for (const profile of terminalProfiles) {
+    // The id is derived from the profile's own id, so "git-bash" becomes a well-formed
+    // dotted command rather than one carrying a dash into the registry.
+    const suffix = profile.id.replace(/-(.)/g, (_, c: string) => c.toUpperCase());
+
+    commands.register({
+      id: `terminal.newProfile.${suffix}`,
+      title: `New Terminal: ${profile.label}`,
+      run: () => {
+        defaultProfileId = profile.id;
+        return terminalPanel().create({ profileId: profile.id });
+      },
+    });
+  }
+}
 
 const sourceControl = createSourceControlPanel({
   openFile: (path) => void openFile(absolutePath(path)),
@@ -1705,8 +1926,177 @@ const quickOpen = createQuickOpen({
   openFile: (path) => void openFile(absolutePath(path)),
 });
 
+/* ── Problems ─────────────────────────────────────────────────────────── */
+
+/*
+ * Monaco's language workers have been type-checking every open TypeScript, JSON, CSS and
+ * HTML file since the day they were added; nothing had ever read what they found. The host
+ * subscribes to those markers, the panel draws them, and `@adcode/diagnostics` turns the
+ * compiler's sentence into one a beginner can act on.
+ */
+const plainEnglishErrors = (): boolean =>
+  settingsValues["adcode.editing.plainEnglishErrors"] !== false;
+
+const diagnosticsHost = createDiagnosticsHost({
+  workspaceRoot: () => workspaceRoot,
+  explanationsEnabled: plainEnglishErrors,
+  // An editable tab, not merely a model inside the workspace. The commit browser opens
+  // historical revisions as read-only models, and those get type-checked too - the panel
+  // filled with errors in files the user had never opened until this predicate existed.
+  includeFile: (fsPath) => editableTab(fsPath),
+});
+
+/*
+ * Language servers report into the same panel, through the same seam the live preview uses.
+ * That seam existing is the whole reason this slice is a hundred lines rather than a second
+ * diagnostics surface.
+ */
+const editableTab = (fsPath: string): boolean =>
+  tabs.some((tab) => samePath(tab.path, fsPath) && !editorHost.isReadOnly(tab.path));
+
+createLanguageBridge({
+  workspaceRoot: () => workspaceRoot,
+  publish: (diagnostics) => diagnosticsHost.setExternal("lsp", diagnostics),
+});
+
+const problemsPanel = createProblemsPanel({
+  openAt: (path, line, column) => {
+    void openFile(absolutePath(path)).then(() => editorHost.revealPosition(line, column));
+  },
+  quickFixes: (diagnostic) => diagnosticsHost.quickFixes(diagnostic),
+  explainWithAI: (diagnostic) => {
+    // The file and line matter as much as the message: the assistant has tools to read the
+    // workspace, and without a location it can only talk about the error in the abstract.
+    chat.ask(
+      `I'm getting this error in ${diagnostic.file} on line ${diagnostic.line}:\n\n` +
+        `${diagnostic.message}\n\n` +
+        `Explain what it means in simple terms, and show me how to fix it.`,
+    );
+  },
+  explanationsEnabled: plainEnglishErrors,
+  notify: (text) => setStatus(text, 4000),
+});
+
+diagnosticsHost.onChange((diagnostics) => {
+  problemsPanel.render(diagnostics);
+
+  const badge = badgeFor(countBySeverity(diagnostics));
+  const element = el("problems-badge");
+
+  element.hidden = badge === null;
+  element.textContent = badge?.text ?? "";
+  element.dataset["tone"] = badge?.tone ?? "error";
+
+  const activity = document.querySelector<HTMLElement>('.activity[data-view="problems"]');
+  if (activity !== null) {
+    activity.title =
+      badge === null ? "Problems (Ctrl+Shift+M)" : `${summarise(countBySeverity(diagnostics))} (Ctrl+Shift+M)`;
+  }
+});
+
+/* ── Live preview ─────────────────────────────────────────────────────── */
+
+/* ── Go Live / Run (the status bar's right-hand corner) ───────────────── */
+
+/**
+ * The names of the files at the workspace root.
+ *
+ * Two decisions read it: whether a `.css` file belongs to a page (is there an
+ * `index.html`?) and whether a language should run its project rather than one file (is
+ * there a `Cargo.toml`?). Cached because it is consulted on every tab switch and the answer
+ * changes only when the root directory does.
+ */
+let rootFileNames: readonly string[] = [];
+
+async function refreshRootFiles(): Promise<void> {
+  if (workspaceRoot === null) {
+    rootFileNames = [];
+    runButton.refresh();
+    return;
+  }
+
+  try {
+    const entries = await window.adcode.workspace.list(workspaceRoot);
+    rootFileNames = entries.filter((entry) => !entry.isDirectory).map((entry) => entry.name);
+  } catch {
+    rootFileNames = [];
+  }
+
+  runButton.refresh();
+}
+
+const runButton = createRunButton({
+  activeFile: () => {
+    if (activePath === null) return null;
+
+    // Read-only historical buffers have synthetic paths and are not files anyone can run.
+    if (editorHost.isReadOnly(activePath)) return null;
+
+    const relative = relativePath(activePath);
+    if (relative === null) return null;
+
+    const tab = tabs.find((entry) => entry.path === activePath);
+    return { relativePath: relative, languageId: languageForFilename(tab?.name ?? relative) };
+  },
+  rootFiles: () => rootFileNames,
+  platform: () => platform,
+  togglePreview: () => previewPane.toggle(),
+  isPreviewOpen: () => previewPane.isOpen(),
+
+  /**
+   * Into the terminal, not into a hidden process.
+   *
+   * The output *is* the feature. A beginner pressing Run needs to see the traceback, the
+   * compiler error, and the exit code - and the terminal already resolves file paths in
+   * that output into clickable links back to the editor.
+   */
+  runInTerminal: async (command) => {
+    const panel = terminalPanel();
+    if (!panel.isOpen()) await panel.toggle();
+    if (panel.count() === 0) await panel.create();
+
+    panel.send(command);
+  },
+});
+
+el("status-run-slot").append(runButton.element);
+
+const previewPane = createPreviewPane({
+  host: el("editor-area"),
+  // Fires on open and on close, which is exactly when the run button has to change from
+  // "Go Live" to "Stop preview" and back.
+  onLayoutChange: () => {
+    editorHost.layout();
+    runButton.refresh();
+  },
+  notify: (text) => setStatus(text, 5000),
+  reportProblem: (message) => {
+    // Slice 1 built the panel so slice 2 would have somewhere honest to report to instead
+    // of growing a second error surface. This is that promise being collected on.
+    diagnosticsHost.setExternal(
+      "preview",
+      message === null
+        ? []
+        : [
+            {
+              file: "Live preview",
+              line: 1,
+              column: 1,
+              endLine: 1,
+              endColumn: 1,
+              severity: "error",
+              source: "preview",
+              code: "",
+              message,
+            },
+          ],
+    );
+  },
+});
+
 el("view-scm").append(sourceControl.element);
 el("view-search").append(searchPanel.element);
+el("view-problems").append(problemsPanel.element);
 
 /** Switch which sidebar view is showing. */
 function showView(view: string): void {
@@ -1714,7 +2104,19 @@ function showView(view: string): void {
     explorer: el("filetree"),
     search: el("view-search"),
     scm: el("view-scm"),
+    problems: el("view-problems"),
   };
+
+  /*
+   * An unknown name changes nothing, rather than hiding everything.
+   *
+   * Without this, `showView("settings")` - which is a reasonable-looking thing to write, and
+   * was written - matched no entry, so the loop below hid all four views and the loop after it
+   * deselected every activity button. The result was an empty sidebar with nothing highlighted
+   * and no error anywhere, which reads to a user as the window having broken. Settings is an
+   * overlay and has its own `open()`.
+   */
+  if (views[view] === undefined) return;
 
   for (const [name, node] of Object.entries(views)) node.hidden = name !== view;
 
@@ -1726,6 +2128,10 @@ function showView(view: string): void {
 
   if (view === "scm") void sourceControl.refresh();
   if (view === "search") searchPanel.focus();
+  // Markers can have changed while another view was showing, and the panel only redraws on
+  // a marker event - so a view that was hidden through a whole editing session would come
+  // back holding whatever it last drew.
+  if (view === "problems") diagnosticsHost.refresh();
 }
 
 /**
@@ -1782,15 +2188,141 @@ const chat = createChatWidget({
   openExternalPath: (path) => void openFile(path),
 });
 
+/**
+ * Everything in the renderer that remembers something per folder.
+ *
+ * One function rather than a call per widget at each of the three places the open folder
+ * changes - opening one, restoring a session on launch, and closing one. The README already
+ * records what happens when a notification like this lives at its call sites instead: the
+ * route nobody thinks about is session restore, because no user action triggers it, so the
+ * feature works perfectly when you open a folder by hand and is broken on every launch after
+ * the first. Whoever adds the fourth consumer should only have to edit this function.
+ */
+function setRendererWorkspace(root: string | null): void {
+  chat.setWorkspace(root);
+  previewPane.setWorkspace(root);
+}
+
 const notifications = createNotificationCentre(el("toast-layer"));
 
 window.adcode.ads.onShow((toast) => notifications.showSponsored(toast));
+
+/* ── Live collaboration ───────────────────────────────────────────────────── */
+
+const collabSession = createCollabSession({
+  editorHost,
+  workspaceRoot: () => workspaceRoot,
+  openPaths: () => tabs.map((tab) => tab.path),
+  activePath: () => activePath,
+});
+
+const collabPanel = createCollabPanel({
+  host: document.body,
+  anchor: el("status-collab"),
+  notify: (message) => setStatus(message, 6000),
+  confirm: (title, body, confirmLabel) => confirmDialog.ask({ title, body, confirmLabel }),
+  prompt: (title, body, value) => promptDialog.ask({ title, body, value }),
+});
+
+el("status-collab").addEventListener("click", () => collabPanel.toggle());
+
+window.adcode.collab.onStatus((status) => {
+  collabPanel.update(status);
+  collabSession.applyStatus(status);
+
+  /*
+   * The status bar says what is actually happening, in words.
+   *
+   * "Share" when nothing is running, a person count when it is. This is the only indicator in
+   * the window for a state where other people can read and change these files, so it does not
+   * get to be a subtle icon change.
+   */
+  const guests = Math.max(0, status.participants.length - 1);
+  const label = el("status-collab-label");
+
+  if (status.mode === "hosting") {
+    label.textContent = guests === 0 ? "Sharing" : `Sharing · ${guests}`;
+  } else if (status.mode === "joined") {
+    label.textContent = "In session";
+  } else if (status.mode === "connecting") {
+    label.textContent = "Connecting…";
+  } else {
+    label.textContent = "Share";
+  }
+
+  el("status-collab").dataset["state"] = status.mode;
+});
+
+window.adcode.collab.onDocUpdate((path, update) => collabSession.applyDocUpdate(path, update));
+window.adcode.collab.onPresence((presence) => collabSession.applyPresence(presence));
+window.adcode.collab.onNotice((detail) => setStatus(detail, 6000));
+
+window.adcode.collab.onCommitRequest((request) => {
+  void (async () => {
+    /*
+     * A guest asked for a commit, and only the host can answer.
+     *
+     * Asked rather than applied. The commit runs under the host's git identity on the host's
+     * machine, so it is the host's decision - and the message is shown as the guest wrote it,
+     * because approving a commit whose message you have not read is not approval.
+     */
+    const approved = await confirmDialog.ask({
+      title: `${request.participantName} wants to commit`,
+      body: `Their message: "${request.message}"\n\nThis will commit the staged changes on this machine, under your git identity.`,
+      confirmLabel: "Commit",
+      cancelLabel: "Decline",
+    });
+
+    if (!approved) {
+      await window.adcode.collab.decideCommit(request.id, false, "The host declined.");
+      return;
+    }
+
+    // `Co-authored-by` so the guest's contribution is recorded in the history even though this
+    // machine's identity signed it.
+    const message = `${request.message}\n\nCo-authored-by: ${request.participantName} <collab@adcode.local>`;
+    const outcome = await window.adcode.git.commit(message);
+
+    await window.adcode.collab.decideCommit(
+      request.id,
+      outcome.ok,
+      outcome.ok ? "committed" : outcome.message,
+    );
+
+    setStatus(
+      outcome.ok ? `Committed for ${request.participantName}.` : `Commit failed: ${outcome.message}`,
+      6000,
+    );
+    void sourceControl.refresh();
+  })();
+});
+
+const earningsPopover = createEarningsPopover({
+  host: document.body,
+  anchor: el("open-earnings"),
+  /*
+   * `settingsView.open()`, not `showView("settings")`.
+   *
+   * Settings is an overlay, not a sidebar view - the gear in the activity bar calls
+   * `settingsView.toggle()`. `showView` knows only explorer, search, scm and problems, so
+   * asking it for "settings" did not merely fail to open anything: it hid all four views and
+   * deselected every activity button, leaving an empty sidebar with nothing highlighted and no
+   * settings on screen.
+   */
+  openSettings: () => settingsView.open(),
+});
+
+el("open-earnings").addEventListener("click", () => earningsPopover.toggle());
 
 window.adcode.ads.onEarnings((earnings) => {
   // A cached mirror of a server value (§1). The renderer never computes money.
   el("status-earnings").textContent = earnings.hasServerBalance
     ? `${earnings.availableLabel} earned`
     : "";
+
+  // The popover redraws whether or not it is open, so opening it never shows a stale figure
+  // for the frame before the next tick arrives.
+  earningsPopover.update(earnings);
 });
 
 document.addEventListener("keydown", (event) => {
@@ -1810,6 +2342,19 @@ resizeObserver.observe(el("terminal-surface"));
 async function boot(): Promise<void> {
   applySettings(await window.adcode.settings.read());
 
+  // Not awaited into the rest of the launch: the version is the least urgent thing on the
+  // screen, and an IPC round trip for it should not hold up the window.
+  void window.adcode.app.info().then(
+    (info) => {
+      el("status-version").textContent = `ADCode ${info.version}`;
+    },
+    () => {
+      /* the corner simply says nothing about the version */
+    },
+  );
+
+  void refreshMenuRecents();
+
   // §1: reduce-motion follows the OS. Chromium's media query is the single source of
   // truth for it; the attribute just lets JS-driven animations read the same value.
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -1819,14 +2364,9 @@ async function boot(): Promise<void> {
   reduceMotion.addEventListener("change", syncMotion);
   syncMotion();
 
-  const profiles: TerminalProfile[] = await window.adcode.terminal.profiles();
-  const select = el<HTMLSelectElement>("profile-select");
-  for (const profile of profiles) {
-    const option = document.createElement("option");
-    option.value = profile.id;
-    option.textContent = profile.label;
-    select.append(option);
-  }
+  terminalProfiles = await window.adcode.terminal.profiles();
+  defaultProfileId = terminalProfiles[0]?.id ?? "";
+  registerProfileCommands();
 
   // §4: "Restore workspace" reopens the folder in the main process, so the workspace is
   // already set by the time this asks for it.
@@ -1843,9 +2383,11 @@ async function boot(): Promise<void> {
   const existing = await window.adcode.workspace.current();
   if (existing !== null) {
     workspaceRoot = existing.root;
-    chat.setWorkspace(existing.root);
+    void refreshRootFiles();
+    setRendererWorkspace(existing.root);
     el("sidebar-title").textContent = existing.name;
-    el("status-workspace").textContent = existing.name;
+    setStatusWorkspace(existing.root);
+    commandCentre.setWorkspace(existing.name);
     await renderTree(existing.root);
   }
 
@@ -1853,6 +2395,17 @@ async function boot(): Promise<void> {
   if (restored.activeFile !== null && tabs.some((tab) => tab.path === restored.activeFile)) {
     activateTab(restored.activeFile);
   }
+
+  /*
+   * The same fan-out the open and close routes do.
+   *
+   * Session restore is the route that gets forgotten - no user action triggers it - so the
+   * create buttons stayed greyed out and the welcome screen kept an empty recents list on every
+   * launch after the first, which is the ordinary case. The README records this exact shape of
+   * bug about language servers; it is the same one.
+   */
+  syncRootCreateButtons();
+  void welcome.refresh();
 
   // Only start recording once the restore is done, so a failed reopen cannot save an
   // empty session over a good one.
@@ -1934,15 +2487,20 @@ function stepEditor(step: number): void {
 }
 
 function showShortcuts(): void {
-  const lines = MENU_BAR.flatMap((top) =>
-    top.items.flatMap((entry) =>
-      "kind" in entry && entry.kind !== undefined && entry.kind !== "item"
-        ? []
-        : "accelerator" in entry && entry.accelerator !== undefined
-          ? [`${formatAccelerator(entry.accelerator, platform)}   ${entry.label}`]
-          : [],
-    ),
-  );
+  const lines: string[] = [];
+
+  // Into the submenus as well. The zoom keys and the preview keys live in one, and a
+  // shortcut sheet that omits them is a shortcut sheet you stop trusting.
+  const walk = (entries: readonly MenuEntry[]): void => {
+    for (const entry of entries) {
+      if ("kind" in entry && entry.kind === "submenu") walk(entry.items);
+      else if ("accelerator" in entry && entry.accelerator !== undefined) {
+        lines.push(`${formatAccelerator(entry.accelerator, platform)}   ${stripMnemonic(entry.label)}`);
+      }
+    }
+  };
+
+  for (const top of buildMenuBar()) walk(top.items);
 
   notifications.show({
     title: "Keyboard shortcuts",
@@ -1953,7 +2511,7 @@ function showShortcuts(): void {
 
 /** Everything the menu bar, the keyboard, and the palette can ask for. */
 function registerCommands(): void {
-  const add = (id: string, title: string, run: () => void | Promise<void>): void =>
+  const add = (id: string, title: string, run: (arg?: string) => void | Promise<void>): void =>
     commands.register({ id, title, run });
 
   /* File */
@@ -1967,17 +2525,70 @@ function registerCommands(): void {
     activateTab(key);
   });
   add("workspace.open", "Open Folder", () => openFolder());
+
+  add("file.open", "Open File", () => {
+    void (async () => {
+      const picked = await window.adcode.files.openDialog();
+      if (picked !== null) await openPickedFile(picked);
+    })();
+  });
+
+  add("workspace.openRecent", "Open Recent Folder", () => {
+    void (async () => {
+      const recents = await window.adcode.workspace.recents();
+
+      if (recents.length === 0) {
+        setStatus("No recent folders yet - the ones you open are remembered here.", 4000);
+        return;
+      }
+
+      const picked = await promptDialog.ask({
+        title: "Open Recent",
+        body: "Start typing to filter, or pick from the list.",
+        value: recents[0]?.path ?? "",
+        suggestions: recents.map((folder) => folder.path),
+        confirmLabel: "Open",
+      });
+
+      if (picked !== null) await openFolderAt(picked);
+    })();
+  });
+
+  /*
+   * The rows in File > Open Recent.
+   *
+   * One command taking a path, not one command per folder: the palette lists everything
+   * registered, and a dozen `workspace.openRecent:E:/…` entries would push out the
+   * commands people actually type. The path arrives from the menu model, which got it
+   * from the same recents list this reads.
+   */
+  add("workspace.openRecentAt", "Open Recent Folder by Path", async (path) => {
+    if (path === undefined) return;
+    await openFolderAt(path);
+  });
+
+  add("workspace.clearRecents", "Clear Recently Opened", async () => {
+    await window.adcode.workspace.clearRecents();
+    await refreshMenuRecents();
+    void welcome.refresh();
+    setStatus("Recent folders cleared.", 2500);
+  });
+
+  add("workspace.clone", "Clone Repository", () => void cloneRepository());
   add("workspace.close", "Close Folder", async () => {
     await window.adcode.workspace.close();
 
-    for (const tab of [...tabs]) closeTab(tab.path);
+    await closeAllTabs();
 
     workspaceRoot = null;
-    chat.setWorkspace(null);
+    void refreshRootFiles();
+    setRendererWorkspace(null);
     el("sidebar-title").textContent = "No Folder Opened";
-    el("status-workspace").textContent = "No folder";
-    el("titlebar-title").textContent = "ADCode";
+    setStatusWorkspace(null);
+    commandCentre.setWorkspace(null);
     el("filetree").replaceChildren(hint("Open a folder to get started."));
+    syncRootCreateButtons();
+    void welcome.refresh();
 
     editorHost.git.clear();
     rememberSession();
@@ -2050,6 +2661,19 @@ function registerCommands(): void {
   add("view.explorer", "Explorer", () => showView("explorer"));
   add("view.search", "Search", () => showView("search"));
   add("view.scm", "Source Control", () => showView("scm"));
+  add("view.problems", "Problems", () => showView("problems"));
+  add("view.earnings", "Earnings", () => earningsPopover.toggle());
+  add("collab.panel", "Live Session: Share or Join", () => collabPanel.toggle());
+  add("collab.leave", "Live Session: Leave", () => void window.adcode.collab.leave());
+  add("preview.toggle", "Toggle Live Preview", () => void previewPane.toggle());
+  add("preview.reload", "Reload Live Preview", () => previewPane.reload());
+  add("preview.undock", "Undock Live Preview Into a Floating Window", () =>
+    previewPane.togglePlacement(),
+  );
+  add("preview.switchMode", "Switch Preview Between Project and Files", () =>
+    void previewPane.switchMode(),
+  );
+  add("run.file", "Run Active File", () => runButton.activate());
   add("search.open", "Find in Files", () => showView("search"));
   add("ai.toggle", "Assistant", () => chat.toggle());
   add("view.toggleWordWrap", "Toggle Word Wrap", () => editorHost.toggleWordWrap());
@@ -2062,9 +2686,57 @@ function registerCommands(): void {
   commands.registerEditorAction("go.nextChange", "Next Change", "editor.action.dirtydiff.next");
   commands.registerEditorAction("go.previousChange", "Previous Change", "editor.action.dirtydiff.previous");
 
+  /*
+   * Git.
+   *
+   * Every one of these drives the source control panel rather than calling the git bridge
+   * directly, so an action taken from the menu reports its outcome in the same dialog,
+   * refreshes the same list, and fails the same way as the button that has always done
+   * it. The view is shown first because these commands change what it says, and a result
+   * you have to go looking for is a result most people never see.
+   */
+  const withScm = (run: () => Promise<void>) => async (): Promise<void> => {
+    if (workspaceRoot === null) {
+      setStatus("Open a folder first.", 3000);
+      return;
+    }
+
+    showView("scm");
+    await run();
+  };
+
+  // The id stays on the same line as `add(` here as everywhere else: `menuModel.test.ts`
+  // proves every menu entry resolves to a registered command by reading this file, and it
+  // reads it one line at a time.
+  add("git.commit", "Git: Commit", withScm(async () => {
+    // The commit box is where the message lives, so this either sends what is already
+    // typed or puts the cursor where it has to be typed. Inventing a second place to
+    // write a commit message would mean two boxes that can disagree.
+    if (sourceControl.commit()) return;
+
+    sourceControl.focusCommitMessage();
+    setStatus("Type a commit message, then press Ctrl+Enter.", 4000);
+    await Promise.resolve();
+  }));
+
+  add("git.stageAll", "Git: Stage All Changes", withScm(() => sourceControl.stageAll()));
+  add("git.unstageAll", "Git: Unstage All Changes", withScm(() => sourceControl.unstageAll()));
+  add("git.push", "Git: Push", withScm(() => sourceControl.push()));
+  add("git.pull", "Git: Pull", withScm(() => sourceControl.pull()));
+  add("git.fetch", "Git: Fetch", withScm(() => sourceControl.fetch()));
+  add("git.checkout", "Git: Checkout Branch", withScm(() => sourceControl.switchBranch()));
+  add("git.createBranch", "Git: Create Branch", withScm(() => sourceControl.createBranch()));
+  add("git.init", "Git: Initialise Repository", withScm(() => sourceControl.initRepository()));
+
   /* Terminal */
   add("terminal.toggle", "Toggle Terminal", () => toggleTerminal());
   add("terminal.new", "New Terminal", () => terminalPanel().create());
+  add("terminal.newWithProfile", "New Terminal With Profile", async () => {
+    // The launcher hangs off a button in the panel header, so the panel has to be open
+    // before there is anything to hang it from.
+    if (!terminalPanel().isOpen()) await terminalPanel().toggle();
+    openProfileLauncher(el("terminal-profiles"));
+  });
   add("terminal.split", "Split Terminal", () => terminalPanel().split());
   add("terminal.next", "Next Terminal", () => terminalPanel().next());
   add("terminal.previous", "Previous Terminal", () => terminalPanel().previous());
@@ -2122,16 +2794,134 @@ const menuBar =
   platform === "darwin"
     ? null
     : createMenuBar({
-        run: (command) => commands.run(command),
+        run: (command, arg) => commands.run(command, arg),
         platform,
         restoreFocus: () => editorHost.focus(),
       });
 
-el("placeholder-mark").append(brandMark({ size: 72, accent: true }));
+/**
+ * Clone a repository, then open it.
+ *
+ * Two questions rather than a form, because they are genuinely sequential: the folder name
+ * offered second is derived from the URL given first, which is what makes the second question
+ * a confirmation rather than a decision.
+ *
+ * The clone itself is `packages/git`'s, which refuses `ext::` transports and `--upload-pack=`
+ * before anything reaches git - a URL pasted from a chat window is untrusted input, and cloning
+ * is the one git operation that can be turned into arbitrary command execution by its argument.
+ */
+async function cloneRepository(): Promise<void> {
+  const url = await promptDialog.ask({
+    title: "Clone a repository",
+    body: "Paste the repository URL. On GitHub this is the green Code button.",
+    placeholder: "https://github.com/owner/repo.git",
+    confirmLabel: "Continue",
+  });
+  if (url === null) return;
+
+  // `owner/repo.git` → `repo`. A sensible default the user can overwrite, not a decision.
+  const suggested = (url.split(/[\\/]/).at(-1) ?? "repo").replace(/\.git$/i, "") || "repo";
+
+  const parent = await window.adcode.workspace.open();
+  if (parent === null) return;
+
+  const target = await promptDialog.ask({
+    title: "Folder name",
+    body: `The repository will be cloned into a new folder inside ${parent.name}.`,
+    value: suggested,
+    confirmLabel: "Clone",
+  });
+  if (target === null) return;
+
+  setStatus(`Cloning ${url}…`);
+
+  const outcome = await window.adcode.git.clone(url, `${parent.root}/${target}`);
+  if (!outcome.ok) {
+    gitResultDialog.show({ action: "Clone", ok: false, message: outcome.message, details: [["URL", url]] });
+    return;
+  }
+
+  setStatus("Cloned.", 4000);
+  await openFolderAt(`${parent.root}/${target}`);
+}
+
+/*
+ * New file and new folder at the root of the open folder.
+ *
+ * `beginCreate` expects a directory to create inside and opens the tree's inline editor there,
+ * which is the same path the row actions and the context menu take - so a name created here is
+ * validated, refused, and undone exactly as one created deeper in the tree.
+ */
+for (const [id, kind] of [
+  ["new-root-file", "file"],
+  ["new-root-folder", "folder"],
+] as const) {
+  el(id).addEventListener("click", () => {
+    if (workspaceRoot === null) return;
+    void beginCreate(workspaceRoot, kind);
+  });
+}
+
+/** Both are meaningless with no folder open, and a button that does nothing should say so. */
+function syncRootCreateButtons(): void {
+  const disabled = workspaceRoot === null;
+  (el("new-root-file") as HTMLButtonElement).disabled = disabled;
+  (el("new-root-folder") as HTMLButtonElement).disabled = disabled;
+}
+
+/**
+ * Open a file the user picked from a dialog, opening its folder first when necessary.
+ *
+ * A file outside the open folder cannot be read through the file bridge, which checks
+ * `isInsideWorkspace` on every path. So when the pick lands outside, the folder containing it is
+ * opened first - which is what the user meant anyway, and the alternative is a picker that
+ * succeeds and then an editor that refuses to show what was picked.
+ */
+async function openPickedFile(picked: string): Promise<void> {
+  const root = workspaceRoot;
+  const inside =
+    root !== null && picked.replace(/\\/g, "/").startsWith(`${root.replace(/\\/g, "/")}/`);
+
+  if (!inside) await openFolderAt(picked.replace(/[\\/][^\\/]*$/, ""));
+
+  await openFile(picked);
+}
+
+const welcome = createWelcomeView({
+  host: el("editor-placeholder"),
+  openFolder: () => void openFolder(),
+  openFile: () => {
+    void (async () => {
+      const picked = await window.adcode.files.openDialog();
+      if (picked !== null) await openPickedFile(picked);
+    })();
+  },
+  cloneRepository: () => void cloneRepository(),
+  openRecent: (path) => void openFolderAt(path),
+  forgetRecent: (path) => {
+    void window.adcode.workspace.forgetRecent(path).then(() => welcome.refresh());
+  },
+});
+
+void welcome.refresh();
 
 if (menuBar !== null) el("menubar-slot").append(menuBar.element);
 
-window.adcode.window.onCommand((command) => commands.run(command));
+/* ── Title bar: the assistant on the left, the command centre in the middle ─ */
+
+el("ai-toggle").addEventListener("click", () => commands.run("ai.toggle"));
+
+const commandCentre = createCommandCentre({
+  openFiles: (seed) => quickOpen.open(seed),
+  openCommands: (seed) => palette.open(seed),
+});
+
+el("command-centre-slot").append(commandCentre.element);
+commandCentre.setWorkspace(null);
+
+chat.onVisibilityChange((open) => el("ai-toggle").setAttribute("aria-pressed", String(open)));
+
+window.adcode.window.onCommand((command, arg) => commands.run(command, arg));
 
 /**
  * Keyboard shortcuts, resolved against the same command ids the menu uses.
@@ -2169,6 +2959,74 @@ const KEYBINDINGS: ReadonlyArray<{
   { key: "0", mod: true, command: "view.zoomReset" },
 ];
 
+/**
+ * Alt is decided on release, not on press - see `altMenuActivation.ts`.
+ *
+ * Every Alt chord the Selection menu owns sends an `Alt` keydown first, so opening the bar
+ * there pulled focus out of Monaco and left the arrow key walking a menu.
+ */
+const altMenu = createAltMenuActivation();
+
+/*
+ * Tracked in the capture phase, which is not a detail - it is the fix.
+ *
+ * Monaco calls `stopPropagation()` on every key it handles, and Alt+Up is one of them. A
+ * bubble-phase listener on `window` therefore never sees the `ArrowUp` that makes the
+ * press a chord, so Alt stayed armed and the release opened the menu anyway. The state
+ * machine was already right and its unit tests already passed; only driving the real app
+ * showed it, which is what `altChordLeavesMenuShut` in the smoke run now holds in place.
+ */
+window.addEventListener(
+  "keydown",
+  (event) => {
+    if (gitResultDialog.isOpen() || confirmDialog.isOpen() || promptDialog.isOpen()) altMenu.cancel();
+    else altMenu.keydown(event);
+  },
+  true,
+);
+
+window.addEventListener(
+  "keyup",
+  (event) => {
+    if (menuBar === null || !altMenu.keyup(event)) return;
+
+    event.preventDefault();
+    // Focus, not open. Windows has always put the bar into a waiting state on Alt and let
+    // the next key decide; opening File immediately - which this used to do - cost you a
+    // dropdown every time you reached for the bar to press a letter.
+    menuBar.focusBar();
+  },
+  true,
+);
+
+/*
+ * Alt+F, Alt+G, and the rest, from wherever you are.
+ *
+ * On keydown rather than keyup, because unlike a bare Alt there is nothing ambiguous
+ * about it: the letter has arrived, so this is a menu request and not the start of a
+ * chord. Taken in the capture phase for the same reason the Alt tracking is - Monaco
+ * stops propagation on the Alt combinations it owns, and the menu letters are not among
+ * them but the listener has to run before anything else decides otherwise.
+ */
+window.addEventListener(
+  "keydown",
+  (event) => {
+    if (menuBar === null) return;
+    if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key.length !== 1) return;
+    if (gitResultDialog.isOpen() || confirmDialog.isOpen() || promptDialog.isOpen()) return;
+
+    if (menuBar.openByMnemonic(event.key)) event.preventDefault();
+  },
+  true,
+);
+
+// A chord that ends in a click, and a window that goes away mid-press, both leave an armed
+// Alt that would otherwise open the bar on a release the user never meant as a menu press.
+// Capture for the same reason: Monaco swallows pointer events over the editor.
+document.addEventListener("pointerdown", () => altMenu.cancel(), true);
+window.addEventListener("blur", () => altMenu.cancel());
+
 window.addEventListener("keydown", (event) => {
   // A modal result owns the keyboard while it is up. Without this, Ctrl+S saved and Alt
   // opened the menu bar behind a dialog the user was still reading. Escape is deliberately
@@ -2180,8 +3038,11 @@ window.addEventListener("keydown", (event) => {
   // be closed by keyboard once focus moved - and an overlay that will not close is an
   // application that will not respond.
   if (event.key === "Escape") {
-    if (menuBar?.isOpen() === true) {
+    // `isFocused` rather than `isOpen`: Alt leaves the bar focused with nothing open, and
+    // an Escape there has to give the editor back rather than fall through to the palette.
+    if (menuBar?.isFocused() === true) {
       menuBar.close();
+      editorHost.focus();
       return;
     }
     if (palette.isOpen()) {
@@ -2193,13 +3054,6 @@ window.addEventListener("keydown", (event) => {
       editorHost.focus();
       return;
     }
-  }
-
-  // Alt on its own focuses the menu bar, as it does in every Windows application.
-  if (event.key === "Alt" && menuBar !== null && !event.ctrlKey && !event.shiftKey) {
-    event.preventDefault();
-    menuBar.focusFirst();
-    return;
   }
 
   const mod = event.ctrlKey || event.metaKey;

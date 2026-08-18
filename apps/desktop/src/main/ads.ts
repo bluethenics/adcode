@@ -18,7 +18,6 @@ import {
   createAdRenderer,
   createAdService,
   createAssetCache,
-  createFirebaseAuth,
   createReceiptQueue,
   formatMicros,
   type AdService,
@@ -34,6 +33,7 @@ import {
 import { CHANNELS, type EarningsSnapshot, type SponsoredToast } from "../shared/api.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock, toDataUrl } from "./adPorts.ts";
 import { currentSettings } from "./settings.ts";
+import { apiBaseUrl, createBackendTokens } from "./backend.ts";
 
 /** §8.1: the 60s tick that asks the scheduler whether now is a moment to interrupt. */
 const TICK_MS = 60_000;
@@ -50,6 +50,18 @@ function debug(message: string, detail?: unknown): void {
   process.stderr.write(`[ads] ${message}${detail === undefined ? "" : ` ${JSON.stringify(detail)}`}\n`);
 }
 
+/**
+ * The frequency preset in effect.
+ *
+ * One definition, because the scheduler and the earnings report both need it and a report
+ * that marked a different row as active than the one actually throttling the ads would be
+ * worse than showing no marker at all.
+ */
+function presetFromSettings(): FrequencyPreset {
+  const value = currentSettings()["adcode.ads.frequency"];
+  return typeof value === "string" ? (value as FrequencyPreset) : "standard";
+}
+
 interface AdRuntime {
   start(): Promise<void>;
   stop(): void;
@@ -60,6 +72,13 @@ interface AdRuntime {
   setWindowFocused(focused: boolean): void;
   setThemeKind(theme: ThemeKind): void;
   setWorkspaceSignals(languageIds: string[], filenames: string[]): void;
+  /**
+   * Ask the server for the balance now, and return what it said.
+   *
+   * The tick already refreshes this every sixty seconds. This exists so the report's refresh
+   * button can answer "is it stuck, or is it just zero" without the user waiting out a minute.
+   */
+  refreshEarnings(): Promise<EarningsSnapshot>;
 }
 
 function broadcast(channel: string, ...args: unknown[]): void {
@@ -75,13 +94,6 @@ function broadcast(channel: string, ...args: unknown[]): void {
  * one the client would fail closed and no ad would ever show, which is correct but makes
  * the feature impossible to see while building it.
  */
-function staticTokenProvider(token: string): TokenProvider {
-  return {
-    getToken: async () => ({ ok: true, value: token }),
-    invalidate: () => undefined,
-  };
-}
-
 export function createAdRuntime(): AdRuntime {
   const clock = new SystemClock();
   const store = new DiskFileStore(join(app.getPath("userData"), "ads"));
@@ -90,7 +102,6 @@ export function createAdRuntime(): AdRuntime {
   // https host while serving bytes from localhost. The rewrite is the transport's job;
   // the validator still sees, and still enforces, https on an exact hostname.
   const devServer = process.env["ADCODE_AD_SERVER"];
-  const firebaseKey = process.env["ADCODE_FIREBASE_API_KEY"];
   const assetHost = process.env["ADCODE_ASSET_HOST"] ?? "cdn.adcode.test";
 
   const rewrites: Array<readonly [string, string]> =
@@ -98,16 +109,13 @@ export function createAdRuntime(): AdRuntime {
 
   const http = new FetchHttpTransport(rewrites);
 
-  const tokens: TokenProvider =
-    devServer !== undefined || firebaseKey === undefined
-      ? staticTokenProvider("dev-token")
-      : createFirebaseAuth({ http, clock, store, apiKey: firebaseKey });
+  const tokens: TokenProvider = createBackendTokens({ http, clock, store });
 
   const client = createAdClient({
     http,
     tokens,
     clock,
-    baseUrl: `${devServer ?? "https://api.adcode.dev"}/v1`,
+    baseUrl: apiBaseUrl(),
     assetHost,
   });
 
@@ -196,8 +204,7 @@ export function createAdRuntime(): AdRuntime {
         return currentSettings()["adcode.ads.enabled"] !== false;
       },
       get preset(): FrequencyPreset {
-        const value = currentSettings()["adcode.ads.frequency"];
-        return typeof value === "string" ? (value as FrequencyPreset) : "standard";
+        return presetFromSettings();
       },
       // Development only. Never remote-configurable - see AdServiceSettings.settleMs.
       ...(process.env["ADCODE_SETTLE_MS"] === undefined
@@ -219,11 +226,27 @@ export function createAdRuntime(): AdRuntime {
 
   let timer: NodeJS.Timeout | null = null;
 
-  async function pushEarnings(): Promise<void> {
+  async function pushEarnings(): Promise<EarningsSnapshot> {
     const balance = service.balance() ?? lastBalance;
     lastBalance = balance;
 
-    const view = buildSponsorsView({ balance, history: [], config: service.config() });
+    /*
+     * The outbox depth, for the report's "waiting to sync" row.
+     *
+     * `all()` touches the disk, and §9 says an ad failure costs an ad and nothing else - a
+     * report row is worth even less than that - so a read that fails contributes a zero and
+     * is not allowed to abort the broadcast the balances ride on.
+     */
+    let pendingReceipts = 0;
+    try {
+      pendingReceipts = (await queue.all()).length;
+    } catch {
+      pendingReceipts = 0;
+    }
+
+    const config = service.config();
+    const activePreset = presetFromSettings();
+    const view = buildSponsorsView({ balance, history: [], config });
 
     // Full precision here, not the compact cents form. One impression is worth about
     // 1,500 micros, and `formatMicrosCompact` renders that as "$0.00" - so a user's
@@ -233,14 +256,26 @@ export function createAdRuntime(): AdRuntime {
       availableLabel: balance === null ? view.availableLabel : formatMicros(balance.availableMicros),
       lifetimeLabel: balance === null ? view.lifetimeLabel : formatMicros(balance.lifetimeMicros),
       hasServerBalance: view.hasServerBalance,
+      enabled: currentSettings()["adcode.ads.enabled"] !== false,
+      pendingReceipts,
+      // Straight from the view model, which read the projections out of `/v1/config`. No
+      // figure here is computed in this process, let alone in the renderer.
+      presets: view.presets.map((option) => ({
+        preset: option.preset,
+        active: option.preset === activePreset,
+        minIntervalMs: option.minIntervalMs,
+        dailyCap: option.dailyCap,
+        projectionLabel: option.projectionLabel,
+      })),
     };
 
     broadcast(CHANNELS.earningsChanged, snapshot);
+    return snapshot;
   }
 
   return {
     async start(): Promise<void> {
-      debug("starting", { baseUrl: `${devServer ?? "https://api.adcode.dev"}/v1`, assetHost });
+      debug("starting", { baseUrl: apiBaseUrl(), assetHost });
 
       try {
         await service.start();
@@ -311,6 +346,25 @@ export function createAdRuntime(): AdRuntime {
     setWorkspaceSignals(nextLanguages: string[], nextFilenames: string[]): void {
       languageIds = nextLanguages;
       filenames = nextFilenames;
+    },
+
+    async refreshEarnings(): Promise<EarningsSnapshot> {
+      /*
+       * A tick, then the snapshot.
+       *
+       * `tick()` is what talks to the server; `pushEarnings` formats whatever it left behind.
+       * The tick is allowed to fail - §9 says the worst permitted outcome of an ad failure is
+       * that the user sees no ad, and that applies at least as much to a button they pressed -
+       * so a failure here still returns the last known figures rather than throwing into the
+       * renderer.
+       */
+      try {
+        await service.tick();
+      } catch {
+        // Falls through to the snapshot below, which is then the previous balance.
+      }
+
+      return pushEarnings();
     },
   };
 }

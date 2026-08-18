@@ -25,12 +25,20 @@ function subscribe<Args extends unknown[]>(
 const api: AdcodeApi = {
   workspace: {
     open: () => ipcRenderer.invoke(CHANNELS.workspaceOpen),
+    openPath: (root) => ipcRenderer.invoke(CHANNELS.workspaceOpenPath, root),
+    recents: () => ipcRenderer.invoke(CHANNELS.workspaceRecents),
+    forgetRecent: (root) => ipcRenderer.invoke(CHANNELS.workspaceForgetRecent, root),
+    clearRecents: () => ipcRenderer.invoke(CHANNELS.workspaceClearRecents),
     close: () => ipcRenderer.invoke(CHANNELS.workspaceClose),
     current: () => ipcRenderer.invoke(CHANNELS.workspaceCurrent),
     list: (dirPath) => ipcRenderer.invoke(CHANNELS.fsList, dirPath),
   },
+  app: {
+    info: () => ipcRenderer.invoke(CHANNELS.appInfo),
+  },
   files: {
     read: (filePath) => ipcRenderer.invoke(CHANNELS.fsRead, filePath),
+    openDialog: () => ipcRenderer.invoke(CHANNELS.filesOpenDialog),
     write: (filePath, text) => ipcRenderer.invoke(CHANNELS.fsWrite, filePath, text),
     saveAs: (text, suggestedName) => ipcRenderer.invoke(CHANNELS.fsSaveAs, text, suggestedName),
     createFile: (parentDir, name) => ipcRenderer.invoke(CHANNELS.fsCreateFile, parentDir, name),
@@ -61,6 +69,30 @@ const api: AdcodeApi = {
     info: () => ipcRenderer.invoke(CHANNELS.platformInfo),
     onFocusChange: (listener) => subscribe(CHANNELS.windowFocus, listener),
   },
+  preview: {
+    start: (mode) => ipcRenderer.invoke(CHANNELS.previewStart, mode),
+    stop: () => ipcRenderer.invoke(CHANNELS.previewStop),
+    status: () => ipcRenderer.invoke(CHANNELS.previewStatus),
+    detect: () => ipcRenderer.invoke(CHANNELS.previewDetect),
+    log: () => ipcRenderer.invoke(CHANNELS.previewLog),
+    openExternal: () => ipcRenderer.invoke(CHANNELS.previewOpenExternal),
+    onChange: (listener) => subscribe(CHANNELS.previewChanged, listener),
+    onOutput: (listener) => subscribe(CHANNELS.previewOutput, listener),
+  },
+  language: {
+    // `send`, not `invoke`: document synchronisation sits on the keystroke path, and §7 is
+    // explicit that nothing the user types may wait on anything.
+    opened: (path, languageId, text) => ipcRenderer.send(CHANNELS.lspOpened, path, languageId, text),
+    changed: (path, languageId, text) => ipcRenderer.send(CHANNELS.lspChanged, path, languageId, text),
+    closed: (path, languageId) => ipcRenderer.send(CHANNELS.lspClosed, path, languageId),
+    completion: (path, languageId, line, column) =>
+      ipcRenderer.invoke(CHANNELS.lspCompletion, path, languageId, line, column),
+    hover: (path, languageId, line, column) =>
+      ipcRenderer.invoke(CHANNELS.lspHover, path, languageId, line, column),
+    states: () => ipcRenderer.invoke(CHANNELS.lspStates),
+    onDiagnostics: (listener) => subscribe(CHANNELS.lspDiagnostics, listener),
+    onState: (listener) => subscribe(CHANNELS.lspStateChanged, listener),
+  },
   memory: {
     connection: () => ipcRenderer.invoke(CHANNELS.memoryConnection),
   },
@@ -86,6 +118,8 @@ const api: AdcodeApi = {
     fetch: () => ipcRenderer.invoke(CHANNELS.gitFetch),
     init: () => ipcRenderer.invoke(CHANNELS.gitInit),
     clone: (url, target) => ipcRenderer.invoke(CHANNELS.gitClone, url, target),
+    addRemote: (name, url) => ipcRenderer.invoke(CHANNELS.gitAddRemote, name, url),
+    remotes: () => ipcRenderer.invoke(CHANNELS.gitRemotes),
     branches: () => ipcRenderer.invoke(CHANNELS.gitBranches),
     checkout: (ref) => ipcRenderer.invoke(CHANNELS.gitCheckout, ref),
     createBranch: (name) => ipcRenderer.invoke(CHANNELS.gitCreateBranch, name),
@@ -132,13 +166,43 @@ const api: AdcodeApi = {
     reset: () => ipcRenderer.invoke(CHANNELS.settingsReset),
     onChanged: (listener) => subscribe(CHANNELS.settingsChanged, listener),
   },
+  support: {
+    submitReport: (input) => ipcRenderer.invoke(CHANNELS.supportSubmitReport, input),
+  },
   ads: {
     onShow: (listener) => subscribe(CHANNELS.adShow, listener),
     onEarnings: (listener) => subscribe(CHANNELS.earningsChanged, listener),
     painted: (creativeId) => ipcRenderer.send(CHANNELS.adPainted, creativeId),
     dismissed: (creativeId) => ipcRenderer.send(CHANNELS.adDismissed, creativeId),
     clicked: (creativeId) => ipcRenderer.send(CHANNELS.adClicked, creativeId),
+    refreshEarnings: () => ipcRenderer.invoke(CHANNELS.adRefreshEarnings),
     setSuppressed: (suppressed) => ipcRenderer.send(CHANNELS.adSuppressionChanged, suppressed),
+  },
+  collab: {
+    host: (options) => ipcRenderer.invoke(CHANNELS.collabHost, options),
+    join: (code, displayName) => ipcRenderer.invoke(CHANNELS.collabJoin, code, displayName),
+    leave: () => ipcRenderer.invoke(CHANNELS.collabLeave),
+    status: () => ipcRenderer.invoke(CHANNELS.collabStatus),
+    addresses: () => ipcRenderer.invoke(CHANNELS.collabAddresses),
+    reencodeInvite: (address) => ipcRenderer.invoke(CHANNELS.collabReencodeInvite, address),
+    setRole: (participantId, role) => ipcRenderer.invoke(CHANNELS.collabSetRole, participantId, role),
+    setTerminalWrite: (participantId, allowed) =>
+      ipcRenderer.invoke(CHANNELS.collabSetTerminalWrite, participantId, allowed),
+    openDoc: (path) => ipcRenderer.invoke(CHANNELS.collabOpenDoc, path),
+    // Fire-and-forget, both of these: they sit on the keystroke path, and a round trip per
+    // character would put IPC latency between the key and the screen.
+    pushUpdate: (path, update) => ipcRenderer.send(CHANNELS.collabPushUpdate, path, update),
+    saveDoc: (path) => ipcRenderer.invoke(CHANNELS.collabSaveDoc, path),
+    presence: (path, cursor, selection) =>
+      ipcRenderer.send(CHANNELS.collabPresence, path, cursor, selection),
+    requestCommit: (message) => ipcRenderer.send(CHANNELS.collabRequestCommit, message),
+    decideCommit: (id, approved, detail) =>
+      ipcRenderer.invoke(CHANNELS.collabDecideCommit, id, approved, detail),
+    onStatus: (listener) => subscribe(CHANNELS.collabStatusChanged, listener),
+    onDocUpdate: (listener) => subscribe(CHANNELS.collabDocUpdate, listener),
+    onPresence: (listener) => subscribe(CHANNELS.collabPresenceChanged, listener),
+    onCommitRequest: (listener) => subscribe(CHANNELS.collabCommitRequested, listener),
+    onNotice: (listener) => subscribe(CHANNELS.collabNotice, listener),
   },
 };
 

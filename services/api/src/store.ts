@@ -87,6 +87,23 @@ export interface EntryPage {
   nextCursor: string | null;
 }
 
+export interface ReportRecord {
+  reportId: string;
+  uid: string;
+  kind: string;
+  title: string;
+  body: string;
+  appVersion: string;
+  platform: string;
+  status: "open" | "triaged" | "closed";
+  createdAt: number;
+}
+
+export interface ReportPage {
+  rows: ReportRecord[];
+  nextCursor: string | null;
+}
+
 export interface AuditRecord {
   adminUid: string;
   action: string;
@@ -121,6 +138,9 @@ export interface Store {
 
   /** Increments this UID's counter for the window and returns the new count. */
   bumpRequestCount(uid: string, windowStart: number): Promise<number>;
+
+  createReport(report: ReportRecord): Promise<void>;
+  listReports(page: Page): Promise<ReportPage>;
 
   getConfig(): Promise<ServingConfig>;
   putConfig(config: ServingConfig): Promise<void>;

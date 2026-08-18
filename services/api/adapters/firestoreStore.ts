@@ -18,6 +18,8 @@ import type {
   EntryPage,
   Page,
   ReceiptRecord,
+  ReportPage,
+  ReportRecord,
   ServeRecord,
   ServingConfig,
   Store,
@@ -240,6 +242,27 @@ export function createFirestoreStore(injected?: Firestore): Store {
         tx.set(ref, { count: next, expiresAt: windowStart + 3_600_000 });
         return next;
       });
+    },
+
+    async createReport(report: ReportRecord) {
+      await (await lazy()).collection("reports").doc(report.reportId).set(report);
+    },
+
+    async listReports(page: Page): Promise<ReportPage> {
+      const database = await lazy();
+      let q = database.collection("reports").orderBy("createdAt", "desc").limit(page.limit + 1);
+
+      if (page.cursor !== null) {
+        const cursorSnap = await database.collection("reports").doc(page.cursor).get();
+        if (cursorSnap.exists) q = q.startAfter(cursorSnap);
+      }
+
+      const snap = await q.get();
+      const rows = snap.docs.slice(0, page.limit).map((d) => d.data() as ReportRecord);
+      const more = snap.docs.length > page.limit;
+      const last = rows.at(-1);
+
+      return { rows, nextCursor: more && last !== undefined ? last.reportId : null };
     },
 
     async getConfig(): Promise<ServingConfig> {
