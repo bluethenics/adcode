@@ -71,6 +71,10 @@ export interface ServingConfig {
   revSharePercent: bigint;
   spendShardCount: number;
   serveTtlMs: number;
+  /** Length of a rate-limit window. */
+  rateWindowMs: number;
+  /** Requests allowed per UID per window. Zero means unlimited. */
+  requestsPerWindow: number;
 }
 
 export interface Page {
@@ -114,6 +118,9 @@ export interface Store {
 
   addSpend(campaignId: string, micros: bigint): Promise<void>;
   getSpend(campaignId: string): Promise<bigint>;
+
+  /** Increments this UID's counter for the window and returns the new count. */
+  bumpRequestCount(uid: string, windowStart: number): Promise<number>;
 
   getConfig(): Promise<ServingConfig>;
   putConfig(config: ServingConfig): Promise<void>;

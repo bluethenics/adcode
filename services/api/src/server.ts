@@ -13,6 +13,7 @@ import { handleBalance, handleLedger } from "./balance.ts";
 import { handleConfig } from "./config.ts";
 import { handleAdminLedger } from "./admin.ts";
 import { parseReceiptsRequest, parseServeRequest } from "./contract.ts";
+import { checkRate } from "./rateLimit.ts";
 import { createMemoryStore } from "./memoryStore.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
 
@@ -82,6 +83,19 @@ export async function createApiServer(
       // A ban is 403 rather than 401: the credentials are fine, the answer is still no,
       // and a client that retries auth on a 401 would loop forever.
       send(res, auth.failure === "banned" ? 403 : 401, { error: auth.failure });
+      return;
+    }
+
+    // Spec §9. Applied after authentication so the counter is per verified UID rather
+    // than per connection, and before any routing so no endpoint can be exempted by
+    // accident.
+    const config = await store.getConfig();
+    if (!(await checkRate(store, config, auth.uid, clock.now()))) {
+      res.writeHead(429, {
+        "content-type": "application/json",
+        "retry-after": String(Math.ceil(config.rateWindowMs / 1000)),
+      });
+      res.end(JSON.stringify({ error: "rate-limited" }));
       return;
     }
 

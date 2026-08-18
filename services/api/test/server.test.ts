@@ -91,6 +91,27 @@ describe("routing", () => {
   });
 });
 
+describe("rate limiting", () => {
+  it("429s a user over the ceiling, and says when to come back", async () => {
+    const cfg = await store.getConfig();
+    await store.putConfig({ ...cfg, requestsPerWindow: 3, rateWindowMs: 60_000 });
+
+    for (let i = 0; i < 3; i++) expect((await get("/v1/balance")).status).toBe(200);
+
+    const limited = await get("/v1/balance");
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBe("60");
+  });
+
+  it("limits every endpoint, not just the expensive one", async () => {
+    const cfg = await store.getConfig();
+    await store.putConfig({ ...cfg, requestsPerWindow: 1, rateWindowMs: 60_000 });
+
+    await get("/v1/config");
+    expect((await post("/v1/serve", { tags: [], themeKind: "dark", count: 1 })).status).toBe(429);
+  });
+});
+
 describe("admin routes", () => {
   const adminHeaders = { authorization: "Bearer admin", "content-type": "application/json" };
 

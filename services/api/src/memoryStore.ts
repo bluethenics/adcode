@@ -27,6 +27,10 @@ export const DEFAULT_CONFIG: ServingConfig = {
   revSharePercent: 50n,
   spendShardCount: 4,
   serveTtlMs: 600_000,
+  rateWindowMs: 60_000,
+  // Generous: an honest client at the `max` cadence sends a handful of requests a minute,
+  // so this only bites on something automated.
+  requestsPerWindow: 120,
 };
 
 export function createMemoryStore(): Store & { reset(): void } {
@@ -38,6 +42,7 @@ export function createMemoryStore(): Store & { reset(): void } {
   let entries: LedgerEntry[] = [];
   let balances = new Map<string, Balance>();
   let spend = new Map<string, bigint>();
+  let requestCounts = new Map<string, number>();
   let audit: AuditRecord[] = [];
   let config: ServingConfig = { ...DEFAULT_CONFIG };
 
@@ -51,6 +56,7 @@ export function createMemoryStore(): Store & { reset(): void } {
       entries = [];
       balances = new Map();
       spend = new Map();
+      requestCounts = new Map();
       audit = [];
       config = { ...DEFAULT_CONFIG };
     },
@@ -141,6 +147,13 @@ export function createMemoryStore(): Store & { reset(): void } {
 
     async getSpend(campaignId) {
       return spend.get(campaignId) ?? 0n;
+    },
+
+    async bumpRequestCount(uid, windowStart) {
+      const key = `${uid}:${windowStart}`;
+      const next = (requestCounts.get(key) ?? 0) + 1;
+      requestCounts.set(key, next);
+      return next;
     },
 
     async getConfig() {

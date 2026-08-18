@@ -28,6 +28,8 @@ type Firestore = import("firebase-admin/firestore").Firestore;
 
 const DEFAULT_SHARD_COUNT = 4;
 const DEFAULT_SERVE_TTL_MS = 600_000;
+const DEFAULT_RATE_WINDOW_MS = 60_000;
+const DEFAULT_REQUESTS_PER_WINDOW = 120;
 
 const toMicros = (v: unknown): bigint => BigInt(typeof v === "string" ? v : "0");
 const fromMicros = (v: bigint): string => v.toString();
@@ -225,6 +227,21 @@ export function createFirestoreStore(injected?: Firestore): Store {
       return snap.docs.reduce((total, d) => total + toMicros(d.data()["micros"]), 0n);
     },
 
+    async bumpRequestCount(uid, windowStart) {
+      const database = await lazy();
+      const ref = database.collection("rateCounters").doc(`${uid}:${windowStart}`);
+
+      return database.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const raw = snap.data()?.["count"];
+        const next = (typeof raw === "number" ? raw : 0) + 1;
+        // `expiresAt` exists for a Firestore TTL policy to reap these; without one the
+        // collection grows without bound, one document per user per window.
+        tx.set(ref, { count: next, expiresAt: windowStart + 3_600_000 });
+        return next;
+      });
+    },
+
     async getConfig(): Promise<ServingConfig> {
       const snap = await (await lazy()).collection("config").doc("serving").get();
       const raw = snap.data() ?? {};
@@ -236,6 +253,12 @@ export function createFirestoreStore(injected?: Firestore): Store {
         spendShardCount:
           typeof raw["spendShardCount"] === "number" ? raw["spendShardCount"] : DEFAULT_SHARD_COUNT,
         serveTtlMs: typeof raw["serveTtlMs"] === "number" ? raw["serveTtlMs"] : DEFAULT_SERVE_TTL_MS,
+        rateWindowMs:
+          typeof raw["rateWindowMs"] === "number" ? raw["rateWindowMs"] : DEFAULT_RATE_WINDOW_MS,
+        requestsPerWindow:
+          typeof raw["requestsPerWindow"] === "number"
+            ? raw["requestsPerWindow"]
+            : DEFAULT_REQUESTS_PER_WINDOW,
       };
     },
 
