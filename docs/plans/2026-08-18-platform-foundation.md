@@ -68,7 +68,7 @@ Sets up the service package and the module that everything financial depends on.
 - Consumes: nothing.
 - Produces: `type Micros = bigint`; `parseMicros(raw: string): bigint | null`; `formatMicros(v: bigint): string`; `INT64_MAX`, `INT64_MIN`; `advertiserCostMicros(cpmMicros: bigint): bigint`; `userCreditMicros(cost: bigint, revSharePercent: bigint): bigint`.
 
-- [ ] **Step 1: Create the package manifest**
+- [x] **Step 1: Create the package manifest**
 
 `services/api/package.json`:
 
@@ -89,7 +89,7 @@ Sets up the service package and the module that everything financial depends on.
 }
 ```
 
-- [ ] **Step 2: Wire the new directory into typecheck, tests, and the firewall**
+- [x] **Step 2: Wire the new directory into typecheck, tests, and the firewall**
 
 In `tsconfig.json`, add `"services/**/*.ts"` to `include`:
 
@@ -114,7 +114,7 @@ In the root `package.json`, add `services` to the `firewall` script:
 "firewall": "depcruise --config .dependency-cruiser.cjs packages mock-server apps services"
 ```
 
-- [ ] **Step 3: Write the failing test**
+- [x] **Step 3: Write the failing test**
 
 `services/api/test/money.test.ts`:
 
@@ -190,12 +190,12 @@ describe("credit computation", () => {
 });
 ```
 
-- [ ] **Step 4: Run the test to verify it fails**
+- [x] **Step 4: Run the test to verify it fails**
 
 Run: `npx vitest run services/api/test/money.test.ts`
 Expected: FAIL — cannot resolve `../src/money.ts`.
 
-- [ ] **Step 5: Write the implementation**
+- [x] **Step 5: Write the implementation**
 
 `services/api/src/money.ts`:
 
@@ -256,17 +256,17 @@ export function userCreditMicros(costMicros: bigint, revSharePercent: bigint): b
 }
 ```
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [x] **Step 6: Run the test to verify it passes**
 
 Run: `npx vitest run services/api/test/money.test.ts`
 Expected: PASS, all cases.
 
-- [ ] **Step 7: Run the full verification gate**
+- [x] **Step 7: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: typecheck clean, firewall clean, all existing tests still passing.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add services/api/package.json services/api/src/money.ts services/api/test/money.test.ts tsconfig.json vitest.config.ts package.json
@@ -286,7 +286,7 @@ git commit -m "feat(api): micros arithmetic in bigint"
 - Consumes: nothing.
 - Produces: `ThemeName`, `CadenceName`, `ReceiptOutcome`, `ServeRequestBody`, `ServedCreative`, `ServeResponseBody`, `SubmittedReceipt`, `ReceiptsRequestBody`, `BalanceResponseBody`, `ConfigResponseBody`, `LedgerRow`, `LedgerResponseBody`; `TAG_VOCABULARY: readonly string[]`; `LIMITS`; `isTag(v: string): boolean`; `parseServeRequest(raw: unknown): ServeRequestBody | null`; `parseReceiptsRequest(raw: unknown): ReceiptsRequestBody | null`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `services/api/test/contract.test.ts`:
 
@@ -352,12 +352,12 @@ describe("parseReceiptsRequest", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run services/api/test/contract.test.ts`
 Expected: FAIL — cannot resolve `../src/contract.ts`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `services/api/src/contract.ts`. Note the header comment — it exists so nobody "helpfully" refactors this into a shared import:
 
@@ -536,12 +536,12 @@ export function parseReceiptsRequest(raw: unknown): ReceiptsRequestBody | null {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run services/api/test/contract.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Add the firewall rule**
+- [x] **Step 5: Add the firewall rule**
 
 In `.dependency-cruiser.cjs`, immediately after the `mock-server-must-not-import-client` rule (which closes at line 103), add:
 
@@ -558,7 +558,7 @@ In `.dependency-cruiser.cjs`, immediately after the `mock-server-must-not-import
 },
 ```
 
-- [ ] **Step 6: Prove the rule actually bites**
+- [x] **Step 6: Prove the rule actually bites**
 
 Temporarily append to `services/api/src/contract.ts`:
 
@@ -574,12 +574,12 @@ Expected: PASS.
 
 A rule nobody has watched fail is a rule nobody knows works.
 
-- [ ] **Step 7: Run the full verification gate**
+- [x] **Step 7: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: all green.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add services/api/src/contract.ts services/api/test/contract.test.ts .dependency-cruiser.cjs
@@ -600,7 +600,7 @@ The heart of the slice. Entries are append-only; a balance is a fold over them.
 - Consumes: `money.ts` (`INT64_MAX`, `INT64_MIN`).
 - Produces: `type LedgerKind`; `interface LedgerEntry { entryId, uid, kind, micros, refId, createdAt, description, reason?, adminUid?, providerRef?, currency? }`; `interface Balance { availableMicros, lifetimeMicros, pendingWithdrawalMicros }`; `EMPTY_BALANCE`; `foldBalance(entries: readonly LedgerEntry[]): Balance`; `applyEntry(b: Balance, e: LedgerEntry): Balance`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `services/api/test/ledger.test.ts`:
 
@@ -705,12 +705,12 @@ describe("the fold is the invariant", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run services/api/test/ledger.test.ts`
 Expected: FAIL — cannot resolve `../src/ledger.ts`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `services/api/src/ledger.ts`:
 
@@ -826,19 +826,19 @@ export function foldBalance(entries: readonly LedgerEntry[]): Balance {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run services/api/test/ledger.test.ts`
 Expected: PASS.
 
 If the `withdrawal_paid` case fails, check the sign convention: `withdrawal_paid` carries a negative `micros` matching the request, so adding it to pending reduces pending to zero.
 
-- [ ] **Step 5: Run the full verification gate**
+- [x] **Step 5: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: all green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/api/src/ledger.ts services/api/test/ledger.test.ts
@@ -858,7 +858,7 @@ git commit -m "feat(api): an append-only ledger, folded into a balance"
 - Consumes: `ledger.ts` (`LedgerEntry`, `Balance`), `money.ts`.
 - Produces: `interface Store` with `getUser`, `putUser`, `activeCampaignsFor`, `getCreative`, `putCampaign`, `putCreative`, `recordServe`, `findServe`, `createReceiptIfAbsent`, `appendEntryAndUpdateBalance`, `getBalance`, `listEntries`, `addSpend`, `getConfig`, `putConfig`, `writeAudit`; `interface Clock { now(): number }`; `interface IdGen { next(prefix: string): string }`; `createMemoryStore(): Store & { reset(): void }`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `services/api/test/memoryStore.test.ts`:
 
@@ -952,12 +952,12 @@ describe("spend", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run services/api/test/memoryStore.test.ts`
 Expected: FAIL — cannot resolve `../src/memoryStore.ts`.
 
-- [ ] **Step 3: Write the port**
+- [x] **Step 3: Write the port**
 
 `services/api/src/store.ts`:
 
@@ -1087,7 +1087,7 @@ export interface Store {
 }
 ```
 
-- [ ] **Step 4: Write the in-memory implementation**
+- [x] **Step 4: Write the in-memory implementation**
 
 `services/api/src/memoryStore.ts`:
 
@@ -1238,17 +1238,17 @@ export function createMemoryStore(): Store & { reset(): void } {
 }
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `npx vitest run services/api/test/memoryStore.test.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Run the full verification gate**
+- [x] **Step 6: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add services/api/src/store.ts services/api/src/memoryStore.ts services/api/test/memoryStore.test.ts
@@ -1267,7 +1267,7 @@ git commit -m "feat(api): the store port, and a memory store that enforces its i
 - Consumes: `store.ts` (`CampaignRecord`).
 - Produces: `interface Candidate { campaign: CampaignRecord; spentMicros: bigint }`; `selectCampaigns(candidates: readonly Candidate[], tags: readonly string[], count: number): CampaignRecord[]`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `services/api/test/targeting.test.ts`:
 
@@ -1355,12 +1355,12 @@ describe("selectCampaigns", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run services/api/test/targeting.test.ts`
 Expected: FAIL — cannot resolve `../src/targeting.ts`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `services/api/src/targeting.ts`:
 
@@ -1414,17 +1414,17 @@ export function selectCampaigns(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run services/api/test/targeting.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Run the full verification gate**
+- [x] **Step 5: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: all green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/api/src/targeting.ts services/api/test/targeting.test.ts
@@ -1443,7 +1443,7 @@ git commit -m "feat(api): campaign targeting and CPM ranking"
 - Consumes: `contract.ts` (`SubmittedReceipt`), `store.ts` (`ServeRecord`).
 - Produces: `type RejectReason = "no-serve" | "dwell-too-short" | "dwell-too-long" | "shown-in-future" | "not-earning"`; `MIN_DWELL_MS`, `MAX_DWELL_MS`; `checkReceipt(receipt, serve, now): { ok: true } | { ok: false; reason: RejectReason }`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `services/api/test/plausibility.test.ts`:
 
@@ -1512,12 +1512,12 @@ describe("checkReceipt", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run services/api/test/plausibility.test.ts`
 Expected: FAIL — cannot resolve `../src/plausibility.ts`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `services/api/src/plausibility.ts`:
 
@@ -1570,17 +1570,17 @@ export function checkReceipt(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run services/api/test/plausibility.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Run the full verification gate**
+- [x] **Step 5: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: all green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/api/src/plausibility.ts services/api/test/plausibility.test.ts
@@ -1599,7 +1599,7 @@ git commit -m "feat(api): receipt plausibility checks"
 - Consumes: `store.ts` (`Store`, `UserRecord`, `Clock`).
 - Produces: `interface VerifiedToken { uid: string; claims: Record<string, unknown> }`; `interface TokenVerifier { verify(idToken: string): Promise<VerifiedToken | null> }`; `type AuthFailure = "missing-token" | "bad-token" | "banned" | "not-admin"`; `authenticate(deps, header: string | undefined): Promise<{ ok: true; uid: string; isAdmin: boolean } | { ok: false; failure: AuthFailure }>`; `bearerFrom(header: string | undefined): string | null`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `services/api/test/auth.test.ts`:
 
@@ -1682,12 +1682,12 @@ describe("authenticate", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run services/api/test/auth.test.ts`
 Expected: FAIL — cannot resolve `../src/auth.ts`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `services/api/src/auth.ts`:
 
@@ -1752,17 +1752,17 @@ export async function authenticate(deps: AuthDeps, header: string | undefined): 
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run services/api/test/auth.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Run the full verification gate**
+- [x] **Step 5: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: all green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/api/src/auth.ts services/api/test/auth.test.ts
@@ -1781,7 +1781,7 @@ git commit -m "feat(api): token verification, roles from claims, bans from the s
 - Consumes: `contract.ts`, `store.ts`, `targeting.ts`, `money.ts`.
 - Produces: `interface ServeDeps { store: Store; clock: Clock; ids: IdGen }`; `handleServe(deps, uid: string, body: ServeRequestBody): Promise<ServeResponseBody>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `services/api/test/serve.test.ts`:
 
@@ -1871,12 +1871,12 @@ describe("handleServe", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run services/api/test/serve.test.ts`
 Expected: FAIL — cannot resolve `../src/serve.ts`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `services/api/src/serve.ts`:
 
@@ -1951,17 +1951,17 @@ export async function handleServe(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run services/api/test/serve.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Run the full verification gate**
+- [x] **Step 5: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: all green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/api/src/serve.ts services/api/test/serve.test.ts
@@ -1980,7 +1980,7 @@ git commit -m "feat(api): serve ads, and record that we did"
 - Consumes: `contract.ts`, `store.ts`, `plausibility.ts`, `money.ts`, `ledger.ts`.
 - Produces: `interface ReceiptDeps { store: Store; clock: Clock; ids: IdGen }`; `handleReceipts(deps, uid: string, body: ReceiptsRequestBody): Promise<ReceiptsResponseBody>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `services/api/test/receipts.test.ts`:
 
@@ -2101,12 +2101,12 @@ describe("handleReceipts", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run services/api/test/receipts.test.ts`
 Expected: FAIL — cannot resolve `../src/receipts.ts`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `services/api/src/receipts.ts`:
 
@@ -2203,17 +2203,17 @@ export async function handleReceipts(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run services/api/test/receipts.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Run the full verification gate**
+- [x] **Step 5: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: all green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/api/src/receipts.ts services/api/test/receipts.test.ts
@@ -2234,7 +2234,7 @@ git commit -m "feat(api): receipts, idempotent and paid only when believable"
 - Consumes: `store.ts`, `money.ts`, `contract.ts`.
 - Produces: `handleBalance(store, uid): Promise<BalanceResponseBody>`; `handleLedger(store, uid, page: Page): Promise<LedgerResponseBody>`; `handleConfig(store): Promise<ConfigResponseBody>`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `services/api/test/balance.test.ts`:
 
@@ -2353,12 +2353,12 @@ describe("handleConfig", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `npx vitest run services/api/test/balance.test.ts services/api/test/config.test.ts`
 Expected: FAIL — cannot resolve the two new modules.
 
-- [ ] **Step 3: Write `balance.ts`**
+- [x] **Step 3: Write `balance.ts`**
 
 ```ts
 /**
@@ -2396,7 +2396,7 @@ export async function handleLedger(store: Store, uid: string, page: Page): Promi
 }
 ```
 
-- [ ] **Step 4: Write `config.ts`**
+- [x] **Step 4: Write `config.ts`**
 
 ```ts
 /**
@@ -2440,17 +2440,17 @@ export async function handleConfig(store: Store): Promise<ConfigResponseBody> {
 }
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `npx vitest run services/api/test/balance.test.ts services/api/test/config.test.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Run the full verification gate**
+- [x] **Step 6: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add services/api/src/balance.ts services/api/src/config.ts services/api/test/balance.test.ts services/api/test/config.test.ts
@@ -2469,7 +2469,7 @@ git commit -m "feat(api): balance, ledger history, and server-computed projectio
 - Consumes: `store.ts`, `balance.ts`, `ledger.ts`.
 - Produces: `interface AdminDeps { store: Store; clock: Clock }`; `handleAdminLedger(deps, adminUid: string, subjectUid: string, page: Page): Promise<LedgerResponseBody>`; `handleSetUserStatus(deps, adminUid: string, subjectUid: string, status: UserStatus): Promise<void>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `services/api/test/admin.test.ts`:
 
@@ -2531,12 +2531,12 @@ describe("handleSetUserStatus", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run services/api/test/admin.test.ts`
 Expected: FAIL — cannot resolve `../src/admin.ts`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `services/api/src/admin.ts`:
 
@@ -2594,17 +2594,17 @@ export async function handleSetUserStatus(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run services/api/test/admin.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Run the full verification gate**
+- [x] **Step 5: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: all green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/api/src/admin.ts services/api/test/admin.test.ts
@@ -2624,7 +2624,7 @@ git commit -m "feat(api): admin reads and bans, both audited"
 - Consumes: every handler module.
 - Produces: `interface ApiServer { url: string; close(): Promise<void> }`; `createApiServer(options: { port?: number; store?: Store; verifier?: TokenVerifier; clock?: Clock; ids?: IdGen }): Promise<ApiServer>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `services/api/test/server.test.ts`:
 
@@ -2720,12 +2720,12 @@ describe("admin routes", () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run services/api/test/server.test.ts`
 Expected: FAIL — cannot resolve `../src/server.ts`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `services/api/src/server.ts`:
 
@@ -2891,7 +2891,7 @@ export async function createApiServer(options: {
 }
 ```
 
-- [ ] **Step 4: Write the CLI entry point**
+- [x] **Step 4: Write the CLI entry point**
 
 `services/api/src/cli.ts`:
 
@@ -2915,19 +2915,19 @@ const server = await createApiServer({
 process.stdout.write(`api listening on ${server.url}\n`);
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `npx vitest run services/api/test/server.test.ts`
 Expected: PASS.
 
 Note: `cli.ts` imports the adapters, which do not exist until Task 14. Typecheck will fail until then — **write `cli.ts` in Task 14 instead if you are running tasks strictly in order.** Skip Step 4 here and note it as deferred.
 
-- [ ] **Step 6: Run the full verification gate**
+- [x] **Step 6: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: all green (with `cli.ts` deferred to Task 14).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add services/api/src/server.ts services/api/test/server.test.ts
@@ -2949,7 +2949,7 @@ Proves the real service and the mock agree. Spec D3 — the highest-value item i
 - Consumes: `server.ts`, `mock-server/src/server.ts`.
 - Produces: `describeContract(name: string, start: () => Promise<{ url: string; close(): Promise<void>; reset(): Promise<void> }>): void`.
 
-- [ ] **Step 1: Write the shared suite**
+- [x] **Step 1: Write the shared suite**
 
 `services/api/test/conformance/contractSuite.ts`:
 
@@ -3093,7 +3093,7 @@ export function describeContract(name: string, start: () => Promise<Harness>): v
 }
 ```
 
-- [ ] **Step 2: Run the suite against the real service**
+- [x] **Step 2: Run the suite against the real service**
 
 `services/api/test/conformance/api.test.ts`:
 
@@ -3147,7 +3147,7 @@ describeContract("services/api", async () => {
 });
 ```
 
-- [ ] **Step 3: Run the same suite against the mock**
+- [x] **Step 3: Run the same suite against the mock**
 
 `mock-server/test/conformance.test.ts`:
 
@@ -3167,26 +3167,26 @@ describeContract("mock-server", async () => {
 });
 ```
 
-- [ ] **Step 4: Run both**
+- [x] **Step 4: Run both**
 
 Run: `npx vitest run services/api/test/conformance mock-server/test/conformance.test.ts`
 Expected: PASS for both implementations.
 
 If the real service fails an assertion the mock passes, the real service is wrong — the mock has been the reference for 194 client tests. Fix the service, not the suite.
 
-- [ ] **Step 5: Check the firewall still holds**
+- [x] **Step 5: Check the firewall still holds**
 
 `mock-server/test/conformance.test.ts` imports from `services/`, not `packages/`, so `mock-server-must-not-import-client` is unaffected.
 
 Run: `npm run firewall`
 Expected: PASS. If it fails, the rule's `to.path` is broader than `^packages/` — read the failure before changing anything.
 
-- [ ] **Step 6: Run the full verification gate**
+- [x] **Step 6: Run the full verification gate**
 
 Run: `npm run verify`
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add services/api/test/conformance mock-server/test/conformance.test.ts
@@ -3212,13 +3212,13 @@ The only code in the slice that cannot be tested without cloud tooling. Everythi
 - Consumes: `store.ts` (`Store`), `auth.ts` (`TokenVerifier`).
 - Produces: `createFirestoreStore(): Store`; `createFirebaseVerifier(): TokenVerifier`.
 
-- [ ] **Step 1: Add `firebase-admin` as a dependency of the service only**
+- [x] **Step 1: Add `firebase-admin` as a dependency of the service only**
 
 Run: `npm install firebase-admin --save-optional`
 
 It is optional because nothing in `src/` imports it — the unit and conformance suites must keep running if it is absent.
 
-- [ ] **Step 2: Exclude the emulator suite from the default test run**
+- [x] **Step 2: Exclude the emulator suite from the default test run**
 
 In `vitest.config.ts`, add to `test.exclude`:
 
@@ -3232,7 +3232,7 @@ In the root `package.json` scripts:
 "test:emulator": "firebase emulators:exec --only firestore \"vitest run services/api/test/emulator\""
 ```
 
-- [ ] **Step 3: Write the Firestore adapter**
+- [x] **Step 3: Write the Firestore adapter**
 
 `services/api/adapters/firestoreStore.ts`. The whole file is a translation between the `Store` port and Firestore's API — bigint to int64 on write, back on read:
 
@@ -3469,7 +3469,7 @@ export function createFirestoreStore(db?: Firestore): Store {
 }
 ```
 
-- [ ] **Step 4: Write the auth adapter**
+- [x] **Step 4: Write the auth adapter**
 
 `services/api/adapters/firebaseAuth.ts`:
 
@@ -3504,9 +3504,9 @@ export function createFirebaseVerifier(): TokenVerifier {
 }
 ```
 
-- [ ] **Step 5: Write `cli.ts`** — the file deferred from Task 12. Use the code given in Task 12, Step 4, verbatim.
+- [x] **Step 5: Write `cli.ts`** — the file deferred from Task 12. Use the code given in Task 12, Step 4, verbatim.
 
-- [ ] **Step 6: Write the Dockerfile**
+- [x] **Step 6: Write the Dockerfile**
 
 `services/api/Dockerfile`:
 
@@ -3528,7 +3528,7 @@ EXPOSE 8788
 CMD ["node", "services/api/src/cli.ts"]
 ```
 
-- [ ] **Step 7: Write the emulator tests**
+- [x] **Step 7: Write the emulator tests**
 
 `services/api/test/emulator/firestoreStore.emulator.test.ts`:
 
@@ -3600,19 +3600,19 @@ describe("the append is atomic", () => {
 });
 ```
 
-- [ ] **Step 8: Run the default suite, which must not need the emulator**
+- [x] **Step 8: Run the default suite, which must not need the emulator**
 
 Run: `npm run verify`
 Expected: all green, with the emulator suite excluded.
 
-- [ ] **Step 9: Run the emulator suite if the tooling is available**
+- [x] **Step 9: Run the emulator suite if the tooling is available**
 
 Run: `npm run test:emulator`
 Expected: PASS.
 
 If `firebase-tools` is not installed, this is the one place in the plan where a step can be legitimately skipped. Record it as **unverified** rather than passing — an adapter nobody has run against a real Firestore is an adapter nobody knows works.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add services/api/adapters services/api/src/cli.ts services/api/Dockerfile services/api/test/emulator vitest.config.ts package.json package-lock.json
@@ -3646,10 +3646,32 @@ git commit -m "feat(api): Firestore and Firebase adapters, behind the port"
 
 **Known gaps, deliberately deferred and not silently dropped:**
 
-- **Per-UID rate ceilings (§9)** are specified but have no task. They need a request-count store keyed by UID and window, and the `caps` in config already describe the limits the client self-imposes. Add as Task 15 before deploying publicly — until then the serve path is protected only by plausibility checks, which bound *earnings* but not *request volume*.
+- ~~**Per-UID rate ceilings (§9)**~~ — **closed during execution as Task 15.** `src/rateLimit.ts`, fixed windows, `requestsPerWindow` and `rateWindowMs` in config, enforced in `server.ts` after authentication and before routing so no endpoint can be exempted by accident. Returns 429 with `retry-after`.
 - **The nightly reconciliation job (§6.2)** has no task. The invariant is enforced inside `appendEntryAndUpdateBalance` in both store implementations, so drift can only arise from a direct console edit. The job is a safety net for that case and belongs with the admin panel.
 - **Withdrawal entry kinds** are implemented and tested in `ledger.ts` (Task 3) but no endpoint raises them, exactly as §12 intends. The fold is correct and tested ahead of the flow that will use it.
 
 **Type consistency:** `Store` method names are used identically in Tasks 4, 8, 9, 10, 11, 13, 14. `LedgerEntry` field names match between `ledger.ts` (Task 3), `memoryStore.ts` (Task 4) and `firestoreStore.ts` (Task 14). `Page`/`EntryPage` shapes match between `store.ts`, `balance.ts` and `admin.ts`. `advertiserCostMicros`/`userCreditMicros` are called with the same argument order in Tasks 5, 9 and 10.
 
 **One ordering hazard, called out where it bites:** `cli.ts` imports the adapters and therefore cannot typecheck until Task 14. Task 12 Step 5 says to defer it; Task 14 Step 5 says to write it.
+
+---
+
+## Execution record
+
+Executed 2026-08-18 on `feat/platform-foundation`. All fourteen tasks completed, plus a
+Task 15 that closed the rate-limiting gap above.
+
+**Verified:** `npm run verify` green after every task — final run 1347 tests across 81
+files, typecheck and firewall clean. The `api-must-not-import-client` rule was watched
+failing before being trusted. The conformance suite passes against both `services/api`
+and `mock-server`, 11 assertions each.
+
+**Not verified:** `services/api/adapters/firestoreStore.ts`. The emulator suite is written
+and `firebase-tools` is installed, but the Firestore emulator is a Java process and there
+is no JDK on this machine. The adapter typechecks and nothing above the port depends on
+it having run. Run `npm run test:emulator` once a JDK is available before deploying.
+
+**Two plan bugs found while executing**, both in test expectations rather than design:
+the `$8 CPM` comment in Task 1 stated the cost and credit the wrong way round (assertions
+were right), and Task 10's pagination test expected `nextCursor` to be the next row rather
+than the last one returned. Both fixed in the committed tests.
