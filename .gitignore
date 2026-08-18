@@ -18,3 +18,8 @@ release/
 
 # Progress log from `npm run icons`; the icons themselves are committed.
 build/icons.log
+
+# Next.js build output
+apps/web/.next/
+apps/web/out/
+apps/web/next-env.d.ts

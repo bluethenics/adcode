@@ -1,0 +1,12 @@
+{
+  "name": "@adcode/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "adcode.dev - the marketing site, advertiser portal, user dashboard, and admin panel.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
+  }
+}

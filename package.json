@@ -15,7 +15,7 @@
     "start": "node scripts/start.mjs",
     "dev": "npm --prefix apps/desktop run dev",
     "package": "node scripts/package.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json && tsc --noEmit -p apps/web/tsconfig.json",
     "desktop": "npm --prefix apps/desktop run dev",
     "desktop:build": "npm --prefix apps/desktop run build",
     "firewall": "depcruise --config .dependency-cruiser.cjs packages mock-server apps services",
@@ -25,10 +25,14 @@
     "mock-server": "node mock-server/src/cli.ts",
     "smoke": "node scripts/smoke.mjs",
     "verify": "npm run typecheck && npm run firewall && npm run test",
-    "icons": "electron scripts/make-icons.mjs"
+    "icons": "electron scripts/make-icons.mjs",
+    "web": "npm --prefix apps/web run dev",
+    "web:build": "npm --prefix apps/web run build"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "@types/ws": "^8.18.1",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-search": "^0.16.0",
@@ -53,7 +57,10 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "next": "^16.3.1",
     "node-pty": "^1.1.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "ws": "^8.21.3",
     "yjs": "^13.6.32"
   },
