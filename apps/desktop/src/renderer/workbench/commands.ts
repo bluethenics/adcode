@@ -13,14 +13,21 @@
 export interface Command {
   readonly id: string;
   readonly title: string;
-  readonly run: () => void | Promise<void>;
+  /**
+   * `arg` is what the command acts on when the caller has something specific in mind - a
+   * recent folder's path, from the row in the File menu that names it.
+   *
+   * One command taking an argument rather than one command per folder: the palette lists
+   * every registered command, and ten of these would crowd out the ones you can type.
+   */
+  readonly run: (arg?: string) => void | Promise<void>;
 }
 
 export interface CommandRegistry {
   register(command: Command): void;
   /** Register a command that just triggers a Monaco action. */
   registerEditorAction(id: string, title: string, actionId: string): void;
-  run(id: string): void;
+  run(id: string, arg?: string): void;
   has(id: string): boolean;
   all(): Command[];
 }
@@ -40,7 +47,7 @@ export function createCommandRegistry(deps: {
       commands.set(id, { id, title, run: () => deps.runEditorAction(actionId) });
     },
 
-    run(id) {
+    run(id, arg) {
       const command = commands.get(id);
       if (command === undefined) {
         deps.onUnknown(id);
@@ -49,7 +56,7 @@ export function createCommandRegistry(deps: {
 
       // Commands are fire-and-forget from the caller's point of view; a menu click must
       // not leave an unhandled rejection behind if one of them throws.
-      void Promise.resolve(command.run()).catch(() => deps.onUnknown(id));
+      void Promise.resolve(command.run(arg)).catch(() => deps.onUnknown(id));
     },
 
     has: (id) => commands.has(id),

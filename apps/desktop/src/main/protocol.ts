@@ -51,7 +51,15 @@ const CSP = [
   "img-src 'self' data: https:",
   "worker-src 'self' blob:",
   "connect-src 'self'",
-  "frame-src 'none'",
+  // The one widening in this policy, and deliberately the narrowest that works: the live
+  // preview renders the user's own site in an iframe, and only the loopback server this
+  // process bound can answer. `http:` is required because a self-signed certificate on
+  // 127.0.0.1 costs a browser warning for no security gained over a loopback socket.
+  //
+  // The frame is cross-origin - `http://127.0.0.1:port` against the renderer's
+  // `app://adcode` - so same-origin policy already keeps the previewed page out of the
+  // workbench's DOM. Nothing else in this list moves to accommodate it.
+  "frame-src http://127.0.0.1:* http://localhost:*",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",

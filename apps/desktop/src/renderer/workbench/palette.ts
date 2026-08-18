@@ -13,6 +13,8 @@ import type { Command } from "./commands.ts";
 
 export interface Palette {
   toggle(): void;
+  /** Open with the box already carrying `seed`, for the command centre's handover. */
+  open(seed?: string): void;
   close(): void;
   isOpen(): boolean;
 }
@@ -134,10 +136,17 @@ export function createPalette(deps: PaletteDeps): Palette {
         return;
       }
 
+      api.open();
+    },
+
+    open(seed = ""): void {
       overlay.hidden = false;
-      input.value = "";
+      input.value = seed;
       query();
       input.focus();
+      // Caret after the seed rather than selecting it, so the next keystroke continues the
+      // word the user started in the title bar instead of replacing it.
+      input.setSelectionRange(seed.length, seed.length);
     },
 
     close(): void {

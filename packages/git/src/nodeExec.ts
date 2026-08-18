@@ -38,14 +38,35 @@ export const nodeGitExec: GitExec = {
             return;
           }
 
-          const code = typeof (error as { code?: unknown }).code === "number"
-            ? (error as { code: number }).code
-            : 1;
+          /*
+           * Two completely different failures arrive through this one callback, and telling
+           * them apart is what decides whether the user sees git's words or Node's.
+           *
+           * When git **ran** and exited non-zero, `error.code` is that numeric exit code and
+           * `error.message` is Node's own construction - the string "Command failed: git
+           * commit -m ..." followed by stderr. It contains nothing git did not already say.
+           *
+           * When git **could not be run at all** - not installed, not on PATH, killed by the
+           * timeout - `error.code` is a string like `ENOENT` and `error.message` is the only
+           * description of what happened, because there is no output to have.
+           *
+           * This used to be `stderr || error.message`, which looks harmless and is not: a
+           * `git commit` with nothing staged writes its entire explanation to **stdout** and
+           * leaves stderr empty, so the fallback fired and replaced git's "no changes added
+           * to commit" with "Command failed: git commit -m ood". Callers prefer stderr over
+           * stdout, so the real reason was then discarded in favour of a string that says
+           * only that something went wrong. That is the exact opposite of this repository's
+           * rule that the toolchain's own words are the useful thing.
+           */
+          const raw = (error as { code?: unknown }).code;
+          const ranAndFailed = typeof raw === "number";
 
-          // A failed git command is data, not an exception - the caller decides what to
-          // show. `git` itself uses exit codes for ordinary answers ("not a repository",
-          // "nothing to commit"), so throwing here would turn answers into crashes.
-          resolve({ stdout, stderr: stderr || error.message, code });
+          resolve({
+            stdout,
+            // Only speak for git when git could not speak for itself.
+            stderr: ranAndFailed ? stderr : stderr || error.message,
+            code: ranAndFailed ? raw : 1,
+          });
         },
       );
     });

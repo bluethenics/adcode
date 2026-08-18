@@ -207,8 +207,36 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
     });
   });
 
-  footer.append(resetButton);
+  /*
+   * The build, in the footer.
+   *
+   * Here as well as on the welcome screen because these are the two moments someone needs it:
+   * the welcome screen is where they notice the app, and Settings is where they look when
+   * something is wrong and a bug report wants a version. Asked for on open rather than at
+   * construction, so it is a fact about the running build rather than a value captured before
+   * the main process was necessarily listening.
+   */
+  const about = document.createElement("p");
+  about.className = "settings-about";
+  about.textContent = "";
+
+  footer.append(resetButton, about);
   panel.append(header, search, body, footer);
+
+  async function showVersion(): Promise<void> {
+    if (about.textContent !== "") return;
+
+    try {
+      const info = await window.adcode.app.info();
+      about.textContent = `ADCode ${info.version}`;
+      // The runtime versions matter to whoever reads a bug report, and to nobody else - so
+      // they are on the tooltip rather than taking a line of the footer.
+      about.title = `Electron ${info.electron} · Chromium ${info.chrome} · Node ${info.node} · ${info.platform}`;
+    } catch {
+      // A version that cannot be read costs the line, never the settings screen.
+      about.textContent = "";
+    }
+  }
   sheet.append(panel);
 
   sheet.addEventListener("click", (event) => {
@@ -252,6 +280,33 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
           });
         }),
       );
+    } else if (setting.kind === "text") {
+      const field = document.createElement("textarea");
+      field.className = "settings-text";
+      field.rows = setting.multiline ? 3 : 1;
+      field.placeholder = setting.placeholder;
+      field.maxLength = setting.maxLength;
+      field.disabled = !setting.available;
+      field.value = String(current);
+      field.setAttribute("aria-label", setting.label);
+
+      /*
+       * Written on blur rather than on input.
+       *
+       * Every keystroke here would be a disk write and, for the language-server row, a
+       * round of stopping and starting subprocesses - so typing `zig: zls` would try to
+       * launch `z`, then `zi`, then `zig`. Blur is when the user has finished saying it.
+       */
+      field.addEventListener("blur", () => {
+        if (field.value === String(values[setting.id] ?? setting.default)) return;
+
+        void deps.write(setting.id, field.value).then((updated) => {
+          values = updated;
+        });
+      });
+
+      row.classList.add("settings-row-stacked");
+      row.append(field);
     } else {
       // §8.1: show projected hourly earnings beside each frequency option. The figure is
       // computed by the server and selected here - the client never multiplies money.
@@ -341,6 +396,7 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
       if (open) return;
       open = true;
 
+      void showVersion();
       void deps.read().then((next) => {
         values = next;
         renderBody();

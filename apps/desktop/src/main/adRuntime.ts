@@ -19,6 +19,16 @@ const NOOP_RUNTIME: AdRuntime = {
   setWindowFocused: () => undefined,
   setThemeKind: () => undefined,
   setWorkspaceSignals: () => undefined,
+  // A no-op runtime still has to answer, so the report shows "waiting for the server"
+  // rather than an error the user can do nothing about.
+  refreshEarnings: async () => ({
+    availableLabel: "$0.00",
+    lifetimeLabel: "$0.00",
+    hasServerBalance: false,
+    enabled: false,
+    pendingReceipts: 0,
+    presets: [],
+  }),
 };
 
 let runtime: AdRuntime | null = null;

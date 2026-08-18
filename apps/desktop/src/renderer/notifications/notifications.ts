@@ -11,6 +11,7 @@
  * removed on completion so no compositor layer stays pinned for the session.
  */
 import type { SponsoredToast } from "../../shared/api.ts";
+import { ICON, iconButton } from "../workbench/icons.ts";
 
 const ENTER_MS = 220;
 const EXIT_MS = 160;
@@ -106,10 +107,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
         content.append(row);
       }
 
-      const close = document.createElement("button");
-      close.className = "toast-close";
-      close.textContent = "×";
-      close.setAttribute("aria-label", "Dismiss");
+      const close = iconButton("Dismiss", ICON.close, "toast-close");
       close.addEventListener("click", () => dismissPlain(card));
 
       card.append(content, close);
@@ -176,10 +174,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
         content.append(body);
       }
 
-      const close = document.createElement("button");
-      close.className = "toast-close";
-      close.textContent = "×";
-      close.setAttribute("aria-label", "Dismiss");
+      const close = iconButton("Dismiss", ICON.close, "toast-close");
       close.addEventListener("click", (event) => {
         event.stopPropagation();
         teardown(toast.creativeId, true);

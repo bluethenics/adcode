@@ -55,7 +55,25 @@ export interface ChatWidget {
   open(): void;
   close(): void;
   isOpen(): boolean;
+  /**
+   * Open the card with a question already asked.
+   *
+   * The Problems panel's "Explain this" is the caller: a diagnostic it has no rewrite for
+   * is exactly the case where the assistant earns its place. It sends rather than merely
+   * prefilling, because the user already expressed the intent by clicking a button that
+   * says what it does - and if no provider is configured, the send fails and the card's
+   * own header already reads "No API key", which is the honest answer to why.
+   */
+  ask(question: string): void;
   setWorkspace(root: string | null): void;
+  /**
+   * Fires whenever the card opens or closes.
+   *
+   * The title bar's assistant button reflects this in `aria-pressed`, and the card can go
+   * away without the button being touched - Escape dismisses it, and so does its own Close
+   * - so polling the command that opened it would leave the button claiming otherwise.
+   */
+  onVisibilityChange(listener: (open: boolean) => void): void;
 }
 
 export interface ChatWidgetDeps {
@@ -413,10 +431,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
   };
 
+  const visibilityListeners: ((open: boolean) => void)[] = [];
+  const announce = (): void => {
+    for (const listener of visibilityListeners) listener(open);
+  };
+
   const api: ChatWidget = {
     open(): void {
       if (open) return;
       open = true;
+      announce();
 
       card.hidden = false;
       requestAnimationFrame(() => {
@@ -438,6 +462,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     close(): void {
       if (!open) return;
       open = false;
+      announce();
 
       delete card.dataset["state"];
       document.removeEventListener("keydown", onKeydown);
@@ -453,9 +478,28 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
     isOpen: () => open,
 
+    ask(question: string): void {
+      const text = question.trim();
+      if (text.length === 0) return;
+
+      api.open();
+      input.value = text;
+
+      // `open()` focuses the input across two animation frames. Submitting inside the same
+      // tick would race that: the value lands, the frame callback fires afterwards, and
+      // the user is left looking at their own question sitting unsent in the box.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => submit());
+      });
+    },
+
     setWorkspace(root: string | null): void {
       workspace = root;
       place(loadPosition(root) ?? { x: 0, y: 0 });
+    },
+
+    onVisibilityChange(listener): void {
+      visibilityListeners.push(listener);
     },
   };
 

@@ -197,7 +197,7 @@ describe("migrate", () => {
 describe("grouping and search", () => {
   it("returns settings for a group in schema order", () => {
     const editing = settingsForGroup("editing");
-    expect(editing.length).toBe(12);
+    expect(editing.length).toBe(17);
     expect(editing.every((s) => s.group === "editing")).toBe(true);
   });
 

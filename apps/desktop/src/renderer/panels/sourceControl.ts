@@ -8,6 +8,7 @@
 import type { GitOutcome, GitStatusView } from "../../shared/api.ts";
 import type { GitResult } from "../dialogs/resultDialog.ts";
 import { createCommitBrowser, type CommitBrowserDeps } from "./commitBrowser.ts";
+import { ICON, createIcon } from "../workbench/icons.ts";
 
 export interface SourceControlPanel {
   readonly element: HTMLElement;
@@ -20,6 +21,24 @@ export interface SourceControlPanel {
   focusCommitMessage(): void;
   /** Re-read the commit list, discarding cached commit details. */
   refreshHistory(): Promise<void>;
+  /*
+   * What the Git menu runs.
+   *
+   * The menu drives the panel rather than calling `window.adcode.git` itself, so a commit
+   * made from the menu reports its outcome, refreshes the list, and captures the state it
+   * acted on in exactly the way one made from the button does. Two paths to the same
+   * action that report differently is how a UI starts lying about what happened.
+   */
+  pull(): Promise<void>;
+  push(): Promise<void>;
+  fetch(): Promise<void>;
+  stageAll(): Promise<void>;
+  unstageAll(): Promise<void>;
+  /** Submits what is in the commit box. False when it is empty and there is nothing to do. */
+  commit(): boolean;
+  switchBranch(): Promise<void>;
+  createBranch(): Promise<void>;
+  initRepository(): Promise<void>;
 }
 
 export interface SourceControlDeps {
@@ -98,6 +117,43 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
     ["Upstream", before?.upstream ?? "none"],
   ];
 
+  /**
+   * Run one git action, refresh, and report what happened.
+   *
+   * Separated from the button so the Git menu can run the same thing. The button is then
+   * only the part that greys itself out while it waits.
+   */
+  async function runAction(
+    label: string,
+    run: () => Promise<GitOutcome>,
+    details: (before: GitStatusView | null) => Detail[],
+  ): Promise<void> {
+    // Captured before the action, because the action is what changes it: reporting
+    // "3 commits pushed" needs the count from before the push zeroed it.
+    const before = lastStatus;
+
+    const outcome = await run().then(
+      (result): GitOutcome => result,
+      // A rejection used to disappear here. `.then` with no `.catch` meant a thrown
+      // IPC or network error skipped the reporting branch entirely, leaving an
+      // unhandled rejection in a console the user does not have open - the exact
+      // case where they most need to be told something went wrong.
+      (error: unknown): GitOutcome => ({
+        ok: false,
+        message: error instanceof Error ? error.message : String(error),
+      }),
+    );
+
+    // The redraw is worth attempting and not worth losing the report over.
+    try {
+      await api.refresh();
+    } catch {
+      /* refresh failing is its own problem; the outcome still gets reported */
+    }
+
+    deps.reportResult({ action: label, ok: outcome.ok, message: outcome.message, details: details(before) });
+  }
+
   function actionButton(
     label: string,
     title: string,
@@ -111,43 +167,79 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
     button.title = title;
 
     button.addEventListener("click", () => {
-      // Captured before the action, because the action is what changes it: reporting
-      // "3 commits pushed" needs the count from before the push zeroed it.
-      const before = lastStatus;
-
       button.disabled = true;
       button.textContent = pendingLabel;
 
-      void run()
-        .then(
-          (result): GitOutcome => result,
-          // A rejection used to disappear here. `.then` with no `.catch` meant a thrown
-          // IPC or network error skipped the reporting branch entirely, leaving an
-          // unhandled rejection in a console the user does not have open - the exact
-          // case where they most need to be told something went wrong.
-          (error: unknown): GitOutcome => ({
-            ok: false,
-            message: error instanceof Error ? error.message : String(error),
-          }),
-        )
-        .then(async (outcome) => {
-          // The redraw is worth attempting and not worth losing the report over.
-          try {
-            await api.refresh();
-          } catch {
-            /* refresh failing is its own problem; the outcome still gets reported */
-          }
-
-          deps.reportResult({ action: label, ok: outcome.ok, message: outcome.message, details: details(before) });
-        })
-        .finally(() => {
-          button.disabled = false;
-          button.textContent = label;
-        });
+      void runAction(label, run, details).finally(() => {
+        button.disabled = false;
+        button.textContent = label;
+      });
     });
 
     return button;
   }
+
+  /**
+   * Ask for a repository URL and connect it.
+   *
+   * The name is `origin` without asking. It is the convention every hosting service's own
+   * instructions assume, and a first remote called anything else makes every piece of advice
+   * the user will ever read slightly wrong. A second remote is a real choice and this is not
+   * the surface for it.
+   */
+  async function offerRemote(): Promise<void> {
+    const url = await deps.promptFor({
+      title: "Connect to GitHub",
+      body: "Paste the repository URL. On GitHub this is the green Code button - the HTTPS one.",
+      placeholder: "https://github.com/owner/repo.git",
+      confirmLabel: "Connect",
+    });
+    if (url === null || url.trim().length === 0) return;
+
+    const result = await window.adcode.git.addRemote("origin", url.trim());
+    deps.notify(result.message);
+    await api.refresh();
+  }
+
+  /**
+   * "Connect to GitHub", shown only while the repository has no remote.
+   *
+   * Hidden rather than disabled once one exists: a permanently greyed-out button is a question
+   * the user keeps re-asking, and the answer here is simply that the job is done.
+   */
+  const connectButton = document.createElement("button");
+  connectButton.className = "ghost-button";
+  connectButton.textContent = "Connect to GitHub";
+  connectButton.title = "Add the repository URL to push to";
+  connectButton.hidden = true;
+  connectButton.addEventListener("click", () => void offerRemote());
+
+  /**
+   * Start tracking this folder, then offer it somewhere to push.
+   *
+   * The remote is offered straight after initialising, because that is the moment the
+   * question makes sense and the only moment it is obvious. `git init` produces a
+   * repository with nowhere to push, and until this existed nothing in the window could
+   * change that: Push answered "No configured push destination" and advised
+   * `git remote add`, a command the window cannot run. Declining is free, since the
+   * button in the panel offers it again for as long as there is no remote.
+   */
+  async function initRepository(): Promise<void> {
+    const result = await window.adcode.git.init();
+    deps.notify(result.message);
+    await api.refresh();
+
+    if (result.ok) await offerRemote();
+  }
+
+  async function syncRemoteButton(): Promise<void> {
+    try {
+      connectButton.hidden = (await window.adcode.git.remotes()).length > 0;
+    } catch {
+      connectButton.hidden = true;
+    }
+  }
+
 
   actions.append(
     actionButton("Pull", "Fetch and fast-forward", "Pulling…", () => window.adcode.git.pull(), (before) => [
@@ -159,6 +251,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       ["Commits ahead", String(before?.ahead ?? 0)],
     ]),
     actionButton("Fetch", "Fetch all remotes", "Fetching…", () => window.adcode.git.fetch(), branchDetails),
+    connectButton,
   );
 
   const commitBox = document.createElement("form");
@@ -333,8 +426,13 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
 
     const action = document.createElement("button");
     action.className = "scm-stage";
-    action.textContent = staged ? "−" : "+";
+    // Paths, not "+" and "−". See `workbench/icons.ts` on why a maths operator cannot be
+    // centred in a square button.
+    action.replaceChildren(createIcon(staged ? ICON.minus : ICON.plus));
     action.title = staged ? "Unstage" : "Stage";
+    // The icon is `aria-hidden`, so without this the button loses the accessible name that
+    // the "+" character used to provide and announces as "button".
+    action.ariaLabel = `${action.title} ${entry.path}`;
     action.addEventListener("click", () => {
       const call = staged
         ? window.adcode.git.unstage([entry.path])
@@ -433,12 +531,86 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
 
   branchButton.addEventListener("click", () => void showBranchSwitcher());
 
+  /** Every path in the status that is staged, or every one that is not. */
+  const pathsWhere = (staged: boolean): string[] =>
+    (lastStatus?.entries ?? [])
+      .filter((entry) => (staged ? entry.staged !== "none" : entry.worktree !== "none"))
+      .map((entry) => entry.path);
+
   const api: SourceControlPanel = {
     element,
 
     focusCommitMessage() {
       message.focus();
     },
+
+    pull: () => runAction("Pull", () => window.adcode.git.pull(), (before) => [
+      ...branchDetails(before),
+      ["Commits behind", String(before?.behind ?? 0)],
+    ]),
+
+    push: () => runAction("Push", () => window.adcode.git.push(), (before) => [
+      ...branchDetails(before),
+      ["Commits ahead", String(before?.ahead ?? 0)],
+    ]),
+
+    fetch: () => runAction("Fetch", () => window.adcode.git.fetch(), branchDetails),
+
+    /*
+     * Acts on the status last rendered, so a refresh has to come first - from the menu
+     * there is no panel visible to have refreshed it, and staging the contents of a
+     * status read ten minutes ago is not what "Stage All Changes" means.
+     */
+    async stageAll() {
+      await api.refresh();
+      const paths = pathsWhere(false);
+      if (paths.length === 0) {
+        deps.notify("Nothing to stage.");
+        return;
+      }
+
+      await runAction("Stage all", () => window.adcode.git.stage(paths), (before) => [
+        ...branchDetails(before),
+        ["Files staged", String(paths.length)],
+      ]);
+    },
+
+    async unstageAll() {
+      await api.refresh();
+      const paths = pathsWhere(true);
+      if (paths.length === 0) {
+        deps.notify("Nothing to unstage.");
+        return;
+      }
+
+      await runAction("Unstage all", () => window.adcode.git.unstage(paths), (before) => [
+        ...branchDetails(before),
+        ["Files unstaged", String(paths.length)],
+      ]);
+    },
+
+    commit() {
+      if (message.value.trim().length === 0) return false;
+
+      commitBox.requestSubmit();
+      return true;
+    },
+
+    switchBranch: () => showBranchSwitcher(),
+
+    async createBranch() {
+      const name = await deps.promptFor({
+        title: "Create branch",
+        body: "The new branch starts from where you are now.",
+        placeholder: "Branch name",
+        confirmLabel: "Create",
+      });
+      if (name === null || name.trim().length === 0) return;
+
+      await runAction("Create branch", () => window.adcode.git.createBranch(name.trim()), branchDetails);
+    },
+
+    initRepository: () => initRepository(),
 
     refreshHistory() {
       history.invalidate();
@@ -471,17 +643,13 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
 
         empty.replaceChildren();
         const text = document.createElement("span");
-        text.textContent = "This folder is not a git repository. ";
+        text.textContent =
+          "This folder is not a git repository. Start tracking changes here, then connect it to GitHub when you want a copy online. ";
 
         const init = document.createElement("button");
         init.className = "ghost-button";
         init.textContent = "Initialise";
-        init.addEventListener("click", () => {
-          void window.adcode.git.init().then((result) => {
-            deps.notify(result.message);
-            return api.refresh();
-          });
-        });
+        init.addEventListener("click", () => void initRepository());
 
         empty.append(text, init);
         empty.hidden = false;
@@ -491,6 +659,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       header.hidden = false;
       actions.hidden = false;
       commitBox.hidden = false;
+      void syncRemoteButton();
 
       branchButton.textContent = status.branch ?? "detached";
       syncLabel.textContent =

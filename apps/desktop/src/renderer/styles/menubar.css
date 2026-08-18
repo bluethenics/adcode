@@ -83,8 +83,55 @@
   cursor: default;
 }
 
-.menu-item[data-nested="true"] {
-  padding-left: 22px;
+/*
+ * Mnemonic underlines.
+ *
+ * Drawn only once the bar has been reached from the keyboard, which is the only time they
+ * mean anything - the bar sets `data-mnemonics` when Alt focuses it and clears it on the
+ * next pointer press. Windows has drawn them this way for thirty years, and a permanently
+ * underlined letter in every label reads as damage rather than as an affordance.
+ */
+.menubar u {
+  text-decoration: none;
+}
+
+.menubar[data-mnemonics="true"] u {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* The arrow on a row that opens a submenu. */
+.menu-item-chevron {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.menu-item:hover .menu-item-chevron,
+.menu-item:focus .menu-item-chevron {
+  color: #ffffffcc;
+}
+
+/*
+ * Where a recent folder lives, in the slot an accelerator would use.
+ *
+ * Already shortened in script - see `pathLabel.ts` - because the end of the parent path
+ * is what tells two folders of the same name apart, and `text-overflow` can only trim the
+ * end. The `max-width` here is a backstop for a single enormous segment.
+ */
+.menu-item-detail {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  min-width: 0;
+  max-width: 30ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.menu-item:hover .menu-item-detail,
+.menu-item:focus .menu-item-detail {
+  color: #ffffffcc;
 }
 
 /*
@@ -225,15 +272,27 @@
   color: var(--text-primary);
 }
 
+/* Grid-centred and drawn as a path, for the reason given in `workbench/icons.ts`. */
 .terminal-tab-close {
+  display: grid;
+  place-items: center;
+  flex: none;
   border: 0;
   background: transparent;
   color: var(--text-tertiary);
   border-radius: 4px;
   width: 15px;
   height: 15px;
-  line-height: 1;
   cursor: pointer;
+}
+
+.terminal-tab-close svg {
+  width: 8px;
+  height: 8px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
 }
 
 .terminal-tab-close:hover {

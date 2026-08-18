@@ -9,6 +9,8 @@
  * split terminal; the tab strip lists tabs, not panes.
  */
 import { createTerminalHost, type TerminalHost } from "./terminalHost.ts";
+import { uniqueTerminalTitle } from "./terminalTitles.ts";
+import { ICON, createIcon } from "../workbench/icons.ts";
 
 interface Pane {
   readonly id: number;
@@ -27,6 +29,8 @@ interface Tab {
 export interface TerminalPanel {
   /** Open a new terminal, creating the panel if it is closed. */
   create(options?: { profileId?: string }): Promise<void>;
+  /** The active tab's title, which is the shell it is running. */
+  activeTitle(): string | null;
   /** Add a pane beside the active terminal. */
   split(): Promise<void>;
   close(): void;
@@ -50,11 +54,20 @@ export interface TerminalPanelDeps {
   readonly tabStrip: HTMLElement;
   readonly surface: HTMLElement;
   readonly profileId: () => string;
+  /** The shell's display name, which becomes the tab's title. */
+  readonly profileLabel: (profileId: string) => string;
   readonly cwd: () => string | null;
   readonly theme: () => "light" | "dark";
   readonly notify: (message: string) => void;
   /** Called whenever the panel opens or closes, so the editor can re-layout. */
   readonly onLayoutChange: () => void;
+  /**
+   * Called when the visible terminal changes.
+   *
+   * The tab strip hides itself at one terminal, so with named shells the panel header is
+   * the only thing left that says whether that one terminal is cmd or Git Bash.
+   */
+  readonly onActiveTitle: (title: string | null) => void;
 }
 
 export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
@@ -83,7 +96,7 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
       const close = document.createElement("button");
       close.className = "terminal-tab-close";
       close.type = "button";
-      close.textContent = "×";
+      close.append(createIcon(ICON.close));
       close.ariaLabel = `Close ${tab.title}`;
       close.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -103,6 +116,7 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
 
     renderTabs();
     fitActive();
+    deps.onActiveTitle(findTab(id)?.title ?? null);
     findTab(id)?.panes[findTab(id)?.activePane ?? 0]?.host.focus();
   }
 
@@ -135,9 +149,11 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
     element.className = "terminal-tab-body";
     deps.surface.append(element);
 
+    const profileId = options?.profileId ?? deps.profileId();
+
     let pane: Pane;
     try {
-      pane = await spawnPane(element, options?.profileId ?? deps.profileId());
+      pane = await spawnPane(element, profileId);
     } catch (error) {
       element.remove();
       if (wasClosed && tabs.length === 0) deps.panel.hidden = true;
@@ -148,7 +164,10 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
     const tab: Tab = {
       id: pane.id,
       element,
-      title: `Terminal ${tabs.length + 1}`,
+      title: uniqueTerminalTitle(
+        deps.profileLabel(profileId),
+        tabs.map((existing) => existing.title),
+      ),
       panes: [pane],
       activePane: 0,
     };
@@ -201,6 +220,7 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
       activeTab = null;
       deps.panel.hidden = true;
       deps.onLayoutChange();
+      deps.onActiveTitle(null);
       renderTabs();
       return;
     }
@@ -211,6 +231,8 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
   return {
     create,
     split,
+
+    activeTitle: () => (activeTab === null ? null : (findTab(activeTab)?.title ?? null)),
 
     close() {
       deps.panel.hidden = true;

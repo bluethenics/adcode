@@ -7,6 +7,8 @@ const alias = {
   "@adcode/memory": resolve(import.meta.dirname, "../../packages/memory/src/index.ts"),
   "@adcode/settings": resolve(import.meta.dirname, "../../packages/settings/src/index.ts"),
   "@adcode/ai": resolve(import.meta.dirname, "../../packages/ai/src/index.ts"),
+  "@adcode/diagnostics": resolve(import.meta.dirname, "../../packages/diagnostics/src/index.ts"),
+  "@adcode/lsp": resolve(import.meta.dirname, "../../packages/lsp/src/index.ts"),
   // The renderer wants the conflict parser without dragging in the exec adapter, which
   // reaches for node:child_process and has no business in a sandboxed window. This entry
   // sits above the bare `@adcode/git` alias because the resolver takes the first key that
@@ -17,6 +19,7 @@ const alias = {
   // the workspace walker, which imports node:fs and cannot run in a sandboxed window.
   "@adcode/search/fuzzy": resolve(import.meta.dirname, "../../packages/search/src/fuzzy.ts"),
   "@adcode/search": resolve(import.meta.dirname, "../../packages/search/src/index.ts"),
+  "@adcode/collab": resolve(import.meta.dirname, "../../packages/collab/src/index.ts"),
 };
 
 export default defineConfig({

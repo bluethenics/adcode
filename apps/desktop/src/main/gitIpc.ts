@@ -95,6 +95,20 @@ export function registerGitIpc(): void {
     return git.clone(url, target);
   });
 
+  ipcMain.handle(
+    CHANNELS.gitAddRemote,
+    async (_event, name: unknown, url: unknown): Promise<GitOutcome> => {
+      const git = gitForWorkspace();
+      if (git === null) return NO_WORKSPACE;
+      if (!isString(name) || !isString(url)) {
+        return { ok: false, message: "Expected a remote name and a URL." };
+      }
+      return git.addRemote(name, url);
+    },
+  );
+
+  ipcMain.handle(CHANNELS.gitRemotes, async () => (await gitForWorkspace()?.remotes()) ?? []);
+
   ipcMain.handle(CHANNELS.gitBranches, async () => (await gitForWorkspace()?.branches()) ?? []);
 
   ipcMain.handle(CHANNELS.gitCheckout, async (_event, ref: unknown): Promise<GitOutcome> => {

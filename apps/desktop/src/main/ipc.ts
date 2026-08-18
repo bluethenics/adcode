@@ -5,7 +5,30 @@
  * (brief §1), so "the preload only sends well-formed messages" is not a safety property
  * - a compromised renderer talks to `ipcRenderer` directly.
  */
-import { BrowserWindow, app, clipboard, ipcMain } from "electron";
+import { stat } from "node:fs/promises";
+import { BrowserWindow, app, clipboard, ipcMain, shell } from "electron";
+import {
+  detectPreviewProject,
+  previewLog,
+  previewStatus,
+  startPreview,
+  stopPreview,
+} from "./preview.ts";
+import { stripAnsi } from "./devCommand.ts";
+import {
+  completionAt,
+  configureLsp,
+  documentChanged,
+  documentClosed,
+  documentOpened,
+  hoverAt,
+  languageServerStates,
+  setCustomServers,
+  setLspEnabled,
+  setLspWorkspace,
+  toWireCompletion,
+} from "./lsp.ts";
+import { parseCustomServers } from "@adcode/lsp";
 import { restoreSession, saveSession } from "./session.ts";
 import {
   clearDraft,
@@ -15,11 +38,20 @@ import {
   recordDraft,
   recoverableDrafts,
 } from "./history.ts";
-import { CHANNELS } from "../shared/api.ts";
+import { CHANNELS, type PreviewStatus } from "../shared/api.ts";
 import { getAdRuntime } from "./adRuntime.ts";
-import { onSettingsChanged, readSettings, resetSettings, writeSetting } from "./settings.ts";
+import {
+  currentSettings,
+  onSettingsChanged,
+  readSettings,
+  resetSettings,
+  writeSetting,
+} from "./settings.ts";
 import { mcpConnection } from "./memory.ts";
 import { registerGitIpc } from "./gitIpc.ts";
+import { installApplicationMenu } from "./menu.ts";
+import { clearRecents, forgetRecent, recentFolders, rememberRecent } from "./recents.ts";
+import { collabFileChanged, disposeCollab, registerCollabIpc } from "./collabIpc.ts";
 import { invalidateFileCache } from "./sourceControl.ts";
 import {
   aiApplyHunks,
@@ -40,7 +72,10 @@ import {
 import {
   currentWorkspace,
   listDirectory,
+  onWorkspaceRootChanged,
   openWorkspace,
+  openWorkspaceAt,
+  pickFileToOpen,
   readTextFile,
   saveTextFileAs,
   setWorkspaceRoot,
@@ -69,23 +104,187 @@ function broadcast(channel: string, ...args: unknown[]): void {
   }
 }
 
+/**
+ * The preview's state can change without the renderer asking - closing a folder stops the
+ * server. The toolbar has to hear about that, or it sits there offering to open a URL that
+ * no longer answers.
+ */
+function broadcastPreview(status: PreviewStatus): void {
+  broadcast(CHANNELS.previewChanged, status);
+}
+
+/**
+ * The address is ours or it is not opened.
+ *
+ * A project's dev server chooses its own port and prints its own address, and that string
+ * ends up here on its way to `shell.openExternal`. `startsWith("http://127.0.0.1:")` was
+ * enough while ADCode bound the socket itself; it is not enough now that the string came
+ * out of somebody else's stdout. Parsed rather than pattern-matched, because
+ * `http://127.0.0.1:3000@evil.example` starts with exactly the right prefix.
+ */
+function isLoopback(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+
+    return ["127.0.0.1", "localhost", "[::1]", "::1"].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The dev server's output, streamed to whoever is showing the log drawer.
+ *
+ * Status changes arrive on the same path because a project preview's URL is not known when
+ * `start` returns - it appears when the toolchain prints it, which can be a minute later.
+ */
+/**
+ * §4's escape hatch, applied.
+ *
+ * Both rows restart every running server, because neither can be honoured by one that is
+ * already up: turning the client off has to stop them, and changing the custom list changes
+ * which program a language should be talking to. They start again on the next edit.
+ */
+function applyLanguageSettings(values: Record<string, unknown>): void {
+  const enabled = values["adcode.language.lspClient"] !== false;
+  const custom = values["adcode.language.customServers"];
+
+  setCustomServers(
+    enabled && typeof custom === "string" ? parseCustomServers(custom) : [],
+  );
+  setLspEnabled(enabled);
+}
+
+const previewEvents = {
+  onStatus: (status: PreviewStatus) => broadcastPreview(status),
+  onOutput: (chunk: string) => broadcast(CHANNELS.previewOutput, stripAnsi(chunk)),
+};
+
 export function registerIpc(): void {
   registerGitIpc();
+  registerCollabIpc({ workspaceRoot: () => currentWorkspace()?.root ?? null });
 
-  ipcMain.handle(CHANNELS.workspaceOpen, () => openWorkspace());
+  /*
+   * A session shares one folder, so changing the folder ends the session.
+   *
+   * Subscribed at the source for the same reason the LSP notification below is: the route that
+   * gets forgotten is session restore, because no user action triggers it. Leaving a session
+   * running across a folder change would leave guests editing documents backed by files the
+   * host is no longer looking at.
+   */
+  onWorkspaceRootChanged(() => {
+    void disposeCollab();
+  });
+
+  /*
+   * Language servers are per-workspace: rust-analyzer indexes a crate, pyright resolves
+   * against a project root. Pointing an existing one at a new folder is not something the
+   * protocol supports, so the old servers stop and new ones start on demand.
+   *
+   * Subscribed at the source rather than wired into each handler. The three routes that
+   * change the root are the open dialog, closing the folder, and session restore - and
+   * restore is the one that gets forgotten, because no user action triggers it, so the
+   * per-handler version worked everywhere except on every launch after the first.
+   */
+  onWorkspaceRootChanged((root) => setLspWorkspace(root));
+  setLspWorkspace(currentWorkspace()?.root ?? null);
+
+  /*
+   * The recent folders are part of the menu now, so every change to the list has to
+   * reach the menu the main process owns.
+   *
+   * Fire-and-forget, and never allowed to fail the operation it follows: rebuilding a menu
+   * is a cosmetic consequence of opening a folder, and a folder that opened successfully
+   * must not report an error because the File menu could not be redrawn afterwards.
+   */
+  const rebuildMenu = (): void => {
+    void installApplicationMenu().catch(() => {
+      /* the menu keeps whatever it had */
+    });
+  };
+
+  const remember = async (root: string): Promise<void> => {
+    await rememberRecent(root);
+    rebuildMenu();
+  };
+
+  ipcMain.handle(CHANNELS.workspaceOpen, async () => {
+    const opened = await openWorkspace();
+    if (opened !== null) await remember(opened.root);
+    return opened;
+  });
+
+  ipcMain.handle(CHANNELS.workspaceOpenPath, async (_event, root: unknown) => {
+    if (!isString(root)) throw new Error("expected a folder path");
+
+    /*
+     * Checked before opening, so a stale recents row cannot set the workspace to a path that
+     * is not there. Without this the tree would render empty against a root that does not
+     * exist, which reads as the folder being empty rather than gone.
+     */
+    try {
+      const info = await stat(root);
+      if (!info.isDirectory()) return null;
+    } catch {
+      return null;
+    }
+
+    const opened = openWorkspaceAt(root);
+    if (opened !== null) await remember(opened.root);
+    return opened;
+  });
+
   ipcMain.handle(CHANNELS.workspaceCurrent, () => currentWorkspace());
+  ipcMain.handle(CHANNELS.workspaceRecents, () => recentFolders());
+
+  ipcMain.handle(CHANNELS.workspaceForgetRecent, (_event, root: unknown) =>
+    isString(root) ? forgetRecent(root).finally(rebuildMenu) : recentFolders(),
+  );
+
+  ipcMain.handle(CHANNELS.workspaceClearRecents, () => clearRecents().finally(rebuildMenu));
+
+  ipcMain.handle(CHANNELS.filesOpenDialog, () => pickFileToOpen());
+
+  ipcMain.handle(CHANNELS.appInfo, () => ({
+    version: app.getVersion(),
+    electron: process.versions["electron"] ?? "",
+    chrome: process.versions["chrome"] ?? "",
+    node: process.versions["node"] ?? "",
+    platform: `${process.platform}-${process.arch}`,
+  }));
 
   ipcMain.handle(CHANNELS.fsSaveAs, (_event, text: unknown, suggestedName: unknown) =>
     isString(text) && isString(suggestedName) ? saveTextFileAs(text, suggestedName) : null,
   );
 
-  ipcMain.handle(CHANNELS.workspaceClose, () => {
+  ipcMain.handle(CHANNELS.workspaceClose, async () => {
     setWorkspaceRoot(null);
-    // The quick-open index and the git handle were both bound to the old root.
+    // The quick-open index and the git handle were both bound to the old root. The
+    // language servers were too, and `onWorkspaceRootChanged` above has already heard.
     invalidateFileCache();
+
+    // So was the preview. Left running it would keep serving a folder the user has closed,
+    // over a URL that is still live in whatever browser tab they opened it in - and in
+    // project mode it would leave a dev server holding a port for the rest of the session.
+    broadcastPreview(await stopPreview());
   });
 
-  ipcMain.handle(CHANNELS.sessionRestore, () => restoreSession());
+  ipcMain.handle(CHANNELS.sessionRestore, async () => {
+    const restored = await restoreSession();
+
+    /*
+     * A restored folder counts as recently opened.
+     *
+     * Without this the list stays empty for anyone who only ever reopens the same project,
+     * because restoring never goes through the open dialog - so the one feature meant to save
+     * them from the folder picker would be blank for exactly the person who needs it least
+     * often and notice it most.
+     */
+    if (restored.root !== null) await remember(restored.root);
+
+    return restored;
+  });
 
   /* ── Window ───────────────────────────────────────────────────────────── */
 
@@ -167,7 +366,19 @@ export function registerIpc(): void {
     const result = await writeTextFile(filePath, text);
     // §4: local history records what was saved, not what was attempted - and a failed
     // save leaves the draft in place, because the unsaved text is still the only copy.
-    if (result.ok) await recordSave(filePath, text);
+    if (result.ok) {
+      await recordSave(filePath, text);
+
+      /*
+       * Tell any running session the file moved underneath it.
+       *
+       * This is the ordinary save path - the one a host uses when they press Ctrl+S on a file
+       * they happen to be sharing. Without this the shared document keeps the text it had
+       * before the write, and the next save from any peer puts it back, silently reverting
+       * whatever just landed on disk.
+       */
+      await collabFileChanged(filePath);
+    }
     return result;
   });
 
@@ -255,6 +466,95 @@ export function registerIpc(): void {
     isPackaged: app.isPackaged,
   }));
 
+  /* ── Live preview ─────────────────────────────────────────────────────── */
+
+  ipcMain.handle(CHANNELS.previewStart, async (_event, mode: unknown) => {
+    // The renderer is hostile by assumption: anything that is not one of the two known
+    // modes is read as "no preference" rather than passed along.
+    const requested = mode === "static" || mode === "project" ? mode : undefined;
+
+    const status = await startPreview(currentWorkspace()?.root ?? null, requested, previewEvents);
+    broadcastPreview(status);
+    return status;
+  });
+
+  ipcMain.handle(CHANNELS.previewStop, async () => {
+    const status = await stopPreview();
+    broadcastPreview(status);
+    return status;
+  });
+
+  ipcMain.handle(CHANNELS.previewStatus, () => previewStatus());
+  ipcMain.handle(CHANNELS.previewLog, () => previewLog());
+
+  ipcMain.handle(CHANNELS.previewDetect, () =>
+    detectPreviewProject(currentWorkspace()?.root ?? null),
+  );
+
+  /*
+   * The renderer names the intent and supplies nothing. Accepting a URL here would hand a
+   * compromised renderer `shell.openExternal(anything)`, which is a way out of the sandbox
+   * wearing the costume of a convenience - and the only address worth opening is the one
+   * this process just bound anyway.
+   */
+  ipcMain.handle(CHANNELS.previewOpenExternal, async () => {
+    const { url } = previewStatus();
+    if (url === null || !isLoopback(url)) return;
+
+    await shell.openExternal(url);
+  });
+
+  /* ── Language servers ─────────────────────────────────────────────────── */
+
+  /*
+   * Every handler validates its own arguments, and these more carefully than most: they
+   * are on the keystroke path, they name a file and a language, and what they reach is a
+   * subprocess. A malformed path here would be forwarded to a language server as a URI.
+   */
+  ipcMain.on(CHANNELS.lspOpened, (_event, path: unknown, languageId: unknown, text: unknown) => {
+    if (isString(path) && isString(languageId) && isString(text)) {
+      documentOpened(path, languageId, text);
+    }
+  });
+
+  ipcMain.on(CHANNELS.lspChanged, (_event, path: unknown, languageId: unknown, text: unknown) => {
+    if (isString(path) && isString(languageId) && isString(text)) {
+      documentChanged(path, languageId, text);
+    }
+  });
+
+  ipcMain.on(CHANNELS.lspClosed, (_event, path: unknown, languageId: unknown) => {
+    if (isString(path) && isString(languageId)) documentClosed(path, languageId);
+  });
+
+  ipcMain.handle(
+    CHANNELS.lspCompletion,
+    async (_event, path: unknown, languageId: unknown, line: unknown, column: unknown) => {
+      if (!isString(path) || !isString(languageId)) return [];
+      if (!isFiniteNumber(line) || !isFiniteNumber(column)) return [];
+
+      const items = await completionAt(path, languageId, line, column);
+      return items.map(toWireCompletion).filter((item) => item !== null);
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.lspHover,
+    (_event, path: unknown, languageId: unknown, line: unknown, column: unknown) => {
+      if (!isString(path) || !isString(languageId)) return null;
+      if (!isFiniteNumber(line) || !isFiniteNumber(column)) return null;
+
+      return hoverAt(path, languageId, line, column);
+    },
+  );
+
+  ipcMain.handle(CHANNELS.lspStates, () => languageServerStates());
+
+  configureLsp({
+    onDiagnostics: (file, diagnostics) => broadcast(CHANNELS.lspDiagnostics, file, diagnostics),
+    onState: (list) => broadcast(CHANNELS.lspStateChanged, list),
+  });
+
   ipcMain.handle(CHANNELS.memoryConnection, () => mcpConnection());
 
   ipcMain.handle(CHANNELS.settingsRead, () => readSettings());
@@ -267,7 +567,14 @@ export function registerIpc(): void {
 
   ipcMain.handle(CHANNELS.settingsReset, () => resetSettings());
 
-  onSettingsChanged((values) => broadcast(CHANNELS.settingsChanged, values));
+  onSettingsChanged((values) => {
+    broadcast(CHANNELS.settingsChanged, values);
+    applyLanguageSettings(values);
+  });
+
+  // The cached values rather than a read: this runs during registration, and the first
+  // `onSettingsChanged` will correct it the moment the file has actually been loaded.
+  applyLanguageSettings(currentSettings());
 
   ipcMain.handle(CHANNELS.aiProviders, () => aiStatus());
 
@@ -312,4 +619,6 @@ export function registerIpc(): void {
   ipcMain.on(CHANNELS.adSuppressionChanged, (_event, suppressed: unknown) => {
     if (typeof suppressed === "boolean") ads.setSuppressed(suppressed);
   });
+
+  ipcMain.handle(CHANNELS.adRefreshEarnings, () => ads.refreshEarnings());
 }

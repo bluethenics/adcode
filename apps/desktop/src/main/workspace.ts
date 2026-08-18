@@ -32,8 +32,49 @@ export async function openWorkspace(): Promise<OpenedWorkspace | null> {
   const picked = result.filePaths[0];
   if (result.canceled || picked === undefined) return null;
 
-  workspaceRoot = picked;
+  return openWorkspaceAt(picked);
+}
+
+/**
+ * Open a folder by path, without a dialog.
+ *
+ * The recents list and the welcome screen both need this - they already know the folder, and
+ * making the user confirm it in a picker they just bypassed defeats the point of the list.
+ *
+ * **Through `setWorkspaceRoot`, not by assigning the variable.** That assignment is what this
+ * function used to do, and it meant the notification never fired on the commonest route of all:
+ * opening a folder by hand. Language servers are per-workspace and subscribe to that
+ * notification, so they kept indexing the previous project - and a live session kept sharing
+ * documents backed by a folder the host had moved away from. The README records the mirror
+ * image of this bug, where session restore was the route that got missed; the lesson was
+ * supposed to be that one function owns the change, and one caller had quietly opted out.
+ */
+export function openWorkspaceAt(root: string): OpenedWorkspace | null {
+  if (typeof root !== "string" || root.length === 0) return null;
+
+  setWorkspaceRoot(root);
   return currentWorkspace();
+}
+
+/**
+ * Ask for a single file to open.
+ *
+ * Deliberately does **not** widen the workspace. The renderer reads files through
+ * `isInsideWorkspace`, so a file picked from outside the open folder is returned here and then
+ * refused by the read - which is the same boundary `saveTextFileAs` documents below, and the
+ * reason the welcome screen offers "Open Folder" first and this second.
+ *
+ * The caller opens the file's own folder when there is no workspace yet, which is the case this
+ * mostly exists for: a person who wants to look at one file and has not opened anything.
+ */
+export async function pickFileToOpen(): Promise<string | null> {
+  const result = await dialog.showOpenDialog({
+    properties: ["openFile"],
+    title: "Open File",
+  });
+
+  const picked = result.filePaths[0];
+  return result.canceled || picked === undefined ? null : picked;
 }
 
 /**
@@ -62,9 +103,27 @@ export async function saveTextFileAs(text: string, suggestedName: string): Promi
   }
 }
 
+/**
+ * Told when the open folder changes, whichever route changed it.
+ *
+ * There are three: the open dialog, closing the folder, and session restore on launch.
+ * Anything that has to react was previously wired at each call site, and session restore -
+ * the one route nobody thinks about, because no user action triggers it - was missed. The
+ * language servers then never started on a restored workspace, which is every launch after
+ * the first.
+ */
+const rootListeners: ((root: string | null) => void)[] = [];
+
+export function onWorkspaceRootChanged(listener: (root: string | null) => void): void {
+  rootListeners.push(listener);
+}
+
 /** Used by tests and by session restore, which supplies a previously opened root. */
 export function setWorkspaceRoot(root: string | null): void {
+  if (workspaceRoot === root) return;
+
   workspaceRoot = root;
+  for (const listener of rootListeners) listener(root);
 }
 
 export async function listDirectory(dirPath: string): Promise<DirEntry[]> {

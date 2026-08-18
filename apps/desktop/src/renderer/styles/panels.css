@@ -166,16 +166,27 @@
   text-align: left;
 }
 
+/* Grid-centred and drawn as paths. See `workbench/icons.ts`. */
 .scm-stage {
+  display: grid;
+  place-items: center;
   border: 0;
   background: transparent;
   color: var(--text-tertiary);
   border-radius: 5px;
   width: 18px;
   height: 18px;
-  line-height: 1;
   cursor: pointer;
   flex: none;
+}
+
+.scm-stage svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
 }
 
 .scm-stage:hover {
@@ -688,4 +699,762 @@
 .history-more {
   align-self: flex-start;
   margin-top: 4px;
+}
+
+/* ── Problems ─────────────────────────────────────────────────────────── */
+
+/*
+ * The rows are tall on purpose.
+ *
+ * VS Code fits one line per problem because it assumes the reader can already parse the
+ * compiler's sentence. This panel assumes the opposite, so a row carries the rewrite, the
+ * suggestion, the original text, and its actions - and four lines of something readable
+ * beat one line of something that has to be looked up.
+ */
+.problems-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.problems-summary {
+  flex: none;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.problems-summary[data-tone="error"] {
+  color: var(--danger);
+}
+
+.problems-summary[data-tone="warning"] {
+  color: var(--warning);
+}
+
+.problems-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 12px;
+}
+
+.problems-empty {
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.problems-empty-headline {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/*
+ * The honest footnote. Monaco only has markers for files that are open, so this panel is
+ * "errors in what you have open" until the language server lands. Saying so is the same
+ * posture the settings roster takes with `available: false`.
+ */
+.problems-empty-note {
+  margin: 6px 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.problems-group {
+  margin-top: 8px;
+}
+
+.problems-file {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: var(--bg-chrome);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.problems-file svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.problems-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.problems-file-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+
+.problems-row {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  padding: 8px 12px 8px 10px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+
+.problems-row:hover {
+  background: var(--bg-hover);
+}
+
+.problems-row:focus-visible {
+  outline: none;
+  background: var(--bg-selected);
+  border-left-color: var(--accent);
+}
+
+/*
+ * The box was already centred; the ink was not.
+ *
+ * This held "✕", "!" or "i" depending on severity. Grid centring positions the *line box*,
+ * and the glyph inside it still sits on a baseline - so "!" and "i", which have an ascender
+ * and no descender, rode visibly high in the circle, and all three had different widths, so
+ * the mark shifted as the severity changed. Three stroked paths drawn about (8, 8) share one
+ * geometry and cannot drift apart.
+ */
+.problems-glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.problems-glyph svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  /* Heavier than the workbench default: at 11px on a coloured disc, 1.4 reads as grey. */
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.problems-row-error .problems-glyph {
+  background: var(--danger);
+}
+
+.problems-row-warning .problems-glyph {
+  background: var(--warning);
+}
+
+.problems-row-info .problems-glyph {
+  background: var(--text-tertiary);
+}
+
+.problems-body {
+  min-width: 0;
+}
+
+.problems-headline {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.problems-hint {
+  margin: 3px 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--accent);
+}
+
+/*
+ * Demoted, never dropped. A rewrite is only safe to ship because the compiler's own words
+ * are still on the row for the times the rewrite is wrong.
+ */
+.problems-raw {
+  margin: 5px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.problems-meta {
+  margin: 4px 0 0;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.problems-headline code,
+.problems-hint code {
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--bg-active);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+/* Actions stay out of the way until the row is worth acting on. */
+.problems-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  opacity: 0;
+  transition: opacity 90ms linear;
+}
+
+.problems-row:hover .problems-actions,
+.problems-row:focus-visible .problems-actions,
+.problems-actions:focus-within {
+  opacity: 1;
+}
+
+.problems-action {
+  padding: 2px 8px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.problems-action:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.problems-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/*
+ * ── The earnings report ─────────────────────────────────────────────────────
+ *
+ * A popover, anchored to its activity-bar button by `earningsPopover.ts`. Only `left` and
+ * `top` are set from script; everything about how it looks is here.
+ *
+ * The palette is doing the honest work in this panel. A monetary figure the server has
+ * actually sent is drawn in `--success`; a figure that is unknown is a dash in
+ * `--text-tertiary`. So "we have not heard from the server" and "you have earned nothing"
+ * never render the same way, which is the distinction the whole panel is built to keep.
+ */
+.earnings-card {
+  position: fixed;
+  z-index: 80;
+  width: 320px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floating);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+.earnings-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.earnings-title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Grid-centred and drawn as a path, like every other close button. See `icons.ts`. */
+.earnings-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.earnings-close:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.earnings-close svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+/* ── The hero figure ─────────────────────────────────────────────────────── */
+
+.earnings-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 2px;
+}
+
+.earnings-hero-value {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: 650;
+  /*
+   * Tabular figures so the number does not reflow as it ticks. A proportional `1` is
+   * narrower than a `0` in SF Pro, so a balance counting up would shift its own decimal
+   * point sideways - which reads as instability in the one number that must not look
+   * unstable.
+   */
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--success);
+}
+
+/*
+ * An unknown balance is grey, never green: absent is not zero.
+ *
+ * Driven by an explicit attribute rather than by inspecting the text. "Is this a real
+ * figure?" is a fact the renderer is told by `hasServerBalance` - inferring it back out of
+ * the rendered string would be guessing at something already known for certain.
+ */
+.earnings-hero-value[data-known="false"] {
+  color: var(--text-tertiary);
+}
+
+.earnings-hero-caption {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* ── Facts ───────────────────────────────────────────────────────────────── */
+
+.earnings-facts {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-hairline);
+}
+
+.earnings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.earnings-row:last-child {
+  border-bottom: 0;
+}
+
+.earnings-row-label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.earnings-row-value {
+  font-size: var(--text-sm);
+  font-weight: 560;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+/* ── Presets ─────────────────────────────────────────────────────────────── */
+
+.earnings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.earnings-heading {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+
+.earnings-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.earnings-preset {
+  display: grid;
+  /* Name and cadence share the left column; the rate is pinned right. */
+  grid-template-columns: 1fr auto;
+  gap: 0 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.earnings-preset[data-active="true"] {
+  background: var(--bg-selected);
+}
+
+.earnings-preset-name {
+  font-size: var(--text-sm);
+  font-weight: 560;
+  color: var(--text-primary);
+}
+
+.earnings-preset-detail {
+  grid-column: 1;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.earnings-preset-rate {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  font-size: var(--text-sm);
+  font-weight: 560;
+  font-variant-numeric: tabular-nums;
+  color: var(--success);
+}
+
+/* A projection the server has not sent reads as absent, not as zero income. */
+.earnings-preset-rate[data-known="false"] {
+  color: var(--text-tertiary);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+
+.earnings-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 2px;
+  border-top: 1px solid var(--border-hairline);
+}
+
+.earnings-footer .ghost-button {
+  align-self: flex-start;
+  margin-top: 8px;
+}
+
+/*
+ * The sentence that keeps this panel honest about its own limits.
+ *
+ * Small, but present rather than omitted - the same reasoning as the Problems panel's empty
+ * state, which says it can only see open files instead of implying it looked everywhere.
+ */
+.earnings-note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
+/*
+ * ── The live session panel ──────────────────────────────────────────────────
+ *
+ * A popover on the status bar, positioned from script and styled here. Shares the earnings
+ * card's shape on purpose: both answer a question asked in passing, and two differently-shaped
+ * popovers hanging off the same bar would read as two unrelated features.
+ */
+.collab-card {
+  position: fixed;
+  z-index: 80;
+  width: 340px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floating);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+.collab-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collab-title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Grid-centred and drawn as a path, like every other close button. See `icons.ts`. */
+.collab-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.collab-close:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.collab-close svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.collab-blurb {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.collab-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.collab-primary {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: var(--text-sm);
+  font-weight: 560;
+  cursor: pointer;
+}
+
+.collab-primary:hover {
+  filter: brightness(1.06);
+}
+
+.collab-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-hairline);
+}
+
+.collab-heading {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+
+.collab-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── The invite ──────────────────────────────────────────────────────────── */
+
+.collab-invite-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collab-invite {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  -webkit-user-select: all;
+  user-select: all;
+}
+
+.collab-address {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 3px 6px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/*
+ * The exposure line, and it is not decorative.
+ *
+ * Starting a session binds a port beyond loopback, which every other server in this app
+ * deliberately avoids, and the traffic is unencrypted. `--warning` rather than `--danger`: this
+ * is a thing to understand before pasting the code, not a failure - and spending the error
+ * colour on a normal state is how a real error stops registering.
+ */
+.collab-warning {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--warning);
+}
+
+/* ── The roster ──────────────────────────────────────────────────────────── */
+
+.collab-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.collab-person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+}
+
+/* The same colour their cursor is drawn in, so the roster and the editor agree. */
+.collab-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.collab-person-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.collab-person-role {
+  flex: none;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.collab-role {
+  flex: none;
+  padding: 2px 4px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: 10px;
+}
+
+.collab-terminal-grant {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.collab-terminal-grant input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.collab-terminal-grant:has(input:disabled) {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Checked, this is a shell on the host's machine - so it is the one row that goes red. */
+.collab-terminal-grant:has(input:checked) {
+  color: var(--danger);
+  font-weight: 560;
+}
+
+.collab-leave {
+  align-self: flex-start;
+  padding: 5px 12px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--danger);
+  font-size: var(--text-xs);
+  font-weight: 560;
+  cursor: pointer;
+}
+
+.collab-leave:hover {
+  background: var(--bg-hover);
+}
+
+.collab-error {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  font-size: var(--text-xs);
+  line-height: 1.45;
 }

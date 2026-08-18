@@ -78,7 +78,26 @@ export interface EnumSetting extends BaseSetting {
   readonly options: readonly EnumOption[];
 }
 
-export type Setting = BooleanSetting | EnumSetting;
+/**
+ * A free-text setting.
+ *
+ * Exists for one row: the language-server escape hatch §4 describes as "the escape hatch
+ * that replaces an extension system for languages you did not bundle". There is no way to
+ * express "run this command for this language" as a checkbox or a dropdown, and inventing
+ * a whole editor for it would be a worse answer than a text box people can paste into.
+ *
+ * `maxLength` is not decoration. This value is read off disk, and every character of it
+ * eventually reaches a command line.
+ */
+export interface TextSetting extends BaseSetting {
+  readonly kind: "text";
+  readonly default: string;
+  readonly placeholder: string;
+  readonly multiline: boolean;
+  readonly maxLength: number;
+}
+
+export type Setting = BooleanSetting | EnumSetting | TextSetting;
 export type SettingValue = boolean | string;
 export type SettingId = string;
 export type SettingsValues = Record<SettingId, SettingValue>;
@@ -160,7 +179,25 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   bool("adcode.editing.trailingWhitespace", "editing", "Render trailing whitespace", "Make trailing spaces visible.", false, true),
   bool("adcode.editing.minimap", "editing", "Minimap", "The scaled overview down the right-hand edge.", true, true),
   bool("adcode.editing.codeFolding", "editing", "Code folding", "Collapse and expand regions.", true, true),
-  bool("adcode.editing.multiCursor", "editing", "Multi-cursor and column select", "Multiple cursors and rectangular selection.", true, true),
+  bool("adcode.editing.multiCursor", "editing", "Multi-cursor", "Place more than one cursor with Ctrl+click, Ctrl+D, and Ctrl+Alt+Up/Down.", true, true),
+  // Its own row rather than a rider on multi-cursor, and off by default, because column
+  // select is a *mode*: while it is on, every mouse drag selects a rectangular block
+  // instead of the text it crosses. Shipping it on turned dragging across a line into a
+  // box selection for everyone, which is not a preference anybody chose.
+  bool("adcode.editing.columnSelection", "editing", "Column selection mode", "Dragging with the mouse selects a rectangular block instead of flowing text.", false, true),
+
+  /*
+   * Suggestions and plain-English errors.
+   *
+   * `acceptOnEnter` is its own row rather than folded into `suggestions` because it is the
+   * one with a real cost: with the widget open, Enter takes the suggestion instead of
+   * starting a new line. That is what makes it fast, and it is also the thing a user who
+   * dislikes it needs to be able to switch off without losing suggestions entirely.
+   */
+  bool("adcode.editing.suggestions", "editing", "Suggestions as you type", "Offer completions while typing. Press Tab or Enter to take one.", true, true),
+  bool("adcode.editing.acceptOnEnter", "editing", "Accept suggestion with Enter", "Enter takes the highlighted suggestion. Turn off to make Enter always start a new line.", true, true),
+  bool("adcode.editing.wordSuggestions", "editing", "Suggest words already in the file", "The fallback for languages with no built-in intelligence.", true, true),
+  bool("adcode.editing.plainEnglishErrors", "editing", "Explain errors in plain English", "Rewrite compiler messages in the Problems panel and on hover. The original wording is always kept underneath.", true, true),
 
   /* ── Formatting (§4) ────────────────────────────────────────────────── */
   bool("adcode.formatting.formatter", "formatting", "Built-in formatter", "Formatting with no extension to install.", true),
@@ -185,7 +222,28 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   bool("adcode.navigation.outline", "navigation", "Outline", "The symbol tree for the open file.", true),
 
   /* ── Language (§4) ──────────────────────────────────────────────────── */
-  bool("adcode.language.lspClient", "language", "Language server client", "Completion, diagnostics, and navigation from bundled servers.", true),
+  /*
+   * `available: true` now, with an honest description.
+   *
+   * The client is built and works against a server that is on PATH. What is *not* built is
+   * bundling the servers into the installer, so the description says "installed" rather
+   * than "bundled" - the roster's job is to describe what the toggle actually does, and
+   * claiming bundled servers would be the exact failure `available: false` exists to avoid.
+   */
+  bool("adcode.language.lspClient", "language", "Language server intelligence", "Completion, diagnostics, and hover from language servers installed on this machine.", true, true),
+  {
+    id: "adcode.language.customServers",
+    group: "language",
+    kind: "text",
+    label: "Additional language servers",
+    description:
+      "One per line, as `language: command args`. This is what replaces an extension system for languages ADCode does not know about.",
+    default: "",
+    available: true,
+    placeholder: "zig: zls\nelm: elm-language-server --stdio",
+    multiline: true,
+    maxLength: 4000,
+  },
   bool("adcode.language.dapClient", "language", "Debug adapter client", "Breakpoints, stepping, and variable inspection.", true),
   bool("adcode.language.treeSitterHighlighting", "language", "Tree-sitter highlighting", "Syntax highlighting driven by a real parse tree.", true),
 
@@ -251,8 +309,22 @@ export function defaultSettings(): SettingsValues {
   return { ...values };
 }
 
-function isValidFor(setting: Setting, value: unknown): value is SettingValue {
+/**
+ * Is this a value that setting may hold?
+ *
+ * Exported because the main process asks the same question before persisting a write, and
+ * it used to answer it with its own copy of this logic - which then did not learn about the
+ * `text` kind and rejected every write to it. One implementation, one place to update.
+ */
+export function isValidSettingValue(setting: Setting, value: unknown): value is SettingValue {
   if (setting.kind === "boolean") return typeof value === "boolean";
+
+  if (setting.kind === "text") {
+    // Length is checked here rather than at the point of use, because "at the point of
+    // use" is a command line and by then it is too late to be picky about it.
+    return typeof value === "string" && value.length <= setting.maxLength;
+  }
+
   return typeof value === "string" && setting.options.some((option) => option.value === value);
 }
 
@@ -272,7 +344,7 @@ export function validateSettings(raw: unknown): SettingsValues {
 
     const setting = BY_ID.get(key);
     if (setting === undefined) continue;
-    if (!isValidFor(setting, value)) continue;
+    if (!isValidSettingValue(setting, value)) continue;
 
     result[key] = value;
   }

@@ -136,17 +136,33 @@
   overflow-wrap: anywhere;
 }
 
+/*
+ * Centred by the grid, not by a baseline. This held the character "×" - a maths operator
+ * whose glyph sits on the maths axis rather than in the middle of the em box - so it drew
+ * high in the button no matter what `font-size` was set. It is a path now; see
+ * `workbench/icons.ts` for the full reasoning.
+ */
 .toast-close {
+  display: grid;
+  place-items: center;
+  flex: none;
   border: 0;
   background: transparent;
   color: var(--text-tertiary);
   border-radius: 6px;
   width: 20px;
   height: 20px;
-  line-height: 1;
-  font-size: 15px;
   cursor: pointer;
   transition: transform var(--duration-exit) var(--ease-sheet);
+}
+
+.toast-close svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
 }
 
 .toast-close:hover {

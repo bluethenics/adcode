@@ -172,6 +172,122 @@ describe("commit", () => {
     expect((await git.commit("nothing")).ok).toBe(false);
   });
 
+  /*
+   * The message, not just the outcome.
+   *
+   * The test above passed while this was badly broken, which is the whole lesson: it asserted
+   * that the commit failed and never looked at what the user was told. What they were told was
+   * `Command failed: git commit -m ood` - Node's own string, because `git commit` writes its
+   * explanation to **stdout** and leaves stderr empty, and `nodeExec` used to substitute
+   * `error.message` whenever stderr was blank. Callers prefer stderr, so git's real words were
+   * then discarded in favour of a sentence that says only that something went wrong.
+   */
+  it("says what to do about nothing being staged, in words a person can act on", async () => {
+    await write("a.txt", "x");
+
+    const result = await git.commit("ood");
+
+    expect(result.ok).toBe(false);
+    // Never Node's construction.
+    expect(result.message).not.toMatch(/Command failed/i);
+    // And never git's three paragraphs of branch, unstaged files and untracked files.
+    expect(result.message).not.toMatch(/Untracked files/i);
+    expect(result.message).toMatch(/staged/i);
+  });
+
+  it("says the same thing before the first commit exists", async () => {
+    // A repository with no HEAD is exactly where a beginner making their first commit is, and
+    // it is the case a `--quiet` check against HEAD would fail outright on.
+    await write("a.txt", "x");
+
+    const result = await git.commit("first");
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/staged/i);
+    expect(result.message).not.toMatch(/Command failed/i);
+  });
+
+  it("still commits normally once something is staged", async () => {
+    // The guard must not have made committing harder, only its failure legible.
+    await write("a.txt", "x");
+    await git.stage(["a.txt"]);
+
+    expect((await git.commit("real commit")).ok).toBe(true);
+  });
+
+  it("explains a missing git identity without telling a GUI user to read the manual", async () => {
+    /*
+     * The first-commit wall. A machine that has never run git has no `user.name` or
+     * `user.email`, and git's own refusal is four paragraphs ending in two `git config`
+     * commands - sound advice at a prompt, close to useless in a window.
+     *
+     * `user.useConfigOnly` reproduces the state without depending on what the machine running
+     * this suite happens to have configured globally, which is the only way this test means the
+     * same thing on a developer's laptop and in CI.
+     */
+    await write("a.txt", "x");
+    await git.stage(["a.txt"]);
+
+    /*
+     * The identity is emptied in this repository's own config, and nowhere else.
+     *
+     * An empty `user.email` is not the same as an unset one: git treats it as an identity it
+     * cannot use and refuses exactly as it does on a machine that has never been configured,
+     * which is the state being reproduced. Unsetting instead would fall through to whoever runs
+     * this suite having a global identity, and the commit would succeed.
+     *
+     * An earlier version pointed `GIT_CONFIG_GLOBAL` at a nonexistent file by mutating
+     * `process.env`. That worked and was a bad idea: Vitest reuses a worker across test files,
+     * so a global mutation is visible to whatever else is running in that process, and the
+     * suite failed once, intermittently, in a way that had nothing to do with the code under
+     * test. Local config touches nothing outside this temporary repository.
+     */
+    await gitRaw("config", "--local", "user.email", "");
+    await gitRaw("config", "--local", "user.name", "");
+
+    const result = await git.commit("first");
+
+    expect(result.ok).toBe(false);
+    expect(result.message).not.toMatch(/Command failed/i);
+    expect(result.message).toMatch(/name and email/i);
+    // Names the terminal, because this application ships one - the advice has to be followable
+    // from inside the app that gives it.
+    expect(result.message).toMatch(/terminal/i);
+  });
+});
+
+describe("how git's failures are reported", () => {
+  it("passes git's own words through when git writes to stderr", async () => {
+    // The other half of the `nodeExec` change: suppressing Node's message must not suppress
+    // git's. A bad ref is refused by git on stderr, and that sentence is the useful one.
+    const result = await git.checkout("no-such-branch-anywhere");
+
+    expect(result.ok).toBe(false);
+    expect(result.message).not.toMatch(/Command failed/i);
+    expect(result.message).toMatch(/no-such-branch-anywhere|did not match|invalid reference/i);
+  });
+
+  it("still explains itself when git cannot be run at all", async () => {
+    /*
+     * The case `error.message` genuinely is the only information.
+     *
+     * When the binary is missing there is no stdout and no stderr to prefer, so the fallback
+     * has to survive - suppressing it unconditionally would turn "git is not installed" into
+     * an empty error message, which is worse than the bug being fixed.
+     */
+    const missing = createGit({ exec: nodeGitExec, root: dir });
+    const originalPath = process.env["PATH"];
+
+    try {
+      process.env["PATH"] = join(dir, "definitely-not-a-real-directory");
+      const result = await missing.commit("anything");
+
+      expect(result.ok).toBe(false);
+      expect(result.message.trim().length).toBeGreaterThan(0);
+    } finally {
+      process.env["PATH"] = originalPath;
+    }
+  });
+
   it("keeps a multi-line message intact", async () => {
     await write("a.txt", "x");
     await git.stage(["a.txt"]);
@@ -370,6 +486,67 @@ describe("remotes", () => {
 
   it("reports a pull with no remote as a failure rather than throwing", async () => {
     expect((await git.pull()).ok).toBe(false);
+  });
+
+  it("sets the upstream on the first push to a single remote", async () => {
+    /*
+     * The Push button doing what it says on a branch that has never been pushed.
+     *
+     * Plain `git push` refuses this with advice to run `git push --set-upstream origin main` -
+     * correct at a prompt, unusable in a window that has a Push button and no command line.
+     * A bare repository stands in for the server so this stays offline.
+     */
+    const server = await mkdtemp(join(tmpdir(), "adcode-remote-"));
+    try {
+      await run("git", ["init", "--bare", "-q", server]);
+
+      await write("a.txt", "x");
+      await git.stage(["a.txt"]);
+      await git.commit("first");
+      await gitRaw("remote", "add", "origin", server);
+
+      expect((await git.status()).upstream).toBeNull();
+
+      const result = await git.push();
+
+      expect(result.ok).toBe(true);
+      expect(result.message).toMatch(/upstream/i);
+      // The branch now tracks, so every later push is an ordinary one.
+      expect((await git.status()).upstream).not.toBeNull();
+      expect((await git.push()).ok).toBe(true);
+    } finally {
+      await rm(server, { recursive: true, force: true });
+    }
+  });
+
+  it("leaves the choice to git when two remotes make it ambiguous", async () => {
+    /*
+     * Two remotes and no upstream is a real decision, and guessing would push someone's work
+     * somewhere they did not choose. Note there is no `origin` here - with one present it is the
+     * unambiguous answer whatever else exists alongside it.
+     */
+    const first = await mkdtemp(join(tmpdir(), "adcode-remote-a-"));
+    const second = await mkdtemp(join(tmpdir(), "adcode-remote-b-"));
+
+    try {
+      await run("git", ["init", "--bare", "-q", first]);
+      await run("git", ["init", "--bare", "-q", second]);
+
+      await write("a.txt", "x");
+      await git.stage(["a.txt"]);
+      await git.commit("first");
+      await gitRaw("remote", "add", "alpha", first);
+      await gitRaw("remote", "add", "beta", second);
+
+      const result = await git.push();
+
+      // Refused, and nothing was pushed to either.
+      expect(result.ok).toBe(false);
+      expect((await git.status()).upstream).toBeNull();
+    } finally {
+      await rm(first, { recursive: true, force: true });
+      await rm(second, { recursive: true, force: true });
+    }
   });
 });
 

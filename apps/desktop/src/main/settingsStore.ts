@@ -15,6 +15,7 @@ import {
   SETTINGS_VERSION,
   defaultSettings,
   getSetting,
+  isValidSettingValue,
   migrate,
   type SettingsValues,
 } from "@adcode/settings";
@@ -78,12 +79,11 @@ export function createSettingsStore(directory: string): SettingsStore {
       const setting = getSetting(id);
       if (setting === undefined) return { ...current };
 
-      const valid =
-        setting.kind === "boolean"
-          ? typeof value === "boolean"
-          : typeof value === "string" && setting.options.some((option) => option.value === value);
-
-      if (!valid) return { ...current };
+      // The package's own validator, not a copy of it. The copy that used to live here did
+      // not learn about the `text` kind when it was added, and silently rejected every
+      // write to it - a write that returns the unchanged settings looks exactly like a
+      // setting that does not work.
+      if (!isValidSettingValue(setting, value)) return { ...current };
 
       cache = { ...current, [id]: value };
       await persist(cache);

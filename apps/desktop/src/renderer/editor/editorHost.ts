@@ -10,6 +10,8 @@
  * cross-origin worker shim.
  */
 import * as monaco from "monaco-editor";
+import { registerKeywordCompletions } from "./completions/register.ts";
+import { configureLanguageDefaults } from "./languageDefaults.ts";
 // Monaco 0.56's exports map is `"./*": "./esm/vs/*.js"`, so these specifiers - not the
 // `esm/vs/...` paths most examples still show - are what actually resolve.
 import editorWorker from "monaco-editor/editor/editor.worker?worker";
@@ -18,6 +20,8 @@ import cssWorker from "monaco-editor/language/css/css.worker?worker";
 import htmlWorker from "monaco-editor/language/html/html.worker?worker";
 import tsWorker from "monaco-editor/language/typescript/ts.worker?worker";
 import { createGitOverlay, type GitOverlay } from "./gitOverlay.ts";
+import { editorOptionsFor } from "./editorOptions.ts";
+import { createRemoteCursors, type RemoteCursors } from "../collab/remoteCursors.ts";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -94,8 +98,32 @@ export interface EditorHost {
   layout(): void;
   /** Scroll to a one-based line and put the cursor on it. */
   revealLine(line: number): void;
+  /**
+   * Scroll to a one-based line and column, and put the cursor exactly there.
+   *
+   * The Problems panel needs the column rather than the line: a row that says "you're
+   * putting text where a number belongs" and then lands the cursor at the start of a
+   * ninety-character line has made the reader do the search anyway.
+   */
+  revealPosition(line: number, column: number): void;
   /** Gutter diff marks, inline blame, and merge-conflict resolution (§4's Git group). */
   readonly git: GitOverlay;
+  /**
+   * Other participants' carets and selections, drawn as decorations.
+   *
+   * Owned here for the same reason the git overlay is: both need the editor instance, and §2
+   * says the workbench composes Monaco rather than reaching into it from everywhere.
+   */
+  readonly remoteCursors: RemoteCursors;
+  /**
+   * The Monaco model behind a path, or `null`.
+   *
+   * Exposed for the collaboration binding, which has to attach a Yjs replica to the same model
+   * the user is typing into. Deliberately the only hole in this interface: everything else here
+   * takes a path and does the work, and a caller reaching for a model to edit it directly would
+   * bypass the dirty tracking and the read-only flag this file maintains.
+   */
+  modelFor(path: string): monaco.editor.ITextModel | null;
   /** Trigger a Monaco action by id - how the menu reaches the editing commands. */
   runAction(actionId: string): void;
   /** Toggle word wrap, which is an option rather than an action. */
@@ -121,6 +149,9 @@ interface OpenModel {
 export function createEditorHost(container: HTMLElement): EditorHost {
   defineThemes();
 
+  // Before the first model exists, so no file is ever checked under the wrong rules.
+  configureLanguageDefaults();
+
   const editor = monaco.editor.create(container, {
     theme: "adcode-dark",
     automaticLayout: false,
@@ -140,9 +171,37 @@ export function createEditorHost(container: HTMLElement): EditorHost {
     scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
     folding: true,
     multiCursorModifier: "ctrlCmd",
+
+    /*
+     * Suggestions, on by default and accepted with Enter.
+     *
+     * These are create-time defaults; `applySettings` re-applies the same values from the
+     * settings rows once they have been read. Both paths run through `editorOptionsFor`
+     * except for the two that are not settings at all - `snippetSuggestions` and the
+     * widget's own preview - which have no row and no reason to gain one.
+     */
+    quickSuggestions: true,
+    suggestOnTriggerCharacters: true,
+    acceptSuggestionOnEnter: "on",
+    tabCompletion: "on",
+    wordBasedSuggestions: "currentDocument",
+    suggestSelection: "first",
+    snippetSuggestions: "inline",
+    suggest: {
+      showWords: true,
+      showSnippets: true,
+      // The detail line is where the plain-English description of a keyword lives, and it
+      // is the reason these suggestions are worth more to a learner than a list of words.
+      showStatusBar: true,
+    },
   });
 
+  // Python, Rust, Go and the rest have no language worker, so the suggest widget has
+  // nothing to offer them but words already in the file. This is the honest middle.
+  registerKeywordCompletions();
+
   const git = createGitOverlay(editor);
+  const remoteCursors = createRemoteCursors(editor);
 
   const models = new Map<string, OpenModel>();
   let active: string | null = null;
@@ -171,6 +230,11 @@ export function createEditorHost(container: HTMLElement): EditorHost {
 
   return {
     git,
+    remoteCursors,
+
+    modelFor(path) {
+      return models.get(path)?.model ?? null;
+    },
 
     open(path, text, languageId) {
       if (models.has(path)) return;
@@ -344,29 +408,29 @@ export function createEditorHost(container: HTMLElement): EditorHost {
       editor.focus();
     },
 
+    revealPosition(line, column) {
+      const targetLine = Math.max(1, Math.floor(line));
+      const targetColumn = Math.max(1, Math.floor(column));
+
+      editor.revealPositionInCenter({ lineNumber: targetLine, column: targetColumn });
+      editor.setPosition({ lineNumber: targetLine, column: targetColumn });
+      editor.focus();
+    },
+
     applyTheme(theme) {
       monaco.editor.setTheme(theme === "dark" ? "adcode-dark" : "adcode-light");
     },
 
     applySettings(values) {
-      const on = (id: string): boolean => values[id] !== false;
+      editor.updateOptions(editorOptionsFor(values));
 
-      editor.updateOptions({
-        minimap: { enabled: on("adcode.editing.minimap"), renderCharacters: false },
-        stickyScroll: { enabled: on("adcode.editing.stickyScroll") },
-        bracketPairColorization: { enabled: on("adcode.editing.bracketPairColorization") },
-        guides: {
-          indentation: on("adcode.editing.indentGuides"),
-          bracketPairs: on("adcode.editing.bracketPairColorization"),
-        },
-        renderWhitespace: values["adcode.editing.trailingWhitespace"] === true ? "trailing" : "none",
-        folding: on("adcode.editing.codeFolding"),
-        multiCursorModifier: "ctrlCmd",
-        // Monaco has no switch for multi-cursor itself; the closest honest mapping is to
-        // cap column selection, so this setting is applied where it can be and the row
-        // says so rather than pretending otherwise.
-        columnSelection: values["adcode.editing.multiCursor"] === true,
-      });
+      // Reflected onto the host element because nothing else in the window says the editor
+      // is in column-select mode, and in that mode dragging the mouse behaves completely
+      // differently. Read back out of Monaco rather than from `values`, so it describes
+      // the editor as it actually is rather than what it was asked for.
+      container.dataset["columnSelection"] = String(
+        editor.getOption(monaco.editor.EditorOption.columnSelection),
+      );
     },
 
     onDirtyChange(listener) {
@@ -425,6 +489,53 @@ export function languageForFilename(filename: string): string {
     ".yaml": "yaml",
     ".xml": "xml",
     ".toml": "ini",
+
+    /*
+     * The rest of what Monaco can highlight and the Run button can execute.
+     *
+     * The two lists have to agree: the button chooses its command from the language id, so
+     * an extension missing here means a `.swift` file opens as plain text and the button
+     * silently never appears - which reads as "this editor does not support Swift".
+     */
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".hh": "cpp",
+    ".m": "objective-c",
+    ".mm": "objective-c",
+    ".lua": "lua",
+    ".pl": "perl",
+    ".pm": "perl",
+    ".r": "r",
+    ".swift": "swift",
+    ".dart": "dart",
+    ".jl": "julia",
+    ".ex": "elixir",
+    ".exs": "elixir",
+    ".scala": "scala",
+    ".sc": "scala",
+    ".kt": "kotlin",
+    ".kts": "kotlin",
+    ".fs": "fsharp",
+    ".fsx": "fsharp",
+    ".clj": "clojure",
+    ".cljs": "clojure",
+    ".coffee": "coffeescript",
+    ".bat": "bat",
+    ".cmd": "bat",
+    ".bash": "shell",
+    ".zsh": "shell",
+    ".psm1": "powershell",
+    ".vb": "vb",
+    ".pas": "pascal",
+    ".graphql": "graphql",
+    ".proto": "protobuf",
+    ".tcl": "tcl",
+    ".sol": "solidity",
+    ".dockerfile": "dockerfile",
+    ".ini": "ini",
+    ".cfg": "ini",
+    ".svg": "xml",
   };
 
   return byExtension[ext] ?? "plaintext";

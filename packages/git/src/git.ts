@@ -89,6 +89,8 @@ export interface Git {
   push(): Promise<GitResult>;
   pull(): Promise<GitResult>;
   fetch(): Promise<GitResult>;
+  /** Point the repository at a remote, or correct the URL of one it already has. */
+  addRemote(name: string, url: string): Promise<GitResult>;
   remotes(): Promise<GitRemote[]>;
 
   branches(): Promise<GitBranch[]>;
@@ -300,12 +302,133 @@ export function createGit(deps: GitDeps): Git {
       if (typeof message !== "string" || message.trim().length === 0) {
         return fail("A commit needs a message.");
       }
+
+      /*
+       * Answered here rather than by git, for the same reason the empty message is.
+       *
+       * `git commit` with an empty index exits non-zero and prints three paragraphs to
+       * stdout - the branch, every unstaged file, every untracked file, and finally the line
+       * that matters. Handing that to a toast is not reporting, it is forwarding. And the
+       * advice it ends with is `use "git add"`, which is not something a person can act on in
+       * a window that has a checkbox for exactly this.
+       *
+       * `diff --cached --name-only` is the check, and it works in a repository with no
+       * commits yet - where `--quiet` against HEAD would fail outright, and where a beginner
+       * making their first commit actually is.
+       */
+      const staged = await run("diff", "--cached", "--name-only");
+      if (staged.code === 0 && staged.stdout.trim().length === 0) {
+        return fail("Nothing is staged yet. Tick the + beside a file to include it in this commit.");
+      }
+
+      /*
+       * The first-commit wall, answered before git hits it.
+       *
+       * A machine that has never run git has no `user.name` or `user.email`, and git refuses to
+       * record a commit without them. Its own message is four paragraphs ending in two
+       * `git config --global` commands - which is sound advice on a command line and close to
+       * useless inside a window, where the person reading it has no prompt in front of them.
+       *
+       * `git var GIT_COMMITTER_IDENT` is the authoritative check rather than reading the two
+       * config keys: it is what git itself resolves, so it accounts for every source an identity
+       * can come from - local, global, system, environment - and for the auto-detection that
+       * sometimes succeeds. Guessing from `config --get` would refuse commits that would in fact
+       * have worked.
+       *
+       * The suggestion names the terminal because this application ships one. Telling somebody
+       * to run a command they have no way to run is the failure being fixed, not a smaller
+       * version of it.
+       */
+      const identity = await run("var", "GIT_COMMITTER_IDENT");
+      if (identity.code !== 0) {
+        return fail(
+          "Git needs a name and email before it can record who made this commit. " +
+            'Open the terminal and run: git config --global user.name "Your Name" ' +
+            'and git config --global user.email "you@example.com"',
+        );
+      }
+
       return runResult(["commit", "-m", message], "Committed.");
     },
 
-    push: () => runResult(["push"], "Pushed."),
+    /**
+     * Push, setting the upstream on the first one.
+     *
+     * A branch that has never been pushed has no upstream, and plain `git push` refuses it with
+     * a message ending in `git push --set-upstream origin <branch>`. That is the right advice at
+     * a prompt and unusable in a window with a Push button and no way to type it - the same
+     * shape of failure as the missing identity above.
+     *
+     * So the first push does what the user pressed the button for. The conditions are narrow on
+     * purpose: only when there is no upstream already, only when the branch is a real branch
+     * rather than a detached HEAD, and only when the remote to use is unambiguous - `origin`, or
+     * the single remote if there is exactly one and it is named something else. With two remotes
+     * and no upstream there is a genuine choice to make, and guessing at it would push someone's
+     * work to a place they did not choose. That case falls through to git, whose message is then
+     * the honest answer.
+     */
+    async push(): Promise<GitResult> {
+      const current = await run("symbolic-ref", "--quiet", "--short", "HEAD");
+      const branch = current.stdout.trim();
+
+      // Detached HEAD, or the branch name is not one we would put on a command line.
+      if (current.code !== 0 || branch.length === 0 || !isSafeRef(branch)) {
+        return runResult(["push"], "Pushed.");
+      }
+
+      const upstream = await run("rev-parse", "--abbrev-ref", "--symbolic-full-name", `${branch}@{upstream}`);
+      if (upstream.code === 0 && upstream.stdout.trim().length > 0) {
+        return runResult(["push"], "Pushed.");
+      }
+
+      const configured = await run("remote");
+      const names = configured.stdout
+        .split("\n")
+        .map((name) => name.trim())
+        .filter((name) => name.length > 0);
+
+      // No remote at all: git's "No configured push destination" is the accurate answer, and
+      // inventing one here would be worse than repeating it.
+      if (names.length === 0) return runResult(["push"], "Pushed.");
+
+      const remote = names.includes("origin") ? "origin" : names.length === 1 ? names[0] ?? null : null;
+      if (remote === null || !isSafeRef(remote)) return runResult(["push"], "Pushed.");
+
+      return runResult(
+        ["push", "--set-upstream", remote, branch],
+        `Pushed, and set ${remote}/${branch} as the upstream.`,
+      );
+    },
     pull: () => runResult(["pull", "--ff-only"], "Pulled."),
     fetch: () => runResult(["fetch", "--all", "--prune"], "Fetched."),
+
+    /**
+     * Point this repository at a remote - normally the GitHub repository it will be pushed to.
+     *
+     * `git init` leaves a repository with nowhere to push, and nothing in this UI could fix
+     * that: Push said "No configured push destination" and advised `git remote add`, a command
+     * the window has no way to run. This is that command.
+     *
+     * The URL goes through `isSafeCloneUrl`, the same guard `clone` uses and for the same
+     * reason: a remote URL is pasted from a chat window or a browser, and `ext::` transports
+     * turn a later `git fetch` into arbitrary command execution. The check belongs here rather
+     * than at the moment of fetching, because by then the dangerous value is already stored in
+     * the repository's config and will be used by commands nobody reviewed.
+     *
+     * Replaces an existing remote of the same name rather than failing. Someone correcting a
+     * URL they mistyped is the common case, and `git remote add` on an existing name fails with
+     * "remote origin already exists" - which is accurate and leaves them stuck.
+     */
+    async addRemote(name: string, url: string): Promise<GitResult> {
+      if (!isSafeRef(name)) return fail("That is not a usable remote name.");
+      if (!isSafeCloneUrl(url)) return fail("That is not a usable repository URL.");
+
+      const existing = await run("remote", "get-url", name);
+
+      return existing.code === 0
+        ? runResult(["remote", "set-url", name, url], `Updated ${name}.`)
+        : runResult(["remote", "add", name, url], `Connected ${name}.`);
+    },
 
     async remotes(): Promise<GitRemote[]> {
       const result = await run("remote", "-v");

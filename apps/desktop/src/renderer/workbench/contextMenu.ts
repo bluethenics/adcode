@@ -34,7 +34,12 @@ export interface ContextMenuHeading {
 export type ContextMenuNode = ContextMenuItem | ContextMenuSeparator | ContextMenuHeading;
 
 export interface ContextMenu {
-  open(x: number, y: number, nodes: readonly ContextMenuNode[]): void;
+  /**
+   * `onClose` fires however the menu goes away - a choice, a click elsewhere, Escape, a
+   * scroll. A button that opens this menu needs that to put `aria-expanded` back, and
+   * there is no other moment it can learn the menu is gone.
+   */
+  open(x: number, y: number, nodes: readonly ContextMenuNode[], onClose?: () => void): void;
   close(): void;
   isOpen(): boolean;
   /** Move focus by `step` entries, wrapping. Skips disabled ones. */
@@ -46,10 +51,18 @@ const MARGIN = 6;
 
 export function createContextMenu(host: HTMLElement): ContextMenu {
   let panel: HTMLElement | null = null;
+  let notifyClosed: (() => void) | null = null;
 
   function close(): void {
+    // Cleared before it runs, so a handler that opens another menu cannot be re-entered
+    // by the `close()` that opening does first.
+    const notify = notifyClosed;
+    notifyClosed = null;
+
     panel?.remove();
     panel = null;
+
+    notify?.();
   }
 
   function items(): HTMLElement[] {
@@ -123,10 +136,14 @@ export function createContextMenu(host: HTMLElement): ContextMenu {
   }
 
   return {
-    open(x, y, nodes) {
+    open(x, y, nodes, onClose) {
       close();
-      if (nodes.length === 0) return;
+      if (nodes.length === 0) {
+        onClose?.();
+        return;
+      }
 
+      notifyClosed = onClose ?? null;
       const built = build(nodes);
       // Measured off-screen first: the flip decision needs a real height, and a panel
       // whose contents vary cannot be measured before it is in the document.

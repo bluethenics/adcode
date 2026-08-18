@@ -282,7 +282,11 @@
 
 /* ── Footer ───────────────────────────────────────────────────────────── */
 
+/* A row now, so the version can sit opposite the reset button rather than under it. */
 .settings-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 12px 18px;
   border-top: 1px solid var(--border-hairline);
   background: var(--bg-chrome);
@@ -337,4 +341,47 @@
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+/*
+ * The free-text setting.
+ *
+ * A textarea rather than an input even when it is nominally one line: the language-server
+ * row takes one entry per line, and an input would silently make the second one impossible
+ * to enter while looking like it should work.
+ */
+.settings-text {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.settings-text:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.settings-text::placeholder {
+  color: var(--text-tertiary);
+}
+
+.settings-text:disabled {
+  opacity: 0.5;
+}
+
+/* The build, in the settings footer. Small, selectable, and next to nothing else. */
+.settings-about {
+  margin: 0 0 0 auto;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  -webkit-user-select: text;
+  user-select: text;
 }
