@@ -31,12 +31,15 @@
       "@adcode/memory": ["./packages/memory/src/index.ts"],
       "@adcode/settings": ["./packages/settings/src/index.ts"],
       "@adcode/ai": ["./packages/ai/src/index.ts"],
+      "@adcode/diagnostics": ["./packages/diagnostics/src/index.ts"],
+      "@adcode/lsp": ["./packages/lsp/src/index.ts"],
       "@adcode/git": ["./packages/git/src/index.ts"],
       "@adcode/git/conflicts": ["./packages/git/src/conflicts.ts"],
       "@adcode/search/fuzzy": ["./packages/search/src/fuzzy.ts"],
-      "@adcode/search": ["./packages/search/src/index.ts"]
+      "@adcode/search": ["./packages/search/src/index.ts"],
+      "@adcode/collab": ["./packages/collab/src/index.ts"]
     }
   },
-  "include": ["packages/**/*.ts", "mock-server/**/*.ts", "vitest.config.ts"],
+  "include": ["packages/**/*.ts", "mock-server/**/*.ts", "services/**/*.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "**/__fixtures__/**"]
 }

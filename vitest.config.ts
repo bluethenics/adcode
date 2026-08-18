@@ -11,18 +11,26 @@ const alias = {
   "@adcode/memory": resolve(import.meta.dirname, "packages/memory/src/index.ts"),
   "@adcode/settings": resolve(import.meta.dirname, "packages/settings/src/index.ts"),
   "@adcode/ai": resolve(import.meta.dirname, "packages/ai/src/index.ts"),
+  "@adcode/diagnostics": resolve(import.meta.dirname, "packages/diagnostics/src/index.ts"),
+  "@adcode/lsp": resolve(import.meta.dirname, "packages/lsp/src/index.ts"),
   // Ahead of the bare alias: the resolver takes the first matching key, and a prefix
   // match on `@adcode/git` would rewrite this specifier to a path that does not exist.
   "@adcode/git/conflicts": resolve(import.meta.dirname, "packages/git/src/conflicts.ts"),
   "@adcode/git": resolve(import.meta.dirname, "packages/git/src/index.ts"),
   "@adcode/search/fuzzy": resolve(import.meta.dirname, "packages/search/src/fuzzy.ts"),
   "@adcode/search": resolve(import.meta.dirname, "packages/search/src/index.ts"),
+  "@adcode/collab": resolve(import.meta.dirname, "packages/collab/src/index.ts"),
 };
 
 export default defineConfig({
   resolve: { alias },
   test: {
-    include: ["packages/**/test/**/*.test.ts", "mock-server/test/**/*.test.ts", "apps/**/test/**/*.test.ts"],
+    include: [
+      "packages/**/test/**/*.test.ts",
+      "mock-server/test/**/*.test.ts",
+      "services/**/test/**/*.test.ts",
+      "apps/**/test/**/*.test.ts",
+    ],
     exclude: ["**/node_modules/**", "**/__fixtures__/**"],
     environment: "node",
     // The pure modules exist to be testable in milliseconds (§2). If the suite ever

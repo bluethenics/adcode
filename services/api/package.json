@@ -1,0 +1,14 @@
+{
+  "name": "@adcode/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The real serving backend. Deliberately shares NO types with the client (spec D1).",
+  "main": "./src/server.ts",
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "scripts": {
+    "start": "node src/cli.ts"
+  }
+}

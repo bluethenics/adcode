@@ -1,6 +1,6 @@
 {
   "name": "adcode",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "ADCode - an ad-supported, AI-native IDE",
@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json",
     "desktop": "npm --prefix apps/desktop run dev",
     "desktop:build": "npm --prefix apps/desktop run build",
-    "firewall": "depcruise --config .dependency-cruiser.cjs packages mock-server apps",
+    "firewall": "depcruise --config .dependency-cruiser.cjs packages mock-server apps services",
     "test": "vitest run",
     "test:watch": "vitest",
     "mock-server": "node mock-server/src/cli.ts",
@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "@types/ws": "^8.18.1",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-search": "^0.16.0",
     "@xterm/addon-webgl": "^0.19.0",
@@ -51,6 +52,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "node-pty": "^1.1.0"
+    "node-pty": "^1.1.0",
+    "ws": "^8.21.3",
+    "yjs": "^13.6.32"
   }
 }
