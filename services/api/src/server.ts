@@ -15,6 +15,20 @@ import { handleAdminLedger } from "./admin.ts";
 import { parseReceiptsRequest, parseReportRequest, parseServeRequest } from "./contract.ts";
 import { handleAdminListReports, handleSubmitReport } from "./reports.ts";
 import { checkRate } from "./rateLimit.ts";
+import { corsHeaders } from "./cors.ts";
+import {
+  createAdvertiser,
+  createCampaign,
+  createCreative,
+  getMyAdvertiser,
+  listCampaigns,
+  listCreatives,
+  setCampaignStatus,
+  PORTAL_LIMITS,
+  type AdvertiserError,
+  type Outcome,
+} from "./advertisers.ts";
+import { parseCampaign, parseCreateAdvertiser, parseCreative } from "./contract.ts";
 import { createMemoryStore } from "./memoryStore.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
 
@@ -27,10 +41,31 @@ const MAX_BODY_BYTES = 1_000_000;
 const DEFAULT_PAGE_LIMIT = 50;
 const MAX_PAGE_LIMIT = 200;
 
-function send(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { "content-type": "application/json" });
+function send(
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  extra: Record<string, string> = {},
+): void {
+  res.writeHead(status, { "content-type": "application/json", ...extra });
   res.end(JSON.stringify(body));
 }
+
+/**
+ * Advertiser refusals to status codes.
+ *
+ * `not-found` covers both "no such campaign" and "not yours" on purpose - distinguishing
+ * them tells a competitor whether an id exists.
+ */
+const ADVERTISER_STATUS: Record<AdvertiserError, number> = {
+  "no-advertiser": 404,
+  "already-advertiser": 409,
+  suspended: 403,
+  "not-found": 404,
+  "insufficient-funds": 402,
+  "no-approved-creative": 409,
+  "invalid-state": 409,
+};
 
 async function readBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -73,9 +108,18 @@ export async function createApiServer(
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
+    const cors = corsHeaders(req.headers.origin);
+
+    // Preflight is answered before authentication: a browser sends OPTIONS without the
+    // Authorization header, so requiring a token here would fail every cross-origin call.
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, cors);
+      res.end();
+      return;
+    }
 
     if (!path.startsWith("/v1/")) {
-      send(res, 404, { error: "not found" });
+      send(res, 404, { error: "not found" }, cors);
       return;
     }
 
@@ -95,6 +139,7 @@ export async function createApiServer(
       res.writeHead(429, {
         "content-type": "application/json",
         "retry-after": String(Math.ceil(config.rateWindowMs / 1000)),
+        ...cors,
       });
       res.end(JSON.stringify({ error: "rate-limited" }));
       return;
@@ -102,21 +147,21 @@ export async function createApiServer(
 
     if (path === "/v1/admin/reports" && req.method === "GET") {
       if (!auth.isAdmin) {
-        send(res, 403, { error: "not-admin" });
+        send(res, 403, { error: "not-admin" }, cors);
         return;
       }
-      send(res, 200, await handleAdminListReports({ store, clock, ids }, auth.uid, pageFrom(url)));
+      send(res, 200, await handleAdminListReports({ store, clock, ids }, auth.uid, pageFrom(url)), cors);
       return;
     }
 
     const admin = ADMIN_LEDGER.exec(path);
     if (admin !== null && req.method === "GET") {
       if (!auth.isAdmin) {
-        send(res, 403, { error: "not-admin" });
+        send(res, 403, { error: "not-admin" }, cors);
         return;
       }
       const subject = decodeURIComponent(admin[1] ?? "");
-      send(res, 200, await handleAdminLedger({ store, clock }, auth.uid, subject, pageFrom(url)));
+      send(res, 200, await handleAdminLedger({ store, clock }, auth.uid, subject, pageFrom(url)), cors);
       return;
     }
 
@@ -125,15 +170,15 @@ export async function createApiServer(
       try {
         raw = JSON.parse(await readBody(req));
       } catch {
-        send(res, 400, { error: "malformed body" });
+        send(res, 400, { error: "malformed body" }, cors);
         return;
       }
       const body = parseServeRequest(raw);
       if (body === null) {
-        send(res, 400, { error: "malformed serve request" });
+        send(res, 400, { error: "malformed serve request" }, cors);
         return;
       }
-      send(res, 200, await handleServe({ store, clock, ids }, auth.uid, body));
+      send(res, 200, await handleServe({ store, clock, ids }, auth.uid, body), cors);
       return;
     }
 
@@ -142,15 +187,15 @@ export async function createApiServer(
       try {
         raw = JSON.parse(await readBody(req));
       } catch {
-        send(res, 400, { error: "malformed body" });
+        send(res, 400, { error: "malformed body" }, cors);
         return;
       }
       const body = parseReceiptsRequest(raw);
       if (body === null) {
-        send(res, 400, { error: "malformed receipts request" });
+        send(res, 400, { error: "malformed receipts request" }, cors);
         return;
       }
-      send(res, 200, await handleReceipts({ store, clock, ids }, auth.uid, body));
+      send(res, 200, await handleReceipts({ store, clock, ids }, auth.uid, body), cors);
       return;
     }
 
@@ -159,34 +204,134 @@ export async function createApiServer(
       try {
         raw = JSON.parse(await readBody(req));
       } catch {
-        send(res, 400, { error: "malformed body" });
+        send(res, 400, { error: "malformed body" }, cors);
         return;
       }
       const body = parseReportRequest(raw);
       if (body === null) {
-        send(res, 400, { error: "malformed report" });
+        send(res, 400, { error: "malformed report" }, cors);
         return;
       }
-      send(res, 200, await handleSubmitReport({ store, clock, ids }, auth.uid, body));
+      send(res, 200, await handleSubmitReport({ store, clock, ids }, auth.uid, body), cors);
+      return;
+    }
+
+    /* ── Advertiser portal ──────────────────────────────────────────── */
+
+    const advertiserDeps = { store, clock, ids };
+
+    /** Unwraps an Outcome onto the wire, mapping refusals to status codes. */
+    const settle = <T>(result: Outcome<T>): void => {
+      if (result.ok) send(res, 200, result.value, cors);
+      else send(res, ADVERTISER_STATUS[result.error], { error: result.error }, cors);
+    };
+
+    const jsonBody = async (): Promise<unknown | undefined> => {
+      try {
+        return JSON.parse(await readBody(req)) as unknown;
+      } catch {
+        send(res, 400, { error: "malformed body" }, cors);
+        return undefined;
+      }
+    };
+
+    if (path === "/v1/portal/limits" && req.method === "GET") {
+      send(res, 200, PORTAL_LIMITS, cors);
+      return;
+    }
+
+    if (path === "/v1/portal/advertiser" && req.method === "GET") {
+      settle(await getMyAdvertiser(advertiserDeps, auth.uid));
+      return;
+    }
+
+    if (path === "/v1/portal/advertiser" && req.method === "POST") {
+      const raw = await jsonBody();
+      if (raw === undefined) return;
+      const body = parseCreateAdvertiser(raw);
+      if (body === null) {
+        send(res, 400, { error: "malformed advertiser" }, cors);
+        return;
+      }
+      settle(await createAdvertiser(advertiserDeps, auth.uid, body));
+      return;
+    }
+
+    if (path === "/v1/portal/campaigns" && req.method === "GET") {
+      settle(await listCampaigns(advertiserDeps, auth.uid));
+      return;
+    }
+
+    if (path === "/v1/portal/campaigns" && req.method === "POST") {
+      const raw = await jsonBody();
+      if (raw === undefined) return;
+      const body = parseCampaign(raw);
+      if (body === null) {
+        send(res, 400, { error: "malformed campaign" }, cors);
+        return;
+      }
+      settle(await createCampaign(advertiserDeps, auth.uid, body));
+      return;
+    }
+
+    const campaignStatus = /^\/v1\/portal\/campaigns\/([^/]+)\/status$/.exec(path);
+    if (campaignStatus !== null && req.method === "POST") {
+      const raw = await jsonBody();
+      if (raw === undefined) return;
+
+      const next = (raw as Record<string, unknown>)["status"];
+      if (next !== "active" && next !== "paused" && next !== "ended") {
+        send(res, 400, { error: "malformed status" }, cors);
+        return;
+      }
+
+      settle(
+        await setCampaignStatus(
+          advertiserDeps,
+          auth.uid,
+          decodeURIComponent(campaignStatus[1] ?? ""),
+          next,
+        ),
+      );
+      return;
+    }
+
+    const campaignCreatives = /^\/v1\/portal\/campaigns\/([^/]+)\/creatives$/.exec(path);
+    if (campaignCreatives !== null && req.method === "GET") {
+      settle(
+        await listCreatives(advertiserDeps, auth.uid, decodeURIComponent(campaignCreatives[1] ?? "")),
+      );
+      return;
+    }
+
+    if (path === "/v1/portal/creatives" && req.method === "POST") {
+      const raw = await jsonBody();
+      if (raw === undefined) return;
+      const body = parseCreative(raw);
+      if (body === null) {
+        send(res, 400, { error: "malformed creative" }, cors);
+        return;
+      }
+      settle(await createCreative(advertiserDeps, auth.uid, body));
       return;
     }
 
     if (path === "/v1/balance" && req.method === "GET") {
-      send(res, 200, await handleBalance(store, auth.uid));
+      send(res, 200, await handleBalance(store, auth.uid), cors);
       return;
     }
 
     if (path === "/v1/ledger" && req.method === "GET") {
-      send(res, 200, await handleLedger(store, auth.uid, pageFrom(url)));
+      send(res, 200, await handleLedger(store, auth.uid, pageFrom(url)), cors);
       return;
     }
 
     if (path === "/v1/config" && req.method === "GET") {
-      send(res, 200, await handleConfig(store));
+      send(res, 200, await handleConfig(store), cors);
       return;
     }
 
-    send(res, 404, { error: "not found" });
+    send(res, 404, { error: "not found" }, cors);
   };
 
   const server = createServer((req, res) => {

@@ -16,6 +16,8 @@ describeContract("services/api", async () => {
     await store.putCampaign({
       campaignId: "camp-conformance",
       advertiserId: "adv-1",
+      name: "camp-conformance campaign",
+      createdAt: 0,
       cpmMicros: 8_000_000n,
       budgetMicros: 10_000_000n,
       targetTags: [],

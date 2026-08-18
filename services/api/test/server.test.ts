@@ -130,6 +130,99 @@ describe("reports", () => {
   });
 });
 
+describe("cors", () => {
+  it("answers preflight without requiring a token", async () => {
+    const res = await fetch(`${server.url}/v1/balance`, {
+      method: "OPTIONS",
+      headers: { origin: "https://adcode.dev" },
+    });
+    expect(res.status).toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://adcode.dev");
+  });
+
+  it("echoes only an allowed origin, and varies on it", async () => {
+    const res = await fetch(`${server.url}/v1/balance`, {
+      headers: { ...auth, origin: "https://adcode.dev" },
+    });
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://adcode.dev");
+    expect(res.headers.get("vary")).toBe("Origin");
+  });
+
+  it("sends no allow-origin to a site that is not on the list", async () => {
+    const res = await fetch(`${server.url}/v1/balance`, {
+      headers: { ...auth, origin: "https://evil.test" },
+    });
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  });
+});
+
+describe("portal", () => {
+  const campaign = {
+    name: "Rust developers",
+    cpmMicros: "8000000",
+    budgetMicros: "50000000",
+    targetTags: ["lang:rust"],
+  };
+
+  it("404s the advertiser before sign-up", async () => {
+    expect((await get("/v1/portal/advertiser")).status).toBe(404);
+  });
+
+  it("signs up, then reports the advertiser", async () => {
+    expect((await post("/v1/portal/advertiser", { name: "Acme" })).status).toBe(200);
+
+    const body = (await (await get("/v1/portal/advertiser")).json()) as Record<string, unknown>;
+    expect(body["name"]).toBe("Acme");
+    expect(body["availableMicros"]).toBe("0");
+  });
+
+  it("409s a second sign-up", async () => {
+    await post("/v1/portal/advertiser", { name: "Acme" });
+    expect((await post("/v1/portal/advertiser", { name: "Acme Two" })).status).toBe(409);
+  });
+
+  it("creates a campaign, paused", async () => {
+    await post("/v1/portal/advertiser", { name: "Acme" });
+    const res = await post("/v1/portal/campaigns", campaign);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as Record<string, unknown>)["status"]).toBe("paused");
+  });
+
+  it("400s a malformed campaign", async () => {
+    await post("/v1/portal/advertiser", { name: "Acme" });
+    expect((await post("/v1/portal/campaigns", { ...campaign, budgetMicros: "1" })).status).toBe(400);
+  });
+
+  it("402s activation with no money behind it", async () => {
+    await post("/v1/portal/advertiser", { name: "Acme" });
+    const created = (await (await post("/v1/portal/campaigns", campaign)).json()) as Record<string, string>;
+
+    const res = await post(`/v1/portal/campaigns/${created["campaignId"]}/status`, { status: "active" });
+    // No approved creative yet, so this is refused before funding is even considered.
+    expect(res.status).toBe(409);
+  });
+
+  it("publishes the limits the portal validates against", async () => {
+    const body = (await (await get("/v1/portal/limits")).json()) as Record<string, unknown>;
+    expect(body["headline"]).toBe(80);
+    expect(typeof body["minBudgetMicros"]).toBe("string");
+  });
+
+  it("keeps one advertiser out of another's campaigns", async () => {
+    await post("/v1/portal/advertiser", { name: "Acme" });
+    const created = (await (await post("/v1/portal/campaigns", campaign)).json()) as Record<string, string>;
+
+    // "admin" is a different uid that has not signed up as an advertiser.
+    const other = { authorization: "Bearer admin", "content-type": "application/json" };
+    const res = await fetch(`${server.url}/v1/portal/campaigns/${created["campaignId"]}/status`, {
+      method: "POST",
+      headers: other,
+      body: JSON.stringify({ status: "active" }),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("rate limiting", () => {
   it("429s a user over the ceiling, and says when to come back", async () => {
     const cfg = await store.getConfig();

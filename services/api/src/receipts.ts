@@ -61,8 +61,10 @@ export async function handleReceipts(
       receiptId: receipt.receiptId,
       uid,
       creativeId: receipt.creativeId,
+      campaignId: creative.campaignId,
       outcome: receipt.outcome,
       creditedMicros: credit,
+      costMicros: cost,
     });
 
     if (!created) {

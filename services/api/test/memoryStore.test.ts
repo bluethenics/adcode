@@ -24,8 +24,10 @@ describe("receipt idempotency", () => {
       receiptId: "r-1",
       uid: "u-1",
       creativeId: "c-1",
+      campaignId: "camp-1",
       outcome: "impression",
       creditedMicros: 2000n,
+      costMicros: 8_000n,
     };
     expect(await store.createReceiptIfAbsent(record)).toBe(true);
     expect(await store.createReceiptIfAbsent(record)).toBe(false);
@@ -88,7 +90,7 @@ describe("listEntries", () => {
 
 describe("serve records", () => {
   it("finds an unexpired serve for the right uid and creative", async () => {
-    await store.recordServe({ serveId: "s-1", uid: "u-1", creativeId: "c-1", servedAt: 1000, expiresAt: 2000 });
+    await store.recordServe({ serveId: "s-1", uid: "u-1", creativeId: "c-1", campaignId: "camp-1", servedAt: 1000, expiresAt: 2000 });
 
     expect(await store.findServe("u-1", "c-1", 1500)).not.toBeNull();
     expect(await store.findServe("u-1", "c-1", 2500)).toBeNull();
@@ -113,6 +115,8 @@ describe("campaign matching", () => {
   const campaign = {
     campaignId: "camp-1",
     advertiserId: "adv-1",
+    name: "camp-1 campaign",
+    createdAt: 0,
     cpmMicros: 8_000_000n,
     budgetMicros: 1_000_000n,
     targetTags: ["lang:rust"],

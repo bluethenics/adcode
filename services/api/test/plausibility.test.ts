@@ -19,6 +19,7 @@ const serve = (over: Partial<ServeRecord> = {}): ServeRecord => ({
   serveId: "s-1",
   uid: "u-1",
   creativeId: "c-1",
+  campaignId: "camp-1",
   servedAt: NOW - 20_000,
   expiresAt: NOW + 20_000,
   ...over,

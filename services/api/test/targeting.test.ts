@@ -5,6 +5,8 @@ import type { CampaignRecord } from "../src/store.ts";
 const campaign = (id: string, cpm: bigint, tags: string[], budget = 1_000_000n): CampaignRecord => ({
   campaignId: id,
   advertiserId: "adv-1",
+  name: id,
+  createdAt: 0,
   cpmMicros: cpm,
   budgetMicros: budget,
   targetTags: tags,

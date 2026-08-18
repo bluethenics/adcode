@@ -227,3 +227,118 @@ export function parseReportRequest(raw: unknown): SubmitReportBody | null {
 
   return { kind: kind as ReportKind, title: t, body: b, appVersion: v, platform: p };
 }
+
+/* ── Advertiser portal ──────────────────────────────────────────────────── */
+
+/**
+ * Self-serve campaign management.
+ *
+ * Advertiser identity is not a Firebase custom claim, unlike `admin`. A claim only lands
+ * when the token next refreshes, which would mean signing up and then waiting to be able
+ * to do anything. Instead an advertiser is "a user who owns an advertiser record", which
+ * is true the instant the record is written.
+ */
+export interface CreateAdvertiserBody {
+  name: string;
+}
+
+export interface CampaignBody {
+  name: string;
+  cpmMicros: string;
+  budgetMicros: string;
+  targetTags: string[];
+}
+
+export interface CreativeBody {
+  campaignId: string;
+  advertiser: string;
+  headline: string;
+  body: string | null;
+  clickUrl: string;
+  logoLight: string;
+  logoDark: string;
+}
+
+export const ADVERTISER_LIMITS = {
+  name: 60,
+  campaignName: 80,
+  /** A CPM below this is not worth serving; above it, someone has fat-fingered a zero. */
+  minCpmMicros: 100_000n,
+  maxCpmMicros: 100_000_000n,
+  minBudgetMicros: 1_000_000n,
+  maxBudgetMicros: 100_000_000_000n,
+} as const;
+
+const boundedText = (value: unknown, max: number): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > max) return null;
+  return trimmed;
+};
+
+/** https only, and short enough that the client will accept it. */
+function httpsUrl(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > LIMITS.url) return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function parseCreateAdvertiser(raw: unknown): CreateAdvertiserBody | null {
+  if (!isRecord(raw)) return null;
+  const name = boundedText(raw["name"], ADVERTISER_LIMITS.name);
+  return name === null ? null : { name };
+}
+
+export function parseCampaign(raw: unknown): CampaignBody | null {
+  if (!isRecord(raw)) return null;
+
+  const name = boundedText(raw["name"], ADVERTISER_LIMITS.campaignName);
+  if (name === null) return null;
+
+  const cpm = raw["cpmMicros"];
+  const budget = raw["budgetMicros"];
+  if (typeof cpm !== "string" || typeof budget !== "string") return null;
+  if (!/^[0-9]{1,19}$/.test(cpm) || !/^[0-9]{1,19}$/.test(budget)) return null;
+
+  const cpmValue = BigInt(cpm);
+  const budgetValue = BigInt(budget);
+  if (cpmValue < ADVERTISER_LIMITS.minCpmMicros || cpmValue > ADVERTISER_LIMITS.maxCpmMicros) return null;
+  if (budgetValue < ADVERTISER_LIMITS.minBudgetMicros || budgetValue > ADVERTISER_LIMITS.maxBudgetMicros) {
+    return null;
+  }
+
+  const tags = raw["targetTags"];
+  if (!Array.isArray(tags)) return null;
+  // Unknown tags are dropped rather than rejected: the vocabulary can grow, and an
+  // advertiser should not get a 400 for a tag a newer portal offered them.
+  const known = [...new Set(tags.filter((t): t is string => typeof t === "string" && isTag(t)))];
+
+  return { name, cpmMicros: cpm, budgetMicros: budget, targetTags: known };
+}
+
+export function parseCreative(raw: unknown): CreativeBody | null {
+  if (!isRecord(raw)) return null;
+
+  const campaignId = boundedText(raw["campaignId"], LIMITS.creativeId);
+  const advertiser = boundedText(raw["advertiser"], LIMITS.advertiser);
+  const headline = boundedText(raw["headline"], LIMITS.headline);
+  if (campaignId === null || advertiser === null || headline === null) return null;
+
+  const rawBody = raw["body"];
+  let body: string | null = null;
+  if (rawBody !== null && rawBody !== undefined) {
+    body = boundedText(rawBody, LIMITS.body);
+    if (body === null) return null;
+  }
+
+  const clickUrl = httpsUrl(raw["clickUrl"]);
+  const logoLight = httpsUrl(raw["logoLight"]);
+  const logoDark = httpsUrl(raw["logoDark"]);
+  if (clickUrl === null || logoLight === null || logoDark === null) return null;
+
+  return { campaignId, advertiser, headline, body, clickUrl, logoLight, logoDark };
+}

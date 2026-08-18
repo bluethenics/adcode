@@ -48,6 +48,7 @@ export async function handleServe(
       serveId: deps.ids.next("s"),
       uid,
       creativeId: creative.creativeId,
+      campaignId: campaign.campaignId,
       servedAt: now,
       expiresAt: now + config.serveTtlMs,
     });

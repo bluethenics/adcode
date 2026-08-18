@@ -27,9 +27,23 @@ export interface UserRecord {
   linkedAt?: number;
 }
 
+export interface AdvertiserRecord {
+  advertiserId: string;
+  name: string;
+  ownerUids: string[];
+  status: "active" | "suspended";
+  /** Money paid in, via Dodo. Only ever increased by a settled payment. */
+  fundedMicros: bigint;
+  /** Committed to active campaign budgets, so two campaigns cannot spend the same dollar. */
+  reservedMicros: bigint;
+  createdAt: number;
+}
+
 export interface CampaignRecord {
   campaignId: string;
   advertiserId: string;
+  name: string;
+  createdAt: number;
   cpmMicros: bigint;
   budgetMicros: bigint;
   targetTags: string[];
@@ -52,6 +66,7 @@ export interface ServeRecord {
   serveId: string;
   uid: string;
   creativeId: string;
+  campaignId: string;
   servedAt: number;
   expiresAt: number;
 }
@@ -60,8 +75,20 @@ export interface ReceiptRecord {
   receiptId: string;
   uid: string;
   creativeId: string;
+  campaignId: string;
   outcome: string;
   creditedMicros: bigint;
+  /** What the advertiser was charged. The user's credit is a share of this. */
+  costMicros: bigint;
+}
+
+/** What an advertiser sees for one campaign. Counts, not identities. */
+export interface CampaignStats {
+  campaignId: string;
+  serves: number;
+  impressions: number;
+  clicks: number;
+  spentMicros: bigint;
 }
 
 export interface ServingConfig {
@@ -115,12 +142,22 @@ export interface Store {
   getUser(uid: string): Promise<UserRecord | null>;
   putUser(user: UserRecord): Promise<void>;
 
+  putAdvertiser(advertiser: AdvertiserRecord): Promise<void>;
+  getAdvertiser(advertiserId: string): Promise<AdvertiserRecord | null>;
+  advertiserForOwner(uid: string): Promise<AdvertiserRecord | null>;
+
   putCampaign(campaign: CampaignRecord): Promise<void>;
+  getCampaign(campaignId: string): Promise<CampaignRecord | null>;
+  campaignsForAdvertiser(advertiserId: string): Promise<CampaignRecord[]>;
   activeCampaignsFor(tags: readonly string[]): Promise<CampaignRecord[]>;
+  statsForCampaign(campaignId: string): Promise<CampaignStats>;
 
   putCreative(creative: CreativeRecord): Promise<void>;
   getCreative(creativeId: string): Promise<CreativeRecord | null>;
+  /** Approved only - this is the serving path. */
   creativesForCampaign(campaignId: string): Promise<CreativeRecord[]>;
+  /** Every status, for the advertiser's own view of what they submitted. */
+  allCreativesForCampaign(campaignId: string): Promise<CreativeRecord[]>;
 
   recordServe(serve: ServeRecord): Promise<void>;
   findServe(uid: string, creativeId: string, now: number): Promise<ServeRecord | null>;

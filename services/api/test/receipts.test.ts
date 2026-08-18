@@ -28,6 +28,8 @@ beforeEach(async () => {
   await store.putCampaign({
     campaignId: "camp-1",
     advertiserId: "adv-1",
+    name: "camp-1 campaign",
+    createdAt: 0,
     cpmMicros: 8_000_000n,
     budgetMicros: 1_000_000n,
     targetTags: [],
@@ -48,6 +50,7 @@ beforeEach(async () => {
     serveId: "s-1",
     uid: "u-1",
     creativeId: "c-1",
+    campaignId: "camp-1",
     servedAt: NOW - 10_000,
     expiresAt: NOW + 10_000,
   });
@@ -145,6 +148,7 @@ describe("handleReceipts", () => {
       serveId: "s-2",
       uid: "u-1",
       creativeId: "c-1",
+      campaignId: "camp-1",
       servedAt: NOW,
       expiresAt: NOW + 10_000,
     });

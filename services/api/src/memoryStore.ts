@@ -8,7 +8,9 @@
  */
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "./ledger.ts";
 import type {
+  AdvertiserRecord,
   AuditRecord,
+  CampaignStats,
   CampaignRecord,
   CreativeRecord,
   EntryPage,
@@ -37,6 +39,7 @@ export const DEFAULT_CONFIG: ServingConfig = {
 
 export function createMemoryStore(): Store & { reset(): void } {
   let users = new Map<string, UserRecord>();
+  let advertisers = new Map<string, AdvertiserRecord>();
   let campaigns = new Map<string, CampaignRecord>();
   let creatives = new Map<string, CreativeRecord>();
   let serves = new Map<string, ServeRecord>();
@@ -52,6 +55,7 @@ export function createMemoryStore(): Store & { reset(): void } {
   return {
     reset() {
       users = new Map();
+      advertisers = new Map();
       campaigns = new Map();
       creatives = new Map();
       serves = new Map();
@@ -73,8 +77,51 @@ export function createMemoryStore(): Store & { reset(): void } {
       users.set(user.uid, user);
     },
 
+    async putAdvertiser(advertiser) {
+      advertisers.set(advertiser.advertiserId, advertiser);
+    },
+
+    async getAdvertiser(advertiserId) {
+      return advertisers.get(advertiserId) ?? null;
+    },
+
+    async advertiserForOwner(uid) {
+      for (const a of advertisers.values()) {
+        if (a.ownerUids.includes(uid)) return a;
+      }
+      return null;
+    },
+
     async putCampaign(campaign) {
       campaigns.set(campaign.campaignId, campaign);
+    },
+
+    async getCampaign(campaignId) {
+      return campaigns.get(campaignId) ?? null;
+    },
+
+    async campaignsForAdvertiser(advertiserId) {
+      return [...campaigns.values()]
+        .filter((c) => c.advertiserId === advertiserId)
+        .sort((a, b) => b.createdAt - a.createdAt);
+    },
+
+    async statsForCampaign(campaignId): Promise<CampaignStats> {
+      let serveCount = 0;
+      for (const s of serves.values()) if (s.campaignId === campaignId) serveCount += 1;
+
+      let impressions = 0;
+      let clicks = 0;
+      let spentMicros = 0n;
+
+      for (const r of receipts.values()) {
+        if (r.campaignId !== campaignId) continue;
+        if (r.outcome === "click") clicks += 1;
+        else impressions += 1;
+        spentMicros += r.costMicros;
+      }
+
+      return { campaignId, serves: serveCount, impressions, clicks, spentMicros };
     },
 
     async activeCampaignsFor(tags) {
@@ -100,6 +147,10 @@ export function createMemoryStore(): Store & { reset(): void } {
       return [...creatives.values()].filter(
         (c) => c.campaignId === campaignId && c.status === "approved",
       );
+    },
+
+    async allCreativesForCampaign(campaignId) {
+      return [...creatives.values()].filter((c) => c.campaignId === campaignId);
     },
 
     async recordServe(serve) {

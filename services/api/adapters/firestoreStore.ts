@@ -12,7 +12,9 @@
  */
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../src/ledger.ts";
 import type {
+  AdvertiserRecord,
   AuditRecord,
+  CampaignStats,
   CampaignRecord,
   CreativeRecord,
   EntryPage,
@@ -56,6 +58,107 @@ export function createFirestoreStore(injected?: Firestore): Store {
 
     async putUser(user) {
       await (await lazy()).collection("users").doc(user.uid).set(user);
+    },
+
+    async putAdvertiser(a: AdvertiserRecord) {
+      await (await lazy())
+        .collection("advertisers")
+        .doc(a.advertiserId)
+        .set({
+          ...a,
+          fundedMicros: fromMicros(a.fundedMicros),
+          reservedMicros: fromMicros(a.reservedMicros),
+        });
+    },
+
+    async getAdvertiser(advertiserId) {
+      const snap = await (await lazy()).collection("advertisers").doc(advertiserId).get();
+      if (!snap.exists) return null;
+      const raw = snap.data() ?? {};
+      return {
+        ...(raw as Omit<AdvertiserRecord, "fundedMicros" | "reservedMicros">),
+        fundedMicros: toMicros(raw["fundedMicros"]),
+        reservedMicros: toMicros(raw["reservedMicros"]),
+      };
+    },
+
+    async advertiserForOwner(uid) {
+      const snap = await (await lazy())
+        .collection("advertisers")
+        .where("ownerUids", "array-contains", uid)
+        .limit(1)
+        .get();
+      const doc = snap.docs[0];
+      if (doc === undefined) return null;
+      const raw = doc.data();
+      return {
+        ...(raw as Omit<AdvertiserRecord, "fundedMicros" | "reservedMicros">),
+        fundedMicros: toMicros(raw["fundedMicros"]),
+        reservedMicros: toMicros(raw["reservedMicros"]),
+      };
+    },
+
+    async getCampaign(campaignId) {
+      const snap = await (await lazy()).collection("campaigns").doc(campaignId).get();
+      if (!snap.exists) return null;
+      const raw = snap.data() ?? {};
+      return {
+        ...(raw as Omit<CampaignRecord, "cpmMicros" | "budgetMicros">),
+        cpmMicros: toMicros(raw["cpmMicros"]),
+        budgetMicros: toMicros(raw["budgetMicros"]),
+      };
+    },
+
+    async campaignsForAdvertiser(advertiserId) {
+      const snap = await (await lazy())
+        .collection("campaigns")
+        .where("advertiserId", "==", advertiserId)
+        .orderBy("createdAt", "desc")
+        .get();
+      return snap.docs.map((d) => {
+        const raw = d.data();
+        return {
+          ...(raw as Omit<CampaignRecord, "cpmMicros" | "budgetMicros">),
+          cpmMicros: toMicros(raw["cpmMicros"]),
+          budgetMicros: toMicros(raw["budgetMicros"]),
+        };
+      });
+    },
+
+    async statsForCampaign(campaignId): Promise<CampaignStats> {
+      const database = await lazy();
+
+      // `count()` is an aggregation query - it bills a fraction of a read rather than one
+      // read per document, which matters for a campaign with millions of serves.
+      const serveCount = await database
+        .collection("serves")
+        .where("campaignId", "==", campaignId)
+        .count()
+        .get();
+
+      const receiptSnap = await database
+        .collection("receipts")
+        .where("campaignId", "==", campaignId)
+        .get();
+
+      let impressions = 0;
+      let clicks = 0;
+      let spentMicros = 0n;
+
+      for (const doc of receiptSnap.docs) {
+        const raw = doc.data();
+        if (raw["outcome"] === "click") clicks += 1;
+        else impressions += 1;
+        spentMicros += toMicros(raw["costMicros"]);
+      }
+
+      return {
+        campaignId,
+        serves: serveCount.data().count,
+        impressions,
+        clicks,
+        spentMicros,
+      };
     },
 
     async putCampaign(c) {
@@ -102,6 +205,14 @@ export function createFirestoreStore(injected?: Firestore): Store {
         .collection("creatives")
         .where("campaignId", "==", campaignId)
         .where("status", "==", "approved")
+        .get();
+      return snap.docs.map((d) => d.data() as CreativeRecord);
+    },
+
+    async allCreativesForCampaign(campaignId) {
+      const snap = await (await lazy())
+        .collection("creatives")
+        .where("campaignId", "==", campaignId)
         .get();
       return snap.docs.map((d) => d.data() as CreativeRecord);
     },
