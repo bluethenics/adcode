@@ -59,6 +59,39 @@ module.exports = {
       to: { path: "^packages/ads" },
     },
     {
+      name: "ads-must-not-import-collab",
+      comment:
+        "The firewall's fourth face, and the one with the sharpest edge. packages/collab " +
+        "exists to send the user's source code to another machine - that is its entire " +
+        "purpose, and it is why the two sides of this rule must never meet. The ad side's " +
+        "promise in §1 is that nothing from the user's code leaves the machine through an ad " +
+        "request; a single import in either direction would put a transport built for " +
+        "shipping source code inside reach of the pipeline that promises not to.",
+      severity: "error",
+      from: { path: "^packages/ads" },
+      to: { path: "^packages/collab" },
+    },
+    {
+      name: "collab-must-not-import-ads",
+      comment:
+        "And the reverse. A collaboration session must never be able to reach the ad " +
+        "client's transport, its receipts, or its balance - a guest on someone else's LAN " +
+        "has no business anywhere near the host's earnings.",
+      severity: "error",
+      from: { path: "^packages/collab" },
+      to: { path: "^packages/ads" },
+    },
+    {
+      name: "collab-must-not-import-memory-or-ai",
+      comment:
+        "Collaboration carries the user's code over a socket. Memory and AI hold the user's " +
+        "code, their prompts, and model output about both. Keeping them apart means a " +
+        "session cannot become a route for anything beyond the files being edited.",
+      severity: "error",
+      from: { path: "^packages/collab" },
+      to: { path: "^packages/(memory|ai)" },
+    },
+    {
       name: "mock-server-must-not-import-client",
       comment:
         "§10: 'The mock server must not import the client's types.' A mock that shares " +
@@ -66,6 +99,17 @@ module.exports = {
         "main thing it exists to do.",
       severity: "error",
       from: { path: "^mock-server" },
+      to: { path: "^packages/" },
+    },
+    {
+      name: "api-must-not-import-client",
+      comment:
+        "Spec D1: the real service must not import the client's types, for the same " +
+        "reason the mock server must not. A server that shares the client's definitions " +
+        "cannot catch a contract mismatch, and catching one is the main thing the " +
+        "separation buys.",
+      severity: "error",
+      from: { path: "^services/api" },
       to: { path: "^packages/" },
     },
     {
