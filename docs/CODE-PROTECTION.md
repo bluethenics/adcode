@@ -62,6 +62,31 @@ an environment variable or a command-line argument. Configured in `electron-buil
 These do not hide the code. They stop a shipped ADCode being repurposed as a general
 way to run code with ADCode's identity — which is a different and more useful goal.
 
+**Verified**, not assumed. Read them back out of a packaged build:
+
+```
+npx @electron/fuses read --app "release/win-unpacked/ADCode.exe"
+```
+
+On the 0.1.0 build that produced this document:
+
+```
+RunAsNode is Disabled
+EnableCookieEncryption is Enabled
+EnableNodeOptionsEnvironmentVariable is Disabled
+EnableNodeCliInspectArguments is Disabled
+OnlyLoadAppFromAsar is Enabled
+```
+
+The packaged app was launched afterwards to confirm the fuses did not break startup —
+`onlyLoadAppFromAsar` is the one that can, if anything outside the archive is loaded at
+boot.
+
+One packaging note: applying fuses rewrites the Electron binary, and doing that while
+electron-builder is still downloading Electron fails with `Unable to update lock within
+the stale threshold`. It is a lock collision, not a configuration problem. Re-run
+`npm run package` once the download has completed and cached.
+
 **No source maps ship.** Vite's production build emits none, so the bundle carries no
 path back to readable original sources.
 

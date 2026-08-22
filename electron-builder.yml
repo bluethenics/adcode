@@ -50,6 +50,27 @@ files:
 asarUnpack:
   - "**/node_modules/node-pty/**"
 
+# Electron fuses: flags flipped in the binary itself, so they cannot be turned back on by
+# an environment variable or a command-line argument.
+#
+# None of this hides the JavaScript - asar is an archive, not encryption, and anyone can
+# unpack it. What these do is close the shortcuts that turn a shipped Electron app into a
+# general-purpose way to run code as that app:
+#
+#   runAsNode                          ELECTRON_RUN_AS_NODE=1 adcode.exe evil.js
+#   enableNodeOptionsEnvironmentVariable  NODE_OPTIONS=--require=evil.js
+#   enableNodeCliInspectArguments      --inspect, to attach a debugger and read memory
+#   onlyLoadAppFromAsar                swapping the asar for an unpacked directory
+#
+# The valuable logic is on the server for exactly the reason these fuses cannot fix: the
+# renderer's code is on the user's machine and always will be.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  onlyLoadAppFromAsar: true
+
 # Where updates come from. electron-updater reads this same block at runtime to find the
 # feed, so the app and the installer always agree on where releases live.
 #
