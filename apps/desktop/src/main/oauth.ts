@@ -20,6 +20,37 @@ import { createServer } from "node:http";
 import { createHash, randomBytes } from "node:crypto";
 import { shell } from "electron";
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  PASTE YOUR OAUTH CLIENT IDS HERE.  See docs/OAUTH-SETUP.md for how to get them.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * These are safe to commit. An OAuth client id for an installed app is a public
+ * identifier, not a credential - Google's own guidance is that "installed apps are
+ * distributed to individual devices, and it is assumed that these apps cannot keep
+ * secrets", which is exactly why PKCE and the device flow exist. What must never be
+ * committed is a client *secret*, and neither flow here needs one.
+ *
+ * Environment variables override these, for anyone testing against their own clients.
+ */
+const GOOGLE_CLIENT_ID = process.env["ADCODE_GOOGLE_CLIENT_ID"] ?? "";
+const GITHUB_CLIENT_ID = process.env["ADCODE_GITHUB_CLIENT_ID"] ?? "";
+
+/**
+ * Optional, and only for Google.
+ *
+ * Google marks `client_secret` optional on the token exchange when PKCE is used, and this
+ * omits it. Some Desktop-type clients are issued one anyway; setting this covers that
+ * case without making a secret a requirement.
+ */
+const GOOGLE_CLIENT_SECRET = process.env["ADCODE_GOOGLE_CLIENT_SECRET"] ?? "";
+
+/** Whether sign-in can be offered at all. The UI hides the buttons when it cannot. */
+export const oauthConfigured = {
+  google: () => GOOGLE_CLIENT_ID.length > 0,
+  github: () => GITHUB_CLIENT_ID.length > 0,
+};
+
 export type OAuthResult =
   | { ok: true; provider: "google.com"; idToken: string }
   | { ok: true; provider: "github.com"; accessToken: string }
@@ -34,8 +65,8 @@ const base64url = (buffer: Buffer): string =>
 /* ── Google ─────────────────────────────────────────────────────────────── */
 
 export async function linkWithGoogle(): Promise<OAuthResult> {
-  const clientId = process.env["ADCODE_GOOGLE_CLIENT_ID"];
-  if (clientId === undefined) {
+  const clientId = GOOGLE_CLIENT_ID;
+  if (clientId.length === 0) {
     return { ok: false, reason: "Google sign-in isn't configured in this build." };
   }
 
@@ -119,6 +150,7 @@ async function exchangeGoogleCode(
         code_verifier: verifier,
         grant_type: "authorization_code",
         redirect_uri: `http://127.0.0.1:${port}`,
+        ...(GOOGLE_CLIENT_SECRET.length > 0 ? { client_secret: GOOGLE_CLIENT_SECRET } : {}),
       }),
       signal: AbortSignal.timeout(20_000),
     });
@@ -148,8 +180,8 @@ export interface DeviceCode {
  * begins. `onCode` fires as soon as GitHub issues it.
  */
 export async function linkWithGitHub(onCode: (code: DeviceCode) => void): Promise<OAuthResult> {
-  const clientId = process.env["ADCODE_GITHUB_CLIENT_ID"];
-  if (clientId === undefined) {
+  const clientId = GITHUB_CLIENT_ID;
+  if (clientId.length === 0) {
     return { ok: false, reason: "GitHub sign-in isn't configured in this build." };
   }
 
