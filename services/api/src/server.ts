@@ -11,7 +11,17 @@ import { handleServe } from "./serve.ts";
 import { handleReceipts } from "./receipts.ts";
 import { handleBalance, handleLedger } from "./balance.ts";
 import { handleConfig } from "./config.ts";
-import { handleAdminLedger } from "./admin.ts";
+import {
+  handleAdminLedger,
+  handleListPosts,
+  handleListUsers,
+  handleQueueTestServe,
+  handleReviewQueue,
+  handleSavePost,
+  handleSetCreativeStatus,
+  handleSetUserStatus,
+  parsePost,
+} from "./admin.ts";
 import { parseReceiptsRequest, parseReportRequest, parseServeRequest } from "./contract.ts";
 import { handleAdminListReports, handleSubmitReport } from "./reports.ts";
 import { checkRate } from "./rateLimit.ts";
@@ -174,6 +184,31 @@ export async function createApiServer(
       return;
     }
 
+    /*
+     * Published blog posts, before authentication.
+     *
+     * These are public by definition - they are what the marketing site renders for
+     * search engines. Requiring a token would mean the site needed a service account to
+     * read its own blog. Drafts are never included; that filter is in the store query,
+     * not in a caller-supplied flag.
+     */
+    if (path === "/v1/posts" && req.method === "GET") {
+      const posts = await store.listPosts({ publishedOnly: true });
+      send(res, 200, { posts }, cors);
+      return;
+    }
+
+    const publicPost = /^\/v1\/posts\/([^/]+)$/.exec(path);
+    if (publicPost !== null && req.method === "GET") {
+      const post = await store.getPost(decodeURIComponent(publicPost[1] ?? ""));
+      if (post === null || post.status !== "published") {
+        send(res, 404, { error: "not found" }, cors);
+        return;
+      }
+      send(res, 200, post, cors);
+      return;
+    }
+
     const auth = await authenticate({ store, verifier, clock }, req.headers.authorization);
     if (!auth.ok) {
       // A ban is 403 rather than 401: the credentials are fine, the answer is still no,
@@ -196,21 +231,130 @@ export async function createApiServer(
       return;
     }
 
+    /** Reads and parses a JSON body, answering 400 itself if it cannot. */
+    const jsonBodyOr400 = async (): Promise<unknown | undefined> => {
+      try {
+        return JSON.parse(await readBody(req)) as unknown;
+      } catch {
+        send(res, 400, { error: "malformed body" }, cors);
+        return undefined;
+      }
+    };
+
+    /*
+     * One gate for the whole admin surface, ahead of every admin route.
+     *
+     * A per-route check is a check someone forgets when adding the next route. Matching
+     * on the path prefix means a new /v1/admin/* endpoint is guarded before it is
+     * written, not after somebody notices.
+     */
+    if (path.startsWith("/v1/admin/") && !auth.isAdmin) {
+      send(res, 403, { error: "not-admin" }, cors);
+      return;
+    }
+
     if (path === "/v1/admin/reports" && req.method === "GET") {
-      if (!auth.isAdmin) {
-        send(res, 403, { error: "not-admin" }, cors);
+      send(res, 200, await handleAdminListReports({ store, clock, ids }, auth.uid, pageFrom(url)), cors);
+      return;
+    }
+
+    if (path === "/v1/admin/users" && req.method === "GET") {
+      send(res, 200, await handleListUsers({ store, clock }, auth.uid, pageFrom(url)), cors);
+      return;
+    }
+
+    const userStatus = /^\/v1\/admin\/users\/([^/]+)\/status$/.exec(path);
+    if (userStatus !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const next = (raw as Record<string, unknown>)["status"];
+      if (next !== "active" && next !== "banned") {
+        send(res, 400, { error: "malformed status" }, cors);
         return;
       }
-      send(res, 200, await handleAdminListReports({ store, clock, ids }, auth.uid, pageFrom(url)), cors);
+      try {
+        await handleSetUserStatus(
+          { store, clock },
+          auth.uid,
+          decodeURIComponent(userStatus[1] ?? ""),
+          next,
+        );
+      } catch {
+        send(res, 404, { error: "not-found" }, cors);
+        return;
+      }
+      send(res, 200, { ok: true }, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/creatives" && req.method === "GET") {
+      send(res, 200, { creatives: await handleReviewQueue({ store, clock }, auth.uid) }, cors);
+      return;
+    }
+
+    const creativeStatus = /^\/v1\/admin\/creatives\/([^/]+)\/status$/.exec(path);
+    if (creativeStatus !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const next = (raw as Record<string, unknown>)["status"];
+      if (next !== "approved" && next !== "rejected" && next !== "pending") {
+        send(res, 400, { error: "malformed status" }, cors);
+        return;
+      }
+      const updated = await handleSetCreativeStatus(
+        { store, clock },
+        auth.uid,
+        decodeURIComponent(creativeStatus[1] ?? ""),
+        next,
+      );
+      if (updated === null) {
+        send(res, 404, { error: "not-found" }, cors);
+        return;
+      }
+      send(res, 200, updated, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/test-serve" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const fields = raw as Record<string, unknown>;
+      const targetUid = typeof fields["uid"] === "string" ? fields["uid"] : "";
+      const creativeId = typeof fields["creativeId"] === "string" ? fields["creativeId"] : "";
+
+      if (targetUid.length === 0 || creativeId.length === 0) {
+        send(res, 400, { error: "malformed test serve" }, cors);
+        return;
+      }
+
+      const queued = await handleQueueTestServe({ store, clock }, auth.uid, targetUid, creativeId);
+      if (!queued.ok) {
+        send(res, 404, { error: queued.error }, cors);
+        return;
+      }
+      send(res, 200, { ok: true }, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/posts" && req.method === "GET") {
+      send(res, 200, { posts: await handleListPosts({ store, clock }, auth.uid) }, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/posts" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const input = parsePost(raw);
+      if (input === null) {
+        send(res, 400, { error: "malformed post" }, cors);
+        return;
+      }
+      send(res, 200, await handleSavePost({ store, clock }, auth.uid, input), cors);
       return;
     }
 
     const admin = ADMIN_LEDGER.exec(path);
     if (admin !== null && req.method === "GET") {
-      if (!auth.isAdmin) {
-        send(res, 403, { error: "not-admin" }, cors);
-        return;
-      }
       const subject = decodeURIComponent(admin[1] ?? "");
       send(res, 200, await handleAdminLedger({ store, clock }, auth.uid, subject, pageFrom(url)), cors);
       return;
@@ -277,15 +421,6 @@ export async function createApiServer(
       else send(res, ADVERTISER_STATUS[result.error], { error: result.error }, cors);
     };
 
-    const jsonBody = async (): Promise<unknown | undefined> => {
-      try {
-        return JSON.parse(await readBody(req)) as unknown;
-      } catch {
-        send(res, 400, { error: "malformed body" }, cors);
-        return undefined;
-      }
-    };
-
     if (path === "/v1/portal/limits" && req.method === "GET") {
       send(res, 200, PORTAL_LIMITS, cors);
       return;
@@ -297,7 +432,7 @@ export async function createApiServer(
     }
 
     if (path === "/v1/portal/advertiser" && req.method === "POST") {
-      const raw = await jsonBody();
+      const raw = await jsonBodyOr400();
       if (raw === undefined) return;
       const body = parseCreateAdvertiser(raw);
       if (body === null) {
@@ -314,7 +449,7 @@ export async function createApiServer(
     }
 
     if (path === "/v1/portal/campaigns" && req.method === "POST") {
-      const raw = await jsonBody();
+      const raw = await jsonBodyOr400();
       if (raw === undefined) return;
       const body = parseCampaign(raw);
       if (body === null) {
@@ -327,7 +462,7 @@ export async function createApiServer(
 
     const campaignStatus = /^\/v1\/portal\/campaigns\/([^/]+)\/status$/.exec(path);
     if (campaignStatus !== null && req.method === "POST") {
-      const raw = await jsonBody();
+      const raw = await jsonBodyOr400();
       if (raw === undefined) return;
 
       const next = (raw as Record<string, unknown>)["status"];
@@ -367,7 +502,7 @@ export async function createApiServer(
         return;
       }
 
-      const raw = await jsonBody();
+      const raw = await jsonBodyOr400();
       if (raw === undefined) return;
       const fields = raw as Record<string, unknown>;
 
@@ -401,7 +536,7 @@ export async function createApiServer(
     }
 
     if (path === "/v1/portal/creatives" && req.method === "POST") {
-      const raw = await jsonBody();
+      const raw = await jsonBodyOr400();
       if (raw === undefined) return;
       const body = parseCreative(raw);
       if (body === null) {

@@ -69,6 +69,11 @@ export interface ServeRecord {
   campaignId: string;
   servedAt: number;
   expiresAt: number;
+  /**
+   * An admin test serve. Its receipt is acknowledged and recorded but never bills the
+   * advertiser or credits the user - testing delivery must not move anyone's money.
+   */
+  test?: boolean;
 }
 
 export interface ReceiptRecord {
@@ -127,6 +132,23 @@ export interface FundingRecord {
   amountMicros: bigint;
   currency: string;
   at: number;
+}
+
+/** A blog post. Authored in the admin panel, rendered by the marketing site. */
+export interface PostRecord {
+  slug: string;
+  title: string;
+  description: string;
+  body: string;
+  status: "draft" | "published";
+  authorUid: string;
+  publishedAt: number | null;
+  updatedAt: number;
+}
+
+export interface UserPage {
+  rows: UserRecord[];
+  nextCursor: string | null;
 }
 
 export interface ReportRecord {
@@ -197,6 +219,18 @@ export interface Store {
 
   createReport(report: ReportRecord): Promise<void>;
   listReports(page: Page): Promise<ReportPage>;
+
+  listUsers(page: Page): Promise<UserPage>;
+  creativesByStatus(status: CreativeRecord["status"]): Promise<CreativeRecord[]>;
+
+  putPost(post: PostRecord): Promise<void>;
+  getPost(slug: string): Promise<PostRecord | null>;
+  listPosts(options: { publishedOnly: boolean }): Promise<PostRecord[]>;
+
+  /** Queues one creative to be served to this uid on their next request, ignoring targeting. */
+  setTestServe(uid: string, creativeId: string): Promise<void>;
+  /** Returns and clears any queued test serve. Single-use, so a test cannot repeat forever. */
+  takeTestServe(uid: string): Promise<string | null>;
 
   getConfig(): Promise<ServingConfig>;
   putConfig(config: ServingConfig): Promise<void>;

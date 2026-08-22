@@ -23,6 +23,46 @@ export async function handleServe(
   const config = await deps.store.getConfig();
   if (config.killSwitch || body.count <= 0) return { creatives: [] };
 
+  /*
+   * An admin test serve, if one is queued for this user.
+   *
+   * Deliberately ahead of targeting and budget: the point of a test is to prove delivery
+   * works, which means it must not depend on the campaign it belongs to being live or
+   * matching the tester's tags. Single-use - `takeTestServe` clears it - and flagged, so
+   * the resulting receipt bills nobody.
+   */
+  const testCreativeId = await deps.store.takeTestServe(uid);
+  if (testCreativeId !== null) {
+    const creative = await deps.store.getCreative(testCreativeId);
+    if (creative !== null) {
+      const at = deps.clock.now();
+      await deps.store.recordServe({
+        serveId: deps.ids.next("s"),
+        uid,
+        creativeId: creative.creativeId,
+        campaignId: creative.campaignId,
+        servedAt: at,
+        expiresAt: at + config.serveTtlMs,
+        test: true,
+      });
+
+      return {
+        creatives: [
+          {
+            creativeId: creative.creativeId,
+            advertiser: creative.advertiser,
+            headline: creative.headline,
+            body: creative.body,
+            clickUrl: creative.clickUrl,
+            logoLight: creative.logoLight,
+            logoDark: creative.logoDark,
+            ttlMs: config.serveTtlMs,
+          },
+        ],
+      };
+    }
+  }
+
   const campaigns = await deps.store.activeCampaignsFor(body.tags);
 
   const candidates: Candidate[] = await Promise.all(

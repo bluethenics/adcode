@@ -41,7 +41,10 @@ export async function handleReceipts(
     const serve = await deps.store.findServe(uid, receipt.creativeId, now);
     const verdict = checkReceipt(receipt, serve, now);
 
-    if (!verdict.ok) {
+    // `checkReceipt` returns `no-serve` when there is none, so passing implies one
+    // exists - but that is a guarantee of its logic, not of its type. Narrowed here
+    // rather than asserted, so a future change to that contract fails compilation.
+    if (!verdict.ok || serve === null) {
       acked.push(receipt.receiptId);
       continue;
     }
@@ -52,8 +55,15 @@ export async function handleReceipts(
       continue;
     }
 
-    const cost = advertiserCostMicros(config.defaultCpmMicros);
-    const credit = userCreditMicros(cost, config.revSharePercent);
+    /*
+     * A test serve is acknowledged and recorded, but worth nothing.
+     *
+     * Zeroing the amounts rather than skipping the receipt keeps the idempotency record,
+     * so a replayed test receipt still cannot become a real one later.
+     */
+    const isTest = serve.test === true;
+    const cost = isTest ? 0n : advertiserCostMicros(config.defaultCpmMicros);
+    const credit = isTest ? 0n : userCreditMicros(cost, config.revSharePercent);
 
     // The idempotency gate. If this returns false the receipt was already paid, and we
     // ack without paying again.
@@ -82,8 +92,12 @@ export async function handleReceipts(
       description: describeEntry(creative.advertiser, receipt),
     };
 
-    await deps.store.appendEntryAndUpdateBalance(entry);
-    await deps.store.addSpend(creative.campaignId, cost);
+    // No ledger row and no spend for a test: an entry of zero is noise on someone's
+    // earnings page, and a zero charge is noise on an advertiser's invoice.
+    if (!isTest) {
+      await deps.store.appendEntryAndUpdateBalance(entry);
+      await deps.store.addSpend(creative.campaignId, cost);
+    }
 
     acked.push(receipt.receiptId);
   }

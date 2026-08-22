@@ -17,8 +17,10 @@ import type {
   Page,
   FundingRecord,
   ReceiptRecord,
+  PostRecord,
   ReportPage,
   ReportRecord,
+  UserPage,
   ServeRecord,
   ServingConfig,
   Store,
@@ -51,6 +53,8 @@ export function createMemoryStore(): Store & { reset(): void } {
   let requestCounts = new Map<string, number>();
   let reports = new Map<string, ReportRecord>();
   let fundings = new Map<string, FundingRecord>();
+  let posts = new Map<string, PostRecord>();
+  let testServes = new Map<string, string>();
   let audit: AuditRecord[] = [];
   let config: ServingConfig = { ...DEFAULT_CONFIG };
 
@@ -68,6 +72,8 @@ export function createMemoryStore(): Store & { reset(): void } {
       requestCounts = new Map();
       reports = new Map();
       fundings = new Map();
+      posts = new Map();
+      testServes = new Map();
       audit = [];
       config = { ...DEFAULT_CONFIG };
     },
@@ -239,6 +245,43 @@ export function createMemoryStore(): Store & { reset(): void } {
       const last = rows.at(-1);
       const more = start + rows.length < all.length;
       return { rows, nextCursor: more && last !== undefined ? last.reportId : null };
+    },
+
+    async listUsers(page: Page): Promise<UserPage> {
+      const all = [...users.values()].sort((a, b) => b.createdAt - a.createdAt || a.uid.localeCompare(b.uid));
+      const start = page.cursor === null ? 0 : all.findIndex((u) => u.uid === page.cursor) + 1;
+      const rows = all.slice(start, start + page.limit);
+      const last = rows.at(-1);
+      const more = start + rows.length < all.length;
+      return { rows, nextCursor: more && last !== undefined ? last.uid : null };
+    },
+
+    async creativesByStatus(status) {
+      return [...creatives.values()].filter((c) => c.status === status);
+    },
+
+    async putPost(post) {
+      posts.set(post.slug, post);
+    },
+
+    async getPost(slug) {
+      return posts.get(slug) ?? null;
+    },
+
+    async listPosts(options) {
+      return [...posts.values()]
+        .filter((p) => !options.publishedOnly || p.status === "published")
+        .sort((a, b) => (b.publishedAt ?? b.updatedAt) - (a.publishedAt ?? a.updatedAt));
+    },
+
+    async setTestServe(uid, creativeId) {
+      testServes.set(uid, creativeId);
+    },
+
+    async takeTestServe(uid) {
+      const found = testServes.get(uid) ?? null;
+      if (found !== null) testServes.delete(uid);
+      return found;
     },
 
     async getConfig() {

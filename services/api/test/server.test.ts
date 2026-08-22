@@ -340,6 +340,95 @@ describe("checkout", () => {
   });
 });
 
+describe("admin surface", () => {
+  const adminHeaders = { authorization: "Bearer admin", "content-type": "application/json" };
+  const adminGet = (path: string) => get(path, adminHeaders);
+  const adminPost = (path: string, body: unknown) => post(path, body, adminHeaders);
+
+  it("refuses every admin route to a non-admin", async () => {
+    expect((await get("/v1/admin/users")).status).toBe(403);
+    expect((await get("/v1/admin/creatives")).status).toBe(403);
+    expect((await get("/v1/admin/posts")).status).toBe(403);
+    expect((await post("/v1/admin/test-serve", { uid: "u-1", creativeId: "c-1" })).status).toBe(403);
+  });
+
+  it("still requires a token before the admin check", async () => {
+    expect((await get("/v1/admin/users", {})).status).toBe(401);
+  });
+
+  it("lists users for an admin", async () => {
+    await get("/v1/balance"); // creates u-1 on first sight
+    const body = (await (await adminGet("/v1/admin/users")).json()) as { rows: unknown[] };
+    expect(body.rows.length).toBeGreaterThan(0);
+  });
+
+  it("bans and unbans a user", async () => {
+    await get("/v1/balance");
+    expect((await adminPost("/v1/admin/users/u-1/status", { status: "banned" })).status).toBe(200);
+    expect((await get("/v1/balance")).status).toBe(403);
+
+    await adminPost("/v1/admin/users/u-1/status", { status: "active" });
+    expect((await get("/v1/balance")).status).toBe(200);
+  });
+
+  it("404s a ban against a user who does not exist", async () => {
+    expect((await adminPost("/v1/admin/users/nobody/status", { status: "banned" })).status).toBe(404);
+  });
+
+  it("400s an unknown user status", async () => {
+    await get("/v1/balance");
+    expect((await adminPost("/v1/admin/users/u-1/status", { status: "deleted" })).status).toBe(400);
+  });
+
+  it("saves a post and serves it publicly without a token", async () => {
+    const saved = await adminPost("/v1/admin/posts", {
+      slug: "hello-world",
+      title: "Hello world",
+      description: "A first post.",
+      body: "Some text.",
+      status: "published",
+    });
+    expect(saved.status).toBe(200);
+
+    // No auth header at all - published posts are public content.
+    const publicList = await fetch(`${server.url}/v1/posts`);
+    expect(publicList.status).toBe(200);
+    const body = (await publicList.json()) as { posts: { slug: string }[] };
+    expect(body.posts.map((p) => p.slug)).toEqual(["hello-world"]);
+  });
+
+  it("never serves a draft publicly", async () => {
+    await adminPost("/v1/admin/posts", {
+      slug: "secret-draft",
+      title: "Draft",
+      description: "Not ready.",
+      body: "Text.",
+      status: "draft",
+    });
+
+    const one = await fetch(`${server.url}/v1/posts/secret-draft`);
+    expect(one.status).toBe(404);
+
+    const list = (await (await fetch(`${server.url}/v1/posts`)).json()) as { posts: unknown[] };
+    expect(list.posts).toHaveLength(0);
+  });
+
+  it("400s a post whose slug would break a URL", async () => {
+    const bad = await adminPost("/v1/admin/posts", {
+      slug: "Hello World",
+      title: "T",
+      description: "D",
+      body: "B",
+      status: "draft",
+    });
+    expect(bad.status).toBe(400);
+  });
+
+  it("404s a test serve for a creative that does not exist", async () => {
+    expect((await adminPost("/v1/admin/test-serve", { uid: "u-1", creativeId: "nope" })).status).toBe(404);
+  });
+});
+
 describe("rate limiting", () => {
   it("429s a user over the ceiling, and says when to come back", async () => {
     const cfg = await store.getConfig();

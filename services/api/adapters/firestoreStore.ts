@@ -21,8 +21,10 @@ import type {
   FundingRecord,
   Page,
   ReceiptRecord,
+  PostRecord,
   ReportPage,
   ReportRecord,
+  UserPage,
   ServeRecord,
   ServingConfig,
   Store,
@@ -400,6 +402,60 @@ export function createFirestoreStore(injected?: Firestore): Store {
       const last = rows.at(-1);
 
       return { rows, nextCursor: more && last !== undefined ? last.reportId : null };
+    },
+
+    async listUsers(page: Page): Promise<UserPage> {
+      const database = await lazy();
+      let q = database.collection("users").orderBy("createdAt", "desc").limit(page.limit + 1);
+      if (page.cursor !== null) {
+        const cursorSnap = await database.collection("users").doc(page.cursor).get();
+        if (cursorSnap.exists) q = q.startAfter(cursorSnap);
+      }
+      const snap = await q.get();
+      const rows = snap.docs.slice(0, page.limit).map((d) => d.data() as UserRecord);
+      const more = snap.docs.length > page.limit;
+      const last = rows.at(-1);
+      return { rows, nextCursor: more && last !== undefined ? last.uid : null };
+    },
+
+    async creativesByStatus(status) {
+      const snap = await (await lazy()).collection("creatives").where("status", "==", status).get();
+      return snap.docs.map((d) => d.data() as CreativeRecord);
+    },
+
+    async putPost(post: PostRecord) {
+      await (await lazy()).collection("posts").doc(post.slug).set(post);
+    },
+
+    async getPost(slug) {
+      const snap = await (await lazy()).collection("posts").doc(slug).get();
+      return snap.exists ? (snap.data() as PostRecord) : null;
+    },
+
+    async listPosts(options) {
+      const database = await lazy();
+      const base = database.collection("posts");
+      const snap = await (options.publishedOnly ? base.where("status", "==", "published") : base).get();
+      return snap.docs
+        .map((d) => d.data() as PostRecord)
+        .sort((a, b) => (b.publishedAt ?? b.updatedAt) - (a.publishedAt ?? a.updatedAt));
+    },
+
+    async setTestServe(uid, creativeId) {
+      await (await lazy())
+        .collection("testServes")
+        .doc(uid)
+        .set({ creativeId, at: Date.now() });
+    },
+
+    async takeTestServe(uid) {
+      const ref = (await lazy()).collection("testServes").doc(uid);
+      const snap = await ref.get();
+      if (!snap.exists) return null;
+      const creativeId = snap.data()?.["creativeId"];
+      // Deleted on read, so a queued test fires exactly once.
+      await ref.delete();
+      return typeof creativeId === "string" ? creativeId : null;
     },
 
     async getConfig(): Promise<ServingConfig> {
