@@ -13,6 +13,9 @@ keeps an append-only money ledger; `apps/web` is the marketing site, advertiser 
 user dashboard, and admin panel. Not built: full language intelligence (LSP, DAP), and
 paying users out.
 
+**Deploying it?** `SETUP.md` is the ordered list of everything that needs your account,
+your card, or a lawyer. Nothing in it is a coding task.
+
 ```
 npm install
 npm start               # build if needed, then launch
