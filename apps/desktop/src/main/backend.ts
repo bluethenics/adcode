@@ -21,6 +21,22 @@ import {
 /** Production. Overridden by `ADCODE_AD_SERVER`, which is how the mock server is used. */
 export const DEFAULT_API_ORIGIN = "https://api.adcode.bluethenics.com";
 
+/**
+ * The Firebase web API key for `adcode-idle`.
+ *
+ * Committed on purpose. A Firebase web API key is a public project identifier, not a
+ * credential - it ships in the bundle of every Firebase web app ever built, and it is
+ * already in `apps/web/apphosting.yaml` for exactly that reason. What guards the data is
+ * token verification in `services/api` and `firestore.rules` denying every direct client
+ * read.
+ *
+ * It lives here rather than only in an environment variable because requiring one meant
+ * `npm start` silently hid every sign-in surface, and a developer could not see the
+ * feature they had just built. Env still overrides, for anyone pointing at another
+ * project.
+ */
+const DEFAULT_FIREBASE_API_KEY = "AIzaSyATZzX5Fw2HjR34VxB3UQWTmljprA5uXqE";
+
 export function apiOrigin(): string {
   return process.env["ADCODE_AD_SERVER"] ?? DEFAULT_API_ORIGIN;
 }
@@ -75,10 +91,12 @@ export function backendAccount(deps: {
 }): FirebaseAuth | null {
   if (shared !== null) return shared;
 
-  const devServer = process.env["ADCODE_AD_SERVER"];
-  const firebaseKey = process.env["ADCODE_FIREBASE_API_KEY"];
-  if (devServer !== undefined || firebaseKey === undefined) return null;
+  // A dev server means the mock, which has no Firebase behind it and nothing to link to.
+  if (process.env["ADCODE_AD_SERVER"] !== undefined) return null;
 
-  shared = createFirebaseAuth({ ...deps, apiKey: firebaseKey });
+  const apiKey = process.env["ADCODE_FIREBASE_API_KEY"] ?? DEFAULT_FIREBASE_API_KEY;
+  if (apiKey.length === 0) return null;
+
+  shared = createFirebaseAuth({ ...deps, apiKey });
   return shared;
 }

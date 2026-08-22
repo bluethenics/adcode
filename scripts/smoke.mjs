@@ -664,6 +664,34 @@ checks.titleBarControlsWork = await (async () => {
  * test run, and what is worth checking here is that the button is reachable and the form
  * opens - the round trip has its own tests in services/api.
  */
+/*
+ * The account button, and that it is visible out of the box.
+ *
+ * `hidden` is the check that matters. The button hides itself when there is no Firebase
+ * key, which was right in principle and meant a plain `npm start` showed no sign-in at
+ * all - the feature existed and nobody could see it. A committed default key fixed that,
+ * and this fails if anything puts it back.
+ */
+checks.accountButtonVisible = await (async () => {
+  const state = await evaluate(
+    `(() => {
+       const button = document.getElementById('account-toggle');
+       if (!button) return 'no account button';
+       if (button.hidden) return 'the account button is hidden - is the Firebase key configured?';
+
+       const feedback = document.getElementById('report-toggle');
+       if (!feedback) return 'no feedback button to sit after';
+       const b = button.getBoundingClientRect();
+       const f = feedback.getBoundingClientRect();
+       if (b.width === 0) return 'the account button has no width';
+       if (b.left < f.right) return 'the account button is not after the feedback button';
+       return true;
+     })()`,
+  );
+
+  return state === true ? true : `the account button: ${state}`;
+})();
+
 checks.reportDialogOpens = await (async () => {
   const geometry = await evaluate(
     `(() => {
