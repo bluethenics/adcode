@@ -9,7 +9,14 @@
  * there is no origin and no preflight.
  */
 
-const DEFAULT_ORIGINS = ["https://adcode.bluethenics.com"];
+const DEFAULT_ORIGINS = [
+  "https://adcode.bluethenics.com",
+  // Firebase gives an App Hosting backend these before a custom domain is attached, and
+  // the site is genuinely reachable at them - omitting them means sign-in works on the
+  // custom domain and mysteriously fails on the one you are handed first.
+  "https://adcode-idle.web.app",
+  "https://adcode-idle.firebaseapp.com",
+];
 
 /** Extra origins for local development, comma-separated in `ADCODE_CORS_ORIGINS`. */
 function allowed(): ReadonlySet<string> {

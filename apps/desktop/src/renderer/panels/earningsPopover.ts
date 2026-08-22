@@ -29,7 +29,7 @@
  *   that does not exist yet. The panel says so in those words instead of drawing an empty
  *   chart, which would read as "you have earned nothing" rather than "this is not built".
  */
-import type { EarningsSnapshot } from "../../shared/api.ts";
+import type { AccountState, EarningsSnapshot } from "../../shared/api.ts";
 import { ICON, iconButton } from "../workbench/icons.ts";
 
 export interface EarningsPopoverDeps {
@@ -185,6 +185,122 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
   presetSection.append(presetHeading, presetList);
 
+  /* ── Account ────────────────────────────────────────────────────────────── */
+
+  /*
+   * The sign-in prompt.
+   *
+   * It does NOT say "sign in to earn", because that would be false: earnings accrue from
+   * first launch with no account at all, which is the whole point of the no-wall design.
+   * What an account buys is keeping the money - reaching it from the dashboard, and
+   * withdrawing it once withdrawals open. Saying the true thing is also the more
+   * persuasive thing, because the false version collapses the moment someone notices
+   * their balance rising while signed out.
+   */
+  const accountRow = document.createElement("div");
+  accountRow.className = "earnings-account";
+  accountRow.hidden = true;
+
+  const avatar = document.createElement("img");
+  avatar.className = "earnings-avatar";
+  avatar.alt = "";
+  avatar.hidden = true;
+  // A provider's CDN can 404 or be blocked; falling back to nothing beats a broken image.
+  avatar.addEventListener("error", () => {
+    avatar.hidden = true;
+  });
+
+  const accountText = document.createElement("div");
+  accountText.className = "earnings-account-text";
+
+  const accountTitle = document.createElement("span");
+  accountTitle.className = "earnings-account-title";
+
+  const accountBody = document.createElement("span");
+  accountBody.className = "earnings-account-body";
+
+  accountText.append(accountTitle, accountBody);
+
+  const accountActions = document.createElement("div");
+  accountActions.className = "earnings-account-actions";
+
+  const googleButton = document.createElement("button");
+  googleButton.type = "button";
+  googleButton.className = "ghost-button";
+  googleButton.textContent = "Google";
+
+  const githubButton = document.createElement("button");
+  githubButton.type = "button";
+  githubButton.className = "ghost-button";
+  githubButton.textContent = "GitHub";
+
+  accountActions.append(googleButton, githubButton);
+  accountRow.append(avatar, accountText, accountActions);
+
+  const linking = (busy: boolean): void => {
+    googleButton.disabled = busy;
+    githubButton.disabled = busy;
+  };
+
+  /** Paints whichever of the three states the account is in. */
+  function renderAccount(state: AccountState): void {
+    if (state.state === "unavailable") {
+      accountRow.hidden = true;
+      return;
+    }
+
+    accountRow.hidden = false;
+    accountRow.dataset["linked"] = state.state === "linked" ? "true" : "false";
+
+    if (state.state === "linked") {
+      accountActions.hidden = true;
+      accountTitle.textContent = state.displayName ?? state.email ?? "Signed in";
+      accountBody.textContent = "Your earnings follow this account.";
+
+      if (state.photoUrl !== null) {
+        avatar.src = state.photoUrl;
+        avatar.hidden = false;
+      } else {
+        avatar.hidden = true;
+      }
+      return;
+    }
+
+    avatar.hidden = true;
+    accountActions.hidden = false;
+    accountTitle.textContent = "Keep these earnings";
+    accountBody.textContent =
+      "You're earning already. Sign in to see this balance on the web and to withdraw it later.";
+  }
+
+  const attemptLink = (provider: "google" | "github") => {
+    linking(true);
+    accountBody.textContent = "Finishing in your browser…";
+
+    void window.adcode.account
+      .link(provider)
+      .then((outcome) => {
+        linking(false);
+        if (outcome.ok) renderAccount(outcome.state);
+        else accountBody.textContent = outcome.message;
+      })
+      .catch(() => {
+        linking(false);
+        accountBody.textContent = "Sign-in didn't complete. Try again.";
+      });
+  };
+
+  googleButton.addEventListener("click", () => attemptLink("google"));
+  githubButton.addEventListener("click", () => attemptLink("github"));
+
+  // GitHub's device flow needs the user to type a code, so it is shown as it arrives.
+  window.adcode.account.onDeviceCode((code) => {
+    accountBody.textContent = `Enter code ${code.userCode} at ${code.verificationUri}`;
+  });
+
+  window.adcode.account.onChanged((state) => renderAccount(state));
+  void window.adcode.account.status().then(renderAccount);
+
   /* ── The honest footer ──────────────────────────────────────────────────── */
 
   const footer = document.createElement("footer");
@@ -204,7 +320,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
   footer.append(settingsButton, note);
 
-  card.append(header, hero, facts, presetSection, footer);
+  card.append(header, hero, facts, accountRow, presetSection, footer);
   deps.host.append(card);
 
   let open = false;

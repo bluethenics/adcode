@@ -169,3 +169,164 @@ describe("reset", () => {
     expect(await auth.getToken()).toEqual({ ok: true, value: "id-new" });
   });
 });
+
+/* ── Linking an account ─────────────────────────────────────────────────── */
+
+const linkOk = (over: Record<string, unknown> = {}) => ({
+  json: {
+    idToken: "id-linked",
+    refreshToken: "refresh-linked",
+    localId: "uid-1",
+    expiresIn: "3600",
+    email: "dev@example.com",
+    displayName: "A Developer",
+    photoUrl: "https://lh3.googleusercontent.com/a/photo",
+    providerUserInfo: [{ providerId: "google.com" }],
+    ...over,
+  },
+});
+
+describe("linking", () => {
+  it("keeps the same uid, so earnings carry over", async () => {
+    const { auth } = build([signUpOk(), linkOk()]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("google-id-token");
+
+    expect(linked.ok).toBe(true);
+    expect(auth.uid()).toBe("uid-1");
+  });
+
+  it("returns the profile the provider gave", async () => {
+    const { auth } = build([signUpOk(), linkOk()]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("google-id-token");
+    if (!linked.ok) throw new Error("expected a link");
+
+    expect(linked.value).toEqual({
+      email: "dev@example.com",
+      displayName: "A Developer",
+      photoUrl: "https://lh3.googleusercontent.com/a/photo",
+      providers: ["google.com"],
+    });
+  });
+
+  it("sends a Google credential as an id_token", async () => {
+    const { http, auth } = build([signUpOk(), linkOk()]);
+    await auth.getToken();
+    await auth.linkGoogle("google-id-token");
+
+    const call = http.calls[1]!;
+    expect(call.url).toContain("accounts:signInWithIdp");
+    expect(String(call.body)).toContain("id_token=google-id-token");
+    expect(String(call.body)).toContain("providerId=google.com");
+  });
+
+  it("sends a GitHub credential as an access_token", async () => {
+    const { http, auth } = build([
+      signUpOk(),
+      linkOk({ providerUserInfo: [{ providerId: "github.com" }], photoUrl: "https://avatars.githubusercontent.com/u/1" }),
+    ]);
+    await auth.getToken();
+    await auth.linkGitHub("gho_token");
+
+    const call = http.calls[1]!;
+    expect(String(call.body)).toContain("access_token=gho_token");
+    expect(String(call.body)).toContain("providerId=github.com");
+  });
+
+  it("links an email and password through accounts:update", async () => {
+    const { http, auth } = build([
+      signUpOk(),
+      linkOk({ providerUserInfo: [{ providerId: "password" }], photoUrl: undefined }),
+    ]);
+    await auth.getToken();
+
+    const linked = await auth.linkPassword("dev@example.com", "hunter2hunter2");
+    expect(linked.ok).toBe(true);
+
+    const call = http.calls[1]!;
+    expect(call.url).toContain("accounts:update");
+    expect(String(call.body)).toContain("hunter2hunter2");
+  });
+
+  it("adopts the rotated refresh token, so a restart stays signed in", async () => {
+    const { store, auth } = build([signUpOk(), linkOk()]);
+    await auth.getToken();
+    await auth.linkGoogle("google-id-token");
+
+    const saved = JSON.parse(new TextDecoder().decode((await store.read("ads/identity.json"))!));
+    expect(saved.refreshToken).toBe("refresh-linked");
+    expect(saved.uid).toBe("uid-1");
+  });
+
+  it("REFUSES a link that would move the uid, rather than stranding the balance", async () => {
+    // Firebase does this when the provider account already belongs to another user.
+    const { auth } = build([signUpOk(), linkOk({ localId: "uid-someone-else" })]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("google-id-token");
+
+    expect(linked.ok).toBe(false);
+    if (linked.ok) return;
+    expect(linked.error.detail).toMatch(/already in use/i);
+    // The anonymous identity survives, so the earnings are still reachable.
+    expect(auth.uid()).toBe("uid-1");
+  });
+
+  it("reports a provider refusal rather than throwing", async () => {
+    const { auth } = build([signUpOk(), { status: 400, json: { error: { message: "CREDENTIAL_TOO_OLD_LOGIN_AGAIN" } } }]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("stale");
+    expect(linked.ok).toBe(false);
+  });
+});
+
+describe("profile", () => {
+  it("reports null while the account is still anonymous", async () => {
+    const { auth } = build([signUpOk(), { json: { users: [{ localId: "uid-1" }] } }]);
+    await auth.getToken();
+
+    const profile = await auth.profile();
+    expect(profile).toEqual({ ok: true, value: null });
+  });
+
+  it("reports the linked identity once there is one", async () => {
+    const { auth } = build([
+      signUpOk(),
+      {
+        json: {
+          users: [
+            {
+              localId: "uid-1",
+              email: "dev@example.com",
+              displayName: "A Developer",
+              photoUrl: "https://lh3.googleusercontent.com/a/photo",
+              providerUserInfo: [{ providerId: "google.com" }],
+            },
+          ],
+        },
+      },
+    ]);
+    await auth.getToken();
+
+    const profile = await auth.profile();
+    if (!profile.ok || profile.value === null) throw new Error("expected a profile");
+    expect(profile.value.email).toBe("dev@example.com");
+    expect(profile.value.photoUrl).toContain("googleusercontent");
+  });
+
+  it("survives a provider that returns no picture", async () => {
+    const { auth } = build([
+      signUpOk(),
+      { json: { users: [{ localId: "uid-1", email: "d@e.com", providerUserInfo: [{ providerId: "github.com" }] }] } },
+    ]);
+    await auth.getToken();
+
+    const profile = await auth.profile();
+    if (!profile.ok || profile.value === null) throw new Error("expected a profile");
+    expect(profile.value.photoUrl).toBeNull();
+  });
+});

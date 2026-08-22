@@ -9,7 +9,14 @@
  * §9's rule still governs anything built on this: the worst permitted outcome of the
  * backend being unreachable is that a feature quietly does nothing.
  */
-import { createFirebaseAuth, type Clock, type FileStore, type HttpTransport, type TokenProvider } from "@adcode/ads";
+import {
+  createFirebaseAuth,
+  type Clock,
+  type FileStore,
+  type FirebaseAuth,
+  type HttpTransport,
+  type TokenProvider,
+} from "@adcode/ads";
 
 /** Production. Overridden by `ADCODE_AD_SERVER`, which is how the mock server is used. */
 export const DEFAULT_API_ORIGIN = "https://api.adcode.bluethenics.com";
@@ -30,6 +37,17 @@ function staticTokenProvider(token: string): TokenProvider {
 }
 
 /**
+ * One Firebase identity for the whole main process.
+ *
+ * Memoised deliberately. The ad client, the feedback reporter, the notice poller and the
+ * account screen all need a token, and before this they each built their own
+ * `createFirebaseAuth`. That was survivable while the only operation was "read the
+ * identity file" - but linking an account rotates the refresh token, so a second instance
+ * would keep using the revoked one and start failing at its next refresh.
+ */
+let shared: FirebaseAuth | null = null;
+
+/**
  * Real Firebase identity in production; a fixed string against a dev server.
  *
  * The mock server checks only that a bearer token is present, so pointing at it must not
@@ -41,10 +59,26 @@ export function createBackendTokens(deps: {
   clock: Clock;
   store: FileStore;
 }): TokenProvider {
+  return backendAccount(deps) ?? staticTokenProvider("dev-token");
+}
+
+/**
+ * The account itself, for linking and profile reads.
+ *
+ * Null against a dev server or with no Firebase key: there is no real account to link,
+ * and the caller should say so rather than offer a button that cannot work.
+ */
+export function backendAccount(deps: {
+  http: HttpTransport;
+  clock: Clock;
+  store: FileStore;
+}): FirebaseAuth | null {
+  if (shared !== null) return shared;
+
   const devServer = process.env["ADCODE_AD_SERVER"];
   const firebaseKey = process.env["ADCODE_FIREBASE_API_KEY"];
+  if (devServer !== undefined || firebaseKey === undefined) return null;
 
-  if (devServer !== undefined || firebaseKey === undefined) return staticTokenProvider("dev-token");
-
-  return createFirebaseAuth({ ...deps, apiKey: firebaseKey });
+  shared = createFirebaseAuth({ ...deps, apiKey: firebaseKey });
+  return shared;
 }

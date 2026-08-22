@@ -1458,3 +1458,58 @@
   font-size: var(--text-xs);
   line-height: 1.45;
 }
+
+/* ── Account, inside the earnings popover ───────────────────────────────── */
+
+/*
+ * A prompt, not a wall. It sits below the figure it is talking about so the reader has
+ * already seen the balance this protects before being asked to do anything.
+ */
+.earnings-account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  margin: 12px 0 4px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+}
+
+.earnings-account[data-linked="true"] {
+  background: transparent;
+}
+
+.earnings-avatar {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-active);
+}
+
+.earnings-account-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.earnings-account-title {
+  font-size: var(--text-sm);
+  font-weight: 560;
+  color: var(--text-primary);
+}
+
+.earnings-account-body {
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.earnings-account-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}

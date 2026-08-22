@@ -18,6 +18,7 @@ import { registerIpc } from "./ipc.ts";
 import { registerSupportIpc } from "./supportIpc.ts";
 import { onUpdateStatus, registerUpdateIpc, startAutoUpdate } from "./autoUpdate.ts";
 import { startNoticePolling } from "./notices.ts";
+import { registerAccountIpc } from "./accountIpc.ts";
 import { installApplicationMenu } from "./menu.ts";
 import { disposeAllTerminals } from "./terminal.ts";
 import { shutdownAllServers } from "./lsp.ts";
@@ -127,6 +128,7 @@ void app.whenReady().then(() => {
   registerIpc();
   registerSupportIpc();
   registerUpdateIpc();
+  registerAccountIpc();
 
   // Broadcast status to whatever window is open. Not awaited, and failures inside are
   // swallowed by the module: an update check must never delay first paint.

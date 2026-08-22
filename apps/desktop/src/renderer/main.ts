@@ -48,6 +48,7 @@ import { createResultDialog } from "./dialogs/resultDialog.ts";
 import { createConfirmDialog } from "./dialogs/confirmDialog.ts";
 import { createPromptDialog } from "./dialogs/promptDialog.ts";
 import { createReportDialog } from "./dialogs/reportDialog.ts";
+import { createAccountMenu } from "./workbench/accountMenu.ts";
 import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "./workbench/contextMenu.ts";
 import { createInlineEditor } from "./workbench/inlineEdit.ts";
 import type {
@@ -1667,6 +1668,9 @@ const reportDialog = createReportDialog(document.body, async (input) => {
 });
 
 el<HTMLButtonElement>("report-toggle").addEventListener("click", () => reportDialog.open());
+
+/* The account button beside it, and the panel it opens. */
+createAccountMenu(el<HTMLButtonElement>("account-toggle"), document.body);
 
 const treeMenu = createContextMenu(document.body);
 attachContextMenuDismissal(treeMenu, () => (menuRow ?? editorHost).focus());

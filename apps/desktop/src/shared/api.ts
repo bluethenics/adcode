@@ -52,6 +52,35 @@ export type ReportResult =
  * A message from the operators - an outage, planned downtime, something people should
  * know. Always human-written and human-sent; nothing generates these from an error.
  */
+/**
+ * Whether this machine's earnings are attached to a real account.
+ *
+ * `anonymous` is the normal starting state, not an error: you earn from first launch with
+ * no sign-up. Linking is what makes the balance reachable from the web dashboard and, in
+ * time, withdrawable.
+ */
+export type AccountState =
+  | { readonly state: "anonymous" }
+  /** No Firebase key in this build, or pointed at a dev server. Offer nothing. */
+  | { readonly state: "unavailable" }
+  | {
+      readonly state: "linked";
+      readonly email: string | null;
+      readonly displayName: string | null;
+      readonly photoUrl: string | null;
+      readonly providers: readonly string[];
+    };
+
+export type LinkOutcome =
+  | { readonly ok: true; readonly state: AccountState }
+  | { readonly ok: false; readonly message: string };
+
+/** GitHub's device flow shows the user a code to type on github.com. */
+export interface DeviceCode {
+  readonly userCode: string;
+  readonly verificationUri: string;
+}
+
 export interface ServiceNotice {
   readonly noticeId: string;
   readonly severity: "info" | "warning";
@@ -382,6 +411,11 @@ export const CHANNELS = {
   supportSubmitReport: "support:submit-report",
   updateStatus: "update:status",
   serviceNotice: "notice:show",
+  accountStatus: "account:status",
+  accountChanged: "account:changed",
+  accountLink: "account:link",
+  accountLinkEmail: "account:link-email",
+  accountDeviceCode: "account:device-code",
   updateChanged: "update:changed",
 } as const;
 
@@ -832,6 +866,14 @@ export interface AdcodeApi {
     write(id: string, value: boolean | string): Promise<Record<string, boolean | string>>;
     reset(): Promise<Record<string, boolean | string>>;
     onChanged(listener: (values: Record<string, boolean | string>) => void): () => void;
+  };
+  readonly account: {
+    status(): Promise<AccountState>;
+    /** Never rejects; a failure comes back as `{ ok: false, message }`. */
+    link(provider: "google" | "github"): Promise<LinkOutcome>;
+    linkEmail(email: string, password: string): Promise<LinkOutcome>;
+    onChanged(listener: (state: AccountState) => void): () => void;
+    onDeviceCode(listener: (code: DeviceCode) => void): () => void;
   };
   readonly notices: {
     onShow(listener: (notices: readonly ServiceNotice[]) => void): () => void;

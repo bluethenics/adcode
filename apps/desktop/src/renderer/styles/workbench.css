@@ -1552,3 +1552,109 @@ body[data-resizing="y"] {
   stroke-width: 1.6;
   stroke-linecap: round;
 }
+
+/* ── Account, on the welcome screen ─────────────────────────────────────── */
+
+/*
+ * One quiet row between the wordmark and the actions. §8.4 promises no wall on first
+ * launch, so this recommends and never blocks - it must not read as a step before Open
+ * Folder, which is why it carries no background of its own.
+ */
+.welcome-account {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: -6px 0 22px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.welcome-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-active);
+}
+
+.welcome-account-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+/* ── The account button and its panel ───────────────────────────────────── */
+
+#account-photo {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/*
+ * Anchored to the button in fixed position rather than nested inside the title bar: the
+ * bar is a fixed-height flex row and a child tall enough to hold this would either be
+ * clipped or would stretch the bar.
+ */
+.account-panel {
+  position: fixed;
+  z-index: 60;
+  width: 268px;
+  display: grid;
+  gap: 8px;
+  padding: 14px 15px 12px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-floating);
+  font-family: var(--font-ui);
+  -webkit-app-region: no-drag;
+}
+
+.account-panel-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.account-panel-body {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.account-panel-actions {
+  display: grid;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.account-provider {
+  padding: 8px 12px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 520;
+  cursor: pointer;
+}
+
+.account-provider:hover {
+  background: var(--bg-hover);
+}
+
+.account-provider:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.account-panel-foot {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}

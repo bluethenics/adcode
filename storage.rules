@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// Creative logos, uploaded through the advertiser portal.
+//
+// Reads are public: these images are fetched by the ad client inside people's editors,
+// which authenticates to services/api and not to Storage.
+//
+// Writes are closed to clients entirely. An advertiser uploading a logo goes through the
+// portal, which posts to services/api, which writes with the Admin SDK. A rule permitting
+// direct client writes would be a second way into the bucket that nothing reviews - and
+// creative assets are exactly the thing that must not reach an editor unreviewed.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /creatives/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

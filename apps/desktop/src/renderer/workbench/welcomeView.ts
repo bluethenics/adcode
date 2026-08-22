@@ -24,7 +24,7 @@
  * up and describe the bug without one.
  */
 import { brandMark } from "./brandMark.ts";
-import type { AppInfo, RecentFolderView } from "../../shared/api.ts";
+import type { AccountState, AppInfo, RecentFolderView } from "../../shared/api.ts";
 
 export interface WelcomeViewDeps {
   /** The placeholder element the editor already shows when no file is open. */
@@ -167,7 +167,105 @@ export function createWelcomeView(deps: WelcomeViewDeps): WelcomeView {
     shortcuts.append(row);
   }
 
-  inner.append(identity, start, recentSection, shortcuts);
+  /* ── Account ────────────────────────────────────────────────────────────── */
+
+  /*
+   * A recommendation, never a gate.
+   *
+   * The welcome screen is the one place someone reliably looks before starting work, so
+   * it is where this belongs - but it stays a single quiet row. §8.4 promises first launch
+   * has "no UI and no wall", and a sign-in panel competing with Open Folder would be a
+   * wall in everything but name.
+   *
+   * Once linked it becomes an avatar and a name: the same row, now reassurance rather than
+   * a request.
+   */
+  const account = document.createElement("div");
+  account.className = "welcome-account";
+  account.hidden = true;
+
+  const accountAvatar = document.createElement("img");
+  accountAvatar.className = "welcome-avatar";
+  accountAvatar.alt = "";
+  accountAvatar.hidden = true;
+  accountAvatar.addEventListener("error", () => {
+    accountAvatar.hidden = true;
+  });
+
+  const accountLabel = document.createElement("span");
+  accountLabel.className = "welcome-account-label";
+
+  const accountButtons = document.createElement("span");
+  accountButtons.className = "welcome-account-actions";
+
+  const googleLink = document.createElement("button");
+  googleLink.type = "button";
+  googleLink.className = "ghost-button";
+  googleLink.textContent = "Google";
+
+  const githubLink = document.createElement("button");
+  githubLink.type = "button";
+  githubLink.className = "ghost-button";
+  githubLink.textContent = "GitHub";
+
+  accountButtons.append(googleLink, githubLink);
+  account.append(accountAvatar, accountLabel, accountButtons);
+
+  function paintAccount(state: AccountState): void {
+    if (state.state === "unavailable") {
+      account.hidden = true;
+      return;
+    }
+
+    account.hidden = false;
+
+    if (state.state === "linked") {
+      accountButtons.hidden = true;
+      accountLabel.textContent = `Signed in as ${state.displayName ?? state.email ?? "your account"}`;
+
+      if (state.photoUrl !== null) {
+        accountAvatar.src = state.photoUrl;
+        accountAvatar.hidden = false;
+      }
+      return;
+    }
+
+    accountAvatar.hidden = true;
+    accountButtons.hidden = false;
+    accountLabel.textContent = "Sign in to keep your earnings — recommended";
+  }
+
+  const startLink = (provider: "google" | "github") => {
+    googleLink.disabled = true;
+    githubLink.disabled = true;
+    accountLabel.textContent = "Finishing in your browser…";
+
+    void window.adcode.account
+      .link(provider)
+      .then((outcome) => {
+        googleLink.disabled = false;
+        githubLink.disabled = false;
+        if (outcome.ok) paintAccount(outcome.state);
+        else accountLabel.textContent = outcome.message;
+      })
+      .catch(() => {
+        googleLink.disabled = false;
+        githubLink.disabled = false;
+        accountLabel.textContent = "Sign-in didn't complete. Try again.";
+      });
+  };
+
+  googleLink.addEventListener("click", () => startLink("google"));
+  githubLink.addEventListener("click", () => startLink("github"));
+
+  window.adcode.account.onDeviceCode((code) => {
+    accountLabel.textContent = `Enter code ${code.userCode} at ${code.verificationUri}`;
+  });
+
+  window.adcode.account.onChanged(paintAccount);
+  void window.adcode.account.status().then(paintAccount);
+
+  inner.append(identity, account, start, recentSection, shortcuts);
   deps.host.replaceChildren(inner);
 
   function renderRecents(list: readonly RecentFolderView[]): void {

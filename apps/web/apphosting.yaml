@@ -1,0 +1,66 @@
+# Firebase App Hosting.
+#
+# App Hosting rather than classic Firebase Hosting, because this site is not static: the
+# blog revalidates every 60s so admin-published posts appear without a deploy, and
+# /portal/campaigns/[id] renders on demand. Classic Hosting serves files; a static export
+# would silently drop both behaviours.
+#
+# Deploy with:
+#   firebase apphosting:backends:create --project adcode-idle
+#
+# The build command is `npm run build` from this directory, which App Hosting infers from
+# the framework. `output: standalone` in next.config.ts keeps the served bundle small.
+
+runConfig:
+  # The site is mostly prerendered, so instances are cheap and idle often. minInstances 0
+  # accepts a cold start on the first request after a quiet period in exchange for costing
+  # nothing while nobody is reading.
+  minInstances: 0
+  maxInstances: 4
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  # Public by design: these identify the Firebase project, they do not authorise anything.
+  # What protects the data is token verification in services/api and firestore.rules
+  # denying every direct client read.
+  - variable: NEXT_PUBLIC_SITE_ORIGIN
+    value: https://adcode.bluethenics.com
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_API_ORIGIN
+    value: https://api.adcode.bluethenics.com
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: adcode-idle
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # The remaining three identify the web app within the project and are only known once
+  # a web app has been registered in the Firebase console. Set them there, or with
+  # `firebase apphosting:secrets:set`, rather than committing placeholders that would
+  # build a site whose sign-in silently does nothing.
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: ""
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: adcode-idle.firebaseapp.com
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: ""
+    availability:
+      - BUILD
+      - RUNTIME

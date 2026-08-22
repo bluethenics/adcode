@@ -9,6 +9,9 @@
 /** Swap this, or set NEXT_PUBLIC_SITE_ORIGIN, when the real domain is registered. */
 export const SITE_ORIGIN = process.env["NEXT_PUBLIC_SITE_ORIGIN"] ?? "https://adcode.bluethenics.com";
 
+/** The Firebase project everything is deployed into. */
+export const FIREBASE_PROJECT = process.env["NEXT_PUBLIC_FIREBASE_PROJECT_ID"] ?? "adcode-idle";
+
 /** Where the API lives. Same default the desktop client uses in `main/backend.ts`. */
 export const API_ORIGIN = process.env["NEXT_PUBLIC_API_ORIGIN"] ?? "https://api.adcode.bluethenics.com";
 
