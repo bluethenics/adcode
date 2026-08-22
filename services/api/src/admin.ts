@@ -8,8 +8,11 @@
 import { handleLedger } from "./balance.ts";
 import type { LedgerResponseBody } from "./contract.ts";
 import type {
+  AdvertiserRecord,
   Clock,
   CreativeRecord,
+  IdGen,
+  NoticeRecord,
   Page,
   PostRecord,
   Store,
@@ -208,4 +211,137 @@ export async function handleListPosts(
 ): Promise<PostRecord[]> {
   await deps.store.writeAudit({ adminUid, action: "read-posts", subjectUid: "*", at: deps.clock.now() });
   return deps.store.listPosts({ publishedOnly: false });
+}
+
+/* ── Advertisers ────────────────────────────────────────────────────────── */
+
+export async function handleListAdvertisers(
+  deps: AdminDeps,
+  adminUid: string,
+): Promise<AdvertiserRecord[]> {
+  await deps.store.writeAudit({
+    adminUid,
+    action: "read-advertisers",
+    subjectUid: "*",
+    at: deps.clock.now(),
+  });
+  return deps.store.listAdvertisers();
+}
+
+/**
+ * Suspend or reinstate an advertiser.
+ *
+ * Suspension stops them reaching the portal at all, which also stops any campaign being
+ * activated or funded. It deliberately does NOT pause their live campaigns: money is
+ * already committed to those, and silently halting delivery an advertiser has paid for
+ * is a refund question, not a moderation one. Pause the campaigns explicitly if that is
+ * what is meant.
+ */
+export async function handleSetAdvertiserStatus(
+  deps: AdminDeps,
+  adminUid: string,
+  advertiserId: string,
+  status: "active" | "suspended",
+): Promise<AdvertiserRecord | null> {
+  const advertiser = await deps.store.getAdvertiser(advertiserId);
+  if (advertiser === null) return null;
+
+  await deps.store.writeAudit({
+    adminUid,
+    action: `advertiser:${status}`,
+    subjectUid: advertiserId,
+    at: deps.clock.now(),
+  });
+
+  const updated: AdvertiserRecord = { ...advertiser, status };
+  await deps.store.putAdvertiser(updated);
+  return updated;
+}
+
+/* ── Notices ────────────────────────────────────────────────────────────── */
+
+export interface NoticeInput {
+  severity: "info" | "warning";
+  title: string;
+  body: string;
+}
+
+export function parseNotice(raw: unknown): NoticeInput | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+
+  const severity = r["severity"];
+  if (severity !== "info" && severity !== "warning") return null;
+
+  const text = (v: unknown, max: number): string | null => {
+    if (typeof v !== "string") return null;
+    const trimmed = v.trim();
+    return trimmed.length === 0 || trimmed.length > max ? null : trimmed;
+  };
+
+  const title = text(r["title"], 100);
+  const body = text(r["body"], 500);
+  if (title === null || body === null) return null;
+
+  return { severity, title, body };
+}
+
+export async function handlePublishNotice(
+  deps: AdminDeps & { ids: IdGen },
+  adminUid: string,
+  input: NoticeInput,
+): Promise<NoticeRecord> {
+  const notice: NoticeRecord = {
+    noticeId: deps.ids.next("note"),
+    severity: input.severity,
+    title: input.title,
+    body: input.body,
+    active: true,
+    authorUid: adminUid,
+    createdAt: deps.clock.now(),
+  };
+
+  await deps.store.writeAudit({
+    adminUid,
+    action: `notice:publish:${notice.noticeId}`,
+    subjectUid: "*",
+    at: notice.createdAt,
+  });
+
+  await deps.store.putNotice(notice);
+  return notice;
+}
+
+/** Retracts rather than deletes: what was said, and when, stays on the record. */
+export async function handleRetractNotice(
+  deps: AdminDeps,
+  adminUid: string,
+  noticeId: string,
+): Promise<NoticeRecord | null> {
+  const notice = await deps.store.getNotice(noticeId);
+  if (notice === null) return null;
+
+  await deps.store.writeAudit({
+    adminUid,
+    action: `notice:retract:${noticeId}`,
+    subjectUid: "*",
+    at: deps.clock.now(),
+  });
+
+  const updated: NoticeRecord = { ...notice, active: false };
+  await deps.store.putNotice(updated);
+  return updated;
+}
+
+export async function handleListNotices(
+  deps: AdminDeps,
+  adminUid: string,
+): Promise<NoticeRecord[]> {
+  await deps.store.writeAudit({
+    adminUid,
+    action: "read-notices",
+    subjectUid: "*",
+    at: deps.clock.now(),
+  });
+  return deps.store.listNotices({ activeOnly: false });
 }

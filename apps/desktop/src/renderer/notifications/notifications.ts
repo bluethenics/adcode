@@ -23,6 +23,11 @@ export interface Notification {
   readonly actions?: ReadonlyArray<{ readonly label: string; readonly run: () => void }>;
   /** Omit to leave it up until dismissed - the right default for anything with actions. */
   readonly autoDismissMs?: number;
+  /**
+   * Visual weight. `warning` is for something currently wrong that the reader may need to
+   * work around; the default reads as an FYI.
+   */
+  readonly tone?: "info" | "warning";
 }
 
 export interface NotificationCentre {
@@ -70,6 +75,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       const card = document.createElement("article");
       card.className = "toast";
       card.dataset["state"] = "entering";
+      if (notification.tone !== undefined) card.dataset["tone"] = notification.tone;
       card.style.willChange = "transform, opacity";
       card.setAttribute("role", "status");
 

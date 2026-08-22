@@ -17,6 +17,7 @@ import { registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "
 import { registerIpc } from "./ipc.ts";
 import { registerSupportIpc } from "./supportIpc.ts";
 import { onUpdateStatus, registerUpdateIpc, startAutoUpdate } from "./autoUpdate.ts";
+import { startNoticePolling } from "./notices.ts";
 import { installApplicationMenu } from "./menu.ts";
 import { disposeAllTerminals } from "./terminal.ts";
 import { shutdownAllServers } from "./lsp.ts";
@@ -136,6 +137,7 @@ void app.whenReady().then(() => {
   });
 
   void startAutoUpdate(() => currentSettings()["adcode.updates.auto"] !== false);
+  startNoticePolling();
   // Before the first window, so its accelerators are live from the first keystroke. Not
   // awaited: it reads the recents off disk, and a menu is not worth delaying a window for.
   void installApplicationMenu();

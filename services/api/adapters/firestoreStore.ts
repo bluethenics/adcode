@@ -21,6 +21,7 @@ import type {
   FundingRecord,
   Page,
   ReceiptRecord,
+  NoticeRecord,
   PostRecord,
   ReportPage,
   ReportRecord,
@@ -416,6 +417,35 @@ export function createFirestoreStore(injected?: Firestore): Store {
       const more = snap.docs.length > page.limit;
       const last = rows.at(-1);
       return { rows, nextCursor: more && last !== undefined ? last.uid : null };
+    },
+
+    async listAdvertisers() {
+      const snap = await (await lazy()).collection("advertisers").orderBy("createdAt", "desc").get();
+      return snap.docs.map((d) => {
+        const raw = d.data();
+        return {
+          ...(raw as Omit<AdvertiserRecord, "fundedMicros" | "reservedMicros">),
+          fundedMicros: toMicros(raw["fundedMicros"]),
+          reservedMicros: toMicros(raw["reservedMicros"]),
+        };
+      });
+    },
+
+    async putNotice(notice: NoticeRecord) {
+      await (await lazy()).collection("notices").doc(notice.noticeId).set(notice);
+    },
+
+    async getNotice(noticeId) {
+      const snap = await (await lazy()).collection("notices").doc(noticeId).get();
+      return snap.exists ? (snap.data() as NoticeRecord) : null;
+    },
+
+    async listNotices(options) {
+      const base = (await lazy()).collection("notices");
+      const snap = await (options.activeOnly ? base.where("active", "==", true) : base).get();
+      return snap.docs
+        .map((d) => d.data() as NoticeRecord)
+        .sort((a, b) => b.createdAt - a.createdAt);
     },
 
     async creativesByStatus(status) {

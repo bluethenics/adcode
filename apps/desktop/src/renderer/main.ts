@@ -2207,6 +2207,23 @@ const notifications = createNotificationCentre(el("toast-layer"));
 
 window.adcode.ads.onShow((toast) => notifications.showSponsored(toast));
 
+/*
+ * Service notices - an outage, planned downtime, something worth knowing.
+ *
+ * Not auto-dismissed: unlike a sponsored card, this is something the reader is meant to
+ * act on or at least finish reading. The main process only ever sends each notice once
+ * per machine, so leaving it on screen cannot become nagging.
+ */
+window.adcode.notices.onShow((notices) => {
+  for (const notice of notices) {
+    notifications.show({
+      title: notice.title,
+      body: notice.body,
+      tone: notice.severity === "warning" ? "warning" : "info",
+    });
+  }
+});
+
 /* ── Live collaboration ───────────────────────────────────────────────────── */
 
 const collabSession = createCollabSession({

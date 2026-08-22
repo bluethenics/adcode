@@ -166,6 +166,9 @@ const api: AdcodeApi = {
     reset: () => ipcRenderer.invoke(CHANNELS.settingsReset),
     onChanged: (listener) => subscribe(CHANNELS.settingsChanged, listener),
   },
+  notices: {
+    onShow: (listener) => subscribe(CHANNELS.serviceNotice, listener),
+  },
   updates: {
     status: () => ipcRenderer.invoke(CHANNELS.updateStatus),
     onChanged: (listener) => subscribe(CHANNELS.updateChanged, listener),

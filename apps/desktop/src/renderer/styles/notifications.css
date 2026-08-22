@@ -187,3 +187,16 @@
   gap: 6px;
   margin-top: 8px;
 }
+
+/*
+ * A warning notice carries a coloured edge - something is currently wrong and the reader
+ * may need to work around it. Everything else stays visually quiet: a toast that shouts
+ * for an FYI teaches people to dismiss toasts without reading them.
+ */
+.toast[data-tone="warning"] {
+  border-left: 3px solid var(--warning, #ff9f0a);
+}
+
+.toast[data-tone="warning"] .toast-title {
+  color: var(--warning, #ff9f0a);
+}

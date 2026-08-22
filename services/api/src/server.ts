@@ -20,6 +20,12 @@ import {
   handleSavePost,
   handleSetCreativeStatus,
   handleSetUserStatus,
+  handleListAdvertisers,
+  handleSetAdvertiserStatus,
+  handlePublishNotice,
+  handleRetractNotice,
+  handleListNotices,
+  parseNotice,
   parsePost,
 } from "./admin.ts";
 import { parseReceiptsRequest, parseReportRequest, parseServeRequest } from "./contract.ts";
@@ -284,6 +290,79 @@ export async function createApiServer(
         return;
       }
       send(res, 200, { ok: true }, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/advertisers" && req.method === "GET") {
+      const advertisers = await handleListAdvertisers({ store, clock }, auth.uid);
+      // Money is bigint in the store and a decimal string on the wire, as everywhere.
+      send(
+        res,
+        200,
+        {
+          advertisers: advertisers.map((a) => ({
+            ...a,
+            fundedMicros: a.fundedMicros.toString(),
+            reservedMicros: a.reservedMicros.toString(),
+          })),
+        },
+        cors,
+      );
+      return;
+    }
+
+    const advertiserStatus = /^\/v1\/admin\/advertisers\/([^/]+)\/status$/.exec(path);
+    if (advertiserStatus !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const next = (raw as Record<string, unknown>)["status"];
+      if (next !== "active" && next !== "suspended") {
+        send(res, 400, { error: "malformed status" }, cors);
+        return;
+      }
+      const updated = await handleSetAdvertiserStatus(
+        { store, clock },
+        auth.uid,
+        decodeURIComponent(advertiserStatus[1] ?? ""),
+        next,
+      );
+      if (updated === null) {
+        send(res, 404, { error: "not-found" }, cors);
+        return;
+      }
+      send(res, 200, { ok: true, status: updated.status }, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/notices" && req.method === "GET") {
+      send(res, 200, { notices: await handleListNotices({ store, clock }, auth.uid) }, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/notices" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const input = parseNotice(raw);
+      if (input === null) {
+        send(res, 400, { error: "malformed notice" }, cors);
+        return;
+      }
+      send(res, 200, await handlePublishNotice({ store, clock, ids }, auth.uid, input), cors);
+      return;
+    }
+
+    const retractNotice = /^\/v1\/admin\/notices\/([^/]+)\/retract$/.exec(path);
+    if (retractNotice !== null && req.method === "POST") {
+      const updated = await handleRetractNotice(
+        { store, clock },
+        auth.uid,
+        decodeURIComponent(retractNotice[1] ?? ""),
+      );
+      if (updated === null) {
+        send(res, 404, { error: "not-found" }, cors);
+        return;
+      }
+      send(res, 200, updated, cors);
       return;
     }
 
@@ -552,6 +631,12 @@ export async function createApiServer(
         return;
       }
       settle(await createCreative(advertiserDeps, auth.uid, body));
+      return;
+    }
+
+    if (path === "/v1/notices" && req.method === "GET") {
+      const notices = await store.listNotices({ activeOnly: true });
+      send(res, 200, { notices }, cors);
       return;
     }
 

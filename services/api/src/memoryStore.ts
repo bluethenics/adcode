@@ -17,6 +17,7 @@ import type {
   Page,
   FundingRecord,
   ReceiptRecord,
+  NoticeRecord,
   PostRecord,
   ReportPage,
   ReportRecord,
@@ -54,6 +55,7 @@ export function createMemoryStore(): Store & { reset(): void } {
   let reports = new Map<string, ReportRecord>();
   let fundings = new Map<string, FundingRecord>();
   let posts = new Map<string, PostRecord>();
+  let notices = new Map<string, NoticeRecord>();
   let testServes = new Map<string, string>();
   let audit: AuditRecord[] = [];
   let config: ServingConfig = { ...DEFAULT_CONFIG };
@@ -73,6 +75,7 @@ export function createMemoryStore(): Store & { reset(): void } {
       reports = new Map();
       fundings = new Map();
       posts = new Map();
+      notices = new Map();
       testServes = new Map();
       audit = [];
       config = { ...DEFAULT_CONFIG };
@@ -254,6 +257,24 @@ export function createMemoryStore(): Store & { reset(): void } {
       const last = rows.at(-1);
       const more = start + rows.length < all.length;
       return { rows, nextCursor: more && last !== undefined ? last.uid : null };
+    },
+
+    async listAdvertisers() {
+      return [...advertisers.values()].sort((a, b) => b.createdAt - a.createdAt);
+    },
+
+    async putNotice(notice) {
+      notices.set(notice.noticeId, notice);
+    },
+
+    async getNotice(noticeId) {
+      return notices.get(noticeId) ?? null;
+    },
+
+    async listNotices(options) {
+      return [...notices.values()]
+        .filter((n) => !options.activeOnly || n.active)
+        .sort((a, b) => b.createdAt - a.createdAt);
     },
 
     async creativesByStatus(status) {

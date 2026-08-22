@@ -48,6 +48,17 @@ export type ReportResult =
  * `unsupported` covers a dev run and an unpacked build - neither has an update feed, and
  * saying so beats reporting a failure the user cannot act on.
  */
+/**
+ * A message from the operators - an outage, planned downtime, something people should
+ * know. Always human-written and human-sent; nothing generates these from an error.
+ */
+export interface ServiceNotice {
+  readonly noticeId: string;
+  readonly severity: "info" | "warning";
+  readonly title: string;
+  readonly body: string;
+}
+
 export type UpdateStatus =
   | { readonly state: "idle" | "checking" | "current" | "failed" | "unsupported" }
   | { readonly state: "downloading"; readonly version?: string; readonly percent?: number }
@@ -370,6 +381,7 @@ export const CHANNELS = {
   appInfo: "app:info",
   supportSubmitReport: "support:submit-report",
   updateStatus: "update:status",
+  serviceNotice: "notice:show",
   updateChanged: "update:changed",
 } as const;
 
@@ -820,6 +832,9 @@ export interface AdcodeApi {
     write(id: string, value: boolean | string): Promise<Record<string, boolean | string>>;
     reset(): Promise<Record<string, boolean | string>>;
     onChanged(listener: (values: Record<string, boolean | string>) => void): () => void;
+  };
+  readonly notices: {
+    onShow(listener: (notices: readonly ServiceNotice[]) => void): () => void;
   };
   readonly updates: {
     status(): Promise<UpdateStatus>;

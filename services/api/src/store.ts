@@ -134,6 +134,25 @@ export interface FundingRecord {
   at: number;
 }
 
+/**
+ * A message from the operators to everyone running the editor.
+ *
+ * Exists because `packages/ads` is required to fail silently: when serving breaks, the
+ * client shows nothing at all, which is right for a transient blip and wrong for an
+ * outage people are already wondering about. This is the deliberate, human-written
+ * exception - never automatic error spam.
+ */
+export interface NoticeRecord {
+  noticeId: string;
+  severity: "info" | "warning";
+  title: string;
+  body: string;
+  /** False retracts it without deleting the record, so the history stays. */
+  active: boolean;
+  authorUid: string;
+  createdAt: number;
+}
+
 /** A blog post. Authored in the admin panel, rendered by the marketing site. */
 export interface PostRecord {
   slug: string;
@@ -221,6 +240,12 @@ export interface Store {
   listReports(page: Page): Promise<ReportPage>;
 
   listUsers(page: Page): Promise<UserPage>;
+  listAdvertisers(): Promise<AdvertiserRecord[]>;
+
+  putNotice(notice: NoticeRecord): Promise<void>;
+  getNotice(noticeId: string): Promise<NoticeRecord | null>;
+  /** Active only when `activeOnly`; the admin view wants retracted ones too. */
+  listNotices(options: { activeOnly: boolean }): Promise<NoticeRecord[]>;
   creativesByStatus(status: CreativeRecord["status"]): Promise<CreativeRecord[]>;
 
   putPost(post: PostRecord): Promise<void>;
