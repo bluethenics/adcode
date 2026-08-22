@@ -4,6 +4,7 @@ import { allPosts } from "@/lib/posts";
 import { JsonLd } from "@/components/JsonLd";
 import { breadcrumbs } from "@/lib/schema";
 import { url } from "@/lib/site";
+import { DocsSidebar } from "@/components/DocsSidebar";
 
 export const metadata: Metadata = {
   title: "Blog",
@@ -33,23 +34,24 @@ export default function BlogIndex() {
         ])}
       />
 
-      <section className="band">
-        <div className="wrap">
-          <div className="section-head">
+      <section className="docs-page band">
+        <div className="wrap docs-layout">
+          <DocsSidebar />
+          <main className="docs-content"><div className="docs-header">
             <p className="eyebrow">Blog</p>
-            <h2>How this actually works.</h2>
+            <h1>Documentation &amp; notes</h1>
             <p className="lede">
               Fewer announcements, more explanations. Mostly about money, targeting, and the
               parts of an ad-supported editor that deserve to be argued with.
             </p>
           </div>
 
-          <ul style={{ listStyle: "none", margin: 0, padding: 0, borderTop: "1px solid var(--hairline)" }}>
+          <ul className="docs-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {posts.map((post) => (
               <li key={post.slug} style={{ borderBottom: "1px solid var(--hairline)" }}>
                 <Link
                   href={`/blog/${post.slug}`}
-                  style={{ display: "block", padding: "26px 0" }}
+                  className="docs-list-link"
                 >
                   <div
                     className="mono"
@@ -66,7 +68,7 @@ export default function BlogIndex() {
                 </Link>
               </li>
             ))}
-          </ul>
+          </ul></main>
         </div>
       </section>
     </>

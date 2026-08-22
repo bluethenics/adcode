@@ -1,9 +1,24 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Mark } from "./Mark";
 
 export function Nav() {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled((previous) => {
+      const next = window.scrollY > 24;
+      return previous === next ? previous : next;
+    });
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   return (
-    <header className="nav">
+    <header className={`nav ${scrolled ? "nav-scrolled" : ""}`}>
       <div className="wrap nav-inner">
         <Link href="/" className="nav-brand" aria-label="ADCode home">
           <Mark />
@@ -17,8 +32,8 @@ export function Nav() {
             Advertise
           </Link>
           <Link href="/blog">Blog</Link>
-          <Link href="/download" className="btn btn-primary" style={{ padding: "7px 16px", fontSize: 14 }}>
-            Download
+          <Link href="/download" className="btn btn-primary nav-download">
+            Download ADCode
           </Link>
         </nav>
       </div>

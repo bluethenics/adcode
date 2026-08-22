@@ -15,6 +15,7 @@ import type {
   CreativeRecord,
   EntryPage,
   Page,
+  FundingRecord,
   ReceiptRecord,
   ReportPage,
   ReportRecord,
@@ -49,6 +50,7 @@ export function createMemoryStore(): Store & { reset(): void } {
   let spend = new Map<string, bigint>();
   let requestCounts = new Map<string, number>();
   let reports = new Map<string, ReportRecord>();
+  let fundings = new Map<string, FundingRecord>();
   let audit: AuditRecord[] = [];
   let config: ServingConfig = { ...DEFAULT_CONFIG };
 
@@ -65,6 +67,7 @@ export function createMemoryStore(): Store & { reset(): void } {
       spend = new Map();
       requestCounts = new Map();
       reports = new Map();
+      fundings = new Map();
       audit = [];
       config = { ...DEFAULT_CONFIG };
     },
@@ -209,6 +212,18 @@ export function createMemoryStore(): Store & { reset(): void } {
       const next = (requestCounts.get(key) ?? 0) + 1;
       requestCounts.set(key, next);
       return next;
+    },
+
+    async recordFundingIfAbsent(funding) {
+      if (fundings.has(funding.eventId)) return false;
+      fundings.set(funding.eventId, funding);
+      return true;
+    },
+
+    async listFunding(advertiserId) {
+      return [...fundings.values()]
+        .filter((f) => f.advertiserId === advertiserId)
+        .sort((a, b) => b.at - a.at);
     },
 
     async createReport(report) {

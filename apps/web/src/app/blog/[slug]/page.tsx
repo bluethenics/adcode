@@ -6,6 +6,7 @@ import { renderMarkdown } from "@/lib/markdown";
 import { JsonLd } from "@/components/JsonLd";
 import { blogPosting, breadcrumbs } from "@/lib/schema";
 import { url } from "@/lib/site";
+import { DocsSidebar } from "@/components/DocsSidebar";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -63,13 +64,14 @@ export default async function PostPage({ params }: Props) {
         ])}
       />
 
-      <article className="band">
-        <div className="wrap">
-          <Link href="/blog" style={{ color: "var(--accent)", fontSize: 14 }}>
+      <article className="docs-page band">
+        <div className="wrap docs-layout">
+          <DocsSidebar />
+          <main className="docs-content"><Link href="/blog" className="docs-back">
             ← All posts
           </Link>
 
-          <header style={{ marginTop: 22, marginBottom: 34, maxWidth: "68ch" }}>
+          <header className="docs-header" style={{ marginTop: 22 }}>
             <div className="mono" style={{ fontSize: 12, color: "var(--faint)", marginBottom: 12 }}>
               <time dateTime={post.published}>{dateLabel(post.published)}</time> ·{" "}
               {post.readingMinutes} min read
@@ -81,7 +83,7 @@ export default async function PostPage({ params }: Props) {
           </header>
 
           {/* Rendered by `markdown.ts`, which escapes before it marks up. */}
-          <div className="prose" dangerouslySetInnerHTML={{ __html: html }} />
+          <div className="prose" dangerouslySetInnerHTML={{ __html: html }} /></main>
         </div>
       </article>
     </>

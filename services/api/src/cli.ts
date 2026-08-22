@@ -7,6 +7,7 @@
 import { createApiServer } from "./server.ts";
 import { createFirebaseVerifier } from "../adapters/firebaseAuth.ts";
 import { createFirestoreStore } from "../adapters/firestoreStore.ts";
+import { createDodoProvider } from "../adapters/dodoPayments.ts";
 
 const port = Number(process.env["PORT"] ?? 8788);
 
@@ -14,6 +15,7 @@ const server = await createApiServer({
   port,
   store: createFirestoreStore(),
   verifier: createFirebaseVerifier(),
+  payments: createDodoProvider(),
 });
 
 process.stdout.write(`api listening on ${server.url}\n`);

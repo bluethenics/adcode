@@ -29,6 +29,8 @@ import {
   type Outcome,
 } from "./advertisers.ts";
 import { parseCampaign, parseCreateAdvertiser, parseCreative } from "./contract.ts";
+import { handleFundingWebhook } from "./funding.ts";
+import { parseCountry, parseFundingAmount, type PaymentProvider } from "./payments.ts";
 import { createMemoryStore } from "./memoryStore.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
 
@@ -87,6 +89,11 @@ function pageFrom(url: URL): { limit: number; cursor: string | null } {
 
 const ADMIN_LEDGER = /^\/v1\/admin\/users\/([^/]+)\/ledger$/;
 
+/** Node gives a repeated header as an array; a signature header must be one value. */
+function firstHeader(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export async function createApiServer(
   options: {
     port?: number;
@@ -94,6 +101,9 @@ export async function createApiServer(
     verifier?: TokenVerifier;
     clock?: Clock;
     ids?: IdGen;
+    payments?: PaymentProvider;
+    webhookSecret?: string;
+    siteOrigin?: string;
   } = {},
 ): Promise<ApiServer> {
   const verifier = options.verifier;
@@ -104,6 +114,10 @@ export async function createApiServer(
 
   let counter = 0;
   const ids = options.ids ?? { next: (prefix: string) => `${prefix}-${++counter}-${Date.now()}` };
+
+  const payments = options.payments;
+  const webhookSecret = options.webhookSecret ?? process.env["DODO_WEBHOOK_SECRET"];
+  const siteOrigin = options.siteOrigin ?? "https://adcode.bluethenics.com";
 
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -123,11 +137,48 @@ export async function createApiServer(
       return;
     }
 
+    /*
+     * The payment webhook, before authentication and before the rate limiter.
+     *
+     * Dodo sends no bearer token - the HMAC signature over the raw body is the
+     * authentication - and there is no UID to rate limit against. It is also the one
+     * route that needs the body bytes exactly as sent, so it reads them itself rather
+     * than going through a JSON parse first.
+     */
+    if (path === "/v1/webhooks/dodo" && req.method === "POST") {
+      if (webhookSecret === undefined) {
+        send(res, 503, { error: "webhooks not configured" }, cors);
+        return;
+      }
+
+      let raw: string;
+      try {
+        raw = await readBody(req);
+      } catch {
+        send(res, 400, { error: "body too large" }, cors);
+        return;
+      }
+
+      const result = await handleFundingWebhook(
+        { store, clock, webhookSecret },
+        {
+          id: firstHeader(req.headers["webhook-id"]),
+          timestamp: firstHeader(req.headers["webhook-timestamp"]),
+          signature: firstHeader(req.headers["webhook-signature"]),
+        },
+        raw,
+      );
+
+      if (result.ok) send(res, 200, { received: true, outcome: result.reason }, cors);
+      else send(res, result.status, { error: result.reason }, cors);
+      return;
+    }
+
     const auth = await authenticate({ store, verifier, clock }, req.headers.authorization);
     if (!auth.ok) {
       // A ban is 403 rather than 401: the credentials are fine, the answer is still no,
       // and a client that retries auth on a 401 would loop forever.
-      send(res, auth.failure === "banned" ? 403 : 401, { error: auth.failure });
+      send(res, auth.failure === "banned" ? 403 : 401, { error: auth.failure }, cors);
       return;
     }
 
@@ -301,6 +352,51 @@ export async function createApiServer(
       settle(
         await listCreatives(advertiserDeps, auth.uid, decodeURIComponent(campaignCreatives[1] ?? "")),
       );
+      return;
+    }
+
+    if (path === "/v1/portal/checkout" && req.method === "POST") {
+      if (payments === undefined) {
+        send(res, 503, { error: "payments not configured" }, cors);
+        return;
+      }
+
+      const found = await getMyAdvertiser(advertiserDeps, auth.uid);
+      if (!found.ok) {
+        send(res, ADVERTISER_STATUS[found.error], { error: found.error }, cors);
+        return;
+      }
+
+      const raw = await jsonBody();
+      if (raw === undefined) return;
+      const fields = raw as Record<string, unknown>;
+
+      const amountMicros = parseFundingAmount(fields["amountMicros"]);
+      const billingCountry = parseCountry(fields["billingCountry"]);
+      const email = typeof fields["email"] === "string" ? fields["email"].trim() : "";
+
+      if (amountMicros === null || billingCountry === null || email.length === 0) {
+        send(res, 400, { error: "malformed checkout" }, cors);
+        return;
+      }
+
+      const session = await payments.createCheckout({
+        advertiserId: found.value.advertiserId,
+        advertiserName: found.value.name,
+        advertiserEmail: email,
+        billingCountry,
+        amountMicros,
+        returnUrl: `${siteOrigin}/portal/billing`,
+      });
+
+      // 502, not 500: the failure is the provider's, and the distinction tells the portal
+      // whether retrying is worth offering.
+      if (session === null) {
+        send(res, 502, { error: "payment provider unavailable" }, cors);
+        return;
+      }
+
+      send(res, 200, session, cors);
       return;
     }
 

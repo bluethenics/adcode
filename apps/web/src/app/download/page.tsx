@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import { InstallCommand } from "@/components/InstallCommand";
 import { JsonLd } from "@/components/JsonLd";
 import { breadcrumbs } from "@/lib/schema";
-import { GITHUB_REPO, url } from "@/lib/site";
+import { GITHUB_REPO, SITE_ORIGIN, url } from "@/lib/site";
+
+/** Built from SITE_ORIGIN so the domain is stated once, in site.ts. */
+const PS_INSTALL = `irm ${SITE_ORIGIN}/install.ps1 | iex`;
+const SH_INSTALL = `curl -fsSL ${SITE_ORIGIN}/install.sh | sh`;
+import { DesktopMockup } from "@/components/DesktopMockup";
 
 export const metadata: Metadata = {
   title: "Download",
@@ -17,7 +22,7 @@ const PLATFORMS = [
     name: "Windows",
     note: "Windows 10 or later, 64-bit",
     shell: "PowerShell",
-    command: "irm https://adcode.dev/install.ps1 | iex",
+    command: PS_INSTALL,
     direct: `https://github.com/${GITHUB_REPO}/releases/latest`,
   },
   {
@@ -25,7 +30,7 @@ const PLATFORMS = [
     name: "macOS",
     note: "macOS 12 or later, Apple silicon and Intel",
     shell: "Terminal",
-    command: "curl -fsSL https://adcode.dev/install.sh | sh",
+    command: SH_INSTALL,
     direct: `https://github.com/${GITHUB_REPO}/releases/latest`,
   },
   {
@@ -33,7 +38,7 @@ const PLATFORMS = [
     name: "Linux",
     note: "AppImage and .deb, x86-64",
     shell: "Terminal",
-    command: "curl -fsSL https://adcode.dev/install.sh | sh",
+    command: SH_INSTALL,
     direct: `https://github.com/${GITHUB_REPO}/releases/latest`,
   },
 ] as const;
@@ -48,15 +53,17 @@ export default function DownloadPage() {
         ])}
       />
 
-      <section className="band band-ink">
-        <div className="wrap">
+      <section className="download-hero band-night">
+        <div className="wrap download-hero-grid">
+          <div>
           <div className="section-head">
             <p className="eyebrow">Download</p>
-            <h1 style={{ fontSize: "clamp(32px, 4.6vw, 52px)" }}>One line, then you are editing.</h1>
+            <h1 className="page-title">Download the editor. Keep the upside.</h1>
             <p className="lede">
               Free, no account required to start, and it keeps itself up to date. Pick your
               platform.
             </p>
+          </div><DesktopMockup className="desktop-mockup--compact" />
           </div>
 
           <div className="grid grid-3">
@@ -78,11 +85,8 @@ export default function DownloadPage() {
                 </div>
 
                 <p style={{ color: "var(--on-ink-muted)", fontSize: 13 }}>
-                  Paste into {platform.shell}, or{" "}
-                  <a href={platform.direct} style={{ color: "var(--accent)" }}>
-                    download the installer
-                  </a>
-                  .
+                  <a href={platform.direct} className="btn btn-primary download-direct">Download installer</a>
+                  <span className="install-secondary">Or paste this into {platform.shell}.</span>
                 </p>
               </div>
             ))}

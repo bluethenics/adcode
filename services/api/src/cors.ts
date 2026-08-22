@@ -9,7 +9,7 @@
  * there is no origin and no preflight.
  */
 
-const DEFAULT_ORIGINS = ["https://adcode.dev", "https://www.adcode.dev"];
+const DEFAULT_ORIGINS = ["https://adcode.bluethenics.com"];
 
 /** Extra origins for local development, comma-separated in `ADCODE_CORS_ORIGINS`. */
 function allowed(): ReadonlySet<string> {
@@ -26,7 +26,7 @@ export function corsHeaders(origin: string | undefined): Record<string, string> 
 
   return {
     "access-control-allow-origin": origin,
-    // Echoing one origin means caches must key on it, or a response for adcode.dev could
+    // Echoing one origin means caches must key on it, or a response for the site origin could
     // be served to a different origin from a shared cache.
     vary: "Origin",
     "access-control-allow-headers": "authorization, content-type",

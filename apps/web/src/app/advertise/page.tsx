@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { JsonLd } from "@/components/JsonLd";
 import { breadcrumbs, faqPage } from "@/lib/schema";
 import { ECONOMICS, formatMicros, url } from "@/lib/site";
+import { DesktopMockup } from "@/components/DesktopMockup";
 
 export const metadata: Metadata = {
   title: "Advertise to developers",
@@ -41,8 +42,9 @@ export default function AdvertisePage() {
       />
       <JsonLd data={faqPage(ADVERTISER_FAQ)} />
 
-      <section className="band band-ink">
-        <div className="wrap">
+      <section className="download-hero band-night">
+        <div className="wrap download-hero-grid">
+          <div>
           <div className="section-head">
             <p className="eyebrow">For advertisers</p>
             <h1 style={{ fontSize: "clamp(32px, 4.6vw, 52px)" }}>
@@ -53,13 +55,14 @@ export default function AdvertisePage() {
               in front of them. You pay for verified views only, and half of what you pay goes
               to the developer who saw it — which is the reason they leave ads on.
             </p>
+          </div><DesktopMockup className="desktop-mockup--compact" />
           </div>
 
           <div className="hero-cta">
             <Link href="/portal" className="btn btn-primary">
               Create a campaign
             </Link>
-            <a href="mailto:advertise@adcode.dev" className="btn btn-ghost">
+            <a href="mailto:advertise@adcode.bluethenics.com" className="btn btn-ghost">
               Talk to us first
             </a>
           </div>

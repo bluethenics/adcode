@@ -7,10 +7,10 @@
  */
 
 /** Swap this, or set NEXT_PUBLIC_SITE_ORIGIN, when the real domain is registered. */
-export const SITE_ORIGIN = process.env["NEXT_PUBLIC_SITE_ORIGIN"] ?? "https://adcode.dev";
+export const SITE_ORIGIN = process.env["NEXT_PUBLIC_SITE_ORIGIN"] ?? "https://adcode.bluethenics.com";
 
 /** Where the API lives. Same default the desktop client uses in `main/backend.ts`. */
-export const API_ORIGIN = process.env["NEXT_PUBLIC_API_ORIGIN"] ?? "https://api.adcode.dev";
+export const API_ORIGIN = process.env["NEXT_PUBLIC_API_ORIGIN"] ?? "https://api.adcode.bluethenics.com";
 
 /** Owner/repo that release artifacts are published to. */
 export const GITHUB_REPO = process.env["NEXT_PUBLIC_GITHUB_REPO"] ?? "adcode/adcode";

@@ -13,8 +13,7 @@ export function Footer() {
               ADCode
             </span>
             <p style={{ marginTop: 12, maxWidth: "34ch", color: "var(--on-ink-muted)" }}>
-              A free editor funded by advertisers, with a share of what they pay going back
-              to the people doing the work.
+              The desktop editor that gives half of each verified ad payment back to the developer.
             </p>
           </div>
 
@@ -44,7 +43,7 @@ export function Footer() {
           <span>
             © {new Date().getFullYear()} {SITE.name}
           </span>
-          <span>Built for people who would rather be paid than pay.</span>
+          <span>Earn while you code.</span>
         </div>
       </div>
     </footer>

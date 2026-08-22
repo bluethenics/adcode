@@ -18,6 +18,7 @@ import type {
   CampaignRecord,
   CreativeRecord,
   EntryPage,
+  FundingRecord,
   Page,
   ReceiptRecord,
   ReportPage,
@@ -352,6 +353,31 @@ export function createFirestoreStore(injected?: Firestore): Store {
         // collection grows without bound, one document per user per window.
         tx.set(ref, { count: next, expiresAt: windowStart + 3_600_000 });
         return next;
+      });
+    },
+
+    async recordFundingIfAbsent(funding: FundingRecord) {
+      const ref = (await lazy()).collection("funding").doc(funding.eventId);
+      try {
+        // `create` fails if the doc exists; that failure IS the idempotency check, and it
+        // is atomic in a way a read-then-write is not.
+        await ref.create({ ...funding, amountMicros: fromMicros(funding.amountMicros) });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+
+    async listFunding(advertiserId) {
+      const snap = await (await lazy())
+        .collection("funding")
+        .where("advertiserId", "==", advertiserId)
+        .orderBy("at", "desc")
+        .limit(200)
+        .get();
+      return snap.docs.map((d) => {
+        const raw = d.data();
+        return { ...(raw as Omit<FundingRecord, "amountMicros">), amountMicros: toMicros(raw["amountMicros"]) };
       });
     },
 

@@ -114,6 +114,21 @@ export interface EntryPage {
   nextCursor: string | null;
 }
 
+/**
+ * One settled advertiser payment.
+ *
+ * Keyed by the provider's webhook event id, which is what makes crediting idempotent:
+ * payment providers retry, and a retry that credits twice is money invented.
+ */
+export interface FundingRecord {
+  eventId: string;
+  paymentId: string;
+  advertiserId: string;
+  amountMicros: bigint;
+  currency: string;
+  at: number;
+}
+
 export interface ReportRecord {
   reportId: string;
   uid: string;
@@ -175,6 +190,10 @@ export interface Store {
 
   /** Increments this UID's counter for the window and returns the new count. */
   bumpRequestCount(uid: string, windowStart: number): Promise<number>;
+
+  /** True when created, false when this event was already processed. The idempotency gate. */
+  recordFundingIfAbsent(funding: FundingRecord): Promise<boolean>;
+  listFunding(advertiserId: string): Promise<FundingRecord[]>;
 
   createReport(report: ReportRecord): Promise<void>;
   listReports(page: Page): Promise<ReportPage>;

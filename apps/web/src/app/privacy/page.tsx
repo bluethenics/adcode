@@ -82,7 +82,7 @@ We use Google Cloud and Firebase to run the service, Dodo Payments to take payme
 ## Your choices
 
 - **Turn ads off.** Settings has a cadence control with an off position. The editor is otherwise identical, with no reduced features and no prompts to turn it back on.
-- **Ask for your data or its deletion.** Write to privacy@adcode.dev. Deleting your account removes your identifier and your ledger. Records we must keep for accounting are retained where the law requires.
+- **Ask for your data or its deletion.** Write to privacy@adcode.bluethenics.com. Deleting your account removes your identifier and your ledger. Records we must keep for accounting are retained where the law requires.
 
 ## Retention
 
@@ -109,7 +109,7 @@ export default function PrivacyPage() {
 
       <section className="band">
         <div className="wrap">
-          <header style={{ marginBottom: 30, maxWidth: "68ch" }}>
+          <header className="page-header">
             <p className="eyebrow">Privacy</p>
             <h1 style={{ fontSize: "clamp(30px, 4.2vw, 46px)" }}>What we collect, and what we never do.</h1>
             <p className="mono" style={{ marginTop: 16, fontSize: 13, color: "var(--faint)" }}>

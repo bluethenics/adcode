@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { createApiServer, type ApiServer } from "../src/server.ts";
 import { createMemoryStore } from "../src/memoryStore.ts";
 import type { TokenVerifier } from "../src/auth.ts";
+import { sign } from "../src/billing.ts";
+import type { PaymentProvider } from "../src/payments.ts";
 
 const verifier: TokenVerifier = {
   async verify(token) {
@@ -15,9 +17,20 @@ let server: ApiServer;
 let store: ReturnType<typeof createMemoryStore>;
 const auth = { authorization: "Bearer good", "content-type": "application/json" };
 
+const WEBHOOK_SECRET = "whsec_dGVzdC1zZWNyZXQtdmFsdWUtZm9yLXNpZ25pbmc=";
+
+/** Records what it was asked for, so the route's mapping can be asserted. */
+let lastCheckout: unknown = null;
+const payments: PaymentProvider = {
+  async createCheckout(request) {
+    lastCheckout = request;
+    return { paymentId: "pay_test", paymentLink: "https://test.dodopayments.com/pay/abc" };
+  },
+};
+
 beforeAll(async () => {
   store = createMemoryStore();
-  server = await createApiServer({ store, verifier });
+  server = await createApiServer({ store, verifier, payments, webhookSecret: WEBHOOK_SECRET });
 });
 
 afterAll(async () => {
@@ -134,17 +147,17 @@ describe("cors", () => {
   it("answers preflight without requiring a token", async () => {
     const res = await fetch(`${server.url}/v1/balance`, {
       method: "OPTIONS",
-      headers: { origin: "https://adcode.dev" },
+      headers: { origin: "https://adcode.bluethenics.com" },
     });
     expect(res.status).toBe(204);
-    expect(res.headers.get("access-control-allow-origin")).toBe("https://adcode.dev");
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://adcode.bluethenics.com");
   });
 
   it("echoes only an allowed origin, and varies on it", async () => {
     const res = await fetch(`${server.url}/v1/balance`, {
-      headers: { ...auth, origin: "https://adcode.dev" },
+      headers: { ...auth, origin: "https://adcode.bluethenics.com" },
     });
-    expect(res.headers.get("access-control-allow-origin")).toBe("https://adcode.dev");
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://adcode.bluethenics.com");
     expect(res.headers.get("vary")).toBe("Origin");
   });
 
@@ -220,6 +233,110 @@ describe("portal", () => {
       body: JSON.stringify({ status: "active" }),
     });
     expect(res.status).toBe(404);
+  });
+});
+
+describe("payment webhook", () => {
+  const eventBody = (advertiserId = "adv-1") =>
+    JSON.stringify({
+      type: "payment.succeeded",
+      data: {
+        payment_id: "pay_abc",
+        total_amount: 5000,
+        currency: "USD",
+        metadata: { advertiserId },
+      },
+    });
+
+  const postWebhook = (raw: string, id: string, ts: string, sig?: string) =>
+    fetch(`${server.url}/v1/webhooks/dodo`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "webhook-id": id,
+        "webhook-timestamp": ts,
+        "webhook-signature": sig ?? `v1,${sign(WEBHOOK_SECRET, id, ts, raw)}`,
+      },
+      body: raw,
+    });
+
+  const nowSeconds = () => String(Math.floor(Date.now() / 1000));
+
+  it("needs no bearer token - the signature is the authentication", async () => {
+    await post("/v1/portal/advertiser", { name: "Acme" });
+    const advertiser = await store.advertiserForOwner("u-1");
+    const raw = eventBody(advertiser!.advertiserId);
+
+    const res = await postWebhook(raw, "evt_route_1", nowSeconds());
+    expect(res.status).toBe(200);
+    expect((await store.getAdvertiser(advertiser!.advertiserId))?.fundedMicros).toBe(50_000_000n);
+  });
+
+  it("400s a forged signature", async () => {
+    const raw = eventBody();
+    const res = await postWebhook(raw, "evt_route_2", nowSeconds(), "v1,forged");
+    expect(res.status).toBe(400);
+  });
+
+  it("200s an event it does not fund on, so the provider stops retrying", async () => {
+    const raw = JSON.stringify({ type: "payment.failed", data: {} });
+    const res = await postWebhook(raw, "evt_route_3", nowSeconds());
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("checkout", () => {
+  it("refuses before sign-up", async () => {
+    const res = await post("/v1/portal/checkout", {
+      amountMicros: "50000000",
+      billingCountry: "US",
+      email: "billing@acme.test",
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns a payment link for a signed-up advertiser", async () => {
+    await post("/v1/portal/advertiser", { name: "Acme" });
+    const res = await post("/v1/portal/checkout", {
+      amountMicros: "50000000",
+      billingCountry: "US",
+      email: "billing@acme.test",
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body["paymentLink"]).toContain("dodopayments.com");
+    expect((lastCheckout as Record<string, unknown>)["amountMicros"]).toBe(50_000_000n);
+  });
+
+  it("400s an amount below the minimum, a fractional cent, or a bad country", async () => {
+    await post("/v1/portal/advertiser", { name: "Acme" });
+    const bad = async (over: Record<string, unknown>) =>
+      (
+        await post("/v1/portal/checkout", {
+          amountMicros: "50000000",
+          billingCountry: "US",
+          email: "billing@acme.test",
+          ...over,
+        })
+      ).status;
+
+    expect(await bad({ amountMicros: "1000" })).toBe(400);
+    expect(await bad({ amountMicros: "50000001" })).toBe(400);
+    expect(await bad({ billingCountry: "USA" })).toBe(400);
+    expect(await bad({ email: "" })).toBe(400);
+  });
+
+  it("does not credit anything - only the webhook moves money", async () => {
+    await post("/v1/portal/advertiser", { name: "Acme" });
+    await post("/v1/portal/checkout", {
+      amountMicros: "50000000",
+      billingCountry: "US",
+      email: "billing@acme.test",
+    });
+
+    const advertiser = await store.advertiserForOwner("u-1");
+    expect(advertiser?.fundedMicros).toBe(0n);
   });
 });
 

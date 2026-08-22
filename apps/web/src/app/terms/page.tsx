@@ -65,7 +65,7 @@ Payment is taken through Dodo Payments.
 
 ## Suspension
 
-We may suspend an account that breaks these terms. If we suspend yours, you can write to support@adcode.dev, and we will tell you the reason.
+We may suspend an account that breaks these terms. If we suspend yours, you can write to support@adcode.bluethenics.com, and we will tell you the reason.
 
 If we suspend an account for abuse, credits arising from that abuse are reversed. Credits earned legitimately are not.
 
@@ -79,7 +79,7 @@ If these terms change materially, the date below changes and the change is descr
 
 ## Contact
 
-support@adcode.dev
+support@adcode.bluethenics.com
 `;
 
 export default function TermsPage() {
@@ -94,7 +94,7 @@ export default function TermsPage() {
 
       <section className="band">
         <div className="wrap">
-          <header style={{ marginBottom: 30, maxWidth: "68ch" }}>
+          <header className="page-header">
             <p className="eyebrow">Terms</p>
             <h1 style={{ fontSize: "clamp(30px, 4.2vw, 46px)" }}>The deal, in plain terms.</h1>
             <p className="mono" style={{ marginTop: 16, fontSize: 13, color: "var(--faint)" }}>

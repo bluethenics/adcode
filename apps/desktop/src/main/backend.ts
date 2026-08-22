@@ -12,7 +12,7 @@
 import { createFirebaseAuth, type Clock, type FileStore, type HttpTransport, type TokenProvider } from "@adcode/ads";
 
 /** Production. Overridden by `ADCODE_AD_SERVER`, which is how the mock server is used. */
-export const DEFAULT_API_ORIGIN = "https://api.adcode.dev";
+export const DEFAULT_API_ORIGIN = "https://api.adcode.bluethenics.com";
 
 export function apiOrigin(): string {
   return process.env["ADCODE_AD_SERVER"] ?? DEFAULT_API_ORIGIN;
