@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Mark } from "./Mark";
+import { NavAccount } from "./NavAccount";
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
@@ -31,7 +32,10 @@ export function Nav() {
           <Link href="/advertise" data-optional="true">
             Advertise
           </Link>
-          <Link href="/blog">Blog</Link>
+          <Link href="/blog" data-optional="true">
+            Blog
+          </Link>
+          <NavAccount />
           <Link href="/download" className="btn btn-primary nav-download">
             Download ADCode
           </Link>

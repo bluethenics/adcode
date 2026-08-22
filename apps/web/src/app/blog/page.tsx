@@ -22,8 +22,8 @@ const dateLabel = (iso: string): string =>
     timeZone: "UTC",
   });
 
-export default function BlogIndex() {
-  const posts = allPosts();
+export default async function BlogIndex() {
+  const posts = await allPosts();
 
   return (
     <>

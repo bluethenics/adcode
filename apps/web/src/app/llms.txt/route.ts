@@ -14,8 +14,8 @@ import { SITE, url } from "@/lib/site";
  */
 export const dynamic = "force-static";
 
-export function GET(): Response {
-  const posts = allPosts()
+export async function GET(): Promise<Response> {
+  const posts = (await allPosts())
     .map((post) => `- [${post.title}](${url(`/blog/${post.slug}`)}): ${post.description}`)
     .join("\n");
 

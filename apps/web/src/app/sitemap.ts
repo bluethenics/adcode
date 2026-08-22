@@ -9,7 +9,7 @@ import { allPosts } from "@/lib/posts";
  * and are excluded here as well as disallowed in robots.txt - a URL that always redirects
  * to a login screen spends crawl budget and ranks for nothing.
  */
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
   const fixed: MetadataRoute.Sitemap = [
@@ -21,7 +21,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: url("/terms"), lastModified: now, changeFrequency: "yearly", priority: 0.3 },
   ];
 
-  const posts: MetadataRoute.Sitemap = allPosts().map((post) => ({
+  const posts: MetadataRoute.Sitemap = (await allPosts()).map((post) => ({
     url: url(`/blog/${post.slug}`),
     lastModified: new Date(post.updated ?? post.published),
     changeFrequency: "yearly",

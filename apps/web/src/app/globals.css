@@ -900,3 +900,362 @@ body { background: #f5f7fb; }
 @media (max-width: 700px) { .desktop-mockup__shell { min-height:365px; grid-template-columns:minmax(0,1fr) 150px; }.desktop-mockup__sidebar { display:none; }.desktop-mockup__sponsor { width:150px; }.desktop-mockup__ledger { padding-inline:9px; } }
 @media (max-width: 460px) { .desktop-mockup__shell { grid-template-columns:1fr; }.desktop-mockup__ledger { display:none; }.desktop-mockup__code { font-size:10px; }.desktop-mockup__sponsor { top:46px; right:9px; }.desktop-mockup__status { display:none; } }
 @media (prefers-reduced-motion: reduce) { .desktop-mockup__sponsor { animation:none; } }
+
+/* ── Signed-in areas: portal, dashboard, admin ──────────────────────────── */
+
+/*
+ * These share one chrome. An advertiser checking spend and a user checking earnings are
+ * doing the same thing - reading a number and the rows behind it - so they get the same
+ * furniture rather than two half-designed dashboards.
+ */
+.app {
+  min-height: 70vh;
+  padding-block: 34px 80px;
+}
+
+.app-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.app-head h1 {
+  font-size: clamp(26px, 3.2vw, 36px);
+}
+
+.app-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--hairline);
+  overflow-x: auto;
+}
+
+.app-tab {
+  padding: 9px 14px;
+  font-size: 14.5px;
+  font-weight: 520;
+  color: var(--muted);
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.app-tab:hover {
+  color: var(--text);
+}
+
+.app-tab[aria-current="page"] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Stat tiles ─────────────────────────────────────────────────────────── */
+
+.stats {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  margin-bottom: 30px;
+}
+
+.stat {
+  padding: 18px 20px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.stat-label {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 25px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.stat-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────── */
+
+.rows {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  font-size: 14.5px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--hairline);
+}
+
+.row-head {
+  background: rgba(0, 0, 0, 0.015);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.row-title {
+  font-weight: 530;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-sub {
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.row-num {
+  flex: none;
+  text-align: right;
+  min-width: 76px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Pills ──────────────────────────────────────────────────────────────── */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 980px;
+  font-size: 12px;
+  font-weight: 540;
+  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+  color: var(--muted);
+}
+
+.pill[data-tone="live"] {
+  background: rgba(48, 209, 88, 0.14);
+  color: #1a7f37;
+}
+
+.pill[data-tone="paused"] {
+  background: rgba(255, 159, 10, 0.16);
+  color: #9a5b00;
+}
+
+.pill[data-tone="ended"],
+.pill[data-tone="rejected"],
+.pill[data-tone="banned"] {
+  background: rgba(255, 69, 58, 0.13);
+  color: #a3271f;
+}
+
+.pill[data-tone="pending"] {
+  background: rgba(0, 122, 255, 0.12);
+  color: #0058b8;
+}
+
+/* ── Forms ──────────────────────────────────────────────────────────────── */
+
+.field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.field label {
+  font-size: 13.5px;
+  font-weight: 540;
+}
+
+.field-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.textarea {
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.input:focus-visible,
+.textarea:focus-visible,
+.select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.tag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+
+.tag-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tag-check input {
+  accent-color: var(--accent);
+}
+
+/* ── Feedback ───────────────────────────────────────────────────────────── */
+
+.notice {
+  padding: 12px 15px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  margin-bottom: 18px;
+  border: 1px solid var(--hairline);
+}
+
+.notice[data-tone="error"] {
+  background: rgba(255, 69, 58, 0.07);
+  border-color: rgba(255, 69, 58, 0.3);
+  color: #a3271f;
+}
+
+.notice[data-tone="ok"] {
+  background: rgba(48, 209, 88, 0.09);
+  border-color: rgba(48, 209, 88, 0.32);
+  color: #1a7f37;
+}
+
+.notice[data-tone="info"] {
+  background: rgba(0, 122, 255, 0.06);
+  border-color: rgba(0, 122, 255, 0.25);
+  color: #0058b8;
+}
+
+/* An empty screen is an invitation to act, not a shrug. */
+.empty {
+  padding: 46px 24px;
+  text-align: center;
+  border: 1px dashed var(--hairline);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+}
+
+.empty h3 {
+  font-size: 17px;
+  margin-bottom: 7px;
+  color: var(--text);
+}
+
+.empty p {
+  font-size: 14.5px;
+  max-width: 46ch;
+  margin-inline: auto;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.btn-small {
+  padding: 7px 14px;
+  font-size: 13.5px;
+}
+
+.btn-outline {
+  background: transparent;
+  border-color: var(--hairline);
+  color: var(--text);
+}
+
+.btn-outline:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.auth-card {
+  max-width: 380px;
+  margin: 60px auto;
+  padding: 30px 28px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+
+.auth-card h1 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.auth-alt {
+  margin-top: 18px;
+  font-size: 13.5px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.auth-alt button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}

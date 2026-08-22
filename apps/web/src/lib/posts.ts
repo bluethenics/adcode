@@ -1,14 +1,18 @@
 /**
  * Blog posts.
  *
- * File-based for now, and deliberately shaped like what the admin panel will store: a
- * row with a slug, dates, a description, and a markdown body. When posts move into
- * Firestore, `allPosts` and `getPost` become async reads and nothing above them changes.
+ * Two sources, in order: the API, where the admin panel writes them, and a small set of
+ * files in this repo as a fallback.
  *
- * The body is a small markdown subset - headings, paragraphs, lists, code, links, bold -
- * rendered by `markdown.ts`. A full markdown library would be a dependency carried for
- * four posts.
+ * The fallback is not a hedge - it is what keeps the marketing site standing when the
+ * API is down or not yet deployed. A blog that 500s because a backend is unreachable is
+ * worse than one showing three slightly old posts, and search engines punish the former
+ * far more than the latter.
+ *
+ * Reads are revalidated rather than cached forever, so publishing from the admin panel
+ * appears without a deploy.
  */
+import { API_ORIGIN } from "./site";
 
 export interface Post {
   slug: string;
@@ -16,7 +20,6 @@ export interface Post {
   description: string;
   published: string;
   updated?: string;
-  /** Minutes, computed from the body. */
   readingMinutes: number;
   body: string;
 }
@@ -29,6 +32,9 @@ interface PostSource {
   updated?: string;
   body: string;
 }
+
+/** How long a published post may be stale on the public site. */
+const REVALIDATE_SECONDS = 60;
 
 const SOURCES: readonly PostSource[] = [
   {
@@ -168,12 +174,66 @@ function hydrate(source: PostSource): Post {
   return source.updated === undefined ? post : { ...post, updated: source.updated };
 }
 
-/** Newest first. */
-export function allPosts(): Post[] {
-  return SOURCES.map(hydrate).sort((a, b) => b.published.localeCompare(a.published));
+/** What the API returns. Timestamps are millisecond epochs there, ISO dates here. */
+interface ApiPost {
+  slug: string;
+  title: string;
+  description: string;
+  body: string;
+  publishedAt: number | null;
+  updatedAt: number;
 }
 
-export function getPost(slug: string): Post | null {
+const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+
+function fromApi(post: ApiPost): Post {
+  const published = isoDay(post.publishedAt ?? post.updatedAt);
+  const updated = isoDay(post.updatedAt);
+
+  const hydrated: Post = {
+    slug: post.slug,
+    title: post.title,
+    description: post.description,
+    published,
+    readingMinutes: readingMinutes(post.body),
+    body: post.body,
+  };
+
+  return updated === published ? hydrated : { ...hydrated, updated };
+}
+
+const fileposts = (): Post[] =>
+  SOURCES.map(hydrate).sort((a, b) => b.published.localeCompare(a.published));
+
+/** Newest first. Falls back to the bundled posts when the API cannot be reached. */
+export async function allPosts(): Promise<Post[]> {
+  try {
+    const response = await fetch(`${API_ORIGIN}/v1/posts`, {
+      next: { revalidate: REVALIDATE_SECONDS },
+    });
+    if (!response.ok) return fileposts();
+
+    const body = (await response.json()) as { posts?: ApiPost[] };
+    const posts = Array.isArray(body.posts) ? body.posts.map(fromApi) : [];
+
+    // An API that is up but has no posts yet still shows the bundled ones, so a fresh
+    // deployment never has an empty blog.
+    return posts.length === 0 ? fileposts() : posts.sort((a, b) => b.published.localeCompare(a.published));
+  } catch {
+    return fileposts();
+  }
+}
+
+export async function getPost(slug: string): Promise<Post | null> {
+  try {
+    const response = await fetch(`${API_ORIGIN}/v1/posts/${encodeURIComponent(slug)}`, {
+      next: { revalidate: REVALIDATE_SECONDS },
+    });
+    if (response.ok) return fromApi((await response.json()) as ApiPost);
+  } catch {
+    // Fall through to the bundled posts.
+  }
+
   const found = SOURCES.find((p) => p.slug === slug);
   return found === undefined ? null : hydrate(found);
 }

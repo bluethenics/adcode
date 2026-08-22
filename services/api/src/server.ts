@@ -288,7 +288,15 @@ export async function createApiServer(
     }
 
     if (path === "/v1/admin/creatives" && req.method === "GET") {
-      send(res, 200, { creatives: await handleReviewQueue({ store, clock }, auth.uid) }, cors);
+      // Defaults to the review queue; ?status= lets the test-ad screen reach approved
+      // ones too. An unknown value falls back to pending rather than erroring.
+      const wanted = url.searchParams.get("status");
+      const creatives =
+        wanted === "approved" || wanted === "rejected"
+          ? await store.creativesByStatus(wanted)
+          : await handleReviewQueue({ store, clock }, auth.uid);
+
+      send(res, 200, { creatives }, cors);
       return;
     }
 

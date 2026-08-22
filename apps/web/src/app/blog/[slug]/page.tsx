@@ -13,13 +13,13 @@ interface Props {
 }
 
 /** Every post is known at build time, so each one is a static file. */
-export function generateStaticParams(): { slug: string }[] {
-  return allPosts().map((post) => ({ slug: post.slug }));
+export async function generateStaticParams(): Promise<{ slug: string }[]> {
+  return (await allPosts()).map((post) => ({ slug: post.slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const post = getPost(slug);
+  const post = await getPost(slug);
   if (post === null) return { title: "Not found" };
 
   return {
@@ -48,7 +48,7 @@ const dateLabel = (iso: string): string =>
 
 export default async function PostPage({ params }: Props) {
   const { slug } = await params;
-  const post = getPost(slug);
+  const post = await getPost(slug);
   if (post === null) notFound();
 
   const html = renderMarkdown(post.body);
