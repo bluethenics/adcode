@@ -50,6 +50,17 @@ files:
 asarUnpack:
   - "**/node_modules/node-pty/**"
 
+# Where updates come from. electron-updater reads this same block at runtime to find the
+# feed, so the app and the installer always agree on where releases live.
+#
+# The repo below is a placeholder - set GH_OWNER and GH_REPO, or edit it, before the first
+# real release. Publishing to the wrong repo produces installers that check an update feed
+# nobody publishes to, and they never update again.
+publish:
+  provider: github
+  owner: adcode
+  repo: adcode
+
 win:
   icon: build/icon.ico
   target:
@@ -74,5 +85,16 @@ mac:
 
 linux:
   icon: build/icon.png
-  target: [AppImage]
+  # AppImage runs anywhere without a package manager; .deb is what most people expect on
+  # Debian and Ubuntu. Both are produced, and the install script picks between them.
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
   category: Development
+  synopsis: An ad-supported, AI-native IDE
+  desktop:
+    entry:
+      Name: ADCode
+      Categories: Development;IDE;

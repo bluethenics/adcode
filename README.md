@@ -6,19 +6,25 @@ An ad-supported, AI-native IDE. See `2026-08-15-scratch-ide-build-prompt.md` for
 stages and commits, searches and replaces across a workspace, explains your errors in plain
 English, previews your site on a built-in server, suggests completions in every language it
 highlights, talks to four AI providers, remembers what you were doing, and installs as a
-Windows app. Full language intelligence (LSP, DAP) and the whole advertiser-facing platform
-are not built.
+Windows app.
+
+**The advertiser platform is real too.** `services/api` serves ads, verifies receipts, and
+keeps an append-only money ledger; `apps/web` is the marketing site, advertiser portal,
+user dashboard, and admin panel. Not built: full language intelligence (LSP, DAP), and
+paying users out.
 
 ```
 npm install
 npm start               # build if needed, then launch
 npm run package         # installer + portable .exe into release/
 
-npm run verify          # typecheck + architecture rules + full suite (1157 tests)
-npm run smoke           # launch the built app and drive it (80 checks)
+npm run verify          # typecheck + architecture rules + full suite (1470 tests)
+npm run smoke           # launch the built app and drive it (84 checks)
 npm run icons           # rasterise build/icon.svg into icon.ico and icon.png
 npm run dev             # electron-vite dev server, with hot reload
 npm run mock-server     # ad serving contract on :8787, no build step
+npm run web             # the site, portal, dashboard and admin on :3000
+npm run test:emulator   # the Firestore adapter (needs firebase-tools and a JDK)
 ```
 
 > After `npm install`, npm's allow-scripts policy blocks install scripts. Electron's
@@ -34,13 +40,14 @@ npm run mock-server     # ad serving contract on :8787, no build step
 | `packages/git` | init, clone, status, stage, commit, push, pull, branches, blame, line changes, conflicts, commit detail, per-file restore. 136 tests. |
 | `packages/search` | Fuzzy file ranking and workspace search/replace. 57 tests. |
 | `packages/memory` | Shared memory store, frontmatter, mirrors, FTS index, MCP server. 116 tests. |
-| `packages/settings` | 52 settings across 9 groups. 61 tests. |
+| `packages/settings` | 53 settings across 10 groups. 61 tests. |
 | `packages/collab` | Live-session wire protocol, permissions, roster, invite codes, cursor colours. 81 tests. |
 | `packages/diagnostics` | The `Diagnostic` type, plain-English rewrites of ~40 compiler errors, grouping. 35 tests. |
 | `packages/lsp` | LSP framing, message building, position conversion, server registry. 49 tests. |
 | `packages/ai` | Completion state machine, diff review, agent loop, four providers. 70 tests. |
 | `mock-server` | All four `/v1/*` endpoints, an asset host, fault injection. 21 tests. |
-| `services/api` | The real backend: auth, serving, receipts, campaigns, and an append-only money ledger. Firestore behind a port, so it tests with no cloud project. 145 tests. |
+| `services/api` | The real backend: auth, serving, receipts, campaigns, advertiser funding, the admin surface, and an append-only money ledger. Firestore behind a port, so it tests with no cloud project. 294 tests. |
+| `apps/web` | adcode.bluethenics.com: marketing site, blog, advertiser portal, user dashboard, admin panel. Next.js, 23 routes. |
 | `apps/desktop` | The shell: menu bar, command centre, command palette, tabs, tree with right-click actions and drag-and-drop, git and search panels, commit browser, Problems panel, live preview, multi-terminal with a shell launcher, resizable layout, settings, chat, session restore. |
 
 **Not built:** the DAP client and tree-sitter highlighting, the Navigation rows that depend
@@ -50,9 +57,15 @@ works against any server on your PATH; shipping `rust-analyzer` and friends insi
 installer is a packaging job of several hundred megabytes per platform and has not been
 done.
 
-On the advertiser side, the **backend now exists** — `services/api`, see below. What does
-not: the advertiser portal, the user dashboard, the admin panel, the landing page, and
-payments. The API those all read from is built and tested; nothing renders it yet.
+**What is built but never run against real infrastructure:** the Firestore adapter (its
+emulator suite needs a JDK, which this machine lacks) and the Dodo Payments adapter
+(written from the published reference, never exercised with live credentials). Everything
+above those two ports is covered by tests that need no cloud account.
+
+**What still needs a person, not code:** creating the GCP, Firebase, Dodo, and Wise
+accounts; registering the domain; and a lawyer reading `apps/web/src/app/terms/page.tsx`
+before real money moves. Paying users out is designed — the ledger has the withdrawal
+entry kinds and they are unit-tested — but no endpoint raises them yet.
 
 ## The learner surfaces
 

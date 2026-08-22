@@ -16,12 +16,14 @@ import { BrowserWindow, app, shell } from "electron";
 import { registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "./protocol.ts";
 import { registerIpc } from "./ipc.ts";
 import { registerSupportIpc } from "./supportIpc.ts";
+import { onUpdateStatus, registerUpdateIpc, startAutoUpdate } from "./autoUpdate.ts";
 import { installApplicationMenu } from "./menu.ts";
 import { disposeAllTerminals } from "./terminal.ts";
 import { shutdownAllServers } from "./lsp.ts";
 import { stopPreview } from "./preview.ts";
 import { getAdRuntime } from "./adRuntime.ts";
-import { loadSettings } from "./settings.ts";
+import { currentSettings, loadSettings } from "./settings.ts";
+import { CHANNELS } from "../shared/api.ts";
 
 /**
  * Whether to load from Vite's dev server.
@@ -123,6 +125,17 @@ void app.whenReady().then(() => {
   registerAppProtocol(useDevServer);
   registerIpc();
   registerSupportIpc();
+  registerUpdateIpc();
+
+  // Broadcast status to whatever window is open. Not awaited, and failures inside are
+  // swallowed by the module: an update check must never delay first paint.
+  onUpdateStatus((status) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) window.webContents.send(CHANNELS.updateChanged, status);
+    }
+  });
+
+  void startAutoUpdate(() => currentSettings()["adcode.updates.auto"] !== false);
   // Before the first window, so its accelerators are live from the first keystroke. Not
   // awaited: it reads the recents off disk, and a menu is not worth delaying a window for.
   void installApplicationMenu();

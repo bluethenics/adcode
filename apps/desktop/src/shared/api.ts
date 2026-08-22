@@ -42,6 +42,17 @@ export type ReportResult =
   | { readonly ok: true; readonly reportId: string }
   | { readonly ok: false; readonly message: string };
 
+/**
+ * Where the updater has got to.
+ *
+ * `unsupported` covers a dev run and an unpacked build - neither has an update feed, and
+ * saying so beats reporting a failure the user cannot act on.
+ */
+export type UpdateStatus =
+  | { readonly state: "idle" | "checking" | "current" | "failed" | "unsupported" }
+  | { readonly state: "downloading"; readonly version?: string; readonly percent?: number }
+  | { readonly state: "ready"; readonly version: string };
+
 export interface AppInfo {
   readonly version: string;
   readonly electron: string;
@@ -358,6 +369,8 @@ export const CHANNELS = {
   filesOpenDialog: "fs:open-dialog",
   appInfo: "app:info",
   supportSubmitReport: "support:submit-report",
+  updateStatus: "update:status",
+  updateChanged: "update:changed",
 } as const;
 
 /**
@@ -807,6 +820,10 @@ export interface AdcodeApi {
     write(id: string, value: boolean | string): Promise<Record<string, boolean | string>>;
     reset(): Promise<Record<string, boolean | string>>;
     onChanged(listener: (values: Record<string, boolean | string>) => void): () => void;
+  };
+  readonly updates: {
+    status(): Promise<UpdateStatus>;
+    onChanged(listener: (status: UpdateStatus) => void): () => void;
   };
   readonly support: {
     /** Never rejects: a failure comes back as `{ ok: false, message }` to show the user. */

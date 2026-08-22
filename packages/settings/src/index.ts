@@ -26,6 +26,7 @@ export type SettingGroupId =
   | "session"
   | "ai"
   | "appearance"
+  | "updates"
   | "ads";
 
 export interface SettingGroup {
@@ -49,6 +50,7 @@ export const GROUPS: readonly SettingGroup[] = [
   { id: "navigation", title: "Navigation", caption: "Finding your way around a codebase." },
   { id: "language", title: "Language", caption: "Language servers, debugging, and highlighting." },
   { id: "session", title: "Session", caption: "What survives a restart." },
+  { id: "updates", title: "Updates", caption: "New versions install quietly and apply when you next restart." },
   { id: "ai", title: "AI", caption: "One memory, shared by every AI you work with." },
 ];
 
@@ -112,6 +114,16 @@ const bool = (
 ): BooleanSetting => ({ id, group, label, description, kind: "boolean", default: defaultValue, available });
 
 export const SETTINGS_SCHEMA: readonly Setting[] = [
+  /* ── Updates ────────────────────────────────────────────────────────── */
+  bool(
+    "adcode.updates.auto",
+    "updates",
+    "Install updates automatically",
+    "Downloads new versions in the background and applies them the next time you restart. ADCode never restarts itself or interrupts you to ask.",
+    true,
+    true,
+  ),
+
   /* ── Ads (§1, §8.1) ─────────────────────────────────────────────────── */
   bool(
     "adcode.ads.enabled",

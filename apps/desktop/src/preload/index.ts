@@ -166,6 +166,10 @@ const api: AdcodeApi = {
     reset: () => ipcRenderer.invoke(CHANNELS.settingsReset),
     onChanged: (listener) => subscribe(CHANNELS.settingsChanged, listener),
   },
+  updates: {
+    status: () => ipcRenderer.invoke(CHANNELS.updateStatus),
+    onChanged: (listener) => subscribe(CHANNELS.updateChanged, listener),
+  },
   support: {
     submitReport: (input) => ipcRenderer.invoke(CHANNELS.supportSubmitReport, input),
   },
