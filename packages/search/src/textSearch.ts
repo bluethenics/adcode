@@ -79,11 +79,75 @@ const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]
  * include/exclude box actually receives, and a dependency for the rest would be a poor
  * trade in a package whose value is having none.
  */
-function globToRegex(glob: string): RegExp {
+/**
+ * The index of the `}` that closes the `{` at `open`, or -1.
+ *
+ * Counts nesting, so `{a,{b,c}}` closes at the last brace rather than the first one seen.
+ */
+function matchingBrace(glob: string, open: number): number {
+  let depth = 0;
+
+  for (let i = open; i < glob.length; i++) {
+    if (glob[i] === "{") depth += 1;
+    else if (glob[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+
+  return -1;
+}
+
+/** Split on commas that are not inside a nested brace group. */
+function splitAlternatives(body: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+
+  for (let i = 0; i < body.length; i++) {
+    const character = body[i];
+    if (character === "{") depth += 1;
+    else if (character === "}") depth -= 1;
+    else if (character === "," && depth === 0) {
+      parts.push(body.slice(start, i));
+      start = i + 1;
+    }
+  }
+
+  parts.push(body.slice(start));
+  return parts;
+}
+
+function globBody(glob: string): string {
   let source = "";
 
   for (let i = 0; i < glob.length; i++) {
     const character = glob[i]!;
+
+    /*
+     * `{ts,tsx}` - alternation, and the one piece of glob syntax whose absence is silent.
+     *
+     * A missing `*` or `?` produces obviously wrong results. A missing `{a,b}` produces
+     * *no* results: every character was escaped as a literal, so the pattern could only
+     * ever match a file whose name really did contain the braces and the comma. Somebody
+     * typing `*.{ts,tsx}` into the include box - which is the syntax every other search
+     * tool accepts - got an empty panel and no reason for it.
+     *
+     * Each alternative goes back through this function, so `{a,{b,c}}` and `*.{ts,js}`
+     * both work without the two cases knowing about each other.
+     */
+    if (character === "{") {
+      const close = matchingBrace(glob, i);
+
+      if (close !== -1) {
+        const alternatives = splitAlternatives(glob.slice(i + 1, close));
+        source += `(?:${alternatives.map(globBody).join("|")})`;
+        i = close;
+        continue;
+      }
+
+      // An unmatched `{` is a brace in a filename, and some filenames really do have one.
+    }
 
     if (character === "*") {
       if (glob[i + 1] === "*") {
@@ -109,12 +173,16 @@ function globToRegex(glob: string): RegExp {
     source += escapeRegex(character);
   }
 
+  return source;
+}
+
+function globToRegex(glob: string): RegExp {
   // A glob with no separator is matched at any depth, so `*.ts` finds `src/deep/a.ts`
   // rather than only top-level files. Every search box a developer has used behaves this
   // way, and the literal reading is never what they meant.
   const anyDepth = glob.includes("/") ? "" : "(?:.*/)?";
 
-  return new RegExp(`^${anyDepth}${source}$`, "i");
+  return new RegExp(`^${anyDepth}${globBody(glob)}$`, "i");
 }
 
 /** A NUL byte in the first block is the standard binary heuristic. */

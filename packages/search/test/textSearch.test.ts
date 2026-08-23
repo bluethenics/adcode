@@ -163,6 +163,33 @@ describe("filters", () => {
     const results = await collect(search.search({ pattern: "target", include: "src/**" }));
     expect(results.map((r) => r.path)).toEqual(["src/c.ts"]);
   });
+
+  /*
+   * Brace alternation, which every other search tool accepts and this one used to escape
+   * as literal text - so `*.{ts,js}` matched nothing at all, silently, and looked like a
+   * search that had found nothing rather than a glob that could not be expressed.
+   */
+  it("matches any of a brace alternation", async () => {
+    const results = await collect(search.search({ pattern: "target", include: "*.{ts,js}" }));
+    expect(results.map((r) => r.path).sort()).toEqual(["a.ts", "b.js", "src/c.ts"]);
+  });
+
+  it("combines a brace alternation with a directory glob", async () => {
+    const results = await collect(search.search({ pattern: "target", include: "src/**/*.{ts,tsx}" }));
+    expect(results.map((r) => r.path)).toEqual(["src/c.ts"]);
+  });
+
+  it("takes a nested alternation", async () => {
+    const results = await collect(search.search({ pattern: "target", include: "*.{ts,{js,jsx}}" }));
+    expect(results.map((r) => r.path).sort()).toEqual(["a.ts", "b.js", "src/c.ts"]);
+  });
+
+  it("treats an unmatched brace as the character it is", async () => {
+    await write("od{d.ts", "target\n");
+
+    const results = await collect(search.search({ pattern: "target", include: "od{d.ts" }));
+    expect(results.map((r) => r.path)).toEqual(["od{d.ts"]);
+  });
 });
 
 describe("what it refuses to read", () => {
