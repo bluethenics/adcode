@@ -69,3 +69,49 @@
 [data-column-selection="true"] {
   cursor: crosshair;
 }
+
+/* ── Breakpoints and the paused line ──────────────────────────────────── */
+
+/*
+ * A filled circle, drawn rather than a character.
+ *
+ * A glyph from a font is a glyph that is missing on some machine, and a breakpoint that
+ * silently renders as a box is worse than one that renders as nothing.
+ */
+.breakpoint-glyph {
+  position: relative;
+  cursor: pointer;
+}
+
+.breakpoint-glyph::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--danger);
+  transform: translate(-50%, -50%);
+}
+
+/*
+ * Where the program actually is.
+ *
+ * A whole-line band rather than a margin arrow: when execution stops, the question is
+ * "where am I", and the answer should be visible from across the room.
+ */
+.debug-paused-line {
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+}
+
+.debug-paused-glyph::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-style: solid;
+  border-width: 6px 0 6px 9px;
+  border-color: transparent transparent transparent var(--warning);
+  transform: translate(-50%, -50%);
+}

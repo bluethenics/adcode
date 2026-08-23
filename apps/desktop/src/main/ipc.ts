@@ -40,6 +40,20 @@ import {
   recordDraft,
   recoverableDrafts,
 } from "./history.ts";
+import {
+  currentDebugState,
+  debugBreakpoints,
+  debugPause,
+  debugProperties,
+  debugResume,
+  debugScopes,
+  debugStepInto,
+  debugStepOut,
+  debugStepOver,
+  startDebug,
+  stopDebug,
+  toggleBreakpoint,
+} from "./debug.ts";
 import { CHANNELS, type PreviewStatus, type RuntimeCheckView } from "../shared/api.ts";
 import { downloadUrlFor, installCommandFor, runtimeById, runtimeFor } from "../shared/runtimes.ts";
 import {
@@ -438,6 +452,53 @@ export function registerIpc(): void {
   });
 
   ipcMain.handle(CHANNELS.clipboardRead, () => clipboard.readText());
+
+  /* ── Debugging ────────────────────────────────────────────────────────── */
+
+  ipcMain.handle(CHANNELS.debugState, () => currentDebugState());
+
+  ipcMain.handle(CHANNELS.debugStart, async (_event, path: unknown, languageId: unknown) => {
+    if (!isString(path) || !isString(languageId)) return;
+    await startDebug(path, languageId, currentWorkspace()?.root ?? null);
+  });
+
+  ipcMain.handle(CHANNELS.debugStop, () => stopDebug());
+
+  /*
+   * One channel, a closed set of verbs.
+   *
+   * The renderer is treated as hostile (§1), so the verb is checked against a map here
+   * rather than used to look up a method by name - which would be a way to call anything
+   * this module exports.
+   */
+  const CONTROLS: Readonly<Record<string, () => Promise<void>>> = {
+    resume: debugResume,
+    stepOver: debugStepOver,
+    stepInto: debugStepInto,
+    stepOut: debugStepOut,
+    pause: debugPause,
+  };
+
+  ipcMain.handle(CHANNELS.debugControl, async (_event, verb: unknown) => {
+    if (!isString(verb)) return;
+    const control = Object.hasOwn(CONTROLS, verb) ? CONTROLS[verb] : undefined;
+    await control?.();
+  });
+
+  ipcMain.handle(CHANNELS.debugToggleBreakpoint, (_event, path: unknown, line: unknown) => {
+    if (!isString(path) || !isFiniteNumber(line) || line < 1) return debugBreakpoints();
+    return toggleBreakpoint(path, Math.floor(line));
+  });
+
+  ipcMain.handle(CHANNELS.debugBreakpoints, () => debugBreakpoints());
+
+  ipcMain.handle(CHANNELS.debugScopes, (_event, frameId: unknown) =>
+    isString(frameId) ? debugScopes(frameId) : [],
+  );
+
+  ipcMain.handle(CHANNELS.debugProperties, (_event, objectId: unknown) =>
+    isString(objectId) ? debugProperties(objectId) : [],
+  );
 
   ipcMain.handle(CHANNELS.terminalProfiles, () => detectProfiles());
 

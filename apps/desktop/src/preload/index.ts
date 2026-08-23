@@ -53,6 +53,24 @@ const api: AdcodeApi = {
     importFrom: (source, targetDir) => ipcRenderer.invoke(CHANNELS.fsImport, source, targetDir),
     pathForDropped: (file) => webUtils.getPathForFile(file),
   },
+  debug: {
+    state: () => ipcRenderer.invoke(CHANNELS.debugState),
+    start: (path, languageId) => ipcRenderer.invoke(CHANNELS.debugStart, path, languageId),
+    stop: () => ipcRenderer.invoke(CHANNELS.debugStop),
+    // One channel with a verb rather than five channels: the main process validates the
+    // verb against a closed set, and the bridge surface stays small.
+    resume: () => ipcRenderer.invoke(CHANNELS.debugControl, "resume"),
+    stepOver: () => ipcRenderer.invoke(CHANNELS.debugControl, "stepOver"),
+    stepInto: () => ipcRenderer.invoke(CHANNELS.debugControl, "stepInto"),
+    stepOut: () => ipcRenderer.invoke(CHANNELS.debugControl, "stepOut"),
+    pause: () => ipcRenderer.invoke(CHANNELS.debugControl, "pause"),
+    toggleBreakpoint: (path, line) =>
+      ipcRenderer.invoke(CHANNELS.debugToggleBreakpoint, path, line),
+    breakpoints: () => ipcRenderer.invoke(CHANNELS.debugBreakpoints),
+    scopes: (frameId) => ipcRenderer.invoke(CHANNELS.debugScopes, frameId),
+    properties: (objectId) => ipcRenderer.invoke(CHANNELS.debugProperties, objectId),
+    onState: (listener) => subscribe(CHANNELS.debugState, listener),
+  },
   clipboard: {
     writeText: (text) => ipcRenderer.invoke(CHANNELS.clipboardWrite, text),
     readText: () => ipcRenderer.invoke(CHANNELS.clipboardRead),

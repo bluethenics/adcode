@@ -258,7 +258,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     multiline: true,
     maxLength: 4000,
   },
-  bool("adcode.language.dapClient", "language", "Debug adapter client", "Breakpoints, stepping, and variable inspection.", true),
+  bool("adcode.language.dapClient", "language", "Debugger", "Breakpoints, stepping, the call stack, and variables - for JavaScript and TypeScript with nothing to install. Python needs debugpy, and ADCode says so rather than failing.", true, true),
   bool("adcode.language.treeSitterHighlighting", "language", "Tree-sitter highlighting", "Syntax highlighting driven by a real parse tree, for 11 languages. A language without one keeps the built-in colouring.", true, true),
 
   /* ── Session (§4) ───────────────────────────────────────────────────── */

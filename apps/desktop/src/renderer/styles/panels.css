@@ -1552,3 +1552,176 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── The debugger ─────────────────────────────────────────────────────── */
+
+/*
+ * A floating card, for the reason §5.3 gives for the chat widget: a docked panel forces a
+ * layout decision on every session, and a debug session is not every session.
+ */
+.debug-card {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  width: min(440px, calc(100vw - 40px));
+  max-height: min(520px, calc(100vh - 120px));
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-floating);
+  overflow: hidden;
+  font-family: var(--font-ui);
+}
+
+.debug-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-hover);
+}
+
+.debug-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Paused is the state worth noticing from across the room. */
+.debug-card[data-state="paused"] .debug-title {
+  color: var(--warning);
+}
+
+.debug-card[data-state="failed"] .debug-title {
+  color: var(--danger);
+}
+
+.debug-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.debug-control {
+  padding: 3px 10px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.debug-control:hover:not(:disabled) {
+  background: var(--bg-active);
+}
+
+.debug-control:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.debug-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+
+.debug-stack {
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.debug-frame {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 5px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.debug-frame:hover {
+  background: var(--bg-hover);
+}
+
+.debug-frame[data-selected="true"] {
+  background: var(--bg-selected);
+}
+
+.debug-frame-name {
+  font-family: var(--font-mono);
+}
+
+.debug-frame-where {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debug-variables {
+  padding: 6px 0;
+}
+
+.debug-scope > summary,
+.debug-variable-group > summary {
+  padding: 4px 14px;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.debug-scope-list {
+  padding-left: 14px;
+}
+
+.debug-variable {
+  display: flex;
+  gap: 8px;
+  padding: 3px 14px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.debug-variable-name {
+  color: var(--text-primary);
+}
+
+.debug-variable-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The primitives get the colours the editor already uses for them. */
+.debug-variable-value[data-type="string"] {
+  color: var(--success);
+}
+
+.debug-variable-value[data-type="number"],
+.debug-variable-value[data-type="boolean"] {
+  color: var(--accent);
+}
+
+.debug-variable-value[data-type="undefined"],
+.debug-variable-value[data-type="null"] {
+  color: var(--text-tertiary);
+}

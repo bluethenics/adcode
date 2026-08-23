@@ -42,7 +42,8 @@
       "@adcode/structure": ["./packages/structure/src/index.ts"],
       "@adcode/help": ["./packages/help/src/index.ts"],
       "@adcode/format": ["./packages/format/src/index.ts"],
-      "@adcode/highlight": ["./packages/highlight/src/index.ts"]
+      "@adcode/highlight": ["./packages/highlight/src/index.ts"],
+      "@adcode/debug": ["./packages/debug/src/index.ts"]
     }
   },
   "include": ["packages/**/*.ts", "mock-server/**/*.ts", "services/**/*.ts", "vitest.config.ts"],

@@ -173,9 +173,10 @@ function recentsSubmenu(recents: readonly RecentFolder[]): MenuSubmenu {
 /**
  * The menus, in VS Code's order and largely with its labels.
  *
- * Only commands that are actually implemented appear. A Run menu whose entries do nothing
- * because there is no debug adapter yet would be worse than no Run menu: it teaches the
- * user that the menu bar lies. "New Window" is absent for the same reason: the workspace
+ * Only commands that are actually implemented appear. There was no Run menu here for a long
+ * time, precisely because of that rule - a Run menu whose entries do nothing because there
+ * is no debugger would teach the user that the menu bar lies. There is a debugger now, so
+ * there is a Run menu. "New Window" is absent for the same reason: the workspace
  * root is process-wide, so a second window would fight the first over which folder is
  * open, and that is a data-loss bug rather than a missing feature.
  *
@@ -360,6 +361,28 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         separator,
         { label: "Next &Change", command: "go.nextChange", accelerator: "Alt+F3" },
         { label: "Previous C&hange", command: "go.previousChange", accelerator: "Shift+Alt+F3" },
+      ],
+    },
+    {
+      label: "&Run",
+      items: [
+        { label: "Start &Debugging", command: "debug.start", accelerator: "F5" },
+        { label: "&Stop Debugging", command: "debug.stop", accelerator: "Shift+F5" },
+        separator,
+        { label: "Step &Over", command: "debug.stepOver", accelerator: "F10" },
+        /*
+         * `Ctrl+F11`, not the conventional `F11`.
+         *
+         * F11 is full screen, and has been since before there was a debugger. Editors that
+         * use F11 for Step Into resolve the clash by context - the debug binding wins while
+         * a session is running - and this keybinding model is static, so it cannot. Taking
+         * full screen away from every user for a key that matters during a debug session is
+         * the wrong trade; the F11 family stays coherent instead.
+         */
+        { label: "Step &Into", command: "debug.stepInto", accelerator: "CmdOrCtrl+F11" },
+        { label: "Step O&ut", command: "debug.stepOut", accelerator: "Shift+F11" },
+        separator,
+        { label: "Run &Without Debugging", command: "run.file", accelerator: "CmdOrCtrl+F5" },
       ],
     },
     {

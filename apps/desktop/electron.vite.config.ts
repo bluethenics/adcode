@@ -27,6 +27,7 @@ const alias = {
   "@adcode/help": resolve(import.meta.dirname, "../../packages/help/src/index.ts"),
   "@adcode/format": resolve(import.meta.dirname, "../../packages/format/src/index.ts"),
   "@adcode/highlight": resolve(import.meta.dirname, "../../packages/highlight/src/index.ts"),
+  "@adcode/debug": resolve(import.meta.dirname, "../../packages/debug/src/index.ts"),
 };
 
 export default defineConfig({

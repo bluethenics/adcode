@@ -19,6 +19,7 @@ import "./styles/navigation.css";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
 import { createBreadcrumbs } from "./editor/breadcrumbs.ts";
 import { createSymbolSearch } from "./panels/symbolSearch.ts";
+import { createDebugView } from "./debug/debugView.ts";
 import { createCommandRegistry } from "./workbench/commands.ts";
 import { createMenuBar } from "./workbench/menuBar.ts";
 import { shortenPath } from "./workbench/pathLabel.ts";
@@ -1707,6 +1708,57 @@ const symbolSearch = createSymbolSearch({
   restoreFocus: () => editorHost.focus(),
 });
 
+/* ── Debugging (§4 Language) ──────────────────────────────────────────── */
+
+const debugView = createDebugView({
+  host: document.body,
+  resume: () => void window.adcode.debug.resume(),
+  stepOver: () => void window.adcode.debug.stepOver(),
+  stepInto: () => void window.adcode.debug.stepInto(),
+  stepOut: () => void window.adcode.debug.stepOut(),
+  stop: () => void window.adcode.debug.stop(),
+  scopes: (frameId) => window.adcode.debug.scopes(frameId),
+  properties: (objectId) => window.adcode.debug.properties(objectId),
+  openAt: (path, line) => {
+    void openFile(path).then(() => editorHost.revealLine(line));
+  },
+  displayPath: (path) => relativePath(path) ?? path,
+});
+
+editorHost.onBreakpointToggle((path, line) => {
+  void window.adcode.debug.toggleBreakpoint(path, line).then((all) => {
+    editorHost.setBreakpoints(all);
+  });
+});
+
+window.adcode.debug.onState((state) => {
+  debugView.render(state);
+
+  // The band on the paused line follows the top frame, which is where execution actually is.
+  const top = state.state === "paused" ? state.frames[0] : undefined;
+  editorHost.setPausedLine(top?.path ?? null, top?.line ?? null);
+
+  if (state.state === "failed") setStatus(state.message, 6000);
+});
+
+void window.adcode.debug.breakpoints().then((all) => editorHost.setBreakpoints(all));
+
+/**
+ * Start debugging whatever is open.
+ *
+ * Refuses rather than guessing when there is no file: a debugger that starts *something*
+ * when you press F5 with nothing open is a debugger you stop trusting.
+ */
+async function startDebugging(): Promise<void> {
+  if (activePath === null) {
+    setStatus("Open a file to debug.", 3000);
+    return;
+  }
+
+  const name = activePath.split(/[\/]/).pop() ?? activePath;
+  await window.adcode.debug.start(activePath, languageForFilename(name));
+}
+
 window.adcode.settings.onChanged((values) => applySettings(values));
 
 /* ── Auto-save and crash recovery (§4) ────────────────────────────────── */
@@ -3239,6 +3291,12 @@ function registerCommands(): void {
     // "command not found" that the button would have explained.
     await runInTerminal(runner);
   });
+
+  add("debug.start", "Start Debugging", () => void startDebugging());
+  add("debug.stop", "Stop Debugging", () => void window.adcode.debug.stop());
+  add("debug.stepOver", "Step Over", () => void window.adcode.debug.stepOver());
+  add("debug.stepInto", "Step Into", () => void window.adcode.debug.stepInto());
+  add("debug.stepOut", "Step Out", () => void window.adcode.debug.stepOut());
 
   add("go.symbol", "Go to Symbol", () => symbolSearch.open());
   add("go.definition", "Go to Definition", () => void editorHost.goToDefinition());

@@ -29,7 +29,7 @@ import { createDefinitions, symbolAt } from "./definitions.ts";
 import { installPeek } from "./peek.ts";
 import { installTreeSitterHighlight } from "./treeSitter.ts";
 import { organizeImports as organiseImportBlock, organizeSupported, DEFAULT_OPTIONS } from "@adcode/format";
-import type { DirEntry, SearchHitView } from "../../shared/api.ts";
+import type { BreakpointView, DirEntry, SearchHitView } from "../../shared/api.ts";
 import { editorOptionsFor } from "./editorOptions.ts";
 import { createRemoteCursors, type RemoteCursors } from "../collab/remoteCursors.ts";
 import { installTagClosing } from "./autoCloseTags.ts";
@@ -223,6 +223,17 @@ export interface EditorHost {
   peekDefinition(): Promise<void>;
   /** Go to the definition properly, moving the cursor and opening the file if needed. */
   goToDefinition(): Promise<void>;
+  /** Draw the breakpoints for whichever file is open. */
+  setBreakpoints(all: readonly BreakpointView[]): void;
+  /**
+   * Mark the line a paused program is stopped on, or clear it with `null`.
+   *
+   * A whole-line highlight rather than a gutter mark: when a program stops, the one thing
+   * the reader needs is where, and a 12-pixel arrow in the margin is not it.
+   */
+  setPausedLine(path: string | null, line: number | null): void;
+  /** Called when the user clicks the gutter to add or remove a breakpoint. */
+  onBreakpointToggle(listener: (path: string, line: number) => void): void;
   /** Apply the §4 editing settings the shell can honour today. */
   applySettings(values: Record<string, boolean | string>): void;
   onDirtyChange(listener: (path: string, dirty: boolean) => void): void;
@@ -281,6 +292,8 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
     smoothScrolling: true,
     cursorSmoothCaretAnimation: "on",
     renderWhitespace: "none",
+    // The margin breakpoints are drawn in. Off by default in Monaco.
+    glyphMargin: true,
     // Semantic tokens are the layer tree-sitter paints through, and Monaco does not ask for
     // them unless told to.
     "semanticHighlighting.enabled": true,
@@ -345,6 +358,48 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
     lspFormatting: (path, languageId, options) =>
       window.adcode.language.formatting(path, languageId, options),
     hideSuggestions: () => editor.trigger("adcode.format", "hideSuggestWidget", null),
+  });
+
+  /* ── Breakpoints and the paused line ─────────────────────────────────── */
+
+  const breakpointDecorations = editor.createDecorationsCollection();
+  const pausedDecorations = editor.createDecorationsCollection();
+
+  let breakpointsByFile: readonly BreakpointView[] = [];
+  const breakpointListeners: ((path: string, line: number) => void)[] = [];
+
+  function drawBreakpoints(): void {
+    const path = active;
+    if (path === null) {
+      breakpointDecorations.clear();
+      return;
+    }
+
+    const model = editor.getModel();
+    const lines = breakpointsByFile.filter((point) => point.path === path);
+
+    breakpointDecorations.set(
+      lines
+        .filter((point) => model === null || point.line <= model.getLineCount())
+        .map((point) => ({
+          range: new monaco.Range(point.line, 1, point.line, 1),
+          options: {
+            glyphMarginClassName: "breakpoint-glyph",
+            glyphMarginHoverMessage: { value: "Breakpoint" },
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+          },
+        })),
+    );
+  }
+
+  editor.onMouseDown((event) => {
+    if (event.target.type !== monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) return;
+
+    const line = event.target.position?.lineNumber;
+    const path = active;
+    if (line === undefined || path === null) return;
+
+    for (const listener of breakpointListeners) listener(path, line);
   });
 
   const definitions = createDefinitions({
@@ -481,6 +536,10 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
       if (entry.viewState !== null) editor.restoreViewState(entry.viewState);
       editor.updateOptions({ readOnly: entry.readOnly });
       active = path;
+
+      // The gutter belongs to the file, so switching tabs has to redraw it - otherwise the
+      // marks of the file you just left stay on the one you moved to.
+      drawBreakpoints();
 
       container.dataset["ready"] = "true";
       editor.focus();
@@ -668,6 +727,36 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
 
     peekDefinition: showPeek,
     goToDefinition: jumpToDefinition,
+
+    setBreakpoints(all) {
+      breakpointsByFile = all;
+      drawBreakpoints();
+    },
+
+    setPausedLine(path, line) {
+      if (path === null || line === null || active === null || path !== active) {
+        pausedDecorations.clear();
+        return;
+      }
+
+      pausedDecorations.set([
+        {
+          range: new monaco.Range(line, 1, line, 1),
+          options: {
+            isWholeLine: true,
+            className: "debug-paused-line",
+            glyphMarginClassName: "debug-paused-glyph",
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+          },
+        },
+      ]);
+
+      editor.revealLineInCenterIfOutsideViewport(line);
+    },
+
+    onBreakpointToggle(listener) {
+      breakpointListeners.push(listener);
+    },
 
     applySettings(values) {
       editor.updateOptions(editorOptionsFor(values));

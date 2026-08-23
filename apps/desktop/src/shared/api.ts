@@ -382,6 +382,15 @@ export const CHANNELS = {
   lspCompletion: "lsp:completion",
   lspFormatting: "lsp:formatting",
   lspDefinition: "lsp:definition",
+
+  debugState: "debug:state",
+  debugStart: "debug:start",
+  debugStop: "debug:stop",
+  debugControl: "debug:control",
+  debugToggleBreakpoint: "debug:toggle-breakpoint",
+  debugBreakpoints: "debug:breakpoints",
+  debugScopes: "debug:scopes",
+  debugProperties: "debug:properties",
   lspHover: "lsp:hover",
   lspStates: "lsp:states",
   lspDiagnostics: "lsp:diagnostics",
@@ -695,6 +704,47 @@ export interface McpConnectionInfo {
 }
 
 /** What `window.adcode` exposes. Nothing else crosses the boundary. */
+/* ── Debugging ─────────────────────────────────────────────────────────────── */
+
+export interface DebugFrameView {
+  readonly id: string;
+  readonly name: string;
+  /** Absolute path, or null for a frame inside the runtime's own internals. */
+  readonly path: string | null;
+  readonly line: number;
+  readonly column: number;
+}
+
+export type DebugStateView =
+  | { readonly state: "idle" | "starting" | "running" }
+  | {
+      readonly state: "paused";
+      readonly reason: "breakpoint" | "step" | "exception" | "entry" | "pause" | "other";
+      readonly frames: readonly DebugFrameView[];
+    }
+  | { readonly state: "stopped"; readonly exitCode: number | null }
+  /** Could not start, carrying something the user can act on. */
+  | { readonly state: "failed"; readonly message: string };
+
+export interface DebugScopeView {
+  readonly name: string;
+  readonly kind: string;
+  readonly objectId: string | null;
+}
+
+export interface DebugVariableView {
+  readonly name: string;
+  /** Already rendered - the panel never formats a value itself. */
+  readonly value: string;
+  readonly type: string;
+  readonly objectId?: string;
+}
+
+export interface BreakpointView {
+  readonly path: string;
+  readonly line: number;
+}
+
 /** Where a language server says a symbol is defined. */
 export interface LanguageLocation {
   readonly path: string;
@@ -934,6 +984,28 @@ export interface AdcodeApi {
      * rule `preview:open-external` already follows.
      */
     openInstall(id: string): Promise<void>;
+  };
+  /**
+   * Stopping a program in the middle and looking at it.
+   *
+   * Built on the runtime's own inspector, so nothing has to be installed for JavaScript or
+   * TypeScript. A language with no debugger says so rather than offering a dead button.
+   */
+  readonly debug: {
+    state(): Promise<DebugStateView>;
+    start(path: string, languageId: string): Promise<void>;
+    stop(): Promise<void>;
+    resume(): Promise<void>;
+    stepOver(): Promise<void>;
+    stepInto(): Promise<void>;
+    stepOut(): Promise<void>;
+    pause(): Promise<void>;
+    /** Returns every breakpoint, so the editor can redraw its gutter from one answer. */
+    toggleBreakpoint(path: string, line: number): Promise<readonly BreakpointView[]>;
+    breakpoints(): Promise<readonly BreakpointView[]>;
+    scopes(frameId: string): Promise<readonly DebugScopeView[]>;
+    properties(objectId: string): Promise<readonly DebugVariableView[]>;
+    onState(listener: (state: DebugStateView) => void): () => void;
   };
   readonly search: {
     run(query: SearchQueryView): Promise<SearchHitView[]>;
