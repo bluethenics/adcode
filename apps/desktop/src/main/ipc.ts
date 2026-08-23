@@ -17,6 +17,7 @@ import {
 import { stripAnsi } from "./devCommand.ts";
 import {
   completionAt,
+  formattingFor,
   configureLsp,
   documentChanged,
   documentClosed,
@@ -592,6 +593,21 @@ export function registerIpc(): void {
 
       const items = await completionAt(path, languageId, line, column);
       return items.map(toWireCompletion).filter((item) => item !== null);
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.lspFormatting,
+    async (_event, path: unknown, languageId: unknown, options: unknown) => {
+      if (!isString(path) || !isString(languageId)) return null;
+
+      // The renderer's numbers are checked here rather than trusted: they end up in a
+      // request to a subprocess, and §1 treats the renderer as hostile.
+      const raw = (options ?? {}) as { tabSize?: unknown; insertSpaces?: unknown };
+      const tabSize = isFiniteNumber(raw.tabSize) ? Math.min(16, Math.max(1, raw.tabSize)) : 2;
+      const insertSpaces = raw.insertSpaces !== false;
+
+      return formattingFor(path, languageId, { tabSize, insertSpaces });
     },
   );
 

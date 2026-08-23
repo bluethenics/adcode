@@ -22,6 +22,7 @@ const alias = {
   "@adcode/collab": resolve(import.meta.dirname, "packages/collab/src/index.ts"),
   "@adcode/structure": resolve(import.meta.dirname, "packages/structure/src/index.ts"),
   "@adcode/help": resolve(import.meta.dirname, "packages/help/src/index.ts"),
+  "@adcode/format": resolve(import.meta.dirname, "packages/format/src/index.ts"),
 };
 
 export default defineConfig({

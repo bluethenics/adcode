@@ -57,6 +57,15 @@ export interface DiagnosticsHost {
    * an error that was fixed ten minutes ago.
    */
   setExternal(source: string, diagnostics: readonly Diagnostic[]): void;
+  /**
+   * `adcode.formatting.lintDiagnostics`.
+   *
+   * Off means nothing is reported anywhere - no rows in the panel, no badge, no inline
+   * lens. The markers themselves are left alone: turning the reporting off is a statement
+   * about what the user wants shown, not a reason to stop the compiler working, and
+   * turning it back on has to be instant rather than a recompile.
+   */
+  setEnabled(enabled: boolean): void;
 }
 
 export interface DiagnosticsHostDeps {
@@ -91,7 +100,10 @@ export function createDiagnosticsHost(deps: DiagnosticsHostDeps): DiagnosticsHos
   /** Keyed by source, so each reporter replaces only its own rows. */
   const fromElsewhere = new Map<string, readonly Diagnostic[]>();
 
+  let enabled = true;
+
   function merged(): readonly Diagnostic[] {
+    if (!enabled) return [];
     if (fromElsewhere.size === 0) return fromMarkers;
     return [...fromMarkers, ...[...fromElsewhere.values()].flat()];
   }
@@ -285,6 +297,14 @@ export function createDiagnosticsHost(deps: DiagnosticsHostDeps): DiagnosticsHos
 
     quickFixes,
     refresh: collect,
+
+    setEnabled(next) {
+      if (enabled === next) return;
+      enabled = next;
+      // Announced immediately: the panel, the badge and the status bar all listen, and a
+      // switch whose effect waits for the next compile reads as broken.
+      announce();
+    },
 
     setExternal(source, incoming) {
       if (incoming.length === 0) {

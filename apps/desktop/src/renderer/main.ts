@@ -121,7 +121,21 @@ function applySettings(values: Record<string, boolean | string>): void {
   const density = values["adcode.appearance.density"];
   document.documentElement.dataset["density"] = density === "compact" ? "compact" : "comfortable";
 
-  editorHost.applySettings(values);
+  /*
+   * Reporting is switched before the editor is told anything.
+   *
+   * The lens reads Monaco's markers directly rather than going through the diagnostics
+   * host, so "surface lint diagnostics: off" has to reach both or the panel goes quiet
+   * while annotations stay on the lines.
+   */
+  diagnosticsHost.setEnabled(values["adcode.formatting.lintDiagnostics"] !== false);
+
+  editorHost.applySettings({
+    ...values,
+    "adcode.editing.inlineErrorLens":
+      values["adcode.editing.inlineErrorLens"] !== false &&
+      values["adcode.formatting.lintDiagnostics"] !== false,
+  });
   // The panel caches nothing, but it only redraws on a marker change - so switching the
   // rewrites off would otherwise leave the old wording on screen until the next keystroke.
   problemsPanel.render(diagnosticsHost.current());
@@ -317,8 +331,27 @@ async function saveActive(): Promise<void> {
 async function savePath(path: string): Promise<void> {
   if (editorHost.isReadOnly(path)) return;
 
+  /*
+   * Dirty first, then tidy.
+   *
+   * Auto-save calls this on a timer for whichever buffer stopped being typed in, and a
+   * clean buffer must not be formatted on every tick - that would rewrite a file nobody
+   * touched and mark it dirty again, forever.
+   */
+  if (editorHost.text(path) === null || !editorHost.isDirty(path)) return;
+
+  // Imports first, formatting second: one is structural and the other is whitespace, and
+  // running them the other way round means formatting a block that is about to be rewritten.
+  if (settingsValues["adcode.formatting.organizeImportsOnSave"] === true) {
+    editorHost.organizeImports(path);
+  }
+  if (settingsValues["adcode.formatting.formatOnSave"] !== false) {
+    await editorHost.formatDocument(path);
+  }
+
+  // Re-read: both steps above may have replaced the buffer.
   const text = editorHost.text(path);
-  if (text === null || !editorHost.isDirty(path)) return;
+  if (text === null) return;
 
   const result = await window.adcode.files.write(path, text);
   if (result.ok) {

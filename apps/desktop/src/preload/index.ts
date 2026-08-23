@@ -89,6 +89,8 @@ const api: AdcodeApi = {
       ipcRenderer.invoke(CHANNELS.lspCompletion, path, languageId, line, column),
     hover: (path, languageId, line, column) =>
       ipcRenderer.invoke(CHANNELS.lspHover, path, languageId, line, column),
+    formatting: (path, languageId, options) =>
+      ipcRenderer.invoke(CHANNELS.lspFormatting, path, languageId, options),
     states: () => ipcRenderer.invoke(CHANNELS.lspStates),
     onDiagnostics: (listener) => subscribe(CHANNELS.lspDiagnostics, listener),
     onState: (listener) => subscribe(CHANNELS.lspStateChanged, listener),

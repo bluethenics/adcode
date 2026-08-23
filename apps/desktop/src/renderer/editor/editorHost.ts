@@ -24,6 +24,8 @@ import { installPairedTagRename } from "./pairedTagRename.ts";
 import { installErrorLens } from "./errorLens.ts";
 import { installTodoHighlight } from "./todoHighlight.ts";
 import { installPathComplete } from "./pathComplete.ts";
+import { installFormatting } from "./formatting.ts";
+import { organizeImports as organiseImportBlock, organizeSupported, DEFAULT_OPTIONS } from "@adcode/format";
 import type { DirEntry } from "../../shared/api.ts";
 import { editorOptionsFor } from "./editorOptions.ts";
 import { createRemoteCursors, type RemoteCursors } from "../collab/remoteCursors.ts";
@@ -142,6 +144,15 @@ export interface EditorHost {
   /** Current cursor line, for "go to line" and the status bar. */
   cursorLine(): number;
   applyTheme(theme: "light" | "dark"): void;
+  /**
+   * Format one buffer, resolving once the text has settled.
+   *
+   * Returns whether anything changed. Save uses this rather than Monaco's own action,
+   * because that action is fire-and-forget and the write would race it.
+   */
+  formatDocument(path: string): Promise<boolean>;
+  /** Sort and prune the import block. Returns whether anything changed. */
+  organizeImports(path: string): boolean;
   /** Apply the §4 editing settings the shell can honour today. */
   applySettings(values: Record<string, boolean | string>): void;
   onDirtyChange(listener: (path: string, dirty: boolean) => void): void;
@@ -245,6 +256,12 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
   const pairedTagRename = installPairedTagRename(editor, monaco);
   const errorLens = installErrorLens(editor, monaco);
   const todoHighlight = installTodoHighlight(editor, monaco);
+  const formatting = installFormatting(monaco, {
+    lspFormatting: (path, languageId, options) =>
+      window.adcode.language.formatting(path, languageId, options),
+    hideSuggestions: () => editor.trigger("adcode.format", "hideSuggestWidget", null),
+  });
+
   const pathComplete = installPathComplete(monaco, {
     activeFile: deps.activeFile,
     workspaceRoot: deps.workspaceRoot,
@@ -469,6 +486,34 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
       monaco.editor.setTheme(theme === "dark" ? "adcode-dark" : "adcode-light");
     },
 
+    async formatDocument(path) {
+      const entry = models.get(path);
+      if (entry === undefined || entry.readOnly) return false;
+      return formatting.formatModel(entry.model);
+    },
+
+    organizeImports(path) {
+      const entry = models.get(path);
+      if (entry === undefined || entry.readOnly) return false;
+
+      const languageId = entry.model.getLanguageId();
+      if (!organizeSupported(languageId)) return false;
+
+      const original = entry.model.getValue();
+      const organised = organiseImportBlock(original, {
+        ...DEFAULT_OPTIONS,
+        lineEnding: entry.model.getEOL() === "\r\n" ? "\r\n" : "\n",
+      });
+      if (organised === original) return false;
+
+      entry.model.pushEditOperations(
+        [],
+        [{ range: entry.model.getFullModelRange(), text: organised }],
+        () => null,
+      );
+      return true;
+    },
+
     applySettings(values) {
       editor.updateOptions(editorOptionsFor(values));
 
@@ -479,6 +524,7 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
       pairedTagRename.setEnabled(values["adcode.editing.autoRenamePairedTag"] !== false);
       todoHighlight.setEnabled(values["adcode.editing.todoHighlighting"] !== false);
       pathComplete.setEnabled(values["adcode.editing.pathAutocomplete"] !== false);
+      formatting.setEnabled(values["adcode.formatting.formatter"] !== false);
 
       errorLens.setEnabled(values["adcode.editing.inlineErrorLens"] !== false);
       // The lens shows the same rewritten wording the Problems panel does, so it follows

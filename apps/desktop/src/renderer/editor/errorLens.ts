@@ -144,6 +144,20 @@ export function installErrorLens(
   const subscriptions = [
     monacoApi.editor.onDidChangeMarkers(() => render()),
     editor.onDidChangeModel(() => render()),
+
+    /*
+     * Dropped the moment the text changes, and redrawn when the markers catch up.
+     *
+     * This decoration is *injected text* - Monaco measures it as part of the line - and a
+     * lens left over an edit that changed the line's length makes the tokenizer and the
+     * text disagree. Format-on-save replaces the whole document at once and produced
+     * exactly that: "Token length and text length do not match!" in the console.
+     *
+     * Clearing on every edit also happens to be the behaviour rule 2 wants: annotations
+     * stay out of the way while you are typing, and reappear once the compiler has an
+     * opinion again.
+     */
+    editor.onDidChangeModelContent(() => decorations.clear()),
     editor.onDidChangeCursorPosition((event) => {
       if (event.position.lineNumber === renderedCursorLine) return;
       render();

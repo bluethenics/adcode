@@ -14,6 +14,8 @@ export { createMessageReader, encodeMessage, type MessageReader } from "./framin
 
 export {
   didChangeParams,
+  formattingParams,
+  toEditorEdits,
   didCloseParams,
   didOpenParams,
   initializeParams,
@@ -27,6 +29,8 @@ export {
   toEditorLine,
   toLspPosition,
   uriToPath,
+  type EditorTextEdit,
+  type FormattingOptions,
   type LspCompletionItem,
   type LspDiagnostic,
   type LspPosition,

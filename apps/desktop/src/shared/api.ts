@@ -379,6 +379,7 @@ export const CHANNELS = {
   lspChanged: "lsp:changed",
   lspClosed: "lsp:closed",
   lspCompletion: "lsp:completion",
+  lspFormatting: "lsp:formatting",
   lspHover: "lsp:hover",
   lspStates: "lsp:states",
   lspDiagnostics: "lsp:diagnostics",
@@ -692,6 +693,15 @@ export interface McpConnectionInfo {
 }
 
 /** What `window.adcode` exposes. Nothing else crosses the boundary. */
+/** One edit a language server wants applied, in the editor's one-based coordinates. */
+export interface LanguageTextEdit {
+  readonly startLine: number;
+  readonly startColumn: number;
+  readonly endLine: number;
+  readonly endColumn: number;
+  readonly text: string;
+}
+
 export interface AdcodeApi {
   readonly workspace: {
     open(): Promise<OpenedWorkspace | null>;
@@ -802,6 +812,18 @@ export interface AdcodeApi {
       column: number,
     ): Promise<LanguageCompletion[]>;
     hover(path: string, languageId: string, line: number, column: number): Promise<string | null>;
+    /**
+     * Ask the language server to format a document.
+     *
+     * `null` means no server answered with edits, and the caller should fall back to the
+     * built-in formatter. An empty array is a real answer: a server formatted the file and
+     * found nothing to change.
+     */
+    formatting(
+      path: string,
+      languageId: string,
+      options: { tabSize: number; insertSpaces: boolean },
+    ): Promise<LanguageTextEdit[] | null>;
     states(): Promise<LanguageServerState[]>;
     onDiagnostics(listener: (file: string, diagnostics: LanguageDiagnostic[]) => void): () => void;
     onState(listener: (states: LanguageServerState[]) => void): () => void;

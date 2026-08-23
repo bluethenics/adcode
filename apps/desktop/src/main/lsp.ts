@@ -27,6 +27,7 @@ import {
   didCloseParams,
   didOpenParams,
   encodeMessage,
+  formattingParams,
   initializeParams,
   notification,
   pathToUri,
@@ -34,7 +35,10 @@ import {
   request,
   resolveServer,
   toDiagnostic,
+  toEditorEdits,
   uriToPath,
+  type EditorTextEdit,
+  type FormattingOptions,
   type LspCompletionItem,
   type LspDiagnostic,
   type ServerSpec,
@@ -492,4 +496,30 @@ export async function shutdownAllServers(): Promise<void> {
       if (!session.child.killed) session.child.kill();
     }, 1000);
   }
+}
+
+/**
+ * Ask the language server to format a document.
+ *
+ * `null` means "no server answered with edits" and the caller falls back to
+ * `@adcode/format`. An empty array is not the same thing: it means a server did format the
+ * file and found nothing to change, and falling back there would overrule it.
+ */
+export async function formattingFor(
+  path: string,
+  languageId: string,
+  options: FormattingOptions,
+): Promise<EditorTextEdit[] | null> {
+  const session = sessions.get(languageId);
+  if (session === undefined || !session.ready) return null;
+
+  const result = await ask(
+    session,
+    "textDocument/formatting",
+    formattingParams(pathToUri(path), options),
+  );
+
+  // A server without formatting support answers with an error, which `ask` settles as
+  // null - so no capability negotiation is needed to find out.
+  return toEditorEdits(result);
 }

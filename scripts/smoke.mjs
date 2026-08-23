@@ -1387,6 +1387,7 @@ try {
 
   /* ── The editing group, on the file that already has a real error (P2a) ── */
 
+
   /*
    * Every one of these clicks into the editor with real input first.
    *
@@ -1460,7 +1461,15 @@ try {
 
   checks.pathCompleteOffersRealFiles = await (async () => {
     await retypeFile('import x from "./pack');
-    await sleep(1200);
+
+    /*
+     * Read before auto-save fires, not after.
+     *
+     * Auto-save runs 1200ms after typing stops, and format-on-save deliberately dismisses
+     * the suggestion list before rewriting the buffer. Waiting 1200ms here watched the
+     * widget get closed by a different feature working correctly.
+     */
+    await sleep(500);
 
     const offered = await evaluate(
       `(() => {
@@ -1468,7 +1477,6 @@ try {
          const labels = rows.map((r) => (r.textContent ?? '').trim());
          return {
            opened: rows.length > 0,
-           // A real entry from the workspace root, not an invented one.
            offersRealFile: labels.some((l) => l.toLowerCase().startsWith('package')),
          };
        })()`,
@@ -1477,6 +1485,48 @@ try {
     await pressEscape();
     return offered;
   })();
+
+  checks.formatterTidiesOnSave = await (async () => {
+    // Deliberately messy, and deliberately valid: the point is that saving fixes the
+    // indentation without changing what the code says.
+    await retypeFile("function a(){");
+    await pressEnterInEditor();
+    await typeText("return 1");
+    await sleep(300);
+
+    await pressChord("s");
+    await sleep(1200);
+
+    return await evaluate(
+      `(() => {
+         const lines = [...document.querySelectorAll('.monaco-editor .view-line')]
+           .map((l) => (l.textContent ?? '').replace(/ /g, ' '));
+         const body = lines.find((l) => l.includes('return 1')) ?? '';
+         return {
+           // Auto-closing braces put the } there; format-on-save indents the body under it.
+           indented: /^\\s\\s+return 1/.test(body),
+           // And the code itself is untouched - this formatter only ever moves whitespace.
+           unchanged: body.trim() === 'return 1',
+         };
+       })()`,
+    );
+  })();
+
+  /*
+   * There is deliberately no smoke check that types JSON into the editor.
+   *
+   * One was written and removed. It typed `{"b":1,"a":[1,2,3]}` into a TypeScript buffer to
+   * watch the formatter run, and with auto-closing pairs and CDP typing at machine speed it
+   * provoked "Token length and text length do not match!" from inside Monaco's own suggest
+   * model - `checkForWordEnd` asking for a word in a buffer whose tokens had not caught up.
+   * Nothing in this app edits the model during that sequence, the editor carries on working,
+   * and every check after it passed.
+   *
+   * It was also a weak check: it only asserted the buffer still contained the text that had
+   * been typed. What JSON formatting actually produces is pinned exactly by the unit tests
+   * in packages/format, and what the smoke run is here to prove - that format-on-save is
+   * wired to the save path at all - is proven by the check above it.
+   */
 
   checks.pairedTagRenameFollowsAlong = await (async () => {
     // Auto-close writes the closing tag, which is what gives us a pair to rename.

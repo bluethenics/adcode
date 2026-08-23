@@ -214,10 +214,10 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   bool("adcode.editing.plainEnglishErrors", "editing", "Explain errors in plain English", "Rewrite compiler messages in the Problems panel and on hover. The original wording is always kept underneath.", true, true),
 
   /* ── Formatting (§4) ────────────────────────────────────────────────── */
-  bool("adcode.formatting.formatter", "formatting", "Built-in formatter", "Formatting with no extension to install.", true),
-  bool("adcode.formatting.formatOnSave", "formatting", "Format on save", "Run the formatter every time a file is saved.", true),
-  bool("adcode.formatting.lintDiagnostics", "formatting", "Lint diagnostics", "Surface diagnostics reported by the language server.", true),
-  bool("adcode.formatting.organizeImportsOnSave", "formatting", "Organize imports on save", "Sort and prune imports when saving.", false),
+  bool("adcode.formatting.formatter", "formatting", "Built-in formatter", "Formatting with no extension to install. A language server is asked first where one is running; otherwise ADCode re-prints JSON and CSS, and fixes indentation and whitespace everywhere else.", true, true),
+  bool("adcode.formatting.formatOnSave", "formatting", "Format on save", "Run the formatter every time a file is saved. A language ADCode cannot format is saved exactly as you wrote it.", true, true),
+  bool("adcode.formatting.lintDiagnostics", "formatting", "Lint diagnostics", "Report problems in the Problems panel, the badge, and beside the line. Off silences all three without stopping the compiler.", true, true),
+  bool("adcode.formatting.organizeImportsOnSave", "formatting", "Organize imports on save", "Sort the import block when saving, and drop an import nothing in the file uses. Off by default, because deleting a line you did not ask to delete deserves to be a choice.", false, true),
 
   /* ── Git (§4) ───────────────────────────────────────────────────────── */
   bool("adcode.git.gutterDiff", "git", "Gutter diff decorations", "Mark added, changed, and deleted lines in the gutter.", true, true),

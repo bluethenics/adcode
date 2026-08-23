@@ -98,7 +98,19 @@ export function installPathComplete(
   let enabled = true;
 
   const provider: monaco.languages.CompletionItemProvider = {
-    // `/` walks into a directory; the others open the widget as soon as a string starts.
+    /*
+     * The quotes are load-bearing, not a convenience.
+     *
+     * Monaco turns quick-suggestions off inside strings, which is where every path lives -
+     * so without a trigger character the widget never opens on its own and this feature
+     * simply does not appear. `/` then walks into a directory.
+     *
+     * `.` is in the list because a relative path starts with it, and measurably so: with
+     * `.` removed, typing `import x from "./pack` opened no widget at all. A trigger has to
+     * land on a character *after* the auto-closed quote has settled, and `.` is the first
+     * one that does. The cost is that it also fires on decimals and method calls, where the
+     * provider finds no path context and returns nothing.
+     */
     triggerCharacters: ["/", '"', "'", "`", "."],
 
     async provideCompletionItems(model, position) {
