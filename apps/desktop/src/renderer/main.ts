@@ -20,6 +20,7 @@ import { createSourceControlPanel } from "./panels/sourceControl.ts";
 import { createBreadcrumbs } from "./editor/breadcrumbs.ts";
 import { createSymbolSearch } from "./panels/symbolSearch.ts";
 import { createDebugView } from "./debug/debugView.ts";
+import { createStyleHints } from "./panels/styleHints.ts";
 import { createCommandRegistry } from "./workbench/commands.ts";
 import { createMenuBar } from "./workbench/menuBar.ts";
 import { shortenPath } from "./workbench/pathLabel.ts";
@@ -158,9 +159,24 @@ function applySettings(values: Record<string, boolean | string>): void {
 
   breadcrumbs.setEnabled(values["adcode.navigation.breadcrumbs"] !== false);
   terminal?.setAgentDetection(values["adcode.ai.terminalAgentDetection"] !== false);
+
+  // The lines are drawn by every tree, so the switch is one attribute on the root rather
+  // than a call into three panels.
+  document.documentElement.dataset["treeLines"] =
+    values["adcode.structure.projectTreeLines"] === false ? "off" : "on";
+
+  structurePanel.setStyleDirections({
+    elementToRules: values["adcode.structure.elementToRules"] !== false,
+    selectorToElements: values["adcode.structure.selectorToElements"] !== false,
+  });
+
+  styleHints.setUnusedEnabled(values["adcode.structure.unusedSelectors"] === true);
+  styleHints.setMissingEnabled(values["adcode.structure.missingClasses"] !== false);
+  refreshStyleHints();
   symbolSearch.setEnabled(values["adcode.navigation.symbolSearch"] !== false);
   structurePopup.setOutlineEnabled(values["adcode.navigation.outline"] !== false);
   refreshBreadcrumbs();
+  refreshStyleHints();
 
   editorHost.applySettings({
     ...values,
@@ -1695,6 +1711,8 @@ function refreshBreadcrumbs(): void {
 }
 
 editorHost.onCursorChange(() => refreshBreadcrumbs());
+// The hints read the buffer, so an edit is what invalidates them. `styleHints` debounces.
+editorHost.onDirtyChange(() => refreshStyleHints());
 
 const symbolSearch = createSymbolSearch({
   host: document.body,
@@ -1709,6 +1727,45 @@ const symbolSearch = createSymbolSearch({
   },
   restoreFocus: () => editorHost.focus(),
 });
+
+/* ── Style hints ──────────────────────────────────────────────────────── */
+
+const styleHints = createStyleHints({
+  report: (diagnostics) => diagnosticsHost.setExternal("styles", diagnostics),
+
+  /*
+   * Find files by glob using the search that already exists.
+   *
+   * A brace appears in every stylesheet and an angle bracket in every template, so one
+   * search per kind finds the files; the hits are deduplicated to paths because what is
+   * wanted here is the list of files, not the matches inside them.
+   */
+  filesMatching: async (include) => {
+    const pattern = include.includes("css") ? "[{]" : "<";
+    const hits = await window.adcode.search.run({ pattern, isRegex: true, include });
+
+    const paths = new Set<string>();
+    for (const hit of hits) {
+      paths.add(
+        workspaceRoot === null ? hit.path : `${workspaceRoot.replace(/[\/]+$/, "")}/${hit.path}`,
+      );
+    }
+    return [...paths];
+  },
+
+  readFile: async (path) => (await window.adcode.files.read(path))?.text ?? null,
+  displayPath: (path) => relativePath(path) ?? path,
+});
+
+function refreshStyleHints(): void {
+  if (activePath === null) {
+    styleHints.refresh(null, "", "");
+    return;
+  }
+
+  const name = activePath.split(/[\/]/).pop() ?? activePath;
+  styleHints.refresh(activePath, languageForFilename(name), editorHost.text(activePath) ?? "");
+}
 
 /* ── Debugging (§4 Language) ──────────────────────────────────────────── */
 

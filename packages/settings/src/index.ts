@@ -22,6 +22,7 @@ export type SettingGroupId =
   | "formatting"
   | "git"
   | "navigation"
+  | "structure"
   | "language"
   | "session"
   | "ai"
@@ -48,6 +49,7 @@ export const GROUPS: readonly SettingGroup[] = [
   { id: "formatting", title: "Formatting", caption: "Formatting and diagnostics." },
   { id: "git", title: "Git", caption: "Source control, built in." },
   { id: "navigation", title: "Navigation", caption: "Finding your way around a codebase." },
+  { id: "structure", title: "Structure", caption: "Reading the shape of a project, and what connects to what." },
   { id: "language", title: "Language", caption: "Language servers, debugging, and highlighting." },
   { id: "session", title: "Session", caption: "What survives a restart." },
   { id: "updates", title: "Updates", caption: "New versions install quietly and apply when you next restart." },
@@ -234,6 +236,18 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   bool("adcode.navigation.goToDefinition", "navigation", "Go to definition and references", "F12 or Alt+click previews a definition inline; Ctrl+click goes there. ADCode says whether a language server resolved it or it matched by name.", true, true),
   bool("adcode.navigation.breadcrumbs", "navigation", "Breadcrumbs", "The path and symbol trail above the editor. Every part of it is a button.", true, true),
   bool("adcode.navigation.outline", "navigation", "Outline", "The symbol tree for the open file, drawn with connecting lines in the Structure popup.", true, true),
+
+  /* ── Structure ──────────────────────────────────────────────────────── */
+  bool("adcode.structure.projectTreeLines", "structure", "Draw trees with connecting lines", "Show the lines that join a row to the folder it is inside. Off leaves plain indentation.", true, true),
+  bool("adcode.structure.elementToRules", "structure", "Show the rules that style an element", "Click an element in markup to see every CSS rule that applies to it.", true, true),
+  bool("adcode.structure.selectorToElements", "structure", "Show the elements a rule styles", "Click a rule in a stylesheet to see the elements it actually affects.", true, true),
+  /*
+   * Off by default, and the description says why rather than hiding it. On a project using
+   * CSS modules or utility classes this list is long and wrong, because matching by name
+   * cannot see a name that is generated.
+   */
+  bool("adcode.structure.unusedSelectors", "structure", "Point out rules that style nothing", "Report a CSS rule that matches no element in the project. Off by default: it cannot see class names built at runtime, so on some projects it is wrong more often than right.", false, true),
+  bool("adcode.structure.missingClasses", "structure", "Point out classes nothing defines", "Report a class used in markup that no stylesheet defines - usually a typo, which nothing else in a project ever catches.", true, true),
 
   /* ── Language (§4) ──────────────────────────────────────────────────── */
   /*

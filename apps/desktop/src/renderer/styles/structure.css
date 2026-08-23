@@ -377,3 +377,13 @@
   background-size: calc(var(--tree-guides, 0) * 10px) 100%;
   background-repeat: no-repeat;
 }
+
+/* `adcode.structure.projectTreeLines`: one switch, every tree. */
+[data-tree-lines="off"] .tree-rail svg,
+[data-tree-lines="off"] .structure-rail svg {
+  display: none;
+}
+
+[data-tree-lines="off"] #filetree .tree-row {
+  background-image: none;
+}

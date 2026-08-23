@@ -67,3 +67,13 @@ export {
 } from "./scaffolds.ts";
 
 export type { OutlineNode, SymbolKind } from "./types.ts";
+
+export {
+  definedClasses,
+  missingClasses,
+  rulesForElement,
+  styleRules,
+  unusedSelectors,
+  type MissingClass,
+  type StyleRule,
+} from "./styleLinks.ts";

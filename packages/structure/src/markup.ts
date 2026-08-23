@@ -119,13 +119,47 @@ function attributeValue(attributes: string, name: string): string | null {
   return match[2] ?? match[3] ?? match[4] ?? null;
 }
 
+/**
+ * Every spelling of "class" that a template dialect uses.
+ *
+ * A class written in JSX is as real as one written in HTML, and a feature that traces
+ * `.card` back to the markup that uses it is not much use in a React project if it only
+ * looks at `class=`. Angular's bracket form is matched by the attribute scanner's own word
+ * boundary rules, so it appears here without the brackets.
+ */
+const CLASS_ATTRIBUTES = ["class", "className", ":class", "v-bind:class", "ngClass", "class.bind"];
+
+/**
+ * Class names out of an attribute value, ignoring the parts that are expressions.
+ *
+ * `className={styles.card}` names no class this file can see - the name lives in a CSS
+ * module and is generated. `className={`card ${size}`}` names one: `card`. So the literal
+ * words are kept and everything inside `${...}` or a bare `{...}` is dropped, which is the
+ * honest reading: what is left is what is certainly there.
+ */
+function classesFrom(value: string): string[] {
+  const literal = value
+    .replace(/\$\{[^}]*\}/g, " ")
+    .replace(/\{[^}]*\}/g, " ")
+    .replace(/[`'"]/g, " ");
+
+  return literal
+    .split(/\s+/)
+    .filter((name) => /^[A-Za-z_][\w-]*$/.test(name));
+}
+
 function toElement(token: Token): MarkupElement {
-  const classAttribute = attributeValue(token.attributes, "class") ?? "";
+  const classes = new Set<string>();
+  for (const attribute of CLASS_ATTRIBUTES) {
+    const value = attributeValue(token.attributes, attribute);
+    if (value === null) continue;
+    for (const name of classesFrom(value)) classes.add(name);
+  }
 
   return {
     tag: token.tag.toLowerCase(),
     id: attributeValue(token.attributes, "id"),
-    classes: classAttribute.split(/\s+/).filter((name) => name.length > 0),
+    classes: [...classes],
     line: token.line,
     column: token.column,
   };

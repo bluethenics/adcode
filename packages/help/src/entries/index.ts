@@ -18,6 +18,7 @@ import { GIT_ENTRIES } from "./git.ts";
 import { LANGUAGE_ENTRIES } from "./language.ts";
 import { NAVIGATION_ENTRIES } from "./navigation.ts";
 import { SESSION_ENTRIES } from "./session.ts";
+import { STRUCTURE_ENTRIES } from "./structure.ts";
 import { UPDATES_ENTRIES } from "./updates.ts";
 import { WORKBENCH_ENTRIES } from "./workbench.ts";
 
@@ -28,6 +29,7 @@ export const HELP_ENTRIES: readonly HelpEntry[] = [
   ...FORMATTING_ENTRIES,
   ...GIT_ENTRIES,
   ...NAVIGATION_ENTRIES,
+  ...STRUCTURE_ENTRIES,
   ...LANGUAGE_ENTRIES,
   ...SESSION_ENTRIES,
   ...UPDATES_ENTRIES,
