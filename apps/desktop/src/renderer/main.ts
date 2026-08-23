@@ -14,6 +14,7 @@ import "./styles/popups.css";
 import "./styles/menubar.css";
 import "./styles/dialogs.css";
 import "./styles/help.css";
+import "./styles/editor.css";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
 import { createCommandRegistry } from "./workbench/commands.ts";
 import { createMenuBar } from "./workbench/menuBar.ts";
@@ -101,7 +102,11 @@ let workspaceRoot: string | null = null;
 let terminal: TerminalPanel | null = null;
 let theme: "light" | "dark" = "dark";
 
-const editorHost: EditorHost = createEditorHost(el("editor-host"));
+const editorHost: EditorHost = createEditorHost(el("editor-host"), {
+  activeFile: () => activePath,
+  workspaceRoot: () => workspaceRoot,
+  list: (directory) => window.adcode.workspace.list(directory),
+});
 
 /* ── Settings ─────────────────────────────────────────────────────────── */
 

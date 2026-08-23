@@ -47,6 +47,10 @@ export {
 
 export { closingTagFor, completeClosingTag, supportsTagClosing } from "./tags.ts";
 
+export { pairedTagAt, type PairedTag, type TagNameSpan } from "./pairedTags.ts";
+
+export { todoMarksIn, type TodoKeyword, type TodoMark } from "./todos.ts";
+
 export {
   describeEntry,
   HIDDEN_DIRECTORIES,

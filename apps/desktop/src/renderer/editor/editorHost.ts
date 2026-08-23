@@ -20,6 +20,11 @@ import cssWorker from "monaco-editor/language/css/css.worker?worker";
 import htmlWorker from "monaco-editor/language/html/html.worker?worker";
 import tsWorker from "monaco-editor/language/typescript/ts.worker?worker";
 import { createGitOverlay, type GitOverlay } from "./gitOverlay.ts";
+import { installPairedTagRename } from "./pairedTagRename.ts";
+import { installErrorLens } from "./errorLens.ts";
+import { installTodoHighlight } from "./todoHighlight.ts";
+import { installPathComplete } from "./pathComplete.ts";
+import type { DirEntry } from "../../shared/api.ts";
 import { editorOptionsFor } from "./editorOptions.ts";
 import { createRemoteCursors, type RemoteCursors } from "../collab/remoteCursors.ts";
 import { installTagClosing } from "./autoCloseTags.ts";
@@ -152,7 +157,20 @@ interface OpenModel {
   readOnly: boolean;
 }
 
-export function createEditorHost(container: HTMLElement): EditorHost {
+/**
+ * What the editor needs from the shell.
+ *
+ * Only path completion asks for anything: it has to know which file is open and where the
+ * project starts before `./` and `../` mean anything. Passed in rather than imported so
+ * this file still knows nothing about the workbench that owns it.
+ */
+export interface EditorHostDeps {
+  readonly activeFile: () => string | null;
+  readonly workspaceRoot: () => string | null;
+  readonly list: (directory: string) => Promise<readonly DirEntry[]>;
+}
+
+export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): EditorHost {
   defineThemes();
 
   // Before the first model exists, so no file is ever checked under the wrong rules.
@@ -218,6 +236,20 @@ export function createEditorHost(container: HTMLElement): EditorHost {
    * that fires twice.
    */
   const tagClosing = installTagClosing(editor, monaco);
+
+  /*
+   * The rest of §4's editing group, installed the same way and for the same reason: each
+   * reads the language off whatever model is current, so one subscription covers every file
+   * that will ever be opened and none of them can leak.
+   */
+  const pairedTagRename = installPairedTagRename(editor, monaco);
+  const errorLens = installErrorLens(editor, monaco);
+  const todoHighlight = installTodoHighlight(editor, monaco);
+  const pathComplete = installPathComplete(monaco, {
+    activeFile: deps.activeFile,
+    workspaceRoot: deps.workspaceRoot,
+    list: deps.list,
+  });
 
   const models = new Map<string, OpenModel>();
   let active: string | null = null;
@@ -444,6 +476,14 @@ export function createEditorHost(container: HTMLElement): EditorHost {
       // than mapped in `editorOptionsFor`, which exists to translate settings into options
       // Monaco already has.
       tagClosing.setEnabled(values["adcode.editing.autoCloseTags"] !== false);
+      pairedTagRename.setEnabled(values["adcode.editing.autoRenamePairedTag"] !== false);
+      todoHighlight.setEnabled(values["adcode.editing.todoHighlighting"] !== false);
+      pathComplete.setEnabled(values["adcode.editing.pathAutocomplete"] !== false);
+
+      errorLens.setEnabled(values["adcode.editing.inlineErrorLens"] !== false);
+      // The lens shows the same rewritten wording the Problems panel does, so it follows
+      // the same switch - one setting, one vocabulary, everywhere an error is worded.
+      errorLens.setPlainEnglish(values["adcode.editing.plainEnglishErrors"] !== false);
 
       // Reflected onto the host element because nothing else in the window says the editor
       // is in column-select mode, and in that mode dragging the mouse behaves completely

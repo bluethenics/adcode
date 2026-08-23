@@ -321,6 +321,21 @@ async function pressEscape() {
   await sleep(350);
 }
 
+/**
+ * A plain navigation key, with no modifiers.
+ *
+ * `pressChord` cannot do these: it holds Ctrl and builds a `KeyX` code, which is right for
+ * `Ctrl+A` and meaningless for Home.
+ */
+const PLAIN_KEYS = { Home: 36, End: 35, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40 };
+
+async function pressKey(key) {
+  const virtualKey = PLAIN_KEYS[key];
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key, code: key, windowsVirtualKeyCode: virtualKey });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key, code: key, windowsVirtualKeyCode: virtualKey });
+  await sleep(120);
+}
+
 /** Open the Structure popup on a tab, whatever state it was in. */
 async function openStructure(tab) {
   const alreadyOpen = await evaluate(`document.querySelector('.structure-popup')?.open === true`);
@@ -1295,6 +1310,18 @@ try {
   );
   await clickAt(editorPoint.x, editorPoint.y);
 
+  /*
+   * Select the whole buffer before typing.
+   *
+   * A new `.ts` file no longer opens empty - `adcode.editing.fileTemplates` starts it with
+   * a doc comment and a stub function. Typing into that put this line *inside the comment*,
+   * so the compiler saw nothing wrong, the badge stayed hidden, and this block quietly
+   * reported prose instead of failing. Replacing the buffer keeps the check testing the
+   * compiler rather than the template.
+   */
+  await pressChord("a");
+  await sleep(150);
+
   // No quotes and no brackets: auto-closing pairs would rewrite anything containing them,
   // and this needs to be exactly the source that produces TS2322.
   await typeText("let x: number = true;");
@@ -1357,6 +1384,124 @@ try {
        return /Ln \\d+, Col [2-9]\\d*/.test(position) ? position : 'cursor at ' + position;
      })()`,
   );
+
+  /* ── The editing group, on the file that already has a real error (P2a) ── */
+
+  /*
+   * Every one of these clicks into the editor with real input first.
+   *
+   * The first version used synthetic MouseEvents and a bare Ctrl+A, and all four checks
+   * reported false for the same reason: focus was still on the Problems row that the
+   * previous block clicked, so the typing went nowhere. Monaco owns a hidden textarea and
+   * only real input reliably lands in it.
+   */
+  async function retypeFile(text) {
+    await clickAt(editorPoint.x, editorPoint.y);
+    await sleep(200);
+    await pressChord("a");
+    await sleep(150);
+    await typeText(text);
+  }
+
+  checks.errorLensShowsTheMessage = await (async () => {
+    // The error stays on line 1 and the cursor ends on line 2, because the lens deliberately
+    // says nothing about the line you are typing on.
+    await retypeFile("let x: number = true;");
+    await pressEnterInEditor();
+    await typeText("const ok = 1;");
+
+    // The TypeScript worker is a real compile.
+    await sleep(5000);
+
+    return await evaluate(
+      `(() => {
+         const lenses = [...document.querySelectorAll('.error-lens')];
+         if (lenses.length === 0) return false;
+         const text = lenses.map((l) => l.textContent ?? '').join(' ');
+         return {
+           appears: true,
+           // One error in the file means exactly one annotation. Hints and info markers
+           // are deliberately not shown, so an unused variable adds nothing here.
+           /*
+            * Counted by line, not by element.
+            *
+            * Monaco splits injected text across several spans of its own accord - one
+            * message arrived as "You're putting true or false where a num" plus
+            * "belongs." - so counting elements measures Monaco's text rendering rather
+            * than this feature. One error in the file means one annotated line.
+            */
+           onlyTheErrorLine:
+             new Set(lenses.map((l) => l.closest('.view-line')?.style.top ?? '?')).size === 1,
+           inPlainEnglish: /true or false|number/i.test(text),
+           tinted: lenses.some((l) => l.className.includes('error-lens-error')),
+         };
+       })()`,
+    );
+  })();
+
+  checks.todoHighlightMarksOnlyComments = await (async () => {
+    // A note in a comment, and the same word in code. Only the first may light up.
+    await retypeFile("// TODO make this work");
+    await pressEnterInEditor();
+    await typeText("const TODO = 1;");
+    await sleep(900);
+
+    return await evaluate(
+      `(() => {
+         const marks = [...document.querySelectorAll('.todo-mark')];
+         return {
+           markedExactlyOne: marks.length === 1,
+           isTheComment: (marks[0]?.textContent ?? '') === 'TODO',
+           toned: marks[0]?.className.includes('todo-mark-todo') === true,
+         };
+       })()`,
+    );
+  })();
+
+  checks.pathCompleteOffersRealFiles = await (async () => {
+    await retypeFile('import x from "./pack');
+    await sleep(1200);
+
+    const offered = await evaluate(
+      `(() => {
+         const rows = [...document.querySelectorAll('.suggest-widget .monaco-list-row')];
+         const labels = rows.map((r) => (r.textContent ?? '').trim());
+         return {
+           opened: rows.length > 0,
+           // A real entry from the workspace root, not an invented one.
+           offersRealFile: labels.some((l) => l.toLowerCase().startsWith('package')),
+         };
+       })()`,
+    );
+
+    await pressEscape();
+    return offered;
+  })();
+
+  checks.pairedTagRenameFollowsAlong = await (async () => {
+    // Auto-close writes the closing tag, which is what gives us a pair to rename.
+    await retypeFile("<div>");
+    await sleep(500);
+
+    const before = await evaluate(
+      `(document.querySelector('.monaco-editor .view-lines')?.textContent ?? '')`,
+    );
+
+    // One step left puts the cursor at the end of the opening tag's name.
+    await pressKey("ArrowLeft");
+    await typeText("s");
+    await sleep(700);
+
+    const after = await evaluate(
+      `(document.querySelector('.monaco-editor .view-lines')?.textContent ?? '')`,
+    );
+
+    return {
+      startedPaired: before.includes("<div>") && before.includes("</div>"),
+      // Both halves followed, from one keystroke.
+      renamedBoth: after.includes("<divs>") && after.includes("</divs>"),
+    };
+  })();
 
   /*
    * The language-server chain, end to end, on a machine with no language servers installed.

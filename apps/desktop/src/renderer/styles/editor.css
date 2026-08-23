@@ -1,0 +1,71 @@
+/*
+ * Decorations drawn into the editing surface.
+ *
+ * These sit on top of Monaco's own painting, so everything here is deliberately quiet.
+ * The code is the thing being read; a decoration that competes with it has failed even if
+ * it is technically informative.
+ */
+
+/* ── Inline error lens ────────────────────────────────────────────────── */
+
+/*
+ * Dimmed, italic, and in the margin the code is not using.
+ *
+ * The opacity is the whole design. At full strength these read as part of the program and
+ * the eye stops on them while scanning; at 62% they are legible when looked at and
+ * invisible when not, which is exactly the job.
+ */
+.error-lens {
+  font-style: italic;
+  opacity: 0.62;
+  /* Never selectable: dragging across a line must select the code, not the annotation. */
+  user-select: none;
+  pointer-events: none;
+}
+
+.error-lens-error {
+  color: var(--danger);
+}
+
+.error-lens-warning {
+  color: var(--warning);
+}
+
+/* ── TODO and friends ─────────────────────────────────────────────────── */
+
+.todo-mark {
+  border-radius: 4px;
+  padding: 0 3px;
+  font-weight: 650;
+}
+
+/*
+ * Three tones, not five.
+ *
+ * TODO and NOTE are things you meant to do; FIXME, HACK and XXX are things that are wrong.
+ * Giving each keyword its own colour would be five colours nobody can remember the meaning
+ * of - the distinction that matters is "unfinished" against "broken".
+ */
+.todo-mark-todo,
+.todo-mark-note {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.todo-mark-fixme,
+.todo-mark-hack,
+.todo-mark-xxx {
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
+}
+
+/*
+ * Column-select mode says so.
+ *
+ * Set by `editorHost.applySettings` from Monaco's own option rather than from the setting,
+ * so it describes the editor as it actually is. Without it, dragging behaves completely
+ * differently with nothing on screen explaining why.
+ */
+[data-column-selection="true"] {
+  cursor: crosshair;
+}

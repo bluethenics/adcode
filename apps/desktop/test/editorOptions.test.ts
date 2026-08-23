@@ -91,15 +91,29 @@ describe("editorOptionsFor", () => {
         setting.group === "editing" && setting.available && !mapped.has(setting.id),
     ).map((setting) => setting.id);
 
-    // Three settings are honoured somewhere other than Monaco's options, and each one is
-    // listed here so that "available but unmapped" stays a deliberate set rather than a
-    // place a forgotten setting can hide: `inlineGitBlame` by the git overlay,
-    // `autoCloseTags` by the editor host's own tag-closing listener, and
-    // `plainEnglishErrors` by the Problems panel and the hover provider.
+    /*
+     * Settings honoured somewhere other than Monaco's options.
+     *
+     * Each is listed by name so that "available but unmapped" stays a deliberate set rather
+     * than a place a forgotten setting can quietly hide:
+     *
+     *   inlineErrorLens      errorLens.ts, from Monaco's markers
+     *   inlineGitBlame       the git overlay
+     *   todoHighlighting     todoHighlight.ts, over @adcode/structure's comment scan
+     *   autoCloseTags        the editor host's tag-closing listener
+     *   fileTemplates        the new-file flow, before the editor sees the buffer
+     *   autoRenamePairedTag  pairedTagRename.ts
+     *   pathAutocomplete     pathComplete.ts, a completion provider
+     *   plainEnglishErrors   the Problems panel, the hover provider, and the lens
+     */
     expect(unmapped).toEqual([
+      "adcode.editing.inlineErrorLens",
       "adcode.editing.inlineGitBlame",
+      "adcode.editing.todoHighlighting",
       "adcode.editing.autoCloseTags",
       "adcode.editing.fileTemplates",
+      "adcode.editing.autoRenamePairedTag",
+      "adcode.editing.pathAutocomplete",
       "adcode.editing.plainEnglishErrors",
     ]);
   });
