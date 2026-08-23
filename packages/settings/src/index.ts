@@ -259,7 +259,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     maxLength: 4000,
   },
   bool("adcode.language.dapClient", "language", "Debug adapter client", "Breakpoints, stepping, and variable inspection.", true),
-  bool("adcode.language.treeSitterHighlighting", "language", "Tree-sitter highlighting", "Syntax highlighting driven by a real parse tree.", true),
+  bool("adcode.language.treeSitterHighlighting", "language", "Tree-sitter highlighting", "Syntax highlighting driven by a real parse tree, for 11 languages. A language without one keeps the built-in colouring.", true, true),
 
   /* ── Session (§4) ───────────────────────────────────────────────────── */
   bool("adcode.session.workspaceRestore", "session", "Restore workspace", "Reopen the last folder and editors on launch.", true, true),

@@ -1,0 +1,11 @@
+{
+  "name": "@adcode/highlight",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Which parse node means what, and how to encode it for Monaco. Plain TypeScript; no DOM, no WebAssembly.",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

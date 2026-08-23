@@ -44,6 +44,7 @@
     "electron-vite": "^5.0.0",
     "fast-check": "^4.9.0",
     "monaco-editor": "^0.56.0",
+    "tree-sitter-wasms": "^0.1.13",
     "typescript": "^5.9.3",
     "vite": "^7.3.6",
     "vitest": "^4.1.10"
@@ -63,6 +64,7 @@
     "node-pty": "^1.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "web-tree-sitter": "^0.20.8",
     "ws": "^8.21.3",
     "yjs": "^13.6.32"
   },

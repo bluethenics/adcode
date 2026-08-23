@@ -62,7 +62,15 @@
 
 .help-popover {
   position: fixed;
-  z-index: 90;
+  /*
+   * Above the settings sheet, which sits at 100.
+   *
+   * At 90 the popover opened *behind* the very screen it explains, which is where it is
+   * opened from every time - reported from the settings screen, and it would have been
+   * wrong in the guide too. Above the menu bar's 120 as well, since a popover is the
+   * innermost thing on screen whenever it is up.
+   */
+  z-index: 130;
   width: min(340px, calc(100vw - 24px));
   padding: 14px 16px 15px;
   border: 1px solid var(--border-hairline);

@@ -6,8 +6,9 @@
   "description": "The ADCode workbench: Electron shell, Monaco editing surface, xterm terminal.",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "start": "electron-vite preview"
+    "dev": "npm run grammars && electron-vite dev",
+    "build": "npm run grammars && electron-vite build",
+    "start": "electron-vite preview",
+    "grammars": "node ../../scripts/grammars.mjs"
   }
 }

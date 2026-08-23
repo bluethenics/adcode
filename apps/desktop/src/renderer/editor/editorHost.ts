@@ -27,6 +27,7 @@ import { installPathComplete } from "./pathComplete.ts";
 import { installFormatting } from "./formatting.ts";
 import { createDefinitions, symbolAt } from "./definitions.ts";
 import { installPeek } from "./peek.ts";
+import { installTreeSitterHighlight } from "./treeSitter.ts";
 import { organizeImports as organiseImportBlock, organizeSupported, DEFAULT_OPTIONS } from "@adcode/format";
 import type { DirEntry, SearchHitView } from "../../shared/api.ts";
 import { editorOptionsFor } from "./editorOptions.ts";
@@ -53,12 +54,70 @@ globalThis.MonacoEnvironment = {
   },
 };
 
+/**
+ * Colours for the semantic tokens tree-sitter produces.
+ *
+ * Without these the parse tree changes nothing on screen. Monaco asks the provider, gets
+ * tokens, finds no rule for their types, and paints exactly what its own tokenizer already
+ * painted - so the feature appears to do nothing while working perfectly.
+ *
+ * The values follow each base theme's existing palette rather than introducing a second
+ * one, because the point of parsing is to be *right* more often, not to look different.
+ */
+const SEMANTIC_RULES_DARK = [
+  { token: "keyword", foreground: "569cd6" },
+  { token: "type", foreground: "4ec9b0" },
+  { token: "class", foreground: "4ec9b0" },
+  { token: "interface", foreground: "4ec9b0" },
+  { token: "struct", foreground: "4ec9b0" },
+  { token: "enum", foreground: "4ec9b0" },
+  { token: "typeParameter", foreground: "4ec9b0" },
+  { token: "function", foreground: "dcdcaa" },
+  { token: "method", foreground: "dcdcaa" },
+  { token: "macro", foreground: "dcdcaa" },
+  { token: "property", foreground: "9cdcfe" },
+  { token: "parameter", foreground: "9cdcfe" },
+  { token: "variable", foreground: "9cdcfe" },
+  { token: "string", foreground: "ce9178" },
+  { token: "number", foreground: "b5cea8" },
+  { token: "regexp", foreground: "d16969" },
+  { token: "comment", foreground: "6a9955" },
+  { token: "namespace", foreground: "4ec9b0" },
+  { token: "decorator", foreground: "dcdcaa" },
+];
+
+const SEMANTIC_RULES_LIGHT = [
+  { token: "keyword", foreground: "0000ff" },
+  { token: "type", foreground: "267f99" },
+  { token: "class", foreground: "267f99" },
+  { token: "interface", foreground: "267f99" },
+  { token: "struct", foreground: "267f99" },
+  { token: "enum", foreground: "267f99" },
+  { token: "typeParameter", foreground: "267f99" },
+  { token: "function", foreground: "795e26" },
+  { token: "method", foreground: "795e26" },
+  { token: "macro", foreground: "795e26" },
+  { token: "property", foreground: "001080" },
+  { token: "parameter", foreground: "001080" },
+  { token: "variable", foreground: "001080" },
+  { token: "string", foreground: "a31515" },
+  { token: "number", foreground: "098658" },
+  { token: "regexp", foreground: "811f3f" },
+  { token: "comment", foreground: "008000" },
+  { token: "namespace", foreground: "267f99" },
+  { token: "decorator", foreground: "795e26" },
+];
+
 /** §3: Monaco's surface is themed to match the workbench rather than left as default. */
 function defineThemes(): void {
   monaco.editor.defineTheme("adcode-light", {
     base: "vs",
     inherit: true,
-    rules: [],
+    // Semantic highlighting is switched on by the editor's own
+    // `semanticHighlighting.enabled` option rather than here: the theme flag exists at
+    // runtime but is absent from this Monaco version's `IStandaloneThemeData`, and the
+    // editor option is the typed way to say the same thing.
+    rules: SEMANTIC_RULES_LIGHT,
     colors: {
       "editor.background": "#ffffff",
       "editor.lineHighlightBackground": "#00000008",
@@ -73,7 +132,7 @@ function defineThemes(): void {
   monaco.editor.defineTheme("adcode-dark", {
     base: "vs-dark",
     inherit: true,
-    rules: [],
+    rules: SEMANTIC_RULES_DARK,
     colors: {
       "editor.background": "#1e1e20",
       "editor.lineHighlightBackground": "#ffffff08",
@@ -222,6 +281,9 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
     smoothScrolling: true,
     cursorSmoothCaretAnimation: "on",
     renderWhitespace: "none",
+    // Semantic tokens are the layer tree-sitter paints through, and Monaco does not ask for
+    // them unless told to.
+    "semanticHighlighting.enabled": true,
     scrollBeyondLastLine: false,
     padding: { top: 12, bottom: 12 },
     scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
@@ -277,6 +339,8 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
   const pairedTagRename = installPairedTagRename(editor, monaco);
   const errorLens = installErrorLens(editor, monaco);
   const todoHighlight = installTodoHighlight(editor, monaco);
+  const treeSitter = installTreeSitterHighlight(monaco);
+
   const formatting = installFormatting(monaco, {
     lspFormatting: (path, languageId, options) =>
       window.adcode.language.formatting(path, languageId, options),
@@ -616,6 +680,7 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
       todoHighlight.setEnabled(values["adcode.editing.todoHighlighting"] !== false);
       pathComplete.setEnabled(values["adcode.editing.pathAutocomplete"] !== false);
       formatting.setEnabled(values["adcode.formatting.formatter"] !== false);
+      treeSitter.setEnabled(values["adcode.language.treeSitterHighlighting"] !== false);
 
       navigationEnabled = values["adcode.navigation.goToDefinition"] !== false;
       if (!navigationEnabled) peek.close();

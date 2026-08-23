@@ -1678,6 +1678,46 @@ try {
     return { clipboardReadable: true, reachedTheShell: ran };
   })();
 
+  /* ── Tree-sitter highlighting ─────────────────────────────────────────── */
+
+  /*
+   * What is worth checking here is the part that can actually fail: whether the WebAssembly
+   * runtime and a grammar are fetched and compiled inside a packaged Electron renderer,
+   * under the app's own protocol and CSP. Which node becomes which colour is decided by
+   * `@adcode/highlight`, which is pure and has its own tests.
+   */
+  checks.treeSitterColoursByMeaning = await (async () => {
+    /*
+     * A function call and a variable, which Monaco's tokenizer cannot tell apart.
+     *
+     * Both are bare identifiers to a regular expression, so its tokenizer gives them the
+     * same class. A parse tree knows one is the callee of a call expression and the other
+     * is not - so different classes here is the whole feature, observable from the DOM.
+     */
+    await retypeFile("const alpha = 1;");
+    await pressEnterInEditor();
+    await typeText("console.log(alpha);");
+    await sleep(3500);
+
+    return await evaluate(
+      `(() => {
+         const spans = [...document.querySelectorAll('.monaco-editor .view-line span span')];
+         const classOf = (text) =>
+           spans.find((s) => (s.textContent ?? '').trim() === text)?.className ?? null;
+
+         const call = classOf('log');
+         const variable = classOf('alpha');
+
+         return {
+           painted: spans.length > 0,
+           foundBoth: call !== null && variable !== null,
+           // The point: a call and a variable are coloured differently.
+           toldApart: call !== null && variable !== null && call !== variable,
+         };
+       })()`,
+    );
+  })();
+
   /* ── Navigation (P2c) ─────────────────────────────────────────────────── */
 
   /** Run a command the way a person would: through the palette. */
@@ -1758,6 +1798,21 @@ try {
     if (!focused) return false;
 
     /*
+     * Take focus once more, immediately before typing.
+     *
+     * The palette calls `restoreFocus()` as it closes, which can land *after* the loop above
+     * saw the field focused - and then the query is typed into the editor instead. This is
+     * the difference between this check passing every run and passing most runs.
+     */
+    await sleep(400);
+    await evaluate(
+      `(() => {
+         document.querySelector('.quickopen-input[aria-label="Go to symbol in project"]')?.focus();
+         return true;
+       })()`,
+    );
+
+    /*
      * Typed for real rather than assigned.
      *
      * Setting `input.value` raced the overlay's own `open()`, which clears the field - the
@@ -1766,8 +1821,33 @@ try {
      */
     // The palette returns focus to the editor when it closes, so the field is focused
     // explicitly rather than assumed - otherwise this types into the file instead.
-    await typeText("createEditorHost");
-    await sleep(1800);
+    /*
+     * Set the query and wait for the search to actually run.
+     *
+     * Typing raced the overlay's own `open()`, which clears the field, and the palette's
+     * `restoreFocus()`, which takes focus back - so a single attempt passed most runs and
+     * not all of them. Re-asserting the value until rows appear removes the race without
+     * weakening what is being checked: the rows still have to come from a real search.
+     */
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      await evaluate(
+        `(() => {
+           const input = document.querySelector('.quickopen-input[aria-label="Go to symbol in project"]');
+           if (!input) return false;
+           input.focus();
+           // Always re-dispatch, even when the value already matches: the handler is what
+           // starts a search, and skipping it meant later attempts waited without ever
+           // asking again.
+           input.value = 'createEditorHost';
+           input.dispatchEvent(new Event('input', { bubbles: true }));
+           return true;
+         })()`,
+      );
+
+      await sleep(1400);
+      const ready = await evaluate("document.querySelectorAll('.symbol-row').length > 0");
+      if (ready === true) break;
+    }
 
     const found = await evaluate(
       `(async () => {
@@ -3364,6 +3444,29 @@ checks.everySettingHasAQuestionMark = await evaluate(
 );
 
 checks.helpPopoverOpensAndCloses = await (async () => {
+  /*
+   * Make sure Settings is actually open first.
+   *
+   * The popover is anchored to a settings row, and a row inside a closed sheet measures
+   * zero - so the popover gets placed off-screen and the check reports a stacking failure
+   * that is really a sequencing one. The previous block leaves the sheet open on most runs
+   * and not all of them.
+   */
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const open = await evaluate(
+      `(document.querySelector('.settings-sheet:not(.help-sheet)')?.dataset.state === 'open')`,
+    );
+    if (open === true) break;
+
+    await evaluate(
+      `(() => {
+         document.dispatchEvent(new KeyboardEvent('keydown', { key: ',', ctrlKey: true, bubbles: true }));
+         return true;
+       })()`,
+    );
+    await sleep(500);
+  }
+
   const opened = await evaluate(
     `(() => {
        const row = document.querySelector('[data-setting-id="adcode.editing.minimap"]');
@@ -3399,6 +3502,21 @@ checks.helpPopoverOpensAndCloses = await (async () => {
            document
              .querySelector('[data-setting-id="adcode.editing.minimap"] .help-button')
              ?.getAttribute('aria-expanded') === 'true',
+         /*
+          * In front of the sheet it explains.
+          *
+          * It shipped at z-index 90 against the settings sheet's 100, so the explanation
+          * opened *behind* the screen it is opened from - reported by the user. Asking what
+          * is actually painted at the popover's centre is the check that would have caught
+          * it; "is it visible" did not.
+          */
+         inFront: (() => {
+           const centre = document.elementFromPoint(
+             Math.round(box.left + box.width / 2),
+             Math.round(box.top + box.height / 2),
+           );
+           return centre !== null && pop.contains(centre);
+         })(),
        };
      })()`,
   );

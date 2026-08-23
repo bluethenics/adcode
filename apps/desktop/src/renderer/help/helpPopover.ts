@@ -148,11 +148,19 @@ export function createHelpPopover(host: HTMLElement): HelpPopover {
       anchor.setAttribute("aria-expanded", "true");
 
       // Measured after being made visible, before being revealed - the element has a size
-      // only once it is in the layout, and `visibility` keeps the measuring pass invisible.
+      // only once it is in the layout.
       place(anchor);
-      requestAnimationFrame(() => {
-        if (anchored === anchor) card.dataset["state"] = "open";
-      });
+
+      /*
+       * A forced reflow rather than `requestAnimationFrame`.
+       *
+       * rAF is throttled to nothing while a window is unfocused or occluded, so the frame
+       * that reveals the popover may simply never arrive - the card sits in the DOM,
+       * correctly placed, permanently at `opacity: 0`. Reading `offsetHeight` flushes the
+       * starting style synchronously, which is all the transition needed the frame for.
+       */
+      void card.offsetHeight;
+      card.dataset["state"] = "open";
 
       document.addEventListener("pointerdown", onDocumentPointerDown, true);
       document.addEventListener("keydown", onKeydown, true);
