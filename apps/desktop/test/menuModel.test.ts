@@ -81,57 +81,36 @@ describe("the menu model", () => {
     for (const top of MENU_BAR) check(top.label, top.items);
   });
 
-  it("keeps the shortcut on the menu the same one the keyboard table binds", () => {
-    // The bindings the renderer installs, read out of its own table.
-    const table = MAIN.slice(MAIN.indexOf("const KEYBINDINGS"), MAIN.indexOf("window.addEventListener(\"keydown\""));
+  /*
+   * The guard that used to live here compared the menu's accelerators against a second
+   * table of shortcuts in the renderer, and existed because the two could drift.
+   *
+   * They cannot any more: `shared/keybindings.ts` resolves every chord from this model, and
+   * the renderer's list says only *which commands* it handles, never with what keys. So the
+   * drift it watched for is now unrepresentable, and what replaces it is the new way to get
+   * this wrong - naming a command in that list that the menu does not have, which produces
+   * a shortcut that silently never fires.
+   */
+  it("every command the renderer handles is on the menu with a shortcut", () => {
+    const listed = MAIN.slice(
+      MAIN.indexOf("const RENDERER_HANDLED"),
+      MAIN.indexOf("]);", MAIN.indexOf("const RENDERER_HANDLED")),
+    );
 
-    const bound = new Map<string, { mod: boolean; shift: boolean; alt: boolean; key: string }>();
-    for (const line of table.split("\n")) {
-      const key = /key: "([^"]+)"/.exec(line);
-      const command = /command: "([^"]+)"/.exec(line);
-      if (key === null || command === null) continue;
+    const handled = [...listed.matchAll(/"([\w.]+)"/g)].map((match) => match[1]!);
+    expect(handled.length).toBeGreaterThan(10);
 
-      bound.set(command[1]!, {
-        key: key[1]!,
-        mod: line.includes("mod: true"),
-        shift: line.includes("shift: true"),
-        alt: line.includes("alt: true"),
-      });
-    }
-
-    expect(bound.size).toBeGreaterThan(10);
-
-    for (const top of MENU_BAR) {
-      for (const entry of top.items) {
-        if ("kind" in entry && entry.kind !== undefined && entry.kind !== "item") continue;
-        if (!("accelerator" in entry) || entry.accelerator === undefined) continue;
-
-        const binding = bound.get(entry.command);
-        if (binding === undefined) continue;
-
-        // The menu says "Ctrl+Shift+`"; the table says {key:"`", mod, shift}. Rebuilding
-        // the label from the table is what proves they describe the same keystroke.
-        //
-        // Case is not part of the keystroke - the dispatcher folds it, and Electron's
-        // accelerators are conventionally capitalised - so both sides are normalised
-        // before comparing, or every single-letter binding would report a false mismatch.
-        const rebuilt = [
-          binding.mod ? "CmdOrCtrl" : null,
-          binding.shift ? "Shift" : null,
-          binding.alt ? "Alt" : null,
-          binding.key.length === 1 ? binding.key.toUpperCase() : binding.key,
-        ]
-          .filter((part) => part !== null)
-          .join("+");
-
-        const expected = entry.accelerator
-          .split("+")
-          .map((part) => (part.length === 1 ? part.toUpperCase() : part))
-          .join("+");
-
-        expect(`${entry.command}: ${rebuilt}`).toBe(`${entry.command}: ${expected}`);
+    const withChords = new Set<string>();
+    const walk = (entries: readonly MenuEntry[]): void => {
+      for (const entry of entries) {
+        if ("kind" in entry && entry.kind === "submenu") walk(entry.items);
+        else if ("accelerator" in entry && entry.accelerator !== undefined) withChords.add(entry.command);
       }
-    }
+    };
+    for (const top of MENU_BAR) walk(top.items);
+
+    const missing = handled.filter((command) => !withChords.has(command));
+    expect(missing).toEqual([]);
   });
 });
 

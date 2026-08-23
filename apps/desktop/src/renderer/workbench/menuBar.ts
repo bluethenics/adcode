@@ -24,6 +24,7 @@ import {
   type MenuSubmenu,
   type MenuTop,
 } from "../../shared/menuModel.ts";
+import { applyOverrides, type BindingOverrides } from "../../shared/keybindings.ts";
 import { edgeIndex, matchLetter, stepIndex, type MenuRow } from "./menuKeyboard.ts";
 import { shortenPath } from "./pathLabel.ts";
 
@@ -47,6 +48,14 @@ export interface MenuBarDeps {
   readonly platform: string;
   /** Where focus goes when the menu closes without choosing anything. */
   readonly restoreFocus: () => void;
+  /**
+   * The user's rebound shortcuts, read fresh on every rebuild.
+   *
+   * A function rather than a value because they change while the window is up. Without
+   * this the bar would print the factory accelerator beside a command that no longer
+   * answers to it - the drawn menu is the only place most people ever read a shortcut.
+   */
+  readonly overrides?: () => BindingOverrides;
 }
 
 /** One open dropdown: the root panel, or a submenu flying out of one. */
@@ -74,7 +83,10 @@ export function createMenuBar(deps: MenuBarDeps): MenuBar {
   // time they mean anything. Windows has drawn them this way for thirty years.
   element.dataset["mnemonics"] = "false";
 
-  let bar: readonly MenuTop[] = buildMenuBar();
+  const withOverrides = (context?: MenuContext): readonly MenuTop[] =>
+    applyOverrides(context === undefined ? buildMenuBar() : buildMenuBar(context), deps.overrides?.() ?? {});
+
+  let bar: readonly MenuTop[] = withOverrides();
   let buttons: HTMLButtonElement[] = [];
   let openIndex: number | null = null;
   /** Root panel first, then one entry per level of submenu currently flown out. */
@@ -531,7 +543,7 @@ export function createMenuBar(deps: MenuBarDeps): MenuBar {
     },
 
     setContext(context) {
-      bar = buildMenuBar(context);
+      bar = withOverrides(context);
 
       // Rebuilding under an open menu would leave a panel belonging to a bar that no
       // longer exists; the list this rebuild is for is the one being read.

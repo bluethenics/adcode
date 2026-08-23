@@ -323,3 +323,61 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* ── The missing-runtime dialog ───────────────────────────────────────── */
+
+/*
+ * Wider than the other cards, and left-aligned inside.
+ *
+ * The two `<pre>` blocks are a command line and an install command, and a command line
+ * centred on the card is unreadable - the eye has no fixed left edge to return to, which is
+ * the one thing monospaced text is for. Everything else keeps the shared card styling, so
+ * this dialog still looks like the app's other dialogs rather than a page from a different
+ * application.
+ */
+.runtime-dialog {
+  max-width: min(560px, calc(100vw - 48px));
+}
+
+.runtime-dialog .result-card {
+  justify-items: stretch;
+  text-align: left;
+}
+
+.runtime-dialog .result-summary {
+  max-width: none;
+  line-height: 1.5;
+}
+
+.runtime-command {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  /* Commands are long and must never widen the card past the viewport. */
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.runtime-install {
+  color: var(--text-primary);
+  user-select: text;
+}
+
+.runtime-install-label {
+  margin: 4px 0 -4px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Four buttons will not fit on one line at this width on every platform; wrapping to the
+   right keeps the primary action last, where the card's other dialogs put it. */
+.runtime-buttons {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}

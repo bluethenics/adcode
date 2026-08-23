@@ -22,6 +22,12 @@ import tsWorker from "monaco-editor/language/typescript/ts.worker?worker";
 import { createGitOverlay, type GitOverlay } from "./gitOverlay.ts";
 import { editorOptionsFor } from "./editorOptions.ts";
 import { createRemoteCursors, type RemoteCursors } from "../collab/remoteCursors.ts";
+import { installTagClosing } from "./autoCloseTags.ts";
+// Re-exported rather than defined here: the table decides highlighting, completions, the
+// Structure view and the Run button, and it lives in a file with no Monaco import so it
+// can be tested without launching a window.
+export { languageForFilename } from "./languageIds.ts";
+import { languageForFilename } from "./languageIds.ts";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -202,6 +208,16 @@ export function createEditorHost(container: HTMLElement): EditorHost {
 
   const git = createGitOverlay(editor);
   const remoteCursors = createRemoteCursors(editor);
+
+  /*
+   * Installed once, on the editor rather than per model.
+   *
+   * It reads the language off whatever model is current, so one subscription covers every
+   * file that will ever be opened - and, more to the point, it cannot leak: a per-model
+   * listener would need disposing in `close`, and the one that gets forgotten is the one
+   * that fires twice.
+   */
+  const tagClosing = installTagClosing(editor, monaco);
 
   const models = new Map<string, OpenModel>();
   let active: string | null = null;
@@ -424,6 +440,11 @@ export function createEditorHost(container: HTMLElement): EditorHost {
     applySettings(values) {
       editor.updateOptions(editorOptionsFor(values));
 
+      // Not a Monaco option - it is this app's own behaviour - so it is applied here rather
+      // than mapped in `editorOptionsFor`, which exists to translate settings into options
+      // Monaco already has.
+      tagClosing.setEnabled(values["adcode.editing.autoCloseTags"] !== false);
+
       // Reflected onto the host element because nothing else in the window says the editor
       // is in column-select mode, and in that mode dragging the mouse behaves completely
       // differently. Read back out of Monaco rather than from `values`, so it describes
@@ -449,94 +470,4 @@ export function createEditorHost(container: HTMLElement): EditorHost {
       editor.focus();
     },
   };
-}
-
-/** Filename to Monaco language id. Extension-only, like the ad tagger. */
-export function languageForFilename(filename: string): string {
-  const lower = filename.toLowerCase();
-  const dot = lower.lastIndexOf(".");
-  const ext = dot === -1 ? "" : lower.slice(dot);
-
-  const byExtension: Readonly<Record<string, string>> = {
-    ".ts": "typescript",
-    ".tsx": "typescript",
-    ".mts": "typescript",
-    ".js": "javascript",
-    ".jsx": "javascript",
-    ".mjs": "javascript",
-    ".cjs": "javascript",
-    ".json": "json",
-    ".css": "css",
-    ".scss": "scss",
-    ".less": "less",
-    ".html": "html",
-    ".htm": "html",
-    ".md": "markdown",
-    ".py": "python",
-    ".rs": "rust",
-    ".go": "go",
-    ".java": "java",
-    ".c": "c",
-    ".h": "c",
-    ".cpp": "cpp",
-    ".cs": "csharp",
-    ".rb": "ruby",
-    ".php": "php",
-    ".sh": "shell",
-    ".ps1": "powershell",
-    ".sql": "sql",
-    ".yml": "yaml",
-    ".yaml": "yaml",
-    ".xml": "xml",
-    ".toml": "ini",
-
-    /*
-     * The rest of what Monaco can highlight and the Run button can execute.
-     *
-     * The two lists have to agree: the button chooses its command from the language id, so
-     * an extension missing here means a `.swift` file opens as plain text and the button
-     * silently never appears - which reads as "this editor does not support Swift".
-     */
-    ".cc": "cpp",
-    ".cxx": "cpp",
-    ".hpp": "cpp",
-    ".hh": "cpp",
-    ".m": "objective-c",
-    ".mm": "objective-c",
-    ".lua": "lua",
-    ".pl": "perl",
-    ".pm": "perl",
-    ".r": "r",
-    ".swift": "swift",
-    ".dart": "dart",
-    ".jl": "julia",
-    ".ex": "elixir",
-    ".exs": "elixir",
-    ".scala": "scala",
-    ".sc": "scala",
-    ".kt": "kotlin",
-    ".kts": "kotlin",
-    ".fs": "fsharp",
-    ".fsx": "fsharp",
-    ".clj": "clojure",
-    ".cljs": "clojure",
-    ".coffee": "coffeescript",
-    ".bat": "bat",
-    ".cmd": "bat",
-    ".bash": "shell",
-    ".zsh": "shell",
-    ".psm1": "powershell",
-    ".vb": "vb",
-    ".pas": "pascal",
-    ".graphql": "graphql",
-    ".proto": "protobuf",
-    ".tcl": "tcl",
-    ".sol": "solidity",
-    ".dockerfile": "dockerfile",
-    ".ini": "ini",
-    ".cfg": "ini",
-    ".svg": "xml",
-  };
-
-  return byExtension[ext] ?? "plaintext";
 }

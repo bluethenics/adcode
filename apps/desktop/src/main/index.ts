@@ -20,6 +20,7 @@ import { onUpdateStatus, registerUpdateIpc, startAutoUpdate } from "./autoUpdate
 import { startNoticePolling } from "./notices.ts";
 import { registerAccountIpc } from "./accountIpc.ts";
 import { installApplicationMenu } from "./menu.ts";
+import { loadKeybindings } from "./keybindings.ts";
 import { disposeAllTerminals } from "./terminal.ts";
 import { shutdownAllServers } from "./lsp.ts";
 import { stopPreview } from "./preview.ts";
@@ -140,9 +141,19 @@ void app.whenReady().then(() => {
 
   void startAutoUpdate(() => currentSettings()["adcode.updates.auto"] !== false);
   startNoticePolling();
-  // Before the first window, so its accelerators are live from the first keystroke. Not
-  // awaited: it reads the recents off disk, and a menu is not worth delaying a window for.
-  void installApplicationMenu();
+
+  /*
+   * The shortcuts, then the menu.
+   *
+   * Awaited together, and this one *is* worth waiting for: the menu is where Electron
+   * learns about accelerators, and building it before the overrides have been read from
+   * disk would register the factory shortcuts and leave a user who has remapped Ctrl+S
+   * pressing a key that does the wrong thing until something else happened to rebuild the
+   * menu. It is one small file read, before a window exists.
+   */
+  void loadKeybindings()
+    .catch(() => undefined)
+    .then(() => installApplicationMenu());
 
   createWindow();
 

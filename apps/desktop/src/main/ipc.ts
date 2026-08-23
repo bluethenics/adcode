@@ -38,7 +38,15 @@ import {
   recordDraft,
   recoverableDrafts,
 } from "./history.ts";
-import { CHANNELS, type PreviewStatus } from "../shared/api.ts";
+import { CHANNELS, type PreviewStatus, type RuntimeCheckView } from "../shared/api.ts";
+import { downloadUrlFor, installCommandFor, runtimeById, runtimeFor } from "../shared/runtimes.ts";
+import {
+  onKeybindingsChanged,
+  readKeybindings,
+  resetKeybindings,
+  writeKeybinding,
+} from "./keybindings.ts";
+import { findExecutable } from "./executables.ts";
 import { getAdRuntime } from "./adRuntime.ts";
 import {
   currentSettings,
@@ -504,6 +512,55 @@ export function registerIpc(): void {
     await shell.openExternal(url);
   });
 
+  /* ── Runtimes ─────────────────────────────────────────────────────────── */
+
+  /*
+   * "Is Python installed?", asked before the Run button types anything.
+   *
+   * The lookup is `findExecutable`, the same PATH-and-PATHEXT walk the language servers
+   * use - which matters on Windows, where an npm-installed tool is a `.cmd` shim that
+   * `spawn` cannot see without consulting PATHEXT. A check that reported "not installed"
+   * for a program the user has would be worse than no check at all.
+   *
+   * A command with no entry in the table returns null: ADCode has nothing useful to say
+   * about it, and the run goes ahead untouched.
+   */
+  ipcMain.handle(CHANNELS.runtimeCheck, (_event, command: unknown): RuntimeCheckView | null => {
+    if (!isString(command)) return null;
+
+    const runtime = runtimeFor(command);
+    if (runtime === null) return null;
+
+    return {
+      id: runtime.id,
+      label: runtime.label,
+      command,
+      found: findExecutable(command, process.platform) !== null,
+      url: downloadUrlFor(runtime, process.platform),
+      install: installCommandFor(runtime, process.platform),
+    };
+  });
+
+  /*
+   * The renderer names a runtime; this process owns the address.
+   *
+   * Same rule as `preview:open-external` above, for the same reason: a handler that opened
+   * whatever URL it was handed would be a way out of the sandbox wearing the costume of a
+   * convenience. The id is looked up here, and the result is checked to be https even
+   * though every entry in the table already is - the check is what keeps that true.
+   */
+  ipcMain.handle(CHANNELS.runtimeOpenInstall, async (_event, id: unknown) => {
+    if (!isString(id)) return;
+
+    const runtime = runtimeById(id);
+    if (runtime === null) return;
+
+    const url = downloadUrlFor(runtime, process.platform);
+    if (!url.startsWith("https://")) return;
+
+    await shell.openExternal(url);
+  });
+
   /* ── Language servers ─────────────────────────────────────────────────── */
 
   /*
@@ -566,6 +623,37 @@ export function registerIpc(): void {
   });
 
   ipcMain.handle(CHANNELS.settingsReset, () => resetSettings());
+
+  /* ── Keyboard shortcuts ───────────────────────────────────────────────── */
+
+  ipcMain.handle(CHANNELS.keybindingsRead, () => readKeybindings());
+
+  ipcMain.handle(CHANNELS.keybindingsWrite, (_event, command: unknown, chord: unknown) => {
+    if (!isString(command)) throw new Error("expected a command id");
+    if (chord !== null && !isString(chord)) throw new Error("expected a chord or null");
+
+    // The store validates the chord itself and drops an unbindable one. Doing it there
+    // rather than here is what makes a hand-edited file safe too, and there is no second
+    // rule for what counts as bindable.
+    return writeKeybinding(command, chord);
+  });
+
+  ipcMain.handle(CHANNELS.keybindingsReset, (_event, command: unknown) =>
+    resetKeybindings(isString(command) ? command : undefined),
+  );
+
+  /*
+   * Every change rebuilds the application menu.
+   *
+   * Not an optimisation to skip: Electron registers accelerators from the menu, so until
+   * this runs the old chord is still live and the new one does nothing. Rebuilding is the
+   * whole mechanism by which a remap takes effect without a restart.
+   */
+  onKeybindingsChanged((overrides) => {
+    broadcast(CHANNELS.keybindingsChanged, overrides);
+    void installApplicationMenu();
+  });
+
 
   onSettingsChanged((values) => {
     broadcast(CHANNELS.settingsChanged, values);

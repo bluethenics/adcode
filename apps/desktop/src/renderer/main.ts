@@ -9,6 +9,8 @@ import "./styles/notifications.css";
 import "./styles/settings.css";
 import "./styles/ai.css";
 import "./styles/panels.css";
+import "./styles/structure.css";
+import "./styles/popups.css";
 import "./styles/menubar.css";
 import "./styles/dialogs.css";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
@@ -27,9 +29,11 @@ import {
   clampPanelHeight,
   clampSidebarWidth,
 } from "./workbench/layoutSizes.ts";
-import { buildMenuBar, formatAccelerator, stripMnemonic, type MenuEntry } from "../shared/menuModel.ts";
 import { createQuickOpen, createSearchPanel } from "./panels/searchPanel.ts";
 import { createProblemsPanel } from "./panels/problemsPanel.ts";
+import { createStructurePanel } from "./panels/structurePanel.ts";
+import { createProjectMap } from "./panels/projectMap.ts";
+import { createStructurePopup } from "./panels/structurePopup.ts";
 import { createEarningsPopover } from "./panels/earningsPopover.ts";
 import { createCollabPanel } from "./collab/collabPanel.ts";
 import { createCollabSession } from "./collab/collabSession.ts";
@@ -48,6 +52,12 @@ import { createResultDialog } from "./dialogs/resultDialog.ts";
 import { createConfirmDialog } from "./dialogs/confirmDialog.ts";
 import { createPromptDialog } from "./dialogs/promptDialog.ts";
 import { createReportDialog } from "./dialogs/reportDialog.ts";
+import { createMissingRuntimeDialog } from "./dialogs/missingRuntimeDialog.ts";
+import { createShortcutsDialog } from "./dialogs/shortcutsDialog.ts";
+import { commandWordOf } from "../shared/runtimes.ts";
+import { applyOverrides, matchesChord, parseChord, resolveBindings } from "../shared/keybindings.ts";
+import type { BindingOverrides } from "../shared/keybindings.ts";
+import { scaffoldFor } from "@adcode/structure";
 import { createAccountMenu } from "./workbench/accountMenu.ts";
 import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "./workbench/contextMenu.ts";
 import { createInlineEditor } from "./workbench/inlineEdit.ts";
@@ -220,6 +230,7 @@ function activateTab(path: string): void {
 
   renderTabs();
   runButton.refresh();
+  refreshStructure();
   void refreshGitOverlay();
   // Remote carets are per-file: switching tabs has to redraw them, or the previous file's
   // cursors stay on screen pointing at unrelated lines.
@@ -649,13 +660,62 @@ async function beginCreate(dirPath: string, kind: "file" | "folder"): Promise<vo
       setStatus(result.message, 3000);
 
       // A new file is opened; a new folder is not, because there is nothing in it yet.
-      if (kind === "file" && result.path !== undefined) void openFile(result.path);
+      // Opened first, then filled: the template goes into the buffer the user is looking
+      // at, so it arrives as an edit they can undo rather than as a file that was never
+      // empty.
+      if (kind === "file" && result.path !== undefined) {
+        void openFile(result.path).then(() => insertTemplate({ onlyIfEmpty: true }));
+      }
       void sourceControl.refresh();
       return null;
     },
   });
 
   box.prepend(editor);
+}
+
+/**
+ * Write the language's starting shape into the active buffer.
+ *
+ * `onlyIfEmpty` is how the new-file path calls it: a template dropped on top of somebody's
+ * code would be the worst bug this feature could have, so the automatic route refuses to
+ * write into a buffer that has anything in it at all. Invoked from the palette it has no
+ * such guard, because there the user asked for it explicitly - and it arrives through the
+ * edit stack either way, so Ctrl+Z is always the way out.
+ */
+function insertTemplate(options: { readonly onlyIfEmpty?: boolean } = {}): void {
+  if (activePath === null) return;
+
+  if (settingsValues["adcode.editing.fileTemplates"] === false && options.onlyIfEmpty === true) {
+    return;
+  }
+
+  const existing = editorHost.text(activePath);
+  if (existing === null) return;
+  if (options.onlyIfEmpty === true && existing.trim().length > 0) return;
+
+  const tab = tabs.find((entry) => entry.path === activePath);
+  const name = tab?.name ?? basename(activePath);
+
+  const scaffold = scaffoldFor(languageForFilename(name), name);
+  if (scaffold === null) {
+    if (options.onlyIfEmpty !== true) {
+      setStatus(`ADCode has no starting template for ${languageForFilename(name)} files.`, 4000);
+    }
+    return;
+  }
+
+  editorHost.replaceText(activePath, scaffold.text, { keepDirty: true });
+
+  // The caret lands where the work starts, not at line 1. Converted from an offset because
+  // the templates mark the spot with `$0` and counting newlines here is the only place that
+  // knows both the text and the editor.
+  const before = scaffold.text.slice(0, scaffold.cursor);
+  const line = before.split("\n").length;
+  const column = (before.split("\n").at(-1) ?? "").length + 1;
+
+  editorHost.revealPosition(line, column);
+  setStatus(`Started ${name} as ${scaffold.label}. Ctrl+Z undoes it.`, 5000);
 }
 
 /** Replace a row with an editor holding its current name. */
@@ -1446,6 +1506,9 @@ function setStatus(message: string, clearAfterMs?: number): void {
 
 editorHost.onCursorChange((line, column) => {
   el("status-position").textContent = `Ln ${line}, Col ${column}`;
+  // Free when the view is hidden: `followCursor` walks an outline that is empty until
+  // something asks for one.
+  if (structurePopup.isOpen()) structurePanel.followCursor(line);
   // Where everyone else's cursor comes from. Cheap, and a no-op when nothing is shared.
   collabSession.publishCursor(line, column);
 });
@@ -1456,6 +1519,9 @@ editorHost.onDirtyChange((path, dirty) => {
 
   tab.dirty = dirty;
   renderTabs();
+  // This fires on every content change, not only on the transition into dirty, which makes
+  // it the cheapest available "the text moved" signal. `refreshStructure` debounces it.
+  refreshStructure();
 
   if (dirty) scheduleAutoSave(path);
   else cancelPending(path);
@@ -1671,6 +1737,143 @@ el<HTMLButtonElement>("report-toggle").addEventListener("click", () => reportDia
 
 /* The account button beside it, and the panel it opens. */
 createAccountMenu(el<HTMLButtonElement>("account-toggle"), document.body);
+
+/**
+ * Who this window is signed in as, in the status bar after the version.
+ *
+ * Hidden entirely while anonymous rather than shown as "Not signed in". Anonymous is the
+ * normal state - you earn from first launch with no sign-up - so a permanent reminder that
+ * you have not signed in would be nagging about something that is working as designed.
+ *
+ * The whole address, not a truncation. It is there to answer "which account is this
+ * machine's earnings going to", and `d…@gmail.com` does not answer it.
+ */
+async function refreshAccountLabel(): Promise<void> {
+  const node = el<HTMLButtonElement>("status-account");
+
+  let state;
+  try {
+    state = await window.adcode.account.status();
+  } catch {
+    node.hidden = true;
+    return;
+  }
+
+  if (state.state !== "linked") {
+    node.hidden = true;
+    node.textContent = "";
+    return;
+  }
+
+  // The email, or the display name when the provider gave no address - GitHub accounts
+  // with a private email are the case, and the name is better than nothing there.
+  const label = state.email ?? state.displayName;
+  if (label === null) {
+    node.hidden = true;
+    return;
+  }
+
+  node.hidden = false;
+  node.textContent = label;
+  node.title = `Signed in as ${label}${state.providers.length > 0 ? ` via ${state.providers.join(", ")}` : ""}`;
+  node.setAttribute("aria-label", node.title);
+}
+
+el("status-account").addEventListener("click", () => el("account-toggle").click());
+
+// The status bar follows the account rather than being set once: linking happens in a
+// popover that this corner knows nothing about, and a corner that only updated on launch
+// would go on saying nothing until the next restart.
+window.adcode.account.onChanged(() => void refreshAccountLabel());
+
+const missingRuntimeDialog = createMissingRuntimeDialog(document.body);
+
+/* ── Keyboard shortcuts ───────────────────────────────────────────────── */
+
+/**
+ * The user's rebound shortcuts, mirrored in the renderer.
+ *
+ * Kept as a plain value rather than fetched on demand because the keydown handler reads it
+ * on every keystroke in the window - an await there would put IPC latency between a key and
+ * what it does, which §7 does not allow. The main process owns the file and broadcasts every
+ * change, so this can only be stale for the length of one IPC round trip.
+ */
+let bindingOverrides: BindingOverrides = {};
+
+/** Every command and the shortcut it currently answers to. */
+const currentBindings = (): ReturnType<typeof resolveBindings> => resolveBindings(bindingOverrides);
+
+const shortcutsDialog = createShortcutsDialog(document.body, {
+  bindings: currentBindings,
+  platform: () => platform,
+  setChord: (command, chord) => window.adcode.keybindings.write(command, chord),
+  resetChord: (command) => window.adcode.keybindings.reset(command),
+});
+
+/**
+ * Take on a new set of overrides.
+ *
+ * Three surfaces have to move together or the feature is a lie: the drawn menu bar's
+ * printed accelerators, the dialog's own list, and the keydown handler's matching. The
+ * native menu is rebuilt by the main process, which owns the accelerator registration.
+ */
+function applyKeybindings(overrides: BindingOverrides): void {
+  bindingOverrides = overrides;
+
+  void refreshMenuRecents();
+  shortcutsDialog.refresh();
+}
+
+window.adcode.keybindings.onChanged((overrides) => applyKeybindings(overrides));
+
+/**
+ * Run a command in the terminal, after checking the program it needs is there.
+ *
+ * Every route to running a file goes through here - the status-bar button, the Terminal
+ * menu, and the keyboard shortcut - so there is one answer to "what happens when Python is
+ * missing" rather than three that drift apart.
+ *
+ * The check is skipped silently for anything ADCode has no entry for, and the user can
+ * always overrule it. `findExecutable` can be wrong about a program installed somewhere
+ * only the user's shell profile knows about, and refusing to run on the strength of our own
+ * guess would be worse than the error message this exists to replace.
+ */
+async function runInTerminal(command: string): Promise<void> {
+  const word = commandWordOf(command);
+
+  if (word !== null) {
+    let runtime = null;
+    try {
+      runtime = await window.adcode.runtime.check(word);
+    } catch {
+      // A failed check is not a reason to refuse to run something.
+    }
+
+    if (runtime !== null && !runtime.found) {
+      const choice = await missingRuntimeDialog.ask(runtime, command);
+
+      if (choice === "cancel") return;
+
+      if (choice === "install") {
+        await window.adcode.runtime.openInstall(runtime.id);
+        setStatus(`Opened the ${runtime.label} download page in your browser.`, 6000);
+        return;
+      }
+
+      if (choice === "copy") {
+        await window.adcode.clipboard.writeText(runtime.install ?? "");
+        setStatus("Install command copied. Paste it into a terminal.", 6000);
+        return;
+      }
+    }
+  }
+
+  const panel = terminalPanel();
+  if (!panel.isOpen()) await panel.toggle();
+  if (panel.count() === 0) await panel.create();
+
+  panel.send(command);
+}
 
 const treeMenu = createContextMenu(document.body);
 attachContextMenuDismissal(treeMenu, () => (menuRow ?? editorHost).focus());
@@ -2002,6 +2205,113 @@ diagnosticsHost.onChange((diagnostics) => {
 
 /* ── Go Live / Run (the status bar's right-hand corner) ───────────────── */
 
+/* ── Structure ────────────────────────────────────────────────────────── */
+
+/*
+ * The shape of the file you are in, and where the things in it go.
+ *
+ * The reading is `@adcode/structure`, which is pure. Everything the panel cannot do without
+ * the shell is passed in here: the active buffer's text (from the editor, not from disk -
+ * the outline has to describe what you are looking at, including the edits you have not
+ * saved), a way to move the cursor, and the workspace search it uses to answer "who calls
+ * this" and "what does this style".
+ */
+const structurePanel = createStructurePanel({
+  activeFile: () => {
+    if (activePath === null) return null;
+
+    const relative = relativePath(activePath);
+    const text = editorHost.text(activePath);
+    if (text === null) return null;
+
+    const tab = tabs.find((entry) => entry.path === activePath);
+    const name = tab?.name ?? basename(activePath);
+
+    return {
+      // Historical revisions and untitled buffers live outside the workspace and have no
+      // relative path. They still get an outline - the tree is worth having on a file you
+      // are only reading - and the searches simply find nothing to relate them to.
+      relativePath: relative ?? name,
+      languageId: languageForFilename(name),
+      text,
+    };
+  },
+
+  reveal: (line, column) => editorHost.revealPosition(line, column),
+
+  openAt: (path, line, column) => {
+    void openFile(absolutePath(path)).then(() => editorHost.revealPosition(line, column));
+  },
+
+  /*
+   * Always a regex, because every pattern this panel builds is one - a bounded identifier,
+   * or an attribute match. Capped well below the search panel's own limit: a drawer is a
+   * glance, and the panel says how many there really are.
+   */
+  search: async (pattern, include) => {
+    if (workspaceRoot === null) return [];
+
+    return window.adcode.search.run({
+      pattern,
+      isRegex: true,
+      caseSensitive: true,
+      ...(include.length > 0 ? { include } : {}),
+    });
+  },
+
+  notify: (text) => setStatus(text, 4000),
+});
+
+/**
+ * Redraw the structure view, at most once per pause in typing.
+ *
+ * Reading a file's shape is a scan of every line, and this is wired to the same event that
+ * fires on every keystroke. Debounced, and skipped entirely while the view is hidden -
+ * `showView` redraws on the way in, so nothing is stale by the time anyone can see it. On a
+ * three-thousand-line file the difference is the whole reason typing stays smooth.
+ */
+let structureTimer: number | undefined;
+
+function refreshStructure(): void {
+  if (structureTimer !== undefined) window.clearTimeout(structureTimer);
+
+  // Nothing to redraw while the popup is shut, which is almost always. Reading a file's
+  // shape is a scan of every line and this is wired to the event that fires on every
+  // keystroke, so this early return is most of what keeps typing smooth.
+  if (structurePopup === undefined || !structurePopup.isOpen()) return;
+
+  structureTimer = window.setTimeout(() => {
+    structurePanel.render();
+    structurePanel.followCursor(editorHost.cursorLine());
+  }, 200);
+}
+
+/**
+ * The project map, and the popup that holds both halves.
+ *
+ * Declared after `structurePanel` because it takes it, and read by `refreshStructure`
+ * above - which runs only from event handlers, long after this line.
+ */
+const projectMap = createProjectMap({
+  root: () => workspaceRoot,
+  list: (dirPath) => window.adcode.workspace.list(dirPath),
+  open: (path) => {
+    void openFile(path);
+    structurePopup.close();
+  },
+});
+
+const structurePopup = createStructurePopup(document.body, {
+  filePanel: structurePanel,
+  projectMap,
+  restoreFocus: () => editorHost.focus(),
+  anchor: el("open-structure"),
+});
+
+// The activity-bar button, which is how most people will find this at all - a popup with no
+// icon is a feature only the person who wrote the shortcut knows about.
+el("open-structure").addEventListener("click", () => structurePopup.toggle("file"));
+
 /**
  * The names of the files at the workspace root.
  *
@@ -2053,14 +2363,12 @@ const runButton = createRunButton({
    * The output *is* the feature. A beginner pressing Run needs to see the traceback, the
    * compiler error, and the exit code - and the terminal already resolves file paths in
    * that output into clickable links back to the editor.
+   *
+   * Through `runInTerminal`, which checks the program exists first. A missing interpreter is
+   * the one error the terminal cannot explain, because the shell's own message for it is
+   * written for an operating system rather than a person.
    */
-  runInTerminal: async (command) => {
-    const panel = terminalPanel();
-    if (!panel.isOpen()) await panel.toggle();
-    if (panel.count() === 0) await panel.create();
-
-    panel.send(command);
-  },
+  runInTerminal: (command) => runInTerminal(command),
 });
 
 el("status-run-slot").append(runButton.element);
@@ -2363,6 +2671,11 @@ resizeObserver.observe(el("terminal-surface"));
 async function boot(): Promise<void> {
   applySettings(await window.adcode.settings.read());
 
+  // Awaited, unlike the version below it: the menu bar is built from these, and drawing it
+  // once with the factory shortcuts and again with the user's would be a visible flicker on
+  // every launch for anyone who has rebound anything.
+  applyKeybindings(await window.adcode.keybindings.read().catch(() => ({})));
+
   // Not awaited into the rest of the launch: the version is the least urgent thing on the
   // screen, and an IPC round trip for it should not hold up the window.
   void window.adcode.app.info().then(
@@ -2375,6 +2688,7 @@ async function boot(): Promise<void> {
   );
 
   void refreshMenuRecents();
+  void refreshAccountLabel();
 
   // §1: reduce-motion follows the OS. Chromium's media query is the single source of
   // truth for it; the attribute just lets JS-driven animations read the same value.
@@ -2508,26 +2822,7 @@ function stepEditor(step: number): void {
 }
 
 function showShortcuts(): void {
-  const lines: string[] = [];
-
-  // Into the submenus as well. The zoom keys and the preview keys live in one, and a
-  // shortcut sheet that omits them is a shortcut sheet you stop trusting.
-  const walk = (entries: readonly MenuEntry[]): void => {
-    for (const entry of entries) {
-      if ("kind" in entry && entry.kind === "submenu") walk(entry.items);
-      else if ("accelerator" in entry && entry.accelerator !== undefined) {
-        lines.push(`${formatAccelerator(entry.accelerator, platform)}   ${stripMnemonic(entry.label)}`);
-      }
-    }
-  };
-
-  for (const top of buildMenuBar()) walk(top.items);
-
-  notifications.show({
-    title: "Keyboard shortcuts",
-    body: lines.join("\n"),
-    autoDismissMs: 15_000,
-  });
+  shortcutsDialog.open();
 }
 
 /** Everything the menu bar, the keyboard, and the palette can ask for. */
@@ -2680,7 +2975,10 @@ function registerCommands(): void {
   add("view.zoomOut", "Zoom Out", () => window.adcode.window.zoom(-1));
   add("view.zoomReset", "Reset Zoom", () => window.adcode.window.zoom(0));
   add("view.explorer", "Explorer", () => showView("explorer"));
-  add("view.search", "Search", () => showView("search"));
+  add("view.search", "Find in Files", () => showView("search"));
+  add("view.structure", "Structure", () => structurePopup.toggle("file"));
+  add("view.projectMap", "Explain This Project", () => structurePopup.toggle("project"));
+  add("editor.insertTemplate", "Insert File Template", () => insertTemplate());
   add("view.scm", "Source Control", () => showView("scm"));
   add("view.problems", "Problems", () => showView("problems"));
   add("view.earnings", "Earnings", () => earningsPopover.toggle());
@@ -2695,7 +2993,6 @@ function registerCommands(): void {
     void previewPane.switchMode(),
   );
   add("run.file", "Run Active File", () => runButton.activate());
-  add("search.open", "Find in Files", () => showView("search"));
   add("ai.toggle", "Assistant", () => chat.toggle());
   add("view.toggleWordWrap", "Toggle Word Wrap", () => editorHost.toggleWordWrap());
 
@@ -2782,11 +3079,9 @@ function registerCommands(): void {
       return;
     }
 
-    const panel = terminalPanel();
-    if (panel.count() === 0) await panel.create();
-    else if (!panel.isOpen()) await panel.toggle();
-
-    panel.send(runner);
+    // The same guarded path the Run button uses, so the menu cannot produce a bare
+    // "command not found" that the button would have explained.
+    await runInTerminal(runner);
   });
 
   /* Help */
@@ -2818,6 +3113,7 @@ const menuBar =
         run: (command, arg) => commands.run(command, arg),
         platform,
         restoreFocus: () => editorHost.focus(),
+        overrides: () => bindingOverrides,
       });
 
 /**
@@ -2945,40 +3241,41 @@ chat.onVisibilityChange((open) => el("ai-toggle").setAttribute("aria-pressed", S
 window.adcode.window.onCommand((command, arg) => commands.run(command, arg));
 
 /**
- * Keyboard shortcuts, resolved against the same command ids the menu uses.
+ * Which commands this window answers for on the keyboard.
  *
- * Only the ones the workbench owns are listed. Monaco binds its own editing keys while it
- * has focus, and duplicating them here would mean two handlers fighting over one press.
+ * The *chords* are not here - they come from the menu model by way of
+ * `shared/keybindings.ts`, so a user's remap moves the key and the printed label together.
+ * What this list decides is something else: which commands the renderer handles at all.
+ *
+ * Everything else on the menu reaches its command through Electron's own accelerator
+ * registration. Handling those here too would run them twice on one press - and the ones
+ * Electron implements natively, Copy and Paste, have to reach the focused text box, which
+ * a message from this window cannot do.
  */
-const KEYBINDINGS: ReadonlyArray<{
-  readonly key: string;
-  readonly mod?: boolean;
-  readonly shift?: boolean;
-  readonly alt?: boolean;
-  readonly command: string;
-}> = [
-  { key: "s", mod: true, command: "file.save" },
-  { key: "s", mod: true, alt: true, command: "file.saveAll" },
-  { key: "n", mod: true, command: "file.new" },
-  { key: "o", mod: true, command: "workspace.open" },
-  { key: "w", mod: true, command: "editor.close" },
-  { key: ",", mod: true, command: "settings.open" },
-  { key: "`", mod: true, command: "terminal.toggle" },
-  { key: "`", mod: true, shift: true, command: "terminal.new" },
-  { key: "5", mod: true, shift: true, command: "terminal.split" },
-  { key: "j", mod: true, command: "view.togglePanel" },
-  { key: "b", mod: true, command: "view.toggleSidebar" },
-  { key: "i", mod: true, command: "ai.toggle" },
-  { key: "p", mod: true, command: "go.file" },
-  { key: "p", mod: true, shift: true, command: "palette.open" },
-  { key: "e", mod: true, shift: true, command: "view.explorer" },
-  { key: "f", mod: true, shift: true, command: "view.search" },
-  { key: "g", mod: true, shift: true, command: "view.scm" },
-  { key: "F11", command: "view.fullScreen" },
-  { key: "=", mod: true, command: "view.zoomIn" },
-  { key: "-", mod: true, command: "view.zoomOut" },
-  { key: "0", mod: true, command: "view.zoomReset" },
-];
+const RENDERER_HANDLED: ReadonlySet<string> = new Set([
+  "file.save",
+  "file.saveAll",
+  "file.new",
+  "workspace.open",
+  "editor.close",
+  "settings.open",
+  "terminal.toggle",
+  "terminal.new",
+  "terminal.split",
+  "view.togglePanel",
+  "view.toggleSidebar",
+  "ai.toggle",
+  "go.file",
+  "palette.open",
+  "view.explorer",
+  "view.search",
+  "view.structure",
+  "view.scm",
+  "view.fullScreen",
+  "view.zoomIn",
+  "view.zoomOut",
+  "view.zoomReset",
+]);
 
 /**
  * Alt is decided on release, not on press - see `altMenuActivation.ts`.
@@ -3037,6 +3334,11 @@ window.addEventListener(
     if (event.key.length !== 1) return;
     if (gitResultDialog.isOpen() || confirmDialog.isOpen() || promptDialog.isOpen()) return;
 
+  // While a shortcut is being recorded, every key belongs to the recorder. Without this the
+  // chord you are trying to bind runs the command it is currently bound to instead of being
+  // captured - and the shortcuts worth changing are exactly the ones already bound.
+  if (shortcutsDialog.isRecording()) return;
+
     if (menuBar.openByMnemonic(event.key)) event.preventDefault();
   },
   true,
@@ -3077,14 +3379,11 @@ window.addEventListener("keydown", (event) => {
     }
   }
 
-  const mod = event.ctrlKey || event.metaKey;
-  const pressed = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  for (const binding of currentBindings()) {
+    if (binding.chord === null || !RENDERER_HANDLED.has(binding.command)) continue;
 
-  for (const binding of KEYBINDINGS) {
-    if (pressed !== binding.key.toLowerCase() && pressed !== binding.key) continue;
-    if ((binding.mod === true) !== mod) continue;
-    if ((binding.shift === true) !== event.shiftKey) continue;
-    if ((binding.alt === true) !== event.altKey) continue;
+    const chord = parseChord(binding.chord);
+    if (chord === null || !matchesChord(chord, event)) continue;
 
     event.preventDefault();
     commands.run(binding.command);

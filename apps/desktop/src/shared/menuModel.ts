@@ -226,7 +226,10 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         { label: "&Find", command: "edit.find", accelerator: "CmdOrCtrl+F" },
         { label: "R&eplace", command: "edit.replace", accelerator: "CmdOrCtrl+H" },
         separator,
-        { label: "Find &in Files", command: "search.open", accelerator: "CmdOrCtrl+Shift+F" },
+        // `view.search`, not an id of its own: this row and View > Search are the same
+        // action, and two commands sharing one accelerator means Electron registers it
+        // twice and the second one never fires.
+        { label: "Find &in Files", command: "view.search", accelerator: "CmdOrCtrl+Shift+F" },
         separator,
         {
           label: "Toggle &Line Comment",
@@ -306,6 +309,13 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         separator,
         { label: "&Explorer", command: "view.explorer", accelerator: "CmdOrCtrl+Shift+E" },
         { label: "&Search", command: "view.search", accelerator: "CmdOrCtrl+Shift+F" },
+        // "u", because S belongs to Search and T to Terminal. Ctrl+Shift+O is what every
+        // other editor binds to "go to symbol in this file", which is what this is.
+        { label: "Str&ucture", command: "view.structure", accelerator: "CmdOrCtrl+Shift+U" },
+        // The other half of the same popup. Its own row rather than a tab nobody finds:
+        // "what are all these folders" is asked once, on the first morning, by somebody
+        // who does not yet know this editor has an answer.
+        { label: "Explain This Pro&ject", command: "view.projectMap" },
         { label: "Source &Control", command: "view.scm", accelerator: "CmdOrCtrl+Shift+G" },
         { label: "Pr&oblems", command: "view.problems", accelerator: "CmdOrCtrl+Shift+M" },
         { label: "&Terminal", command: "terminal.toggle", accelerator: "CmdOrCtrl+`" },

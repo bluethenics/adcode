@@ -417,6 +417,12 @@ export const CHANNELS = {
   accountLinkEmail: "account:link-email",
   accountDeviceCode: "account:device-code",
   updateChanged: "update:changed",
+  runtimeCheck: "runtime:check",
+  runtimeOpenInstall: "runtime:open-install",
+  keybindingsRead: "keybindings:read",
+  keybindingsWrite: "keybindings:write",
+  keybindingsReset: "keybindings:reset",
+  keybindingsChanged: "keybindings:changed",
 } as const;
 
 /**
@@ -596,6 +602,26 @@ export interface SessionStateView {
   readonly activeFile: string | null;
   /** Absent in sessions written before the layout was adjustable. */
   readonly layout?: LayoutView;
+}
+
+/**
+ * What the main process found when asked whether a program is installed.
+ *
+ * `found: false` is the interesting case and is not an error - most people have not
+ * installed a Rust toolchain, and saying so plainly is the whole feature. `label`, `url`
+ * and `install` come from the main process's own copy of the runtime table, so the renderer
+ * displays them rather than choosing them.
+ */
+export interface RuntimeCheckView {
+  readonly id: string;
+  readonly label: string;
+  /** The executable that was looked for, as it appears on the command line. */
+  readonly command: string;
+  readonly found: boolean;
+  /** The download page, chosen for this platform. Shown, never sent back. */
+  readonly url: string;
+  /** A one-line install command for this platform, or null when there is no good one. */
+  readonly install: string | null;
 }
 
 export interface SearchQueryView {
@@ -829,6 +855,32 @@ export interface AdcodeApi {
      * rewritten, so a restore chosen by mistake is undone by discarding it.
      */
     restoreFile(ref: string, path: string): Promise<GitOutcome>;
+  };
+  readonly keybindings: {
+    /** `commandId` to chord, or to `null` where the user has cleared one. */
+    read(): Promise<Record<string, string | null>>;
+    write(command: string, chord: string | null): Promise<Record<string, string | null>>;
+    /** One command, or - with no argument - every override. */
+    reset(command?: string): Promise<Record<string, string | null>>;
+    onChanged(listener: (overrides: Record<string, string | null>) => void): () => void;
+  };
+  readonly runtime: {
+    /**
+     * Is the program this command needs installed?
+     *
+     * `null` when ADCode has no entry for that command, which is the common case - it means
+     * "nothing useful to say", and the run proceeds untouched. A command ADCode does not
+     * know about must never be blocked on ADCode's ignorance of it.
+     */
+    check(command: string): Promise<RuntimeCheckView | null>;
+    /**
+     * Open the download page for a runtime, named by id.
+     *
+     * By id and not by URL. The main process looks the address up in its own table, so a
+     * compromised renderer cannot turn this into `shell.openExternal(anything)` - the same
+     * rule `preview:open-external` already follows.
+     */
+    openInstall(id: string): Promise<void>;
   };
   readonly search: {
     run(query: SearchQueryView): Promise<SearchHitView[]>;

@@ -91,10 +91,15 @@ describe("editorOptionsFor", () => {
         setting.group === "editing" && setting.available && !mapped.has(setting.id),
     ).map((setting) => setting.id);
 
-    // `inlineGitBlame` is honoured by the git overlay, and `plainEnglishErrors` by the
-    // Problems panel and the hover provider. Neither is an editor option.
+    // Three settings are honoured somewhere other than Monaco's options, and each one is
+    // listed here so that "available but unmapped" stays a deliberate set rather than a
+    // place a forgotten setting can hide: `inlineGitBlame` by the git overlay,
+    // `autoCloseTags` by the editor host's own tag-closing listener, and
+    // `plainEnglishErrors` by the Problems panel and the hover provider.
     expect(unmapped).toEqual([
       "adcode.editing.inlineGitBlame",
+      "adcode.editing.autoCloseTags",
+      "adcode.editing.fileTemplates",
       "adcode.editing.plainEnglishErrors",
     ]);
   });

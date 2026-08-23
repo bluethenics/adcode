@@ -17,6 +17,8 @@
 import { BrowserWindow, Menu, app, type MenuItemConstructorOptions } from "electron";
 import { CHANNELS } from "../shared/api.ts";
 import { buildMenuBar, stripMnemonic, type MenuEntry } from "../shared/menuModel.ts";
+import { applyOverrides } from "../shared/keybindings.ts";
+import { currentKeybindings } from "./keybindings.ts";
 import { recentFolders } from "./recents.ts";
 
 /** Send a command to whichever window the user is actually looking at. */
@@ -66,7 +68,16 @@ function toElectron(entries: readonly MenuEntry[]): MenuItemConstructorOptions[]
 export async function installApplicationMenu(): Promise<void> {
   const recents = await recentFolders().catch(() => []);
 
-  const template: MenuItemConstructorOptions[] = buildMenuBar({ recents }).map((top) => ({
+  /*
+   * The user's shortcuts, written onto the model before anything reads it.
+   *
+   * This is the line that makes rebinding real rather than cosmetic. Electron learns about
+   * a shortcut *from the menu* - so a remap that did not pass through here would change the
+   * label the renderer draws and leave the key itself registered to the old command.
+   */
+  const bar = applyOverrides(buildMenuBar({ recents }), currentKeybindings());
+
+  const template: MenuItemConstructorOptions[] = bar.map((top) => ({
     label: stripMnemonic(top.label),
     submenu: toElectron(top.items),
   }));

@@ -8,11 +8,18 @@
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { dialog } from "electron";
+import { HIDDEN_DIRECTORIES } from "@adcode/structure";
 import { isInsideWorkspace } from "./pathSafety.ts";
 import type { DirEntry, FileContent, OpenedWorkspace, SaveResult } from "../shared/api.ts";
 
-/** Directories never worth walking, and expensive enough to matter on a large repo. */
-const SKIP = new Set([".git", "node_modules", ".DS_Store", "dist", "out", ".next", "target"]);
+/**
+ * Directories never worth walking, and expensive enough to matter on a large repo.
+ *
+ * The list lives in `@adcode/structure` because the Structure popup's project map has to
+ * name the same set - it explains what is in a project, and a folder skipped here would
+ * otherwise be silently missing from the explanation with nothing saying why.
+ */
+const SKIP = new Set(HIDDEN_DIRECTORIES);
 
 /** §7 budgets a 100MB file as "no freeze; degrade features, never the frame rate". */
 const MAX_READ_BYTES = 100 * 1024 * 1024;

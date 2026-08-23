@@ -44,6 +44,22 @@
         <button class="activity" data-view="search" title="Search (Ctrl+Shift+F)" aria-label="Search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
         </button>
+        <!--
+          Structure, directly under Search.
+
+          No `data-view`, like the earnings button below and for the same reason: this one
+          opens a popup rather than swapping the sidebar. Both loops in `main.ts` that wire
+          the activity bar skip a button without one, which is what keeps it out of the
+          sidebar's selection model — a popup that also marked itself as the selected view
+          would leave the explorer looking unselected while the explorer was still on screen.
+
+          It sits here, beside the other two things you do to the file you are in, rather
+          than down with earnings. The icon is a bracket tree: three rows each joined to the
+          spine on their left, which is what the popup itself draws.
+        -->
+        <button class="activity" id="open-structure" title="Structure (Ctrl+Shift+U)" aria-label="Structure" aria-haspopup="dialog" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v14.5M5 8h5M5 13h5M5 18h5"/><circle cx="12.5" cy="8" r="1.6"/><circle cx="12.5" cy="13" r="1.6"/><circle cx="12.5" cy="18" r="1.6"/><path d="M15 8h4M15 13h4M15 18h4"/></svg>
+        </button>
         <button class="activity" data-view="scm" title="Source control (Ctrl+Shift+G)" aria-label="Source control">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="6" r="2.5"/><circle cx="7" cy="18" r="2.5"/><circle cx="17" cy="12" r="2.5"/><path d="M7 8.5v7M9.5 6h3a2 2 0 0 1 2 2v2"/></svg>
         </button>
@@ -175,6 +191,15 @@
       -->
       <span class="status-item status-path" id="status-workspace">No folder</span>
       <span class="status-item status-version" id="status-version"></span>
+      <!--
+        Who this window's earnings belong to.
+
+        After the version because it answers the same *kind* of question - what is this
+        build, whose is it - and because a machine that has never signed in shows nothing
+        here at all rather than an empty slot with a gap around it. It is a button: the one
+        useful thing to do from here is open the account panel that put the address there.
+      -->
+      <button class="status-item status-account" id="status-account" type="button" hidden aria-haspopup="dialog"></button>
       <span class="status-spacer"></span>
       <span class="status-item" id="status-position">Ln 1, Col 1</span>
       <span class="status-item" id="status-language"></span>

@@ -186,6 +186,8 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   bool("adcode.editing.stickyScroll", "editing", "Sticky scroll", "Pin enclosing scopes to the top of the editor while scrolling.", true, true),
   bool("adcode.editing.indentGuides", "editing", "Indent guides", "Vertical rules showing indentation depth.", true, true),
   bool("adcode.editing.todoHighlighting", "editing", "TODO and FIXME highlighting", "Highlight TODO, FIXME, and HACK comments.", true),
+  bool("adcode.editing.autoCloseTags", "editing", "Close tags automatically", "Typing the end of an opening tag writes its closing tag, and typing </ completes the tag that is still open.", true, true),
+  bool("adcode.editing.fileTemplates", "editing", "Start new files from a template", "A new file opens with the boilerplate its language always begins with - a doctype for HTML, a main function for C. Ctrl+Z undoes it.", true, true),
   bool("adcode.editing.autoRenamePairedTag", "editing", "Auto-rename paired tag", "Renaming an opening tag renames its closing tag.", true),
   bool("adcode.editing.pathAutocomplete", "editing", "Path autocomplete", "Complete file paths inside strings and imports.", true),
   bool("adcode.editing.trailingWhitespace", "editing", "Render trailing whitespace", "Make trailing spaces visible.", false, true),

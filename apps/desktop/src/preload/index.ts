@@ -133,6 +133,16 @@ const api: AdcodeApi = {
     commitFileDiff: (ref, path) => ipcRenderer.invoke(CHANNELS.gitCommitFileDiff, ref, path),
     restoreFile: (ref, path) => ipcRenderer.invoke(CHANNELS.gitRestoreFile, ref, path),
   },
+  keybindings: {
+    read: () => ipcRenderer.invoke(CHANNELS.keybindingsRead),
+    write: (command, chord) => ipcRenderer.invoke(CHANNELS.keybindingsWrite, command, chord),
+    reset: (command) => ipcRenderer.invoke(CHANNELS.keybindingsReset, command),
+    onChanged: (listener) => subscribe(CHANNELS.keybindingsChanged, listener),
+  },
+  runtime: {
+    check: (command) => ipcRenderer.invoke(CHANNELS.runtimeCheck, command),
+    openInstall: (id) => ipcRenderer.invoke(CHANNELS.runtimeOpenInstall, id),
+  },
   search: {
     run: (query) => ipcRenderer.invoke(CHANNELS.searchRun, query),
     replace: (query, replacement) =>
