@@ -17,6 +17,7 @@ import {
 import { stripAnsi } from "./devCommand.ts";
 import {
   completionAt,
+  definitionAt,
   formattingFor,
   configureLsp,
   documentChanged,
@@ -436,6 +437,8 @@ export function registerIpc(): void {
     clipboard.writeText(text);
   });
 
+  ipcMain.handle(CHANNELS.clipboardRead, () => clipboard.readText());
+
   ipcMain.handle(CHANNELS.terminalProfiles, () => detectProfiles());
 
   ipcMain.handle(CHANNELS.terminalCreate, (_event, options: unknown) => {
@@ -593,6 +596,16 @@ export function registerIpc(): void {
 
       const items = await completionAt(path, languageId, line, column);
       return items.map(toWireCompletion).filter((item) => item !== null);
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.lspDefinition,
+    async (_event, path: unknown, languageId: unknown, line: unknown, column: unknown) => {
+      if (!isString(path) || !isString(languageId)) return null;
+      if (!isFiniteNumber(line) || !isFiniteNumber(column)) return null;
+
+      return definitionAt(path, languageId, line, column);
     },
   );
 

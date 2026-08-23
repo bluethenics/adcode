@@ -564,7 +564,15 @@ select {
    the panel is hidden, because `[hidden]` on a grid item still occupies its track. */
 .main {
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
+  /*
+   * Tabs, breadcrumbs, editor, splitter, panel.
+   *
+   * The editor is the only `1fr`, and the row order is positional - which is why the
+   * breadcrumb bar collapses to zero height rather than being hidden. A `hidden` grid item
+   * is `display: none` and leaves the grid entirely, so the editor would inherit an `auto`
+   * row and collapse to nothing. This cost an afternoon once; it is not worth repeating.
+   */
+  grid-template-rows: auto auto 1fr auto auto;
   min-height: 0;
   min-width: 0;
   background: var(--bg-editor);

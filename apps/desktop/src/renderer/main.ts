@@ -15,7 +15,10 @@ import "./styles/menubar.css";
 import "./styles/dialogs.css";
 import "./styles/help.css";
 import "./styles/editor.css";
+import "./styles/navigation.css";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
+import { createBreadcrumbs } from "./editor/breadcrumbs.ts";
+import { createSymbolSearch } from "./panels/symbolSearch.ts";
 import { createCommandRegistry } from "./workbench/commands.ts";
 import { createMenuBar } from "./workbench/menuBar.ts";
 import { shortenPath } from "./workbench/pathLabel.ts";
@@ -102,10 +105,32 @@ let workspaceRoot: string | null = null;
 let terminal: TerminalPanel | null = null;
 let theme: "light" | "dark" = "dark";
 
+/*
+ * Everything the editor needs from the shell.
+ *
+ * All of these are callbacks rather than values because the editor is created before the
+ * workspace is opened, before `relativePath` is declared further down this file, and before
+ * any of what they read exists. A closure defers all three problems to the moment somebody
+ * actually asks.
+ */
 const editorHost: EditorHost = createEditorHost(el("editor-host"), {
   activeFile: () => activePath,
   workspaceRoot: () => workspaceRoot,
   list: (directory) => window.adcode.workspace.list(directory),
+
+  readFile: async (path) => (await window.adcode.files.read(path))?.text ?? null,
+  displayPath: (path) => relativePath(path) ?? path,
+  languageFor: (path) => languageForFilename(path.split(/[\/]/).pop() ?? path),
+
+  openAt: (path, line, column) => {
+    void openFile(path).then(() => editorHost.revealPosition(line, column));
+  },
+
+  // Regex, because every pattern reaching here is built by `@adcode/structure` and is one.
+  search: (pattern, include) => window.adcode.search.run({ pattern, isRegex: true, include }),
+
+  absolute: (relative) =>
+    workspaceRoot === null ? relative : `${workspaceRoot.replace(/[\/]+$/, "")}/${relative}`,
 });
 
 /* ── Settings ─────────────────────────────────────────────────────────── */
@@ -129,6 +154,11 @@ function applySettings(values: Record<string, boolean | string>): void {
    * while annotations stay on the lines.
    */
   diagnosticsHost.setEnabled(values["adcode.formatting.lintDiagnostics"] !== false);
+
+  breadcrumbs.setEnabled(values["adcode.navigation.breadcrumbs"] !== false);
+  symbolSearch.setEnabled(values["adcode.navigation.symbolSearch"] !== false);
+  structurePopup.setOutlineEnabled(values["adcode.navigation.outline"] !== false);
+  refreshBreadcrumbs();
 
   editorHost.applySettings({
     ...values,
@@ -253,6 +283,15 @@ function activateTab(path: string): void {
   renderTabs();
   runButton.refresh();
   refreshStructure();
+
+  /*
+   * The trail follows the tab, not only the cursor.
+   *
+   * Switching tabs moves no cursor, so without this the bar keeps describing the file you
+   * just left - which a screenshot caught it doing: the trail read `smoke-broken.ts` while
+   * the editor was showing a different file entirely.
+   */
+  refreshBreadcrumbs();
   void refreshGitOverlay();
   // Remote carets are per-file: switching tabs has to redraw them, or the previous file's
   // cursors stay on screen pointing at unrelated lines.
@@ -1613,6 +1652,48 @@ const settingsView = createSettingsView({
   reset: () => window.adcode.settings.reset(),
   projections: () => serverProjections,
   mcpConnection: () => window.adcode.memory.connection(),
+});
+
+/* ── Breadcrumbs and symbol search (§4 Navigation) ────────────────────── */
+
+const breadcrumbs = createBreadcrumbs({
+  displayPath: (path) => relativePath(path) ?? path,
+  revealFolder: (directory) => {
+    setStatus(directory, 2000);
+  },
+  showStructure: () => structurePopup.open("file"),
+  goToLine: (line) => editorHost.revealLine(line),
+});
+
+// Between the tab strip and the editor, which is where the trail belongs: it describes the
+// file the tabs chose, and it describes it to the editor below.
+el("editor-area").before(breadcrumbs.element);
+
+function refreshBreadcrumbs(): void {
+  if (activePath === null) {
+    breadcrumbs.update(null, "", "", 1);
+    return;
+  }
+
+  const text = editorHost.text(activePath);
+  const name = activePath.split(/[\/]/).pop() ?? activePath;
+  breadcrumbs.update(activePath, languageForFilename(name), text ?? "", editorHost.cursorLine());
+}
+
+editorHost.onCursorChange(() => refreshBreadcrumbs());
+
+const symbolSearch = createSymbolSearch({
+  host: document.body,
+  // Plain text, not a regex: whatever the user typed is a name, and a stray bracket in it
+  // should find nothing rather than throw.
+  search: (pattern) => window.adcode.search.run({ pattern, isRegex: false }),
+  languageFor: (path) => languageForFilename(path.split(/[\/]/).pop() ?? path),
+  open: (relative, line, column) => {
+    const absolute =
+      workspaceRoot === null ? relative : `${workspaceRoot.replace(/[\/]+$/, "")}/${relative}`;
+    void openFile(absolute).then(() => editorHost.revealPosition(line, column));
+  },
+  restoreFocus: () => editorHost.focus(),
 });
 
 window.adcode.settings.onChanged((values) => applySettings(values));
@@ -3113,6 +3194,16 @@ function registerCommands(): void {
   add("terminal.next", "Next Terminal", () => terminalPanel().next());
   add("terminal.previous", "Previous Terminal", () => terminalPanel().previous());
   add("terminal.clear", "Clear Terminal", () => terminalPanel().clear());
+  /*
+   * Named for where they act, not just what they do.
+   *
+   * The palette matches on title and nothing else, so "Copy" and "Paste" here would be two
+   * more rows indistinguishable from Edit's - and whichever sorted first would win every
+   * time somebody typed "paste". The menu still says plain Copy and Paste, because the
+   * Terminal menu already supplies the context.
+   */
+  add("terminal.copy", "Copy from Terminal", () => terminalPanel().copy());
+  add("terminal.paste", "Paste into Terminal", () => terminalPanel().paste());
   add("terminal.kill", "Kill Terminal", () => terminalPanel().killActive());
   add("terminal.killAll", "Kill All Terminals", () => terminalPanel().killAll());
   add("terminal.runActiveFile", "Run Active File", async () => {
@@ -3137,6 +3228,10 @@ function registerCommands(): void {
     // "command not found" that the button would have explained.
     await runInTerminal(runner);
   });
+
+  add("go.symbol", "Go to Symbol", () => symbolSearch.open());
+  add("go.definition", "Go to Definition", () => void editorHost.goToDefinition());
+  add("go.peek", "Peek Definition", () => void editorHost.peekDefinition());
 
   /* Help */
   add("help.guide", "ADCode Guide", () => helpGuide.open());

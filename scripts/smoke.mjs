@@ -178,7 +178,11 @@ await evaluate(
   "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, bubbles: true }))",
 );
 await sleep(600);
-checks.quickOpenVisible = await evaluate("document.querySelector('.quickopen')?.hidden === false");
+// Named specifically: symbol search is also a `.quickopen`, and a bare selector matches
+// whichever happens to be first in the DOM.
+checks.quickOpenVisible = await evaluate(
+  "document.querySelector('.quickopen:not(.quickopen-symbols)')?.hidden === false",
+);
 await evaluate(
   "window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))",
 );
@@ -1385,6 +1389,36 @@ try {
      })()`,
   );
 
+  // A picture is worth five probes: capture what the window actually looks like here.
+  {
+    const shot = await send("Page.captureScreenshot", { format: "png" });
+    if (shot.result?.data !== undefined) {
+      const { writeFileSync } = await import("node:fs");
+      const { tmpdir } = await import("node:os");
+      const { join } = await import("node:path");
+      writeFileSync(join(tmpdir(), "adcode-smoke.png"), Buffer.from(shot.result.data, "base64"));
+    }
+  }
+
+  checks.layoutProbe = await evaluate(
+    `(() => {
+       const host = document.getElementById('editor-host')?.getBoundingClientRect();
+       const bar = document.querySelector('.breadcrumbs')?.getBoundingClientRect();
+       return {
+         breadcrumbsHeight: Math.round(bar?.height ?? -1),
+         hostTop: Math.round(host?.top ?? -1),
+         hostHeight: Math.round(host?.height ?? -1),
+         monacoLines: document.querySelectorAll('.monaco-editor .view-line').length,
+         tabs: document.querySelectorAll('.tab').length,
+         activeTab: document.querySelector('.tab[aria-selected="true"] .tab-label')?.textContent ?? null,
+         placeholderVisible: !(document.getElementById('editor-placeholder')?.hidden ?? true),
+         placeholderText: (document.getElementById('editor-placeholder')?.textContent ?? '').trim().slice(0, 60),
+         hostHidden: document.getElementById('editor-host')?.hidden ?? '?',
+         viewZones: document.querySelectorAll('.view-zones > *').length,
+       };
+     })()`,
+  );
+
   /* ── The editing group, on the file that already has a real error (P2a) ── */
 
 
@@ -1396,7 +1430,42 @@ try {
    * previous block clicked, so the typing went nowhere. Monaco owns a hidden textarea and
    * only real input reliably lands in it.
    */
+  /*
+   * Replace the scratch file's contents - and *only* the scratch file's.
+   *
+   * This helper selects everything and types over it, which is a loaded gun pointed at
+   * whichever buffer happens to be in front. It has already gone off once: the Problems
+   * check above clicks a row to test that it jumps to the right column, that row belonged
+   * to a real repository file, and the next `retypeFile` overwrote a 582-line document with
+   * two lines of test input. Auto-save then wrote it to disk.
+   *
+   * So the target is verified before anything is typed, and this refuses rather than
+   * guesses. A smoke run must not be able to modify the repository it is running in.
+   */
   async function retypeFile(text) {
+    const onTarget = await evaluate(
+      `(() => (document.querySelector('.tab[aria-selected="true"] .tab-label')?.textContent ?? '')
+         .startsWith('smoke-broken.ts'))`,
+    );
+
+    if (onTarget !== true) {
+      const activated = await evaluate(
+        `(() => {
+           const tab = [...document.querySelectorAll('.tab')].find(
+             (t) => (t.querySelector('.tab-label')?.textContent ?? '').startsWith('smoke-broken.ts'),
+           );
+           if (!tab) return false;
+           tab.click();
+           return true;
+         })()`,
+      );
+
+      if (activated !== true) {
+        throw new Error("smoke-broken.ts is not open - refusing to type over another file");
+      }
+      await sleep(600);
+    }
+
     await clickAt(editorPoint.x, editorPoint.y);
     await sleep(200);
     await pressChord("a");
@@ -1551,6 +1620,233 @@ try {
       // Both halves followed, from one keystroke.
       renamedBoth: after.includes("<divs>") && after.includes("</divs>"),
     };
+  })();
+
+  /* ── The terminal clipboard ───────────────────────────────────────────── */
+
+  /*
+   * Reported by the user: nothing could be pasted into the terminal.
+   *
+   * The cause was that there was no paste path at all - xterm does not paste by itself, and
+   * the bridge only exposed `clipboard.writeText`, because `navigator.clipboard.readText`
+   * is refused in this renderer's context. This drives the whole route: write the clipboard,
+   * run the Paste command, and read what the shell echoed back.
+   */
+  checks.terminalPastes = await (async () => {
+    /*
+     * The pasted text runs a command, and the check is whether the file it writes appears.
+     *
+     * Reading the terminal back was the obvious approach and it cannot work: xterm draws
+     * through the WebGL renderer, so what is on screen is a canvas and there is no text in
+     * the DOM for any selector to find. A side effect on disk is visible to this script.
+     */
+    const marker = join(REPO, "smoke-paste.txt");
+    await rm(marker, { force: true }).catch(() => {});
+
+    const readable = await evaluate(
+      `(async () => {
+         await window.adcode.clipboard.writeText(
+           'echo pasted-ok > smoke-paste.txt' + String.fromCharCode(10),
+         );
+         return await window.adcode.clipboard.readText();
+       })()`,
+    );
+
+    if (typeof readable !== "string" || !readable.includes("smoke-paste.txt")) {
+      return { clipboardReadable: false };
+    }
+
+    // Make sure a terminal is open and focused before pasting into it.
+    await evaluate(
+      `(() => {
+         const panel = document.querySelector('.terminal-panel');
+         return panel !== null && !panel.hidden;
+       })()`,
+    );
+
+    await runCommand("paste into terminal");
+    await sleep(2000);
+
+    const { existsSync } = await import("node:fs");
+    let ran = false;
+    for (let attempt = 0; attempt < 12 && !ran; attempt += 1) {
+      await sleep(500);
+      ran = existsSync(marker);
+    }
+
+    await rm(marker, { force: true }).catch(() => {});
+    return { clipboardReadable: true, reachedTheShell: ran };
+  })();
+
+  /* ── Navigation (P2c) ─────────────────────────────────────────────────── */
+
+  /** Run a command the way a person would: through the palette. */
+  async function runCommand(query) {
+    await evaluate(
+      `(() => {
+         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'P', ctrlKey: true, shiftKey: true, bubbles: true }));
+         return true;
+       })()`,
+    );
+    await sleep(350);
+
+    return await evaluate(
+      `(async () => {
+         const input = document.querySelector('.quickopen-input[aria-label="Command palette"]');
+         if (!input) return false;
+
+         input.value = ${JSON.stringify(query)};
+         input.dispatchEvent(new Event('input', { bubbles: true }));
+         await new Promise((r) => setTimeout(r, 250));
+
+         const row = document.querySelector('.palette-row');
+         if (!row) {
+           input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+           return false;
+         }
+         row.click();
+         return true;
+       })()`,
+    );
+  }
+
+  checks.breadcrumbsShowPathAndSymbol = await (async () => {
+    // A declaration and a use of it, with no braces - auto-closing pairs would rewrite them.
+    await retypeFile("const alpha = 1;");
+    await pressEnterInEditor();
+    await typeText("alpha;");
+
+    // Long enough for the breadcrumb recompute and for auto-save to put this on disk, which
+    // the definition search below reads.
+    await sleep(1800);
+
+    return await evaluate(
+      `(() => {
+         const bar = document.querySelector('.breadcrumbs');
+         if (!bar || bar.dataset.empty === 'true') return false;
+         const labels = [...bar.querySelectorAll('.breadcrumb')].map((b) => b.textContent);
+         return {
+           shown: labels.length > 0,
+           namesTheFile: labels.includes('smoke-broken.ts'),
+           // Every crumb is a button, which is the part worth asserting. Separators are not
+           // checked: this file sits at the workspace root, so its trail is one segment long.
+           allClickable: [...bar.querySelectorAll('.breadcrumb')].every((b) => b.tagName === 'BUTTON'),
+         };
+       })()`,
+    );
+  })();
+
+  checks.symbolSearchFindsADeclaration = await (async () => {
+    const opened = await runCommand("go to symbol");
+    if (opened !== true) return false;
+
+    /*
+     * Wait for the field to hold focus before typing.
+     *
+     * The overlay clears and focuses its input on open, and the palette hands focus back to
+     * the editor as it closes. Which lands last is a race that went both ways across runs,
+     * so this waits for the settled state rather than sleeping and hoping.
+     */
+    let focused = false;
+    for (let attempt = 0; attempt < 15 && !focused; attempt += 1) {
+      await sleep(200);
+      focused =
+        (await evaluate(
+          `(document.activeElement?.getAttribute('aria-label') === 'Go to symbol in project')`,
+        )) === true;
+    }
+    if (!focused) return false;
+
+    /*
+     * Typed for real rather than assigned.
+     *
+     * Setting `input.value` raced the overlay's own `open()`, which clears the field - the
+     * search then ran on an empty string and the check read "Type at least two letters."
+     * Real keystrokes arrive after open() has finished, as a person's would.
+     */
+    // The palette returns focus to the editor when it closes, so the field is focused
+    // explicitly rather than assumed - otherwise this types into the file instead.
+    await typeText("createEditorHost");
+    await sleep(1800);
+
+    const found = await evaluate(
+      `(async () => {
+         const input = document.querySelector('.quickopen-input[aria-label="Go to symbol in project"]');
+         if (!input) return false;
+
+         const rows = [...document.querySelectorAll('.symbol-row')];
+         const names = rows.map((r) => r.querySelector('.symbol-name')?.textContent ?? '');
+         const where = rows.map((r) => r.querySelector('.symbol-where')?.textContent ?? '');
+
+         return {
+           hint: document.querySelector('.quickopen-symbols .quickopen-hint')?.textContent ?? '?',
+           found: rows.length > 0,
+           // The real declaration, in the file that really declares it.
+           namesTheSymbol: names.includes('createEditorHost'),
+           inTheRightFile: where.some((w) => w.includes('editorHost.ts')),
+           saysWhatKindItIs: (rows[0]?.querySelector('.symbol-kind')?.textContent ?? '') !== '',
+         };
+       })()`,
+    );
+
+    await pressEscape();
+    return found;
+  })();
+
+  checks.peekShowsTheDefinition = await (async () => {
+    // Put the cursor on `alpha` on the second line - the use, not the declaration.
+    await clickAt(editorPoint.x, editorPoint.y);
+    await sleep(200);
+    /*
+     * Land on `alpha` in `alpha;`, which is line 2.
+     *
+     * Select-all then Right collapses to the very end of the buffer - and the buffer ends
+     * with a blank line, so that is line 3. A screenshot caught the cursor sitting at
+     * Ln 3, Col 1 with no symbol under it, which is why the peek found nothing.
+     */
+    await pressChord("a");
+    await sleep(100);
+    await pressKey("ArrowRight");
+    await pressKey("ArrowUp");
+    await pressKey("Home");
+    await pressKey("ArrowRight");
+    await pressKey("ArrowRight");
+    await sleep(200);
+
+    const ran = await runCommand("peek definition");
+    if (ran !== true) return false;
+
+    await sleep(1800);
+
+    {
+      const shot = await send("Page.captureScreenshot", { format: "png" });
+      if (shot.result?.data !== undefined) {
+        const { writeFileSync } = await import("node:fs");
+      const { tmpdir } = await import("node:os");
+      const { join } = await import("node:path");
+        writeFileSync(join(tmpdir(), "adcode-peek.png"), Buffer.from(shot.result.data, "base64"));
+      }
+    }
+
+    const shown = await evaluate(
+      `(() => {
+         const peek = document.querySelector('.peek');
+         if (!peek) return false;
+         const badge = peek.querySelector('.peek-badge');
+         return {
+           opened: true,
+           // Provenance is always stated - this is the honesty rule made visible.
+           saysHowItWasFound: (badge?.textContent ?? '') !== '',
+           // No language server runs for TypeScript here, so it must be the name match.
+           matchedByName: badge?.classList.contains('peek-badge-matched') === true,
+           showsSource: (peek.querySelector('.peek-code')?.textContent ?? '').includes('alpha'),
+           namesTheFile: (peek.querySelector('.peek-title')?.textContent ?? '').includes('smoke-broken.ts'),
+         };
+       })()`,
+    );
+
+    await pressEscape();
+    return shown;
   })();
 
   /*
@@ -2204,9 +2500,18 @@ try {
      })()`,
   );
 } catch (error) {
-  // Recorded as a failed check rather than crashing the run, so the checks that already
-  // passed still get printed and the cleanup below still happens.
-  checks.explorerFlow = `THREW: ${error instanceof Error ? error.message : String(error)}`;
+  /*
+   * Recorded as a failed check rather than crashing the run, so the checks that already
+   * passed still get printed and the cleanup below still happens.
+   *
+   * The key says `explorerFlow` for history, but this `try` now wraps everything from the
+   * explorer through the editing, terminal and navigation checks - so an error anywhere in
+   * it landed here wearing the wrong name and sent me hunting the wrong feature twice. The
+   * originating line is included for that reason.
+   */
+  const where =
+    error instanceof Error ? (error.stack ?? "").split(String.fromCharCode(10))[1]?.trim() : "";
+  checks.explorerFlow = `THREW: ${error instanceof Error ? error.message : String(error)} (${where})`;
 } finally {
   await rm(join(REPO, SCRATCH), { recursive: true, force: true }).catch(() => {});
   await rm(join(REPO, "smoke-broken.ts"), { force: true }).catch(() => {});

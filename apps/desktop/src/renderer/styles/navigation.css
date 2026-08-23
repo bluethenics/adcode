@@ -1,0 +1,249 @@
+/*
+ * Finding your way around: the breadcrumb trail, the peek window, and the symbol list.
+ */
+
+/* ── Breadcrumbs ──────────────────────────────────────────────────────── */
+
+.breadcrumbs {
+  display: flex;
+  /* Never `hidden` - see the note on `.main`'s grid rows. */
+  flex: none;
+  height: 24px;
+  box-sizing: border-box;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 1px;
+  overflow-x: auto;
+  padding: 3px 10px;
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-chrome);
+  /* The trail is a header, not a thing to read across - it never wraps to a second line. */
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.breadcrumbs::-webkit-scrollbar {
+  display: none;
+}
+
+/* Nothing to say, or switched off: no height, no border, still in the grid. */
+.breadcrumbs[data-empty="true"] {
+  height: 0;
+  padding: 0;
+  border-bottom: 0;
+  overflow: hidden;
+}
+
+.breadcrumb {
+  flex: none;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: background-color var(--duration-exit) var(--ease-toast);
+}
+
+.breadcrumb:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.breadcrumb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.breadcrumb-separator {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+/* ── Peek ─────────────────────────────────────────────────────────────── */
+
+.peek {
+  height: 100%;
+  border-top: 1px solid var(--border-hairline);
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-elevated);
+  font-family: var(--font-ui);
+  overflow: hidden;
+}
+
+.peek-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-hover);
+}
+
+.peek-title {
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.peek-title:hover {
+  background: var(--bg-active);
+}
+
+.peek-spacer {
+  flex: 1;
+}
+
+/*
+ * The provenance badge.
+ *
+ * Two tones because they are two different claims. A resolved answer is certain; a name
+ * match is a list of candidates. Colouring them identically would be the visual equivalent
+ * of the lie this whole feature is built to avoid.
+ */
+.peek-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.peek-badge-resolved {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success);
+}
+
+.peek-badge-matched {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+
+.peek-close {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.peek-close:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.peek-others {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.peek-chip {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.peek-chip[data-current="true"] {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+}
+
+.peek-body {
+  position: relative;
+  display: flex;
+  overflow: auto;
+  padding: 4px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.peek-gutter {
+  flex: none;
+  padding: 0 10px 0 12px;
+  color: var(--text-tertiary);
+  text-align: right;
+  user-select: none;
+}
+
+.peek-line-number[data-target="true"] {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.peek-code {
+  flex: 1;
+  min-width: 0;
+  white-space: pre;
+}
+
+/* The definition's own line, so the eye lands on it rather than on the context. */
+.peek-highlight {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 18px;
+  background: var(--bg-selected);
+  pointer-events: none;
+}
+
+/* ── Symbol search ────────────────────────────────────────────────────── */
+
+.symbol-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.symbol-kind {
+  flex: none;
+  width: 18px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+.symbol-name {
+  flex: none;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.symbol-where {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quickopen-hint {
+  padding: 6px 14px;
+  border-top: 1px solid var(--border-hairline);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}

@@ -25,8 +25,10 @@ import { installErrorLens } from "./errorLens.ts";
 import { installTodoHighlight } from "./todoHighlight.ts";
 import { installPathComplete } from "./pathComplete.ts";
 import { installFormatting } from "./formatting.ts";
+import { createDefinitions, symbolAt } from "./definitions.ts";
+import { installPeek } from "./peek.ts";
 import { organizeImports as organiseImportBlock, organizeSupported, DEFAULT_OPTIONS } from "@adcode/format";
-import type { DirEntry } from "../../shared/api.ts";
+import type { DirEntry, SearchHitView } from "../../shared/api.ts";
 import { editorOptionsFor } from "./editorOptions.ts";
 import { createRemoteCursors, type RemoteCursors } from "../collab/remoteCursors.ts";
 import { installTagClosing } from "./autoCloseTags.ts";
@@ -153,6 +155,15 @@ export interface EditorHost {
   formatDocument(path: string): Promise<boolean>;
   /** Sort and prune the import block. Returns whether anything changed. */
   organizeImports(path: string): boolean;
+  /**
+   * Show the definition of the symbol under the cursor, inline.
+   *
+   * Peek rather than jump, because following a symbol is a reading move and losing your
+   * place in the file you were reading is what makes it expensive.
+   */
+  peekDefinition(): Promise<void>;
+  /** Go to the definition properly, moving the cursor and opening the file if needed. */
+  goToDefinition(): Promise<void>;
   /** Apply the §4 editing settings the shell can honour today. */
   applySettings(values: Record<string, boolean | string>): void;
   onDirtyChange(listener: (path: string, dirty: boolean) => void): void;
@@ -179,6 +190,16 @@ export interface EditorHostDeps {
   readonly activeFile: () => string | null;
   readonly workspaceRoot: () => string | null;
   readonly list: (directory: string) => Promise<readonly DirEntry[]>;
+  /** Read a file the user has not opened, for the peek preview. */
+  readonly readFile: (path: string) => Promise<string | null>;
+  /** Workspace-relative, for headers that are readable. */
+  readonly displayPath: (path: string) => string;
+  readonly languageFor: (path: string) => string;
+  /** Open a file and put the cursor somewhere in it. */
+  readonly openAt: (path: string, line: number, column: number) => void;
+  readonly search: (pattern: string, include: string) => Promise<readonly SearchHitView[]>;
+  /** Search returns workspace-relative paths; peek needs absolute ones. */
+  readonly absolute: (relativePath: string) => string;
 }
 
 export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): EditorHost {
@@ -260,6 +281,73 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
     lspFormatting: (path, languageId, options) =>
       window.adcode.language.formatting(path, languageId, options),
     hideSuggestions: () => editor.trigger("adcode.format", "hideSuggestWidget", null),
+  });
+
+  const definitions = createDefinitions({
+    lspDefinition: (path, languageId, line, column) =>
+      window.adcode.language.definition(path, languageId, line, column),
+    search: deps.search,
+    absolute: deps.absolute,
+  });
+
+  const peek = installPeek(editor, monaco, {
+    readFile: deps.readFile,
+    languageFor: deps.languageFor,
+    openAt: deps.openAt,
+    displayPath: deps.displayPath,
+  });
+
+  /** Whether go-to-definition is switched on at all. */
+  let navigationEnabled = true;
+
+  /**
+   * The answer for wherever the cursor is, or null.
+   *
+   * Shared by peek and go-to so the two can never disagree about what the cursor is on.
+   */
+  async function definitionHere() {
+    if (!navigationEnabled) return null;
+
+    const model = editor.getModel();
+    const position = editor.getPosition();
+    const path = active;
+    if (model === null || position === null || path === null) return null;
+    if (symbolAt(model, position) === null) return null;
+
+    return definitions.at(model, position, path);
+  }
+
+  /*
+   * Alt+click peeks; Ctrl+click goes.
+   *
+   * Deliberately not a plain click. A click in a code editor places the cursor, and a
+   * definition opening under every click would make the editor unusable - so the gesture
+   * that reads is the one that is held.
+   */
+  async function showPeek(): Promise<void> {
+    const answer = await definitionHere();
+    const position = editor.getPosition();
+    if (answer === null || position === null) return;
+
+    await peek.show(answer, position.lineNumber);
+  }
+
+  async function jumpToDefinition(): Promise<void> {
+    const answer = await definitionHere();
+    const first = answer?.targets[0];
+    if (first === undefined) return;
+
+    peek.close();
+    deps.openAt(first.path, first.line, first.column);
+  }
+
+  editor.onMouseDown((event) => {
+    if (!navigationEnabled) return;
+    if (event.target.type !== monaco.editor.MouseTargetType.CONTENT_TEXT) return;
+
+    const browserEvent = event.event.browserEvent;
+    if (browserEvent.altKey) void showPeek();
+    else if (browserEvent.ctrlKey || browserEvent.metaKey) void jumpToDefinition();
   });
 
   const pathComplete = installPathComplete(monaco, {
@@ -514,6 +602,9 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
       return true;
     },
 
+    peekDefinition: showPeek,
+    goToDefinition: jumpToDefinition,
+
     applySettings(values) {
       editor.updateOptions(editorOptionsFor(values));
 
@@ -525,6 +616,9 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
       todoHighlight.setEnabled(values["adcode.editing.todoHighlighting"] !== false);
       pathComplete.setEnabled(values["adcode.editing.pathAutocomplete"] !== false);
       formatting.setEnabled(values["adcode.formatting.formatter"] !== false);
+
+      navigationEnabled = values["adcode.navigation.goToDefinition"] !== false;
+      if (!navigationEnabled) peek.close();
 
       errorLens.setEnabled(values["adcode.editing.inlineErrorLens"] !== false);
       // The lens shows the same rewritten wording the Problems panel does, so it follows

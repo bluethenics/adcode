@@ -297,6 +297,7 @@ export const CHANNELS = {
   fsImport: "fs:import",
   fsReveal: "fs:reveal",
   clipboardWrite: "clipboard:write",
+  clipboardRead: "clipboard:read",
   terminalCreate: "terminal:create",
   terminalWrite: "terminal:write",
   terminalResize: "terminal:resize",
@@ -380,6 +381,7 @@ export const CHANNELS = {
   lspClosed: "lsp:closed",
   lspCompletion: "lsp:completion",
   lspFormatting: "lsp:formatting",
+  lspDefinition: "lsp:definition",
   lspHover: "lsp:hover",
   lspStates: "lsp:states",
   lspDiagnostics: "lsp:diagnostics",
@@ -693,6 +695,15 @@ export interface McpConnectionInfo {
 }
 
 /** What `window.adcode` exposes. Nothing else crosses the boundary. */
+/** Where a language server says a symbol is defined. */
+export interface LanguageLocation {
+  readonly path: string;
+  readonly line: number;
+  readonly column: number;
+  readonly endLine: number;
+  readonly endColumn: number;
+}
+
 /** One edit a language server wants applied, in the editor's one-based coordinates. */
 export interface LanguageTextEdit {
   readonly startLine: number;
@@ -754,6 +765,14 @@ export interface AdcodeApi {
    */
   readonly clipboard: {
     writeText(text: string): Promise<void>;
+    /**
+     * The clipboard's text, or an empty string.
+     *
+     * Exists because pasting into the terminal needs it and `navigator.clipboard.readText`
+     * is refused in this renderer - reading the clipboard is gated behind a secure context
+     * and a permission prompt that a custom protocol does not satisfy.
+     */
+    readText(): Promise<string>;
   };
   readonly terminal: {
     profiles(): Promise<TerminalProfile[]>;
@@ -824,6 +843,18 @@ export interface AdcodeApi {
       languageId: string,
       options: { tabSize: number; insertSpaces: boolean },
     ): Promise<LanguageTextEdit[] | null>;
+    /**
+     * Where a symbol is defined, according to a language server.
+     *
+     * `null` means no server answered. The caller falls back to searching by name and the
+     * UI says which of the two produced the answer.
+     */
+    definition(
+      path: string,
+      languageId: string,
+      line: number,
+      column: number,
+    ): Promise<LanguageLocation[] | null>;
     states(): Promise<LanguageServerState[]>;
     onDiagnostics(listener: (file: string, diagnostics: LanguageDiagnostic[]) => void): () => void;
     onState(listener: (states: LanguageServerState[]) => void): () => void;

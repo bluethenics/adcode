@@ -36,7 +36,9 @@ import {
   resolveServer,
   toDiagnostic,
   toEditorEdits,
+  toEditorLocations,
   uriToPath,
+  type EditorLocation,
   type EditorTextEdit,
   type FormattingOptions,
   type LspCompletionItem,
@@ -522,4 +524,28 @@ export async function formattingFor(
   // A server without formatting support answers with an error, which `ask` settles as
   // null - so no capability negotiation is needed to find out.
   return toEditorEdits(result);
+}
+
+/**
+ * Ask the language server where a symbol is defined.
+ *
+ * `null` means no server answered, and the caller falls back to searching the workspace by
+ * name - a fallback the UI then labels as a name match rather than passing off as resolved.
+ */
+export async function definitionAt(
+  path: string,
+  languageId: string,
+  line: number,
+  column: number,
+): Promise<EditorLocation[] | null> {
+  const session = sessions.get(languageId);
+  if (session === undefined || !session.ready) return null;
+
+  const result = await ask(
+    session,
+    "textDocument/definition",
+    positionParams(pathToUri(path), line, column),
+  );
+
+  return toEditorLocations(result);
 }

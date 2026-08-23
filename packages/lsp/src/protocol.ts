@@ -275,3 +275,67 @@ export function toEditorEdits(raw: unknown): EditorTextEdit[] | null {
 
   return edits;
 }
+
+/* ── Definitions ──────────────────────────────────────────────────────────── */
+
+/** Where a symbol is defined, in the editor's one-based coordinates. */
+export interface EditorLocation {
+  /** Absolute path, converted from the server's file URI. */
+  readonly path: string;
+  readonly line: number;
+  readonly column: number;
+  readonly endLine: number;
+  readonly endColumn: number;
+}
+
+function locationFrom(value: unknown): EditorLocation | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  // `Location` has `uri`; `LocationLink` has `targetUri` and `targetSelectionRange`. Both
+  // are legal answers to the same request, and a client that reads only one of them works
+  // with half the servers in the wild.
+  const raw = value as {
+    uri?: unknown;
+    range?: unknown;
+    targetUri?: unknown;
+    targetSelectionRange?: unknown;
+    targetRange?: unknown;
+  };
+
+  const uri = typeof raw.uri === "string" ? raw.uri : typeof raw.targetUri === "string" ? raw.targetUri : null;
+  if (uri === null) return null;
+
+  const range = (raw.range ?? raw.targetSelectionRange ?? raw.targetRange) as
+    | { start?: unknown; end?: unknown }
+    | undefined;
+  if (range === undefined) return null;
+
+  const start = range.start as { line?: unknown; character?: unknown } | undefined;
+  const end = (range.end ?? range.start) as { line?: unknown; character?: unknown } | undefined;
+  if (typeof start?.line !== "number" || typeof start.character !== "number") return null;
+  if (typeof end?.line !== "number" || typeof end.character !== "number") return null;
+
+  return {
+    path: uriToPath(uri),
+    line: toEditorLine(start.line),
+    column: toEditorColumn(start.character),
+    endLine: toEditorLine(end.line),
+    endColumn: toEditorColumn(end.character),
+  };
+}
+
+/**
+ * Validate a definition reply into locations.
+ *
+ * `null` means the server had no answer - it does not support the request, it timed out, or
+ * it genuinely does not know. The caller then falls back to searching by name, and says so
+ * in the UI.
+ */
+export function toEditorLocations(raw: unknown): EditorLocation[] | null {
+  if (raw === null || raw === undefined) return null;
+
+  const values = Array.isArray(raw) ? raw : [raw];
+  const locations = values.map(locationFrom).filter((one): one is EditorLocation => one !== null);
+
+  return locations.length === 0 ? null : locations;
+}

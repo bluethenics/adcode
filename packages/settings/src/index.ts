@@ -229,11 +229,11 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
 
   /* ── Navigation (§4) ────────────────────────────────────────────────── */
   bool("adcode.navigation.fuzzyFileOpen", "navigation", "Fuzzy file open", "Open any file by typing part of its name.", true, true),
-  bool("adcode.navigation.symbolSearch", "navigation", "Symbol search", "Jump to a symbol across the workspace.", true),
+  bool("adcode.navigation.symbolSearch", "navigation", "Symbol search", "Jump to any function, class, or variable across the workspace with Ctrl+T. Nothing is indexed; the project is searched when you ask.", true, true),
   bool("adcode.navigation.globalSearch", "navigation", "Global search and replace", "Regex search and replace across the workspace.", true, true),
-  bool("adcode.navigation.goToDefinition", "navigation", "Go to definition and references", "Definition, references, and implementations.", true),
-  bool("adcode.navigation.breadcrumbs", "navigation", "Breadcrumbs", "The path and symbol trail above the editor.", true),
-  bool("adcode.navigation.outline", "navigation", "Outline", "The symbol tree for the open file.", true),
+  bool("adcode.navigation.goToDefinition", "navigation", "Go to definition and references", "F12 or Alt+click previews a definition inline; Ctrl+click goes there. ADCode says whether a language server resolved it or it matched by name.", true, true),
+  bool("adcode.navigation.breadcrumbs", "navigation", "Breadcrumbs", "The path and symbol trail above the editor. Every part of it is a button.", true, true),
+  bool("adcode.navigation.outline", "navigation", "Outline", "The symbol tree for the open file, drawn with connecting lines in the Structure popup.", true, true),
 
   /* ── Language (§4) ──────────────────────────────────────────────────── */
   /*

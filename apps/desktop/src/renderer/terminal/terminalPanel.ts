@@ -41,6 +41,10 @@ export interface TerminalPanel {
   clear(): void;
   /** Type a command into the active terminal and press return. */
   send(text: string): void;
+  /** Paste the clipboard into the active terminal. */
+  paste(): void;
+  /** Copy the active terminal's selection. */
+  copy(): void;
   toggle(): Promise<void>;
   isOpen(): boolean;
   fit(): void;
@@ -262,6 +266,16 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
     clear() {
       const tab = activeTab === null ? undefined : findTab(activeTab);
       tab?.panes[tab.activePane]?.host.clear();
+    },
+
+    paste() {
+      const tab = activeTab === null ? undefined : findTab(activeTab);
+      tab?.panes[tab.activePane]?.host.paste();
+    },
+
+    copy() {
+      const tab = activeTab === null ? undefined : findTab(activeTab);
+      void tab?.panes[tab.activePane]?.host.copy();
     },
 
     send(text) {

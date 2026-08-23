@@ -18,7 +18,28 @@ export interface TerminalHost {
   clear(): void;
   /** Type a line into the shell and press return. */
   send(text: string): void;
+  /** Paste the clipboard into the shell, as Ctrl+Shift+V does. */
+  paste(): void;
+  /** Copy the selection. Returns false when nothing is selected. */
+  copy(): Promise<boolean>;
   applyTheme(theme: "light" | "dark"): void;
+}
+
+/** macOS uses Cmd where everything else uses Ctrl, including for the clipboard. */
+const platformIsMac = (): boolean => navigator.userAgent.includes("Mac");
+
+/**
+ * Pasted text, as a shell expects to receive it.
+ *
+ * Every newline becomes a carriage return, because carriage return is what a terminal means
+ * by "the user pressed Enter". Sending a line feed instead leaves most shells waiting for
+ * the rest of the line, so a pasted block of commands would sit there doing nothing.
+ *
+ * That does mean a multi-line paste runs every line, which is exactly what pasting a block
+ * of commands is for - and what every other terminal does.
+ */
+function forShell(text: string): string {
+  return text.replace(/\r\n/g, "\r").replace(/\n/g, "\r");
 }
 
 const THEMES = {
@@ -98,6 +119,80 @@ export async function createTerminalHost(
   terminal.onData((data) => window.adcode.terminal.write(id, data));
   terminal.onResize(({ cols, rows }) => window.adcode.terminal.resize(id, cols, rows));
 
+  /* ── Copy and paste ─────────────────────────────────────────────────── */
+
+  /**
+   * Send pasted text to the shell.
+   *
+   * Newlines become carriage returns because that is what a terminal means by "the user
+   * pressed Enter"; sending `\n` leaves most shells waiting for the rest of the line. A
+   * multi-line paste therefore runs, which is what pasting a block of commands is for.
+   */
+  async function paste(): Promise<void> {
+    const text = await window.adcode.clipboard.readText();
+    if (text.length === 0) return;
+
+    window.adcode.terminal.write(id, forShell(text));
+  }
+
+  async function copySelection(): Promise<boolean> {
+    const selection = terminal.getSelection();
+    if (selection.length === 0) return false;
+
+    await window.adcode.clipboard.writeText(selection);
+    return true;
+  }
+
+  /*
+   * Why this is a custom key handler rather than a keybinding.
+   *
+   * In a terminal, Ctrl+V and Ctrl+C are *control characters the shell wants* - Ctrl+C is
+   * how you interrupt a running program, and taking it away would be worse than having no
+   * clipboard at all. So:
+   *
+   * - **Ctrl+Shift+V** always pastes. It is the terminal convention on Windows and Linux.
+   * - **Ctrl+V** also pastes, because on Windows people expect it to and no shell reads
+   *   Ctrl+V as anything meaningful.
+   * - **Ctrl+Shift+C** copies the selection.
+   * - **Ctrl+C** is left alone entirely unless there is a selection, and even then it only
+   *   copies when something is actually selected - otherwise it interrupts, as it must.
+   *
+   * Returning `false` tells xterm not to also handle the key, which is what stops the
+   * character reaching the pty as well.
+   */
+  terminal.attachCustomKeyEventHandler((event) => {
+    if (event.type !== "keydown") return true;
+
+    const mod = platformIsMac() ? event.metaKey : event.ctrlKey;
+    if (!mod) return true;
+
+    const key = event.key.toLowerCase();
+
+    if (key === "v") {
+      void paste();
+      return false;
+    }
+
+    if (key === "c") {
+      // With no selection this has to fall through, or Ctrl+C stops interrupting.
+      if (terminal.getSelection().length === 0) return true;
+      void copySelection();
+      return false;
+    }
+
+    return true;
+  });
+
+  // The second route in: a real paste event, which is what a middle-click and the Edit menu
+  // produce. Without this, those do nothing at all.
+  container.addEventListener("paste", (event) => {
+    event.preventDefault();
+    const text = event.clipboardData?.getData("text") ?? "";
+    if (text.length === 0) return;
+
+    window.adcode.terminal.write(id, forShell(text));
+  });
+
   return {
     dispose() {
       offData();
@@ -117,6 +212,12 @@ export async function createTerminalHost(
     },
     clear() {
       terminal.clear();
+    },
+    paste() {
+      void paste();
+    },
+    copy() {
+      return copySelection();
     },
     send(text) {
       // Straight to the pty rather than into xterm: the shell is what should see the

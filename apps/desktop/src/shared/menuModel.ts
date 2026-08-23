@@ -350,6 +350,10 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
       items: [
         { label: "Go to &File…", command: "go.file", accelerator: "CmdOrCtrl+P" },
         { label: "Go to &Line/Column…", command: "go.line", accelerator: "CmdOrCtrl+G" },
+        { label: "Go to &Symbol…", command: "go.symbol", accelerator: "CmdOrCtrl+T" },
+        separator,
+        { label: "Go to &Definition", command: "go.definition", accelerator: "F12" },
+        { label: "Pee&k Definition", command: "go.peek", accelerator: "Alt+F12" },
         separator,
         { label: "&Next Editor", command: "go.nextEditor", accelerator: "CmdOrCtrl+PageDown" },
         { label: "&Previous Editor", command: "go.previousEditor", accelerator: "CmdOrCtrl+PageUp" },
@@ -399,6 +403,19 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         separator,
         { label: "Ne&xt Terminal", command: "terminal.next" },
         { label: "Pre&vious Terminal", command: "terminal.previous" },
+        separator,
+        /*
+         * No accelerators on these two, deliberately.
+         *
+         * A menu accelerator is global: binding Ctrl+Shift+V here would take it from the
+         * live preview toggle everywhere in the app, including when no terminal is even
+         * open. Copy and paste inside a terminal are only meaningful while that terminal
+         * has focus, so the terminal handles those keys itself - Ctrl+V, Ctrl+Shift+V, and
+         * Ctrl+Shift+C, with Ctrl+C left alone unless there is a selection so that it can
+         * still interrupt. These rows exist for discoverability.
+         */
+        { label: "C&opy", command: "terminal.copy" },
+        { label: "Past&e", command: "terminal.paste" },
         separator,
         { label: "&Clear Terminal", command: "terminal.clear", accelerator: "CmdOrCtrl+K" },
         { label: "&Kill Terminal", command: "terminal.kill" },

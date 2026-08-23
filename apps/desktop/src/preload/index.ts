@@ -55,6 +55,7 @@ const api: AdcodeApi = {
   },
   clipboard: {
     writeText: (text) => ipcRenderer.invoke(CHANNELS.clipboardWrite, text),
+    readText: () => ipcRenderer.invoke(CHANNELS.clipboardRead),
   },
   terminal: {
     profiles: () => ipcRenderer.invoke(CHANNELS.terminalProfiles),
@@ -91,6 +92,8 @@ const api: AdcodeApi = {
       ipcRenderer.invoke(CHANNELS.lspHover, path, languageId, line, column),
     formatting: (path, languageId, options) =>
       ipcRenderer.invoke(CHANNELS.lspFormatting, path, languageId, options),
+    definition: (path, languageId, line, column) =>
+      ipcRenderer.invoke(CHANNELS.lspDefinition, path, languageId, line, column),
     states: () => ipcRenderer.invoke(CHANNELS.lspStates),
     onDiagnostics: (listener) => subscribe(CHANNELS.lspDiagnostics, listener),
     onState: (listener) => subscribe(CHANNELS.lspStateChanged, listener),
