@@ -21,8 +21,8 @@ npm install
 npm start               # build if needed, then launch
 npm run package         # installer + portable .exe into release/
 
-npm run verify          # typecheck + architecture rules + full suite (1470 tests)
-npm run smoke           # launch the built app and drive it (84 checks)
+npm run verify          # typecheck + architecture rules + full suite (1666 tests)
+npm run smoke           # launch the built app and drive it (96 checks)
 npm run icons           # rasterise build/icon.svg into icon.ico and icon.png
 npm run dev             # electron-vite dev server, with hot reload
 npm run mock-server     # ad serving contract on :8787, no build step
@@ -41,9 +41,10 @@ npm run test:emulator   # the Firestore adapter (needs firebase-tools and a JDK)
 |---|---|
 | `packages/ads` | All twelve modules from brief §8. 194 tests. |
 | `packages/git` | init, clone, status, stage, commit, push, pull, branches, blame, line changes, conflicts, commit detail, per-file restore. 136 tests. |
-| `packages/search` | Fuzzy file ranking and workspace search/replace. 57 tests. |
+| `packages/search` | Fuzzy file ranking and workspace search/replace. 61 tests. |
+| `packages/structure` | Outlines for 40 languages, reference classification, CSS selector matching, tag closing, folder explanations, file templates. 120 tests. |
 | `packages/memory` | Shared memory store, frontmatter, mirrors, FTS index, MCP server. 116 tests. |
-| `packages/settings` | 53 settings across 10 groups. 61 tests. |
+| `packages/settings` | 55 settings across 10 groups. 61 tests. |
 | `packages/collab` | Live-session wire protocol, permissions, roster, invite codes, cursor colours. 81 tests. |
 | `packages/diagnostics` | The `Diagnostic` type, plain-English rewrites of ~40 compiler errors, grouping. 35 tests. |
 | `packages/lsp` | LSP framing, message building, position conversion, server registry. 49 tests. |
@@ -51,14 +52,20 @@ npm run test:emulator   # the Firestore adapter (needs firebase-tools and a JDK)
 | `mock-server` | All four `/v1/*` endpoints, an asset host, fault injection. 21 tests. |
 | `services/api` | The real backend: auth, serving, receipts, campaigns, advertiser funding, the admin surface, and an append-only money ledger. Firestore behind a port, so it tests with no cloud project. 294 tests. |
 | `apps/web` | adcode.bluethenics.com: marketing site, blog, advertiser portal, user dashboard, admin panel. Next.js, 23 routes. |
-| `apps/desktop` | The shell: menu bar, command centre, command palette, tabs, tree with right-click actions and drag-and-drop, git and search panels, commit browser, Problems panel, live preview, multi-terminal with a shell launcher, resizable layout, settings, chat, session restore. |
+| `apps/desktop` | The shell: menu bar, command centre, command palette, tabs, tree with right-click actions and drag-and-drop, git and search panels, commit browser, Problems panel, Structure popup, editable keyboard shortcuts, live preview, multi-terminal with a shell launcher, resizable layout, settings, chat, session restore. |
 
-**Not built:** the DAP client and tree-sitter highlighting, the Navigation rows that depend
-on a language server — symbol search, go-to-definition, breadcrumbs, outline — and, the
+**Not built:** the DAP client and tree-sitter highlighting; the Navigation rows that
+genuinely need a language server — go-to-definition and workspace symbol search — and, the
 important one, **bundling the language servers themselves**. The LSP client is real and
 works against any server on your PATH; shipping `rust-analyzer` and friends inside the
 installer is a packaging job of several hundred megabytes per platform and has not been
 done.
+
+The outline was on that list and is not any more. It turned out not to need a language
+server at all: `packages/structure` reads a file's declarations with one line-oriented
+engine and a table per language, which keeps working on the file *as it is being typed* —
+the state a real parser handles worst and an outline spends most of its life in. What that
+buys and what it costs is under **Structure** below.
 
 **What is built but never run against real infrastructure:** the Firestore adapter (its
 emulator suite needs a JDK, which this machine lacks) and the Dodo Payments adapter
@@ -73,6 +80,76 @@ entry kinds and they are unit-tested — but no endpoint raises them yet.
 ## The learner surfaces
 
 Design in `docs/specs/2026-08-17-learner-surfaces-design.md`.
+
+**Structure.** A popup — Ctrl+Shift+U, or View ▸ Structure — with two tabs.
+
+*This file* is what you are looking at, drawn as a tree with rails. Functions, classes and methods in forty languages; tags in HTML, nested as the
+page nests and named the way dev tools name them (`div#hero.card`); rules and at-rules in
+CSS; headings in Markdown; keys in JSON and YAML. It reads the *buffer*, not the file, so it
+describes what is on screen including edits you have not saved, and it redraws on a pause in
+typing rather than on every keystroke.
+
+Every row answers a second question on request, which is the part other outlines do not do:
+
+- **A function** lists what it calls — read straight out of its own body, no search — and
+  where it is called from, found by a project-wide search with each hit classified as a
+  definition, a call, an import or a mention.
+- **A CSS rule** lists what it sets, and *which elements it lands on*: the selector is
+  reduced to its rightmost compound, searched for across the project's markup, and every hit
+  line is parsed as HTML and judged. `.card__title--muted` stops being a string nobody can
+  trace and becomes three elements you can click.
+- **An HTML element** lists the stylesheet rules that can reach it — the same question from
+  the other side.
+
+None of this resolves scope, and the panel says so rather than implying otherwise: two files
+can each define `handle`, and both appear. The honest version of that is more useful than a
+confident wrong one.
+
+*This project* is the other tab, and answers a question no editor answers: what are all
+these folders. It reads the root, names what kind of project it is from the manifests it
+finds, says where to start reading, and writes a sentence beside every folder and file it
+recognises — `node_modules` is "every library this project installs, downloaded by npm";
+`dist` is "the finished version, generated from `src`; editing it is always a mistake". What
+was generated rather than written is dimmed, which is the fastest way to see that half of a
+project root is not yours to read. It is a dictionary of about eighty entries, not an
+inference: a name with no entry gets no note rather than a guess.
+
+**New files start from a template.** Create a `.html` and it opens with the doctype, the
+charset, the viewport meta and a `<body>` — with the caret already inside it. Twenty-five
+languages have one, each a complete working program of its kind, and Ctrl+Z undoes it. Three
+rules kept them honest: only what is always true, it must actually run, and the caret lands
+where you would have put it. Languages with no always-true skeleton — a Dockerfile, a YAML
+file — deliberately have none.
+
+**Closing your tags.** Type `<h1>` and `</h1>` is there with the cursor between them; type
+`</` and the tag still open completes itself. It knows void elements (`<br>` gets no
+partner), self-closing tags, comments, doctypes, PHP tags, half-typed attributes containing
+a `>`, and — the one that catches every naive implementation — the difference between a JSX
+element and a TypeScript generic, which is the character before the `<`.
+
+**Keyboard shortcuts you can change.** Help ▸ Keyboard Shortcuts was a toast that dumped
+every accelerator into a notification and dismissed itself after fifteen seconds. It is now a
+searchable dialog of all 87 commands grouped by menu, and every shortcut is a button: press
+it, press the keys you want, done. Backspace clears one, conflicts are called out, and the
+rows Electron implements natively (Copy, Paste) are shown and refused with the reason rather
+than hidden.
+
+Making that real required deleting a duplicate: the menu's accelerators and a `KEYBINDINGS`
+array in the renderer were two lists of the same thing that could drift. `shared/keybindings.ts`
+now resolves every chord from the menu model, so a remap moves the key, the drawn menu's
+printed label, and Electron's own accelerator registration together. A conflict test over the
+shipped defaults found two collisions the moment it was written — one of them pre-existing,
+where `search.open` and `view.search` both claimed Ctrl+Shift+F and one of them silently
+never fired.
+
+**A missing interpreter, explained.** Pressing Run asks whether the program it needs is
+actually installed before it types anything. If it is not, ADCode says which program, gives
+the one-line install command for *your* platform, and offers to open the download page —
+instead of `'python' is not recognized as an internal or external command`, which is written
+for an operating system rather than a person and reads to a beginner as the editor being
+broken. The check can be overruled: a program installed somewhere only your shell profile
+knows about is real, and refusing to run on the strength of our own guess would be worse
+than the message this replaces.
 
 **Problems.** A sidebar view, badged in the activity bar, listing every error in the open
 files with the compiler's sentence rewritten into one that assumes nothing. "Type 'string'

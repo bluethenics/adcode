@@ -273,6 +273,112 @@ async function pressEnter() {
 }
 
 /**
+ * A new line *inside Monaco*, which `pressEnter` does not produce.
+ *
+ * A bare `keyDown` with no `text` is enough for the tree's rename input - a plain
+ * `<input>` submits on the key event alone - and produces nothing at all in the editor,
+ * whose input arrives through a hidden textarea that needs the character. Typing four
+ * lines with `pressEnter` put all four on line one, and the outline that read them was
+ * right about the file it was given.
+ *
+ * Carried as `text` on the keyDown rather than as a separate `char` event, so the key and
+ * the character stay one press and Monaco's auto-indent sees what it expects.
+ */
+async function pressEnterInEditor() {
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Enter",
+    code: "Enter",
+    windowsVirtualKeyCode: 13,
+    text: "\r",
+    unmodifiedText: "\r",
+  });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await sleep(350);
+}
+
+
+/**
+ * A real modifier chord, through the same path a user's keyboard takes.
+ *
+ * CDP's modifier bitmask: Alt 1, Ctrl 2, Meta 4, Shift 8. Sending the chord rather than
+ * calling the command directly is the point - it exercises the resolver, the overrides and
+ * the keydown handler, which is where a rebindable shortcut can go wrong.
+ */
+async function pressChord(key, { shift = false, alt = false } = {}) {
+  const modifiers = 2 | (shift ? 8 : 0) | (alt ? 1 : 0);
+  const code = `Key${key.toUpperCase()}`;
+  const virtualKey = key.toUpperCase().charCodeAt(0);
+
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode: virtualKey, modifiers });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: virtualKey, modifiers });
+  await sleep(400);
+}
+
+async function pressEscape() {
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  await sleep(350);
+}
+
+/** Open the Structure popup on a tab, whatever state it was in. */
+async function openStructure(tab) {
+  const alreadyOpen = await evaluate(`document.querySelector('.structure-popup')?.open === true`);
+  if (alreadyOpen !== true) {
+    await pressChord("u", { shift: true });
+    await sleep(700);
+  }
+
+  const wanted = tab === "project" ? "This project" : "This file";
+  await evaluate(
+    `(() => {
+       const tabs = [...document.querySelectorAll('.structure-tab')];
+       tabs.find((t) => t.textContent === ${JSON.stringify(wanted)})?.click();
+       return true;
+     })()`,
+  );
+
+  // The project tab reads the workspace root off disk; the file tab does not.
+  await sleep(tab === "project" ? 1200 : 500);
+}
+
+async function closeStructure() {
+  const open = await evaluate(`document.querySelector('.structure-popup')?.open === true`);
+  if (open === true) await pressEscape();
+  await sleep(300);
+}
+
+/** Choose a row from the drawn menu bar, the way a person would. */
+async function chooseMenu(topLabel, itemLabel) {
+  const top = await evaluate(
+    `(() => {
+       const button = [...document.querySelectorAll('.menubar-item')]
+         .find((b) => b.textContent === ${JSON.stringify(topLabel)});
+       if (!button) return null;
+       const r = button.getBoundingClientRect();
+       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+     })()`,
+  );
+
+  if (top === null) throw new Error(`no ${topLabel} menu`);
+
+  await clickAt(top.x, top.y);
+  await sleep(300);
+
+  await evaluate(
+    `(() => {
+       const item = [...document.querySelectorAll('.menu-panel .menu-item')]
+         .find((i) => i.querySelector('.menu-item-label')?.textContent === ${JSON.stringify(itemLabel)});
+       if (!item) throw new Error('no such row');
+       item.click();
+       return true;
+     })()`,
+  );
+
+  await sleep(500);
+}
+
+/**
  * Centre of the context-menu entry with this label.
  *
  * Throws with what the menu actually contained rather than returning null: a null here
@@ -1329,6 +1435,513 @@ try {
      })()`,
   );
 
+  /*
+   * Auto tag closing, in a real editor with a real HTML model.
+   *
+   * `smoke-page.html` is open and empty from the check above. The decision itself is a pure
+   * function with nineteen unit tests behind it; what those cannot see is whether the
+   * Monaco wiring fires at all - the listener runs inside a change notification and defers
+   * its edit to a microtask, and every way of getting that wrong produces a feature that is
+   * silently absent rather than broken.
+   */
+  const pageEditorPoint = await evaluate(
+    `(() => {
+       const r = document.getElementById('editor-host').getBoundingClientRect();
+       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 40) };
+     })()`,
+  );
+
+  /*
+   * The file template, which wrote itself into this file when it was created.
+   *
+   * Checked before anything is typed, because typing is what would destroy the evidence.
+   * The caret is already parked inside `<body>`, which is the half of this feature that
+   * cannot be seen from the text alone.
+   */
+  // Long enough for the auto-save the template's edit scheduled.
+  await sleep(1600);
+
+  checks.newFileStartsFromATemplate = await evaluate(
+    `(async () => {
+       /*
+        * Read off disk, not out of the DOM.
+        *
+        * Monaco only renders the lines it is showing, and the template puts the caret on
+        * line 10 - so with the terminal open the viewport had scrolled and the doctype on
+        * line 1 was not in the document at all. The check was measuring what was painted;
+        * what matters is what was written.
+        */
+       const { root } = await window.adcode.workspace.current();
+       const file = await window.adcode.files.read(root + '/smoke-page.html');
+       const text = file.text ?? '';
+
+       if (text.trim().length === 0) return 'the new file is empty - no template was written';
+
+       return {
+         hasDoctype: /<!doctype html>/i.test(text),
+         hasCharset: text.includes('charset'),
+         closesItsTags: text.includes('</html>'),
+         titledAfterTheFile: text.includes('<title>smoke-page</title>'),
+         // The caret sits where the work starts, not at line 1.
+         caret: document.getElementById('status-position')?.textContent,
+       };
+     })()`,
+  );
+
+  await clickAt(pageEditorPoint.x, pageEditorPoint.y);
+  await typeText("<h1>");
+  await sleep(400);
+  await typeText("Hello");
+  await sleep(400);
+
+  checks.tagsCloseThemselves = await evaluate(
+    `(() => {
+       const lines = [...document.querySelectorAll('.view-line')].map((l) => l.textContent);
+       const line = lines.find((text) => text?.includes('h1'));
+       if (line === undefined) return 'nothing typed: ' + JSON.stringify(lines);
+
+       // "contains", not "equals": the file was started from a template, so this
+       // line sits inside a body element, and what is asserted is that the closing
+       // tag appeared around what was typed. No backticks in here: the whole block
+       // is inside a template literal, and one would end it.
+       const normalised = line.replace(/ /g, ' ').trim();
+       return normalised.includes('<h1>Hello</h1>') ? true : 'line reads ' + JSON.stringify(normalised);
+     })()`,
+  );
+
+  /*
+   * Something for a stylesheet to be about, two checks below.
+   *
+   * Typed here rather than written to disk because this file is already open and focused,
+   * and because the auto-close under test is what writes the `</div>`. The pause is the
+   * auto-save interval: the project-wide search that answers "what does this style" reads
+   * the disk, so the markup has to have reached it.
+   */
+  await pressEnterInEditor();
+  await typeText('<div class="smokecard">');
+  await sleep(1800);
+
+  /*
+   * The activity-bar button that opens Structure.
+   *
+   * It went missing once - deleted along with the sidebar view it used to select, which left
+   * the whole feature reachable only by a shortcut nobody had been told about. That is the
+   * exact shape of bug this run exists to catch, and it passed every unit test.
+   *
+   * Clicked rather than called: a button that is built, positioned, and covered by something
+   * else is indistinguishable from a working one until a pointer lands on it.
+   */
+  checks.structureButtonOpensThePopup = await evaluate(
+    `(async () => {
+       const button = document.getElementById('open-structure');
+       if (button === null) return 'no Structure button in the activity bar';
+
+       const box = button.getBoundingClientRect();
+       if (box.width < 8 || box.height < 8) return 'the button has no size';
+
+       const hit = document.elementFromPoint(
+         Math.round(box.left + box.width / 2),
+         Math.round(box.top + box.height / 2),
+       );
+       const topmost = button === hit || button.contains(hit);
+
+       const before = button.getAttribute('aria-expanded');
+       button.click();
+       await new Promise((r) => setTimeout(r, 400));
+
+       const popup = document.querySelector('.structure-popup');
+       const opened = popup !== null && popup.open;
+       const announced = button.getAttribute('aria-expanded');
+
+       // A second press closes it again, which is what a toggle has to do or the button
+       // feels broken the moment anybody presses it twice.
+       button.click();
+       await new Promise((r) => setTimeout(r, 400));
+       const closed = !(document.querySelector('.structure-popup')?.open ?? false);
+
+       return {
+         inTheActivityBar: button.closest('#activitybar') !== null,
+         topmost,
+         opened,
+         closesOnSecondPress: closed,
+         // It must not join the sidebar's selection model, or the explorer would look
+         // unselected while the explorer is still on screen.
+         staysOutOfTheSidebarSelection: button.dataset.view === undefined,
+         announcesState: before === 'false' && announced === 'true'
+           && button.getAttribute('aria-expanded') === 'false',
+       };
+     })()`,
+  );
+
+  /*
+   * The Structure view, on a file with real nesting.
+   *
+   * Typed rather than written to disk, because a buffer's outline has to describe what is
+   * on screen including unsaved edits - reading the file back off disk would pass this
+   * check while showing the user a tree of what they had before they started typing.
+   *
+   * Monaco over-types a closing bracket the user types themselves, so `function beta() {}`
+   * arrives exactly as written.
+   */
+  const structureSpace = await emptyTreeSpace();
+  await rightClickAt(structureSpace.x, structureSpace.y);
+  point = await contextItemPoint("New File");
+  await clickAt(point.x, point.y);
+  await evaluate("document.querySelector('.tree-edit-input').value = ''; true");
+  await typeText("smoke-structure.ts");
+  await pressEnter();
+  await sleep(1200);
+
+  await clickAt(pageEditorPoint.x, pageEditorPoint.y);
+
+  // Clear the template first. A `.ts` file is created with one now, and typing into it
+  // would be testing the template's outline rather than the one being written here.
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
+  await sleep(300);
+
+  await typeText("const alpha = 1;");
+  await pressEnterInEditor();
+  await typeText("function beta() {}");
+  await pressEnterInEditor();
+  // Monaco closes this brace itself and puts the caret on an indented line between the
+  // pair, which is what makes `delta` a child of `Gamma` rather than a sibling.
+  await typeText("class Gamma {");
+  await pressEnterInEditor();
+  await typeText("delta() {}");
+  await sleep(600);
+
+  // Through the menu command, because there is no activity-bar button any more - Structure
+  // is a popup. `window.adcode.window.onCommand` is the same route the menu and the
+  // accelerator take, so this exercises the wiring rather than a click handler.
+  await openStructure("file");
+
+  checks.structureReadsTheOpenFile = await evaluate(
+    `(() => {
+       const popup = document.querySelector('.structure-popup');
+       if (popup === null || !popup.open) return 'the structure popup did not open';
+
+       const rows = [...popup.querySelectorAll('.structure-row')];
+       if (rows.length === 0) return 'no rows: ' + (view.textContent ?? '').slice(0, 120);
+
+       const names = rows.map((r) => r.querySelector('.structure-name')?.textContent);
+       const gamma = rows.find((r) => r.querySelector('.structure-name')?.textContent === 'Gamma');
+       const delta = rows.find((r) => r.querySelector('.structure-name')?.textContent === 'delta');
+
+       return {
+         names: names.join(','),
+         // The four declarations that were typed, all of them, in source order.
+         foundAll: ['alpha', 'beta', 'Gamma', 'delta'].every((n) => names.includes(n)),
+         // The kinds are what make the icons and the colours mean anything.
+         kinds: rows.map((r) => r.dataset.kind).join(','),
+         // The tree is drawn with rails; a nested row must have more of them than its parent.
+         nestedDeeper:
+           gamma !== undefined &&
+           delta !== undefined &&
+           delta.querySelectorAll('.structure-rail').length >
+             gamma.querySelectorAll('.structure-rail').length,
+         // Built and on top - the rule the dead menu bar taught this repository.
+         topmost: (() => {
+           const box = rows[0].getBoundingClientRect();
+           const hit = document.elementFromPoint(
+             Math.round(box.left + box.width / 2),
+             Math.round(box.top + box.height / 2),
+           );
+           return rows[0] === hit || rows[0].contains(hit);
+         })(),
+       };
+     })()`,
+  );
+
+  // Clicking a row moves the cursor. This is the half of the panel that has to be wired to
+  // the editor rather than merely rendered beside it.
+  await evaluate(
+    `(() => {
+       const rows = [...document.querySelectorAll('.structure-popup .structure-row')];
+       const gamma = rows.find((r) => r.querySelector('.structure-name')?.textContent === 'Gamma');
+       gamma?.click();
+       return true;
+     })()`,
+  );
+  await sleep(400);
+
+  // `class Gamma {` is the third line typed, so clicking its row must land the cursor there.
+  checks.structureRowJumpsToTheLine = await evaluate(
+    `(() => {
+       const at = document.getElementById('status-position')?.textContent ?? 'no position';
+       return /^Ln 3,/.test(at) ? true : 'cursor went to ' + at;
+     })()`,
+  );
+
+  /*
+   * Relations, which is the half of this feature that reaches outside the file.
+   *
+   * `beta` exists only in this scratch file, so "who calls this" honestly finds nothing -
+   * and that is the assertion worth making, because a drawer that says "nowhere else"
+   * proves the search ran, came back, and was rendered. A drawer stuck on "Looking…" is
+   * exactly what a broken await would produce.
+   */
+  await evaluate(
+    `(() => {
+       const rows = [...document.querySelectorAll('.structure-popup .structure-row')];
+       const beta = rows.find((r) => r.querySelector('.structure-name')?.textContent === 'beta');
+       beta?.querySelector('.structure-relate')?.click();
+       return true;
+     })()`,
+  );
+  await sleep(2500);
+
+  checks.structureRelationsAnswer = await evaluate(
+    `(() => {
+       const drawer = document.querySelector('.structure-popup .structure-drawer');
+       if (drawer === null) return 'no drawer opened';
+
+       const text = drawer.textContent ?? '';
+       if (text.includes('Looking')) return 'still loading after 2.5s';
+
+       return {
+         hasSection: drawer.querySelector('.structure-section-title') !== null,
+         says: drawer.querySelector('.structure-section-title')?.textContent,
+       };
+     })()`,
+  );
+
+  /*
+   * "What does this rule actually style?" - the question a stylesheet cannot answer about
+   * itself, and the reason this panel exists at all.
+   *
+   * The whole chain is under test here and only here: read the selector out of the CSS,
+   * reduce it to a searchable token, run the project-wide search, parse each hit line as
+   * markup, and judge it. Every step of that has unit tests against strings; none of them
+   * can tell whether the search is wired to the panel, and a rule that reports "styles
+   * nothing" when it styles something is worse than no answer.
+   */
+  // The popup is modal, so nothing behind it can be clicked at all - a right-click on the
+  // tree with it open surfaces as "no context menu is open" three lines later, naming the
+  // wrong thing entirely.
+  await closeStructure();
+
+  const styleSpace = await emptyTreeSpace();
+  await rightClickAt(styleSpace.x, styleSpace.y);
+  point = await contextItemPoint("New File");
+  await clickAt(point.x, point.y);
+  await evaluate("document.querySelector('.tree-edit-input').value = ''; true");
+  await typeText("smoke-style.css");
+  await pressEnter();
+  await sleep(1200);
+
+  await clickAt(pageEditorPoint.x, pageEditorPoint.y);
+
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
+  await sleep(300);
+
+  await typeText(".smokecard {");
+  await pressEnterInEditor();
+  await typeText("color: red;");
+  await sleep(1800);
+
+  await openStructure("file");
+
+  await evaluate(
+    `(() => {
+       const rows = [...document.querySelectorAll('.structure-popup .structure-row')];
+       const rule = rows.find((r) => r.querySelector('.structure-name')?.textContent === '.smokecard');
+       rule?.querySelector('.structure-relate')?.click();
+       return true;
+     })()`,
+  );
+  await sleep(3000);
+
+  checks.selectorSaysWhatItStyles = await evaluate(
+    `(() => {
+       const drawer = document.querySelector('.structure-popup .structure-drawer');
+       if (drawer === null) {
+         const names = [...document.querySelectorAll('.structure-popup .structure-name')]
+           .map((n) => n.textContent).join(',');
+         return 'no drawer; rows were: ' + names;
+       }
+
+       const text = drawer.textContent ?? '';
+       if (text.includes('Looking')) return 'still loading after 3s';
+
+       const titles = [...drawer.querySelectorAll('.structure-section-title')]
+         .map((t) => t.textContent);
+       const entries = [...drawer.querySelectorAll('.structure-entry-primary')]
+         .map((e) => e.textContent);
+
+       return {
+         // Both halves of the answer: what the rule sets, and where it lands.
+         sets: titles.some((t) => (t ?? '').startsWith('Sets')),
+         appliesTo: titles.some((t) => (t ?? '').startsWith('Applies to 1')),
+         // Named the way dev tools name it, so the reader recognises the element.
+         foundTheElement: entries.includes('div.smokecard'),
+         titles: titles.join(' | '),
+       };
+     })()`,
+  );
+
+  /*
+   * "What are all these folders?" - the other half of the popup.
+   *
+   * Run against this repository, which is the best possible fixture for it: a root full of
+   * names a newcomer would have to guess at, several of which are generated. The check is
+   * that the dictionary reached the screen and that the generated ones are marked, because
+   * "half of what is here was not written by anybody" is the single most useful thing this
+   * view says.
+   */
+  await openStructure("project");
+
+  checks.projectMapExplainsTheFolders = await evaluate(
+    `(() => {
+       const popup = document.querySelector('.structure-popup');
+       if (popup === null || !popup.open) return 'the popup did not open';
+
+       const map = popup.querySelector('.projectmap');
+       if (map === null || map.hidden) return 'the project tab did not show';
+
+       const names = [...map.querySelectorAll('.projectmap-name')].map((n) => n.textContent);
+       const details = [...map.querySelectorAll('.projectmap-detail')].map((d) => d.textContent ?? '');
+       const generated = [...map.querySelectorAll('.projectmap-row[data-generated="true"] .projectmap-name')]
+         .map((n) => n.textContent);
+
+       return {
+         // It read the real root.
+         sawPackages: names.includes('packages'),
+         sawScripts: names.includes('scripts'),
+         // It said what kind of project this is.
+         says: map.querySelector('.projectmap-line')?.textContent,
+         // Every note is a real sentence, not a restatement of the folder's name.
+         explained: details.length > 3 && details.every((text) => text.length > 20),
+         // The tree does not walk node_modules or .git, so the map cannot list them - and
+         // says so, which is the honest version of leaving them out.
+         namesWhatItSkips: (map.querySelector('.projectmap-hidden')?.textContent ?? '').includes('node_modules'),
+         // And it dims whatever generated folders are visible.
+         generatedMarked: generated.length,
+       };
+     })()`,
+  );
+
+  await closeStructure();
+
+  /*
+   * The keyboard shortcuts dialog, and a real remap.
+   *
+   * The whole chain: open the dialog, record a chord onto a command, and read it back from
+   * the *menu model* rather than from the dialog's own list - because the failure this is
+   * guarding against is a remap that changes the list and not the menu, which is a shortcut
+   * that displays one thing and does another. Reset afterwards, so a smoke run leaves no
+   * keybindings file behind.
+   */
+  await chooseMenu("Help", "Keyboard Shortcuts");
+  await sleep(400);
+
+  checks.shortcutsDialogIsUsable = await evaluate(
+    `(() => {
+       const dialog = document.querySelector('.shortcuts-dialog');
+       if (dialog === null || !dialog.open) return 'the shortcuts dialog did not open';
+
+       const rows = [...dialog.querySelectorAll('.shortcuts-row')];
+       const keys = [...dialog.querySelectorAll('.shortcuts-key')].map((k) => k.textContent);
+
+       return {
+         rows: rows.length,
+         // Grouped by the menu each command came from.
+         groups: [...dialog.querySelectorAll('.shortcuts-group')].map((g) => g.textContent).join(','),
+         // Real chords, not a blank column.
+         showsChords: keys.some((text) => (text ?? '').includes('Ctrl')),
+         searchable: dialog.querySelector('.shortcuts-search') !== null,
+         topmost: (() => {
+           const row = rows[0];
+           if (row === undefined) return false;
+           const box = row.getBoundingClientRect();
+           const hit = document.elementFromPoint(
+             Math.round(box.left + box.width / 2),
+             Math.round(box.top + box.height / 2),
+           );
+           return row === hit || row.contains(hit);
+         })(),
+       };
+     })()`,
+  );
+
+  checks.shortcutCanBeRebound = await evaluate(
+    `(async () => {
+       // A row on the View menu itself, not one inside its Appearance submenu - a submenu's
+       // rows are not in the DOM until it flies out, and reading null from one would look
+       // exactly like a remap that never reached the menu.
+       const written = await window.adcode.keybindings.write('view.scm', 'CmdOrCtrl+Alt+9');
+       if (written['view.scm'] !== 'CmdOrCtrl+Alt+9') return 'the write did not stick';
+
+       await new Promise((r) => setTimeout(r, 400));
+
+       // The drawn menu is where most people read a shortcut. If the remap did not reach it,
+       // the label and the key now disagree - which is the failure this whole feature has to
+       // avoid, and it is invisible from the dialog's own list.
+       const view = [...document.querySelectorAll('.menubar-item')].find((b) => b.textContent === 'View');
+       view?.click();
+       await new Promise((r) => setTimeout(r, 250));
+
+       const rows = [...document.querySelectorAll('.menu-panel .menu-item')];
+       const scm = rows.find((r) => r.querySelector('.menu-item-label')?.textContent === 'Source Control');
+       const printed = scm?.querySelector('.menu-item-accelerator')?.textContent ?? null;
+
+       document.body.click();
+
+       // A bare letter must still be refused, or a user can lock themselves out.
+       const refused = await window.adcode.keybindings.write('view.scm', 'K');
+       const heldFirm = refused['view.scm'] === 'CmdOrCtrl+Alt+9';
+
+       await window.adcode.keybindings.reset();
+       await new Promise((r) => setTimeout(r, 300));
+
+       return {
+         menuPrintsTheNewChord: printed,
+         refusesABareLetter: heldFirm,
+         resetIsClean: Object.keys(await window.adcode.keybindings.read()).length === 0,
+       };
+     })()`,
+  );
+
+  await evaluate(
+    `(() => { document.querySelector('.shortcuts-dialog')?.close(); return true; })()`,
+  );
+  await sleep(300);
+
+  /*
+   * The missing-runtime bridge.
+   *
+   * Asserted through the bridge rather than by pressing Run, because whether the dialog
+   * appears depends on what happens to be installed on the machine running this - and the
+   * part that must be right either way is the shape of the answer: a runtime ADCode knows
+   * comes back named, with a per-platform install line, and one it does not know comes back
+   * null so the run proceeds untouched.
+   */
+  checks.runtimeCheckExplainsWhatIsMissing = await evaluate(
+    `(async () => {
+       const python = await window.adcode.runtime.check('python');
+       const unknown = await window.adcode.runtime.check('some-tool-nobody-has');
+
+       if (python === null) return 'python is not in the runtime table';
+
+       return {
+         label: python.label,
+         installLineOffered: typeof python.install === 'string' && python.install.length > 0,
+         // Never a bare address from the renderer: the page is chosen in the main process.
+         https: python.url.startsWith('https://'),
+         found: python.found,
+         unknownIsNull: unknown === null,
+       };
+     })()`,
+  );
+
+  await evaluate(`document.querySelector('.activity[data-view="explorer"]').click(); true`);
+  await sleep(300);
+
   const pythonSpace = await emptyTreeSpace();
   await rightClickAt(pythonSpace.x, pythonSpace.y);
   point = await contextItemPoint("New File");
@@ -1404,6 +2017,8 @@ try {
   await rm(join(REPO, "smoke-broken.ts"), { force: true }).catch(() => {});
   await rm(join(REPO, "smoke-lang.py"), { force: true }).catch(() => {});
   await rm(join(REPO, "smoke-page.html"), { force: true }).catch(() => {});
+  await rm(join(REPO, "smoke-structure.ts"), { force: true }).catch(() => {});
+  await rm(join(REPO, "smoke-style.css"), { force: true }).catch(() => {});
 }
 
 /*
@@ -1713,6 +2328,34 @@ checks.recentFoldersRecorded = await evaluate(
 );
 
 // The version the welcome screen shows comes from the main process, not a constant.
+/*
+ * The signed-in address, in the corner after the version.
+ *
+ * Asserted against the bridge rather than for a particular address, because whether this
+ * machine has ever linked an account is not under this test's control. What must hold
+ * either way is that the corner agrees with `account.status()` - a linked machine shows the
+ * address, an anonymous one shows nothing at all rather than an empty slot.
+ */
+checks.statusBarSaysWhoIsSignedIn = await evaluate(
+  `(async () => {
+     const node = document.getElementById('status-account');
+     if (node === null) return 'no account slot in the status bar';
+
+     const state = await window.adcode.account.status();
+     const linked = state.state === 'linked' && (state.email ?? state.displayName) !== null;
+
+     if (!linked) {
+       return node.hidden ? true : 'shown while not signed in: ' + JSON.stringify(node.textContent);
+     }
+
+     const expected = state.email ?? state.displayName;
+     if (node.hidden) return 'hidden while signed in as ' + expected;
+
+     // The whole address, not a truncation - it is here to say which account.
+     return node.textContent === expected ? true : 'says ' + JSON.stringify(node.textContent);
+   })()`,
+);
+
 checks.appInfoIsReal = await evaluate(
   `window.adcode.app.info().then((info) => ({
      version: /^\\d+\\.\\d+\\.\\d+/.test(info.version),
