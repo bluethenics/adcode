@@ -85,6 +85,13 @@ import {
   aiStatus,
   clearProviderKey,
   setProviderKey,
+  aiClearSessions,
+  aiCurrentSession,
+  aiDeleteSession,
+  aiRenameSession,
+  aiResumeSession,
+  aiSessions,
+  checkProviderKey,
 } from "./ai.ts";
 import {
   createTerminal,
@@ -452,6 +459,31 @@ export function registerIpc(): void {
   });
 
   ipcMain.handle(CHANNELS.clipboardRead, () => clipboard.readText());
+
+  /* ── Chat history ─────────────────────────────────────────────────────── */
+
+  ipcMain.handle(CHANNELS.aiSessions, () => aiSessions());
+  ipcMain.handle(CHANNELS.aiSessionChanged, () => aiCurrentSession());
+
+  ipcMain.handle(CHANNELS.aiResumeSession, (_event, id: unknown) =>
+    isString(id) ? aiResumeSession(id) : null,
+  );
+
+  ipcMain.handle(CHANNELS.aiRenameSession, (_event, id: unknown, title: unknown) =>
+    isString(id) && isString(title) ? aiRenameSession(id, title) : aiSessions(),
+  );
+
+  ipcMain.handle(CHANNELS.aiDeleteSession, (_event, id: unknown) =>
+    isString(id) ? aiDeleteSession(id) : aiSessions(),
+  );
+
+  ipcMain.handle(CHANNELS.aiClearSessions, () => aiClearSessions());
+
+  ipcMain.handle(CHANNELS.aiCheckKey, (_event, provider: unknown, key: unknown) =>
+    isString(provider) && isString(key)
+      ? checkProviderKey(provider, key)
+      : { ok: false, message: "Nothing to check." },
+  );
 
   /* ── Debugging ────────────────────────────────────────────────────────── */
 

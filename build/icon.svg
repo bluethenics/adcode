@@ -1,37 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="ADCode">
-  <title>ADCode</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <!--
-    The ADCode mark: <$>
+    The ADCode mark: a dollar sign between two angle brackets.
 
-    Angle brackets for the editor, a dollar sign for the half that pays for it - the whole
-    proposition in three characters.
+    Path for path the same as `apps/desktop/src/renderer/workbench/brandMark.ts` and the
+    site's `Mark.tsx`. A logo that differs between the app and the site is two logos.
 
-    Drawn as geometry rather than as <text>, because a text mark renders differently on
-    every machine that lacks the font, and an app icon that reflows is not an app icon.
-    Stroke weights are heavy on purpose: this is rasterised down to 16px for the Windows
-    taskbar, where anything finer turns to grey mush.
+    The plate is part of the icon and not of the inline mark: an app icon needs its own
+    ground to sit on, and an inline mark needs to take the colour around it.
   -->
-  <defs>
-    <linearGradient id="adcode-plate" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2c2c2e"/>
-      <stop offset="1" stop-color="#141416"/>
-    </linearGradient>
-  </defs>
-
-  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#adcode-plate)"/>
-  <rect x="8.75" y="8.75" width="238.5" height="238.5" rx="55.25" fill="none"
-        stroke="#ffffff" stroke-opacity="0.09" stroke-width="1.5"/>
-
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- The brackets, in the accent the rest of the app already uses. -->
-    <path d="M92 76 L52 128 L92 180" stroke="#0a84ff" stroke-width="19"/>
-    <path d="M164 76 L204 128 L164 180" stroke="#0a84ff" stroke-width="19"/>
-
-    <!-- The dollar: one stem through an S, both drawn as strokes so they scale together. -->
-    <path d="M128 62 L128 194" stroke="#ffffff" stroke-width="13"/>
-    <path d="M148 98 C148 85 139 79 128 79 C117 79 108 86 108 97
-             C108 108 118 113 128 117 C138 121 148 127 148 138
-             C148 150 138 157 128 157 C117 157 108 151 108 138"
-          stroke="#ffffff" stroke-width="15"/>
+  <rect width="1024" height="1024" rx="224" fill="#0b0b0f"/>
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M320 348L140 512L320 676" stroke-width="56"/>
+    <path d="M704 348L884 512L704 676" stroke-width="56"/>
+    <path d="M512 322V365" stroke-width="42"/>
+    <path d="M512 662V702" stroke-width="42"/>
+    <path d="M584 405C563 374 531 356 494 356C446 356 413 383 413 423C413 463 444 484 505 500C569 517 606 541 606 590C606 641 565 671 511 671C466 671 429 651 405 619" stroke-width="56"/>
   </g>
 </svg>

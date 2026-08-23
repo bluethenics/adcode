@@ -296,24 +296,42 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
       { value: "openai", label: "OpenAI" },
       { value: "google", label: "Google" },
       { value: "ollama", label: "Local" },
+      { value: "custom", label: "Custom" },
     ],
   },
+  /*
+   * Free text rather than a fixed list.
+   *
+   * It used to be an enum of six, which meant the dropdown offered models a key could not
+   * reach and hid ones it could - and a new model could not be used until the app shipped
+   * again. The Connect screen picks from the real catalogue and writes the id here, so the
+   * set of valid values is "whatever your provider actually offers".
+   */
   {
     id: "adcode.ai.model",
     group: "ai",
-    kind: "enum",
+    kind: "text",
     label: "Model",
-    description: "Which model the built-in chat uses. Switching takes effect on the next message.",
+    description:
+      "Which model the built-in chat uses. Pick one in Connect a model rather than typing it here. Switching takes effect on your next message.",
     default: "claude-opus-5",
     available: true,
-    options: [
-      { value: "claude-opus-5", label: "Opus 5" },
-      { value: "claude-sonnet-5", label: "Sonnet 5" },
-      { value: "claude-haiku-4-5", label: "Haiku 4.5" },
-      { value: "gpt-5", label: "GPT-5" },
-      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-      { value: "qwen2.5-coder", label: "Qwen2.5 Coder" },
-    ],
+    placeholder: "claude-opus-5",
+    multiline: false,
+    maxLength: 120,
+  },
+  {
+    id: "adcode.ai.customBaseUrl",
+    group: "ai",
+    kind: "text",
+    label: "Custom endpoint",
+    description:
+      "Any address that speaks the OpenAI format - a gateway, a hosted provider, or a model running on this machine. Used when Provider is set to Custom.",
+    default: "",
+    available: true,
+    placeholder: "https://openrouter.ai/api/v1",
+    multiline: false,
+    maxLength: 400,
   },
   bool("adcode.ai.chatWidget", "ai", "Chat widget", "The floating chat card, summoned by keyboard shortcut.", true, true),
   bool("adcode.ai.inlineCompletion", "ai", "Inline completion", "Ghost text suggestions, accepted with Tab.", true, true),

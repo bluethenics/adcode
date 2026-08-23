@@ -327,6 +327,13 @@ export const CHANNELS = {
   aiReset: "ai:reset",
   aiEvent: "ai:event",
   aiProposedEdit: "ai:proposed-edit",
+  aiSessionChanged: "ai:session-changed",
+  aiSessions: "ai:sessions",
+  aiResumeSession: "ai:resume-session",
+  aiRenameSession: "ai:rename-session",
+  aiDeleteSession: "ai:delete-session",
+  aiClearSessions: "ai:clear-sessions",
+  aiCheckKey: "ai:check-key",
   aiApplyHunks: "ai:apply-hunks",
   gitStatus: "git:status",
   gitStage: "git:stage",
@@ -656,13 +663,30 @@ export interface QuickOpenHit {
 }
 
 /** One provider, as the chat widget's model picker needs to see it. */
+export interface AiModelInfo {
+  readonly id: string;
+  readonly name: string;
+  /** An agent needs tool calls; a model without them is a chat box. */
+  readonly toolCall: boolean;
+  readonly reasoning: boolean;
+}
+
 export interface AiProviderInfo {
   readonly id: string;
   readonly displayName: string;
-  readonly models: readonly string[];
-  /** False until the user supplies a key. Ollama needs none, so it is always true. */
+  readonly models: readonly AiModelInfo[];
+  /** False until the user supplies a key. The local option needs none. */
   readonly hasKey: boolean;
   readonly needsKey: boolean;
+  /**
+   * Whether this editor can talk to it, and how.
+   *
+   * `unsupported` means no address is known for it - the custom endpoint covers those, so
+   * it is a statement about what has been checked rather than about what exists.
+   */
+  readonly transport: "native" | "openai-compatible" | "unsupported";
+  /** Where to read about getting a key. */
+  readonly doc: string | null;
 }
 
 export interface AiStatus {
@@ -670,7 +694,33 @@ export interface AiStatus {
   readonly activeProvider: string;
   readonly activeModel: string;
   readonly ready: boolean;
+  /** Set when Provider is Custom. */
+  readonly customBaseUrl: string;
+  /** The day the bundled catalogue was taken, for a list that may have aged. */
+  readonly catalogueTakenOn: string;
+  /** True once a live catalogue has replaced the bundled one this session. */
+  readonly catalogueIsLive: boolean;
 }
+
+export interface ChatMessageView {
+  readonly role: "user" | "assistant";
+  readonly text: string;
+  readonly at: number;
+}
+
+export interface ChatSessionView {
+  readonly id: string;
+  readonly title: string;
+  readonly renamed: boolean;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  readonly messages: readonly ChatMessageView[];
+}
+
+/** What checking a key actually found out. */
+export type AiKeyCheck =
+  | { readonly ok: true; readonly detail: string }
+  | { readonly ok: false; readonly message: string };
 
 /** A hunk of a proposed change, as rendered in the inline diff widget. */
 export interface DiffHunkView {
@@ -916,6 +966,14 @@ export interface AdcodeApi {
     status(): Promise<AiStatus>;
     setKey(provider: string, key: string): Promise<AiStatus>;
     clearKey(provider: string): Promise<AiStatus>;
+    /**
+     * Check a key by using it.
+     *
+     * One real request against the model that would actually be used. A key can be
+     * well-formed and still refused - revoked, wrong account, no credit - and finding that
+     * out when it is pasted is the point of the Connect screen.
+     */
+    checkKey(provider: string, key: string): Promise<AiKeyCheck>;
     send(text: string): Promise<void>;
     cancel(): void;
     reset(): void;
@@ -1006,6 +1064,22 @@ export interface AdcodeApi {
     scopes(frameId: string): Promise<readonly DebugScopeView[]>;
     properties(objectId: string): Promise<readonly DebugVariableView[]>;
     onState(listener: (state: DebugStateView) => void): () => void;
+  };
+  /**
+   * Past conversations, kept per project and never uploaded.
+   *
+   * An assistant that forgets everything when the window closes is one people stop
+   * explaining context to.
+   */
+  readonly chat: {
+    sessions(): Promise<readonly ChatSessionView[]>;
+    resume(id: string): Promise<ChatSessionView | null>;
+    rename(id: string, title: string): Promise<readonly ChatSessionView[]>;
+    remove(id: string): Promise<readonly ChatSessionView[]>;
+    clear(): Promise<readonly ChatSessionView[]>;
+    /** The conversation being added to, for the strip that says what is remembered. */
+    current(): Promise<ChatSessionView | null>;
+    onChanged(listener: (session: ChatSessionView) => void): () => void;
   };
   readonly search: {
     run(query: SearchQueryView): Promise<SearchHitView[]>;

@@ -18,9 +18,16 @@ import { app, safeStorage } from "electron";
 import type { KeyStore, ProviderId } from "@adcode/ai";
 
 const FILENAME = "provider-keys.json";
-const PROVIDERS: readonly ProviderId[] = ["anthropic", "openai", "google", "ollama"];
+/**
+ * Providers whose keys may live in the fallback file.
+ *
+ * The keychain itself takes any id - the catalogue grows without this app shipping - but
+ * the fallback file is written by this process and read back into a typed shape, so it
+ * keeps a known set rather than accepting anything a caller passes.
+ */
+const PROVIDERS: readonly string[] = ["anthropic", "openai", "google", "ollama", "custom"];
 
-type Stored = Partial<Record<ProviderId, string>>;
+type Stored = Record<string, string>;
 
 function filePath(): string {
   return join(app.getPath("userData"), FILENAME);

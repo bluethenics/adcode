@@ -71,6 +71,15 @@ const api: AdcodeApi = {
     properties: (objectId) => ipcRenderer.invoke(CHANNELS.debugProperties, objectId),
     onState: (listener) => subscribe(CHANNELS.debugState, listener),
   },
+  chat: {
+    sessions: () => ipcRenderer.invoke(CHANNELS.aiSessions),
+    resume: (id) => ipcRenderer.invoke(CHANNELS.aiResumeSession, id),
+    rename: (id, title) => ipcRenderer.invoke(CHANNELS.aiRenameSession, id, title),
+    remove: (id) => ipcRenderer.invoke(CHANNELS.aiDeleteSession, id),
+    clear: () => ipcRenderer.invoke(CHANNELS.aiClearSessions),
+    current: () => ipcRenderer.invoke(CHANNELS.aiSessionChanged),
+    onChanged: (listener) => subscribe(CHANNELS.aiSessionChanged, listener),
+  },
   clipboard: {
     writeText: (text) => ipcRenderer.invoke(CHANNELS.clipboardWrite, text),
     readText: () => ipcRenderer.invoke(CHANNELS.clipboardRead),
@@ -123,6 +132,7 @@ const api: AdcodeApi = {
     status: () => ipcRenderer.invoke(CHANNELS.aiProviders),
     setKey: (provider, key) => ipcRenderer.invoke(CHANNELS.aiSetKey, provider, key),
     clearKey: (provider) => ipcRenderer.invoke(CHANNELS.aiClearKey, provider),
+    checkKey: (provider, key) => ipcRenderer.invoke(CHANNELS.aiCheckKey, provider, key),
     send: (text) => ipcRenderer.invoke(CHANNELS.aiSend, text),
     cancel: () => ipcRenderer.send(CHANNELS.aiCancel),
     reset: () => ipcRenderer.send(CHANNELS.aiReset),

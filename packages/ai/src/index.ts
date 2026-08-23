@@ -47,3 +47,29 @@ export {
   OLLAMA_BASE_URL,
 } from "./providers/openaiCompatible.ts";
 export { createGoogleProvider, GOOGLE_MODELS, GOOGLE_BASE_URL } from "./providers/google.ts";
+
+export {
+  BUNDLED_CATALOGUE,
+  SNAPSHOT_TAKEN_ON,
+  baseUrlFor,
+  mergeCatalogue,
+  parseCatalogue,
+  providerIn,
+  searchCatalogue,
+  transportFor,
+  type CatalogueModel,
+  type CatalogueProvider,
+  type Transport,
+} from "./catalogue.ts";
+
+export {
+  pruneSessions,
+  searchSessions,
+  sortSessions,
+  titleFor,
+  validateSession,
+  withMessage,
+  type ChatMessage,
+  type ChatRole,
+  type ChatSession,
+} from "./sessions.ts";

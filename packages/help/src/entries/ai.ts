@@ -77,4 +77,15 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     settingIds: ["adcode.ai.mcpServer"],
     related: ["adcode.ai.memoryCapture", "adcode.ai.terminalAgentDetection"],
   },
+  {
+    id: "adcode.ai.customBaseUrl",
+    title: "Custom endpoint",
+    plain:
+      "Point ADCode at any AI service by pasting its address - including one running on your own computer.",
+    why: "Most services speak the same format, so one address is all it takes to use a gateway, a cheaper host, or a model you run yourself.",
+    how: "Set Provider to Custom, paste the address, and give it your key. The Connect screen checks it works before saving.",
+    group: "ai",
+    settingIds: ["adcode.ai.customBaseUrl"],
+    related: ["ai.connect", "adcode.ai.provider"],
+  },
 ];

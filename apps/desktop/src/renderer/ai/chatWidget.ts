@@ -15,7 +15,7 @@
  * Only `transform` and `opacity` animate (§1) - the card is positioned with a translate,
  * never with `left`/`top`, so dragging never triggers layout.
  */
-import type { ProposedEditView } from "../../shared/api.ts";
+import type { ChatSessionView, ProposedEditView } from "../../shared/api.ts";
 
 interface Position {
   x: number;
@@ -79,6 +79,10 @@ export interface ChatWidget {
 export interface ChatWidgetDeps {
   readonly host: HTMLElement;
   readonly openExternalPath: (path: string) => void;
+  /** Open the Connect screen, which owns providers, keys and models. */
+  readonly openConnect: () => void;
+  /** Ask the user for a new name, or null if they changed their mind. */
+  readonly askForName: (current: string) => Promise<string | null>;
 }
 
 export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
@@ -105,14 +109,29 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const modelLabel = document.createElement("span");
   modelLabel.className = "chat-model";
 
+  const historyButton = document.createElement("button");
+  historyButton.className = "ghost-button";
+  historyButton.textContent = "History";
+  historyButton.title = "Past conversations in this project";
+  historyButton.setAttribute("aria-expanded", "false");
+  historyButton.addEventListener("click", () => toggleHistory());
+
+  const connectButton = document.createElement("button");
+  connectButton.className = "ghost-button";
+  connectButton.textContent = "Connect";
+  connectButton.title = "Choose a provider and model";
+  connectButton.addEventListener("click", () => deps.openConnect());
+
   const resetButton = document.createElement("button");
   resetButton.className = "ghost-button";
   resetButton.textContent = "New";
-  resetButton.title = "Start a new conversation";
+  resetButton.title = "Start a new conversation - the current one is kept in History";
   resetButton.addEventListener("click", () => {
     window.adcode.ai.reset();
     transcript.replaceChildren();
     streamingBubble = null;
+    renderMemory(null);
+    void refreshHistory();
   });
 
   const closeButton = document.createElement("button");
@@ -120,7 +139,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   closeButton.textContent = "Close";
   closeButton.addEventListener("click", () => api.close());
 
-  header.append(title, modelLabel, resetButton, closeButton);
+  header.append(title, modelLabel, historyButton, connectButton, resetButton, closeButton);
 
   /* ── Transcript ───────────────────────────────────────────────────────── */
 
@@ -129,6 +148,147 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   transcript.setAttribute("aria-live", "polite");
 
   /* ── Composer ─────────────────────────────────────────────────────────── */
+
+  /* -- History ---------------------------------------------------------- */
+
+  const history = document.createElement("aside");
+  history.className = "chat-history";
+  history.hidden = true;
+  history.setAttribute("aria-label", "Past conversations");
+
+  const historySearch = document.createElement("input");
+  historySearch.className = "chat-history-search";
+  historySearch.type = "search";
+  historySearch.placeholder = "Search conversations";
+  historySearch.setAttribute("aria-label", "Search conversations");
+  historySearch.addEventListener("input", () => renderHistory());
+
+  const historyList = document.createElement("div");
+  historyList.className = "chat-history-list";
+
+  const clearAll = document.createElement("button");
+  clearAll.type = "button";
+  clearAll.className = "chat-history-clear";
+  clearAll.textContent = "Clear all";
+  clearAll.title = "Delete every saved conversation for this project";
+  clearAll.addEventListener("click", () => {
+    void window.adcode.chat.clear().then((sessions) => {
+      saved = sessions;
+      renderHistory();
+    });
+  });
+
+  history.append(historySearch, historyList, clearAll);
+
+  let saved: readonly ChatSessionView[] = [];
+
+  async function refreshHistory(): Promise<void> {
+    saved = await window.adcode.chat.sessions();
+    renderHistory();
+  }
+
+  function toggleHistory(): void {
+    history.hidden = !history.hidden;
+    historyButton.setAttribute("aria-expanded", String(!history.hidden));
+    if (!history.hidden) void refreshHistory();
+  }
+
+  function renderHistory(): void {
+    const needle = historySearch.value.trim().toLowerCase();
+    historyList.replaceChildren();
+
+    const shown = saved.filter((session) => {
+      if (needle.length === 0) return true;
+      if (session.title.toLowerCase().includes(needle)) return true;
+      // Searching inside the conversation, because people remember a phrase from the
+      // middle of one rather than whatever its first line happened to be.
+      return session.messages.some((message) => message.text.toLowerCase().includes(needle));
+    });
+
+    if (shown.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "chat-history-empty";
+      empty.textContent =
+        saved.length === 0 ? "No conversations yet." : "Nothing matches that.";
+      historyList.append(empty);
+      return;
+    }
+
+    for (const session of shown) {
+      const row = document.createElement("div");
+      row.className = "chat-history-row";
+
+      const openIt = document.createElement("button");
+      openIt.type = "button";
+      openIt.className = "chat-history-open";
+      openIt.textContent = session.title;
+      openIt.title = "Reopen this conversation";
+      openIt.addEventListener("click", () => void resume(session.id));
+
+      const rename = document.createElement("button");
+      rename.type = "button";
+      rename.className = "chat-history-action";
+      rename.textContent = "Rename";
+      rename.addEventListener("click", () => {
+        void deps.askForName(session.title).then(async (name) => {
+          if (name === null) return;
+          saved = await window.adcode.chat.rename(session.id, name);
+          renderHistory();
+        });
+      });
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "chat-history-action";
+      remove.textContent = "Delete";
+      remove.addEventListener("click", () => {
+        void window.adcode.chat.remove(session.id).then((sessions) => {
+          saved = sessions;
+          renderHistory();
+        });
+      });
+
+      row.append(openIt, rename, remove);
+      historyList.append(row);
+    }
+  }
+
+  /** Draw a past conversation back into the transcript. */
+  async function resume(id: string): Promise<void> {
+    const session = await window.adcode.chat.resume(id);
+    if (session === null) return;
+
+    transcript.replaceChildren();
+    streamingBubble = null;
+
+    for (const message of session.messages) {
+      bubble(message.role === "user" ? "user" : "assistant", message.text);
+    }
+
+    renderMemory(session);
+    history.hidden = true;
+    historyButton.setAttribute("aria-expanded", "false");
+  }
+
+  /* -- What is being remembered ----------------------------------------- */
+
+  /*
+   * The strip exists so that clearing a conversation is a button whose effect is visible.
+   * An assistant that remembers invisibly is worse than one that forgets.
+   */
+  const memory = document.createElement("div");
+  memory.className = "chat-memory";
+
+  function renderMemory(session: ChatSessionView | null): void {
+    const turns = session?.messages.length ?? 0;
+
+    memory.textContent =
+      turns === 0
+        ? "New conversation - nothing remembered yet."
+        : `Carrying ${String(turns)} message${turns === 1 ? "" : "s"} from this conversation.`;
+  }
+
+  renderMemory(null);
 
   const composer = document.createElement("form");
   composer.className = "chat-composer";
@@ -150,7 +310,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   resizeGrip.className = "chat-resize";
   resizeGrip.setAttribute("aria-hidden", "true");
 
-  card.append(header, transcript, composer, resizeGrip);
+  const chatBody = document.createElement("div");
+  chatBody.className = "chat-body";
+  chatBody.append(history, transcript);
+
+  card.append(header, chatBody, memory, composer, resizeGrip);
+
+  window.adcode.chat.onChanged((session) => renderMemory(session));
+  void window.adcode.chat.current().then((session) => renderMemory(session));
   deps.host.append(card);
 
   /* ── Rendering ────────────────────────────────────────────────────────── */

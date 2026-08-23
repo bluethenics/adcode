@@ -281,3 +281,294 @@
   border-bottom: 2px solid var(--text-tertiary);
   opacity: 0.6;
 }
+
+/* ── History, and what is being remembered ────────────────────────────── */
+
+.chat-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+/*
+ * The history sits beside the transcript rather than replacing it.
+ *
+ * Replacing it would mean losing your place in the conversation to go looking for another
+ * one, which is the exact thing a history list is supposed to save you from.
+ */
+.chat-history {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 190px;
+  min-height: 0;
+  border-right: 1px solid var(--border-hairline);
+  background: var(--bg-hover);
+}
+
+.chat-history-search {
+  margin: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 7px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+}
+
+.chat-history-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.chat-history-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px 0 8px;
+}
+
+.chat-history-row:hover {
+  background: var(--bg-active);
+}
+
+.chat-history-open {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* The row's actions stay out of the way until the row is under the pointer. */
+.chat-history-action {
+  flex: none;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.chat-history-row:hover .chat-history-action,
+.chat-history-action:focus-visible {
+  opacity: 1;
+}
+
+.chat-history-action:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.chat-history-empty {
+  margin: 0;
+  padding: 10px;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+.chat-history-clear {
+  margin: 8px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.chat-history-clear:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/*
+ * What the assistant is carrying into the next turn.
+ *
+ * Quiet by design - it is a statement of fact, not a control - but present, because an
+ * assistant that remembers invisibly is worse than one that forgets.
+ */
+.chat-memory {
+  padding: 5px 12px;
+  border-top: 1px solid var(--border-hairline);
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+/* ── Connect a model ──────────────────────────────────────────────────── */
+
+.connect-body {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 0;
+  min-height: 0;
+}
+
+.connect-list {
+  overflow-y: auto;
+  border-right: 1px solid var(--border-hairline);
+}
+
+.connect-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.connect-row:hover {
+  background: var(--bg-hover);
+}
+
+.connect-row[data-selected="true"] {
+  background: var(--bg-selected);
+}
+
+/* The provider actually in use keeps a mark even when another row is selected. */
+.connect-row[data-active="true"] .connect-name::after {
+  content: " ·";
+  color: var(--accent);
+}
+
+.connect-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connect-state {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.connect-state[data-tone="ok"] {
+  color: var(--success);
+}
+
+.connect-state[data-tone="warn"] {
+  color: var(--warning);
+}
+
+.connect-detail {
+  overflow-y: auto;
+  padding: 14px 18px;
+}
+
+.connect-subheading {
+  margin: 18px 0 8px;
+  font-size: var(--text-sm);
+  font-weight: 640;
+  color: var(--text-primary);
+}
+
+.connect-input {
+  width: 100%;
+  margin: 10px 0 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.connect-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.connect-result {
+  margin: 6px 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.connect-result[data-tone="ok"] {
+  color: var(--success);
+}
+
+.connect-result[data-tone="error"] {
+  color: var(--danger);
+}
+
+.connect-result[data-tone="warn"] {
+  color: var(--warning);
+}
+
+.connect-models {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.connect-model {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border-hairline);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.connect-model:last-child {
+  border-bottom: 0;
+}
+
+.connect-model:hover {
+  background: var(--bg-hover);
+}
+
+.connect-model[data-selected="true"] {
+  background: var(--bg-selected);
+}
+
+.connect-model-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connect-model-marks {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}

@@ -14,56 +14,163 @@ import { relative } from "node:path";
 import { BrowserWindow } from "electron";
 import {
   BUILT_IN_TOOLS,
+  BUNDLED_CATALOGUE,
   DEFAULT_ANTHROPIC_MODEL,
+  SNAPSHOT_TAKEN_ON,
   TOOLS_WITHOUT_MEMORY,
   applyHunks,
+  baseUrlFor,
   createAgent,
   createAnthropicProvider,
   createGoogleProvider,
-  createOllamaProvider,
-  createOpenAiProvider,
+  createOpenAiCompatibleProvider,
+  mergeCatalogue,
+  parseCatalogue,
+  providerIn,
+  transportFor,
   type Agent,
+  titleFor,
+  withMessage,
+  type CatalogueProvider,
+  type ChatSession,
   type Provider,
-  type ProviderId,
 } from "@adcode/ai";
-import { CHANNELS, type AiProviderInfo, type AiStatus, type ProposedEditView } from "../shared/api.ts";
+import {
+  CHANNELS,
+  type AiKeyCheck,
+  type AiProviderInfo,
+  type AiStatus,
+  type ProposedEditView,
+} from "../shared/api.ts";
 import { createKeychainStore } from "./keychain.ts";
 import { createAiToolRunner, type ProposedEdit } from "./aiTools.ts";
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings } from "./settings.ts";
 import { currentWorkspace, writeTextFile } from "./workspace.ts";
+import { clearSessions, deleteSession, readSessions, writeSession } from "./aiSessions.ts";
 
 const keys = createKeychainStore();
 
-/** Ollama runs on the user's own machine, so it is the one provider needing no key. */
-const NEEDS_KEY: Readonly<Record<ProviderId, boolean>> = {
-  anthropic: true,
-  openai: true,
-  google: true,
-  ollama: false,
-};
+/**
+ * The providers that need no key.
+ *
+ * Only the local one: it talks to a model on the user's own machine, and asking for a
+ * credential to reach `127.0.0.1` would be theatre.
+ */
+const KEYLESS = new Set(["ollama"]);
 
-const MODELS: Readonly<Record<ProviderId, readonly string[]>> = {
-  anthropic: ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"],
-  openai: ["gpt-5", "gpt-5-mini", "o4-mini"],
-  google: ["gemini-2.5-pro", "gemini-2.5-flash"],
-  ollama: ["qwen2.5-coder", "llama3.1", "deepseek-coder-v2"],
-};
+/**
+ * The catalogue, live where a fetch has succeeded and bundled otherwise.
+ *
+ * Fetched once per run, in the background, and never waited on: the connection screen is
+ * fully usable from the snapshot, and a network that is down should cost freshness rather
+ * than the feature.
+ */
+let catalogue: readonly CatalogueProvider[] = BUNDLED_CATALOGUE;
+let catalogueIsLive = false;
 
-const DISPLAY: Readonly<Record<ProviderId, string>> = {
-  anthropic: "Anthropic",
-  openai: "OpenAI",
-  google: "Google",
-  ollama: "Local (Ollama)",
-};
+export async function refreshCatalogue(): Promise<void> {
+  try {
+    const response = await fetch("https://models.dev/api.json", {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return;
 
-const PROVIDERS: readonly ProviderId[] = ["anthropic", "openai", "google", "ollama"];
+    const live = parseCatalogue(await response.json());
+    if (live.length === 0) return;
+
+    catalogue = mergeCatalogue(BUNDLED_CATALOGUE, live);
+    catalogueIsLive = true;
+  } catch {
+    // The snapshot is already loaded. Nothing to say.
+  }
+}
+
+/** Where a provider's API lives: the catalogue's address, or the user's own. */
+function baseUrlOf(providerId: string): string | null {
+  if (providerId === "custom") {
+    const custom = currentSettings()["adcode.ai.customBaseUrl"];
+    const trimmed = typeof custom === "string" ? custom.trim().replace(/\/+$/, "") : "";
+    return trimmed.length === 0 ? null : trimmed;
+  }
+
+  return baseUrlFor(providerId);
+}
 
 /** Proposals awaiting review, keyed by path. Nothing here has touched disk (§5.3). */
 const pendingEdits = new Map<string, ProposedEdit>();
 
+/**
+ * The conversation being written to.
+ *
+ * Held here rather than in the renderer because it is the main process that knows when a
+ * turn has finished - and a turn is the unit worth saving. Saving per streamed token would
+ * be thousands of writes for one answer.
+ */
+let session: ChatSession | null = null;
+
+function startSession(): ChatSession {
+  return {
+    id: `s${String(Date.now())}${Math.random().toString(36).slice(2, 8)}`,
+    title: titleFor([]),
+    renamed: false,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    messages: [],
+  };
+}
+
+/** The conversations for the open project, newest first. */
+export function aiSessions(): Promise<ChatSession[]> {
+  return readSessions(currentWorkspace()?.root ?? null);
+}
+
+export async function aiDeleteSession(id: string): Promise<ChatSession[]> {
+  await deleteSession(currentWorkspace()?.root ?? null, id);
+  if (session?.id === id) session = null;
+  return aiSessions();
+}
+
+export async function aiClearSessions(): Promise<ChatSession[]> {
+  await clearSessions(currentWorkspace()?.root ?? null);
+  session = null;
+  return aiSessions();
+}
+
+export async function aiRenameSession(id: string, title: string): Promise<ChatSession[]> {
+  const trimmed = title.trim().slice(0, 120);
+  if (trimmed.length === 0) return aiSessions();
+
+  const all = await aiSessions();
+  const found = all.find((one) => one.id === id);
+  if (found === undefined) return all;
+
+  // `renamed` is what stops auto-titling from overwriting the user's own words later.
+  const renamed: ChatSession = { ...found, title: trimmed, renamed: true };
+  await writeSession(currentWorkspace()?.root ?? null, renamed);
+  if (session?.id === id) session = renamed;
+
+  return aiSessions();
+}
+
+/** Reopen a past conversation. Returns it so the renderer can draw the transcript. */
+export async function aiResumeSession(id: string): Promise<ChatSession | null> {
+  const found = (await aiSessions()).find((one) => one.id === id) ?? null;
+  if (found === null) return null;
+
+  session = found;
+  // The agent's own history belongs to the previous conversation.
+  agent = null;
+  return found;
+}
+
+/** What the assistant is carrying into the next turn, for the memory strip. */
+export function aiCurrentSession(): ChatSession | null {
+  return session;
+}
+
 let agent: Agent | null = null;
-let agentProvider: ProviderId | null = null;
+let agentProvider: string | null = null;
 let agentModel: string | null = null;
 
 function broadcast(channel: string, ...args: unknown[]): void {
@@ -72,30 +179,53 @@ function broadcast(channel: string, ...args: unknown[]): void {
   }
 }
 
-function activeProvider(): ProviderId {
+function activeProvider(): string {
   const value = currentSettings()["adcode.ai.provider"];
-  return typeof value === "string" && PROVIDERS.includes(value as ProviderId)
-    ? (value as ProviderId)
-    : "anthropic";
+  return typeof value === "string" && value.length > 0 ? value : "anthropic";
 }
 
-function activeModel(provider: ProviderId): string {
+/**
+ * The model id to send.
+ *
+ * Free text rather than a member of a fixed list, because the catalogue is the list and it
+ * changes without this app shipping. An empty setting falls back to the provider's first
+ * catalogue entry, which is the closest thing to "the obvious one".
+ */
+function activeModel(provider: string): string {
   const value = currentSettings()["adcode.ai.model"];
-  const models = MODELS[provider];
+  if (typeof value === "string" && value.trim().length > 0) return value.trim();
 
-  if (typeof value === "string" && models.includes(value)) return value;
-  return models[0] ?? DEFAULT_ANTHROPIC_MODEL;
+  const known = providerIn(catalogue, provider);
+  return known?.models[0]?.id ?? DEFAULT_ANTHROPIC_MODEL;
 }
 
-async function buildProvider(id: ProviderId): Promise<Provider | null> {
-  if (id === "ollama") return createOllamaProvider();
-
-  const key = await keys.get(id);
-  if (key === null) return null;
+/**
+ * A client for whichever provider is selected.
+ *
+ * Two first-class clients - Anthropic and Google, which do not speak the OpenAI wire format
+ * - and everything else through one OpenAI-compatible client pointed at a different address.
+ * That is what makes hundreds of providers reachable without hundreds of adapters, and it
+ * is the same mechanism the custom endpoint uses.
+ */
+async function buildProvider(id: string): Promise<Provider | null> {
+  const key = KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? "");
+  if (!KEYLESS.has(id) && key.length === 0 && id !== "custom") return null;
 
   if (id === "anthropic") return createAnthropicProvider({ apiKey: key });
-  if (id === "openai") return createOpenAiProvider(key);
-  return createGoogleProvider({ apiKey: key });
+  if (id === "google") return createGoogleProvider({ apiKey: key });
+
+  const baseUrl = baseUrlOf(id);
+  if (baseUrl === null) return null;
+
+  const known = providerIn(catalogue, id);
+
+  return createOpenAiCompatibleProvider({
+    id,
+    displayName: known?.name ?? id,
+    baseUrl,
+    apiKey: key,
+    models: (known?.models ?? []).map((model) => model.id),
+  });
 }
 
 function toolRunner() {
@@ -127,38 +257,121 @@ export async function aiStatus(): Promise<AiStatus> {
   const provider = activeProvider();
 
   const providers: AiProviderInfo[] = [];
-  for (const id of PROVIDERS) {
+
+  for (const known of catalogue) {
+    const needsKey = !KEYLESS.has(known.id);
+
     providers.push({
-      id,
-      displayName: DISPLAY[id],
-      models: MODELS[id],
-      hasKey: NEEDS_KEY[id] ? await keys.has(id) : true,
-      needsKey: NEEDS_KEY[id],
+      id: known.id,
+      displayName: known.name,
+      models: known.models.map((model) => ({
+        id: model.id,
+        name: model.name,
+        toolCall: model.toolCall,
+        reasoning: model.reasoning,
+      })),
+      hasKey: needsKey ? await keys.has(known.id) : true,
+      needsKey,
+      transport: transportFor(known.id),
+      doc: known.doc,
     });
   }
+
+  /*
+   * The custom endpoint is always offered, and is not in the catalogue.
+   *
+   * It is the escape hatch that makes "any provider" true rather than aspirational: a
+   * gateway, a new service, or a model on this machine, reached by an address the user
+   * supplies.
+   */
+  const customUrl = baseUrlOf("custom");
+  providers.push({
+    id: "custom",
+    displayName: "Custom endpoint",
+    models: [],
+    hasKey: await keys.has("custom"),
+    needsKey: true,
+    transport: customUrl === null ? "unsupported" : "openai-compatible",
+    doc: null,
+  });
+
+  const active = providers.find((one) => one.id === provider);
 
   return {
     providers,
     activeProvider: provider,
     activeModel: activeModel(provider),
-    ready: providers.find((p) => p.id === provider)?.hasKey ?? false,
+    // Ready means a turn would actually reach something: a key where one is needed, and an
+    // address where the provider is the custom one.
+    ready:
+      (active?.hasKey ?? false) &&
+      (provider !== "custom" || customUrl !== null),
+    customBaseUrl: customUrl ?? "",
+    catalogueTakenOn: SNAPSHOT_TAKEN_ON,
+    catalogueIsLive,
   };
 }
 
 export async function setProviderKey(provider: string, key: string): Promise<AiStatus> {
-  if (PROVIDERS.includes(provider as ProviderId) && key.trim().length > 0) {
-    await keys.set(provider as ProviderId, key.trim());
+  if (provider.length > 0 && key.trim().length > 0) {
+    await keys.set(provider, key.trim());
     agent = null;
   }
   return aiStatus();
 }
 
 export async function clearProviderKey(provider: string): Promise<AiStatus> {
-  if (PROVIDERS.includes(provider as ProviderId)) {
-    await keys.clear(provider as ProviderId);
+  if (provider.length > 0) {
+    await keys.clear(provider);
     agent = null;
   }
   return aiStatus();
+}
+
+/**
+ * Check a key by using it.
+ *
+ * One real request, for one token, against the model that would actually be used. Anything
+ * less is a guess: a key can be well-formed, correctly stored, and still rejected because
+ * it was revoked, is for the wrong account, or has no credit - and finding that out at the
+ * moment it is pasted is the entire point of this screen.
+ */
+export async function checkProviderKey(providerId: string, key: string): Promise<AiKeyCheck> {
+  const trimmed = key.trim();
+
+  if (trimmed.length === 0 && !KEYLESS.has(providerId)) {
+    return { ok: false, message: "Paste a key first." };
+  }
+
+  // Checked against the key being offered rather than the one already stored, so this
+  // answers about what the user just typed.
+  const previous = await keys.get(providerId);
+  if (trimmed.length > 0) await keys.set(providerId, trimmed);
+
+  try {
+    const provider = await buildProvider(providerId);
+    if (provider === null) {
+      return { ok: false, message: "ADCode has no address for that provider yet." };
+    }
+
+    const model = activeModel(providerId);
+    const agentForCheck = createAgent({ provider, model, tools: [], runner: toolRunner() });
+
+    for await (const event of agentForCheck.send("Reply with the single word: ok")) {
+      if (event.kind === "error") return { ok: false, message: event.detail };
+    }
+
+    return { ok: true, detail: `${providerId} answered as ${model}.` };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "that key was not accepted",
+    };
+  } finally {
+    // A failed check must not leave a bad key behind where a good one was.
+    if (trimmed.length > 0 && previous !== null) await keys.set(providerId, previous);
+    agent = null;
+  }
 }
 
 /**
@@ -179,10 +392,14 @@ export async function aiSend(text: string): Promise<void> {
       const provider = await buildProvider(providerId);
 
       if (provider === null) {
-        broadcast(CHANNELS.aiEvent, {
-          kind: "error",
-          detail: `No API key for ${DISPLAY[providerId]}. Add one in Settings.`,
-        });
+        const name = providerIn(catalogue, providerId)?.name ?? providerId;
+        // Two different failures, and the fix is different for each.
+        const detail =
+          providerId === "custom" && baseUrlOf("custom") === null
+            ? "No address for the custom endpoint. Set one in Connect a model."
+            : `No API key for ${name}. Add one in Connect a model.`;
+
+        broadcast(CHANNELS.aiEvent, { kind: "error", detail });
         return;
       }
 
@@ -198,9 +415,29 @@ export async function aiSend(text: string): Promise<void> {
       agentModel = model;
     }
 
+    session ??= startSession();
+    session = withMessage(session, { role: "user", text, at: Date.now() });
+
+    let answer = "";
+
     for await (const event of agent.send(text)) {
       broadcast(CHANNELS.aiEvent, event);
+      if (event.kind === "text") answer += event.text;
     }
+
+    /*
+     * Written once, when the turn is over.
+     *
+     * An empty answer is not saved: a cancelled turn or a provider error would otherwise
+     * leave a conversation whose last line is blank, which reads as the assistant having
+     * nothing to say rather than as something having gone wrong.
+     */
+    if (answer.length > 0) {
+      session = withMessage(session, { role: "assistant", text: answer, at: Date.now() });
+    }
+
+    await writeSession(currentWorkspace()?.root ?? null, session);
+    broadcast(CHANNELS.aiSessionChanged, session);
   } catch (error) {
     // §9: a failure here costs an answer, never the editor.
     broadcast(CHANNELS.aiEvent, {
@@ -214,9 +451,16 @@ export function aiCancel(): void {
   agent?.cancel();
 }
 
+/**
+ * Start a new conversation.
+ *
+ * The previous one is already on disk, so this forgets it rather than deleting it - "New"
+ * next to a history list has to mean "put that one away", not "throw it away".
+ */
 export function aiReset(): void {
   agent?.reset();
   pendingEdits.clear();
+  session = null;
 }
 
 /**

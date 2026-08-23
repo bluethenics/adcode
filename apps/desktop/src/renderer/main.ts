@@ -50,6 +50,7 @@ import { createDiagnosticsHost } from "./diagnostics/diagnosticsHost.ts";
 import { createLanguageBridge } from "./diagnostics/languageBridge.ts";
 import { badgeFor, countBySeverity, summarise } from "@adcode/diagnostics";
 import { createChatWidget } from "./ai/chatWidget.ts";
+import { createConnectView } from "./ai/connectView.ts";
 import { ICON, createIcon, iconButton } from "./workbench/icons.ts";
 import { createSettingsView } from "./settings/settingsView.ts";
 import { createEditorHost, languageForFilename, type EditorHost } from "./editor/editorHost.ts";
@@ -2751,10 +2752,29 @@ editorHost.git.onResolved(() => {
 
 /* ── Assistant (§5.3) ─────────────────────────────────────────────────── */
 
+const connectView = createConnectView({
+  host: document.body,
+  status: () => window.adcode.ai.status(),
+  checkKey: (provider, key) => window.adcode.ai.checkKey(provider, key),
+  setKey: (provider, key) => window.adcode.ai.setKey(provider, key),
+  clearKey: (provider) => window.adcode.ai.clearKey(provider),
+  write: async (id, value) => {
+    await window.adcode.settings.write(id, value);
+  },
+  restoreFocus: () => editorHost.focus(),
+});
+
 const chat = createChatWidget({
   host: document.body,
   // Applying a proposal reopens the file so the user sees the result in the editor.
   openExternalPath: (path) => void openFile(path),
+  openConnect: () => connectView.open(),
+  askForName: (current) =>
+    promptDialog.ask({
+      title: "Rename conversation",
+      value: current,
+      confirmLabel: "Rename",
+    }),
 });
 
 /**
@@ -3251,6 +3271,7 @@ function registerCommands(): void {
   );
   add("run.file", "Run Active File", () => runButton.activate());
   add("ai.toggle", "Assistant", () => chat.toggle());
+  add("ai.connect", "Connect a Model", () => connectView.open());
   add("view.toggleWordWrap", "Toggle Word Wrap", () => editorHost.toggleWordWrap());
 
   /* Go */
