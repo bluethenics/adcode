@@ -1678,6 +1678,72 @@ try {
     return { clipboardReadable: true, reachedTheShell: ran };
   })();
 
+  /* ── Terminal agent detection ─────────────────────────────────────────── */
+
+  checks.terminalOffersSharedMemory = await (async () => {
+    /*
+     * A real click into the terminal, at real coordinates.
+     *
+     * `element.click()` does not move focus, and a synthetic focus on xterm's helper
+     * textarea did not take either - the keystrokes went to the editor instead, which is
+     * both a broken check and a good way to type into somebody's file.
+     */
+    const terminalPoint = await evaluate(
+      `(() => {
+         const surface = document.getElementById('terminal-surface');
+         if (!surface) return null;
+         const r = surface.getBoundingClientRect();
+         if (r.width === 0) return null;
+         return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+       })()`,
+    );
+    if (terminalPoint === null) return { terminalVisible: false };
+
+    await clickAt(terminalPoint.x, terminalPoint.y);
+    await sleep(400);
+
+    /*
+     * A path that cannot exist, ending in a recognised agent name.
+     *
+     * Typing a bare `claude` would detect correctly and also *start Claude Code* inside the
+     * smoke run's terminal. This exercises the same detection - the parser matches on the
+     * basename - and the shell answers "not found".
+     */
+    // First: do typed keystrokes reach the shell at all? The paste check proves a
+    // different path (the pty is written directly), and detection only sees typed input.
+    const typedMarker = join(REPO, "smoke-typed.txt");
+    await rm(typedMarker, { force: true }).catch(() => {});
+    await typeText("echo typed > smoke-typed.txt");
+    await pressEnterInEditor();
+    await sleep(2000);
+    {
+      const { existsSync } = await import("node:fs");
+      checks.terminalReceivesTyping = existsSync(typedMarker);
+      await rm(typedMarker, { force: true }).catch(() => {});
+    }
+
+    await typeText("./no-such-dir/claude");
+    // `pressEnter` sends a key event with no character, and xterm needs the carriage return
+    // itself - the same reason `pressEnterInEditor` exists for Monaco.
+    await pressEnterInEditor();
+    await sleep(1500);
+
+    return await evaluate(
+      `(() => {
+         const strip = document.querySelector('.agent-strip');
+         if (!strip) return { stripInDom: false };
+         if (strip.hidden) return { stripInDom: true, hidden: true };
+         return {
+           shown: true,
+           namesTheAgent: (strip.querySelector('.agent-strip-text')?.textContent ?? '').includes('Claude Code'),
+           carriesTheCommand:
+             (strip.querySelector('.agent-strip-command')?.textContent ?? '').length > 0,
+           offersCopy: strip.querySelector('.ghost-button') !== null,
+         };
+       })()`,
+    );
+  })();
+
   /* ── Tree-sitter highlighting ─────────────────────────────────────────── */
 
   /*

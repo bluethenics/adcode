@@ -303,7 +303,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   },
   bool("adcode.ai.chatWidget", "ai", "Chat widget", "The floating chat card, summoned by keyboard shortcut.", true, true),
   bool("adcode.ai.inlineCompletion", "ai", "Inline completion", "Ghost text suggestions, accepted with Tab.", true, true),
-  bool("adcode.ai.terminalAgentDetection", "ai", "Terminal agent detection", "Recognise CLI agents running in the built-in terminal.", true),
+  bool("adcode.ai.terminalAgentDetection", "ai", "Terminal agent detection", "Recognise an AI agent started in the built-in terminal and offer to share this project's memory with it. Recognised from the command you typed - nothing else is inspected.", true, true),
   bool("adcode.ai.memoryCapture", "ai", "Memory capture", "Record decisions and conventions to the shared project memory.", true, true),
   bool("adcode.ai.mcpServer", "ai", "MCP server", "Let external agents read and write the same memory.", true, true),
 ];

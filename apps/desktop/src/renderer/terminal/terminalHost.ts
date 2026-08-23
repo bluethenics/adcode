@@ -9,6 +9,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
+import { createCommandLineReader, detectAgent, type DetectedAgent } from "@adcode/ai/agents";
 
 export interface TerminalHost {
   dispose(): void;
@@ -18,6 +19,8 @@ export interface TerminalHost {
   clear(): void;
   /** Type a line into the shell and press return. */
   send(text: string): void;
+  /** `adcode.ai.terminalAgentDetection`. */
+  setAgentDetection(enabled: boolean): void;
   /** Paste the clipboard into the shell, as Ctrl+Shift+V does. */
   paste(): void;
   /** Copy the selection. Returns false when nothing is selected. */
@@ -75,7 +78,13 @@ const THEMES = {
 
 export async function createTerminalHost(
   container: HTMLElement,
-  options: { profileId?: string; cwd?: string; theme: "light" | "dark" },
+  options: {
+    profileId?: string;
+    cwd?: string;
+    theme: "light" | "dark";
+    /** Told when a command line starts a known AI agent (`adcode.ai.terminalAgentDetection`). */
+    onAgent?: (agent: DetectedAgent) => void;
+  },
 ): Promise<TerminalHost> {
   const terminal = new Terminal({
     fontFamily: '"SF Mono", "JetBrains Mono", "Cascadia Code", ui-monospace, Consolas, monospace',
@@ -116,7 +125,27 @@ export async function createTerminalHost(
     terminal.write(`\r\n\x1b[90m[process exited with code ${exitCode}]\x1b[0m\r\n`);
   });
 
-  terminal.onData((data) => window.adcode.terminal.write(id, data));
+  /*
+   * What the user types, on its way to the shell.
+   *
+   * The keystrokes are already passing through here, so recognising `claude` costs one
+   * string comparison per submitted line and no inspection of anything the user did not
+   * type. The judgement is `@adcode/ai/agents`, which is pure and tested.
+   */
+  const commandLine = createCommandLineReader();
+  let agentDetection = true;
+
+  terminal.onData((data) => {
+    window.adcode.terminal.write(id, data);
+
+    if (!agentDetection || options.onAgent === undefined) return;
+
+    const line = commandLine.push(data);
+    if (line === null) return;
+
+    const agent = detectAgent(line);
+    if (agent !== null) options.onAgent(agent);
+  });
   terminal.onResize(({ cols, rows }) => window.adcode.terminal.resize(id, cols, rows));
 
   /* ── Copy and paste ─────────────────────────────────────────────────── */
@@ -212,6 +241,10 @@ export async function createTerminalHost(
     },
     clear() {
       terminal.clear();
+    },
+    setAgentDetection(enabled) {
+      agentDetection = enabled;
+      if (!enabled) commandLine.reset();
     },
     paste() {
       void paste();

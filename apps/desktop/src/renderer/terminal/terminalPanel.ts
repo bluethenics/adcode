@@ -41,6 +41,8 @@ export interface TerminalPanel {
   clear(): void;
   /** Type a command into the active terminal and press return. */
   send(text: string): void;
+  /** `adcode.ai.terminalAgentDetection`. */
+  setAgentDetection(enabled: boolean): void;
   /** Paste the clipboard into the active terminal. */
   paste(): void;
   /** Copy the active terminal's selection. */
@@ -66,6 +68,13 @@ export interface TerminalPanelDeps {
   /** Called whenever the panel opens or closes, so the editor can re-layout. */
   readonly onLayoutChange: () => void;
   /**
+   * How an external agent connects to this project's memory.
+   *
+   * The same command the settings screen prints. Passed in rather than fetched here so this
+   * file keeps knowing nothing about the memory package.
+   */
+  readonly mcpConnection?: () => Promise<{ command: string; available: boolean }>;
+  /**
    * Called when the visible terminal changes.
    *
    * The tab strip hides itself at one terminal, so with named shells the panel header is
@@ -80,6 +89,73 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
   let nextId = 1;
 
   const findTab = (id: number): Tab | undefined => tabs.find((tab) => tab.id === id);
+
+  /* ── The shared-memory offer ────────────────────────────────────────── */
+
+  let agentDetection = true;
+
+  /**
+   * Agents already offered to, this session.
+   *
+   * Offering again every time somebody restarts an agent is how a helpful strip becomes
+   * something people close without reading. Once per agent, per run.
+   */
+  const offered = new Set<string>();
+
+  const strip = document.createElement("div");
+  strip.className = "agent-strip";
+  strip.hidden = true;
+
+  const stripText = document.createElement("span");
+  stripText.className = "agent-strip-text";
+
+  const stripCommand = document.createElement("code");
+  stripCommand.className = "agent-strip-command";
+
+  const stripCopy = document.createElement("button");
+  stripCopy.type = "button";
+  stripCopy.className = "ghost-button";
+  stripCopy.textContent = "Copy";
+
+  const stripDismiss = document.createElement("button");
+  stripDismiss.type = "button";
+  stripDismiss.className = "ghost-button";
+  stripDismiss.textContent = "Not now";
+  stripDismiss.addEventListener("click", () => {
+    strip.hidden = true;
+  });
+
+  strip.append(stripText, stripCommand, stripCopy, stripDismiss);
+  deps.panel.prepend(strip);
+
+  /**
+   * Offer to connect a recognised agent to this project's memory.
+   *
+   * Nothing is shared by pressing Copy - it copies a command the user then chooses to run.
+   * The offer is the whole feature; acting on it is theirs.
+   */
+  function offerMemory(agent: { id: string; name: string }): void {
+    if (!agentDetection || offered.has(agent.id)) return;
+    if (deps.mcpConnection === undefined) return;
+
+    offered.add(agent.id);
+
+    void deps.mcpConnection().then((connection) => {
+      if (!connection.available) return;
+
+      stripText.textContent = `${agent.name} can share this project's memory with ADCode. Run this once:`;
+      stripCommand.textContent = connection.command;
+
+      stripCopy.onclick = () => {
+        void window.adcode.clipboard.writeText(connection.command).then(() => {
+          stripCopy.textContent = "Copied";
+          window.setTimeout(() => (stripCopy.textContent = "Copy"), 1400);
+        });
+      };
+
+      strip.hidden = false;
+    });
+  }
 
   function renderTabs(): void {
     deps.tabStrip.replaceChildren();
@@ -140,7 +216,10 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
       ...(profileId === undefined || profileId === "" ? {} : { profileId }),
       ...(cwd === null ? {} : { cwd }),
       theme: deps.theme(),
+      onAgent: (agent) => offerMemory(agent),
     });
+
+    host.setAgentDetection(agentDetection);
 
     return { id: nextId++, element, host };
   }
@@ -233,6 +312,15 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
   }
 
   return {
+    setAgentDetection(enabled: boolean): void {
+      agentDetection = enabled;
+      if (!enabled) strip.hidden = true;
+
+      for (const tab of tabs) {
+        for (const pane of tab.panes) pane.host.setAgentDetection(enabled);
+      }
+    },
+
     create,
     split,
 

@@ -30,6 +30,7 @@
       "@adcode/ads": ["./packages/ads/src/index.ts"],
       "@adcode/memory": ["./packages/memory/src/index.ts"],
       "@adcode/settings": ["./packages/settings/src/index.ts"],
+      "@adcode/ai/agents": ["./packages/ai/src/agents.ts"],
       "@adcode/ai": ["./packages/ai/src/index.ts"],
       "@adcode/diagnostics": ["./packages/diagnostics/src/index.ts"],
       "@adcode/lsp": ["./packages/lsp/src/index.ts"],

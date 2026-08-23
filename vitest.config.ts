@@ -10,6 +10,7 @@ const alias = {
   "@adcode/ads": resolve(import.meta.dirname, "packages/ads/src/index.ts"),
   "@adcode/memory": resolve(import.meta.dirname, "packages/memory/src/index.ts"),
   "@adcode/settings": resolve(import.meta.dirname, "packages/settings/src/index.ts"),
+  "@adcode/ai/agents": resolve(import.meta.dirname, "packages/ai/src/agents.ts"),
   "@adcode/ai": resolve(import.meta.dirname, "packages/ai/src/index.ts"),
   "@adcode/diagnostics": resolve(import.meta.dirname, "packages/diagnostics/src/index.ts"),
   "@adcode/lsp": resolve(import.meta.dirname, "packages/lsp/src/index.ts"),

@@ -156,6 +156,7 @@ function applySettings(values: Record<string, boolean | string>): void {
   diagnosticsHost.setEnabled(values["adcode.formatting.lintDiagnostics"] !== false);
 
   breadcrumbs.setEnabled(values["adcode.navigation.breadcrumbs"] !== false);
+  terminal?.setAgentDetection(values["adcode.ai.terminalAgentDetection"] !== false);
   symbolSearch.setEnabled(values["adcode.navigation.symbolSearch"] !== false);
   structurePopup.setOutlineEnabled(values["adcode.navigation.outline"] !== false);
   refreshBreadcrumbs();
@@ -1482,6 +1483,8 @@ const profileLabel = (id: string): string =>
   terminalProfiles.find((profile) => profile.id === id)?.label ?? "Terminal";
 
 function terminalPanel(): TerminalPanel {
+  const created = terminal === null;
+
   terminal ??= createTerminalPanel({
     panel: el("panel"),
     tabStrip: el("terminal-tabs"),
@@ -1491,6 +1494,8 @@ function terminalPanel(): TerminalPanel {
     cwd: () => workspaceRoot,
     theme: () => theme,
     notify: (message) => setStatus(message, 4000),
+    // The same command the settings screen prints, offered at the moment it is useful.
+    mcpConnection: () => window.adcode.memory.connection(),
     onActiveTitle: (title) => {
       el("panel-title").textContent = title ?? "Terminal";
     },
@@ -1502,6 +1507,12 @@ function terminalPanel(): TerminalPanel {
       if (el("panel").hidden) editorHost.focus();
     },
   });
+
+  // A panel created after settings were read still has to honour them: `applySettings` runs
+  // once at startup, and the terminal usually does not exist yet when it does.
+  if (created) {
+    terminal.setAgentDetection(settingsValues["adcode.ai.terminalAgentDetection"] !== false);
+  }
 
   return terminal;
 }

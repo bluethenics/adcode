@@ -1513,3 +1513,42 @@
   gap: 6px;
   flex: none;
 }
+
+/* ── The shared-memory offer ──────────────────────────────────────────── */
+
+/*
+ * Shown when an AI agent is started in the terminal.
+ *
+ * A strip rather than a dialog, and once per agent per session: this is an offer, and an
+ * offer that interrupts is a nag. It carries the exact command and a Copy button, because
+ * §5.2 is explicit that "a user who has to figure out MCP configuration by themselves will
+ * not do it, and the entire feature dies there."
+ */
+.agent-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-hover);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+}
+
+.agent-strip-text {
+  color: var(--text-primary);
+}
+
+.agent-strip-command {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 8px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
