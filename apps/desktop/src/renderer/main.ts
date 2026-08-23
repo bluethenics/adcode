@@ -13,6 +13,7 @@ import "./styles/structure.css";
 import "./styles/popups.css";
 import "./styles/menubar.css";
 import "./styles/dialogs.css";
+import "./styles/help.css";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
 import { createCommandRegistry } from "./workbench/commands.ts";
 import { createMenuBar } from "./workbench/menuBar.ts";
@@ -54,6 +55,8 @@ import { createPromptDialog } from "./dialogs/promptDialog.ts";
 import { createReportDialog } from "./dialogs/reportDialog.ts";
 import { createMissingRuntimeDialog } from "./dialogs/missingRuntimeDialog.ts";
 import { createShortcutsDialog } from "./dialogs/shortcutsDialog.ts";
+import { createHelpGuide } from "./help/helpGuide.ts";
+import { formatAccelerator } from "../shared/menuModel.ts";
 import { commandWordOf } from "../shared/runtimes.ts";
 import { applyOverrides, matchesChord, parseChord, resolveBindings } from "../shared/keybindings.ts";
 import type { BindingOverrides } from "../shared/keybindings.ts";
@@ -1811,6 +1814,19 @@ const shortcutsDialog = createShortcutsDialog(document.body, {
 });
 
 /**
+ * The guide.
+ *
+ * `platform` is read through a closure rather than captured, because it is declared further
+ * down this file and this runs at module evaluation - the same reason the shortcuts dialog
+ * above takes a function.
+ */
+const helpGuide = createHelpGuide({
+  host: document.body,
+  openSetting: (settingId) => settingsView.openAt(settingId),
+  formatShortcut: (accelerator) => formatAccelerator(accelerator, platform),
+});
+
+/**
  * Take on a new set of overrides.
  *
  * Three surfaces have to move together or the feature is a lie: the drawn menu bar's
@@ -3085,6 +3101,7 @@ function registerCommands(): void {
   });
 
   /* Help */
+  add("help.guide", "ADCode Guide", () => helpGuide.open());
   add("help.shortcuts", "Keyboard Shortcuts", () => showShortcuts());
   add("help.devTools", "Toggle Developer Tools", () => window.adcode.window.toggleDevTools());
   add("help.about", "About ADCode", () => {

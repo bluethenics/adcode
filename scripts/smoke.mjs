@@ -2775,6 +2775,156 @@ checks.collabSessionStartsAndStops = await evaluate(
    })()`,
 );
 
+/* ── The explanation layer (P1) ───────────────────────────────────────── */
+
+/*
+ * Every check here returns a boolean or an object of booleans, never a descriptive string.
+ * The runner only fails on `false`, `undefined`, or `THREW`, so a check that reports a real
+ * problem as prose is printed and then passes - which is the one way this script lies.
+ */
+
+checks.helpGuideOpens = await (async () => {
+  await chooseMenu("Help", "ADCode Guide");
+  await sleep(500);
+
+  return await evaluate(
+    `(() => {
+       const sheet = document.querySelector('.help-sheet');
+       if (!sheet || sheet.hidden) return false;
+       const cards = sheet.querySelectorAll('.help-card');
+       const groups = sheet.querySelectorAll('.settings-group-title');
+       return {
+         visible: sheet.dataset.state === 'open',
+         hasManyCards: cards.length > 40,
+         hasGroups: groups.length > 5,
+         explainsInThree:
+           sheet.querySelector('.help-card-plain') !== null &&
+           sheet.querySelectorAll('.help-card-detail').length > 0,
+       };
+     })()`,
+  );
+})();
+
+checks.helpGuideSearchesByDescription = await evaluate(
+  `(() => {
+     const search = document.querySelector('.help-sheet .settings-search');
+     if (!search) return false;
+     search.value = 'grey text';
+     search.dispatchEvent(new Event('input', { bubbles: true }));
+
+     const titles = [...document.querySelectorAll('.help-sheet .help-card-title')]
+       .map((t) => t.firstChild?.textContent ?? '');
+
+     // Searching words nobody would guess the feature is named after is the whole point.
+     return titles.includes('Inline completion') && titles.length < 6;
+   })()`,
+);
+
+checks.helpGuideJumpsToSetting = await (async () => {
+  const jumped = await evaluate(
+    `(() => {
+       const search = document.querySelector('.help-sheet .settings-search');
+       search.value = 'minimap';
+       search.dispatchEvent(new Event('input', { bubbles: true }));
+
+       const jump = document.querySelector('.help-sheet .help-card-jump');
+       if (!jump) return false;
+       jump.click();
+       return true;
+     })()`,
+  );
+  if (jumped !== true) return false;
+
+  // The guide closes, settings opens, and it scrolls to the row - which is deliberately
+  // delayed past the sheet transition, so this waits longer than a click normally would.
+  await sleep(900);
+
+  return await evaluate(
+    `(() => {
+       const guide = document.querySelector('.help-sheet');
+       const settings = document.querySelector('.settings-sheet:not(.help-sheet)');
+       const row = document.querySelector('[data-setting-id="adcode.editing.minimap"]');
+       return {
+         guideClosed: guide.dataset.state === undefined,
+         settingsOpen: settings?.dataset.state === 'open',
+         rowExists: row !== null,
+         rowMarked: row?.dataset.highlight === 'true',
+       };
+     })()`,
+  );
+})();
+
+checks.everySettingHasAQuestionMark = await evaluate(
+  `(() => {
+     const rows = [...document.querySelectorAll('.settings-row[data-setting-id]')];
+     if (rows.length < 40) return false;
+     const without = rows.filter((r) => r.querySelector('.help-button') === null);
+     return { rows: rows.length > 40, allExplained: without.length === 0 };
+   })()`,
+);
+
+checks.helpPopoverOpensAndCloses = await (async () => {
+  const opened = await evaluate(
+    `(() => {
+       const row = document.querySelector('[data-setting-id="adcode.editing.minimap"]');
+       const button = row?.querySelector('.help-button');
+       if (!button) return false;
+       button.click();
+       return true;
+     })()`,
+  );
+  if (opened !== true) return false;
+
+  await sleep(350);
+
+  const shown = await evaluate(
+    `(() => {
+       const pop = document.querySelector('.help-popover');
+       if (!pop || pop.hidden) return false;
+       const box = pop.getBoundingClientRect();
+       return {
+         visible: pop.dataset.state === 'open',
+         // The three fields, all filled - an empty popover is the failure this guards.
+         hasPlain: (pop.querySelector('.help-popover-plain')?.textContent ?? '').length > 20,
+         hasDetails:
+           [...pop.querySelectorAll('.help-popover-detail')]
+             .every((d) => (d.textContent ?? '').length > 20),
+         // Placement is measured in script, so being on-screen is a real thing to check.
+         onScreen:
+           box.top >= 0 &&
+           box.left >= 0 &&
+           box.bottom <= window.innerHeight &&
+           box.right <= window.innerWidth,
+         anchorMarked:
+           document
+             .querySelector('[data-setting-id="adcode.editing.minimap"] .help-button')
+             ?.getAttribute('aria-expanded') === 'true',
+       };
+     })()`,
+  );
+
+  await pressEscape();
+  await sleep(300);
+
+  const closed = await evaluate(
+    `(() => {
+       const pop = document.querySelector('.help-popover');
+       const settings = document.querySelector('.settings-sheet:not(.help-sheet)');
+       return {
+         popoverGone: pop.hidden === true,
+         // Escape closes the popover and must not also close the sheet behind it.
+         settingsStillOpen: settings?.dataset.state === 'open',
+       };
+     })()`,
+  );
+
+  return { ...shown, ...closed };
+})();
+
+// Leave the app as this block found it, so later checks are not run against a covered window.
+await pressEscape();
+await sleep(400);
+
 socket.close();
 child.kill();
 await sleep(500);

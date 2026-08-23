@@ -14,15 +14,25 @@
  * being hidden. Hiding them would misrepresent the roster; showing them live would
  * misrepresent the build. Neither is worth doing to avoid an honest third state.
  */
+import { helpForSetting } from "@adcode/help";
 import {
   GROUPS,
   searchSettings,
   type Setting,
   type SettingValue,
 } from "@adcode/settings";
+import { createHelpButton, createHelpPopover } from "../help/helpPopover.ts";
 
 export interface SettingsView {
   open(): void;
+  /**
+   * Open scrolled to one row, with it briefly marked.
+   *
+   * The guide's "Open its setting" button is the caller. Landing on the settings screen
+   * and then having to find the row you just read about is the gap this closes - and on a
+   * screen with fifty-five rows, "it is in Editing somewhere" is not good enough.
+   */
+  openAt(settingId: string): void;
   close(): void;
   isOpen(): boolean;
   toggle(): void;
@@ -157,6 +167,9 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
   let query = "";
   let open = false;
 
+  // One popover for the whole screen, not one per row. See helpPopover.ts.
+  const popover = createHelpPopover(deps.host);
+
   const sheet = document.createElement("div");
   sheet.className = "settings-sheet";
   sheet.hidden = true;
@@ -246,6 +259,7 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
   function rowFor(setting: Setting): HTMLElement {
     const row = document.createElement("div");
     row.className = "settings-row";
+    row.dataset["settingId"] = setting.id;
     if (!setting.available) row.dataset["unavailable"] = "true";
 
     const text = document.createElement("div");
@@ -262,6 +276,18 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
       pill.title = "This feature is not built yet";
       label.append(pill);
     }
+
+    /*
+     * The `?`.
+     *
+     * Beside the label rather than at the end of the row, because at the end of the row is
+     * where the control is, and a question mark next to a switch reads as a question about
+     * whether to flip it. `@adcode/help` has an entry for every setting - a test fails the
+     * build otherwise - so the `undefined` branch is unreachable in practice and is here
+     * because a missing explanation must cost the button, never the row.
+     */
+    const help = helpForSetting(setting.id);
+    if (help !== undefined) label.append(createHelpButton(help, popover));
 
     const description = document.createElement("div");
     description.className = "settings-row-description";
@@ -414,10 +440,38 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
       document.addEventListener("keydown", onKeydown);
     },
 
+    openAt(settingId: string): void {
+      const wasOpen = open;
+      if (!wasOpen) api.open();
+
+      // Clearing any search first, or the row being jumped to may be filtered out - and a
+      // jump that lands nowhere is worse than not offering one.
+      query = "";
+      search.value = "";
+
+      const reveal = (): void => {
+        renderBody();
+
+        const row = body.querySelector(`[data-setting-id="${CSS.escape(settingId)}"]`);
+        if (!(row instanceof HTMLElement)) return;
+
+        row.scrollIntoView({ block: "center", behavior: "smooth" });
+        row.dataset["highlight"] = "true";
+        window.setTimeout(() => delete row.dataset["highlight"], 1600);
+      };
+
+      // `open()` reads the values asynchronously and renders when they land, so on a cold
+      // open the rows do not exist yet. Waiting for the sheet's transition covers both that
+      // and the panel still sliding into place.
+      if (wasOpen) reveal();
+      else window.setTimeout(reveal, 300);
+    },
+
     close(): void {
       if (!open) return;
       open = false;
 
+      popover.close();
       delete sheet.dataset["state"];
       document.removeEventListener("keydown", onKeydown);
 

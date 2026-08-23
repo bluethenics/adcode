@@ -414,6 +414,10 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
     {
       label: "&Help",
       items: [
+        // First, and above the separator, because it is the item somebody opening this menu
+        // for the first time is actually looking for. Shortcuts are for people who already
+        // know what the features are called.
+        { label: "ADCode &Guide", command: "help.guide" },
         { label: "&Keyboard Shortcuts", command: "help.shortcuts" },
         {
           label: "Toggle &Developer Tools",

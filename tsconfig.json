@@ -38,7 +38,8 @@
       "@adcode/search/fuzzy": ["./packages/search/src/fuzzy.ts"],
       "@adcode/search": ["./packages/search/src/index.ts"],
       "@adcode/collab": ["./packages/collab/src/index.ts"],
-      "@adcode/structure": ["./packages/structure/src/index.ts"]
+      "@adcode/structure": ["./packages/structure/src/index.ts"],
+      "@adcode/help": ["./packages/help/src/index.ts"]
     }
   },
   "include": ["packages/**/*.ts", "mock-server/**/*.ts", "services/**/*.ts", "vitest.config.ts"],
