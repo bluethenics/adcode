@@ -18,6 +18,7 @@
 import { describeEntry, HIDDEN_DIRECTORIES, projectKinds, whereToStart } from "@adcode/structure";
 import type { DirEntry } from "../../shared/api.ts";
 import { fileIcon, folderIcon } from "../workbench/fileIcons.ts";
+import { railsFor } from "../workbench/treeRails.ts";
 
 export interface ProjectMapDeps {
   /** The workspace root's absolute path, or null when no folder is open. */
@@ -139,6 +140,13 @@ export function createProjectMap(deps: ProjectMapDeps): ProjectMap {
     entries: readonly DirEntry[],
     into: HTMLElement,
     depth: number,
+    /**
+     * For each ancestor level, whether that ancestor had siblings after it.
+     *
+     * Carried down rather than derived, because it cannot be derived: whether to draw a
+     * line beside a row depends on the shape of the tree *above* it.
+     */
+    ancestorsContinue: readonly boolean[] = [],
   ): Promise<void> {
     // Folders first, then files, each alphabetically. The tree sorts this way too, and a
     // second ordering for the same data would make the two views feel like two projects.
@@ -147,7 +155,8 @@ export function createProjectMap(deps: ProjectMapDeps): ProjectMap {
       return a.name.localeCompare(b.name);
     });
 
-    for (const entry of sorted) {
+    for (const [index, entry] of sorted.entries()) {
+      const isLast = index === sorted.length - 1;
       const full = entry.path;
       const note = describeEntry(entry.name, entry.isDirectory);
 
@@ -155,6 +164,10 @@ export function createProjectMap(deps: ProjectMapDeps): ProjectMap {
       row.className = "projectmap-row";
       row.style.setProperty("--map-depth", String(depth));
       if (note?.generated === true) row.dataset["generated"] = "true";
+
+      // The lines, one cell per ancestor level. Drawn before the row's own content so the
+      // elbow lands to the left of the icon.
+      row.append(...railsFor({ ancestorsContinue, isLast, depth }));
 
       const button = document.createElement("button");
       button.type = "button";
@@ -208,7 +221,7 @@ export function createProjectMap(deps: ProjectMapDeps): ProjectMap {
       if (entry.isDirectory && expanded.has(full) && depth < 1) {
         try {
           const children = await deps.list(full);
-          await drawEntries(children, into, depth + 1);
+          await drawEntries(children, into, depth + 1, [...ancestorsContinue, !isLast]);
         } catch {
           // A folder that cannot be read is not an error worth a dialog; the row above it
           // simply has nothing under it.

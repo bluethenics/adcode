@@ -163,8 +163,16 @@
   padding: 8px 14px 16px;
 }
 
+/*
+ * A row is now a flex line: rail cells, then the entry.
+ *
+ * The indent used to be padding. It is the rails that carry it now - one 14px cell per
+ * ancestor level - so padding on top of them would push every child twice as far in as its
+ * own connector.
+ */
 .projectmap-row {
-  padding-left: calc(var(--map-depth, 0) * 18px);
+  display: flex;
+  align-items: stretch;
 }
 
 .projectmap-entry {
@@ -204,6 +212,7 @@
 }
 
 .projectmap-detail {
+  margin-left: calc(var(--map-depth, 0) * 14px);
   margin: 0 0 6px;
   /* Indented past the icon so the sentence lines up under the name it is about. */
   padding-left: calc(var(--map-depth, 0) * 18px + 32px);

@@ -444,6 +444,8 @@ function makeRow(entry: DirEntry, depth: number): HTMLElement {
   row.dataset["depth"] = String(depth);
   row.dataset["kind"] = entry.isDirectory ? "directory" : "file";
   row.style.paddingLeft = `${8 + depth * 10}px`;
+  // How many indent guides to paint. See the note in structure.css.
+  row.style.setProperty("--tree-guides", String(depth));
   // Focusable, but not in the tab order: the tree is navigated by pointer, and F2 and
   // Delete have to land on a row rather than on whatever last had focus.
   row.tabIndex = -1;
