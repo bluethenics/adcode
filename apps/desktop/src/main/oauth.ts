@@ -1,11 +1,13 @@
 /**
- * Getting a Google or GitHub credential, without shipping a secret.
+ * Getting a Google or GitHub credential, without a secret in the source.
  *
  * §1 of the brief is explicit that a key shipped inside the binary can be extracted by
- * anyone, so neither flow here uses a client secret. That constraint picks the flow:
+ * anyone. That constraint picks both flows:
  *
- *   Google  PKCE with a loopback redirect. A public client id, a per-attempt verifier,
- *           and a redirect to 127.0.0.1 on an ephemeral port. No secret exists to leak.
+ *   Google  PKCE with a loopback redirect: a public client id, a per-attempt verifier,
+ *           and a redirect to 127.0.0.1 on an ephemeral port. Google additionally insists
+ *           on the client secret at the token exchange, so one is substituted into the
+ *           build - see below. It is in no committed file.
  *
  *   GitHub  The device flow. GitHub's OAuth Apps do not support PKCE, and its web flow
  *           requires a client secret at the token exchange - which we cannot have. The
@@ -40,23 +42,36 @@ const GOOGLE_CLIENT_ID =
 const GITHUB_CLIENT_ID = process.env["ADCODE_GITHUB_CLIENT_ID"] ?? "Ov23lienZUTAiNKAM0UV";
 
 /**
- * Optional, and only for Google.
+ * Required, despite the name, and despite PKCE.
  *
- * Google marks `client_secret` optional on the token exchange when PKCE is used, and this
- * omits it. Some Desktop-type clients are issued one anyway; setting this covers that
- * case without making a secret a requirement.
+ * It is tempting to leave this out: PKCE already proves the exchange came from the client
+ * that began it, and a secret in a shipped binary is not secret. That reasoning is right
+ * about the security and wrong about Google. Asking its token endpoint without this
+ * answers `"client_secret is missing."` and nothing signs in - PKCE is something Google
+ * wants *as well as* client authentication for a Desktop client, not instead of it.
  *
- * **The secret for this project's own client is deliberately not here.** Google issues one
- * with every Desktop client whether the flow needs it or not, and ours does not - PKCE is
- * what proves the exchange came from the same client that started it. Committing it would
- * put a credential in every installer for no gain, and would mean rotating it broke every
- * copy already installed.
+ * Google's own position on installed apps is that the secret "is obviously not treated as
+ * a secret", because the binary can be read by anyone holding it. So it ships in the built
+ * application - but not in the source.
+ *
+ * It is not in this file, and it is not in this repository. GitHub's push protection
+ * rejects a commit containing a Google client secret outright, and it is right to: whatever
+ * Google's threat model says, a credential in a public repository is a credential
+ * published. `electron.vite.config.ts` reads it from the environment or from a gitignored
+ * `apps/desktop/.env` and substitutes it here at build time, so it reaches the installer
+ * without ever reaching git. A build with no value produces an app that says Google
+ * sign-in is not configured, which is honest.
  */
-const GOOGLE_CLIENT_SECRET = process.env["ADCODE_GOOGLE_CLIENT_SECRET"] ?? "";
+declare const __ADCODE_GOOGLE_CLIENT_SECRET__: string;
+
+const GOOGLE_CLIENT_SECRET =
+  process.env["ADCODE_GOOGLE_CLIENT_SECRET"] ?? __ADCODE_GOOGLE_CLIENT_SECRET__;
 
 /** Whether sign-in can be offered at all. The UI hides the buttons when it cannot. */
 export const oauthConfigured = {
-  google: () => GOOGLE_CLIENT_ID.length > 0,
+  // Both, for Google: the id alone gets as far as the browser and then fails at the token
+  // exchange, which is a worse experience than saying up front that it is not set up.
+  google: () => GOOGLE_CLIENT_ID.length > 0 && GOOGLE_CLIENT_SECRET.length > 0,
   github: () => GITHUB_CLIENT_ID.length > 0,
 };
 
@@ -92,38 +107,46 @@ export function cancelSignIn(): boolean {
  * a blank tab and a question. Self-contained: no fonts, no images, nothing to fetch from a
  * local server that is about to close.
  */
-function resultPage(heading: string, detail: string, ok: boolean): string {
-  const accent = ok ? "#3ddc97" : "#ff6b6b";
+function resultPage(heading: string, detail: string, _ok: boolean): string {
+  /*
+   * The mark, path for path from `brandMark.ts` and `build/icon.svg`, drawn in the current
+   * colour so it inverts with the theme rather than carrying a palette of its own.
+   */
+  const mark = `<svg viewBox="0 0 1024 1024" width="52" height="52" fill="none"
+    stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M320 348L140 512L320 676" stroke-width="56"/>
+    <path d="M704 348L884 512L704 676" stroke-width="56"/>
+    <path d="M512 322V365" stroke-width="42"/>
+    <path d="M512 662V702" stroke-width="42"/>
+    <path d="M584 405C563 374 531 356 494 356C446 356 413 383 413 423C413 463 444 484 505 500C569 517 606 541 606 590C606 641 565 671 511 671C466 671 429 651 405 619" stroke-width="56"/>
+  </svg>`;
+
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ADCode</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root { color-scheme: light dark; --ink: #000; --paper: #fff; --quiet: #6b6b6b; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink: #fff; --paper: #000; --quiet: #9a9a9a; }
+  }
+  * { box-sizing: border-box; }
   body {
-    margin: 0; min-height: 100vh; display: grid; place-items: center;
-    background: #0f1115; color: #e7e9ee;
+    margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 2rem;
+    background: var(--paper); color: var(--ink);
     font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
-  .card {
-    max-width: 26rem; padding: 2.5rem; text-align: center;
-    border: 1px solid #262a33; border-radius: 14px; background: #151821;
-  }
-  .mark {
-    width: 44px; height: 44px; margin: 0 auto 1.25rem; border-radius: 11px;
-    display: grid; place-items: center; background: ${accent}1a; color: ${accent};
-    font-size: 22px; font-weight: 700;
-  }
-  h1 { margin: 0 0 .5rem; font-size: 1.35rem; letter-spacing: -0.01em; }
-  p  { margin: 0; color: #9aa2b1; }
-  .hint { margin-top: 1.5rem; font-size: .875rem; color: #6b7280; }
+  main { max-width: 24rem; text-align: center; }
+  svg { margin-bottom: 1.75rem; }
+  h1 { margin: 0 0 .5rem; font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; }
+  p  { margin: 0; color: var(--quiet); }
 </style></head>
-<body><div class="card">
-  <div class="mark">${ok ? "&check;" : "!"}</div>
+<body><main>
+  ${mark}
   <h1>${heading}</h1>
   <p>${detail}</p>
-  <p class="hint">You can close this tab.</p>
-</div></body></html>`;
+</main></body></html>`;
 }
 
 const base64url = (buffer: Buffer): string =>
@@ -133,7 +156,7 @@ const base64url = (buffer: Buffer): string =>
 
 export async function linkWithGoogle(): Promise<OAuthResult> {
   const clientId = GOOGLE_CLIENT_ID;
-  if (clientId.length === 0) {
+  if (clientId.length === 0 || GOOGLE_CLIENT_SECRET.length === 0) {
     return { ok: false, reason: "Google sign-in isn't configured in this build." };
   }
 
@@ -252,7 +275,22 @@ async function exchangeGoogleCode(
       signal: AbortSignal.timeout(20_000),
     });
 
-    if (!response.ok) return { ok: false, reason: "Google refused the sign-in." };
+    if (!response.ok) {
+      /*
+       * Say which refusal it was.
+       *
+       * "Google refused the sign-in." is true of a missing client secret, an expired code,
+       * a redirect that does not match, and a client id from another project - and it is
+       * useless for all four. Google names the cause in `error_description`; passing it
+       * through turns a dead end into something someone can act on.
+       */
+      const detail = (await response.json().catch(() => null)) as { error_description?: unknown } | null;
+      const said = typeof detail?.error_description === "string" ? detail.error_description : "";
+      return {
+        ok: false,
+        reason: said.length > 0 ? `Google refused the sign-in: ${said}` : "Google refused the sign-in.",
+      };
+    }
 
     const body = (await response.json()) as { id_token?: unknown };
     return typeof body.id_token === "string"

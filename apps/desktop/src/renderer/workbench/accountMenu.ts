@@ -10,6 +10,7 @@
  * says exactly that and no more, because "sign in to earn" would be false and would stop
  * being believed the first time someone watched their balance rise while signed out.
  */
+import type { ConfirmDialog } from "../dialogs/confirmDialog.ts";
 import type { AccountState } from "../../shared/api.ts";
 
 export interface AccountMenu {
@@ -17,7 +18,11 @@ export interface AccountMenu {
   close(): void;
 }
 
-export function createAccountMenu(button: HTMLButtonElement, host: HTMLElement): AccountMenu {
+export function createAccountMenu(
+  button: HTMLButtonElement,
+  host: HTMLElement,
+  confirm: ConfirmDialog,
+): AccountMenu {
   const photo = document.getElementById("account-photo") as HTMLImageElement | null;
   const glyph = document.getElementById("account-glyph");
 
@@ -211,24 +216,30 @@ export function createAccountMenu(button: HTMLButtonElement, host: HTMLElement):
 
   signOut.addEventListener("click", () => {
     // One confirmation, because it is not obvious that signing out of a linked account is
-    // recoverable and signing out of an anonymous one is not.
-    const who = state.state === "linked" ? (state.email ?? state.displayName ?? "this account") : "";
-    const ok = window.confirm(
-      `Sign out of ${who}?
+    // recoverable and signing out of an anonymous one is not. The app's own dialog, not
+    // `window.confirm` - that one is unstyled, and in this Electron it has been measured
+    // returning without waiting for an answer at all.
+    const who = state.state === "linked" ? (state.email ?? state.displayName ?? "this account") : "this account";
 
-Your earnings stay with the account. Sign in with the same provider on this or any machine to get them back.`,
-    );
-    if (!ok) return;
-
-    signOut.disabled = true;
-    void window.adcode.account
-      .signOut()
-      .then((next) => {
-        state = next;
-        render();
+    void confirm
+      .ask({
+        title: `Sign out of ${who}?`,
+        body: "Your earnings stay with the account. Sign in with the same provider, on this or any machine, to get them back.",
+        confirmLabel: "Sign out",
       })
-      .finally(() => {
-        signOut.disabled = false;
+      .then((ok) => {
+        if (!ok) return;
+
+        signOut.disabled = true;
+        return window.adcode.account
+          .signOut()
+          .then((next) => {
+            state = next;
+            render();
+          })
+          .finally(() => {
+            signOut.disabled = false;
+          });
       });
   });
 

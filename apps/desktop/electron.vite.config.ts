@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 
@@ -31,10 +32,39 @@ const alias = {
   "@adcode/debug": resolve(import.meta.dirname, "../../packages/debug/src/index.ts"),
 };
 
+/**
+ * The Google OAuth client secret, which cannot live in the source.
+ *
+ * Google's token endpoint requires it even with PKCE, so a build without it produces an
+ * app whose Google button does not work. But GitHub's push protection rejects any commit
+ * containing one, and a credential in a public repository is published whatever the
+ * vendor's threat model says. So it is substituted here, at build time, from the
+ * environment or from a gitignored `.env` beside this file - reaching the installer
+ * without ever reaching git.
+ *
+ * Absent, it becomes an empty string and the app says Google sign-in is not configured,
+ * which is what it is.
+ */
+function googleClientSecret(): string {
+  const fromEnv = process.env["ADCODE_GOOGLE_CLIENT_SECRET"];
+  if (typeof fromEnv === "string" && fromEnv.length > 0) return fromEnv;
+
+  try {
+    const file = readFileSync(resolve(import.meta.dirname, ".env"), "utf8");
+    const found = /^\s*ADCODE_GOOGLE_CLIENT_SECRET\s*=\s*(.+?)\s*$/m.exec(file);
+    return found?.[1]?.replace(/^["']|["']$/g, "") ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     resolve: { alias },
+    define: {
+      __ADCODE_GOOGLE_CLIENT_SECRET__: JSON.stringify(googleClientSecret()),
+    },
     build: {
       rollupOptions: {
         input: { index: resolve(import.meta.dirname, "src/main/index.ts") },

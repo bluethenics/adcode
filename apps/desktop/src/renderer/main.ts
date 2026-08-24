@@ -2039,7 +2039,7 @@ const reportDialog = createReportDialog(document.body, async (input) => {
 el<HTMLButtonElement>("report-toggle").addEventListener("click", () => reportDialog.open());
 
 /* The account button beside it, and the panel it opens. */
-createAccountMenu(el<HTMLButtonElement>("account-toggle"), document.body);
+createAccountMenu(el<HTMLButtonElement>("account-toggle"), document.body, confirmDialog);
 
 /**
  * Who this window is signed in as, in the status bar after the version.
@@ -2738,9 +2738,10 @@ const portsPanel = createPortsPanel({
   open: (port) => window.adcode.ports.open(port),
   copy: (text) => void window.adcode.clipboard.writeText(text),
   notify: (message) => setStatus(message, 4000),
-  // `confirm` blocks the renderer and cannot be styled, but stopping somebody's database
-  // is exactly the class of action that should be hard to do by accident.
-  confirm: async (message) => window.confirm(message),
+  // Stopping somebody's database is exactly the class of action that should be hard to do
+  // by accident - and the app's own dialog, because `window.confirm` is unstyled and has
+  // been measured in this Electron returning without waiting for an answer.
+  confirm: (message) => confirmDialog.ask({ title: message, confirmLabel: "Stop", danger: true }),
 });
 
 const outputPanel = createOutputPanel({
