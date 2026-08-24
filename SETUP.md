@@ -15,6 +15,34 @@ needs your account or your decision, which is exactly why it is not already done
 
 ---
 
+## Already done, on 2026-08-24
+
+The first deployment is live. Steps 3 to 12 are finished; what is left is marked below.
+
+| | |
+|---|---|
+| Live URL | **https://adcode.bluethenics01.workers.dev** |
+| GitHub | `bluethenics/adcode` — `main` is the code, `design-docs` keeps the original plan |
+| Supabase project | `adcode` · ref `fwtpczrutatendnuavsb` · region `ap-southeast-2` |
+| Firebase project | `adcode-idle` — Anonymous, Google, GitHub, Email/Password all enabled |
+| Worker secrets | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FIREBASE_PROJECT_ID` |
+| Verified | `/v1/health` → `{"ok":true}`, 14 pages 200, `/v1/balance` 401 without a token |
+
+**Still to do: step 13** (your own domain), **step 14** (make yourself an admin), and the
+keepalive at the end of step 13 — which matters more than it looks, because a free Supabase
+project pauses after seven days idle.
+
+> ### Never run `npm install` inside `apps/web`
+>
+> Install from the repository root instead. `apps/web` has no lockfile on purpose: Next and
+> OpenNext both find the workspace root by walking up until they hit one, and a lockfile
+> there makes them stop at `apps/web` — which puts `services/api` outside the project.
+> `npm install` in that folder recreates it, and the next deploy fails with a
+> `module-not-found` on every adapter, or a missing `pages-manifest.json`. Neither error
+> mentions the lockfile.
+
+---
+
 ## What you are building
 
 One thing, on one address.
@@ -574,3 +602,7 @@ public.
 | The editor earns nothing | Anonymous sign-in is not enabled in Firebase (step 7). |
 | The site is stale after a deploy | A hard reload. Cloudflare serves the assets it was given; the Worker itself updates immediately. |
 | `serving_config row 1 is missing` | Step 5's SQL did not finish. Run it again — it is safe to re-run. |
+| Deploy: `module-not-found` on `@adcode/api/...` | A `package-lock.json` has appeared in `apps/web`. Delete it. See the warning at the top. |
+| Deploy: `ENOENT ... pages-manifest.json` | Same cause, same fix. Next wrote the standalone output to a path OpenNext was not looking at. |
+| Build: every page times out after 60s | `NEXT_PUBLIC_API_ORIGIN` is set to an empty value somewhere. Leave the key out entirely rather than setting it blank. |
+| `Secret edit failed ... isn't currently deployed` | The Worker exists but has no version yet. Deploy once, then set secrets. |
