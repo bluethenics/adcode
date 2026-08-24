@@ -26,6 +26,16 @@ const ROOT = join(import.meta.dirname, "..");
 const OUT = join(ROOT, "apps", "web", "src", "lib", "docsSeed.ts");
 
 /**
+ * Read a source file with its line endings normalised.
+ *
+ * Every pattern below is written against LF. On a Windows checkout with `core.autocrlf`
+ * on, these files arrive with CRLF and each one silently matches nothing - which wrote an
+ * empty seed rather than failing. The comparison at the bottom already normalised for the
+ * same reason; the input needs it just as much.
+ */
+const read = (path) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+
+/**
  * The help entries, read out of the source rather than imported.
  *
  * A regex over TypeScript is usually the wrong tool. It is the right one here because the
@@ -36,13 +46,13 @@ const OUT = join(ROOT, "apps", "web", "src", "lib", "docsSeed.ts");
  */
 function readEntries() {
   const dir = join(ROOT, "packages", "help", "src", "entries");
-  const index = readFileSync(join(dir, "index.ts"), "utf8");
+  const index = read(join(dir, "index.ts"));
 
   const files = [...index.matchAll(/from "\.\/([a-zA-Z]+)\.ts"/g)].map((m) => m[1]);
   const entries = [];
 
   for (const file of files) {
-    const source = readFileSync(join(dir, `${file}.ts`), "utf8");
+    const source = read(join(dir, `${file}.ts`));
 
     // Each entry is a `{ ... }` at one indent level inside the exported array.
     for (const block of source.matchAll(/\n  \{\n([\s\S]*?)\n  \},/g)) {
@@ -83,6 +93,12 @@ function readEntries() {
         shortcut: field("shortcut"),
       });
     }
+  }
+
+  // Reading source with regexes fails by matching nothing, which looks exactly like a
+  // package with no entries in it. Refuse to write an empty catalogue over a full one.
+  if (entries.length === 0) {
+    throw new Error(`no help entries found in ${dir} - the source shape has changed`);
   }
 
   return entries;
