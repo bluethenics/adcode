@@ -16,6 +16,7 @@ import { BrowserWindow, app, shell } from "electron";
 import { registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "./protocol.ts";
 import { registerIpc } from "./ipc.ts";
 import { registerSupportIpc } from "./supportIpc.ts";
+import { registerActivityIpc } from "./activity.ts";
 import { onUpdateStatus, registerUpdateIpc, startAutoUpdate } from "./autoUpdate.ts";
 import { startNoticePolling } from "./notices.ts";
 import { startReleasePolling } from "./releases.ts";
@@ -166,6 +167,7 @@ void app.whenReady().then(() => {
   registerAppProtocol(useDevServer);
   registerIpc();
   registerSupportIpc();
+  registerActivityIpc();
   registerUpdateIpc();
   registerAccountIpc();
 

@@ -42,6 +42,7 @@ import {
   type AiStatus,
   type ProposedEditView,
 } from "../shared/api.ts";
+import { recordAgentEdit } from "./activity.ts";
 import { createKeychainStore } from "./keychain.ts";
 import { createAiToolRunner, type ProposedEdit } from "./aiTools.ts";
 import { memoryForWorkspace } from "./memory.ts";
@@ -478,5 +479,19 @@ export async function aiApplyHunks(path: string, acceptedHunkIds: readonly strin
 
   const next = applyHunks(edit.original, edit.hunks, acceptedHunkIds);
   const result = await writeTextFile(path, next);
+
+  if (result.ok) {
+    // Counted here because this is the only place a model-authored change reaches disk.
+    // The number is the growth in the file, not the size of the hunks: a hunk that
+    // replaces twenty lines with twenty-one added one character of the agent's work, and
+    // reporting twenty-one would credit it with the twenty the person had already
+    // written. Only what the agent added is the agent's.
+    recordAgentEdit({
+      chars: Math.max(0, next.length - edit.original.length),
+      acceptedEdits: acceptedHunkIds.length,
+      rejectedEdits: edit.hunks.length - acceptedHunkIds.length,
+    });
+  }
+
   return result.ok;
 }

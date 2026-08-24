@@ -38,6 +38,10 @@ export interface ReportInput {
   readonly body: string;
 }
 
+import type { ActivityDelta } from "./activity.ts";
+
+export type { ActivityDelta };
+
 export type ReportResult =
   | { readonly ok: true; readonly reportId: string }
   | { readonly ok: false; readonly message: string };
@@ -497,6 +501,7 @@ export const CHANNELS = {
   filesOpenDialog: "fs:open-dialog",
   appInfo: "app:info",
   supportSubmitReport: "support:submit-report",
+  activityReport: "activity:report",
   updateStatus: "update:status",
   serviceNotice: "notice:show",
   releaseAnnouncement: "release:announcement",
@@ -1282,6 +1287,13 @@ export interface AdcodeApi {
   readonly support: {
     /** Never rejects: a failure comes back as `{ ok: false, message }` to show the user. */
     submitReport(input: ReportInput): Promise<ReportResult>;
+  };
+  readonly activity: {
+    /**
+     * Hands the editing counters to the main process, which queues, batches, and sends
+     * them. Fire and forget: this must never be able to block or fail the editor.
+     */
+    report(deltas: readonly ActivityDelta[]): void;
   };
   readonly ads: {
     /** The main process asks the renderer to show a toast. */

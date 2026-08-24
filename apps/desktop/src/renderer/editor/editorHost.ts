@@ -239,6 +239,19 @@ export interface EditorHost {
   onDirtyChange(listener: (path: string, dirty: boolean) => void): void;
   onCursorChange(listener: (line: number, column: number) => void): void;
   onSaveRequested(listener: () => void): void;
+  /**
+   * How many characters a person just typed or pasted, and into which file.
+   *
+   * Deliberately not "the buffer changed". A content-change event fires for the
+   * formatter, for a git conflict resolution, for a collaborator's keystroke arriving
+   * over the wire, and for an agent hunk being applied - counting those as something the
+   * user wrote would make the dashboard's manual-versus-agent split a lie. This fires
+   * only for keyboard input and paste.
+   *
+   * Returns its own unsubscribe, unlike the two above: this listener outlives nothing
+   * and has to be able to stop.
+   */
+  onHumanInput(listener: (chars: number, path: string | null) => void): () => void;
   focus(): void;
 }
 
@@ -798,6 +811,38 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
 
     onSaveRequested(listener) {
       saveListeners.push(listener);
+    },
+
+    onHumanInput(listener) {
+      /*
+       * `onDidType` exists on the standalone editor and is missing from its public
+       * typings. It is the one event that means "a person pressed a key here" - the
+       * widget fires it only when the type came from `source === 'keyboard'` - so it is
+       * reached structurally and feature-detected. If a future Monaco drops it, typing
+       * stops being counted and nothing else changes: §9's rule is that the worst
+       * outcome of a broken reporting path is a feature that quietly does nothing.
+       */
+      const typing = (editor as unknown as {
+        onDidType?: (handler: (text: string) => void) => monaco.IDisposable;
+      }).onDidType;
+
+      const typed =
+        typeof typing === "function"
+          ? typing.call(editor, (text: string) => listener(text.length, deps.activeFile()))
+          : null;
+
+      const pasted = editor.onDidPaste((event) => {
+        // The pasted text is never read, only measured: the model reports the length of
+        // the range the paste now occupies, so the content does not pass through here.
+        const model = editor.getModel();
+        const chars = model === null ? 0 : model.getValueLengthInRange(event.range);
+        if (chars > 0) listener(chars, deps.activeFile());
+      });
+
+      return () => {
+        typed?.dispose();
+        pasted.dispose();
+      };
     },
 
     focus() {

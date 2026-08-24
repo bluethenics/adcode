@@ -243,6 +243,11 @@ const api: AdcodeApi = {
   support: {
     submitReport: (input) => ipcRenderer.invoke(CHANNELS.supportSubmitReport, input),
   },
+  activity: {
+    // `send`, not `invoke`: the renderer has nothing to wait for, and a counter flush
+    // must never be able to hold up a keystroke.
+    report: (deltas) => ipcRenderer.send(CHANNELS.activityReport, deltas),
+  },
   ads: {
     onShow: (listener) => subscribe(CHANNELS.adShow, listener),
     onEarnings: (listener) => subscribe(CHANNELS.earningsChanged, listener),

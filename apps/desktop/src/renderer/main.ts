@@ -59,6 +59,7 @@ import { createConnectView } from "./ai/connectView.ts";
 import { ICON, createIcon, iconButton } from "./workbench/icons.ts";
 import { createSettingsView } from "./settings/settingsView.ts";
 import { createEditorHost, languageForFilename, type EditorHost } from "./editor/editorHost.ts";
+import { startActivityTracker } from "./activity/activityTracker.ts";
 import { createTerminalPanel, type TerminalPanel } from "./terminal/terminalPanel.ts";
 import { createNotificationCentre } from "./notifications/notifications.ts";
 import { createReleaseNotice } from "./releases/releaseNotice.ts";
@@ -142,6 +143,16 @@ const editorHost: EditorHost = createEditorHost(el("editor-host"), {
   absolute: (relative) =>
     workspaceRoot === null ? relative : `${workspaceRoot.replace(/[\/]+$/, "")}/${relative}`,
 });
+
+/*
+ * The editing counters.
+ *
+ * Started right after the editor exists, because a session that is not counted from its
+ * first keystroke is a session whose numbers are quietly short. It only ever counts -
+ * see `activity/activityTracker.ts` for what is deliberately not counted, and
+ * `shared/activity.ts` for why nothing it sends can carry a filename or a line of code.
+ */
+startActivityTracker(editorHost, (deltas) => window.adcode.activity.report(deltas));
 
 /* ── Settings ─────────────────────────────────────────────────────────── */
 
