@@ -7,14 +7,19 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 /**
  * This deploys to a Cloudflare Worker via `@opennextjs/cloudflare`.
- *
- * No `output: "standalone"`. That existed for Cloud Run, which needed a self-contained
- * Node server in a container; the Cloudflare adapter builds its own bundle from `.next` and
- * a standalone copy alongside it is just a second, unused build of the same app.
  */
 const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+
+  /*
+   * Required, not left over from the Cloud Run deployment this replaced. The adapter does
+   * not bundle from `.next`: `@opennextjs/aws`, which the Cloudflare adapter builds on,
+   * reads `.next/standalone` by hard-coded path (`copyTracedFiles.js`). Without this the
+   * site builds cleanly and then the bundle step dies on a missing `pages-manifest.json`,
+   * which reads like a broken adapter rather than a missing option.
+   */
+  output: "standalone",
 
   /*
    * `services/api` lives outside this app's directory, and `/v1/*` imports it. Next

@@ -26,3 +26,7 @@ apps/web/next-env.d.ts
 
 # Copied from node_modules by scripts/grammars.mjs - see the note there.
 apps/desktop/src/renderer/public/grammars/
+
+# Cloudflare build output and local wrangler state.
+apps/web/.open-next/
+apps/web/.wrangler/
