@@ -244,6 +244,21 @@ export interface AuditRecord {
   at: number;
 }
 
+/**
+ * An administrator, identified by email address.
+ *
+ * Email rather than uid because that is what the person doing the appointing knows, and
+ * because someone can be made an admin before they have ever signed in - which a uid
+ * cannot express. Always stored lowercased; `authenticate()` lowercases before comparing,
+ * so a mixed-case row would simply never match anything.
+ */
+export interface AdminRecord {
+  email: string;
+  /** The uid that granted it, or `setup` for the founding administrator. */
+  addedBy: string;
+  addedAt: number;
+}
+
 export interface Store {
   getUser(uid: string): Promise<UserRecord | null>;
   putUser(user: UserRecord): Promise<void>;
@@ -317,4 +332,14 @@ export interface Store {
 
   writeAudit(record: AuditRecord): Promise<void>;
   listAudit(): Promise<AuditRecord[]>;
+
+  /** Is this address an administrator? Called on every request, so it must be one lookup. */
+  isAdmin(email: string): Promise<boolean>;
+  listAdmins(): Promise<AdminRecord[]>;
+  /** True when added, false when the address was already an admin. */
+  addAdmin(record: AdminRecord): Promise<boolean>;
+  /** True when removed, false when the address was not an admin. */
+  removeAdmin(email: string): Promise<boolean>;
+  /** Used to refuse the removal that would leave nobody able to administer anything. */
+  countAdmins(): Promise<number>;
 }

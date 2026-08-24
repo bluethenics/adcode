@@ -8,6 +8,7 @@
 import { handleLedger } from "./balance.ts";
 import type { LedgerResponseBody } from "./contract.ts";
 import type {
+  AdminRecord,
   AdvertiserRecord,
   Clock,
   CreativeRecord,
@@ -512,4 +513,87 @@ export async function handleListNotices(
     at: deps.clock.now(),
   });
   return deps.store.listNotices({ activeOnly: false });
+}
+
+/* ── Administrators ──────────────────────────────────────────────────────── */
+
+/**
+ * A very small amount of validation, on purpose.
+ *
+ * This is not a signup form: it checks the address is shaped like one and lowercases it,
+ * and leaves everything else to the fact that an admin only counts once a real provider
+ * has verified that same address (see `adminFromEmail` in `auth.ts`). Being generous here
+ * cannot grant anybody anything.
+ */
+export function parseAdminEmail(raw: unknown): string | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const email = (raw as { email?: unknown }).email;
+  if (typeof email !== "string") return null;
+
+  const trimmed = email.trim().toLowerCase();
+  if (trimmed.length === 0 || trimmed.length > 320) return null;
+  // One `@`, something either side, and a dot in the domain. Deliberately not RFC 5322.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return null;
+
+  return trimmed;
+}
+
+export async function handleListAdmins(deps: AdminDeps, adminUid: string): Promise<AdminRecord[]> {
+  await deps.store.writeAudit({
+    adminUid,
+    action: "read-admins",
+    subjectUid: "*",
+    at: deps.clock.now(),
+  });
+  return deps.store.listAdmins();
+}
+
+export type AdminChange =
+  | { ok: true; admins: AdminRecord[] }
+  | { ok: false; reason: "already-admin" | "not-admin" | "last-admin" };
+
+export async function handleAddAdmin(
+  deps: AdminDeps,
+  adminUid: string,
+  email: string,
+): Promise<AdminChange> {
+  const added = await deps.store.addAdmin({ email, addedBy: adminUid, addedAt: deps.clock.now() });
+  if (!added) return { ok: false, reason: "already-admin" };
+
+  await deps.store.writeAudit({
+    adminUid,
+    action: `admin:grant:${email}`,
+    subjectUid: email,
+    at: deps.clock.now(),
+  });
+
+  return { ok: true, admins: await deps.store.listAdmins() };
+}
+
+/**
+ * Remove an administrator.
+ *
+ * Refuses to remove the last one. Nothing else in this system can appoint an admin - the
+ * founding row was seeded by a migration - so emptying this table locks everybody out of
+ * the admin panel permanently, and the only way back is a hand-written SQL statement
+ * against production. Removing yourself is allowed as long as somebody else remains.
+ */
+export async function handleRemoveAdmin(
+  deps: AdminDeps,
+  adminUid: string,
+  email: string,
+): Promise<AdminChange> {
+  if ((await deps.store.countAdmins()) <= 1) return { ok: false, reason: "last-admin" };
+
+  const removed = await deps.store.removeAdmin(email);
+  if (!removed) return { ok: false, reason: "not-admin" };
+
+  await deps.store.writeAudit({
+    adminUid,
+    action: `admin:revoke:${email}`,
+    subjectUid: email,
+    at: deps.clock.now(),
+  });
+
+  return { ok: true, admins: await deps.store.listAdmins() };
 }

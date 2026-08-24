@@ -1,6 +1,9 @@
 {
   "name": "adcode",
   "version": "0.1.0",
+  "bin": {
+    "adcode": "scripts/adcode.mjs"
+  },
   "private": true,
   "type": "module",
   "description": "ADCode - an ad-supported, AI-native IDE",

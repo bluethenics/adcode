@@ -24,7 +24,11 @@ import {
   handleSetAdvertiserStatus,
   handlePublishNotice,
   handleRetractNotice,
+  handleAddAdmin,
+  handleListAdmins,
+  handleRemoveAdmin,
   handleListNotices,
+  parseAdminEmail,
   parseNotice,
   parsePost,
   parseRelease,
@@ -449,6 +453,48 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         return;
       }
       send(res, 200, updated, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/admins" && req.method === "GET") {
+      send(res, 200, { admins: await handleListAdmins({ store, clock }, auth.uid) }, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/admins" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const email = parseAdminEmail(raw);
+      if (email === null) {
+        send(res, 400, { error: "malformed email" }, cors);
+        return;
+      }
+      const result = await handleAddAdmin({ store, clock }, auth.uid, email);
+      if (!result.ok) {
+        send(res, 409, { error: result.reason }, cors);
+        return;
+      }
+      send(res, 200, { admins: result.admins }, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/admins/remove" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const email = parseAdminEmail(raw);
+      if (email === null) {
+        send(res, 400, { error: "malformed email" }, cors);
+        return;
+      }
+      const result = await handleRemoveAdmin({ store, clock }, auth.uid, email);
+      if (!result.ok) {
+        // 409 for both: the request was well formed and the server refused it. A 404 for
+        // "not an admin" would leak whether an address is one to anybody who can reach
+        // this route - which is only ever another admin, but the distinction costs nothing.
+        send(res, 409, { error: result.reason }, cors);
+        return;
+      }
+      send(res, 200, { admins: result.admins }, cors);
       return;
     }
 

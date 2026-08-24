@@ -13,6 +13,7 @@
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../src/ledger.ts";
 import type {
   AdvertiserRecord,
+  AdminRecord,
   AuditRecord,
   CampaignStats,
   CampaignRecord,
@@ -551,6 +552,37 @@ export function createFirestoreStore(injected?: Firestore): Store {
         .limit(500)
         .get();
       return snap.docs.map((d) => d.data() as AuditRecord);
+    },
+
+    // Administrators, keyed by the lowercased email so the document id *is* the lookup.
+    async isAdmin(email: string) {
+      const doc = await (await lazy()).collection("admins").doc(email.toLowerCase()).get();
+      return doc.exists;
+    },
+
+    async listAdmins() {
+      const snap = await (await lazy()).collection("admins").orderBy("addedAt", "desc").get();
+      return snap.docs.map((d) => d.data() as AdminRecord);
+    },
+
+    async addAdmin(record: AdminRecord) {
+      const email = record.email.toLowerCase();
+      const ref = (await lazy()).collection("admins").doc(email);
+      if ((await ref.get()).exists) return false;
+      await ref.set({ ...record, email });
+      return true;
+    },
+
+    async removeAdmin(email: string) {
+      const ref = (await lazy()).collection("admins").doc(email.toLowerCase());
+      if (!(await ref.get()).exists) return false;
+      await ref.delete();
+      return true;
+    },
+
+    async countAdmins() {
+      const snap = await (await lazy()).collection("admins").get();
+      return snap.size;
     },
   };
 

@@ -20,6 +20,7 @@
 import type { LedgerEntry } from "../src/ledger.ts";
 import type {
   AdvertiserRecord,
+  AdminRecord,
   AuditRecord,
   CampaignRecord,
   CreativeRecord,
@@ -249,6 +250,8 @@ export const RELEASE_COLS =
 export const CONFIG_COLS =
   "kill_switch,min_interval_ms,daily_cap,default_cpm_micros::text,rev_share_percent::text,spend_shard_count,serve_ttl_ms,rate_window_ms,requests_per_window";
 export const AUDIT_COLS = "admin_uid,action,subject_uid,at";
+
+export const ADMIN_COLS = "email,added_by,added_at";
 
 // ---------------------------------------------------------------------------
 // Row to record.
@@ -616,5 +619,30 @@ export function fromAudit(a: AuditRecord): AuditRow {
     action: a.action,
     subject_uid: a.subjectUid,
     at: a.at,
+  };
+}
+
+export interface AdminRow {
+  email: string;
+  added_by: string;
+  added_at: number;
+}
+
+export function toAdmin(row: AdminRow): AdminRecord {
+  return {
+    email: row.email,
+    addedBy: row.added_by,
+    addedAt: row.added_at,
+  };
+}
+
+export function fromAdmin(a: AdminRecord): AdminRow {
+  return {
+    // Lowercased on the way in as well as on the way out. The column has a check
+    // constraint saying the same thing, so a miss here is a write error, not a silent
+    // row nothing will ever match.
+    email: a.email.toLowerCase(),
+    added_by: a.addedBy,
+    added_at: a.addedAt,
   };
 }

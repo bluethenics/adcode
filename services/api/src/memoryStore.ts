@@ -8,6 +8,7 @@
  */
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "./ledger.ts";
 import type {
+  AdminRecord,
   AdvertiserRecord,
   AuditRecord,
   CampaignStats,
@@ -60,6 +61,7 @@ export function createMemoryStore(): Store & { reset(): void } {
   let notices = new Map<string, NoticeRecord>();
   let testServes = new Map<string, string>();
   let audit: AuditRecord[] = [];
+  let admins = new Map<string, AdminRecord>();
   let config: ServingConfig = { ...DEFAULT_CONFIG };
 
   return {
@@ -81,6 +83,7 @@ export function createMemoryStore(): Store & { reset(): void } {
       notices = new Map();
       testServes = new Map();
       audit = [];
+      admins = new Map();
       config = { ...DEFAULT_CONFIG };
     },
 
@@ -336,6 +339,29 @@ export function createMemoryStore(): Store & { reset(): void } {
 
     async listAudit() {
       return [...audit];
+    },
+
+    async isAdmin(email) {
+      return admins.has(email.toLowerCase());
+    },
+
+    async listAdmins() {
+      return [...admins.values()].sort((a, b) => b.addedAt - a.addedAt || a.email.localeCompare(b.email));
+    },
+
+    async addAdmin(record) {
+      const email = record.email.toLowerCase();
+      if (admins.has(email)) return false;
+      admins.set(email, { ...record, email });
+      return true;
+    },
+
+    async removeAdmin(email) {
+      return admins.delete(email.toLowerCase());
+    },
+
+    async countAdmins() {
+      return admins.size;
     },
   };
 }

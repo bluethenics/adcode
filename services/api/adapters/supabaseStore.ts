@@ -26,6 +26,7 @@
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../src/ledger.ts";
 import {
   ADVERTISER_COLS,
+  ADMIN_COLS,
   AUDIT_COLS,
   BALANCE_COLS,
   CAMPAIGN_COLS,
@@ -40,6 +41,7 @@ import {
   SERVE_COLS,
   USER_COLS,
   fromAdvertiser,
+  fromAdmin,
   fromAudit,
   fromCampaign,
   fromConfig,
@@ -53,6 +55,7 @@ import {
   fromServe,
   fromUser,
   toAdvertiser,
+  toAdmin,
   toAudit,
   toCampaign,
   toConfig,
@@ -67,6 +70,7 @@ import {
   toServe,
   toUser,
   type AdvertiserRow,
+  type AdminRow,
   type AuditRow,
   type BalanceRow,
   type CampaignRow,
@@ -598,6 +602,42 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
         db.from("audit_log").select(AUDIT_COLS).order("id", { ascending: true }),
       );
       return rows.map(toAudit);
+    },
+
+    async isAdmin(email) {
+      // `maybeSingle` semantics via the shared helper: a miss is null, not an error.
+      const row = await maybe<{ email: string }>("isAdmin", (db) =>
+        db.from("admins").select("email").eq("email", email.toLowerCase()).maybeSingle(),
+      );
+      return row !== null;
+    },
+
+    async listAdmins() {
+      const rows = await many<AdminRow>("listAdmins", (db) =>
+        db.from("admins").select(ADMIN_COLS).order("added_at", { ascending: false }),
+      );
+      return rows.map(toAdmin);
+    },
+
+    async addAdmin(record) {
+      // `ignoreDuplicates` turns the unique violation into an empty result, which is what
+      // "false when they were already an admin" means without reading first and racing.
+      const rows = await many<AdminRow>("addAdmin", (db) =>
+        db.from("admins").upsert(fromAdmin(record), { onConflict: "email", ignoreDuplicates: true }).select(ADMIN_COLS),
+      );
+      return rows.length > 0;
+    },
+
+    async removeAdmin(email) {
+      const rows = await many<AdminRow>("removeAdmin", (db) =>
+        db.from("admins").delete().eq("email", email.toLowerCase()).select(ADMIN_COLS),
+      );
+      return rows.length > 0;
+    },
+
+    async countAdmins() {
+      const rows = await many<{ email: string }>("countAdmins", (db) => db.from("admins").select("email"));
+      return rows.length;
     },
   };
 }

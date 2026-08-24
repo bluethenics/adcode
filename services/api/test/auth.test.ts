@@ -7,7 +7,14 @@ let store: ReturnType<typeof createMemoryStore>;
 const verifier: TokenVerifier = {
   async verify(idToken) {
     if (idToken === "good") return { uid: "u-1", claims: {} };
-    if (idToken === "admin") return { uid: "admin-1", claims: { admin: true } };
+    if (idToken === "admin") {
+      return { uid: "admin-1", claims: { email: "admin@adcode.test", email_verified: true } };
+    }
+    // The same address, but the provider never verified it. Email/Password sign-up would
+    // let anybody create this account, so it must not be an admin.
+    if (idToken === "unverified") {
+      return { uid: "imposter", claims: { email: "admin@adcode.test", email_verified: false } };
+    }
     return null;
   },
 };
@@ -18,6 +25,7 @@ beforeEach(async () => {
   store = createMemoryStore();
   await store.putUser({ uid: "u-1", status: "active", createdAt: 0 });
   await store.putUser({ uid: "admin-1", status: "active", createdAt: 0 });
+  await store.addAdmin({ email: "admin@adcode.test", addedBy: "setup", addedAt: 0 });
 });
 
 describe("bearerFrom", () => {

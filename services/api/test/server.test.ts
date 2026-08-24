@@ -8,7 +8,11 @@ import type { PaymentProvider } from "../src/payments.ts";
 const verifier: TokenVerifier = {
   async verify(token) {
     if (token === "good") return { uid: "u-1", claims: {} };
-    if (token === "admin") return { uid: "admin-1", claims: { admin: true } };
+    // Admin is the `admins` table now, not a claim - so the token only has to carry a
+    // verified address, and the store below decides what it means.
+    if (token === "admin") {
+      return { uid: "admin-1", claims: { email: "admin@adcode.test", email_verified: true } };
+    }
     return null;
   },
 };
@@ -37,8 +41,9 @@ afterAll(async () => {
   await server.close();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   store.reset();
+  await store.addAdmin({ email: "admin@adcode.test", addedBy: "setup", addedAt: 0 });
 });
 
 const get = (path: string, headers: Record<string, string> = auth) =>

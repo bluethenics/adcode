@@ -1,11 +1,15 @@
 /**
  * Who is calling, and are they allowed to?
  *
- * Spec §7: identity comes from the token, never from a body field. Roles come from
- * Firebase custom claims, which live inside the verified token, so authorising a request
- * costs no reads. Ban status comes from the store instead, because a ban has to take
- * effect on the next request rather than whenever the token happens to refresh
- * (decision #6).
+ * Spec §7: identity comes from the token, never from a body field. Ban status comes from
+ * the store, because a ban has to take effect on the next request rather than whenever the
+ * token happens to refresh (decision #6).
+ *
+ * Admin used to come from a Firebase custom claim, which was free to read but could only
+ * be *written* from Google Cloud Shell - so there was no way to build a screen for
+ * appointing administrators without handing this service a service-account private key.
+ * It now comes from the `admins` table instead. That costs nothing extra: the ban check
+ * above already reads this database on every single request.
  */
 import type { Clock, Store } from "./store.ts";
 
@@ -57,7 +61,26 @@ export async function authenticate(
 
   if (user.status === "banned") return { ok: false, failure: "banned" };
 
-  // Strict equality against `true`: a claim of the string "true" is not an admin claim,
-  // and a truthiness check here would make it one.
-  return { ok: true, uid: verified.uid, isAdmin: verified.claims["admin"] === true };
+  return { ok: true, uid: verified.uid, isAdmin: await adminFromEmail(deps, verified) };
+}
+
+/**
+ * Whether this token belongs to an administrator.
+ *
+ * Two conditions, and the second is the one that matters. The address must be in the
+ * `admins` table, **and the token must say the provider verified it**. Email/Password
+ * sign-up is enabled, so without that check anyone could register an account claiming the
+ * founding administrator's address and be handed the admin panel - the account would be
+ * useless for reading that person's mail and perfectly sufficient for taking over the site.
+ *
+ * Strict equality against `true` throughout: a claim of the string `"true"` is not a
+ * verified email, and a truthiness check here would make it one.
+ */
+async function adminFromEmail(deps: AuthDeps, verified: VerifiedToken): Promise<boolean> {
+  if (verified.claims["email_verified"] !== true) return false;
+
+  const claimed = verified.claims["email"];
+  if (typeof claimed !== "string" || claimed.length === 0) return false;
+
+  return deps.store.isAdmin(claimed.toLowerCase());
 }

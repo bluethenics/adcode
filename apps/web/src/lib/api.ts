@@ -36,6 +36,9 @@ export type ApiError =
   | "no-approved-creative"
   | "invalid-state"
   | "rate-limited"
+  | "already-admin"
+  | "not-admin"
+  | "last-admin"
   | "provider-unavailable"
   | "offline"
   | "bad-request"
@@ -53,6 +56,9 @@ const KNOWN: ReadonlySet<string> = new Set<ApiError>([
   "no-approved-creative",
   "invalid-state",
   "rate-limited",
+  "already-admin",
+  "not-admin",
+  "last-admin",
 ]);
 
 function classify(status: number, body: unknown): ApiError {
@@ -80,6 +86,9 @@ export const MESSAGES: Record<ApiError, string> = {
   "no-approved-creative": "Add a creative and wait for it to be approved before going live.",
   "invalid-state": "That change isn't allowed from the current state.",
   "rate-limited": "Too many requests. Wait a moment and try again.",
+  "already-admin": "That address is already an administrator.",
+  "not-admin": "That address isn't an administrator.",
+  "last-admin": "That's the only administrator left. Appoint someone else first, or nobody can get back in.",
   "provider-unavailable": "The payment provider didn't respond. Try again shortly.",
   offline: "Couldn't reach the server. Check your connection.",
   "bad-request": "Something in that form wasn't accepted. Check the fields and retry.",
