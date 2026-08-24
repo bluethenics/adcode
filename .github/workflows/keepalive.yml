@@ -25,11 +25,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping the health endpoint
+        # The workers.dev hostname, not the custom domain: it works from the first deploy,
+        # and it keeps working after a custom domain is attached, so this needs no edit
+        # later. Set an ADCODE_HEALTH_URL repository variable to point it somewhere else.
+        env:
+          ADCODE_HEALTH_URL: ${{ vars.ADCODE_HEALTH_URL }}
         run: |
           set -euo pipefail
           status=$(curl --silent --show-error --location --max-time 30 \
             --output /dev/null --write-out '%{http_code}' \
-            https://adcode.bluethenics.com/v1/health)
+            "${ADCODE_HEALTH_URL:-https://adcode.bluethenics01.workers.dev/v1/health}")
 
           echo "health returned $status"
 
