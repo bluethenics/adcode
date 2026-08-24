@@ -1,4 +1,9 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
+
+/** This file's directory. `import.meta.dirname` is not in this project's `ImportMeta` type. */
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 /**
  * This deploys to a Cloudflare Worker via `@opennextjs/cloudflare`.
@@ -16,6 +21,18 @@ const config: NextConfig = {
    * refuses to bundle files from outside the project root without this.
    */
   experimental: { externalDir: true },
+
+  /*
+   * Pin the root Turbopack resolves modules against. Files outside it are not resolved at
+   * all, and `@adcode/api/*` points at `../../services/api/*`, so getting this wrong fails
+   * the build with a module-not-found on every adapter.
+   *
+   * It has to be pinned because Next infers the root from the nearest lockfile, and that
+   * inference depends on the working directory: from the repository root it picks the
+   * repository, but `npm run deploy` runs from `apps/web`, where it picks `apps/web` and
+   * puts the API outside the project. Same code, same command, two different answers.
+   */
+  turbopack: { root: join(HERE, "..", "..") },
 
   async headers() {
     return [
