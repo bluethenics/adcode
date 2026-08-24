@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
 const ROUTES = [
   "M-60 136H112L176 200H362L426 136H552", "M24 454H140V378H244L310 312H466L540 238H716",
   "M490 -30V92L552 154H718V268H906L972 334H1180", "M690 606V498H812L888 422H1034V330H1184",
@@ -11,8 +15,83 @@ const ROUTES = [
   "M252 -20V82L322 152H472L548 228V338", "M1006 -20V78L932 152H786L712 226V338",
 ] as const;
 
-const PULSES = [[0, "pulse-one"], [1, "pulse-two"], [2, "pulse-three"], [3, "pulse-four"], [5, "pulse-five"], [7, "pulse-six"], [14, "pulse-seven"], [17, "pulse-eight"]] as const;
+/**
+ * Four, not eight.
+ *
+ * Each pulse is a `stroke-dashoffset` animation, and that property cannot be handed to
+ * the compositor - every frame repaints the path's whole bounding box, and these boxes
+ * span the viewport. Eight of them, each previously carrying two `drop-shadow` filters,
+ * meant the browser re-rasterised most of the hero sixty times a second for as long as
+ * the tab was open. Four unfiltered ones read as the same effect and cost a fraction of
+ * it; the glow is now a second, wider, translucent stroke, which is paint rather than a
+ * filter pass.
+ */
+const PULSES = [
+  [0, "pulse-one"],
+  [2, "pulse-two"],
+  [5, "pulse-three"],
+  [11, "pulse-four"],
+] as const;
 
+const NODES = [
+  "112 136", "176 200", "426 136", "140 378", "310 312", "552 154", "718 268",
+  "888 422", "966 510", "196 606", "354 574", "1152 248", "142 250",
+] as const;
+
+/**
+ * The circuit behind the headline.
+ *
+ * A client component only so it can stop. Once the hero has scrolled away the pulses are
+ * still animating, still repainting, and still competing with the scroll they are no
+ * longer visible during - which is exactly what "the landing page feels laggy" was. An
+ * `IntersectionObserver` pauses them the moment the hero leaves the screen.
+ *
+ * It renders identically on the server, so the picture is right on first paint and only
+ * the pausing arrives with the JavaScript.
+ */
 export function HeroCircuit() {
-  return <div className="hero-circuit" aria-hidden="true"><svg viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" role="presentation"><g className="hero-circuit__traces">{ROUTES.map((route, index) => <path className="hero-circuit__trace" d={route} key={index} />)}</g><g className="hero-circuit__nodes">{["112 136", "176 200", "426 136", "140 378", "310 312", "552 154", "718 268", "888 422", "966 510", "196 606", "354 574", "1152 248", "142 250"].map((point) => { const [cx, cy] = point.split(" "); return <circle cx={cx} cy={cy} r="5" key={point} />; })}</g><g className="hero-circuit__signals">{PULSES.map(([routeIndex, name]) => <path className={`hero-circuit__pulse ${name}`} d={ROUTES[routeIndex]} key={name} />)}</g></svg></div>;
+  const box = useRef<HTMLDivElement>(null);
+  const [running, setRunning] = useState(true);
+
+  useEffect(() => {
+    const element = box.current;
+    if (element === null) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => setRunning(entries[0]?.isIntersecting ?? true),
+      // A margin, so it resumes a beat before it is visible rather than starting
+      // mid-scroll with every dash frozen where it stopped.
+      { rootMargin: "160px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div className="hero-circuit" data-paused={running ? undefined : "true"} ref={box} aria-hidden="true">
+      <svg viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" role="presentation">
+        <g className="hero-circuit__traces">
+          {ROUTES.map((route, index) => (
+            <path className="hero-circuit__trace" d={route} key={index} />
+          ))}
+        </g>
+        <g className="hero-circuit__nodes">
+          {NODES.map((point) => {
+            const [cx, cy] = point.split(" ");
+            return <circle cx={cx} cy={cy} r="5" key={point} />;
+          })}
+        </g>
+        <g className="hero-circuit__signals">
+          {PULSES.map(([routeIndex, name]) => (
+            <g key={name}>
+              {/* The glow: the same dash, wider and faint, under the bright one. Two
+                  cheap strokes instead of one stroke and two filter passes. */}
+              <path className={`hero-circuit__glow ${name}`} d={ROUTES[routeIndex]} />
+              <path className={`hero-circuit__pulse ${name}`} d={ROUTES[routeIndex]} />
+            </g>
+          ))}
+        </g>
+      </svg>
+    </div>
+  );
 }

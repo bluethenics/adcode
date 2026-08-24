@@ -1485,3 +1485,999 @@ body { background: #000; }
     animation: none !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   iOS layer
+   ═══════════════════════════════════════════════════════════════════════════
+
+   The app areas - dashboard, portal, admin - are shaped like an iOS app: large
+   titles, inset grouped lists, segmented controls, cards with generous corners,
+   and springs instead of linear fades.
+
+   The ground stays black and `--money` stays reserved. Adopting iOS's light grey
+   would have meant two visual worlds on one site, and a product whose marketing
+   page and whose app look unrelated teaches people the wrong thing about it
+   before they open either. What is borrowed is the *structure*, which is the
+   part that makes an iOS screen legible: one clear title, related rows in a
+   single rounded block, and controls that look pressable.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Apple's own spring, and the corner radii from its grouped table views. */
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --radius-ios: 16px;
+  --radius-ios-lg: 22px;
+
+  /* The two surfaces an iOS screen is built from: a ground and one step up. */
+  --ios-raised: #131719;
+  --ios-hairline: rgba(255, 255, 255, 0.08);
+  --ios-fill: rgba(255, 255, 255, 0.06);
+}
+
+/* -- Large title -------------------------------------------------------- */
+
+.app-head {
+  display: block;
+  margin-bottom: 22px;
+}
+
+.large-title {
+  font-size: clamp(30px, 4.4vw, 42px);
+  letter-spacing: -0.04em;
+}
+
+.large-title-sub {
+  margin-top: 8px;
+  font-size: 15.5px;
+  color: var(--muted);
+  max-width: 56ch;
+}
+
+.section-title {
+  font-size: 19px;
+  margin: 34px 0 12px;
+}
+
+/* -- Cards -------------------------------------------------------------- */
+
+.ios-card {
+  padding: 22px;
+  margin-bottom: 18px;
+  border: 1px solid var(--ios-hairline);
+  border-radius: var(--radius-ios-lg);
+  background: var(--ios-raised);
+}
+
+.ios-card-head {
+  margin-bottom: 18px;
+}
+
+.ios-card-head h2 {
+  font-size: 17.5px;
+  letter-spacing: -0.02em;
+}
+
+.ios-card-head p {
+  margin-top: 5px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+/* Two cards side by side where there is room, stacked where there is not. */
+.ios-split {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.ios-split > .ios-card {
+  margin-bottom: 0;
+}
+
+/* -- Inset grouped list ------------------------------------------------- */
+
+/*
+ * The shape iOS uses for anything that is a list of related things: one rounded
+ * block, hairlines between the rows and none at the ends. The hairline is drawn
+ * with a border on every row but the last rather than a separator element, so a
+ * row can be a link, a button, or an `li` without changing the markup around it.
+ */
+.ios-group {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  border-radius: var(--radius-ios);
+  background: var(--ios-fill);
+  overflow: hidden;
+}
+
+.ios-group > li,
+.ios-group > a,
+.ios-group > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  padding: 13px 16px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--ios-hairline);
+  cursor: pointer;
+}
+
+.ios-group > li:last-child,
+.ios-group > a:last-child,
+.ios-group > button:last-child {
+  border-bottom: 0;
+}
+
+.ios-group > a:hover,
+.ios-group > button:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ios-group-plain > li {
+  cursor: default;
+}
+
+.ios-group-plain > li > span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.ios-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+}
+
+.ios-row strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 560;
+}
+
+.ios-row small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.ios-row-action {
+  color: var(--muted);
+  font-size: 17px;
+}
+
+/* -- Disclosure --------------------------------------------------------- */
+
+.ios-disclosure {
+  margin: 16px 0 4px;
+  border-top: 1px solid var(--ios-hairline);
+  padding-top: 14px;
+}
+
+.ios-disclosure > summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 520;
+  color: var(--muted);
+  list-style: none;
+}
+
+.ios-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ios-disclosure > summary::before {
+  content: "›";
+  display: inline-block;
+  margin-right: 8px;
+  transition: transform 200ms var(--ease);
+}
+
+.ios-disclosure[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.ios-disclosure[open] > summary {
+  color: var(--text);
+  margin-bottom: 14px;
+}
+
+/* -- Segmented control -------------------------------------------------- */
+
+.segmented {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--count), 1fr);
+  gap: 0;
+  margin-bottom: 22px;
+  padding: 3px;
+  border-radius: 11px;
+  background: var(--ios-fill);
+  max-width: 460px;
+}
+
+/*
+ * The selection is one element that slides. Repainting four backgrounds instead
+ * reads as a flicker, and the translation is what makes it feel like a control
+ * rather than a set of links.
+ */
+.segmented-pill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / var(--count));
+  border-radius: 8px;
+  background: #2c3134;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45), inset 0 1px rgba(255, 255, 255, 0.07);
+  transform: translateX(calc(var(--index) * 100%));
+  transition: transform 320ms var(--ease-spring);
+}
+
+.segmented-option {
+  position: relative;
+  z-index: 1;
+  padding: 7px 10px;
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 540;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 200ms var(--ease);
+}
+
+.segmented-option:has(input:checked) {
+  color: var(--text);
+}
+
+.segmented-option input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  cursor: pointer;
+}
+
+.segmented-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+/* -- Hero figure -------------------------------------------------------- */
+
+.hero-balance {
+  display: grid;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-balance-label {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+/*
+ * The one number a screen leads with. Proportional figures, not tabular: at this
+ * size `tabular-nums` gives every digit the width of a zero and a number like
+ * $121 reads loose. Tabular is for columns, which is where the ledger uses it.
+ */
+.hero-figure {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-size: clamp(38px, 6vw, 56px);
+  font-weight: 620;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.hero-balance-sub {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.hero-balance-spark {
+  margin-top: 10px;
+  max-width: 260px;
+}
+
+/* -- Stat tiles --------------------------------------------------------- */
+
+.ios-tiles {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-bottom: 18px;
+}
+
+.ios-tiles-tight {
+  margin-bottom: 0;
+  gap: 10px;
+}
+
+.ios-tile {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  border-radius: var(--radius-ios);
+  background: var(--ios-fill);
+}
+
+.ios-tile-label {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.ios-tile-value {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.ios-tile-hint {
+  font-size: 12px;
+  color: var(--faint);
+}
+
+/* -- Meters ------------------------------------------------------------- */
+
+.meter-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.meter-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  margin-bottom: 7px;
+}
+
+.meter-track {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--ios-fill);
+  overflow: hidden;
+}
+
+.meter-track-lg {
+  height: 12px;
+  border-radius: 6px;
+}
+
+.meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 520ms var(--ease);
+}
+
+.meter-foot {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+/* -- Skeletons ---------------------------------------------------------- */
+
+/*
+ * A shape, not the word "Loading". The content that arrives lands in the same
+ * boxes, so nothing jumps when it does - which is the actual complaint behind
+ * "the page feels slow".
+ */
+.skeleton {
+  border-radius: var(--radius-ios);
+  background: linear-gradient(90deg, var(--ios-fill), rgba(255, 255, 255, 0.1), var(--ios-fill));
+  background-size: 220% 100%;
+  animation: skeleton 1.4s linear infinite;
+}
+
+.skeleton-title {
+  height: 42px;
+  width: min(320px, 60%);
+  margin-bottom: 22px;
+}
+
+.skeleton-card {
+  height: 190px;
+  margin-bottom: 18px;
+}
+
+.skeleton-tiles {
+  height: 92px;
+  margin-bottom: 18px;
+}
+
+@keyframes skeleton {
+  to {
+    background-position: -120% 0;
+  }
+}
+
+/* -- Account menu ------------------------------------------------------- */
+
+.account {
+  position: relative;
+}
+
+.account-trigger {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(160deg, #3a4145, #1b1f21);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: 13px;
+  font-weight: 620;
+  color: var(--text);
+}
+
+.avatar-lg {
+  width: 42px;
+  height: 42px;
+  font-size: 17px;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 268px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: var(--radius-ios-lg);
+  background: #16191b;
+  box-shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.8);
+  z-index: 60;
+  transform-origin: top right;
+  animation: sheet-in 240ms var(--ease-spring) both;
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(-6px);
+  }
+}
+
+.account-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 4px 14px;
+}
+
+.account-head strong {
+  display: block;
+  font-size: 14.5px;
+}
+
+.account-head span {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.account-signout {
+  color: #ff6b6b;
+  font-weight: 540;
+}
+
+.nav-signin {
+  font-size: 14.5px;
+  color: var(--muted);
+}
+
+.nav-signin:hover {
+  color: var(--text);
+}
+
+/* -- Copy field --------------------------------------------------------- */
+
+.copy-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 13px 16px;
+  border-radius: var(--radius-ios);
+  background: var(--ios-fill);
+  margin-bottom: 10px;
+}
+
+.copy-label {
+  font-size: 13px;
+  color: var(--muted);
+  min-width: 88px;
+}
+
+.copy-value {
+  flex: 1 1 200px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.copy-button {
+  padding: 5px 12px;
+  border: 1px solid var(--ios-hairline);
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.copy-button:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* -- Providers ---------------------------------------------------------- */
+
+.provider-stack {
+  display: grid;
+  gap: 9px;
+  margin-bottom: 4px;
+}
+
+.btn-provider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+.btn-provider:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 16px;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--ios-hairline);
+}
+
+/* -- Logo drop ---------------------------------------------------------- */
+
+.logo-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 132px;
+  padding: 18px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-ios);
+  background: var(--ios-fill);
+  transition: border-color 180ms var(--ease), background 180ms var(--ease);
+}
+
+.logo-drop[data-over="true"] {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.logo-drop[data-filled="true"] {
+  border-style: solid;
+  border-color: var(--ios-hairline);
+}
+
+.logo-drop-icon {
+  font-size: 20px;
+  color: var(--faint);
+}
+
+.logo-drop-text {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.logo-drop-preview {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.logo-drop-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* -- Campaign builder --------------------------------------------------- */
+
+.campaign-builder {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.campaign-builder-preview {
+  position: sticky;
+  top: 90px;
+}
+
+@media (max-width: 900px) {
+  .campaign-builder {
+    grid-template-columns: 1fr;
+  }
+
+  /* Above the form on a phone: the preview is the thing being made, and a sticky
+     box below a long form is a box nobody scrolls back to. */
+  .campaign-builder-preview {
+    position: static;
+    order: -1;
+  }
+}
+
+.card-preview-ground {
+  display: flex;
+  justify-content: flex-end;
+  padding: 22px;
+  border-radius: var(--radius-ios);
+  background: var(--ink);
+  margin-bottom: 16px;
+}
+
+.toast-headline {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.toast-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.campaign-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.campaign-head h2 {
+  font-size: 21px;
+  margin-bottom: 6px;
+}
+
+.download-card {
+  align-self: start;
+}
+
+.row-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: 1px;
+}
+
+.row-logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  object-fit: contain;
+  margin-right: 9px;
+  vertical-align: -7px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Charts
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Marks carry the series colour; text never does. Every label, value, tick and
+   legend below wears a text token, and identity comes from the coloured dot
+   sitting beside it - a mid-lightness hue is illegible as type on this ground.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.chart {
+  position: relative;
+}
+
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  touch-action: pan-y;
+}
+
+/* Hairline, solid, one step off the surface. Never dashed - a dashed gridline
+   reads as data. */
+.chart-grid {
+  stroke: rgba(255, 255, 255, 0.09);
+  stroke-width: 1;
+}
+
+.chart-crosshair {
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 1;
+}
+
+.chart-tick {
+  fill: var(--faint);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The 2px ring in the surface colour, so a marker stays legible where two series
+   cross. Part of the mark, not decoration. */
+.chart-marker {
+  stroke: var(--ios-raised);
+  stroke-width: 2;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.chart-legend span,
+.chart-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.chart-legend i,
+.chart-tip-row i,
+.donut-key i {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+.chart-tip {
+  position: absolute;
+  top: 8px;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(22, 25, 27, 0.97);
+  box-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.8);
+  font-size: 12.5px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 5;
+}
+
+.chart-tip-day {
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+.chart-tip-row b {
+  margin-left: auto;
+  padding-left: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-empty {
+  display: grid;
+  place-items: center;
+  min-height: 140px;
+  border-radius: var(--radius-ios);
+  background: var(--ios-fill);
+  color: var(--faint);
+  font-size: 13.5px;
+}
+
+.sparkline {
+  display: block;
+  width: 100%;
+  height: 26px;
+}
+
+/* -- Donut -------------------------------------------------------------- */
+
+.donut {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  align-items: center;
+}
+
+.donut-svg {
+  width: 168px;
+  height: 168px;
+  flex: 0 0 auto;
+}
+
+.donut-svg path {
+  transition: opacity 180ms var(--ease);
+  cursor: default;
+}
+
+.donut-value {
+  fill: var(--text);
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-size: 26px;
+  font-weight: 620;
+  letter-spacing: -0.03em;
+}
+
+.donut-label {
+  fill: var(--faint);
+  font-size: 11px;
+}
+
+/* Also the table view the chart's accessibility rests on: every entry, exact. */
+.donut-key {
+  flex: 1 1 200px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  font-size: 13.5px;
+}
+
+.donut-key li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  transition: opacity 180ms var(--ease);
+}
+
+.donut-key li[data-dim="true"] {
+  opacity: 0.45;
+}
+
+.donut-key span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.donut-key b {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.donut-key em {
+  font-style: normal;
+  color: var(--faint);
+  font-size: 12px;
+  min-width: 34px;
+  text-align: right;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segmented-pill,
+  .meter-fill,
+  .account-menu,
+  .skeleton {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Hero paint cost
+   ═══════════════════════════════════════════════════════════════════════════
+
+   The landing page was janky, and this was why. `stroke-dashoffset` cannot be
+   handed to the compositor: every frame repaints the path's bounding box, and
+   these paths span the viewport. Eight of them, each carrying two `drop-shadow`
+   filters, meant re-rasterising most of the hero sixty times a second - forever,
+   including while scrolling the rest of a very long page.
+
+   Three changes, all of them subtractive:
+
+   - the filters are gone; the glow is a second wider translucent stroke, which
+     is paint rather than a filter pass over the whole layer;
+   - four pulses instead of eight;
+   - `contain` bounds the invalidation to the hero, and `HeroCircuit` stops the
+     animation outright once the hero scrolls away.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.hero-circuit {
+  /* Layout, paint and size containment: a repaint inside this box can no longer
+     ask the rest of the page to re-lay-out or re-rasterise anything. */
+  contain: strict;
+}
+
+.hero-circuit__pulse {
+  fill: none;
+  stroke: #f7ffff;
+  stroke-width: 2.75;
+  stroke-linecap: round;
+  stroke-dasharray: 5 95;
+  stroke-dashoffset: 100;
+  vector-effect: non-scaling-stroke;
+  filter: none;
+  animation: hero-signal 8s linear infinite;
+}
+
+.hero-circuit__glow {
+  fill: none;
+  stroke: rgba(209, 245, 244, 0.34);
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-dasharray: 5 95;
+  stroke-dashoffset: 100;
+  vector-effect: non-scaling-stroke;
+  animation: hero-signal 8s linear infinite;
+}
+
+.hero-circuit[data-paused="true"] .hero-circuit__pulse,
+.hero-circuit[data-paused="true"] .hero-circuit__glow {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-circuit__glow {
+    animation: none;
+    opacity: 0.2;
+  }
+}

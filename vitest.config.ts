@@ -37,6 +37,10 @@ export default defineConfig({
       "mock-server/test/**/*.test.ts",
       "services/**/test/**/*.test.ts",
       "apps/**/test/**/*.test.ts",
+      // The website's component tests. JSX rather than `createElement`, because a chart
+      // test that asserts on rendered markup is unreadable when the fixture it renders is
+      // three levels of nested function calls.
+      "apps/**/test/**/*.test.tsx",
     ],
     // The emulator suite is the only one needing external tooling; `npm run test:emulator`
     // runs it. Keeping it out of the default run is what lets CI stay credential-free.

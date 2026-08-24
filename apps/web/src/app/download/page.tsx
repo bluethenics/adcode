@@ -1,47 +1,35 @@
 import type { Metadata } from "next";
 import { InstallCommand } from "@/components/InstallCommand";
 import { JsonLd } from "@/components/JsonLd";
+import { DownloadButton } from "@/components/DownloadButton";
+import { DesktopMockup } from "@/components/DesktopMockup";
 import { breadcrumbs } from "@/lib/schema";
-import { GITHUB_REPO, SITE_ORIGIN, url } from "@/lib/site";
+import { SITE_ORIGIN, url } from "@/lib/site";
 
 /** Built from SITE_ORIGIN so the domain is stated once, in site.ts. */
 const PS_INSTALL = `irm ${SITE_ORIGIN}/install.ps1 | iex`;
 const SH_INSTALL = `curl -fsSL ${SITE_ORIGIN}/install.sh | sh`;
-import { DesktopMockup } from "@/components/DesktopMockup";
 
 export const metadata: Metadata = {
   title: "Download",
   description:
-    "Install ADCode on Windows, macOS, or Linux with one line in a terminal. Free, no account required, and it updates itself.",
+    "Download ADCode for Windows, macOS, or Linux. One click, no account required, and it updates itself.",
   alternates: { canonical: url("/download") },
 };
 
-const PLATFORMS = [
-  {
-    id: "windows",
-    name: "Windows",
-    note: "Windows 10 or later, 64-bit",
-    shell: "PowerShell",
-    command: PS_INSTALL,
-    /** Stable filename pinned in electron-builder.yml, so this URL never goes stale. */
-    direct: `https://github.com/${GITHUB_REPO}/releases/latest/download/ADCode-Setup-x64.exe`,
-  },
-  {
-    id: "macos",
-    name: "macOS",
-    note: "macOS 12 or later, Apple silicon and Intel",
-    shell: "Terminal",
-    command: SH_INSTALL,
-    direct: `https://github.com/${GITHUB_REPO}/releases/latest`,
-  },
-  {
-    id: "linux",
-    name: "Linux",
-    note: "AppImage and .deb, x86-64",
-    shell: "Terminal",
-    command: SH_INSTALL,
-    direct: `https://github.com/${GITHUB_REPO}/releases/latest/download/ADCode-x86_64.AppImage`,
-  },
+/**
+ * Every build, by name.
+ *
+ * The hrefs point at this site's own `/dl/*`, which streams the file back. Where the
+ * build is actually published is an implementation detail of the release process and has
+ * no business in a download link.
+ */
+const BUILDS = [
+  { id: "windows", name: "Windows", note: "Windows 10 or later · 64-bit installer" },
+  { id: "macos", name: "macOS", note: "Apple silicon · macOS 12 or later" },
+  { id: "macos-intel", name: "macOS", note: "Intel · macOS 12 or later" },
+  { id: "linux", name: "Linux", note: "AppImage · x86-64" },
+  { id: "linux-deb", name: "Linux", note: "Debian and Ubuntu · .deb" },
 ] as const;
 
 export default function DownloadPage() {
@@ -57,44 +45,67 @@ export default function DownloadPage() {
       <section className="download-hero band-night">
         <div className="wrap download-hero-grid">
           <div>
-          <div className="section-head">
-            <p className="eyebrow">Download</p>
-            <h1 className="page-title">Download the editor. Keep the upside.</h1>
-            <p className="lede">
-              Free, no account required to start, and it keeps itself up to date. Pick your
-              platform.
-            </p>
-          </div><DesktopMockup className="desktop-mockup--compact" />
+            <div className="section-head">
+              <p className="eyebrow">Download</p>
+              <h1 className="page-title">Download the editor. Keep the upside.</h1>
+              <p className="lede">
+                Free, no account required to start, and it keeps itself up to date. One
+                button — we already know which build you need.
+              </p>
+            </div>
+
+            <div className="hero-actions" style={{ marginBottom: 22 }}>
+              <DownloadButton className="btn btn-primary btn-large hero-download">
+                <span aria-hidden="true">↓</span> Download ADCode <i>· free</i>
+              </DownloadButton>
+            </div>
+
+            <DesktopMockup className="desktop-mockup--compact" />
           </div>
 
-          <div className="grid grid-3">
-            {PLATFORMS.map((platform) => (
-              <div
-                key={platform.id}
-                className="card"
-                style={{
-                  background: "var(--ink-raised)",
-                  borderColor: "var(--ink-hairline)",
-                  color: "var(--on-ink)",
-                }}
-              >
-                <h3 style={{ color: "var(--on-ink)" }}>{platform.name}</h3>
-                <p style={{ color: "var(--on-ink-muted)", marginBottom: 16 }}>{platform.note}</p>
+          <div className="ios-card download-card">
+            <h3>Every build</h3>
+            <p className="field-hint" style={{ marginBottom: 14 }}>
+              On a different machine than this one? Take the file straight from here.
+            </p>
 
-                <div style={{ marginBottom: 12 }}>
-                  <InstallCommand command={platform.command} />
-                </div>
+            <ul className="ios-group">
+              {BUILDS.map((build) => (
+                <li key={build.id}>
+                  <a href={`/dl/${build.id}`} className="ios-row">
+                    <span>
+                      <strong>{build.name}</strong>
+                      <small>{build.note}</small>
+                    </span>
+                    <span className="ios-row-action" aria-hidden="true">
+                      ↓
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
 
-                <p style={{ color: "var(--on-ink-muted)", fontSize: 13 }}>
-                  <a href={platform.direct} className="btn btn-primary download-direct">Download installer</a>
-                  <span className="install-secondary">
-                    {platform.id === "macos"
-                      ? "Or paste this into Terminal — the one-liner picks the right build."
-                      : "The file downloads directly. Or paste this into " + platform.shell + "."}
-                  </span>
-                </p>
-              </div>
-            ))}
+            {/*
+              The terminal path is real and stays available - it verifies the download
+              against the published checksum, which a browser download cannot. It is
+              folded away because it is the answer to a question most people are not
+              asking, and putting a shell command in front of everyone teaches them that
+              installing this is a technical operation.
+            */}
+            <details className="ios-disclosure">
+              <summary>Install from a terminal instead</summary>
+              <p className="field-hint">
+                Checks the download against its published SHA-256 before running anything.
+              </p>
+              <p className="field-hint" style={{ marginTop: 12, marginBottom: 4 }}>
+                Windows · PowerShell
+              </p>
+              <InstallCommand command={PS_INSTALL} />
+              <p className="field-hint" style={{ marginTop: 12, marginBottom: 4 }}>
+                macOS and Linux · Terminal
+              </p>
+              <InstallCommand command={SH_INSTALL} />
+            </details>
           </div>
         </div>
       </section>

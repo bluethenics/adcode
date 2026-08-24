@@ -11,6 +11,10 @@ import { SignInCard } from "./SignInCard";
  * The gate is a convenience, not a control: it decides what to render, while the API
  * re-checks the token and the admin claim on every single request. Someone who edits
  * their way past this component reaches endpoints that refuse them anyway.
+ *
+ * The header is an iOS large title - the name of the place, big, with a line of
+ * explanation under it. The email that used to sit opposite it moved into the nav's
+ * account menu, where the sign-out is: two places saying who you are was one too many.
  */
 export interface Tab {
   href: string;
@@ -19,11 +23,13 @@ export interface Tab {
 
 export function AppShell({
   title,
+  subtitle,
   tabs,
   requireAdmin = false,
   children,
 }: {
   title: string;
+  subtitle?: string;
   tabs?: Tab[];
   requireAdmin?: boolean;
   children: React.ReactNode;
@@ -49,7 +55,11 @@ export function AppShell({
     return (
       <section className="band">
         <div className="wrap">
-          <p className="lede">Checking your session…</p>
+          {/* A shaped placeholder rather than the word "Loading": the page that arrives
+              lands in the same boxes, so nothing jumps when it does. */}
+          <div className="skeleton skeleton-title" />
+          <div className="skeleton skeleton-card" />
+          <span className="sr-only">Checking your session…</span>
         </div>
       </section>
     );
@@ -85,8 +95,8 @@ export function AppShell({
     <section className="app">
       <div className="wrap">
         <div className="app-head">
-          <h1>{title}</h1>
-          <span style={{ fontSize: 13.5, color: "var(--muted)" }}>{user.email ?? user.uid}</span>
+          <h1 className="large-title">{title}</h1>
+          {subtitle !== undefined && <p className="large-title-sub">{subtitle}</p>}
         </div>
 
         {tabs !== undefined && tabs.length > 0 && (

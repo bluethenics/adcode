@@ -15,24 +15,27 @@ import "./globals.css";
  * the render blocking-free and means the site does not leak a visitor's IP to a third
  * party before they have agreed to anything - which the privacy page then gets to say
  * truthfully.
+ *
+ * No `weight` on any of the three, deliberately. All three are variable fonts, and naming
+ * weights makes next/font download one static instance per weight - eight files where
+ * three would do. It was also quietly wrong: this stylesheet asks for weights like 520,
+ * 540 and 620, and with only 500/600/700 on the page the browser was synthesising the
+ * ones in between by smearing the outlines. The variable font has them for real.
  */
 const display = Inter_Tight({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
   variable: "--font-display",
   display: "swap",
 });
 
 const body = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
   variable: "--font-body",
   display: "swap",
 });
 
 const mono = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500"],
   variable: "--font-mono",
   display: "swap",
 });

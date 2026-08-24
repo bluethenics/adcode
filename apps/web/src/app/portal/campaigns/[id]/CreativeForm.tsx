@@ -2,35 +2,36 @@
 
 import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { LogoDrop } from "@/components/LogoDrop";
 import { apiFetch, MESSAGES, type CreativeView } from "@/lib/api";
 
 /**
- * Submitting a creative, with a live preview of the card as it will appear.
+ * Adding another card to a campaign that already exists.
  *
- * The preview is not decoration. The card lives in the corner of someone's editor at
- * about 260px wide, and a headline that reads fine in a text input can be unreadable
- * there. Showing the real thing at the real size is the only way to know.
- *
- * Logos are https URLs rather than an upload here. Firebase Storage upload is the next
- * step; until the bucket exists, a URL is what the ad client can actually fetch.
+ * The first card is created with the campaign on one screen; this is for the second one,
+ * for replacing one that was rejected, and for running two messages against the same
+ * budget. Same fields, same live preview, same logo drop - nothing here asks anyone to
+ * host a PNG somewhere first.
  */
 const LIMITS = { headline: 80, body: 160, advertiser: 40 } as const;
 
 export function CreativeForm({
   campaignId,
+  defaultAdvertiser,
   onCreated,
 }: {
   campaignId: string;
+  defaultAdvertiser?: string;
   onCreated: () => void;
 }) {
   const { token } = useAuth();
 
-  const [advertiser, setAdvertiser] = useState("");
+  const [advertiser, setAdvertiser] = useState(defaultAdvertiser ?? "");
   const [headline, setHeadline] = useState("");
   const [body, setBody] = useState("");
-  const [clickUrl, setClickUrl] = useState("https://");
-  const [logoLight, setLogoLight] = useState("https://");
-  const [logoDark, setLogoDark] = useState("https://");
+  const [clickUrl, setClickUrl] = useState("");
+  const [logo, setLogo] = useState<string | null>(null);
+  const [darkLogo, setDarkLogo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -39,15 +40,13 @@ export function CreativeForm({
     event.preventDefault();
     if (busy) return;
 
-    for (const [label, value] of [
-      ["Link", clickUrl],
-      ["Light logo", logoLight],
-      ["Dark logo", logoDark],
-    ] as const) {
-      if (!value.startsWith("https://") || value.length < 12) {
-        setError(`${label} must be an https address.`);
-        return;
-      }
+    if (!clickUrl.startsWith("https://") || clickUrl.length < 12) {
+      setError("The link has to be an https address.");
+      return;
+    }
+    if (logo === null) {
+      setError("Add a logo — the card has a space for it and looks broken without one.");
+      return;
     }
 
     setBusy(true);
@@ -63,8 +62,8 @@ export function CreativeForm({
         headline: headline.trim(),
         body: body.trim().length === 0 ? null : body.trim(),
         clickUrl,
-        logoLight,
-        logoDark,
+        logoLight: logo,
+        logoDark: darkLogo ?? logo,
       },
     });
 
@@ -81,8 +80,11 @@ export function CreativeForm({
   };
 
   return (
-    <form onSubmit={submit} style={{ maxWidth: 620 }}>
-      <h3 style={{ fontSize: 18, marginBottom: 12 }}>Add a creative</h3>
+    <form onSubmit={submit} className="ios-card">
+      <header className="ios-card-head">
+        <h2>Add another card</h2>
+        <p>Two messages can share one budget. Each is reviewed on its own.</p>
+      </header>
 
       {error !== null && (
         <div className="notice" data-tone="error" role="alert">
@@ -91,12 +93,12 @@ export function CreativeForm({
       )}
       {done && (
         <div className="notice" data-tone="ok">
-          Submitted for review. We check creatives before they reach anyone&apos;s editor.
+          Submitted for review. We check cards before they reach anyone&apos;s editor.
         </div>
       )}
 
       <div className="field">
-        <label htmlFor="cr-advertiser">Your name, as developers see it</label>
+        <label htmlFor="cr-advertiser">Brand name</label>
         <input
           id="cr-advertiser"
           className="input"
@@ -109,7 +111,7 @@ export function CreativeForm({
       </div>
 
       <div className="field">
-        <label htmlFor="cr-headline">Headline</label>
+        <label htmlFor="cr-headline">Your message</label>
         <span className="field-hint">
           {headline.length}/{LIMITS.headline} — it sits in a small card, so shorter reads better.
         </span>
@@ -125,9 +127,9 @@ export function CreativeForm({
       </div>
 
       <div className="field">
-        <label htmlFor="cr-body">Supporting line (optional)</label>
+        <label htmlFor="cr-body">Supporting line</label>
         <span className="field-hint">
-          {body.length}/{LIMITS.body}
+          Optional. {body.length}/{LIMITS.body}
         </span>
         <input
           id="cr-body"
@@ -140,58 +142,44 @@ export function CreativeForm({
       </div>
 
       <div className="field">
-        <label htmlFor="cr-url">Where the card links to</label>
+        <label htmlFor="cr-url">Where it goes</label>
         <input
           id="cr-url"
           className="input"
           type="url"
           required
+          placeholder="https://acme.com/developers"
           value={clickUrl}
           onChange={(e) => setClickUrl(e.target.value)}
         />
       </div>
 
-      <div className="field">
-        <label htmlFor="cr-light">Logo for light themes</label>
-        <span className="field-hint">An https URL to a square PNG or SVG.</span>
-        <input
-          id="cr-light"
-          className="input"
-          type="url"
-          required
-          value={logoLight}
-          onChange={(e) => setLogoLight(e.target.value)}
-        />
-      </div>
+      <LogoDrop label="Logo" value={logo} onChange={setLogo} />
 
-      <div className="field">
-        <label htmlFor="cr-dark">Logo for dark themes</label>
-        <input
-          id="cr-dark"
-          className="input"
-          type="url"
-          required
-          value={logoDark}
-          onChange={(e) => setLogoDark(e.target.value)}
+      <details className="ios-disclosure">
+        <summary>Different logo for dark themes</summary>
+        <LogoDrop
+          label="Logo for dark themes"
+          hint="Only needed if your logo disappears on a dark background."
+          value={darkLogo}
+          onChange={setDarkLogo}
         />
-      </div>
+      </details>
 
-      {/* The card at the size it actually renders, on the ground it actually sits on. */}
       <div className="field">
         <label>Preview</label>
         <span className="field-hint">How it appears in the corner of the editor.</span>
-        <div
-          style={{
-            background: "var(--ink)",
-            padding: 22,
-            borderRadius: "var(--radius-md)",
-            display: "flex",
-            justifyContent: "flex-end",
-          }}
-        >
+        <div className="card-preview-ground">
           <div className="toast" style={{ position: "static", animation: "none" }}>
-            <span className="toast-tag">Sponsored · {advertiser || "Your name"}</span>
-            <span className="toast-head">{headline || "Your headline"}</span>
+            <span className="toast-tag">Sponsored · {advertiser || "Your brand"}</span>
+            <span className="toast-headline">
+              {logo !== null && (
+                // eslint-disable-next-line @next/next/no-img-element -- a data: URL at its
+                // rendered size; next/image would proxy it for nothing.
+                <img src={logo} alt="" className="toast-logo" width={28} height={28} />
+              )}
+              <span className="toast-head">{headline || "Your message"}</span>
+            </span>
             {body.trim().length > 0 && <span className="toast-body">{body}</span>}
           </div>
         </div>

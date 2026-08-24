@@ -20,6 +20,7 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
+  GithubAuthProvider,
   signInWithPopup,
   type Auth,
   type User,
@@ -65,6 +66,18 @@ export async function signInGoogle(): Promise<void> {
   await signInWithPopup(auth(), new GoogleAuthProvider());
 }
 
+/**
+ * Sign in with GitHub.
+ *
+ * No scopes are requested. The default grant is the public profile and a verified email
+ * address, which is everything this site needs to know who someone is - asking for
+ * `repo` or `read:user` would put a consent screen listing someone's private
+ * repositories in front of a button whose only job is to say hello.
+ */
+export async function signInGithub(): Promise<void> {
+  await signInWithPopup(auth(), new GithubAuthProvider());
+}
+
 export async function signOutNow(): Promise<void> {
   await signOut(auth());
 }
@@ -91,6 +104,11 @@ export function authMessage(error: unknown): string {
       return "The sign-in window closed before finishing.";
     case "auth/popup-blocked":
       return "Your browser blocked the sign-in window. Allow pop-ups for this site and try again.";
+    // Someone who signed up with Google and then pressed GitHub. Firebase refuses the
+    // second provider rather than merging silently, and the message has to say which
+    // button to press instead - "account exists" on its own sends people to support.
+    case "auth/account-exists-with-different-credential":
+      return "You already have an account with that email, created with a different sign-in method. Use the one you signed up with.";
     // The three below are configuration, not anything the person at the screen did wrong.
     // They say so, because the generic message sent whoever hit this hunting in the wrong
     // place - the host is missing from Firebase's Authorized domains, or the provider was

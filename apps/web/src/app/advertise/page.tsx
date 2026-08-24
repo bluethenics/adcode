@@ -27,7 +27,7 @@ const ADVERTISER_FAQ = [
   },
   {
     q: "What reporting do advertisers get?",
-    a: "Serves, views, clicks, and spend per campaign and per creative, updated as receipts are verified. Reporting is aggregate: advertisers never receive identifiers or tags for individual developers.",
+    a: "Views, clicks, and spend charted by the day, per campaign and across the whole account, updated as receipts are verified. Reporting is aggregate: advertisers never receive identifiers or tags for individual developers.",
   },
 ] as const;
 
@@ -59,8 +59,8 @@ export default function AdvertisePage() {
           </div>
 
           <div className="hero-cta">
-            <Link href="/portal/campaigns/new" className="btn btn-primary">
-              Create a campaign
+            <Link href="/portal/campaigns/new" className="btn btn-primary btn-large">
+              Start a campaign
             </Link>
             <a href="mailto:advertise@adcode.bluethenics.com" className="btn btn-ghost">
               Talk to us first
@@ -73,22 +73,27 @@ export default function AdvertisePage() {
         <div className="wrap">
           <div className="section-head">
             <p className="eyebrow">How it works</p>
-            <h2>Four steps, no sales call required.</h2>
+            <h2>One screen, no sales call required.</h2>
+            <p className="lede">
+              Drop your logo in, write your message, set a budget. Your advertiser account is
+              created with the campaign — there is no sign-up to get through first, and no
+              PNG to host somewhere before you start.
+            </p>
           </div>
 
           <div className="grid grid-2">
             <div className="card">
-              <h3>Pick who sees it</h3>
+              <h3>Your logo and your message</h3>
               <p>
-                Choose from 45 tags across languages, frameworks, tools, and platforms. Leave
-                targeting empty to reach everyone.
+                A headline, an optional supporting line, a link, and a logo you drag onto the
+                page. You watch the card change as you type it, at the size it really renders.
               </p>
             </div>
             <div className="card">
-              <h3>Write the card</h3>
+              <h3>Pick who sees it</h3>
               <p>
-                A headline, a line of body text, a link, and a logo for light and dark themes.
-                Small on purpose: it has to sit in a corner without shouting.
+                45 tags across languages, frameworks, tools, and platforms. Leave them all
+                unticked to reach every developer.
               </p>
             </div>
             <div className="card">
@@ -99,10 +104,10 @@ export default function AdvertisePage() {
               </p>
             </div>
             <div className="card">
-              <h3>Watch verified views</h3>
+              <h3>Watch it work</h3>
               <p>
-                Serves, views, clicks, and spend, updated as receipts are verified. Only real
-                views appear, because only real views bill.
+                Views, clicks and spend, charted by the day, per campaign and across the
+                account. Only real views appear, because only real views bill.
               </p>
             </div>
           </div>

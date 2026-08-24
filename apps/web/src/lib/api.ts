@@ -190,3 +190,38 @@ export interface CheckoutView {
   paymentId: string;
   paymentLink: string;
 }
+
+/** One campaign's numbers for one UTC day. `/portal/series` returns these oldest first. */
+export interface SeriesPointView {
+  day: string;
+  campaignId: string;
+  impressions: number;
+  clicks: number;
+  spentMicros: string;
+}
+
+/** A day of editing, as the desktop app reported it. Counts only - never content. */
+export interface ActivityDayView {
+  day: string;
+  manualChars: number;
+  agentChars: number;
+  acceptedEdits: number;
+  rejectedEdits: number;
+  filesTouched: number;
+  activeMs: number;
+  sessions: number;
+}
+
+export interface ActivityView {
+  days: ActivityDayView[];
+  totals: {
+    manualChars: number;
+    agentChars: number;
+    acceptedEdits: number;
+    rejectedEdits: number;
+    activeMs: number;
+    sessions: number;
+    /** Agent share of characters written, 0-100. Null when nothing was written at all. */
+    agentPercent: number | null;
+  };
+}
