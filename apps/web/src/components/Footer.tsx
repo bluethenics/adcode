@@ -23,6 +23,7 @@ export function Footer() {
             <Link href="/#ledger">How you earn</Link>
             <Link href="/#restraint">When ads appear</Link>
             <Link href="/dashboard">Your earnings</Link>
+            <Link href="/changelog">Changelog</Link>
           </div>
 
           <div>

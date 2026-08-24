@@ -5,7 +5,8 @@ export const ADMIN_TABS: Tab[] = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/advertisers", label: "Advertisers" },
   { href: "/admin/reports", label: "Feedback" },
-  { href: "/admin/blog", label: "Blog" },
+  { href: "/admin/blog", label: "Blog & docs" },
   { href: "/admin/ads", label: "Test ads" },
   { href: "/admin/notices", label: "Notices" },
+  { href: "/admin/releases", label: "Releases" },
 ];

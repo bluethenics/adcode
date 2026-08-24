@@ -5,6 +5,8 @@ import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { JsonLd } from "@/components/JsonLd";
 import { AuthProvider } from "@/components/AuthProvider";
+import { ReleaseBar } from "@/components/ReleaseBar";
+import { latestRelease } from "@/lib/releases";
 import { organisation, softwareApplication } from "@/lib/schema";
 import "./globals.css";
 
@@ -75,18 +77,26 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0b0f",
+  themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+/*
+ * Async, so the newest version is fetched on the server and the bar is either correct on
+ * first paint or absent. Fetching it in the browser would mean a bar that appears a beat
+ * after the page settles, which is exactly the kind of movement a reader resents.
+ */
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const latest = await latestRelease();
+
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
       <body>
         <JsonLd data={organisation()} />
         <JsonLd data={softwareApplication()} />
         <AuthProvider>
+          <ReleaseBar version={latest?.version ?? null} title={latest?.title ?? ""} />
           <Nav />
           <main id="main">{children}</main>
           <Footer />

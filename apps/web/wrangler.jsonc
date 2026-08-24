@@ -1,0 +1,50 @@
+/**
+ * The Cloudflare Worker that serves adcode.bluethenics.com.
+ *
+ * One Worker serves everything: the marketing site, the advertiser portal, the dashboard,
+ * the admin panel, and the API at `/v1/*`. That is the point of folding `services/api` into
+ * the Next app - one deployment, one origin, one set of secrets, and no CORS preflight on
+ * the path the editor uses most.
+ *
+ * Nothing secret belongs in this file. It is committed. Secrets are set with
+ * `wrangler secret put`, which stores them encrypted on Cloudflare and never writes them to
+ * disk - see SETUP.md step 7 for the exact list.
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "adcode",
+  "main": ".open-next/worker.js",
+
+  /*
+   * Pins the runtime's behaviour to a known date. Raising it can change how existing APIs
+   * behave, so it moves deliberately rather than automatically.
+   */
+  "compatibility_date": "2026-08-01",
+
+  /*
+   * `nodejs_compat` is not optional here. Three things in this codebase need it:
+   * `node:buffer` in `services/api/src/fetchHandler.ts`, `node:crypto`'s `createHmac` and
+   * `timingSafeEqual` in `src/billing.ts` for the Dodo webhook signature, and Next's own
+   * server runtime.
+   */
+  "compatibility_flags": ["nodejs_compat"],
+
+  /* The prerendered pages and static files Next produced. */
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  /*
+   * Logs, so a failing request has an account of itself. On the free plan this is a
+   * rolling window rather than retained history, which is enough to debug a deploy.
+   */
+  "observability": {
+    "enabled": true
+  },
+
+  "vars": {
+    /* Public by design: it identifies the site, it does not authorise anything. */
+    "NEXT_PUBLIC_SITE_ORIGIN": "https://adcode.bluethenics.com"
+  }
+}

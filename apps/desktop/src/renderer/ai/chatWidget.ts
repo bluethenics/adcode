@@ -15,7 +15,7 @@
  * Only `transform` and `opacity` animate (§1) - the card is positioned with a translate,
  * never with `left`/`top`, so dragging never triggers layout.
  */
-import type { ProposedEditView } from "../../shared/api.ts";
+import type { ChatSessionView, ProposedEditView } from "../../shared/api.ts";
 
 interface Position {
   x: number;
@@ -79,6 +79,10 @@ export interface ChatWidget {
 export interface ChatWidgetDeps {
   readonly host: HTMLElement;
   readonly openExternalPath: (path: string) => void;
+  /** Open the Connect screen, which owns providers, keys and models. */
+  readonly openConnect: () => void;
+  /** Ask the user for a new name, or null if they changed their mind. */
+  readonly askForName: (current: string) => Promise<string | null>;
 }
 
 export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
@@ -105,14 +109,29 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const modelLabel = document.createElement("span");
   modelLabel.className = "chat-model";
 
+  const historyButton = document.createElement("button");
+  historyButton.className = "ghost-button";
+  historyButton.textContent = "History";
+  historyButton.title = "Past conversations in this project";
+  historyButton.setAttribute("aria-expanded", "false");
+  historyButton.addEventListener("click", () => toggleHistory());
+
+  const connectButton = document.createElement("button");
+  connectButton.className = "ghost-button";
+  connectButton.textContent = "Connect";
+  connectButton.title = "Choose a provider and model";
+  connectButton.addEventListener("click", () => deps.openConnect());
+
   const resetButton = document.createElement("button");
   resetButton.className = "ghost-button";
   resetButton.textContent = "New";
-  resetButton.title = "Start a new conversation";
+  resetButton.title = "Start a new conversation - the current one is kept in History";
   resetButton.addEventListener("click", () => {
     window.adcode.ai.reset();
     transcript.replaceChildren();
     streamingBubble = null;
+    renderMemory(null);
+    void refreshHistory();
   });
 
   const closeButton = document.createElement("button");
@@ -120,7 +139,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   closeButton.textContent = "Close";
   closeButton.addEventListener("click", () => api.close());
 
-  header.append(title, modelLabel, resetButton, closeButton);
+  header.append(title, modelLabel, historyButton, connectButton, resetButton, closeButton);
 
   /* ── Transcript ───────────────────────────────────────────────────────── */
 
@@ -129,6 +148,147 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   transcript.setAttribute("aria-live", "polite");
 
   /* ── Composer ─────────────────────────────────────────────────────────── */
+
+  /* -- History ---------------------------------------------------------- */
+
+  const history = document.createElement("aside");
+  history.className = "chat-history";
+  history.hidden = true;
+  history.setAttribute("aria-label", "Past conversations");
+
+  const historySearch = document.createElement("input");
+  historySearch.className = "chat-history-search";
+  historySearch.type = "search";
+  historySearch.placeholder = "Search conversations";
+  historySearch.setAttribute("aria-label", "Search conversations");
+  historySearch.addEventListener("input", () => renderHistory());
+
+  const historyList = document.createElement("div");
+  historyList.className = "chat-history-list";
+
+  const clearAll = document.createElement("button");
+  clearAll.type = "button";
+  clearAll.className = "chat-history-clear";
+  clearAll.textContent = "Clear all";
+  clearAll.title = "Delete every saved conversation for this project";
+  clearAll.addEventListener("click", () => {
+    void window.adcode.chat.clear().then((sessions) => {
+      saved = sessions;
+      renderHistory();
+    });
+  });
+
+  history.append(historySearch, historyList, clearAll);
+
+  let saved: readonly ChatSessionView[] = [];
+
+  async function refreshHistory(): Promise<void> {
+    saved = await window.adcode.chat.sessions();
+    renderHistory();
+  }
+
+  function toggleHistory(): void {
+    history.hidden = !history.hidden;
+    historyButton.setAttribute("aria-expanded", String(!history.hidden));
+    if (!history.hidden) void refreshHistory();
+  }
+
+  function renderHistory(): void {
+    const needle = historySearch.value.trim().toLowerCase();
+    historyList.replaceChildren();
+
+    const shown = saved.filter((session) => {
+      if (needle.length === 0) return true;
+      if (session.title.toLowerCase().includes(needle)) return true;
+      // Searching inside the conversation, because people remember a phrase from the
+      // middle of one rather than whatever its first line happened to be.
+      return session.messages.some((message) => message.text.toLowerCase().includes(needle));
+    });
+
+    if (shown.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "chat-history-empty";
+      empty.textContent =
+        saved.length === 0 ? "No conversations yet." : "Nothing matches that.";
+      historyList.append(empty);
+      return;
+    }
+
+    for (const session of shown) {
+      const row = document.createElement("div");
+      row.className = "chat-history-row";
+
+      const openIt = document.createElement("button");
+      openIt.type = "button";
+      openIt.className = "chat-history-open";
+      openIt.textContent = session.title;
+      openIt.title = "Reopen this conversation";
+      openIt.addEventListener("click", () => void resume(session.id));
+
+      const rename = document.createElement("button");
+      rename.type = "button";
+      rename.className = "chat-history-action";
+      rename.textContent = "Rename";
+      rename.addEventListener("click", () => {
+        void deps.askForName(session.title).then(async (name) => {
+          if (name === null) return;
+          saved = await window.adcode.chat.rename(session.id, name);
+          renderHistory();
+        });
+      });
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "chat-history-action";
+      remove.textContent = "Delete";
+      remove.addEventListener("click", () => {
+        void window.adcode.chat.remove(session.id).then((sessions) => {
+          saved = sessions;
+          renderHistory();
+        });
+      });
+
+      row.append(openIt, rename, remove);
+      historyList.append(row);
+    }
+  }
+
+  /** Draw a past conversation back into the transcript. */
+  async function resume(id: string): Promise<void> {
+    const session = await window.adcode.chat.resume(id);
+    if (session === null) return;
+
+    transcript.replaceChildren();
+    streamingBubble = null;
+
+    for (const message of session.messages) {
+      bubble(message.role === "user" ? "user" : "assistant", message.text);
+    }
+
+    renderMemory(session);
+    history.hidden = true;
+    historyButton.setAttribute("aria-expanded", "false");
+  }
+
+  /* -- What is being remembered ----------------------------------------- */
+
+  /*
+   * The strip exists so that clearing a conversation is a button whose effect is visible.
+   * An assistant that remembers invisibly is worse than one that forgets.
+   */
+  const memory = document.createElement("div");
+  memory.className = "chat-memory";
+
+  function renderMemory(session: ChatSessionView | null): void {
+    const turns = session?.messages.length ?? 0;
+
+    memory.textContent =
+      turns === 0
+        ? "New conversation - nothing remembered yet."
+        : `Carrying ${String(turns)} message${turns === 1 ? "" : "s"} from this conversation.`;
+  }
+
+  renderMemory(null);
 
   const composer = document.createElement("form");
   composer.className = "chat-composer";
@@ -150,7 +310,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   resizeGrip.className = "chat-resize";
   resizeGrip.setAttribute("aria-hidden", "true");
 
-  card.append(header, transcript, composer, resizeGrip);
+  const chatBody = document.createElement("div");
+  chatBody.className = "chat-body";
+  chatBody.append(history, transcript);
+
+  card.append(header, chatBody, memory, composer, resizeGrip);
+
+  window.adcode.chat.onChanged((session) => renderMemory(session));
+  void window.adcode.chat.current().then((session) => renderMemory(session));
   deps.host.append(card);
 
   /* ── Rendering ────────────────────────────────────────────────────────── */
@@ -370,12 +537,61 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /* ── Dragging and resizing ────────────────────────────────────────────── */
 
+  /**
+   * A translation that keeps the header on screen.
+   *
+   * The card is anchored bottom-right and moved with a translate, so a large negative `y`
+   * walks it off the top of the window - and the header is the drag handle, the model
+   * picker and the close button. Once it was up there nothing could bring it back. This
+   * is also what a saved position needs on the way in: the window it was saved from may
+   * have been bigger than the one it is being restored into.
+   *
+   * The bottom and right edges are deliberately allowed to hang off. Only the header has
+   * to stay reachable, and clamping all four would fight the user over a card they
+   * dragged half off the edge on purpose.
+   */
+  function clamp(next: Position): Position {
+    const box = card.getBoundingClientRect();
+
+    /*
+     * A hidden card has no box, and clamping against an empty rect is not conservative -
+     * it is wrong. Every measurement below reads zero, so the "keep 48px on screen" floor
+     * became `x >= 48` and each call pushed the card another 48px right. Two calls before
+     * it was ever shown left it permanently 96px off the right edge.
+     */
+    if (box.width === 0 && box.height === 0) return next;
+
+    // Where the card would sit with no translation at all.
+    const restX = box.left - position.x;
+    const restY = box.top - position.y;
+
+    const KEEP = 48;
+    const minX = -restX - box.width + KEEP;
+    const maxX = window.innerWidth - restX - KEEP;
+    const minY = -restY;
+    const maxY = window.innerHeight - restY - KEEP;
+
+    return {
+      x: Math.min(Math.max(next.x, minX), Math.max(minX, maxX)),
+      y: Math.min(Math.max(next.y, minY), Math.max(minY, maxY)),
+    };
+  }
+
   function place(next: Position): void {
-    position = next;
+    position = clamp(next);
     // A translate, never `left`/`top`: §1 allows only transform and opacity to animate,
     // and dragging with layout properties janks the editor behind it.
     card.style.transform = `translate(${position.x}px, ${position.y}px)`;
   }
+
+  /*
+   * Shrinking the window can strand a card that was perfectly placed a moment ago, so the
+   * clamp is re-applied rather than only being checked while dragging. Passing the current
+   * position back through `place` is enough - `clamp` re-reads the window each time.
+   */
+  window.addEventListener("resize", () => {
+    place(position);
+  });
 
   header.addEventListener("pointerdown", (event) => {
     if ((event.target as HTMLElement).tagName === "BUTTON") return;
@@ -407,8 +623,23 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     resizeGrip.setPointerCapture(event.pointerId);
 
     const move = (moveEvent: PointerEvent): void => {
-      card.style.width = `${Math.max(320, startWidth + (moveEvent.clientX - startX))}px`;
-      card.style.height = `${Math.max(260, startHeight + (moveEvent.clientY - startY))}px`;
+      /*
+       * A ceiling as well as a floor. The minimums were always here; without maximums you
+       * could drag the card larger than the window it lives in, and the CSS `max-width`
+       * would then quietly disagree with the inline width - so the grip stopped following
+       * the pointer and the card looked stuck.
+       */
+      const maxWidth = Math.max(320, window.innerWidth - 32);
+      const maxHeight = Math.max(260, window.innerHeight - 72);
+
+      const width = startWidth + (moveEvent.clientX - startX);
+      const height = startHeight + (moveEvent.clientY - startY);
+
+      card.style.width = `${Math.min(Math.max(320, width), maxWidth)}px`;
+      card.style.height = `${Math.min(Math.max(260, height), maxHeight)}px`;
+
+      // Growing downward or rightward can push the header off; re-clamp as it changes.
+      place(position);
     };
 
     const release = (): void => {
@@ -444,6 +675,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
       card.hidden = false;
       requestAnimationFrame(() => {
+        /*
+         * The first moment the card has a box, so the first moment its saved position can
+         * honestly be checked against the window. Anything earlier measures a zero rect.
+         */
+        place(position);
+
         requestAnimationFrame(() => {
           card.dataset["state"] = "open";
           input.focus();

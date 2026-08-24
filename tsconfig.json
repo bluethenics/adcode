@@ -30,6 +30,7 @@
       "@adcode/ads": ["./packages/ads/src/index.ts"],
       "@adcode/memory": ["./packages/memory/src/index.ts"],
       "@adcode/settings": ["./packages/settings/src/index.ts"],
+      "@adcode/ai/agents": ["./packages/ai/src/agents.ts"],
       "@adcode/ai": ["./packages/ai/src/index.ts"],
       "@adcode/diagnostics": ["./packages/diagnostics/src/index.ts"],
       "@adcode/lsp": ["./packages/lsp/src/index.ts"],
@@ -38,7 +39,12 @@
       "@adcode/search/fuzzy": ["./packages/search/src/fuzzy.ts"],
       "@adcode/search": ["./packages/search/src/index.ts"],
       "@adcode/collab": ["./packages/collab/src/index.ts"],
-      "@adcode/structure": ["./packages/structure/src/index.ts"]
+      "@adcode/release": ["./packages/release/src/index.ts"],
+      "@adcode/structure": ["./packages/structure/src/index.ts"],
+      "@adcode/help": ["./packages/help/src/index.ts"],
+      "@adcode/format": ["./packages/format/src/index.ts"],
+      "@adcode/highlight": ["./packages/highlight/src/index.ts"],
+      "@adcode/debug": ["./packages/debug/src/index.ts"]
     }
   },
   "include": ["packages/**/*.ts", "mock-server/**/*.ts", "services/**/*.ts", "vitest.config.ts"],

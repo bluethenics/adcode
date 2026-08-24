@@ -7,7 +7,15 @@
  * only this vocabulary, and each provider adapter translates its own wire format into it.
  */
 
-export type ProviderId = "anthropic" | "openai" | "google" | "ollama";
+/**
+ * A provider's id.
+ *
+ * Open-ended on purpose. It used to be a union of four, which made the set of usable
+ * providers a build-time decision - and the catalogue has nearly two hundred, growing
+ * without this editor shipping again. The four named here are the ones with a first-class
+ * client; the template keeps them discoverable in an editor without closing the type.
+ */
+export type ProviderId = "anthropic" | "openai" | "google" | "ollama" | (string & {});
 
 export interface ModelChoice {
   readonly provider: ProviderId;

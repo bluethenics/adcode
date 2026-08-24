@@ -30,6 +30,15 @@ const MIME: Readonly<Record<string, string>> = {
   ".woff2": "font/woff2",
   ".ttf": "font/ttf",
   ".map": "application/json; charset=utf-8",
+  /*
+   * `application/wasm` is not decoration.
+   *
+   * `WebAssembly.instantiateStreaming` refuses any other content type outright, so a
+   * grammar served as `application/octet-stream` fails to compile, falls back to the slow
+   * non-streaming path, and prints an error per file per load. Serving the right type is
+   * the whole fix.
+   */
+  ".wasm": "application/wasm",
 };
 
 /**
@@ -38,6 +47,13 @@ const MIME: Readonly<Record<string, string>> = {
  * - `default-src 'none'` then allowlist, so anything not thought about is denied.
  * - `worker-src 'self'` because Monaco's language services are workers.
  * - No `'unsafe-eval'`: Monaco does not need it once bundled rather than AMD-loaded.
+ * - `'wasm-unsafe-eval'` in `script-src`, which is a narrower thing than its name suggests:
+ *   it permits compiling WebAssembly and nothing else. It does *not* re-admit `eval` or
+ *   `new Function`, which is the reason this directive exists separately at all. Tree-sitter
+ *   is WebAssembly, and without it every grammar load fails with a CSP violation. The bytes
+ *   compiled are the grammars this app ships, served from its own `app://` protocol - the
+ *   policy still forbids fetching wasm from anywhere else, because `default-src 'none'` and
+ *   `connect-src 'self'` are unchanged.
  * - `img-src` allows `data:` for inline icons and `https:` for ad creatives, which are
  *   fetched and cached by us and therefore always come from the allowlisted host.
  * - `connect-src 'self'` keeps the renderer from talking to the network directly; the
@@ -45,7 +61,7 @@ const MIME: Readonly<Record<string, string>> = {
  */
 const CSP = [
   "default-src 'none'",
-  "script-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
   "img-src 'self' data: https:",

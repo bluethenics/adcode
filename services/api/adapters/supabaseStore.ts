@@ -1,0 +1,603 @@
+/**
+ * The `Store` port against Supabase Postgres.
+ *
+ * This is the only file in the service that knows Supabase exists. Everything above it is
+ * tested against `memoryStore.ts`, so a bug here is a translation or a query bug - and the
+ * translation half lives in `supabaseRows.ts`, which is tested on its own with no database
+ * at all. What is left here is queries.
+ *
+ * **Reads go through PostgREST, not a Postgres connection.** The service runs on
+ * Cloudflare's runtime, which has no TCP socket a Postgres driver could use. PostgREST is
+ * plain HTTPS and works identically in Node for the test suite.
+ *
+ * **Writes that must be atomic go through a database function.** PostgREST cannot express
+ * a transaction, and five operations here are not safe as read-then-write: appending a
+ * ledger entry, creating a receipt, recording a funding event, adding spend, and bumping a
+ * rate-limit counter. Each is a `.rpc(...)` call into a function defined in
+ * `supabase/migrations/20260824000000_init.sql`, whose body is one transaction. The
+ * balance *arithmetic* stays in `ledger.ts` - this file computes the deltas with the same
+ * `applyEntry` every other caller uses and the function only applies them.
+ *
+ * **Money is selected as text.** See the header of `supabaseRows.ts`: PostgREST emits
+ * `bigint` as a JSON number and `JSON.parse` truncates above 2^53. Every `*_micros` read
+ * in this file goes through a `*_COLS` constant that casts it, and there are no ad-hoc
+ * `select("*")` calls for exactly that reason.
+ */
+import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../src/ledger.ts";
+import {
+  ADVERTISER_COLS,
+  AUDIT_COLS,
+  BALANCE_COLS,
+  CAMPAIGN_COLS,
+  CONFIG_COLS,
+  CREATIVE_COLS,
+  FUNDING_COLS,
+  LEDGER_COLS,
+  NOTICE_COLS,
+  POST_COLS,
+  RELEASE_COLS,
+  REPORT_COLS,
+  SERVE_COLS,
+  USER_COLS,
+  fromAdvertiser,
+  fromAudit,
+  fromCampaign,
+  fromConfig,
+  fromCreative,
+  fromFunding,
+  fromMicros,
+  fromNotice,
+  fromPost,
+  fromRelease,
+  fromReport,
+  fromServe,
+  fromUser,
+  toAdvertiser,
+  toAudit,
+  toCampaign,
+  toConfig,
+  toCreative,
+  toEntry,
+  toFunding,
+  toMicros,
+  toNotice,
+  toPost,
+  toRelease,
+  toReport,
+  toServe,
+  toUser,
+  type AdvertiserRow,
+  type AuditRow,
+  type BalanceRow,
+  type CampaignRow,
+  type ConfigRow,
+  type CreativeRow,
+  type FundingRow,
+  type LedgerRow,
+  type NoticeRow,
+  type PostRow,
+  type ReleaseRow,
+  type ReportRow,
+  type ServeRow,
+  type UserRow,
+} from "./supabaseRows.ts";
+import type {
+  CampaignStats,
+  EntryPage,
+  Page,
+  ReportPage,
+  ServingConfig,
+  Store,
+  UserPage,
+} from "../src/store.ts";
+
+type SupabaseClient = import("@supabase/supabase-js").SupabaseClient;
+
+/** Postgres' unique_violation. The one error code this adapter reacts to by name. */
+const UNIQUE_VIOLATION = "23505";
+
+/**
+ * The shape every supabase-js call resolves to.
+ *
+ * Declared locally rather than imported because the client is deliberately untyped here -
+ * there are no generated `Database` types to keep in step with the migration, and a
+ * hand-written duplicate of the schema would be a second thing to forget to update.
+ */
+interface Response {
+  data: unknown;
+  error: { message: string; code?: string } | null;
+}
+
+export interface SupabaseStoreOptions {
+  /** `https://<ref>.supabase.co`. Falls back to `SUPABASE_URL`. */
+  url?: string;
+  /**
+   * The service_role key. Falls back to `SUPABASE_SERVICE_ROLE_KEY`.
+   *
+   * This key bypasses Row Level Security, which is the entire reason the schema has no
+   * policies. It must never reach a browser bundle, an artifact, or a log line.
+   */
+  serviceRoleKey?: string;
+  /** For tests: an already-constructed client. */
+  client?: SupabaseClient;
+}
+
+function fail(context: string, error: { message: string }): never {
+  throw new Error(`supabase ${context}: ${error.message}`);
+}
+
+export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
+  let client: SupabaseClient | undefined = options.client;
+
+  const lazy = async (): Promise<SupabaseClient> => {
+    if (client !== undefined) return client;
+
+    const url = options.url ?? process.env["SUPABASE_URL"];
+    const key = options.serviceRoleKey ?? process.env["SUPABASE_SERVICE_ROLE_KEY"];
+    if (url === undefined || url === "" || key === undefined || key === "") {
+      throw new Error(
+        "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required to reach the database",
+      );
+    }
+
+    const { createClient } = await import("@supabase/supabase-js");
+    client = createClient(url, key, {
+      // There is no user session here and nothing to persist: this client is the
+      // service_role acting on its own behalf, in a runtime with no storage to speak of.
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    return client;
+  };
+
+  /** Rows, or a throw. A read that fails must never look like a read that found nothing. */
+  const many = async <T>(context: string, run: (db: SupabaseClient) => PromiseLike<Response>): Promise<T[]> => {
+    const { data, error } = await run(await lazy());
+    if (error !== null) fail(context, error);
+    return (data ?? []) as T[];
+  };
+
+  /** One row or null. */
+  const maybe = async <T>(context: string, run: (db: SupabaseClient) => PromiseLike<Response>): Promise<T | null> => {
+    const { data, error } = await run(await lazy());
+    if (error !== null) fail(context, error);
+    return (data ?? null) as T | null;
+  };
+
+  /** A scalar returned by an rpc. */
+  const scalar = async <T>(context: string, run: (db: SupabaseClient) => PromiseLike<Response>): Promise<T> => {
+    const { data, error } = await run(await lazy());
+    if (error !== null) fail(context, error);
+    return data as T;
+  };
+
+  /**
+   * Turn a page limit into the query limit.
+   *
+   * One more than asked for, so the presence of a next page is a fact rather than a
+   * guess. Returning a cursor whenever a page came back full would hand the caller a
+   * cursor to an empty page every time the total is an exact multiple of the limit.
+   */
+  const overshoot = (page: Page): number => page.limit + 1;
+
+  const cut = <T>(rows: T[], page: Page, cursorOf: (row: T) => string): { rows: T[]; nextCursor: string | null } => {
+    const more = rows.length > page.limit;
+    const kept = more ? rows.slice(0, page.limit) : rows;
+    const last = kept.at(-1);
+    return { rows: kept, nextCursor: more && last !== undefined ? cursorOf(last) : null };
+  };
+
+  return {
+    async getUser(uid) {
+      const row = await maybe<UserRow>("getUser", (db) =>
+        db.from("users").select(USER_COLS).eq("uid", uid).maybeSingle(),
+      );
+      return row === null ? null : toUser(row);
+    },
+
+    async putUser(user) {
+      const { error } = await (await lazy()).from("users").upsert(fromUser(user));
+      if (error !== null) fail("putUser", error);
+    },
+
+    async putAdvertiser(advertiser) {
+      const { error } = await (await lazy()).from("advertisers").upsert(fromAdvertiser(advertiser));
+      if (error !== null) fail("putAdvertiser", error);
+    },
+
+    async getAdvertiser(advertiserId) {
+      const row = await maybe<AdvertiserRow>("getAdvertiser", (db) =>
+        db.from("advertisers").select(ADVERTISER_COLS).eq("advertiser_id", advertiserId).maybeSingle(),
+      );
+      return row === null ? null : toAdvertiser(row);
+    },
+
+    async advertiserForOwner(uid) {
+      // `contains` is the array containment operator: owner_uids @> {uid}. The gin index
+      // is not needed at this table's size, but the operator is what keeps this one query
+      // rather than a scan in JavaScript.
+      const row = await maybe<AdvertiserRow>("advertiserForOwner", (db) =>
+        db
+          .from("advertisers")
+          .select(ADVERTISER_COLS)
+          .contains("owner_uids", [uid])
+          .limit(1)
+          .maybeSingle(),
+      );
+      return row === null ? null : toAdvertiser(row);
+    },
+
+    async putCampaign(campaign) {
+      const { error } = await (await lazy()).from("campaigns").upsert(fromCampaign(campaign));
+      if (error !== null) fail("putCampaign", error);
+    },
+
+    async getCampaign(campaignId) {
+      const row = await maybe<CampaignRow>("getCampaign", (db) =>
+        db.from("campaigns").select(CAMPAIGN_COLS).eq("campaign_id", campaignId).maybeSingle(),
+      );
+      return row === null ? null : toCampaign(row);
+    },
+
+    async campaignsForAdvertiser(advertiserId) {
+      const rows = await many<CampaignRow>("campaignsForAdvertiser", (db) =>
+        db
+          .from("campaigns")
+          .select(CAMPAIGN_COLS)
+          .eq("advertiser_id", advertiserId)
+          .order("created_at", { ascending: false }),
+      );
+      return rows.map(toCampaign);
+    },
+
+    async activeCampaignsFor(tags) {
+      // A function rather than a filter chain: the rule is "no tags means match everyone,
+      // otherwise overlap", and PostgREST's `or=` syntax for that is a string that nobody
+      // can read six months later.
+      const rows = await many<CampaignRow>("activeCampaignsFor", (db) =>
+        db.rpc("active_campaigns_for", { p_tags: [...tags] }).select(CAMPAIGN_COLS),
+      );
+      return rows.map(toCampaign);
+    },
+
+    async statsForCampaign(campaignId): Promise<CampaignStats> {
+      // Aggregated in the database. The in-memory store folds every receipt in JavaScript,
+      // which is correct for a test double and would mean shipping the whole receipts
+      // table across the wire here.
+      const rows = await many<{
+        serves: number;
+        impressions: number;
+        clicks: number;
+        spent_micros: string;
+      }>("statsForCampaign", (db) => db.rpc("stats_for_campaign", { p_campaign_id: campaignId }));
+
+      const row = rows[0];
+      if (row === undefined) {
+        return { campaignId, serves: 0, impressions: 0, clicks: 0, spentMicros: 0n };
+      }
+
+      return {
+        campaignId,
+        serves: Number(row.serves),
+        impressions: Number(row.impressions),
+        clicks: Number(row.clicks),
+        spentMicros: toMicros(row.spent_micros),
+      };
+    },
+
+    async putCreative(creative) {
+      const { error } = await (await lazy()).from("creatives").upsert(fromCreative(creative));
+      if (error !== null) fail("putCreative", error);
+    },
+
+    async getCreative(creativeId) {
+      const row = await maybe<CreativeRow>("getCreative", (db) =>
+        db.from("creatives").select(CREATIVE_COLS).eq("creative_id", creativeId).maybeSingle(),
+      );
+      return row === null ? null : toCreative(row);
+    },
+
+    async creativesForCampaign(campaignId) {
+      const rows = await many<CreativeRow>("creativesForCampaign", (db) =>
+        db
+          .from("creatives")
+          .select(CREATIVE_COLS)
+          .eq("campaign_id", campaignId)
+          .eq("status", "approved"),
+      );
+      return rows.map(toCreative);
+    },
+
+    async allCreativesForCampaign(campaignId) {
+      const rows = await many<CreativeRow>("allCreativesForCampaign", (db) =>
+        db.from("creatives").select(CREATIVE_COLS).eq("campaign_id", campaignId),
+      );
+      return rows.map(toCreative);
+    },
+
+    async recordServe(serve) {
+      const { error } = await (await lazy()).from("serves").upsert(fromServe(serve));
+      if (error !== null) fail("recordServe", error);
+    },
+
+    async findServe(uid, creativeId, now) {
+      const row = await maybe<ServeRow>("findServe", (db) =>
+        db
+          .from("serves")
+          .select(SERVE_COLS)
+          .eq("uid", uid)
+          .eq("creative_id", creativeId)
+          .gt("expires_at", now)
+          .order("expires_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      );
+      return row === null ? null : toServe(row);
+    },
+
+    async createReceiptIfAbsent(receipt) {
+      return scalar<boolean>("createReceiptIfAbsent", (db) =>
+        db.rpc("create_receipt_if_absent", {
+          p_receipt_id: receipt.receiptId,
+          p_uid: receipt.uid,
+          p_creative_id: receipt.creativeId,
+          p_campaign_id: receipt.campaignId,
+          p_outcome: receipt.outcome,
+          p_credited_micros: fromMicros(receipt.creditedMicros),
+          p_cost_micros: fromMicros(receipt.costMicros),
+        }),
+      );
+    },
+
+    async appendEntryAndUpdateBalance(entry: LedgerEntry) {
+      // The deltas, from the one implementation of what an entry does to a balance.
+      // Folding onto the empty balance yields exactly the change, because every branch of
+      // `applyEntry` is additive on the balance it is given.
+      const delta = applyEntry(EMPTY_BALANCE, entry);
+
+      const { error } = await (await lazy()).rpc("append_entry_and_update_balance", {
+        p_entry_id: entry.entryId,
+        p_uid: entry.uid,
+        p_kind: entry.kind,
+        p_micros: fromMicros(entry.micros),
+        p_ref_id: entry.refId,
+        p_created_at: entry.createdAt,
+        p_description: entry.description,
+        p_reason: entry.reason ?? null,
+        p_admin_uid: entry.adminUid ?? null,
+        p_provider_ref: entry.providerRef ?? null,
+        p_currency: entry.currency ?? null,
+        p_available_delta: fromMicros(delta.availableMicros),
+        p_lifetime_delta: fromMicros(delta.lifetimeMicros),
+        p_pending_delta: fromMicros(delta.pendingWithdrawalMicros),
+      });
+
+      if (error !== null) {
+        // Same message and same shape as the in-memory store, so the callers that treat a
+        // duplicate as a recoverable replay keep working against either implementation.
+        if (error.code === UNIQUE_VIOLATION) {
+          throw new Error(`ledger entry ${entry.entryId} already exists`);
+        }
+        fail("appendEntryAndUpdateBalance", error);
+      }
+    },
+
+    async getBalance(uid): Promise<Balance> {
+      const row = await maybe<BalanceRow>("getBalance", (db) =>
+        db.from("balances").select(BALANCE_COLS).eq("uid", uid).maybeSingle(),
+      );
+      if (row === null) return EMPTY_BALANCE;
+      return {
+        availableMicros: toMicros(row.available_micros),
+        lifetimeMicros: toMicros(row.lifetime_micros),
+        pendingWithdrawalMicros: toMicros(row.pending_withdrawal_micros),
+      };
+    },
+
+    async listEntries(uid, page): Promise<EntryPage> {
+      const rows = await many<LedgerRow>("listEntries", (db) =>
+        db
+          .rpc("list_entries_page", { p_uid: uid, p_limit: overshoot(page), p_cursor: page.cursor })
+          .select(LEDGER_COLS),
+      );
+      const { rows: kept, nextCursor } = cut(rows, page, (r) => r.entry_id);
+      return { rows: kept.map(toEntry), nextCursor };
+    },
+
+    async addSpend(campaignId, micros) {
+      const { error } = await (await lazy()).rpc("add_spend", {
+        p_campaign_id: campaignId,
+        p_micros: fromMicros(micros),
+      });
+      if (error !== null) fail("addSpend", error);
+    },
+
+    async getSpend(campaignId) {
+      const row = await maybe<{ spent_micros: string }>("getSpend", (db) =>
+        db
+          .from("campaign_spend")
+          .select("spent_micros::text")
+          .eq("campaign_id", campaignId)
+          .maybeSingle(),
+      );
+      return row === null ? 0n : toMicros(row.spent_micros);
+    },
+
+    async bumpRequestCount(uid, windowStart) {
+      return scalar<number>("bumpRequestCount", (db) =>
+        db.rpc("bump_request_count", { p_uid: uid, p_window_start: windowStart }),
+      );
+    },
+
+    async recordFundingIfAbsent(funding) {
+      const row = fromFunding(funding);
+      return scalar<boolean>("recordFundingIfAbsent", (db) =>
+        db.rpc("record_funding_if_absent", {
+          p_event_id: row.event_id,
+          p_payment_id: row.payment_id,
+          p_advertiser_id: row.advertiser_id,
+          p_amount_micros: row.amount_micros,
+          p_currency: row.currency,
+          p_at: row.at,
+        }),
+      );
+    },
+
+    async listFunding(advertiserId) {
+      const rows = await many<FundingRow>("listFunding", (db) =>
+        db
+          .from("fundings")
+          .select(FUNDING_COLS)
+          .eq("advertiser_id", advertiserId)
+          .order("at", { ascending: false }),
+      );
+      return rows.map(toFunding);
+    },
+
+    async createReport(report) {
+      const { error } = await (await lazy()).from("reports").upsert(fromReport(report));
+      if (error !== null) fail("createReport", error);
+    },
+
+    async listReports(page): Promise<ReportPage> {
+      const rows = await many<ReportRow>("listReports", (db) =>
+        db
+          .rpc("list_reports_page", { p_limit: overshoot(page), p_cursor: page.cursor })
+          .select(REPORT_COLS),
+      );
+      const { rows: kept, nextCursor } = cut(rows, page, (r) => r.report_id);
+      return { rows: kept.map(toReport), nextCursor };
+    },
+
+    async listUsers(page): Promise<UserPage> {
+      const rows = await many<UserRow>("listUsers", (db) =>
+        db
+          .rpc("list_users_page", { p_limit: overshoot(page), p_cursor: page.cursor })
+          .select(USER_COLS),
+      );
+      const { rows: kept, nextCursor } = cut(rows, page, (r) => r.uid);
+      return { rows: kept.map(toUser), nextCursor };
+    },
+
+    async listAdvertisers() {
+      const rows = await many<AdvertiserRow>("listAdvertisers", (db) =>
+        db.from("advertisers").select(ADVERTISER_COLS).order("created_at", { ascending: false }),
+      );
+      return rows.map(toAdvertiser);
+    },
+
+    async putNotice(notice) {
+      const { error } = await (await lazy()).from("notices").upsert(fromNotice(notice));
+      if (error !== null) fail("putNotice", error);
+    },
+
+    async getNotice(noticeId) {
+      const row = await maybe<NoticeRow>("getNotice", (db) =>
+        db.from("notices").select(NOTICE_COLS).eq("notice_id", noticeId).maybeSingle(),
+      );
+      return row === null ? null : toNotice(row);
+    },
+
+    async listNotices(options_) {
+      const rows = await many<NoticeRow>("listNotices", (db) => {
+        const query = db.from("notices").select(NOTICE_COLS).order("created_at", { ascending: false });
+        return options_.activeOnly ? query.eq("active", true) : query;
+      });
+      return rows.map(toNotice);
+    },
+
+    async creativesByStatus(status) {
+      const rows = await many<CreativeRow>("creativesByStatus", (db) =>
+        db.from("creatives").select(CREATIVE_COLS).eq("status", status),
+      );
+      return rows.map(toCreative);
+    },
+
+    async putPost(post) {
+      const { error } = await (await lazy()).from("posts").upsert(fromPost(post));
+      if (error !== null) fail("putPost", error);
+    },
+
+    async getPost(slug) {
+      const row = await maybe<PostRow>("getPost", (db) =>
+        db.from("posts").select(POST_COLS).eq("slug", slug).maybeSingle(),
+      );
+      return row === null ? null : toPost(row);
+    },
+
+    async listPosts(options_) {
+      // `sort_at` is the generated `coalesce(published_at, updated_at)` column: a draft
+      // sorts by when it was last edited, a published post by when it went out.
+      const rows = await many<PostRow>("listPosts", (db) => {
+        const query = db.from("posts").select(POST_COLS).order("sort_at", { ascending: false });
+        return options_.publishedOnly ? query.eq("status", "published") : query;
+      });
+      return rows.map(toPost);
+    },
+
+    async putRelease(release) {
+      const { error } = await (await lazy()).from("releases").upsert(fromRelease(release));
+      if (error !== null) fail("putRelease", error);
+    },
+
+    async getRelease(version) {
+      const row = await maybe<ReleaseRow>("getRelease", (db) =>
+        db.from("releases").select(RELEASE_COLS).eq("version", version).maybeSingle(),
+      );
+      return row === null ? null : toRelease(row);
+    },
+
+    async listReleases(options_) {
+      const rows = await many<ReleaseRow>("listReleases", (db) => {
+        const query = db.from("releases").select(RELEASE_COLS).order("sort_at", { ascending: false });
+        return options_.publishedOnly ? query.eq("status", "published") : query;
+      });
+      return rows.map(toRelease);
+    },
+
+    async setTestServe(uid, creativeId) {
+      const { error } = await (await lazy())
+        .from("test_serves")
+        .upsert({ uid, creative_id: creativeId });
+      if (error !== null) fail("setTestServe", error);
+    },
+
+    async takeTestServe(uid) {
+      // Delete-returning, in the database. A read followed by a delete would let two
+      // concurrent requests both see the queued creative and both serve it.
+      return scalar<string | null>("takeTestServe", (db) =>
+        db.rpc("take_test_serve", { p_uid: uid }),
+      );
+    },
+
+    async getConfig(): Promise<ServingConfig> {
+      const row = await maybe<ConfigRow>("getConfig", (db) =>
+        db.from("serving_config").select(CONFIG_COLS).eq("id", 1).maybeSingle(),
+      );
+      if (row === null) {
+        throw new Error(
+          "serving_config row 1 is missing - run supabase/migrations/20260824000000_init.sql",
+        );
+      }
+      return toConfig(row);
+    },
+
+    async putConfig(config) {
+      const { error } = await (await lazy()).from("serving_config").upsert(fromConfig(config));
+      if (error !== null) fail("putConfig", error);
+    },
+
+    async writeAudit(record) {
+      const { error } = await (await lazy()).from("audit_log").insert(fromAudit(record));
+      if (error !== null) fail("writeAudit", error);
+    },
+
+    async listAudit() {
+      // Insertion order, which the identity column gives for free and `at` does not: two
+      // admin actions in the same millisecond are not unusual.
+      const rows = await many<AuditRow>("listAudit", (db) =>
+        db.from("audit_log").select(AUDIT_COLS).order("id", { ascending: true }),
+      );
+      return rows.map(toAudit);
+    },
+  };
+}

@@ -45,6 +45,13 @@ export interface StructurePopup {
   open(tab?: StructureTab): void;
   close(): void;
   isOpen(): boolean;
+  /**
+   * `adcode.navigation.outline`.
+   *
+   * Off hides the file tab rather than emptying it. An outline switched off should look
+   * like a feature that is not there, not like one that failed to find anything.
+   */
+  setOutlineEnabled(enabled: boolean): void;
 }
 
 export function createStructurePopup(host: HTMLElement, deps: StructurePopupDeps): StructurePopup {
@@ -95,7 +102,9 @@ export function createStructurePopup(host: HTMLElement, deps: StructurePopupDeps
   }
 
   function show(tab: StructureTab): void {
-    current = tab;
+    // The project map is always available; the outline is the half with a switch.
+    current = tab === "file" && !outlineEnabled ? "project" : tab;
+    tab = current;
 
     fileTab.ariaSelected = String(tab === "file");
     projectTab.ariaSelected = String(tab === "project");
@@ -142,7 +151,17 @@ export function createStructurePopup(host: HTMLElement, deps: StructurePopupDeps
     }
   });
 
+  let outlineEnabled = true;
+
   const api: StructurePopup = {
+    setOutlineEnabled(enabled: boolean): void {
+      outlineEnabled = enabled;
+      fileTab.hidden = !enabled;
+
+      // Already looking at the tab that just disappeared.
+      if (!enabled && current === "file") show("project");
+    },
+
     open(tab = "file"): void {
       if (!dialog.open) dialog.showModal();
       deps.anchor?.setAttribute("aria-expanded", "true");

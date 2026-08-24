@@ -6,6 +6,9 @@ const alias = {
   "@adcode/ads": resolve(import.meta.dirname, "../../packages/ads/src/index.ts"),
   "@adcode/memory": resolve(import.meta.dirname, "../../packages/memory/src/index.ts"),
   "@adcode/settings": resolve(import.meta.dirname, "../../packages/settings/src/index.ts"),
+  // Above the bare alias, for the same reason `@adcode/git/conflicts` is: the renderer
+  // wants the agent-name parser without dragging the provider SDKs into the bundle.
+  "@adcode/ai/agents": resolve(import.meta.dirname, "../../packages/ai/src/agents.ts"),
   "@adcode/ai": resolve(import.meta.dirname, "../../packages/ai/src/index.ts"),
   "@adcode/diagnostics": resolve(import.meta.dirname, "../../packages/diagnostics/src/index.ts"),
   "@adcode/lsp": resolve(import.meta.dirname, "../../packages/lsp/src/index.ts"),
@@ -20,7 +23,12 @@ const alias = {
   "@adcode/search/fuzzy": resolve(import.meta.dirname, "../../packages/search/src/fuzzy.ts"),
   "@adcode/search": resolve(import.meta.dirname, "../../packages/search/src/index.ts"),
   "@adcode/collab": resolve(import.meta.dirname, "../../packages/collab/src/index.ts"),
+  "@adcode/release": resolve(import.meta.dirname, "../../packages/release/src/index.ts"),
   "@adcode/structure": resolve(import.meta.dirname, "../../packages/structure/src/index.ts"),
+  "@adcode/help": resolve(import.meta.dirname, "../../packages/help/src/index.ts"),
+  "@adcode/format": resolve(import.meta.dirname, "../../packages/format/src/index.ts"),
+  "@adcode/highlight": resolve(import.meta.dirname, "../../packages/highlight/src/index.ts"),
+  "@adcode/debug": resolve(import.meta.dirname, "../../packages/debug/src/index.ts"),
 };
 
 export default defineConfig({

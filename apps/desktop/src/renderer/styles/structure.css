@@ -329,3 +329,61 @@
 .structure-note-inline {
   padding: 2px 6px;
 }
+
+/* ── Shared tree rails ────────────────────────────────────────────────── */
+
+/*
+ * One cell per ancestor level, drawn as SVG.
+ *
+ * `flex: none` matters more than it looks: without it the cells are squeezed by a long
+ * filename and the lines stop meeting each other, which reads as a rendering bug rather
+ * than as narrow columns.
+ */
+.tree-rail {
+  flex: none;
+  width: 14px;
+  align-self: stretch;
+  pointer-events: none;
+}
+
+.tree-rail svg {
+  display: block;
+  width: 14px;
+  height: 100%;
+}
+
+.tree-rail path {
+  fill: none;
+  stroke: var(--border-hairline);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+/*
+ * Indent guides in the file explorer.
+ *
+ * The explorer builds its rows one directory at a time, so it does not know which of a
+ * row's ancestors still have children below - the information the elbows need. Repeating
+ * vertical guides give the same reading of depth without claiming to know more than the
+ * renderer does.
+ */
+#filetree .tree-row {
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--border-hairline) 0 1px,
+    transparent 1px 10px
+  );
+  background-position: 12px 0;
+  background-size: calc(var(--tree-guides, 0) * 10px) 100%;
+  background-repeat: no-repeat;
+}
+
+/* `adcode.structure.projectTreeLines`: one switch, every tree. */
+[data-tree-lines="off"] .tree-rail svg,
+[data-tree-lines="off"] .structure-rail svg {
+  display: none;
+}
+
+[data-tree-lines="off"] #filetree .tree-row {
+  background-image: none;
+}

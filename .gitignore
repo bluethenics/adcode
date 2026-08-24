@@ -23,3 +23,6 @@ build/icons.log
 apps/web/.next/
 apps/web/out/
 apps/web/next-env.d.ts
+
+# Copied from node_modules by scripts/grammars.mjs - see the note there.
+apps/desktop/src/renderer/public/grammars/

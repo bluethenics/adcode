@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    The ADCode mark: a dollar sign between two angle brackets.
+
+    Path for path the same as `apps/desktop/src/renderer/workbench/brandMark.ts` and the
+    site's `Mark.tsx`. A logo that differs between the app and the site is two logos.
+
+    The plate is part of the icon and not of the inline mark: an app icon needs its own
+    ground to sit on, and an inline mark needs to take the colour around it.
+
+    Next serves this as the favicon by file convention - the name `icon.svg` in `app/` is
+    what wires it up, so there is no `<link>` anywhere to keep in step with it.
+
+    A copy of `build/icon.svg` rather than an import: the desktop build and the website are
+    separate projects on a volume with no symlinks, and a favicon is 1KB.
+  -->
+  <rect width="1024" height="1024" rx="224" fill="#0b0b0f"/>
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M320 348L140 512L320 676" stroke-width="56"/>
+    <path d="M704 348L884 512L704 676" stroke-width="56"/>
+    <path d="M512 322V365" stroke-width="42"/>
+    <path d="M512 662V702" stroke-width="42"/>
+    <path d="M584 405C563 374 531 356 494 356C446 356 413 383 413 423C413 463 444 484 505 500C569 517 606 541 606 590C606 641 565 671 511 671C466 671 429 651 405 619" stroke-width="56"/>
+  </g>
+</svg>

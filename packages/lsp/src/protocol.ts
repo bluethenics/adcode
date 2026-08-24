@@ -197,3 +197,145 @@ export function didCloseParams(uri: string): unknown {
 export function positionParams(uri: string, line: number, column: number): unknown {
   return { textDocument: { uri }, position: toLspPosition(line, column) };
 }
+
+/* ── Formatting ───────────────────────────────────────────────────────────── */
+
+/**
+ * One edit a server wants applied, in the editor's own one-based coordinates.
+ *
+ * Converted here rather than in the renderer for the same reason completions are: the reply
+ * is arbitrary JSON from a subprocess, and the place to turn it into a checked shape is
+ * before it reaches anything that will act on it.
+ */
+export interface EditorTextEdit {
+  readonly startLine: number;
+  readonly startColumn: number;
+  readonly endLine: number;
+  readonly endColumn: number;
+  readonly text: string;
+}
+
+export interface FormattingOptions {
+  readonly tabSize: number;
+  readonly insertSpaces: boolean;
+}
+
+export function formattingParams(uri: string, options: FormattingOptions): unknown {
+  return {
+    textDocument: { uri },
+    // The protocol's own names. `trimFinalNewlines` is deliberately not requested: some
+    // servers read it as "remove the final newline entirely", which every other tool then
+    // puts back.
+    options: {
+      tabSize: options.tabSize,
+      insertSpaces: options.insertSpaces,
+      trimTrailingWhitespace: true,
+      insertFinalNewline: true,
+    },
+  };
+}
+
+function isPosition(value: unknown): value is LspPosition {
+  if (typeof value !== "object" || value === null) return false;
+  const position = value as { line?: unknown; character?: unknown };
+  return typeof position.line === "number" && typeof position.character === "number";
+}
+
+/**
+ * Validate a formatting reply into edits, or return null.
+ *
+ * `null` means "this server did not answer with edits" - it does not support formatting,
+ * it timed out, or it sent something unrecognisable - and the caller falls back to the
+ * built-in formatter. An empty array is a different answer entirely: the server formatted
+ * the file and found nothing to change, and falling back there would undo its opinion.
+ */
+export function toEditorEdits(raw: unknown): EditorTextEdit[] | null {
+  if (!Array.isArray(raw)) return null;
+
+  const edits: EditorTextEdit[] = [];
+
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) return null;
+
+    const { range, newText } = entry as { range?: unknown; newText?: unknown };
+    if (typeof newText !== "string") return null;
+    if (typeof range !== "object" || range === null) return null;
+
+    const { start, end } = range as { start?: unknown; end?: unknown };
+    if (!isPosition(start) || !isPosition(end)) return null;
+
+    edits.push({
+      startLine: toEditorLine(start.line),
+      startColumn: toEditorColumn(start.character),
+      endLine: toEditorLine(end.line),
+      endColumn: toEditorColumn(end.character),
+      text: newText,
+    });
+  }
+
+  return edits;
+}
+
+/* ── Definitions ──────────────────────────────────────────────────────────── */
+
+/** Where a symbol is defined, in the editor's one-based coordinates. */
+export interface EditorLocation {
+  /** Absolute path, converted from the server's file URI. */
+  readonly path: string;
+  readonly line: number;
+  readonly column: number;
+  readonly endLine: number;
+  readonly endColumn: number;
+}
+
+function locationFrom(value: unknown): EditorLocation | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  // `Location` has `uri`; `LocationLink` has `targetUri` and `targetSelectionRange`. Both
+  // are legal answers to the same request, and a client that reads only one of them works
+  // with half the servers in the wild.
+  const raw = value as {
+    uri?: unknown;
+    range?: unknown;
+    targetUri?: unknown;
+    targetSelectionRange?: unknown;
+    targetRange?: unknown;
+  };
+
+  const uri = typeof raw.uri === "string" ? raw.uri : typeof raw.targetUri === "string" ? raw.targetUri : null;
+  if (uri === null) return null;
+
+  const range = (raw.range ?? raw.targetSelectionRange ?? raw.targetRange) as
+    | { start?: unknown; end?: unknown }
+    | undefined;
+  if (range === undefined) return null;
+
+  const start = range.start as { line?: unknown; character?: unknown } | undefined;
+  const end = (range.end ?? range.start) as { line?: unknown; character?: unknown } | undefined;
+  if (typeof start?.line !== "number" || typeof start.character !== "number") return null;
+  if (typeof end?.line !== "number" || typeof end.character !== "number") return null;
+
+  return {
+    path: uriToPath(uri),
+    line: toEditorLine(start.line),
+    column: toEditorColumn(start.character),
+    endLine: toEditorLine(end.line),
+    endColumn: toEditorColumn(end.character),
+  };
+}
+
+/**
+ * Validate a definition reply into locations.
+ *
+ * `null` means the server had no answer - it does not support the request, it timed out, or
+ * it genuinely does not know. The caller then falls back to searching by name, and says so
+ * in the UI.
+ */
+export function toEditorLocations(raw: unknown): EditorLocation[] | null {
+  if (raw === null || raw === undefined) return null;
+
+  const values = Array.isArray(raw) ? raw : [raw];
+  const locations = values.map(locationFrom).filter((one): one is EditorLocation => one !== null);
+
+  return locations.length === 0 ? null : locations;
+}

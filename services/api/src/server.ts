@@ -27,6 +27,10 @@ import {
   handleListNotices,
   parseNotice,
   parsePost,
+  parseRelease,
+  handleDraftRelease,
+  handleListReleases,
+  handleSaveRelease,
 } from "./admin.ts";
 import { parseReceiptsRequest, parseReportRequest, parseServeRequest } from "./contract.ts";
 import { handleAdminListReports, handleSubmitReport } from "./reports.ts";
@@ -110,18 +114,30 @@ function firstHeader(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-export async function createApiServer(
-  options: {
-    port?: number;
-    store?: Store;
-    verifier?: TokenVerifier;
-    clock?: Clock;
-    ids?: IdGen;
-    payments?: PaymentProvider;
-    webhookSecret?: string;
-    siteOrigin?: string;
-  } = {},
-): Promise<ApiServer> {
+export interface ApiOptions {
+  port?: number;
+  store?: Store;
+  verifier?: TokenVerifier;
+  clock?: Clock;
+  ids?: IdGen;
+  payments?: PaymentProvider;
+  webhookSecret?: string;
+  siteOrigin?: string;
+}
+
+/** What both transports below are: a request in, a response written. */
+export type RequestHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+
+/**
+ * Every route, wired to its dependencies, with no opinion about how it is reached.
+ *
+ * Split from `createApiServer` so the service can also run somewhere that has no sockets
+ * to listen on. On Cloudflare there is no `server.listen` - there is a `fetch` handler
+ * receiving a Web `Request` - and `adapters/fetchHandler.ts` bridges to exactly this
+ * function. Keeping the routing here rather than duplicating it for each transport is
+ * what stops the deployed API and the tested API from drifting apart.
+ */
+export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
   const verifier = options.verifier;
   if (verifier === undefined) throw new Error("a TokenVerifier is required");
 
@@ -150,6 +166,31 @@ export async function createApiServer(
 
     if (!path.startsWith("/v1/")) {
       send(res, 404, { error: "not found" }, cors);
+      return;
+    }
+
+    /*
+     * GET /v1/health - is the service and its database answering?
+     *
+     * Before authentication, and deliberately so. It exists because a Supabase project on
+     * the free plan pauses after a week without activity, and a paused database means the
+     * ad path returns 500s until somebody notices. A scheduled request keeps it awake - but
+     * only if the request actually reaches the database, and every authenticated endpoint
+     * answers 401 without touching it. So this one reads a row.
+     *
+     * It reads the config row, which is a single-row primary-key lookup, and reports
+     * nothing about it. A boolean and a status code: an unauthenticated endpoint on a money
+     * API says as little as it possibly can.
+     */
+    if (path === "/v1/health" && req.method === "GET") {
+      try {
+        await store.getConfig();
+        send(res, 200, { ok: true }, cors);
+      } catch {
+        // 503 rather than 500: the service is up, its dependency is not, and the difference
+        // is what an uptime check needs in order to page the right person.
+        send(res, 503, { ok: false }, cors);
+      }
       return;
     }
 
@@ -198,6 +239,20 @@ export async function createApiServer(
      * read its own blog. Drafts are never included; that filter is in the store query,
      * not in a caller-supplied flag.
      */
+    /*
+     * Published releases, before authentication.
+     *
+     * Public for the same reason the blog is: the marketing site renders a changelog from
+     * this, and the desktop client reads it to decide whether anything is worth telling
+     * somebody about. Drafts are excluded in the store query rather than by a flag the
+     * caller could set - an unpublished note must not be reachable by asking nicely.
+     */
+    if (path === "/v1/releases" && req.method === "GET") {
+      const releases = await store.listReleases({ publishedOnly: true });
+      send(res, 200, { releases }, cors);
+      return;
+    }
+
     if (path === "/v1/posts" && req.method === "GET") {
       const posts = await store.listPosts({ publishedOnly: true });
       send(res, 200, { posts }, cors);
@@ -212,6 +267,45 @@ export async function createApiServer(
         return;
       }
       send(res, 200, post, cors);
+      return;
+    }
+
+    const jsonBodyOr400 = async (): Promise<unknown | undefined> => {
+      try {
+        return JSON.parse(await readBody(req)) as unknown;
+      } catch {
+        send(res, 400, { error: "malformed body" }, cors);
+        return undefined;
+      }
+    };
+
+    /*
+     * A release note drafted by a tool.
+     *
+     * Guarded by a shared secret rather than a user account, because the caller is a script
+     * in a release pipeline. It can only ever create a draft - `handleDraftRelease` forces
+     * that regardless of what is posted - so the worst a leaked token buys is an unpublished
+     * note in the admin panel that a person then reads and deletes.
+     */
+    if (path === "/v1/releases/draft" && req.method === "POST") {
+      const secret = process.env["ADCODE_AGENT_TOKEN"];
+      const offered = (req.headers["authorization"] ?? "").toString().replace(/^Bearer /i, "");
+
+      if (secret === undefined || secret.length === 0 || offered !== secret) {
+        send(res, 401, { error: "unauthorized" }, cors);
+        return;
+      }
+
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+
+      const input = parseRelease(raw);
+      if (input === null) {
+        send(res, 400, { error: "malformed release" }, cors);
+        return;
+      }
+
+      send(res, 200, await handleDraftRelease({ store, clock }, input), cors);
       return;
     }
 
@@ -238,14 +332,6 @@ export async function createApiServer(
     }
 
     /** Reads and parses a JSON body, answering 400 itself if it cannot. */
-    const jsonBodyOr400 = async (): Promise<unknown | undefined> => {
-      try {
-        return JSON.parse(await readBody(req)) as unknown;
-      } catch {
-        send(res, 400, { error: "malformed body" }, cors);
-        return undefined;
-      }
-    };
 
     /*
      * One gate for the whole admin surface, ahead of every admin route.
@@ -420,6 +506,25 @@ export async function createApiServer(
         return;
       }
       send(res, 200, { ok: true }, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/releases" && req.method === "GET") {
+      send(res, 200, { releases: await handleListReleases({ store, clock }, auth.uid) }, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/releases" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+
+      const input = parseRelease(raw);
+      if (input === null) {
+        send(res, 400, { error: "malformed release" }, cors);
+        return;
+      }
+
+      send(res, 200, await handleSaveRelease({ store, clock }, auth.uid, input), cors);
       return;
     }
 
@@ -657,6 +762,19 @@ export async function createApiServer(
 
     send(res, 404, { error: "not found" }, cors);
   };
+
+  return handle;
+}
+
+/**
+ * The routing above, listening on a loopback socket.
+ *
+ * This is what the test suite and `cli.ts` use. It is a thin wrapper by design: anything
+ * that lives here rather than in `createRequestHandler` is behaviour the deployed service
+ * would not have.
+ */
+export async function createApiServer(options: ApiOptions = {}): Promise<ApiServer> {
+  const handle = createRequestHandler(options);
 
   const server = createServer((req, res) => {
     handle(req, res).catch(() => {

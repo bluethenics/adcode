@@ -237,12 +237,28 @@
   stroke-linejoin: round;
 }
 
+/*
+ * The list of open terminals, down the right-hand side.
+ *
+ * A fixed width rather than one that follows the longest shell name: a rail that changes
+ * width when you open `powershell` after `cmd` moves every terminal underneath it, and
+ * xterm has to re-fit each time. The names ellipsize instead.
+ */
 .terminal-tabs {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin-right: auto;
+  width: 150px;
+  padding: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  border-left: 1px solid var(--border-hairline);
+}
+
+.terminal-tabs[hidden] {
+  display: none;
 }
 
 .terminal-tabs::-webkit-scrollbar {
@@ -252,15 +268,28 @@
 .terminal-tab {
   display: flex;
   align-items: center;
+  /* The name takes the room, the close button keeps its size at the end. */
+  justify-content: space-between;
   gap: 6px;
+  width: 100%;
+  min-width: 0;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
   font-size: var(--text-xs);
-  padding: 3px 6px 3px 9px;
+  padding: 4px 6px 4px 9px;
   cursor: pointer;
   white-space: nowrap;
+  text-align: left;
+}
+
+/* Long shell names ellipsize rather than widening the rail. */
+.terminal-tab > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .terminal-tab:hover {

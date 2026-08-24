@@ -22,6 +22,7 @@ export type SettingGroupId =
   | "formatting"
   | "git"
   | "navigation"
+  | "structure"
   | "language"
   | "session"
   | "ai"
@@ -48,6 +49,7 @@ export const GROUPS: readonly SettingGroup[] = [
   { id: "formatting", title: "Formatting", caption: "Formatting and diagnostics." },
   { id: "git", title: "Git", caption: "Source control, built in." },
   { id: "navigation", title: "Navigation", caption: "Finding your way around a codebase." },
+  { id: "structure", title: "Structure", caption: "Reading the shape of a project, and what connects to what." },
   { id: "language", title: "Language", caption: "Language servers, debugging, and highlighting." },
   { id: "session", title: "Session", caption: "What survives a restart." },
   { id: "updates", title: "Updates", caption: "New versions install quietly and apply when you next restart." },
@@ -124,6 +126,15 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     true,
   ),
 
+  bool(
+    "adcode.updates.announce",
+    "updates",
+    "Tell me what changed",
+    "After an update installs, show a short note about what is new. Once per version, never while you are typing or running something, and only for releases worth mentioning. What's New under Help has every note whether this is on or off.",
+    true,
+    true,
+  ),
+
   /* ── Ads (§1, §8.1) ─────────────────────────────────────────────────── */
   bool(
     "adcode.ads.enabled",
@@ -181,15 +192,15 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
 
   /* ── Editing (§4) ───────────────────────────────────────────────────── */
   bool("adcode.editing.bracketPairColorization", "editing", "Bracket pair colorization", "Colour matching brackets by depth.", true, true),
-  bool("adcode.editing.inlineErrorLens", "editing", "Inline error and warning lens", "Show diagnostics at the end of the line they belong to.", true),
+  bool("adcode.editing.inlineErrorLens", "editing", "Inline error and warning lens", "Show diagnostics at the end of the line they belong to. One per line, and never on the line you are typing on.", true, true),
   bool("adcode.editing.inlineGitBlame", "editing", "Inline git blame", "Show the last author and commit beside the cursor's line.", false, true),
   bool("adcode.editing.stickyScroll", "editing", "Sticky scroll", "Pin enclosing scopes to the top of the editor while scrolling.", true, true),
   bool("adcode.editing.indentGuides", "editing", "Indent guides", "Vertical rules showing indentation depth.", true, true),
-  bool("adcode.editing.todoHighlighting", "editing", "TODO and FIXME highlighting", "Highlight TODO, FIXME, and HACK comments.", true),
+  bool("adcode.editing.todoHighlighting", "editing", "TODO and FIXME highlighting", "Highlight TODO, FIXME, HACK, XXX and NOTE - inside comments only, never the word appearing in code.", true, true),
   bool("adcode.editing.autoCloseTags", "editing", "Close tags automatically", "Typing the end of an opening tag writes its closing tag, and typing </ completes the tag that is still open.", true, true),
   bool("adcode.editing.fileTemplates", "editing", "Start new files from a template", "A new file opens with the boilerplate its language always begins with - a doctype for HTML, a main function for C. Ctrl+Z undoes it.", true, true),
-  bool("adcode.editing.autoRenamePairedTag", "editing", "Auto-rename paired tag", "Renaming an opening tag renames its closing tag.", true),
-  bool("adcode.editing.pathAutocomplete", "editing", "Path autocomplete", "Complete file paths inside strings and imports.", true),
+  bool("adcode.editing.autoRenamePairedTag", "editing", "Auto-rename paired tag", "Renaming an opening tag renames its closing tag, in the same undo step.", true, true),
+  bool("adcode.editing.pathAutocomplete", "editing", "Path autocomplete", "Complete file paths inside strings and imports, from the files that are really there.", true, true),
   bool("adcode.editing.trailingWhitespace", "editing", "Render trailing whitespace", "Make trailing spaces visible.", false, true),
   bool("adcode.editing.minimap", "editing", "Minimap", "The scaled overview down the right-hand edge.", true, true),
   bool("adcode.editing.codeFolding", "editing", "Code folding", "Collapse and expand regions.", true, true),
@@ -214,10 +225,10 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   bool("adcode.editing.plainEnglishErrors", "editing", "Explain errors in plain English", "Rewrite compiler messages in the Problems panel and on hover. The original wording is always kept underneath.", true, true),
 
   /* ── Formatting (§4) ────────────────────────────────────────────────── */
-  bool("adcode.formatting.formatter", "formatting", "Built-in formatter", "Formatting with no extension to install.", true),
-  bool("adcode.formatting.formatOnSave", "formatting", "Format on save", "Run the formatter every time a file is saved.", true),
-  bool("adcode.formatting.lintDiagnostics", "formatting", "Lint diagnostics", "Surface diagnostics reported by the language server.", true),
-  bool("adcode.formatting.organizeImportsOnSave", "formatting", "Organize imports on save", "Sort and prune imports when saving.", false),
+  bool("adcode.formatting.formatter", "formatting", "Built-in formatter", "Formatting with no extension to install. A language server is asked first where one is running; otherwise ADCode re-prints JSON and CSS, and fixes indentation and whitespace everywhere else.", true, true),
+  bool("adcode.formatting.formatOnSave", "formatting", "Format on save", "Run the formatter every time a file is saved. A language ADCode cannot format is saved exactly as you wrote it.", true, true),
+  bool("adcode.formatting.lintDiagnostics", "formatting", "Lint diagnostics", "Report problems in the Problems panel, the badge, and beside the line. Off silences all three without stopping the compiler.", true, true),
+  bool("adcode.formatting.organizeImportsOnSave", "formatting", "Organize imports on save", "Sort the import block when saving, and drop an import nothing in the file uses. Off by default, because deleting a line you did not ask to delete deserves to be a choice.", false, true),
 
   /* ── Git (§4) ───────────────────────────────────────────────────────── */
   bool("adcode.git.gutterDiff", "git", "Gutter diff decorations", "Mark added, changed, and deleted lines in the gutter.", true, true),
@@ -229,11 +240,23 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
 
   /* ── Navigation (§4) ────────────────────────────────────────────────── */
   bool("adcode.navigation.fuzzyFileOpen", "navigation", "Fuzzy file open", "Open any file by typing part of its name.", true, true),
-  bool("adcode.navigation.symbolSearch", "navigation", "Symbol search", "Jump to a symbol across the workspace.", true),
+  bool("adcode.navigation.symbolSearch", "navigation", "Symbol search", "Jump to any function, class, or variable across the workspace with Ctrl+T. Nothing is indexed; the project is searched when you ask.", true, true),
   bool("adcode.navigation.globalSearch", "navigation", "Global search and replace", "Regex search and replace across the workspace.", true, true),
-  bool("adcode.navigation.goToDefinition", "navigation", "Go to definition and references", "Definition, references, and implementations.", true),
-  bool("adcode.navigation.breadcrumbs", "navigation", "Breadcrumbs", "The path and symbol trail above the editor.", true),
-  bool("adcode.navigation.outline", "navigation", "Outline", "The symbol tree for the open file.", true),
+  bool("adcode.navigation.goToDefinition", "navigation", "Go to definition and references", "F12 or Alt+click previews a definition inline; Ctrl+click goes there. ADCode says whether a language server resolved it or it matched by name.", true, true),
+  bool("adcode.navigation.breadcrumbs", "navigation", "Breadcrumbs", "The path and symbol trail above the editor. Every part of it is a button.", true, true),
+  bool("adcode.navigation.outline", "navigation", "Outline", "The symbol tree for the open file, drawn with connecting lines in the Structure popup.", true, true),
+
+  /* ── Structure ──────────────────────────────────────────────────────── */
+  bool("adcode.structure.projectTreeLines", "structure", "Draw trees with connecting lines", "Show the lines that join a row to the folder it is inside. Off leaves plain indentation.", true, true),
+  bool("adcode.structure.elementToRules", "structure", "Show the rules that style an element", "Click an element in markup to see every CSS rule that applies to it.", true, true),
+  bool("adcode.structure.selectorToElements", "structure", "Show the elements a rule styles", "Click a rule in a stylesheet to see the elements it actually affects.", true, true),
+  /*
+   * Off by default, and the description says why rather than hiding it. On a project using
+   * CSS modules or utility classes this list is long and wrong, because matching by name
+   * cannot see a name that is generated.
+   */
+  bool("adcode.structure.unusedSelectors", "structure", "Point out rules that style nothing", "Report a CSS rule that matches no element in the project. Off by default: it cannot see class names built at runtime, so on some projects it is wrong more often than right.", false, true),
+  bool("adcode.structure.missingClasses", "structure", "Point out classes nothing defines", "Report a class used in markup that no stylesheet defines - usually a typo, which nothing else in a project ever catches.", true, true),
 
   /* ── Language (§4) ──────────────────────────────────────────────────── */
   /*
@@ -258,8 +281,8 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     multiline: true,
     maxLength: 4000,
   },
-  bool("adcode.language.dapClient", "language", "Debug adapter client", "Breakpoints, stepping, and variable inspection.", true),
-  bool("adcode.language.treeSitterHighlighting", "language", "Tree-sitter highlighting", "Syntax highlighting driven by a real parse tree.", true),
+  bool("adcode.language.dapClient", "language", "Debugger", "Breakpoints, stepping, the call stack, and variables - for JavaScript and TypeScript with nothing to install. Python needs debugpy, and ADCode says so rather than failing.", true, true),
+  bool("adcode.language.treeSitterHighlighting", "language", "Tree-sitter highlighting", "Syntax highlighting driven by a real parse tree, for 11 languages. A language without one keeps the built-in colouring.", true, true),
 
   /* ── Session (§4) ───────────────────────────────────────────────────── */
   bool("adcode.session.workspaceRestore", "session", "Restore workspace", "Reopen the last folder and editors on launch.", true, true),
@@ -282,28 +305,46 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
       { value: "openai", label: "OpenAI" },
       { value: "google", label: "Google" },
       { value: "ollama", label: "Local" },
+      { value: "custom", label: "Custom" },
     ],
   },
+  /*
+   * Free text rather than a fixed list.
+   *
+   * It used to be an enum of six, which meant the dropdown offered models a key could not
+   * reach and hid ones it could - and a new model could not be used until the app shipped
+   * again. The Connect screen picks from the real catalogue and writes the id here, so the
+   * set of valid values is "whatever your provider actually offers".
+   */
   {
     id: "adcode.ai.model",
     group: "ai",
-    kind: "enum",
+    kind: "text",
     label: "Model",
-    description: "Which model the built-in chat uses. Switching takes effect on the next message.",
+    description:
+      "Which model the built-in chat uses. Pick one in Connect a model rather than typing it here. Switching takes effect on your next message.",
     default: "claude-opus-5",
     available: true,
-    options: [
-      { value: "claude-opus-5", label: "Opus 5" },
-      { value: "claude-sonnet-5", label: "Sonnet 5" },
-      { value: "claude-haiku-4-5", label: "Haiku 4.5" },
-      { value: "gpt-5", label: "GPT-5" },
-      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-      { value: "qwen2.5-coder", label: "Qwen2.5 Coder" },
-    ],
+    placeholder: "claude-opus-5",
+    multiline: false,
+    maxLength: 120,
+  },
+  {
+    id: "adcode.ai.customBaseUrl",
+    group: "ai",
+    kind: "text",
+    label: "Custom endpoint",
+    description:
+      "Any address that speaks the OpenAI format - a gateway, a hosted provider, or a model running on this machine. Used when Provider is set to Custom.",
+    default: "",
+    available: true,
+    placeholder: "https://openrouter.ai/api/v1",
+    multiline: false,
+    maxLength: 400,
   },
   bool("adcode.ai.chatWidget", "ai", "Chat widget", "The floating chat card, summoned by keyboard shortcut.", true, true),
   bool("adcode.ai.inlineCompletion", "ai", "Inline completion", "Ghost text suggestions, accepted with Tab.", true, true),
-  bool("adcode.ai.terminalAgentDetection", "ai", "Terminal agent detection", "Recognise CLI agents running in the built-in terminal.", true),
+  bool("adcode.ai.terminalAgentDetection", "ai", "Terminal agent detection", "Recognise an AI agent started in the built-in terminal and offer to share this project's memory with it. Recognised from the command you typed - nothing else is inspected.", true, true),
   bool("adcode.ai.memoryCapture", "ai", "Memory capture", "Record decisions and conventions to the shared project memory.", true, true),
   bool("adcode.ai.mcpServer", "ai", "MCP server", "Let external agents read and write the same memory.", true, true),
 ];

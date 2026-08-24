@@ -15,8 +15,12 @@ import {
   stopPreview,
 } from "./preview.ts";
 import { stripAnsi } from "./devCommand.ts";
+import { listListeningPorts, stopPort } from "./ports.ts";
+import { appendOutput, appendOutputEvent, outputHistory, setOutputSink } from "./output.ts";
 import {
   completionAt,
+  definitionAt,
+  formattingFor,
   configureLsp,
   documentChanged,
   documentClosed,
@@ -38,6 +42,21 @@ import {
   recordDraft,
   recoverableDrafts,
 } from "./history.ts";
+import {
+  currentDebugState,
+  debugBreakpoints,
+  debugPause,
+  debugEvaluate,
+  debugProperties,
+  debugResume,
+  debugScopes,
+  debugStepInto,
+  debugStepOut,
+  debugStepOver,
+  startDebug,
+  stopDebug,
+  toggleBreakpoint,
+} from "./debug.ts";
 import { CHANNELS, type PreviewStatus, type RuntimeCheckView } from "../shared/api.ts";
 import { downloadUrlFor, installCommandFor, runtimeById, runtimeFor } from "../shared/runtimes.ts";
 import {
@@ -69,6 +88,13 @@ import {
   aiStatus,
   clearProviderKey,
   setProviderKey,
+  aiClearSessions,
+  aiCurrentSession,
+  aiDeleteSession,
+  aiRenameSession,
+  aiResumeSession,
+  aiSessions,
+  checkProviderKey,
 } from "./ai.ts";
 import {
   createTerminal,
@@ -119,6 +145,14 @@ function broadcast(channel: string, ...args: unknown[]): void {
  */
 function broadcastPreview(status: PreviewStatus): void {
   broadcast(CHANNELS.previewChanged, status);
+
+  // The transitions, in words. The static server produces no output of its own, so
+  // without this its channel would be permanently empty and its failures invisible.
+  if (status.error !== null && status.error !== undefined) {
+    appendOutputEvent(previewChannel(status), `failed: ${status.error}`);
+  } else if (status.running && status.url !== null) {
+    appendOutputEvent(previewChannel(status), `serving ${status.url}`);
+  }
 }
 
 /**
@@ -166,10 +200,24 @@ function applyLanguageSettings(values: Record<string, unknown>): void {
 
 const previewEvents = {
   onStatus: (status: PreviewStatus) => broadcastPreview(status),
-  onOutput: (chunk: string) => broadcast(CHANNELS.previewOutput, stripAnsi(chunk)),
+  onOutput: (chunk: string) => {
+    const text = stripAnsi(chunk);
+    // Both surfaces, deliberately. The preview drawer shows this while you are looking at
+    // the preview; the Output panel keeps it so it can still be read afterwards.
+    broadcast(CHANNELS.previewOutput, text);
+    appendOutput("dev-server", text);
+  },
 };
 
+/** Which Output channel a preview status belongs in. */
+const previewChannel = (status: PreviewStatus) =>
+  status.mode === "project" ? "dev-server" : "live-server";
+
 export function registerIpc(): void {
+  // Output produced before this point is still recorded; it is replayed by `output:history`
+  // when a panel first opens.
+  setOutputSink((line) => broadcast(CHANNELS.outputAppend, line));
+
   registerGitIpc();
   registerCollabIpc({ workspaceRoot: () => currentWorkspace()?.root ?? null });
 
@@ -435,6 +483,87 @@ export function registerIpc(): void {
     clipboard.writeText(text);
   });
 
+  ipcMain.handle(CHANNELS.clipboardRead, () => clipboard.readText());
+
+  /* ── Chat history ─────────────────────────────────────────────────────── */
+
+  ipcMain.handle(CHANNELS.aiSessions, () => aiSessions());
+  ipcMain.handle(CHANNELS.aiSessionChanged, () => aiCurrentSession());
+
+  ipcMain.handle(CHANNELS.aiResumeSession, (_event, id: unknown) =>
+    isString(id) ? aiResumeSession(id) : null,
+  );
+
+  ipcMain.handle(CHANNELS.aiRenameSession, (_event, id: unknown, title: unknown) =>
+    isString(id) && isString(title) ? aiRenameSession(id, title) : aiSessions(),
+  );
+
+  ipcMain.handle(CHANNELS.aiDeleteSession, (_event, id: unknown) =>
+    isString(id) ? aiDeleteSession(id) : aiSessions(),
+  );
+
+  ipcMain.handle(CHANNELS.aiClearSessions, () => aiClearSessions());
+
+  ipcMain.handle(CHANNELS.aiCheckKey, (_event, provider: unknown, key: unknown) =>
+    isString(provider) && isString(key)
+      ? checkProviderKey(provider, key)
+      : { ok: false, message: "Nothing to check." },
+  );
+
+  /* ── Debugging ────────────────────────────────────────────────────────── */
+
+  ipcMain.handle(CHANNELS.debugState, () => currentDebugState());
+
+  ipcMain.handle(CHANNELS.debugStart, async (_event, path: unknown, languageId: unknown) => {
+    if (!isString(path) || !isString(languageId)) return;
+    await startDebug(path, languageId, currentWorkspace()?.root ?? null);
+  });
+
+  ipcMain.handle(CHANNELS.debugStop, () => stopDebug());
+
+  /*
+   * One channel, a closed set of verbs.
+   *
+   * The renderer is treated as hostile (§1), so the verb is checked against a map here
+   * rather than used to look up a method by name - which would be a way to call anything
+   * this module exports.
+   */
+  const CONTROLS: Readonly<Record<string, () => Promise<void>>> = {
+    resume: debugResume,
+    stepOver: debugStepOver,
+    stepInto: debugStepInto,
+    stepOut: debugStepOut,
+    pause: debugPause,
+  };
+
+  ipcMain.handle(CHANNELS.debugControl, async (_event, verb: unknown) => {
+    if (!isString(verb)) return;
+    const control = Object.hasOwn(CONTROLS, verb) ? CONTROLS[verb] : undefined;
+    await control?.();
+  });
+
+  ipcMain.handle(CHANNELS.debugToggleBreakpoint, (_event, path: unknown, line: unknown) => {
+    if (!isString(path) || !isFiniteNumber(line) || line < 1) return debugBreakpoints();
+    return toggleBreakpoint(path, Math.floor(line));
+  });
+
+  ipcMain.handle(CHANNELS.debugBreakpoints, () => debugBreakpoints());
+
+  ipcMain.handle(CHANNELS.debugEvaluate, async (_event, frameId: unknown, expression: unknown) => {
+    if (!isString(frameId) || !isString(expression) || expression.trim() === "") {
+      return { value: "Nothing to evaluate.", type: "error", error: true };
+    }
+    return debugEvaluate(frameId, expression);
+  });
+
+  ipcMain.handle(CHANNELS.debugScopes, (_event, frameId: unknown) =>
+    isString(frameId) ? debugScopes(frameId) : [],
+  );
+
+  ipcMain.handle(CHANNELS.debugProperties, (_event, objectId: unknown) =>
+    isString(objectId) ? debugProperties(objectId) : [],
+  );
+
   ipcMain.handle(CHANNELS.terminalProfiles, () => detectProfiles());
 
   ipcMain.handle(CHANNELS.terminalCreate, (_event, options: unknown) => {
@@ -511,6 +640,45 @@ export function registerIpc(): void {
 
     await shell.openExternal(url);
   });
+
+  /* ── Ports and output ─────────────────────────────────────────────────── */
+
+  /*
+   * The ports ADCode itself is holding, so the panel can say "Live Server" instead of
+   * leaving the user to recognise a pid. Read fresh on every call rather than cached: the
+   * preview starts and stops constantly and a stale label is worse than none.
+   */
+  const ownedPorts = (): Map<number, string> => {
+    const owned = new Map<number, string>();
+    const { url, running, mode } = previewStatus();
+    if (running && url !== null) {
+      const port = Number(new URL(url).port);
+      if (Number.isInteger(port) && port > 0) {
+        owned.set(port, mode === "project" ? "Dev Server" : "Live Server");
+      }
+    }
+    return owned;
+  };
+
+  ipcMain.handle(CHANNELS.portsList, () => listListeningPorts(ownedPorts()));
+
+  ipcMain.handle(CHANNELS.portsStop, async (_event, pid: unknown) => {
+    // The renderer is hostile by assumption. `stopPort` re-checks this, and additionally
+    // refuses ADCode's own pid, which no amount of validation here would catch.
+    if (!isFiniteNumber(pid)) return { ok: false, error: "Not a process id." };
+    return stopPort(pid);
+  });
+
+  /*
+   * A port number in, a loopback URL out. The renderer never supplies the address, so
+   * there is no string it can pass that reaches anywhere but this machine.
+   */
+  ipcMain.handle(CHANNELS.portsOpen, async (_event, port: unknown) => {
+    if (!isFiniteNumber(port) || !Number.isInteger(port) || port < 1 || port > 65535) return;
+    await shell.openExternal(`http://localhost:${port}`);
+  });
+
+  ipcMain.handle(CHANNELS.outputHistory, () => outputHistory());
 
   /* ── Runtimes ─────────────────────────────────────────────────────────── */
 
@@ -592,6 +760,31 @@ export function registerIpc(): void {
 
       const items = await completionAt(path, languageId, line, column);
       return items.map(toWireCompletion).filter((item) => item !== null);
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.lspDefinition,
+    async (_event, path: unknown, languageId: unknown, line: unknown, column: unknown) => {
+      if (!isString(path) || !isString(languageId)) return null;
+      if (!isFiniteNumber(line) || !isFiniteNumber(column)) return null;
+
+      return definitionAt(path, languageId, line, column);
+    },
+  );
+
+  ipcMain.handle(
+    CHANNELS.lspFormatting,
+    async (_event, path: unknown, languageId: unknown, options: unknown) => {
+      if (!isString(path) || !isString(languageId)) return null;
+
+      // The renderer's numbers are checked here rather than trusted: they end up in a
+      // request to a subprocess, and §1 treats the renderer as hostile.
+      const raw = (options ?? {}) as { tabSize?: unknown; insertSpaces?: unknown };
+      const tabSize = isFiniteNumber(raw.tabSize) ? Math.min(16, Math.max(1, raw.tabSize)) : 2;
+      const insertSpaces = raw.insertSpaces !== false;
+
+      return formattingFor(path, languageId, { tabSize, insertSpaces });
     },
   );
 

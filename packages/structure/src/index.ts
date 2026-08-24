@@ -47,6 +47,10 @@ export {
 
 export { closingTagFor, completeClosingTag, supportsTagClosing } from "./tags.ts";
 
+export { pairedTagAt, type PairedTag, type TagNameSpan } from "./pairedTags.ts";
+
+export { todoMarksIn, type TodoKeyword, type TodoMark } from "./todos.ts";
+
 export {
   describeEntry,
   HIDDEN_DIRECTORIES,
@@ -63,3 +67,13 @@ export {
 } from "./scaffolds.ts";
 
 export type { OutlineNode, SymbolKind } from "./types.ts";
+
+export {
+  definedClasses,
+  missingClasses,
+  rulesForElement,
+  styleRules,
+  unusedSelectors,
+  type MissingClass,
+  type StyleRule,
+} from "./styleLinks.ts";

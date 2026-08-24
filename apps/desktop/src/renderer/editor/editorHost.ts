@@ -20,6 +20,16 @@ import cssWorker from "monaco-editor/language/css/css.worker?worker";
 import htmlWorker from "monaco-editor/language/html/html.worker?worker";
 import tsWorker from "monaco-editor/language/typescript/ts.worker?worker";
 import { createGitOverlay, type GitOverlay } from "./gitOverlay.ts";
+import { installPairedTagRename } from "./pairedTagRename.ts";
+import { installErrorLens } from "./errorLens.ts";
+import { installTodoHighlight } from "./todoHighlight.ts";
+import { installPathComplete } from "./pathComplete.ts";
+import { installFormatting } from "./formatting.ts";
+import { createDefinitions, symbolAt } from "./definitions.ts";
+import { installPeek } from "./peek.ts";
+import { installTreeSitterHighlight } from "./treeSitter.ts";
+import { organizeImports as organiseImportBlock, organizeSupported, DEFAULT_OPTIONS } from "@adcode/format";
+import type { BreakpointView, DirEntry, SearchHitView } from "../../shared/api.ts";
 import { editorOptionsFor } from "./editorOptions.ts";
 import { createRemoteCursors, type RemoteCursors } from "../collab/remoteCursors.ts";
 import { installTagClosing } from "./autoCloseTags.ts";
@@ -44,12 +54,70 @@ globalThis.MonacoEnvironment = {
   },
 };
 
+/**
+ * Colours for the semantic tokens tree-sitter produces.
+ *
+ * Without these the parse tree changes nothing on screen. Monaco asks the provider, gets
+ * tokens, finds no rule for their types, and paints exactly what its own tokenizer already
+ * painted - so the feature appears to do nothing while working perfectly.
+ *
+ * The values follow each base theme's existing palette rather than introducing a second
+ * one, because the point of parsing is to be *right* more often, not to look different.
+ */
+const SEMANTIC_RULES_DARK = [
+  { token: "keyword", foreground: "569cd6" },
+  { token: "type", foreground: "4ec9b0" },
+  { token: "class", foreground: "4ec9b0" },
+  { token: "interface", foreground: "4ec9b0" },
+  { token: "struct", foreground: "4ec9b0" },
+  { token: "enum", foreground: "4ec9b0" },
+  { token: "typeParameter", foreground: "4ec9b0" },
+  { token: "function", foreground: "dcdcaa" },
+  { token: "method", foreground: "dcdcaa" },
+  { token: "macro", foreground: "dcdcaa" },
+  { token: "property", foreground: "9cdcfe" },
+  { token: "parameter", foreground: "9cdcfe" },
+  { token: "variable", foreground: "9cdcfe" },
+  { token: "string", foreground: "ce9178" },
+  { token: "number", foreground: "b5cea8" },
+  { token: "regexp", foreground: "d16969" },
+  { token: "comment", foreground: "6a9955" },
+  { token: "namespace", foreground: "4ec9b0" },
+  { token: "decorator", foreground: "dcdcaa" },
+];
+
+const SEMANTIC_RULES_LIGHT = [
+  { token: "keyword", foreground: "0000ff" },
+  { token: "type", foreground: "267f99" },
+  { token: "class", foreground: "267f99" },
+  { token: "interface", foreground: "267f99" },
+  { token: "struct", foreground: "267f99" },
+  { token: "enum", foreground: "267f99" },
+  { token: "typeParameter", foreground: "267f99" },
+  { token: "function", foreground: "795e26" },
+  { token: "method", foreground: "795e26" },
+  { token: "macro", foreground: "795e26" },
+  { token: "property", foreground: "001080" },
+  { token: "parameter", foreground: "001080" },
+  { token: "variable", foreground: "001080" },
+  { token: "string", foreground: "a31515" },
+  { token: "number", foreground: "098658" },
+  { token: "regexp", foreground: "811f3f" },
+  { token: "comment", foreground: "008000" },
+  { token: "namespace", foreground: "267f99" },
+  { token: "decorator", foreground: "795e26" },
+];
+
 /** §3: Monaco's surface is themed to match the workbench rather than left as default. */
 function defineThemes(): void {
   monaco.editor.defineTheme("adcode-light", {
     base: "vs",
     inherit: true,
-    rules: [],
+    // Semantic highlighting is switched on by the editor's own
+    // `semanticHighlighting.enabled` option rather than here: the theme flag exists at
+    // runtime but is absent from this Monaco version's `IStandaloneThemeData`, and the
+    // editor option is the typed way to say the same thing.
+    rules: SEMANTIC_RULES_LIGHT,
     colors: {
       "editor.background": "#ffffff",
       "editor.lineHighlightBackground": "#00000008",
@@ -64,7 +132,7 @@ function defineThemes(): void {
   monaco.editor.defineTheme("adcode-dark", {
     base: "vs-dark",
     inherit: true,
-    rules: [],
+    rules: SEMANTIC_RULES_DARK,
     colors: {
       "editor.background": "#1e1e20",
       "editor.lineHighlightBackground": "#ffffff08",
@@ -137,6 +205,35 @@ export interface EditorHost {
   /** Current cursor line, for "go to line" and the status bar. */
   cursorLine(): number;
   applyTheme(theme: "light" | "dark"): void;
+  /**
+   * Format one buffer, resolving once the text has settled.
+   *
+   * Returns whether anything changed. Save uses this rather than Monaco's own action,
+   * because that action is fire-and-forget and the write would race it.
+   */
+  formatDocument(path: string): Promise<boolean>;
+  /** Sort and prune the import block. Returns whether anything changed. */
+  organizeImports(path: string): boolean;
+  /**
+   * Show the definition of the symbol under the cursor, inline.
+   *
+   * Peek rather than jump, because following a symbol is a reading move and losing your
+   * place in the file you were reading is what makes it expensive.
+   */
+  peekDefinition(): Promise<void>;
+  /** Go to the definition properly, moving the cursor and opening the file if needed. */
+  goToDefinition(): Promise<void>;
+  /** Draw the breakpoints for whichever file is open. */
+  setBreakpoints(all: readonly BreakpointView[]): void;
+  /**
+   * Mark the line a paused program is stopped on, or clear it with `null`.
+   *
+   * A whole-line highlight rather than a gutter mark: when a program stops, the one thing
+   * the reader needs is where, and a 12-pixel arrow in the margin is not it.
+   */
+  setPausedLine(path: string | null, line: number | null): void;
+  /** Called when the user clicks the gutter to add or remove a breakpoint. */
+  onBreakpointToggle(listener: (path: string, line: number) => void): void;
   /** Apply the §4 editing settings the shell can honour today. */
   applySettings(values: Record<string, boolean | string>): void;
   onDirtyChange(listener: (path: string, dirty: boolean) => void): void;
@@ -152,7 +249,30 @@ interface OpenModel {
   readOnly: boolean;
 }
 
-export function createEditorHost(container: HTMLElement): EditorHost {
+/**
+ * What the editor needs from the shell.
+ *
+ * Only path completion asks for anything: it has to know which file is open and where the
+ * project starts before `./` and `../` mean anything. Passed in rather than imported so
+ * this file still knows nothing about the workbench that owns it.
+ */
+export interface EditorHostDeps {
+  readonly activeFile: () => string | null;
+  readonly workspaceRoot: () => string | null;
+  readonly list: (directory: string) => Promise<readonly DirEntry[]>;
+  /** Read a file the user has not opened, for the peek preview. */
+  readonly readFile: (path: string) => Promise<string | null>;
+  /** Workspace-relative, for headers that are readable. */
+  readonly displayPath: (path: string) => string;
+  readonly languageFor: (path: string) => string;
+  /** Open a file and put the cursor somewhere in it. */
+  readonly openAt: (path: string, line: number, column: number) => void;
+  readonly search: (pattern: string, include: string) => Promise<readonly SearchHitView[]>;
+  /** Search returns workspace-relative paths; peek needs absolute ones. */
+  readonly absolute: (relativePath: string) => string;
+}
+
+export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): EditorHost {
   defineThemes();
 
   // Before the first model exists, so no file is ever checked under the wrong rules.
@@ -172,6 +292,11 @@ export function createEditorHost(container: HTMLElement): EditorHost {
     smoothScrolling: true,
     cursorSmoothCaretAnimation: "on",
     renderWhitespace: "none",
+    // The margin breakpoints are drawn in. Off by default in Monaco.
+    glyphMargin: true,
+    // Semantic tokens are the layer tree-sitter paints through, and Monaco does not ask for
+    // them unless told to.
+    "semanticHighlighting.enabled": true,
     scrollBeyondLastLine: false,
     padding: { top: 12, bottom: 12 },
     scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
@@ -218,6 +343,137 @@ export function createEditorHost(container: HTMLElement): EditorHost {
    * that fires twice.
    */
   const tagClosing = installTagClosing(editor, monaco);
+
+  /*
+   * The rest of §4's editing group, installed the same way and for the same reason: each
+   * reads the language off whatever model is current, so one subscription covers every file
+   * that will ever be opened and none of them can leak.
+   */
+  const pairedTagRename = installPairedTagRename(editor, monaco);
+  const errorLens = installErrorLens(editor, monaco);
+  const todoHighlight = installTodoHighlight(editor, monaco);
+  const treeSitter = installTreeSitterHighlight(monaco);
+
+  const formatting = installFormatting(monaco, {
+    lspFormatting: (path, languageId, options) =>
+      window.adcode.language.formatting(path, languageId, options),
+    hideSuggestions: () => editor.trigger("adcode.format", "hideSuggestWidget", null),
+  });
+
+  /* ── Breakpoints and the paused line ─────────────────────────────────── */
+
+  const breakpointDecorations = editor.createDecorationsCollection();
+  const pausedDecorations = editor.createDecorationsCollection();
+
+  let breakpointsByFile: readonly BreakpointView[] = [];
+  const breakpointListeners: ((path: string, line: number) => void)[] = [];
+
+  function drawBreakpoints(): void {
+    const path = active;
+    if (path === null) {
+      breakpointDecorations.clear();
+      return;
+    }
+
+    const model = editor.getModel();
+    const lines = breakpointsByFile.filter((point) => point.path === path);
+
+    breakpointDecorations.set(
+      lines
+        .filter((point) => model === null || point.line <= model.getLineCount())
+        .map((point) => ({
+          range: new monaco.Range(point.line, 1, point.line, 1),
+          options: {
+            glyphMarginClassName: "breakpoint-glyph",
+            glyphMarginHoverMessage: { value: "Breakpoint" },
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+          },
+        })),
+    );
+  }
+
+  editor.onMouseDown((event) => {
+    if (event.target.type !== monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) return;
+
+    const line = event.target.position?.lineNumber;
+    const path = active;
+    if (line === undefined || path === null) return;
+
+    for (const listener of breakpointListeners) listener(path, line);
+  });
+
+  const definitions = createDefinitions({
+    lspDefinition: (path, languageId, line, column) =>
+      window.adcode.language.definition(path, languageId, line, column),
+    search: deps.search,
+    absolute: deps.absolute,
+  });
+
+  const peek = installPeek(editor, monaco, {
+    readFile: deps.readFile,
+    languageFor: deps.languageFor,
+    openAt: deps.openAt,
+    displayPath: deps.displayPath,
+  });
+
+  /** Whether go-to-definition is switched on at all. */
+  let navigationEnabled = true;
+
+  /**
+   * The answer for wherever the cursor is, or null.
+   *
+   * Shared by peek and go-to so the two can never disagree about what the cursor is on.
+   */
+  async function definitionHere() {
+    if (!navigationEnabled) return null;
+
+    const model = editor.getModel();
+    const position = editor.getPosition();
+    const path = active;
+    if (model === null || position === null || path === null) return null;
+    if (symbolAt(model, position) === null) return null;
+
+    return definitions.at(model, position, path);
+  }
+
+  /*
+   * Alt+click peeks; Ctrl+click goes.
+   *
+   * Deliberately not a plain click. A click in a code editor places the cursor, and a
+   * definition opening under every click would make the editor unusable - so the gesture
+   * that reads is the one that is held.
+   */
+  async function showPeek(): Promise<void> {
+    const answer = await definitionHere();
+    const position = editor.getPosition();
+    if (answer === null || position === null) return;
+
+    await peek.show(answer, position.lineNumber);
+  }
+
+  async function jumpToDefinition(): Promise<void> {
+    const answer = await definitionHere();
+    const first = answer?.targets[0];
+    if (first === undefined) return;
+
+    peek.close();
+    deps.openAt(first.path, first.line, first.column);
+  }
+
+  editor.onMouseDown((event) => {
+    if (!navigationEnabled) return;
+    if (event.target.type !== monaco.editor.MouseTargetType.CONTENT_TEXT) return;
+
+    const browserEvent = event.event.browserEvent;
+    if (browserEvent.altKey) void showPeek();
+    else if (browserEvent.ctrlKey || browserEvent.metaKey) void jumpToDefinition();
+  });
+
+  const pathComplete = installPathComplete(monaco, {
+    activeFile: deps.activeFile,
+    workspaceRoot: deps.workspaceRoot,
+    list: deps.list,
+  });
 
   const models = new Map<string, OpenModel>();
   let active: string | null = null;
@@ -280,6 +536,10 @@ export function createEditorHost(container: HTMLElement): EditorHost {
       if (entry.viewState !== null) editor.restoreViewState(entry.viewState);
       editor.updateOptions({ readOnly: entry.readOnly });
       active = path;
+
+      // The gutter belongs to the file, so switching tabs has to redraw it - otherwise the
+      // marks of the file you just left stay on the one you moved to.
+      drawBreakpoints();
 
       container.dataset["ready"] = "true";
       editor.focus();
@@ -437,6 +697,67 @@ export function createEditorHost(container: HTMLElement): EditorHost {
       monaco.editor.setTheme(theme === "dark" ? "adcode-dark" : "adcode-light");
     },
 
+    async formatDocument(path) {
+      const entry = models.get(path);
+      if (entry === undefined || entry.readOnly) return false;
+      return formatting.formatModel(entry.model);
+    },
+
+    organizeImports(path) {
+      const entry = models.get(path);
+      if (entry === undefined || entry.readOnly) return false;
+
+      const languageId = entry.model.getLanguageId();
+      if (!organizeSupported(languageId)) return false;
+
+      const original = entry.model.getValue();
+      const organised = organiseImportBlock(original, {
+        ...DEFAULT_OPTIONS,
+        lineEnding: entry.model.getEOL() === "\r\n" ? "\r\n" : "\n",
+      });
+      if (organised === original) return false;
+
+      entry.model.pushEditOperations(
+        [],
+        [{ range: entry.model.getFullModelRange(), text: organised }],
+        () => null,
+      );
+      return true;
+    },
+
+    peekDefinition: showPeek,
+    goToDefinition: jumpToDefinition,
+
+    setBreakpoints(all) {
+      breakpointsByFile = all;
+      drawBreakpoints();
+    },
+
+    setPausedLine(path, line) {
+      if (path === null || line === null || active === null || path !== active) {
+        pausedDecorations.clear();
+        return;
+      }
+
+      pausedDecorations.set([
+        {
+          range: new monaco.Range(line, 1, line, 1),
+          options: {
+            isWholeLine: true,
+            className: "debug-paused-line",
+            glyphMarginClassName: "debug-paused-glyph",
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+          },
+        },
+      ]);
+
+      editor.revealLineInCenterIfOutsideViewport(line);
+    },
+
+    onBreakpointToggle(listener) {
+      breakpointListeners.push(listener);
+    },
+
     applySettings(values) {
       editor.updateOptions(editorOptionsFor(values));
 
@@ -444,6 +765,19 @@ export function createEditorHost(container: HTMLElement): EditorHost {
       // than mapped in `editorOptionsFor`, which exists to translate settings into options
       // Monaco already has.
       tagClosing.setEnabled(values["adcode.editing.autoCloseTags"] !== false);
+      pairedTagRename.setEnabled(values["adcode.editing.autoRenamePairedTag"] !== false);
+      todoHighlight.setEnabled(values["adcode.editing.todoHighlighting"] !== false);
+      pathComplete.setEnabled(values["adcode.editing.pathAutocomplete"] !== false);
+      formatting.setEnabled(values["adcode.formatting.formatter"] !== false);
+      treeSitter.setEnabled(values["adcode.language.treeSitterHighlighting"] !== false);
+
+      navigationEnabled = values["adcode.navigation.goToDefinition"] !== false;
+      if (!navigationEnabled) peek.close();
+
+      errorLens.setEnabled(values["adcode.editing.inlineErrorLens"] !== false);
+      // The lens shows the same rewritten wording the Problems panel does, so it follows
+      // the same switch - one setting, one vocabulary, everywhere an error is worded.
+      errorLens.setPlainEnglish(values["adcode.editing.plainEnglishErrors"] !== false);
 
       // Reflected onto the host element because nothing else in the window says the editor
       // is in column-select mode, and in that mode dragging the mouse behaves completely

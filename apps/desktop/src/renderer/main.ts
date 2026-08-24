@@ -13,7 +13,15 @@ import "./styles/structure.css";
 import "./styles/popups.css";
 import "./styles/menubar.css";
 import "./styles/dialogs.css";
+import "./styles/help.css";
+import "./styles/releases.css";
+import "./styles/editor.css";
+import "./styles/navigation.css";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
+import { createBreadcrumbs } from "./editor/breadcrumbs.ts";
+import { createSymbolSearch } from "./panels/symbolSearch.ts";
+import { createDebugView } from "./debug/debugView.ts";
+import { createStyleHints } from "./panels/styleHints.ts";
 import { createCommandRegistry } from "./workbench/commands.ts";
 import { createMenuBar } from "./workbench/menuBar.ts";
 import { shortenPath } from "./workbench/pathLabel.ts";
@@ -31,6 +39,10 @@ import {
 } from "./workbench/layoutSizes.ts";
 import { createQuickOpen, createSearchPanel } from "./panels/searchPanel.ts";
 import { createProblemsPanel } from "./panels/problemsPanel.ts";
+import { createBottomPanel, type PanelTabId } from "./panels/bottomPanel.ts";
+import { createPortsPanel } from "./panels/portsPanel.ts";
+import { createOutputPanel } from "./panels/outputPanel.ts";
+import { createDebugConsole } from "./debug/debugConsole.ts";
 import { createStructurePanel } from "./panels/structurePanel.ts";
 import { createProjectMap } from "./panels/projectMap.ts";
 import { createStructurePopup } from "./panels/structurePopup.ts";
@@ -43,17 +55,22 @@ import { createDiagnosticsHost } from "./diagnostics/diagnosticsHost.ts";
 import { createLanguageBridge } from "./diagnostics/languageBridge.ts";
 import { badgeFor, countBySeverity, summarise } from "@adcode/diagnostics";
 import { createChatWidget } from "./ai/chatWidget.ts";
+import { createConnectView } from "./ai/connectView.ts";
 import { ICON, createIcon, iconButton } from "./workbench/icons.ts";
 import { createSettingsView } from "./settings/settingsView.ts";
 import { createEditorHost, languageForFilename, type EditorHost } from "./editor/editorHost.ts";
 import { createTerminalPanel, type TerminalPanel } from "./terminal/terminalPanel.ts";
 import { createNotificationCentre } from "./notifications/notifications.ts";
+import { createReleaseNotice } from "./releases/releaseNotice.ts";
+import { createWhatsNewSheet } from "./releases/whatsNewSheet.ts";
 import { createResultDialog } from "./dialogs/resultDialog.ts";
 import { createConfirmDialog } from "./dialogs/confirmDialog.ts";
 import { createPromptDialog } from "./dialogs/promptDialog.ts";
 import { createReportDialog } from "./dialogs/reportDialog.ts";
 import { createMissingRuntimeDialog } from "./dialogs/missingRuntimeDialog.ts";
 import { createShortcutsDialog } from "./dialogs/shortcutsDialog.ts";
+import { createHelpGuide } from "./help/helpGuide.ts";
+import { formatAccelerator } from "../shared/menuModel.ts";
 import { commandWordOf } from "../shared/runtimes.ts";
 import { applyOverrides, matchesChord, parseChord, resolveBindings } from "../shared/keybindings.ts";
 import type { BindingOverrides } from "../shared/keybindings.ts";
@@ -98,7 +115,33 @@ let workspaceRoot: string | null = null;
 let terminal: TerminalPanel | null = null;
 let theme: "light" | "dark" = "dark";
 
-const editorHost: EditorHost = createEditorHost(el("editor-host"));
+/*
+ * Everything the editor needs from the shell.
+ *
+ * All of these are callbacks rather than values because the editor is created before the
+ * workspace is opened, before `relativePath` is declared further down this file, and before
+ * any of what they read exists. A closure defers all three problems to the moment somebody
+ * actually asks.
+ */
+const editorHost: EditorHost = createEditorHost(el("editor-host"), {
+  activeFile: () => activePath,
+  workspaceRoot: () => workspaceRoot,
+  list: (directory) => window.adcode.workspace.list(directory),
+
+  readFile: async (path) => (await window.adcode.files.read(path))?.text ?? null,
+  displayPath: (path) => relativePath(path) ?? path,
+  languageFor: (path) => languageForFilename(path.split(/[\/]/).pop() ?? path),
+
+  openAt: (path, line, column) => {
+    void openFile(path).then(() => editorHost.revealPosition(line, column));
+  },
+
+  // Regex, because every pattern reaching here is built by `@adcode/structure` and is one.
+  search: (pattern, include) => window.adcode.search.run({ pattern, isRegex: true, include }),
+
+  absolute: (relative) =>
+    workspaceRoot === null ? relative : `${workspaceRoot.replace(/[\/]+$/, "")}/${relative}`,
+});
 
 /* ── Settings ─────────────────────────────────────────────────────────── */
 
@@ -113,7 +156,42 @@ function applySettings(values: Record<string, boolean | string>): void {
   const density = values["adcode.appearance.density"];
   document.documentElement.dataset["density"] = density === "compact" ? "compact" : "comfortable";
 
-  editorHost.applySettings(values);
+  /*
+   * Reporting is switched before the editor is told anything.
+   *
+   * The lens reads Monaco's markers directly rather than going through the diagnostics
+   * host, so "surface lint diagnostics: off" has to reach both or the panel goes quiet
+   * while annotations stay on the lines.
+   */
+  diagnosticsHost.setEnabled(values["adcode.formatting.lintDiagnostics"] !== false);
+
+  breadcrumbs.setEnabled(values["adcode.navigation.breadcrumbs"] !== false);
+  terminal?.setAgentDetection(values["adcode.ai.terminalAgentDetection"] !== false);
+
+  // The lines are drawn by every tree, so the switch is one attribute on the root rather
+  // than a call into three panels.
+  document.documentElement.dataset["treeLines"] =
+    values["adcode.structure.projectTreeLines"] === false ? "off" : "on";
+
+  structurePanel.setStyleDirections({
+    elementToRules: values["adcode.structure.elementToRules"] !== false,
+    selectorToElements: values["adcode.structure.selectorToElements"] !== false,
+  });
+
+  styleHints.setUnusedEnabled(values["adcode.structure.unusedSelectors"] === true);
+  styleHints.setMissingEnabled(values["adcode.structure.missingClasses"] !== false);
+  refreshStyleHints();
+  symbolSearch.setEnabled(values["adcode.navigation.symbolSearch"] !== false);
+  structurePopup.setOutlineEnabled(values["adcode.navigation.outline"] !== false);
+  refreshBreadcrumbs();
+  refreshStyleHints();
+
+  editorHost.applySettings({
+    ...values,
+    "adcode.editing.inlineErrorLens":
+      values["adcode.editing.inlineErrorLens"] !== false &&
+      values["adcode.formatting.lintDiagnostics"] !== false,
+  });
   // The panel caches nothing, but it only redraws on a marker change - so switching the
   // rewrites off would otherwise leave the old wording on screen until the next keystroke.
   problemsPanel.render(diagnosticsHost.current());
@@ -231,6 +309,15 @@ function activateTab(path: string): void {
   renderTabs();
   runButton.refresh();
   refreshStructure();
+
+  /*
+   * The trail follows the tab, not only the cursor.
+   *
+   * Switching tabs moves no cursor, so without this the bar keeps describing the file you
+   * just left - which a screenshot caught it doing: the trail read `smoke-broken.ts` while
+   * the editor was showing a different file entirely.
+   */
+  refreshBreadcrumbs();
   void refreshGitOverlay();
   // Remote carets are per-file: switching tabs has to redraw them, or the previous file's
   // cursors stay on screen pointing at unrelated lines.
@@ -309,8 +396,27 @@ async function saveActive(): Promise<void> {
 async function savePath(path: string): Promise<void> {
   if (editorHost.isReadOnly(path)) return;
 
+  /*
+   * Dirty first, then tidy.
+   *
+   * Auto-save calls this on a timer for whichever buffer stopped being typed in, and a
+   * clean buffer must not be formatted on every tick - that would rewrite a file nobody
+   * touched and mark it dirty again, forever.
+   */
+  if (editorHost.text(path) === null || !editorHost.isDirty(path)) return;
+
+  // Imports first, formatting second: one is structural and the other is whitespace, and
+  // running them the other way round means formatting a block that is about to be rewritten.
+  if (settingsValues["adcode.formatting.organizeImportsOnSave"] === true) {
+    editorHost.organizeImports(path);
+  }
+  if (settingsValues["adcode.formatting.formatOnSave"] !== false) {
+    await editorHost.formatDocument(path);
+  }
+
+  // Re-read: both steps above may have replaced the buffer.
   const text = editorHost.text(path);
-  if (text === null || !editorHost.isDirty(path)) return;
+  if (text === null) return;
 
   const result = await window.adcode.files.write(path, text);
   if (result.ok) {
@@ -362,6 +468,8 @@ function makeRow(entry: DirEntry, depth: number): HTMLElement {
   row.dataset["depth"] = String(depth);
   row.dataset["kind"] = entry.isDirectory ? "directory" : "file";
   row.style.paddingLeft = `${8 + depth * 10}px`;
+  // How many indent guides to paint. See the note in structure.css.
+  row.style.setProperty("--tree-guides", String(depth));
   // Focusable, but not in the tab order: the tree is navigated by pointer, and F2 and
   // Delete have to land on a row rather than on whatever last had focus.
   row.tabIndex = -1;
@@ -1401,9 +1509,34 @@ let defaultProfileId = "";
 const profileLabel = (id: string): string =>
   terminalProfiles.find((profile) => profile.id === id)?.label ?? "Terminal";
 
+/**
+ * The bottom panel, which owns whether it is open and which tab is showing.
+ *
+ * Created before the terminal because the terminal now lives *inside* it and asks it to
+ * open, rather than opening the panel itself. Tabs are registered further down, once the
+ * views that fill them exist.
+ */
+const bottomPanel = createBottomPanel({
+  panel: el("panel"),
+  tabStrip: el("panel-tabs"),
+  splitter: el("splitter-panel"),
+  onLayoutChange: () => editorHost.layout(),
+  // Focus must not be left inside an element that just became `hidden`.
+  onClosed: () => editorHost.focus(),
+});
+
 function terminalPanel(): TerminalPanel {
+  const created = terminal === null;
+
   terminal ??= createTerminalPanel({
-    panel: el("panel"),
+    container: el("panel-body-terminal"),
+    // "The terminal is open" now means "the panel is open *and* showing the terminal" -
+    // with tabs, the panel being visible says nothing about whether a terminal is.
+    setOpen: (open) => {
+      if (open) bottomPanel.show("terminal");
+      else bottomPanel.close();
+    },
+    isOpen: () => bottomPanel.active() === "terminal",
     tabStrip: el("terminal-tabs"),
     surface: el("terminal-surface"),
     profileId: () => defaultProfileId,
@@ -1411,22 +1544,44 @@ function terminalPanel(): TerminalPanel {
     cwd: () => workspaceRoot,
     theme: () => theme,
     notify: (message) => setStatus(message, 4000),
+    // The same command the settings screen prints, offered at the moment it is useful.
+    mcpConnection: () => window.adcode.memory.connection(),
     onActiveTitle: (title) => {
       el("panel-title").textContent = title ?? "Terminal";
     },
-    onLayoutChange: () => {
-      // The divider belongs to the panel: hidden together, or it hangs under the editor
-      // as a grabbable line that resizes something nobody can see.
-      el("splitter-panel").hidden = el("panel").hidden;
-      editorHost.layout();
-      if (el("panel").hidden) editorHost.focus();
-    },
+    // The panel handles the divider, the editor re-layout and where focus goes on close;
+    // this only has to say that something changed size.
+    onLayoutChange: () => editorHost.layout(),
   });
+
+  // A panel created after settings were read still has to honour them: `applySettings` runs
+  // once at startup, and the terminal usually does not exist yet when it does.
+  if (created) {
+    terminal.setAgentDetection(settingsValues["adcode.ai.terminalAgentDetection"] !== false);
+  }
 
   return terminal;
 }
 
 const toggleTerminal = (): Promise<void> => terminalPanel().toggle();
+
+/**
+ * Toggle the panel as a whole.
+ *
+ * Reopens whichever tab was last showing rather than always the terminal, because the
+ * panel is now four other things as well. The terminal is special-cased only because
+ * opening it with no shell running has to start one, which is its own decision.
+ */
+async function togglePanel(): Promise<void> {
+  if (bottomPanel.isOpen()) {
+    bottomPanel.close();
+    return;
+  }
+
+  const target: PanelTabId = bottomPanel.lastActive() ?? "terminal";
+  if (target === "terminal") await terminalPanel().toggle();
+  else bottomPanel.show(target);
+}
 
 /* ── Adjustable layout ────────────────────────────────────────────────── */
 
@@ -1531,7 +1686,7 @@ editorHost.onSaveRequested(() => void saveActive());
 
 el("open-folder").addEventListener("click", () => void openFolder());
 el("open-settings").addEventListener("click", () => settingsView.toggle());
-el("panel-close").addEventListener("click", () => terminalPanel().close());
+el("panel-close").addEventListener("click", () => bottomPanel.close());
 el("terminal-new").addEventListener("click", () => void terminalPanel().create());
 /*
  * Opened on pointerdown, with the event kept off `document`.
@@ -1552,10 +1707,20 @@ el("terminal-profiles").addEventListener("click", (event) => {
 });
 el("terminal-split").addEventListener("click", () => void terminalPanel().split());
 el("terminal-kill").addEventListener("click", () => terminalPanel().killActive());
+el("ports-refresh").addEventListener("click", () => void portsPanel.refresh());
 
 for (const activity of document.querySelectorAll<HTMLElement>(".activity")) {
   const view = activity.dataset["view"];
   if (view === undefined) continue;
+
+  // Problems moved to the bottom panel, where VS Code puts it and where the rest of the
+  // output now lives. The activity button stays because it carries the error badge, which
+  // is how most people notice there is anything to look at - it just opens a tab now.
+  if (view === "problems") {
+    activity.addEventListener("click", () => bottomPanel.show("problems"));
+    continue;
+  }
+
   activity.addEventListener("click", () => showView(view));
 }
 
@@ -1573,6 +1738,144 @@ const settingsView = createSettingsView({
   projections: () => serverProjections,
   mcpConnection: () => window.adcode.memory.connection(),
 });
+
+/* ── Breadcrumbs and symbol search (§4 Navigation) ────────────────────── */
+
+const breadcrumbs = createBreadcrumbs({
+  displayPath: (path) => relativePath(path) ?? path,
+  revealFolder: (directory) => {
+    setStatus(directory, 2000);
+  },
+  showStructure: () => structurePopup.open("file"),
+  goToLine: (line) => editorHost.revealLine(line),
+});
+
+// Between the tab strip and the editor, which is where the trail belongs: it describes the
+// file the tabs chose, and it describes it to the editor below.
+el("editor-area").before(breadcrumbs.element);
+
+function refreshBreadcrumbs(): void {
+  if (activePath === null) {
+    breadcrumbs.update(null, "", "", 1);
+    return;
+  }
+
+  const text = editorHost.text(activePath);
+  const name = activePath.split(/[\/]/).pop() ?? activePath;
+  breadcrumbs.update(activePath, languageForFilename(name), text ?? "", editorHost.cursorLine());
+}
+
+editorHost.onCursorChange(() => refreshBreadcrumbs());
+// The hints read the buffer, so an edit is what invalidates them. `styleHints` debounces.
+editorHost.onDirtyChange(() => refreshStyleHints());
+
+const symbolSearch = createSymbolSearch({
+  host: document.body,
+  // Plain text, not a regex: whatever the user typed is a name, and a stray bracket in it
+  // should find nothing rather than throw.
+  search: (pattern) => window.adcode.search.run({ pattern, isRegex: false }),
+  languageFor: (path) => languageForFilename(path.split(/[\/]/).pop() ?? path),
+  open: (relative, line, column) => {
+    const absolute =
+      workspaceRoot === null ? relative : `${workspaceRoot.replace(/[\/]+$/, "")}/${relative}`;
+    void openFile(absolute).then(() => editorHost.revealPosition(line, column));
+  },
+  restoreFocus: () => editorHost.focus(),
+});
+
+/* ── Style hints ──────────────────────────────────────────────────────── */
+
+const styleHints = createStyleHints({
+  report: (diagnostics) => diagnosticsHost.setExternal("styles", diagnostics),
+
+  /*
+   * Find files by glob using the search that already exists.
+   *
+   * A brace appears in every stylesheet and an angle bracket in every template, so one
+   * search per kind finds the files; the hits are deduplicated to paths because what is
+   * wanted here is the list of files, not the matches inside them.
+   */
+  filesMatching: async (include) => {
+    const pattern = include.includes("css") ? "[{]" : "<";
+    const hits = await window.adcode.search.run({ pattern, isRegex: true, include });
+
+    const paths = new Set<string>();
+    for (const hit of hits) {
+      paths.add(
+        workspaceRoot === null ? hit.path : `${workspaceRoot.replace(/[\/]+$/, "")}/${hit.path}`,
+      );
+    }
+    return [...paths];
+  },
+
+  readFile: async (path) => (await window.adcode.files.read(path))?.text ?? null,
+  displayPath: (path) => relativePath(path) ?? path,
+});
+
+function refreshStyleHints(): void {
+  if (activePath === null) {
+    styleHints.refresh(null, "", "");
+    return;
+  }
+
+  const name = activePath.split(/[\/]/).pop() ?? activePath;
+  styleHints.refresh(activePath, languageForFilename(name), editorHost.text(activePath) ?? "");
+}
+
+/* ── Debugging (§4 Language) ──────────────────────────────────────────── */
+
+const debugView = createDebugView({
+  host: document.body,
+  resume: () => void window.adcode.debug.resume(),
+  stepOver: () => void window.adcode.debug.stepOver(),
+  stepInto: () => void window.adcode.debug.stepInto(),
+  stepOut: () => void window.adcode.debug.stepOut(),
+  stop: () => void window.adcode.debug.stop(),
+  scopes: (frameId) => window.adcode.debug.scopes(frameId),
+  properties: (objectId) => window.adcode.debug.properties(objectId),
+  openAt: (path, line) => {
+    void openFile(path).then(() => editorHost.revealLine(line));
+  },
+  displayPath: (path) => relativePath(path) ?? path,
+});
+
+editorHost.onBreakpointToggle((path, line) => {
+  void window.adcode.debug.toggleBreakpoint(path, line).then((all) => {
+    editorHost.setBreakpoints(all);
+  });
+});
+
+window.adcode.debug.onState((state) => {
+  debugView.render(state);
+  // The console has to know which frame to evaluate in, and whether anything can be.
+  debugConsole.setState(state);
+  // A program stopped at a breakpoint is the clearest "do not interrupt" the editor has.
+  releaseNotice.setDebugActive(state.state === "running" || state.state === "paused");
+
+  // The band on the paused line follows the top frame, which is where execution actually is.
+  const top = state.state === "paused" ? state.frames[0] : undefined;
+  editorHost.setPausedLine(top?.path ?? null, top?.line ?? null);
+
+  if (state.state === "failed") setStatus(state.message, 6000);
+});
+
+void window.adcode.debug.breakpoints().then((all) => editorHost.setBreakpoints(all));
+
+/**
+ * Start debugging whatever is open.
+ *
+ * Refuses rather than guessing when there is no file: a debugger that starts *something*
+ * when you press F5 with nothing open is a debugger you stop trusting.
+ */
+async function startDebugging(): Promise<void> {
+  if (activePath === null) {
+    setStatus("Open a file to debug.", 3000);
+    return;
+  }
+
+  const name = activePath.split(/[\/]/).pop() ?? activePath;
+  await window.adcode.debug.start(activePath, languageForFilename(name));
+}
 
 window.adcode.settings.onChanged((values) => applySettings(values));
 
@@ -1808,6 +2111,19 @@ const shortcutsDialog = createShortcutsDialog(document.body, {
   platform: () => platform,
   setChord: (command, chord) => window.adcode.keybindings.write(command, chord),
   resetChord: (command) => window.adcode.keybindings.reset(command),
+});
+
+/**
+ * The guide.
+ *
+ * `platform` is read through a closure rather than captured, because it is declared further
+ * down this file and this runs at module evaluation - the same reason the shortcuts dialog
+ * above takes a function.
+ */
+const helpGuide = createHelpGuide({
+  host: document.body,
+  openSetting: (settingId) => settingsView.openAt(settingId),
+  formatShortcut: (accelerator) => formatAccelerator(accelerator, platform),
 });
 
 /**
@@ -2187,6 +2503,11 @@ const problemsPanel = createProblemsPanel({
 diagnosticsHost.onChange((diagnostics) => {
   problemsPanel.render(diagnostics);
 
+  const counts = countBySeverity(diagnostics);
+  // Errors only on the tab: warnings are worth a colour in the activity bar and are not
+  // worth a number on a tab you are trying to read past.
+  bottomPanel.badge("problems", counts.errors);
+
   const badge = badgeFor(countBySeverity(diagnostics));
   const element = el("problems-badge");
 
@@ -2408,7 +2729,106 @@ const previewPane = createPreviewPane({
 
 el("view-scm").append(sourceControl.element);
 el("view-search").append(searchPanel.element);
-el("view-problems").append(problemsPanel.element);
+
+/* ── The bottom panel's tabs ──────────────────────────────────────────── */
+
+const portsPanel = createPortsPanel({
+  list: () => window.adcode.ports.list(),
+  stop: (pid) => window.adcode.ports.stop(pid),
+  open: (port) => window.adcode.ports.open(port),
+  copy: (text) => void window.adcode.clipboard.writeText(text),
+  notify: (message) => setStatus(message, 4000),
+  // `confirm` blocks the renderer and cannot be styled, but stopping somebody's database
+  // is exactly the class of action that should be hard to do by accident.
+  confirm: async (message) => window.confirm(message),
+});
+
+const outputPanel = createOutputPanel({
+  history: () => window.adcode.output.history(),
+  onAppend: (listener) => window.adcode.output.onAppend(listener),
+});
+
+const debugConsole = createDebugConsole({
+  evaluate: (frameId, expression) => window.adcode.debug.evaluate(frameId, expression),
+});
+
+el("panel-body-problems").append(problemsPanel.element);
+el("panel-body-output").append(outputPanel.element);
+el("panel-body-debug").append(debugConsole.element);
+el("panel-body-ports").append(portsPanel.element);
+
+// The Output tab's channel picker and Clear button are built by the panel, so they have to
+// be put in the header here. Before `#panel-close`, so closing stays the rightmost thing.
+el("panel-close").before(outputPanel.actions);
+
+/*
+ * Registration order is the order of the strip, and it follows VS Code's: the things you
+ * are sent to by a failure first, the terminal you chose to open in the middle, and the
+ * ports table - which you go looking for rather than get sent to - last.
+ */
+bottomPanel.add({
+  id: "problems",
+  label: "Problems",
+  body: el("panel-body-problems"),
+  // Markers can change while another tab is showing, and the panel only redraws on a
+  // marker event - so a tab hidden through a whole editing session would come back
+  // holding whatever it last drew.
+  onShow: () => diagnosticsHost.refresh(),
+});
+
+bottomPanel.add({
+  id: "output",
+  label: "Output",
+  body: el("panel-body-output"),
+  actions: outputPanel.actions,
+  onShow: () => void outputPanel.open(),
+});
+
+bottomPanel.add({
+  id: "debug",
+  label: "Debug Console",
+  body: el("panel-body-debug"),
+  onShow: () => debugConsole.focus(),
+});
+
+bottomPanel.add({
+  id: "terminal",
+  label: "Terminal",
+  body: el("panel-body-terminal"),
+  actions: el("actions-terminal"),
+  onShow: () => {
+    // Showing the Terminal tab with no shell running starts one, the way clicking it in VS
+    // Code does. An empty black rectangle is not a terminal.
+    const panel = terminalPanel();
+    if (panel.count() === 0) void panel.create();
+    else {
+      panel.fit();
+      panel.focus();
+    }
+  },
+});
+
+bottomPanel.add({
+  id: "ports",
+  label: "Ports",
+  body: el("panel-body-ports"),
+  actions: el("actions-ports"),
+  // Enumerating sockets shells out to netstat or lsof, which on a loaded machine takes
+  // seconds. Polling only while visible keeps that off the bill for everyone else.
+  onShow: () => portsPanel.start(),
+  onHide: () => portsPanel.stop(),
+});
+
+// Left and right move along the strip, which is what a `tablist` promises.
+el("panel-tabs").addEventListener("keydown", (event) => {
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    bottomPanel.cycle(1);
+  } else if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    bottomPanel.cycle(-1);
+  }
+});
 
 /** Switch which sidebar view is showing. */
 function showView(view: string): void {
@@ -2416,7 +2836,6 @@ function showView(view: string): void {
     explorer: el("filetree"),
     search: el("view-search"),
     scm: el("view-scm"),
-    problems: el("view-problems"),
   };
 
   /*
@@ -2440,10 +2859,6 @@ function showView(view: string): void {
 
   if (view === "scm") void sourceControl.refresh();
   if (view === "search") searchPanel.focus();
-  // Markers can have changed while another view was showing, and the panel only redraws on
-  // a marker event - so a view that was hidden through a whole editing session would come
-  // back holding whatever it last drew.
-  if (view === "problems") diagnosticsHost.refresh();
 }
 
 /**
@@ -2494,10 +2909,29 @@ editorHost.git.onResolved(() => {
 
 /* ── Assistant (§5.3) ─────────────────────────────────────────────────── */
 
+const connectView = createConnectView({
+  host: document.body,
+  status: () => window.adcode.ai.status(),
+  checkKey: (provider, key) => window.adcode.ai.checkKey(provider, key),
+  setKey: (provider, key) => window.adcode.ai.setKey(provider, key),
+  clearKey: (provider) => window.adcode.ai.clearKey(provider),
+  write: async (id, value) => {
+    await window.adcode.settings.write(id, value);
+  },
+  restoreFocus: () => editorHost.focus(),
+});
+
 const chat = createChatWidget({
   host: document.body,
   // Applying a proposal reopens the file so the user sees the result in the editor.
   openExternalPath: (path) => void openFile(path),
+  openConnect: () => connectView.open(),
+  askForName: (current) =>
+    promptDialog.ask({
+      title: "Rename conversation",
+      value: current,
+      confirmLabel: "Rename",
+    }),
 });
 
 /**
@@ -2516,6 +2950,23 @@ function setRendererWorkspace(root: string | null): void {
 }
 
 const notifications = createNotificationCentre(el("toast-layer"));
+
+/*
+ * Release notes.
+ *
+ * The sheet is built eagerly and the card lazily: Help > What's New must work on a machine
+ * that has never reached the server, whereas the card only ever exists because main pushed
+ * something to show.
+ */
+const whatsNewSheet = createWhatsNewSheet(document.body);
+
+const releaseNotice = createReleaseNotice({
+  host: document.body,
+  enabled: () => settingsValues["adcode.updates.announce"] !== false,
+  openWhatsNew: (announcement) => whatsNewSheet.open(announcement),
+});
+
+window.adcode.releases.onAnnouncement((announcement) => releaseNotice.offer(announcement));
 
 window.adcode.ads.onShow((toast) => notifications.showSponsored(toast));
 
@@ -2970,7 +3421,7 @@ function registerCommands(): void {
     el("workbench").dataset["sidebar"] = sidebar.hidden ? "hidden" : "shown";
     editorHost.layout();
   });
-  add("view.togglePanel", "Toggle Panel", () => toggleTerminal());
+  add("view.togglePanel", "Toggle Panel", () => void togglePanel());
   add("view.zoomIn", "Zoom In", () => window.adcode.window.zoom(1));
   add("view.zoomOut", "Zoom Out", () => window.adcode.window.zoom(-1));
   add("view.zoomReset", "Reset Zoom", () => window.adcode.window.zoom(0));
@@ -2980,7 +3431,10 @@ function registerCommands(): void {
   add("view.projectMap", "Explain This Project", () => structurePopup.toggle("project"));
   add("editor.insertTemplate", "Insert File Template", () => insertTemplate());
   add("view.scm", "Source Control", () => showView("scm"));
-  add("view.problems", "Problems", () => showView("problems"));
+  add("view.problems", "Problems", () => bottomPanel.show("problems"));
+  add("view.output", "Output", () => bottomPanel.show("output"));
+  add("view.debugConsole", "Debug Console", () => bottomPanel.show("debug"));
+  add("view.ports", "Ports", () => bottomPanel.show("ports"));
   add("view.earnings", "Earnings", () => earningsPopover.toggle());
   add("collab.panel", "Live Session: Share or Join", () => collabPanel.toggle());
   add("collab.leave", "Live Session: Leave", () => void window.adcode.collab.leave());
@@ -2992,8 +3446,10 @@ function registerCommands(): void {
   add("preview.switchMode", "Switch Preview Between Project and Files", () =>
     void previewPane.switchMode(),
   );
+  add("preview.device", "Check Preview at Another Screen Size", () => previewPane.toggleDevice());
   add("run.file", "Run Active File", () => runButton.activate());
   add("ai.toggle", "Assistant", () => chat.toggle());
+  add("ai.connect", "Connect a Model", () => connectView.open());
   add("view.toggleWordWrap", "Toggle Word Wrap", () => editorHost.toggleWordWrap());
 
   /* Go */
@@ -3059,6 +3515,16 @@ function registerCommands(): void {
   add("terminal.next", "Next Terminal", () => terminalPanel().next());
   add("terminal.previous", "Previous Terminal", () => terminalPanel().previous());
   add("terminal.clear", "Clear Terminal", () => terminalPanel().clear());
+  /*
+   * Named for where they act, not just what they do.
+   *
+   * The palette matches on title and nothing else, so "Copy" and "Paste" here would be two
+   * more rows indistinguishable from Edit's - and whichever sorted first would win every
+   * time somebody typed "paste". The menu still says plain Copy and Paste, because the
+   * Terminal menu already supplies the context.
+   */
+  add("terminal.copy", "Copy from Terminal", () => terminalPanel().copy());
+  add("terminal.paste", "Paste into Terminal", () => terminalPanel().paste());
   add("terminal.kill", "Kill Terminal", () => terminalPanel().killActive());
   add("terminal.killAll", "Kill All Terminals", () => terminalPanel().killAll());
   add("terminal.runActiveFile", "Run Active File", async () => {
@@ -3084,7 +3550,21 @@ function registerCommands(): void {
     await runInTerminal(runner);
   });
 
+  add("debug.start", "Start Debugging", () => void startDebugging());
+  add("debug.stop", "Stop Debugging", () => void window.adcode.debug.stop());
+  add("debug.stepOver", "Step Over", () => void window.adcode.debug.stepOver());
+  add("debug.stepInto", "Step Into", () => void window.adcode.debug.stepInto());
+  add("debug.stepOut", "Step Out", () => void window.adcode.debug.stepOut());
+
+  add("go.symbol", "Go to Symbol", () => symbolSearch.open());
+  add("go.definition", "Go to Definition", () => void editorHost.goToDefinition());
+  add("go.peek", "Peek Definition", () => void editorHost.peekDefinition());
+
   /* Help */
+  add("help.guide", "ADCode Guide", () => helpGuide.open());
+  add("help.whatsNew", "What’s New", () => {
+    void window.adcode.releases.list().then((announcement) => whatsNewSheet.open(announcement));
+  });
   add("help.shortcuts", "Keyboard Shortcuts", () => showShortcuts());
   add("help.devTools", "Toggle Developer Tools", () => window.adcode.window.toggleDevTools());
   add("help.about", "About ADCode", () => {

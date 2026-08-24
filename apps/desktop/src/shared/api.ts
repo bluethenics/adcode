@@ -88,6 +88,34 @@ export interface ServiceNotice {
   readonly body: string;
 }
 
+/** A release note, as the main process hands it to the window. */
+export interface ReleaseNote {
+  readonly version: string;
+  readonly title: string;
+  readonly body: string;
+  readonly highlights: readonly string[];
+  /** The admin asked for this one to be shown to people, not just written down. */
+  readonly announce: boolean;
+  /** Security or data loss: worth interrupting a working user for. */
+  readonly critical: boolean;
+  readonly publishedAt: number | null;
+}
+
+/**
+ * Everything the window needs to decide whether to mention a new version.
+ *
+ * The decision itself lives in `@adcode/release` and runs in the renderer, because the
+ * renderer is the only side that knows whether somebody is mid-keystroke. Main supplies
+ * the facts it owns - what shipped, what this build is, what has already been shown.
+ */
+export interface ReleaseAnnouncement {
+  readonly releases: readonly ReleaseNote[];
+  readonly currentVersion: string;
+  readonly seenVersions: readonly string[];
+  /** False only on a machine that has never opened ADCode before. */
+  readonly hasRunBefore: boolean;
+}
+
 export type UpdateStatus =
   | { readonly state: "idle" | "checking" | "current" | "failed" | "unsupported" }
   | { readonly state: "downloading"; readonly version?: string; readonly percent?: number }
@@ -280,6 +308,41 @@ export interface CollabCommitRequestView {
 }
 
 /** Every channel name in one place, so main and preload cannot disagree. */
+/**
+ * One TCP port something is listening on.
+ *
+ * `own` is the difference between "stop the live server you started" and "kill a process
+ * you did not" - the renderer confirms the second and not the first.
+ */
+export interface ListeningPort {
+  readonly port: number;
+  readonly pid: number | null;
+  /** The process image name, when the platform's tools reported one. */
+  readonly process: string | null;
+  /** The bound address: `127.0.0.1`, `0.0.0.0`, `::` and so on. */
+  readonly address: string;
+  /** A URL safe to open - a wildcard bind becomes `localhost`, never `0.0.0.0`. */
+  readonly url: string;
+  /** What ADCode calls it, when ADCode started it. */
+  readonly label: string | null;
+  readonly own: boolean;
+}
+
+/**
+ * The Output panel's channels.
+ *
+ * A closed set rather than free-form strings: every one of these is a place in the main
+ * process that already produced text and previously threw it away. Adding a channel means
+ * finding a real source for it, which is the point - an empty dropdown entry is worse than
+ * no entry.
+ */
+export type OutputChannelId = "dev-server" | "live-server" | "language-server" | "git";
+
+export interface OutputLine {
+  readonly channel: OutputChannelId;
+  readonly text: string;
+}
+
 export const CHANNELS = {
   workspaceOpen: "workspace:open",
   workspaceCurrent: "workspace:current",
@@ -297,6 +360,7 @@ export const CHANNELS = {
   fsImport: "fs:import",
   fsReveal: "fs:reveal",
   clipboardWrite: "clipboard:write",
+  clipboardRead: "clipboard:read",
   terminalCreate: "terminal:create",
   terminalWrite: "terminal:write",
   terminalResize: "terminal:resize",
@@ -326,6 +390,13 @@ export const CHANNELS = {
   aiReset: "ai:reset",
   aiEvent: "ai:event",
   aiProposedEdit: "ai:proposed-edit",
+  aiSessionChanged: "ai:session-changed",
+  aiSessions: "ai:sessions",
+  aiResumeSession: "ai:resume-session",
+  aiRenameSession: "ai:rename-session",
+  aiDeleteSession: "ai:delete-session",
+  aiClearSessions: "ai:clear-sessions",
+  aiCheckKey: "ai:check-key",
   aiApplyHunks: "ai:apply-hunks",
   gitStatus: "git:status",
   gitStage: "git:stage",
@@ -375,10 +446,27 @@ export const CHANNELS = {
   previewDetect: "preview:detect",
   previewLog: "preview:log",
   previewOutput: "preview:output",
+  portsList: "ports:list",
+  portsStop: "ports:stop",
+  portsOpen: "ports:open",
+  outputHistory: "output:history",
+  outputAppend: "output:append",
   lspOpened: "lsp:opened",
   lspChanged: "lsp:changed",
   lspClosed: "lsp:closed",
   lspCompletion: "lsp:completion",
+  lspFormatting: "lsp:formatting",
+  lspDefinition: "lsp:definition",
+
+  debugState: "debug:state",
+  debugStart: "debug:start",
+  debugStop: "debug:stop",
+  debugControl: "debug:control",
+  debugToggleBreakpoint: "debug:toggle-breakpoint",
+  debugEvaluate: "debug:evaluate",
+  debugBreakpoints: "debug:breakpoints",
+  debugScopes: "debug:scopes",
+  debugProperties: "debug:properties",
   lspHover: "lsp:hover",
   lspStates: "lsp:states",
   lspDiagnostics: "lsp:diagnostics",
@@ -411,6 +499,9 @@ export const CHANNELS = {
   supportSubmitReport: "support:submit-report",
   updateStatus: "update:status",
   serviceNotice: "notice:show",
+  releaseAnnouncement: "release:announcement",
+  releaseMarkSeen: "release:mark-seen",
+  releaseList: "release:list",
   accountStatus: "account:status",
   accountChanged: "account:changed",
   accountLink: "account:link",
@@ -644,13 +735,30 @@ export interface QuickOpenHit {
 }
 
 /** One provider, as the chat widget's model picker needs to see it. */
+export interface AiModelInfo {
+  readonly id: string;
+  readonly name: string;
+  /** An agent needs tool calls; a model without them is a chat box. */
+  readonly toolCall: boolean;
+  readonly reasoning: boolean;
+}
+
 export interface AiProviderInfo {
   readonly id: string;
   readonly displayName: string;
-  readonly models: readonly string[];
-  /** False until the user supplies a key. Ollama needs none, so it is always true. */
+  readonly models: readonly AiModelInfo[];
+  /** False until the user supplies a key. The local option needs none. */
   readonly hasKey: boolean;
   readonly needsKey: boolean;
+  /**
+   * Whether this editor can talk to it, and how.
+   *
+   * `unsupported` means no address is known for it - the custom endpoint covers those, so
+   * it is a statement about what has been checked rather than about what exists.
+   */
+  readonly transport: "native" | "openai-compatible" | "unsupported";
+  /** Where to read about getting a key. */
+  readonly doc: string | null;
 }
 
 export interface AiStatus {
@@ -658,7 +766,33 @@ export interface AiStatus {
   readonly activeProvider: string;
   readonly activeModel: string;
   readonly ready: boolean;
+  /** Set when Provider is Custom. */
+  readonly customBaseUrl: string;
+  /** The day the bundled catalogue was taken, for a list that may have aged. */
+  readonly catalogueTakenOn: string;
+  /** True once a live catalogue has replaced the bundled one this session. */
+  readonly catalogueIsLive: boolean;
 }
+
+export interface ChatMessageView {
+  readonly role: "user" | "assistant";
+  readonly text: string;
+  readonly at: number;
+}
+
+export interface ChatSessionView {
+  readonly id: string;
+  readonly title: string;
+  readonly renamed: boolean;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  readonly messages: readonly ChatMessageView[];
+}
+
+/** What checking a key actually found out. */
+export type AiKeyCheck =
+  | { readonly ok: true; readonly detail: string }
+  | { readonly ok: false; readonly message: string };
 
 /** A hunk of a proposed change, as rendered in the inline diff widget. */
 export interface DiffHunkView {
@@ -692,6 +826,73 @@ export interface McpConnectionInfo {
 }
 
 /** What `window.adcode` exposes. Nothing else crosses the boundary. */
+/* ── Debugging ─────────────────────────────────────────────────────────────── */
+
+export interface DebugFrameView {
+  readonly id: string;
+  readonly name: string;
+  /** Absolute path, or null for a frame inside the runtime's own internals. */
+  readonly path: string | null;
+  readonly line: number;
+  readonly column: number;
+}
+
+export type DebugStateView =
+  | { readonly state: "idle" | "starting" | "running" }
+  | {
+      readonly state: "paused";
+      readonly reason: "breakpoint" | "step" | "exception" | "entry" | "pause" | "other";
+      readonly frames: readonly DebugFrameView[];
+    }
+  | { readonly state: "stopped"; readonly exitCode: number | null }
+  /** Could not start, carrying something the user can act on. */
+  | { readonly state: "failed"; readonly message: string };
+
+/** What evaluating an expression in a paused frame produced. */
+export interface DebugEvaluationView {
+  readonly value: string;
+  readonly type: string;
+  /** True for a thrown exception or a refusal, so the console can style it as one. */
+  readonly error: boolean;
+}
+
+export interface DebugScopeView {
+  readonly name: string;
+  readonly kind: string;
+  readonly objectId: string | null;
+}
+
+export interface DebugVariableView {
+  readonly name: string;
+  /** Already rendered - the panel never formats a value itself. */
+  readonly value: string;
+  readonly type: string;
+  readonly objectId?: string;
+}
+
+export interface BreakpointView {
+  readonly path: string;
+  readonly line: number;
+}
+
+/** Where a language server says a symbol is defined. */
+export interface LanguageLocation {
+  readonly path: string;
+  readonly line: number;
+  readonly column: number;
+  readonly endLine: number;
+  readonly endColumn: number;
+}
+
+/** One edit a language server wants applied, in the editor's one-based coordinates. */
+export interface LanguageTextEdit {
+  readonly startLine: number;
+  readonly startColumn: number;
+  readonly endLine: number;
+  readonly endColumn: number;
+  readonly text: string;
+}
+
 export interface AdcodeApi {
   readonly workspace: {
     open(): Promise<OpenedWorkspace | null>;
@@ -744,6 +945,14 @@ export interface AdcodeApi {
    */
   readonly clipboard: {
     writeText(text: string): Promise<void>;
+    /**
+     * The clipboard's text, or an empty string.
+     *
+     * Exists because pasting into the terminal needs it and `navigator.clipboard.readText`
+     * is refused in this renderer - reading the clipboard is gated behind a secure context
+     * and a permission prompt that a custom protocol does not satisfy.
+     */
+    readText(): Promise<string>;
   };
   readonly terminal: {
     profiles(): Promise<TerminalProfile[]>;
@@ -785,6 +994,43 @@ export interface AdcodeApi {
     log(): Promise<string>;
   };
   /**
+   * What is listening on this machine.
+   *
+   * Exists because "something is already using port 3000" is a wall beginners hit
+   * constantly and have no tool for; until now the only answer ADCode could give was
+   * whatever error the thing that failed to start happened to print.
+   */
+  readonly ports: {
+    list(): Promise<ListeningPort[]>;
+    /**
+     * Stop whatever holds a port.
+     *
+     * Takes a pid rather than a port number so the renderer can only stop a process it
+     * was actually shown, and the main process refuses its own pid regardless.
+     */
+    stop(pid: number): Promise<{ ok: boolean; error?: string }>;
+    /**
+     * Open a port in the real browser.
+     *
+     * Takes a port number, not a URL, for the same reason `preview.openExternal` takes
+     * nothing: a renderer that can hand `shell.openExternal` an arbitrary string is a way
+     * out of the sandbox dressed as a convenience. The main process builds a loopback URL
+     * from the number and will not build anything else.
+     */
+    open(port: number): Promise<void>;
+  };
+  /**
+   * Log channels, for the Output panel.
+   *
+   * `history` exists because the panel is usually opened *after* the thing worth reading
+   * has already been printed - a language server that failed to start does not print it
+   * again because somebody finally looked.
+   */
+  readonly output: {
+    history(): Promise<OutputLine[]>;
+    onAppend(listener: (line: OutputLine) => void): () => void;
+  };
+  /**
    * Language intelligence from a real language server (§4's Language group).
    *
    * Document synchronisation is fire-and-forget: the renderer tells the main process what
@@ -802,6 +1048,30 @@ export interface AdcodeApi {
       column: number,
     ): Promise<LanguageCompletion[]>;
     hover(path: string, languageId: string, line: number, column: number): Promise<string | null>;
+    /**
+     * Ask the language server to format a document.
+     *
+     * `null` means no server answered with edits, and the caller should fall back to the
+     * built-in formatter. An empty array is a real answer: a server formatted the file and
+     * found nothing to change.
+     */
+    formatting(
+      path: string,
+      languageId: string,
+      options: { tabSize: number; insertSpaces: boolean },
+    ): Promise<LanguageTextEdit[] | null>;
+    /**
+     * Where a symbol is defined, according to a language server.
+     *
+     * `null` means no server answered. The caller falls back to searching by name and the
+     * UI says which of the two produced the answer.
+     */
+    definition(
+      path: string,
+      languageId: string,
+      line: number,
+      column: number,
+    ): Promise<LanguageLocation[] | null>;
     states(): Promise<LanguageServerState[]>;
     onDiagnostics(listener: (file: string, diagnostics: LanguageDiagnostic[]) => void): () => void;
     onState(listener: (states: LanguageServerState[]) => void): () => void;
@@ -813,6 +1083,14 @@ export interface AdcodeApi {
     status(): Promise<AiStatus>;
     setKey(provider: string, key: string): Promise<AiStatus>;
     clearKey(provider: string): Promise<AiStatus>;
+    /**
+     * Check a key by using it.
+     *
+     * One real request against the model that would actually be used. A key can be
+     * well-formed and still refused - revoked, wrong account, no credit - and finding that
+     * out when it is pasted is the point of the Connect screen.
+     */
+    checkKey(provider: string, key: string): Promise<AiKeyCheck>;
     send(text: string): Promise<void>;
     cancel(): void;
     reset(): void;
@@ -882,6 +1160,52 @@ export interface AdcodeApi {
      */
     openInstall(id: string): Promise<void>;
   };
+  /**
+   * Stopping a program in the middle and looking at it.
+   *
+   * Built on the runtime's own inspector, so nothing has to be installed for JavaScript or
+   * TypeScript. A language with no debugger says so rather than offering a dead button.
+   */
+  readonly debug: {
+    state(): Promise<DebugStateView>;
+    start(path: string, languageId: string): Promise<void>;
+    stop(): Promise<void>;
+    resume(): Promise<void>;
+    stepOver(): Promise<void>;
+    stepInto(): Promise<void>;
+    stepOut(): Promise<void>;
+    pause(): Promise<void>;
+    /** Returns every breakpoint, so the editor can redraw its gutter from one answer. */
+    toggleBreakpoint(path: string, line: number): Promise<readonly BreakpointView[]>;
+    breakpoints(): Promise<readonly BreakpointView[]>;
+    scopes(frameId: string): Promise<readonly DebugScopeView[]>;
+    properties(objectId: string): Promise<readonly DebugVariableView[]>;
+    /**
+     * Evaluate an expression where the program is stopped.
+     *
+     * Takes the frame explicitly rather than assuming the top one: the point of a call
+     * stack is that you can look at a caller's variables, and a console that silently
+     * evaluated somewhere other than the frame you selected would be lying.
+     */
+    evaluate(frameId: string, expression: string): Promise<DebugEvaluationView>;
+    onState(listener: (state: DebugStateView) => void): () => void;
+  };
+  /**
+   * Past conversations, kept per project and never uploaded.
+   *
+   * An assistant that forgets everything when the window closes is one people stop
+   * explaining context to.
+   */
+  readonly chat: {
+    sessions(): Promise<readonly ChatSessionView[]>;
+    resume(id: string): Promise<ChatSessionView | null>;
+    rename(id: string, title: string): Promise<readonly ChatSessionView[]>;
+    remove(id: string): Promise<readonly ChatSessionView[]>;
+    clear(): Promise<readonly ChatSessionView[]>;
+    /** The conversation being added to, for the strip that says what is remembered. */
+    current(): Promise<ChatSessionView | null>;
+    onChanged(listener: (session: ChatSessionView) => void): () => void;
+  };
   readonly search: {
     run(query: SearchQueryView): Promise<SearchHitView[]>;
     /** §4's "global regex search and replace". Returns what it changed. */
@@ -929,6 +1253,14 @@ export interface AdcodeApi {
   };
   readonly notices: {
     onShow(listener: (notices: readonly ServiceNotice[]) => void): () => void;
+  };
+  readonly releases: {
+    /** Main pushes what it knows; the window decides whether now is a good moment. */
+    onAnnouncement(listener: (announcement: ReleaseAnnouncement) => void): () => void;
+    /** Remember these versions as shown, so they are never shown again on this machine. */
+    markSeen(versions: readonly string[]): Promise<void>;
+    /** Every note this build has, newest first - for the What's New window. */
+    list(): Promise<ReleaseAnnouncement>;
   };
   readonly updates: {
     status(): Promise<UpdateStatus>;

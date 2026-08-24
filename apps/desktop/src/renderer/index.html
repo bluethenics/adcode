@@ -14,7 +14,7 @@
     -->
     <div id="titlebar" class="titlebar">
       <button class="titlebar-action" id="ai-toggle" type="button" title="Assistant (Ctrl+I)" aria-label="Assistant" aria-pressed="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M17.5 15.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"/></svg>
+        <svg viewBox="0 0 1024 1024" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M320 348L140 512L320 676" stroke-width="56"/><path d="M704 348L884 512L704 676" stroke-width="56"/><path d="M512 322V365" stroke-width="42"/><path d="M512 662V702" stroke-width="42"/><path d="M584 405C563 374 531 356 494 356C446 356 413 383 413 423C413 463 444 484 505 500C569 517 606 541 606 590C606 641 565 671 511 671C466 671 429 651 405 619" stroke-width="56"/></svg>
       </button>
       <div class="menubar-slot" id="menubar-slot"></div>
       <div class="titlebar-drag"></div>
@@ -132,7 +132,6 @@
         </nav>
         <div class="sidebar-view" id="view-search" hidden></div>
         <div class="sidebar-view" id="view-scm" hidden></div>
-        <div class="sidebar-view" id="view-problems" hidden></div>
       </aside>
 
       <div class="splitter" id="splitter-sidebar"></div>
@@ -152,30 +151,75 @@
 
         <div class="splitter" id="splitter-panel" hidden></div>
 
+        <!--
+          The bottom panel: five surfaces behind one strip of tabs.
+
+          The tab buttons are built by `panels/bottomPanel.ts` rather than written here,
+          because that module owns which one is showing and a hand-written strip would be a
+          second, disagreeing source of that truth. What is here is the per-tab header
+          controls: exactly one `.panel-tab-actions` group is visible at a time.
+        -->
         <section class="panel" id="panel" hidden>
           <header class="panel-header">
-            <span class="panel-title" id="panel-title">Terminal</span>
-            <div class="terminal-tabs" id="terminal-tabs" role="tablist" hidden></div>
-            <!-- Split button: the plus opens the current default shell, the chevron picks one. -->
-            <div class="split-button">
-              <button class="icon-button" id="terminal-new" title="New terminal (Ctrl+Shift+`)" aria-label="New terminal">
-                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>
+            <div class="panel-tabs" id="panel-tabs" role="tablist" aria-label="Panel"></div>
+            <span class="panel-spacer"></span>
+
+            <div class="panel-tab-actions" id="actions-terminal">
+              <!--
+                The shell's name. With one terminal the tab strip hides itself, so this is
+                the only thing left that says whether it is cmd or Git Bash.
+              -->
+              <span class="panel-title" id="panel-title">Terminal</span>
+              <!-- Split button: the plus opens the current default shell, the chevron picks one. -->
+              <div class="split-button">
+                <button class="icon-button" id="terminal-new" title="New terminal (Ctrl+Shift+`)" aria-label="New terminal">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>
+                </button>
+                <button class="icon-button icon-button-chevron" id="terminal-profiles" title="New terminal with profile" aria-label="New terminal with profile" aria-haspopup="menu" aria-expanded="false">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg>
+                </button>
+              </div>
+              <button class="icon-button" id="terminal-split" title="Split terminal (Ctrl+Shift+5)" aria-label="Split terminal">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3h11v10h-11z M8 3v10"/></svg>
               </button>
-              <button class="icon-button icon-button-chevron" id="terminal-profiles" title="New terminal with profile" aria-label="New terminal with profile" aria-haspopup="menu" aria-expanded="false">
-                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg>
+              <button class="icon-button" id="terminal-kill" title="Kill terminal" aria-label="Kill terminal">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5v5M8 6.5v5M10.5 6.5v5M3 4h10M6 4V2.5h4V4M4.5 4l.6 9.5h5.8L11.5 4"/></svg>
               </button>
             </div>
-            <button class="icon-button" id="terminal-split" title="Split terminal (Ctrl+Shift+5)" aria-label="Split terminal">
-              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3h11v10h-11z M8 3v10"/></svg>
-            </button>
-            <button class="icon-button" id="terminal-kill" title="Kill terminal" aria-label="Kill terminal">
-              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 6.5v5M8 6.5v5M10.5 6.5v5M3 4h10M6 4V2.5h4V4M4.5 4l.6 9.5h5.8L11.5 4"/></svg>
-            </button>
+
+            <div class="panel-tab-actions" id="actions-ports" hidden>
+              <button class="ghost-button" id="ports-refresh">Refresh</button>
+            </div>
+
             <button class="icon-button" id="panel-close" title="Close panel (Ctrl+J)" aria-label="Close panel">
               <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
             </button>
           </header>
-          <div class="terminal-surface" id="terminal-surface"></div>
+
+          <!--
+            Every body stays mounted while hidden. Removing one would throw away terminal
+            scrollback, the Output view's scroll position, and the debug console's history
+            every time somebody glanced at another tab.
+          -->
+          <div class="panel-bodies" id="panel-bodies">
+            <div class="panel-body panel-body-terminal" id="panel-body-terminal">
+              <div class="terminal-surface" id="terminal-surface"></div>
+              <!--
+                The open terminals, as a column beside them rather than a strip above.
+
+                It was in the panel header until the header also had to hold the five panel
+                tabs. Two horizontal scrolling tab strips cannot share one 32px row: the
+                terminal list grows with every shell you open and squeezes the panel tabs,
+                which is a layout that gets worse the more you use it. A column grows
+                downwards, where there is room, and stops competing.
+              -->
+              <div class="terminal-tabs" id="terminal-tabs" role="tablist" aria-orientation="vertical" aria-label="Open terminals" hidden></div>
+            </div>
+            <div class="panel-body" id="panel-body-problems" hidden></div>
+            <div class="panel-body" id="panel-body-output" hidden></div>
+            <div class="panel-body" id="panel-body-debug" hidden></div>
+            <div class="panel-body" id="panel-body-ports" hidden></div>
+          </div>
         </section>
       </main>
     </div>

@@ -178,7 +178,11 @@ await evaluate(
   "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, bubbles: true }))",
 );
 await sleep(600);
-checks.quickOpenVisible = await evaluate("document.querySelector('.quickopen')?.hidden === false");
+// Named specifically: symbol search is also a `.quickopen`, and a bare selector matches
+// whichever happens to be first in the DOM.
+checks.quickOpenVisible = await evaluate(
+  "document.querySelector('.quickopen:not(.quickopen-symbols)')?.hidden === false",
+);
 await evaluate(
   "window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))",
 );
@@ -319,6 +323,21 @@ async function pressEscape() {
   await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
   await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
   await sleep(350);
+}
+
+/**
+ * A plain navigation key, with no modifiers.
+ *
+ * `pressChord` cannot do these: it holds Ctrl and builds a `KeyX` code, which is right for
+ * `Ctrl+A` and meaningless for Home.
+ */
+const PLAIN_KEYS = { Home: 36, End: 35, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40 };
+
+async function pressKey(key) {
+  const virtualKey = PLAIN_KEYS[key];
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key, code: key, windowsVirtualKeyCode: virtualKey });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key, code: key, windowsVirtualKeyCode: virtualKey });
+  await sleep(120);
 }
 
 /** Open the Structure popup on a tab, whatever state it was in. */
@@ -622,6 +641,65 @@ checks.multipleTerminals = await evaluate(
  * start that shell, and the tab has to say which one it is - the tab strip is the only
  * place that information exists once two different shells are running.
  */
+/*
+ * Several terminals must not deform the panel.
+ *
+ * A regression test for a real bug. The list of open terminals used to be a horizontal strip
+ * in the panel header, and once that header also had to hold the five panel tabs, opening a
+ * third or fourth shell squeezed those tabs until their labels clipped - two scrolling tab
+ * strips cannot share one 32px row, and it got worse the more you used the terminal.
+ *
+ * The fix moved the list into a column beside the terminals, so this asserts the thing that
+ * would have caught it: the panel's own tab strip is exactly as wide with four terminals
+ * open as with one, and nothing about the panel's own size changed.
+ */
+checks.manyTerminalsDoNotDeformThePanel = await evaluate(
+  `(async () => {
+     // Make sure the Terminal tab is the one showing, so its header controls are present.
+     document.querySelector('#panel-tabs .panel-tab[data-tab="terminal"]')?.click();
+     await new Promise((r) => setTimeout(r, 400));
+
+     const tabsWidth = () =>
+       Math.round(document.getElementById('panel-tabs').getBoundingClientRect().width);
+     const panelWidth = () =>
+       Math.round(document.getElementById('panel').getBoundingClientRect().width);
+
+     const rail = document.getElementById('terminal-tabs');
+     const surface = document.getElementById('terminal-surface');
+     const newButton = document.getElementById('terminal-new');
+     if (!newButton) return 'no new-terminal button on the Terminal tab';
+
+     const beforeTabs = tabsWidth();
+     const beforePanel = panelWidth();
+     if (beforeTabs === 0) return 'the panel tab strip has no width to begin with';
+
+     // Three more, so four are open - which is where the old layout visibly broke.
+     for (let i = 0; i < 3; i += 1) {
+       newButton.click();
+       await new Promise((r) => setTimeout(r, 900));
+     }
+
+     const railBox = rail.getBoundingClientRect();
+     const surfaceBox = surface.getBoundingClientRect();
+
+     return {
+       open: document.querySelectorAll('#terminal-tabs .terminal-tab').length,
+       // The whole point. A strip in the header shrank this; a column does not.
+       tabStripUnchanged: tabsWidth() === beforeTabs,
+       panelUnchanged: panelWidth() === beforePanel,
+       railShown: !rail.hidden,
+       // A column, not a row: taller than a single row, and no wider than its fixed width.
+       railIsAColumn: railBox.height > 40 && railBox.width <= 160,
+       // Beside the terminals rather than above them.
+       railBesideSurface: railBox.left >= surfaceBox.right - 1,
+       // Every panel tab label still fully drawn rather than clipped.
+       labelsNotClipped: [...document.querySelectorAll('#panel-tabs .panel-tab-label')].every(
+         (l) => l.scrollWidth <= l.clientWidth + 1,
+       ),
+     };
+   })()`,
+);
+
 checks.terminalProfileLauncher = await (async () => {
   const chevron = await evaluate(
     `(() => {
@@ -1295,6 +1373,18 @@ try {
   );
   await clickAt(editorPoint.x, editorPoint.y);
 
+  /*
+   * Select the whole buffer before typing.
+   *
+   * A new `.ts` file no longer opens empty - `adcode.editing.fileTemplates` starts it with
+   * a doc comment and a stub function. Typing into that put this line *inside the comment*,
+   * so the compiler saw nothing wrong, the badge stayed hidden, and this block quietly
+   * reported prose instead of failing. Replacing the buffer keeps the check testing the
+   * compiler rather than the template.
+   */
+  await pressChord("a");
+  await sleep(150);
+
   // No quotes and no brackets: auto-closing pairs would rewrite anything containing them,
   // and this needs to be exactly the source that produces TS2322.
   await typeText("let x: number = true;");
@@ -1317,8 +1407,8 @@ try {
 
   checks.problemsPanelExplains = await evaluate(
     `(() => {
-       const view = document.getElementById('view-problems');
-       if (view.hidden) return 'the problems view did not show';
+       const view = document.getElementById('panel-body-problems');
+       if (view.hidden) return 'the problems tab did not show';
 
        const rows = view.querySelectorAll('.problems-row');
        if (rows.length === 0) return 'panel listed nothing: ' + (view.textContent ?? '').trim().slice(0, 120);
@@ -1345,7 +1435,7 @@ try {
 
   checks.problemsRowJumpsToTheColumn = await evaluate(
     `(async () => {
-       const row = document.querySelector('#view-problems .problems-row');
+       const row = document.querySelector('#panel-body-problems .problems-row');
        if (!row) return 'no row to click';
 
        row.click();
@@ -1357,6 +1447,612 @@ try {
        return /Ln \\d+, Col [2-9]\\d*/.test(position) ? position : 'cursor at ' + position;
      })()`,
   );
+
+  // A picture is worth five probes: capture what the window actually looks like here.
+  {
+    const shot = await send("Page.captureScreenshot", { format: "png" });
+    if (shot.result?.data !== undefined) {
+      const { writeFileSync } = await import("node:fs");
+      const { tmpdir } = await import("node:os");
+      const { join } = await import("node:path");
+      writeFileSync(join(tmpdir(), "adcode-smoke.png"), Buffer.from(shot.result.data, "base64"));
+    }
+  }
+
+  checks.layoutProbe = await evaluate(
+    `(() => {
+       const host = document.getElementById('editor-host')?.getBoundingClientRect();
+       const bar = document.querySelector('.breadcrumbs')?.getBoundingClientRect();
+       return {
+         breadcrumbsHeight: Math.round(bar?.height ?? -1),
+         hostTop: Math.round(host?.top ?? -1),
+         hostHeight: Math.round(host?.height ?? -1),
+         monacoLines: document.querySelectorAll('.monaco-editor .view-line').length,
+         tabs: document.querySelectorAll('.tab').length,
+         activeTab: document.querySelector('.tab[aria-selected="true"] .tab-label')?.textContent ?? null,
+         placeholderVisible: !(document.getElementById('editor-placeholder')?.hidden ?? true),
+         placeholderText: (document.getElementById('editor-placeholder')?.textContent ?? '').trim().slice(0, 60),
+         hostHidden: document.getElementById('editor-host')?.hidden ?? '?',
+         viewZones: document.querySelectorAll('.view-zones > *').length,
+       };
+     })()`,
+  );
+
+  /* ── The editing group, on the file that already has a real error (P2a) ── */
+
+
+  /*
+   * Every one of these clicks into the editor with real input first.
+   *
+   * The first version used synthetic MouseEvents and a bare Ctrl+A, and all four checks
+   * reported false for the same reason: focus was still on the Problems row that the
+   * previous block clicked, so the typing went nowhere. Monaco owns a hidden textarea and
+   * only real input reliably lands in it.
+   */
+  /*
+   * Replace the scratch file's contents - and *only* the scratch file's.
+   *
+   * This helper selects everything and types over it, which is a loaded gun pointed at
+   * whichever buffer happens to be in front. It has already gone off once: the Problems
+   * check above clicks a row to test that it jumps to the right column, that row belonged
+   * to a real repository file, and the next `retypeFile` overwrote a 582-line document with
+   * two lines of test input. Auto-save then wrote it to disk.
+   *
+   * So the target is verified before anything is typed, and this refuses rather than
+   * guesses. A smoke run must not be able to modify the repository it is running in.
+   */
+  async function retypeFile(text) {
+    const onTarget = await evaluate(
+      `(() => (document.querySelector('.tab[aria-selected="true"] .tab-label')?.textContent ?? '')
+         .startsWith('smoke-broken.ts'))`,
+    );
+
+    if (onTarget !== true) {
+      const activated = await evaluate(
+        `(() => {
+           const tab = [...document.querySelectorAll('.tab')].find(
+             (t) => (t.querySelector('.tab-label')?.textContent ?? '').startsWith('smoke-broken.ts'),
+           );
+           if (!tab) return false;
+           tab.click();
+           return true;
+         })()`,
+      );
+
+      if (activated !== true) {
+        throw new Error("smoke-broken.ts is not open - refusing to type over another file");
+      }
+      await sleep(600);
+    }
+
+    await clickAt(editorPoint.x, editorPoint.y);
+    await sleep(200);
+    await pressChord("a");
+    await sleep(150);
+    await typeText(text);
+  }
+
+  checks.errorLensShowsTheMessage = await (async () => {
+    // The error stays on line 1 and the cursor ends on line 2, because the lens deliberately
+    // says nothing about the line you are typing on.
+    await retypeFile("let x: number = true;");
+    await pressEnterInEditor();
+    await typeText("const ok = 1;");
+
+    // The TypeScript worker is a real compile.
+    await sleep(5000);
+
+    return await evaluate(
+      `(() => {
+         const lenses = [...document.querySelectorAll('.error-lens')];
+         if (lenses.length === 0) return false;
+         const text = lenses.map((l) => l.textContent ?? '').join(' ');
+         return {
+           appears: true,
+           // One error in the file means exactly one annotation. Hints and info markers
+           // are deliberately not shown, so an unused variable adds nothing here.
+           /*
+            * Counted by line, not by element.
+            *
+            * Monaco splits injected text across several spans of its own accord - one
+            * message arrived as "You're putting true or false where a num" plus
+            * "belongs." - so counting elements measures Monaco's text rendering rather
+            * than this feature. One error in the file means one annotated line.
+            */
+           onlyTheErrorLine:
+             new Set(lenses.map((l) => l.closest('.view-line')?.style.top ?? '?')).size === 1,
+           inPlainEnglish: /true or false|number/i.test(text),
+           tinted: lenses.some((l) => l.className.includes('error-lens-error')),
+         };
+       })()`,
+    );
+  })();
+
+  checks.todoHighlightMarksOnlyComments = await (async () => {
+    // A note in a comment, and the same word in code. Only the first may light up.
+    await retypeFile("// TODO make this work");
+    await pressEnterInEditor();
+    await typeText("const TODO = 1;");
+    await sleep(900);
+
+    return await evaluate(
+      `(() => {
+         const marks = [...document.querySelectorAll('.todo-mark')];
+         return {
+           markedExactlyOne: marks.length === 1,
+           isTheComment: (marks[0]?.textContent ?? '') === 'TODO',
+           toned: marks[0]?.className.includes('todo-mark-todo') === true,
+         };
+       })()`,
+    );
+  })();
+
+  checks.pathCompleteOffersRealFiles = await (async () => {
+    await retypeFile('import x from "./pack');
+
+    /*
+     * Read before auto-save fires, not after.
+     *
+     * Auto-save runs 1200ms after typing stops, and format-on-save deliberately dismisses
+     * the suggestion list before rewriting the buffer. Waiting 1200ms here watched the
+     * widget get closed by a different feature working correctly.
+     */
+    await sleep(500);
+
+    const offered = await evaluate(
+      `(() => {
+         const rows = [...document.querySelectorAll('.suggest-widget .monaco-list-row')];
+         const labels = rows.map((r) => (r.textContent ?? '').trim());
+         return {
+           opened: rows.length > 0,
+           offersRealFile: labels.some((l) => l.toLowerCase().startsWith('package')),
+         };
+       })()`,
+    );
+
+    await pressEscape();
+    return offered;
+  })();
+
+  checks.formatterTidiesOnSave = await (async () => {
+    // Deliberately messy, and deliberately valid: the point is that saving fixes the
+    // indentation without changing what the code says.
+    await retypeFile("function a(){");
+    await pressEnterInEditor();
+    await typeText("return 1");
+    await sleep(300);
+
+    await pressChord("s");
+    await sleep(1200);
+
+    return await evaluate(
+      `(() => {
+         const lines = [...document.querySelectorAll('.monaco-editor .view-line')]
+           .map((l) => (l.textContent ?? '').replace(/ /g, ' '));
+         const body = lines.find((l) => l.includes('return 1')) ?? '';
+         return {
+           // Auto-closing braces put the } there; format-on-save indents the body under it.
+           indented: /^\\s\\s+return 1/.test(body),
+           // And the code itself is untouched - this formatter only ever moves whitespace.
+           unchanged: body.trim() === 'return 1',
+         };
+       })()`,
+    );
+  })();
+
+  /*
+   * There is deliberately no smoke check that types JSON into the editor.
+   *
+   * One was written and removed. It typed `{"b":1,"a":[1,2,3]}` into a TypeScript buffer to
+   * watch the formatter run, and with auto-closing pairs and CDP typing at machine speed it
+   * provoked "Token length and text length do not match!" from inside Monaco's own suggest
+   * model - `checkForWordEnd` asking for a word in a buffer whose tokens had not caught up.
+   * Nothing in this app edits the model during that sequence, the editor carries on working,
+   * and every check after it passed.
+   *
+   * It was also a weak check: it only asserted the buffer still contained the text that had
+   * been typed. What JSON formatting actually produces is pinned exactly by the unit tests
+   * in packages/format, and what the smoke run is here to prove - that format-on-save is
+   * wired to the save path at all - is proven by the check above it.
+   */
+
+  checks.pairedTagRenameFollowsAlong = await (async () => {
+    // Auto-close writes the closing tag, which is what gives us a pair to rename.
+    await retypeFile("<div>");
+    await sleep(500);
+
+    const before = await evaluate(
+      `(document.querySelector('.monaco-editor .view-lines')?.textContent ?? '')`,
+    );
+
+    // One step left puts the cursor at the end of the opening tag's name.
+    await pressKey("ArrowLeft");
+    await typeText("s");
+    await sleep(700);
+
+    const after = await evaluate(
+      `(document.querySelector('.monaco-editor .view-lines')?.textContent ?? '')`,
+    );
+
+    return {
+      startedPaired: before.includes("<div>") && before.includes("</div>"),
+      // Both halves followed, from one keystroke.
+      renamedBoth: after.includes("<divs>") && after.includes("</divs>"),
+    };
+  })();
+
+  /* ── The terminal clipboard ───────────────────────────────────────────── */
+
+  /*
+   * Reported by the user: nothing could be pasted into the terminal.
+   *
+   * The cause was that there was no paste path at all - xterm does not paste by itself, and
+   * the bridge only exposed `clipboard.writeText`, because `navigator.clipboard.readText`
+   * is refused in this renderer's context. This drives the whole route: write the clipboard,
+   * run the Paste command, and read what the shell echoed back.
+   */
+  checks.terminalPastes = await (async () => {
+    /*
+     * The pasted text runs a command, and the check is whether the file it writes appears.
+     *
+     * Reading the terminal back was the obvious approach and it cannot work: xterm draws
+     * through the WebGL renderer, so what is on screen is a canvas and there is no text in
+     * the DOM for any selector to find. A side effect on disk is visible to this script.
+     */
+    const marker = join(REPO, "smoke-paste.txt");
+    await rm(marker, { force: true }).catch(() => {});
+
+    const readable = await evaluate(
+      `(async () => {
+         await window.adcode.clipboard.writeText(
+           'echo pasted-ok > smoke-paste.txt' + String.fromCharCode(10),
+         );
+         return await window.adcode.clipboard.readText();
+       })()`,
+    );
+
+    if (typeof readable !== "string" || !readable.includes("smoke-paste.txt")) {
+      return { clipboardReadable: false };
+    }
+
+    // Make sure a terminal is open and focused before pasting into it.
+    await evaluate(
+      `(() => {
+         const panel = document.querySelector('.terminal-panel');
+         return panel !== null && !panel.hidden;
+       })()`,
+    );
+
+    await runCommand("paste into terminal");
+    await sleep(2000);
+
+    const { existsSync } = await import("node:fs");
+    let ran = false;
+    for (let attempt = 0; attempt < 12 && !ran; attempt += 1) {
+      await sleep(500);
+      ran = existsSync(marker);
+    }
+
+    await rm(marker, { force: true }).catch(() => {});
+    return { clipboardReadable: true, reachedTheShell: ran };
+  })();
+
+  /* ── Terminal agent detection ─────────────────────────────────────────── */
+
+  checks.terminalOffersSharedMemory = await (async () => {
+    /*
+     * A real click into the terminal, at real coordinates.
+     *
+     * `element.click()` does not move focus, and a synthetic focus on xterm's helper
+     * textarea did not take either - the keystrokes went to the editor instead, which is
+     * both a broken check and a good way to type into somebody's file.
+     */
+    const terminalPoint = await evaluate(
+      `(() => {
+         const surface = document.getElementById('terminal-surface');
+         if (!surface) return null;
+         const r = surface.getBoundingClientRect();
+         if (r.width === 0) return null;
+         return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+       })()`,
+    );
+    if (terminalPoint === null) return { terminalVisible: false };
+
+    await clickAt(terminalPoint.x, terminalPoint.y);
+    await sleep(400);
+
+    /*
+     * A path that cannot exist, ending in a recognised agent name.
+     *
+     * Typing a bare `claude` would detect correctly and also *start Claude Code* inside the
+     * smoke run's terminal. This exercises the same detection - the parser matches on the
+     * basename - and the shell answers "not found".
+     */
+    // First: do typed keystrokes reach the shell at all? The paste check proves a
+    // different path (the pty is written directly), and detection only sees typed input.
+    const typedMarker = join(REPO, "smoke-typed.txt");
+    await rm(typedMarker, { force: true }).catch(() => {});
+    await typeText("echo typed > smoke-typed.txt");
+    await pressEnterInEditor();
+    await sleep(2000);
+    {
+      const { existsSync } = await import("node:fs");
+      checks.terminalReceivesTyping = existsSync(typedMarker);
+      await rm(typedMarker, { force: true }).catch(() => {});
+    }
+
+    await typeText("./no-such-dir/claude");
+    // `pressEnter` sends a key event with no character, and xterm needs the carriage return
+    // itself - the same reason `pressEnterInEditor` exists for Monaco.
+    await pressEnterInEditor();
+    await sleep(1500);
+
+    return await evaluate(
+      `(() => {
+         const strip = document.querySelector('.agent-strip');
+         if (!strip) return { stripInDom: false };
+         if (strip.hidden) return { stripInDom: true, hidden: true };
+         return {
+           shown: true,
+           namesTheAgent: (strip.querySelector('.agent-strip-text')?.textContent ?? '').includes('Claude Code'),
+           carriesTheCommand:
+             (strip.querySelector('.agent-strip-command')?.textContent ?? '').length > 0,
+           offersCopy: strip.querySelector('.ghost-button') !== null,
+         };
+       })()`,
+    );
+  })();
+
+  /* ── Tree-sitter highlighting ─────────────────────────────────────────── */
+
+  /*
+   * What is worth checking here is the part that can actually fail: whether the WebAssembly
+   * runtime and a grammar are fetched and compiled inside a packaged Electron renderer,
+   * under the app's own protocol and CSP. Which node becomes which colour is decided by
+   * `@adcode/highlight`, which is pure and has its own tests.
+   */
+  checks.treeSitterColoursByMeaning = await (async () => {
+    /*
+     * A function call and a variable, which Monaco's tokenizer cannot tell apart.
+     *
+     * Both are bare identifiers to a regular expression, so its tokenizer gives them the
+     * same class. A parse tree knows one is the callee of a call expression and the other
+     * is not - so different classes here is the whole feature, observable from the DOM.
+     */
+    await retypeFile("const alpha = 1;");
+    await pressEnterInEditor();
+    await typeText("console.log(alpha);");
+    await sleep(3500);
+
+    return await evaluate(
+      `(() => {
+         const spans = [...document.querySelectorAll('.monaco-editor .view-line span span')];
+         const classOf = (text) =>
+           spans.find((s) => (s.textContent ?? '').trim() === text)?.className ?? null;
+
+         const call = classOf('log');
+         const variable = classOf('alpha');
+
+         return {
+           painted: spans.length > 0,
+           foundBoth: call !== null && variable !== null,
+           // The point: a call and a variable are coloured differently.
+           toldApart: call !== null && variable !== null && call !== variable,
+         };
+       })()`,
+    );
+  })();
+
+  /* ── Navigation (P2c) ─────────────────────────────────────────────────── */
+
+  /** Run a command the way a person would: through the palette. */
+  async function runCommand(query) {
+    await evaluate(
+      `(() => {
+         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'P', ctrlKey: true, shiftKey: true, bubbles: true }));
+         return true;
+       })()`,
+    );
+    await sleep(350);
+
+    return await evaluate(
+      `(async () => {
+         const input = document.querySelector('.quickopen-input[aria-label="Command palette"]');
+         if (!input) return false;
+
+         input.value = ${JSON.stringify(query)};
+         input.dispatchEvent(new Event('input', { bubbles: true }));
+         await new Promise((r) => setTimeout(r, 250));
+
+         const row = document.querySelector('.palette-row');
+         if (!row) {
+           input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+           return false;
+         }
+         row.click();
+         return true;
+       })()`,
+    );
+  }
+
+  checks.breadcrumbsShowPathAndSymbol = await (async () => {
+    // A declaration and a use of it, with no braces - auto-closing pairs would rewrite them.
+    await retypeFile("const alpha = 1;");
+    await pressEnterInEditor();
+    await typeText("alpha;");
+
+    // Long enough for the breadcrumb recompute and for auto-save to put this on disk, which
+    // the definition search below reads.
+    await sleep(1800);
+
+    return await evaluate(
+      `(() => {
+         const bar = document.querySelector('.breadcrumbs');
+         if (!bar || bar.dataset.empty === 'true') return false;
+         const labels = [...bar.querySelectorAll('.breadcrumb')].map((b) => b.textContent);
+         return {
+           shown: labels.length > 0,
+           namesTheFile: labels.includes('smoke-broken.ts'),
+           // Every crumb is a button, which is the part worth asserting. Separators are not
+           // checked: this file sits at the workspace root, so its trail is one segment long.
+           allClickable: [...bar.querySelectorAll('.breadcrumb')].every((b) => b.tagName === 'BUTTON'),
+         };
+       })()`,
+    );
+  })();
+
+  checks.symbolSearchFindsADeclaration = await (async () => {
+    const opened = await runCommand("go to symbol");
+    if (opened !== true) return false;
+
+    /*
+     * Wait for the field to hold focus before typing.
+     *
+     * The overlay clears and focuses its input on open, and the palette hands focus back to
+     * the editor as it closes. Which lands last is a race that went both ways across runs,
+     * so this waits for the settled state rather than sleeping and hoping.
+     */
+    let focused = false;
+    for (let attempt = 0; attempt < 15 && !focused; attempt += 1) {
+      await sleep(200);
+      focused =
+        (await evaluate(
+          `(document.activeElement?.getAttribute('aria-label') === 'Go to symbol in project')`,
+        )) === true;
+    }
+    if (!focused) return false;
+
+    /*
+     * Take focus once more, immediately before typing.
+     *
+     * The palette calls `restoreFocus()` as it closes, which can land *after* the loop above
+     * saw the field focused - and then the query is typed into the editor instead. This is
+     * the difference between this check passing every run and passing most runs.
+     */
+    await sleep(400);
+    await evaluate(
+      `(() => {
+         document.querySelector('.quickopen-input[aria-label="Go to symbol in project"]')?.focus();
+         return true;
+       })()`,
+    );
+
+    /*
+     * Typed for real rather than assigned.
+     *
+     * Setting `input.value` raced the overlay's own `open()`, which clears the field - the
+     * search then ran on an empty string and the check read "Type at least two letters."
+     * Real keystrokes arrive after open() has finished, as a person's would.
+     */
+    // The palette returns focus to the editor when it closes, so the field is focused
+    // explicitly rather than assumed - otherwise this types into the file instead.
+    /*
+     * Set the query and wait for the search to actually run.
+     *
+     * Typing raced the overlay's own `open()`, which clears the field, and the palette's
+     * `restoreFocus()`, which takes focus back - so a single attempt passed most runs and
+     * not all of them. Re-asserting the value until rows appear removes the race without
+     * weakening what is being checked: the rows still have to come from a real search.
+     */
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      await evaluate(
+        `(() => {
+           const input = document.querySelector('.quickopen-input[aria-label="Go to symbol in project"]');
+           if (!input) return false;
+           input.focus();
+           // Always re-dispatch, even when the value already matches: the handler is what
+           // starts a search, and skipping it meant later attempts waited without ever
+           // asking again.
+           input.value = 'createEditorHost';
+           input.dispatchEvent(new Event('input', { bubbles: true }));
+           return true;
+         })()`,
+      );
+
+      await sleep(1400);
+      const ready = await evaluate("document.querySelectorAll('.symbol-row').length > 0");
+      if (ready === true) break;
+    }
+
+    const found = await evaluate(
+      `(async () => {
+         const input = document.querySelector('.quickopen-input[aria-label="Go to symbol in project"]');
+         if (!input) return false;
+
+         const rows = [...document.querySelectorAll('.symbol-row')];
+         const names = rows.map((r) => r.querySelector('.symbol-name')?.textContent ?? '');
+         const where = rows.map((r) => r.querySelector('.symbol-where')?.textContent ?? '');
+
+         return {
+           hint: document.querySelector('.quickopen-symbols .quickopen-hint')?.textContent ?? '?',
+           found: rows.length > 0,
+           // The real declaration, in the file that really declares it.
+           namesTheSymbol: names.includes('createEditorHost'),
+           inTheRightFile: where.some((w) => w.includes('editorHost.ts')),
+           saysWhatKindItIs: (rows[0]?.querySelector('.symbol-kind')?.textContent ?? '') !== '',
+         };
+       })()`,
+    );
+
+    await pressEscape();
+    return found;
+  })();
+
+  checks.peekShowsTheDefinition = await (async () => {
+    // Put the cursor on `alpha` on the second line - the use, not the declaration.
+    await clickAt(editorPoint.x, editorPoint.y);
+    await sleep(200);
+    /*
+     * Land on `alpha` in `alpha;`, which is line 2.
+     *
+     * Select-all then Right collapses to the very end of the buffer - and the buffer ends
+     * with a blank line, so that is line 3. A screenshot caught the cursor sitting at
+     * Ln 3, Col 1 with no symbol under it, which is why the peek found nothing.
+     */
+    await pressChord("a");
+    await sleep(100);
+    await pressKey("ArrowRight");
+    await pressKey("ArrowUp");
+    await pressKey("Home");
+    await pressKey("ArrowRight");
+    await pressKey("ArrowRight");
+    await sleep(200);
+
+    const ran = await runCommand("peek definition");
+    if (ran !== true) return false;
+
+    await sleep(1800);
+
+    {
+      const shot = await send("Page.captureScreenshot", { format: "png" });
+      if (shot.result?.data !== undefined) {
+        const { writeFileSync } = await import("node:fs");
+      const { tmpdir } = await import("node:os");
+      const { join } = await import("node:path");
+        writeFileSync(join(tmpdir(), "adcode-peek.png"), Buffer.from(shot.result.data, "base64"));
+      }
+    }
+
+    const shown = await evaluate(
+      `(() => {
+         const peek = document.querySelector('.peek');
+         if (!peek) return false;
+         const badge = peek.querySelector('.peek-badge');
+         return {
+           opened: true,
+           // Provenance is always stated - this is the honesty rule made visible.
+           saysHowItWasFound: (badge?.textContent ?? '') !== '',
+           // No language server runs for TypeScript here, so it must be the name match.
+           matchedByName: badge?.classList.contains('peek-badge-matched') === true,
+           showsSource: (peek.querySelector('.peek-code')?.textContent ?? '').includes('alpha'),
+           namesTheFile: (peek.querySelector('.peek-title')?.textContent ?? '').includes('smoke-broken.ts'),
+         };
+       })()`,
+    );
+
+    await pressEscape();
+    return shown;
+  })();
 
   /*
    * The language-server chain, end to end, on a machine with no language servers installed.
@@ -1971,7 +2667,7 @@ try {
 
   checks.missingServerBecomesAHint = await evaluate(
     `(() => {
-       const view = document.getElementById('view-problems');
+       const view = document.getElementById('panel-body-problems');
        const rows = [...view.querySelectorAll('.problems-row')];
        const hint = rows.find((row) => /smoke-lang|install|pyright/i.test(row.textContent ?? ''));
 
@@ -2009,9 +2705,18 @@ try {
      })()`,
   );
 } catch (error) {
-  // Recorded as a failed check rather than crashing the run, so the checks that already
-  // passed still get printed and the cleanup below still happens.
-  checks.explorerFlow = `THREW: ${error instanceof Error ? error.message : String(error)}`;
+  /*
+   * Recorded as a failed check rather than crashing the run, so the checks that already
+   * passed still get printed and the cleanup below still happens.
+   *
+   * The key says `explorerFlow` for history, but this `try` now wraps everything from the
+   * explorer through the editing, terminal and navigation checks - so an error anywhere in
+   * it landed here wearing the wrong name and sent me hunting the wrong feature twice. The
+   * originating line is included for that reason.
+   */
+  const where =
+    error instanceof Error ? (error.stack ?? "").split(String.fromCharCode(10))[1]?.trim() : "";
+  checks.explorerFlow = `THREW: ${error instanceof Error ? error.message : String(error)} (${where})`;
 } finally {
   await rm(join(REPO, SCRATCH), { recursive: true, force: true }).catch(() => {});
   await rm(join(REPO, "smoke-broken.ts"), { force: true }).catch(() => {});
@@ -2215,14 +2920,128 @@ checks.panelDividerFollowsPanel = await evaluate(
    })()`,
 );
 
-// The `<$>` mark is drawn, not typed, so it cannot fall back to a missing font.
+/*
+ * The bottom panel's five tabs.
+ *
+ * The assertion the unit tests cannot make is the one about identity: switching tabs must
+ * hide a body, never rebuild it. A panel that re-created the terminal on every switch would
+ * pass every unit test and lose your scrollback whenever you glanced at Problems.
+ */
+checks.panelTabsSwitchAndKeepState = await evaluate(
+  `(async () => {
+     document.querySelector('.activity[data-view="problems"]').click();
+     await new Promise((r) => setTimeout(r, 400));
+
+     const panel = document.getElementById('panel');
+     if (panel.hidden) return 'the panel did not open on Problems';
+
+     const ids = [...document.querySelectorAll('#panel-tabs .panel-tab')].map((t) => t.dataset.tab);
+     const expected = ['problems', 'output', 'debug', 'terminal', 'ports'];
+     if (ids.join(',') !== expected.join(',')) return 'tabs were [' + ids.join(',') + ']';
+
+     const bodyFor = (id) => document.getElementById('panel-body-' + id);
+     const tabFor = (id) => document.querySelector('#panel-tabs .panel-tab[data-tab="' + id + '"]');
+     if (bodyFor('problems').hidden) return 'the Problems body is hidden while its tab is active';
+
+     // The node that must survive a round trip through another tab.
+     const mounted = bodyFor('problems').firstElementChild;
+
+     tabFor('output').click();
+     await new Promise((r) => setTimeout(r, 250));
+     if (!bodyFor('problems').hidden) return 'Problems stayed visible behind Output';
+     if (bodyFor('output').hidden) return 'the Output body did not show';
+
+     tabFor('problems').click();
+     await new Promise((r) => setTimeout(r, 250));
+
+     return {
+       // Identity, not equality: a rebuilt body is a different node.
+       keptMounted: bodyFor('problems').firstElementChild === mounted,
+       onlyOneVisible: expected.filter((id) => !bodyFor(id).hidden).length === 1,
+       tabMarked: tabFor('problems').getAttribute('aria-selected') === 'true',
+       // Header controls belong to a tab: the terminal's buttons must not be on Problems.
+       actionsFollowTheTab: document.getElementById('actions-terminal').hidden,
+     };
+   })()`,
+);
+
+/*
+ * Ports: the answer to "what is already using 3000".
+ *
+ * Driven against a port ADCode itself opened, because that is the only one whose number is
+ * known in advance - and because labelling our own server is the one thing the operating
+ * system's own tools cannot do.
+ */
+checks.portsTabNamesOurOwnServer = await evaluate(
+  `(async () => {
+     const status = await window.adcode.preview.start();
+     if (!status.running) return 'the preview did not start: ' + (status.error ?? 'no reason');
+     const port = String(new URL(status.url).port);
+
+     document.querySelector('#panel-tabs .panel-tab[data-tab="ports"]').click();
+     // netstat on a loaded Windows box is genuinely slow, and the table polls on a timer.
+     await new Promise((r) => setTimeout(r, 6000));
+
+     const rows = [...document.querySelectorAll('#panel-body-ports .ports-table tbody tr')];
+     if (rows.length === 0) return 'the table listed nothing at all';
+
+     const ours = rows.find((r) => (r.querySelector('.ports-port')?.textContent ?? '').startsWith(port));
+     if (!ours) return 'our own port ' + port + ' was not listed; ' + rows.length + ' rows were';
+
+     return {
+       listed: true,
+       labelled: (ours.querySelector('.ports-label')?.textContent ?? '') === 'Live Server',
+       // Open, Copy, Stop.
+       actions: ours.querySelectorAll('.ports-action').length === 3,
+     };
+   })()`,
+);
+
+/*
+ * Output: the channels, and the fact that they carry something.
+ *
+ * The Live Server channel is checked rather than a quieter one because the preview was just
+ * started above, so there is a line to find. An empty channel would prove nothing.
+ */
+checks.outputTabCarriesRealLogs = await evaluate(
+  `(async () => {
+     document.querySelector('#panel-tabs .panel-tab[data-tab="output"]').click();
+     await new Promise((r) => setTimeout(r, 500));
+
+     const picker = document.querySelector('.output-channel');
+     if (!picker) return 'no channel picker in the panel header';
+
+     const channels = [...picker.options].map((o) => o.value);
+     picker.value = 'live-server';
+     picker.dispatchEvent(new Event('change', { bubbles: true }));
+     await new Promise((r) => setTimeout(r, 300));
+
+     const text = document.querySelector('.output-view')?.textContent ?? '';
+
+     return {
+       channels: channels.join(','),
+       // History is replayed on open: the line was printed before anyone opened the tab.
+       liveServerLogged: /serving http/.test(text),
+       pickerInHeader: picker.closest('.panel-header') !== null,
+     };
+   })()`,
+);
+
+/*
+ * The `<$>` mark is drawn, not typed, so it cannot fall back to a missing font.
+ *
+ * Five paths: the two brackets, the dollar's S, and its stem - which is two strokes rather
+ * than one so the S is not crossed through the middle. The count is asserted rather than
+ * just "some paths" because losing a stroke is exactly the kind of change that looks fine
+ * at 16px and wrong at 64.
+ */
 checks.brandMarkDrawn = await evaluate(
   `(() => {
      const mark = document.querySelector('.welcome-mark .brand-mark');
      if (!mark) return 'no mark on the welcome screen';
      const paths = mark.querySelectorAll('path').length;
      const box = mark.getBoundingClientRect();
-     return paths === 4 && box.width > 0 ? true : 'paths=' + paths + ' width=' + box.width;
+     return paths === 5 && box.width > 0 ? true : 'paths=' + paths + ' width=' + box.width;
    })()`,
 );
 
@@ -2696,6 +3515,87 @@ checks.previewUndocksWithoutReloading = await evaluate(
 );
 
 /*
+ * Device-size preview.
+ *
+ * The check that matters is the negative one: resizing must not reload the page. Setting a
+ * width is easy to get right and easy to get right the wrong way - wrapping the iframe, or
+ * swapping its `src`, both look correct in a screenshot and both throw away the running
+ * page. So this asserts the iframe is the same node with the same `src` afterwards, which is
+ * the same assertion the undocking check makes, for the same reason.
+ */
+checks.deviceSizingDoesNotReloadThePage = await evaluate(
+  `(async () => {
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'P', ctrlKey: true, shiftKey: true, bubbles: true }));
+     await new Promise((r) => setTimeout(r, 300));
+
+     const input = document.querySelector('.quickopen-input[aria-label="Command palette"]');
+     if (!input) return 'the palette did not open';
+     input.value = 'live preview';
+     input.dispatchEvent(new Event('input', { bubbles: true }));
+     await new Promise((r) => setTimeout(r, 250));
+
+     const row = [...document.querySelectorAll('.palette-row')].find(
+       (r) => r.querySelector('span')?.textContent === 'Toggle Live Preview',
+     );
+     if (!row) return 'no Toggle Live Preview command';
+     row.click();
+     await new Promise((r) => setTimeout(r, 2500));
+
+     const pane = document.querySelector('.preview-pane');
+     if (!pane || pane.hidden) return 'the preview pane did not open';
+
+     const frameBefore = pane.querySelector('iframe');
+     if (!frameBefore) return 'no preview frame';
+     const srcBefore = frameBefore.getAttribute('src');
+
+     const toggle = pane.querySelector('.icon-button[aria-label="Check other screen sizes"]');
+     if (!toggle) return 'no device button in the preview bar';
+     toggle.click();
+     await new Promise((r) => setTimeout(r, 350));
+
+     const bar = pane.querySelector('.device-bar');
+     if (!bar || bar.hidden) return 'the device bar did not show';
+
+     const size = bar.querySelector('.device-size');
+     size.value = '360x640';
+     size.dispatchEvent(new Event('change', { bubbles: true }));
+     await new Promise((r) => setTimeout(r, 350));
+
+     const frameAfter = pane.querySelector('iframe');
+     const widthAtPhone = frameAfter.style.width;
+     const preset = bar.querySelector('.device-preset')?.value;
+     const readout = bar.querySelector('.device-readout')?.textContent ?? '';
+
+     // Rotate is the only .device-action button.
+     bar.querySelector('.device-action').click();
+     await new Promise((r) => setTimeout(r, 300));
+     const widthRotated = frameAfter.style.width;
+
+     const result = {
+       // The whole design: same element, never reparented, never reloaded.
+       sameFrameNode: frameAfter === frameBefore,
+       sameSrc: frameAfter.getAttribute('src') === srcBefore,
+       tookTheWidth: widthAtPhone === '360px',
+       // 360 x 640 is a preset, so the dropdown should name it rather than say Custom.
+       recognisedPreset: preset === 'phone-small',
+       readsOutTheSize: /360/.test(readout),
+       rotates: widthRotated === '640px',
+       handlesShown: [...pane.querySelectorAll('.device-handle')].every((h) => !h.hidden),
+     };
+
+     // Off again, then closed, so later checks see the layout they expect.
+     toggle.click();
+     await new Promise((r) => setTimeout(r, 250));
+     result.turnsOff = frameAfter.style.width === '';
+
+     pane.querySelector('.icon-button[aria-label="Close preview"]')?.click();
+     await new Promise((r) => setTimeout(r, 500));
+
+     return result;
+   })()`,
+);
+
+/*
  * A live session, started and ended in the real app.
  *
  * Bound to loopback rather than `lan`, so running the suite does not publish this repository to
@@ -2774,6 +3674,194 @@ checks.collabSessionStartsAndStops = await evaluate(
      };
    })()`,
 );
+
+/* ── The explanation layer (P1) ───────────────────────────────────────── */
+
+/*
+ * Every check here returns a boolean or an object of booleans, never a descriptive string.
+ * The runner only fails on `false`, `undefined`, or `THREW`, so a check that reports a real
+ * problem as prose is printed and then passes - which is the one way this script lies.
+ */
+
+checks.helpGuideOpens = await (async () => {
+  await chooseMenu("Help", "ADCode Guide");
+  await sleep(500);
+
+  return await evaluate(
+    `(() => {
+       const sheet = document.querySelector('.help-sheet');
+       if (!sheet || sheet.hidden) return false;
+       const cards = sheet.querySelectorAll('.help-card');
+       const groups = sheet.querySelectorAll('.settings-group-title');
+       return {
+         visible: sheet.dataset.state === 'open',
+         hasManyCards: cards.length > 40,
+         hasGroups: groups.length > 5,
+         explainsInThree:
+           sheet.querySelector('.help-card-plain') !== null &&
+           sheet.querySelectorAll('.help-card-detail').length > 0,
+       };
+     })()`,
+  );
+})();
+
+checks.helpGuideSearchesByDescription = await evaluate(
+  `(() => {
+     const search = document.querySelector('.help-sheet .settings-search');
+     if (!search) return false;
+     search.value = 'grey text';
+     search.dispatchEvent(new Event('input', { bubbles: true }));
+
+     const titles = [...document.querySelectorAll('.help-sheet .help-card-title')]
+       .map((t) => t.firstChild?.textContent ?? '');
+
+     // Searching words nobody would guess the feature is named after is the whole point.
+     return titles.includes('Inline completion') && titles.length < 6;
+   })()`,
+);
+
+checks.helpGuideJumpsToSetting = await (async () => {
+  const jumped = await evaluate(
+    `(() => {
+       const search = document.querySelector('.help-sheet .settings-search');
+       search.value = 'minimap';
+       search.dispatchEvent(new Event('input', { bubbles: true }));
+
+       const jump = document.querySelector('.help-sheet .help-card-jump');
+       if (!jump) return false;
+       jump.click();
+       return true;
+     })()`,
+  );
+  if (jumped !== true) return false;
+
+  // The guide closes, settings opens, and it scrolls to the row - which is deliberately
+  // delayed past the sheet transition, so this waits longer than a click normally would.
+  await sleep(900);
+
+  return await evaluate(
+    `(() => {
+       const guide = document.querySelector('.help-sheet');
+       const settings = document.querySelector('.settings-sheet:not(.help-sheet)');
+       const row = document.querySelector('[data-setting-id="adcode.editing.minimap"]');
+       return {
+         guideClosed: guide.dataset.state === undefined,
+         settingsOpen: settings?.dataset.state === 'open',
+         rowExists: row !== null,
+         rowMarked: row?.dataset.highlight === 'true',
+       };
+     })()`,
+  );
+})();
+
+checks.everySettingHasAQuestionMark = await evaluate(
+  `(() => {
+     const rows = [...document.querySelectorAll('.settings-row[data-setting-id]')];
+     if (rows.length < 40) return false;
+     const without = rows.filter((r) => r.querySelector('.help-button') === null);
+     return { rows: rows.length > 40, allExplained: without.length === 0 };
+   })()`,
+);
+
+checks.helpPopoverOpensAndCloses = await (async () => {
+  /*
+   * Make sure Settings is actually open first.
+   *
+   * The popover is anchored to a settings row, and a row inside a closed sheet measures
+   * zero - so the popover gets placed off-screen and the check reports a stacking failure
+   * that is really a sequencing one. The previous block leaves the sheet open on most runs
+   * and not all of them.
+   */
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const open = await evaluate(
+      `(document.querySelector('.settings-sheet:not(.help-sheet)')?.dataset.state === 'open')`,
+    );
+    if (open === true) break;
+
+    await evaluate(
+      `(() => {
+         document.dispatchEvent(new KeyboardEvent('keydown', { key: ',', ctrlKey: true, bubbles: true }));
+         return true;
+       })()`,
+    );
+    await sleep(500);
+  }
+
+  const opened = await evaluate(
+    `(() => {
+       const row = document.querySelector('[data-setting-id="adcode.editing.minimap"]');
+       const button = row?.querySelector('.help-button');
+       if (!button) return false;
+       button.click();
+       return true;
+     })()`,
+  );
+  if (opened !== true) return false;
+
+  await sleep(350);
+
+  const shown = await evaluate(
+    `(() => {
+       const pop = document.querySelector('.help-popover');
+       if (!pop || pop.hidden) return false;
+       const box = pop.getBoundingClientRect();
+       return {
+         visible: pop.dataset.state === 'open',
+         // The three fields, all filled - an empty popover is the failure this guards.
+         hasPlain: (pop.querySelector('.help-popover-plain')?.textContent ?? '').length > 20,
+         hasDetails:
+           [...pop.querySelectorAll('.help-popover-detail')]
+             .every((d) => (d.textContent ?? '').length > 20),
+         // Placement is measured in script, so being on-screen is a real thing to check.
+         onScreen:
+           box.top >= 0 &&
+           box.left >= 0 &&
+           box.bottom <= window.innerHeight &&
+           box.right <= window.innerWidth,
+         anchorMarked:
+           document
+             .querySelector('[data-setting-id="adcode.editing.minimap"] .help-button')
+             ?.getAttribute('aria-expanded') === 'true',
+         /*
+          * In front of the sheet it explains.
+          *
+          * It shipped at z-index 90 against the settings sheet's 100, so the explanation
+          * opened *behind* the screen it is opened from - reported by the user. Asking what
+          * is actually painted at the popover's centre is the check that would have caught
+          * it; "is it visible" did not.
+          */
+         inFront: (() => {
+           const centre = document.elementFromPoint(
+             Math.round(box.left + box.width / 2),
+             Math.round(box.top + box.height / 2),
+           );
+           return centre !== null && pop.contains(centre);
+         })(),
+       };
+     })()`,
+  );
+
+  await pressEscape();
+  await sleep(300);
+
+  const closed = await evaluate(
+    `(() => {
+       const pop = document.querySelector('.help-popover');
+       const settings = document.querySelector('.settings-sheet:not(.help-sheet)');
+       return {
+         popoverGone: pop.hidden === true,
+         // Escape closes the popover and must not also close the sheet behind it.
+         settingsStillOpen: settings?.dataset.state === 'open',
+       };
+     })()`,
+  );
+
+  return { ...shown, ...closed };
+})();
+
+// Leave the app as this block found it, so later checks are not run against a covered window.
+await pressEscape();
+await sleep(400);
 
 socket.close();
 child.kill();

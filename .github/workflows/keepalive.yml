@@ -1,0 +1,38 @@
+# Keep the Supabase project awake.
+#
+# A Supabase project on the free plan pauses after seven days with no database activity, and
+# a paused database means every ad request returns a 500 until somebody notices and clicks
+# Resume in a dashboard. That is not an acceptable failure mode for the path that pays users.
+#
+# So this pings `/v1/health` once a day. That endpoint is unauthenticated for exactly this
+# reason: every other route answers 401 without touching the database, so a request to one of
+# them would keep nothing awake. `/v1/health` reads a row.
+#
+# GitHub's scheduled workflows are free on public repositories and come out of the included
+# minutes on private ones - a few seconds a day either way.
+name: keepalive
+
+on:
+  schedule:
+    # 04:17 UTC. An odd minute on purpose: GitHub drops scheduled runs at the top of the
+    # hour under load, and a keepalive that silently stops running is worse than none.
+    - cron: "17 4 * * *"
+  # So it can be tested without waiting a day.
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the health endpoint
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --show-error --location --max-time 30 \
+            --output /dev/null --write-out '%{http_code}' \
+            https://adcode.bluethenics.com/v1/health)
+
+          echo "health returned $status"
+
+          # 200 is healthy. Anything else fails the run, which is the point: a red workflow
+          # is how you find out the database went away, rather than a user finding out.
+          test "$status" = "200"

@@ -66,6 +66,13 @@ export interface StructurePanel {
   render(): void;
   /** Move the "you are here" highlight. Called as the cursor moves. */
   followCursor(line: number): void;
+  /**
+   * Which of the two style directions to answer.
+   *
+   * Both are switchable because on a project built from CSS modules or utility classes,
+   * matching by name has little to say and saying it anyway is noise.
+   */
+  setStyleDirections(options: { elementToRules: boolean; selectorToElements: boolean }): void;
   focus(): void;
 }
 
@@ -387,9 +394,13 @@ export function createStructurePanel(deps: StructurePanelDeps): StructurePanel {
     try {
       const sections =
         node.kind === "selector" || node.kind === "at-rule"
-          ? await styleRelations(node, source)
+          ? selectorToElements
+            ? await styleRelations(node, source)
+            : [section("Off", [noteRow("Showing the elements a rule styles is switched off in Settings.")])]
           : node.kind === "element"
-            ? await elementRelations(node, source)
+            ? elementToRules
+              ? await elementRelations(node, source)
+              : [section("Off", [noteRow("Showing the rules that style an element is switched off in Settings.")])]
             : await codeRelations(node, source);
 
       // The panel may have been redrawn while the search was in flight, which detaches this
@@ -549,6 +560,9 @@ export function createStructurePanel(deps: StructurePanelDeps): StructurePanel {
    * element *is* - its tag, id and classes, already resolved into a name - and the relations
    * view needs the attributes back to search for them.
    */
+  let elementToRules = true;
+  let selectorToElements = true;
+
   const elementSourceLine = (text: string, line: number): string => text.split("\n")[line - 1] ?? "";
 
   /** A markup element: which stylesheet rules can reach it. */
@@ -679,6 +693,11 @@ export function createStructurePanel(deps: StructurePanelDeps): StructurePanel {
   return {
     element,
     render,
+
+    setStyleDirections(options) {
+      elementToRules = options.elementToRules;
+      selectorToElements = options.selectorToElements;
+    },
 
     followCursor(line) {
       const node = nodeAtLine(outline, line);

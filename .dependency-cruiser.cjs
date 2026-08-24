@@ -169,7 +169,10 @@ module.exports = {
     doNotFollow: { path: "node_modules" },
     // `out/` and `dist/` are build artefacts: cruising them re-reports every rule
     // against bundled Monaco and tells you nothing about the source tree.
-    exclude: { path: "(^|/)(__fixtures__|node_modules|out|dist)/" },
+    // `.next` alongside `out` and `dist`: they are all build output, and Next's is the
+    // noisiest - it was contributing 260 orphan warnings, which is enough to bury a real
+    // violation in the scroll-back and make the firewall's output not worth reading.
+    exclude: { path: "(^|/)(__fixtures__|node_modules|out|dist|\\.next)/" },
     tsConfig: { fileName: "tsconfig.json" },
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {

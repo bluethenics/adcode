@@ -19,6 +19,7 @@ import type {
   ReceiptRecord,
   NoticeRecord,
   PostRecord,
+  ReleaseRecord,
   ReportPage,
   ReportRecord,
   UserPage,
@@ -55,6 +56,7 @@ export function createMemoryStore(): Store & { reset(): void } {
   let reports = new Map<string, ReportRecord>();
   let fundings = new Map<string, FundingRecord>();
   let posts = new Map<string, PostRecord>();
+  let releases = new Map<string, ReleaseRecord>();
   let notices = new Map<string, NoticeRecord>();
   let testServes = new Map<string, string>();
   let audit: AuditRecord[] = [];
@@ -75,6 +77,7 @@ export function createMemoryStore(): Store & { reset(): void } {
       reports = new Map();
       fundings = new Map();
       posts = new Map();
+      releases = new Map();
       notices = new Map();
       testServes = new Map();
       audit = [];
@@ -292,6 +295,20 @@ export function createMemoryStore(): Store & { reset(): void } {
     async listPosts(options) {
       return [...posts.values()]
         .filter((p) => !options.publishedOnly || p.status === "published")
+        .sort((a, b) => (b.publishedAt ?? b.updatedAt) - (a.publishedAt ?? a.updatedAt));
+    },
+
+    async putRelease(release) {
+      releases.set(release.version, release);
+    },
+
+    async getRelease(version) {
+      return releases.get(version) ?? null;
+    },
+
+    async listReleases(options) {
+      return [...releases.values()]
+        .filter((r) => !options.publishedOnly || r.status === "published")
         .sort((a, b) => (b.publishedAt ?? b.updatedAt) - (a.publishedAt ?? a.updatedAt));
     },
 

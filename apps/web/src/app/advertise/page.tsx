@@ -59,7 +59,7 @@ export default function AdvertisePage() {
           </div>
 
           <div className="hero-cta">
-            <Link href="/portal" className="btn btn-primary">
+            <Link href="/portal/campaigns/new" className="btn btn-primary">
               Create a campaign
             </Link>
             <a href="mailto:advertise@adcode.bluethenics.com" className="btn btn-ghost">

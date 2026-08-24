@@ -23,6 +23,7 @@ import type {
   ReceiptRecord,
   NoticeRecord,
   PostRecord,
+  ReleaseRecord,
   ReportPage,
   ReportRecord,
   UserPage,
@@ -468,6 +469,26 @@ export function createFirestoreStore(injected?: Firestore): Store {
       const snap = await (options.publishedOnly ? base.where("status", "==", "published") : base).get();
       return snap.docs
         .map((d) => d.data() as PostRecord)
+        .sort((a, b) => (b.publishedAt ?? b.updatedAt) - (a.publishedAt ?? a.updatedAt));
+    },
+
+    async putRelease(release: ReleaseRecord) {
+      // Keyed by version: one record per version, ever, which is what makes "announced
+      // this one already" answerable without a second collection.
+      await (await lazy()).collection("releases").doc(release.version).set(release);
+    },
+
+    async getRelease(version) {
+      const snap = await (await lazy()).collection("releases").doc(version).get();
+      return snap.exists ? (snap.data() as ReleaseRecord) : null;
+    },
+
+    async listReleases(options) {
+      const database = await lazy();
+      const base = database.collection("releases");
+      const snap = await (options.publishedOnly ? base.where("status", "==", "published") : base).get();
+      return snap.docs
+        .map((d) => d.data() as ReleaseRecord)
         .sort((a, b) => (b.publishedAt ?? b.updatedAt) - (a.publishedAt ?? a.updatedAt));
     },
 

@@ -20,6 +20,7 @@
  * draw, because the alternative is an unhandled rejection in the main process taking the
  * window with it over a language server that was never essential.
  */
+import { appendOutput } from "./output.ts";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import {
   createMessageReader,
@@ -27,6 +28,7 @@ import {
   didCloseParams,
   didOpenParams,
   encodeMessage,
+  formattingParams,
   initializeParams,
   notification,
   pathToUri,
@@ -34,7 +36,12 @@ import {
   request,
   resolveServer,
   toDiagnostic,
+  toEditorEdits,
+  toEditorLocations,
   uriToPath,
+  type EditorLocation,
+  type EditorTextEdit,
+  type FormattingOptions,
   type LspCompletionItem,
   type LspDiagnostic,
   type ServerSpec,
@@ -262,9 +269,17 @@ export function startServerFor(languageId: string): Session | null {
     for (const body of reader.push(new Uint8Array(chunk))) handleMessage(session, body);
   });
 
-  // Read and discard: a full stderr pipe blocks the child, and a language server that
-  // hangs at 40% of startup because nobody drained its logs is a very confusing bug.
-  child.stderr.on("data", () => {});
+  /*
+   * Drained, and now also kept.
+   *
+   * Draining is not optional - a full stderr pipe blocks the child, and a language server
+   * that hangs at 40% of startup because nobody read its logs is a very confusing bug. But
+   * discarding was throwing away the only account of *why* a server failed to start, which
+   * is the question people actually have. It goes to the Output panel now.
+   */
+  child.stderr.on("data", (chunk: Buffer) => {
+    appendOutput("language-server", `${spec.label}: ${chunk.toString("utf8")}`);
+  });
 
   child.on("error", (error) => {
     sessions.delete(languageId);
@@ -492,4 +507,54 @@ export async function shutdownAllServers(): Promise<void> {
       if (!session.child.killed) session.child.kill();
     }, 1000);
   }
+}
+
+/**
+ * Ask the language server to format a document.
+ *
+ * `null` means "no server answered with edits" and the caller falls back to
+ * `@adcode/format`. An empty array is not the same thing: it means a server did format the
+ * file and found nothing to change, and falling back there would overrule it.
+ */
+export async function formattingFor(
+  path: string,
+  languageId: string,
+  options: FormattingOptions,
+): Promise<EditorTextEdit[] | null> {
+  const session = sessions.get(languageId);
+  if (session === undefined || !session.ready) return null;
+
+  const result = await ask(
+    session,
+    "textDocument/formatting",
+    formattingParams(pathToUri(path), options),
+  );
+
+  // A server without formatting support answers with an error, which `ask` settles as
+  // null - so no capability negotiation is needed to find out.
+  return toEditorEdits(result);
+}
+
+/**
+ * Ask the language server where a symbol is defined.
+ *
+ * `null` means no server answered, and the caller falls back to searching the workspace by
+ * name - a fallback the UI then labels as a name match rather than passing off as resolved.
+ */
+export async function definitionAt(
+  path: string,
+  languageId: string,
+  line: number,
+  column: number,
+): Promise<EditorLocation[] | null> {
+  const session = sessions.get(languageId);
+  if (session === undefined || !session.ready) return null;
+
+  const result = await ask(
+    session,
+    "textDocument/definition",
+    positionParams(pathToUri(path), line, column),
+  );
+
+  return toEditorLocations(result);
 }

@@ -1,0 +1,11 @@
+{
+  "name": "@adcode/help",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Plain-English explanations for every feature and setting. Plain TypeScript; no Electron, no DOM.",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

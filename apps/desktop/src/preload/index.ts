@@ -53,8 +53,37 @@ const api: AdcodeApi = {
     importFrom: (source, targetDir) => ipcRenderer.invoke(CHANNELS.fsImport, source, targetDir),
     pathForDropped: (file) => webUtils.getPathForFile(file),
   },
+  debug: {
+    state: () => ipcRenderer.invoke(CHANNELS.debugState),
+    start: (path, languageId) => ipcRenderer.invoke(CHANNELS.debugStart, path, languageId),
+    stop: () => ipcRenderer.invoke(CHANNELS.debugStop),
+    // One channel with a verb rather than five channels: the main process validates the
+    // verb against a closed set, and the bridge surface stays small.
+    resume: () => ipcRenderer.invoke(CHANNELS.debugControl, "resume"),
+    stepOver: () => ipcRenderer.invoke(CHANNELS.debugControl, "stepOver"),
+    stepInto: () => ipcRenderer.invoke(CHANNELS.debugControl, "stepInto"),
+    stepOut: () => ipcRenderer.invoke(CHANNELS.debugControl, "stepOut"),
+    pause: () => ipcRenderer.invoke(CHANNELS.debugControl, "pause"),
+    toggleBreakpoint: (path, line) =>
+      ipcRenderer.invoke(CHANNELS.debugToggleBreakpoint, path, line),
+    breakpoints: () => ipcRenderer.invoke(CHANNELS.debugBreakpoints),
+    scopes: (frameId) => ipcRenderer.invoke(CHANNELS.debugScopes, frameId),
+    properties: (objectId) => ipcRenderer.invoke(CHANNELS.debugProperties, objectId),
+    evaluate: (frameId, expression) => ipcRenderer.invoke(CHANNELS.debugEvaluate, frameId, expression),
+    onState: (listener) => subscribe(CHANNELS.debugState, listener),
+  },
+  chat: {
+    sessions: () => ipcRenderer.invoke(CHANNELS.aiSessions),
+    resume: (id) => ipcRenderer.invoke(CHANNELS.aiResumeSession, id),
+    rename: (id, title) => ipcRenderer.invoke(CHANNELS.aiRenameSession, id, title),
+    remove: (id) => ipcRenderer.invoke(CHANNELS.aiDeleteSession, id),
+    clear: () => ipcRenderer.invoke(CHANNELS.aiClearSessions),
+    current: () => ipcRenderer.invoke(CHANNELS.aiSessionChanged),
+    onChanged: (listener) => subscribe(CHANNELS.aiSessionChanged, listener),
+  },
   clipboard: {
     writeText: (text) => ipcRenderer.invoke(CHANNELS.clipboardWrite, text),
+    readText: () => ipcRenderer.invoke(CHANNELS.clipboardRead),
   },
   terminal: {
     profiles: () => ipcRenderer.invoke(CHANNELS.terminalProfiles),
@@ -79,6 +108,15 @@ const api: AdcodeApi = {
     onChange: (listener) => subscribe(CHANNELS.previewChanged, listener),
     onOutput: (listener) => subscribe(CHANNELS.previewOutput, listener),
   },
+  ports: {
+    list: () => ipcRenderer.invoke(CHANNELS.portsList),
+    stop: (pid) => ipcRenderer.invoke(CHANNELS.portsStop, pid),
+    open: (port) => ipcRenderer.invoke(CHANNELS.portsOpen, port),
+  },
+  output: {
+    history: () => ipcRenderer.invoke(CHANNELS.outputHistory),
+    onAppend: (listener) => subscribe(CHANNELS.outputAppend, listener),
+  },
   language: {
     // `send`, not `invoke`: document synchronisation sits on the keystroke path, and §7 is
     // explicit that nothing the user types may wait on anything.
@@ -89,6 +127,10 @@ const api: AdcodeApi = {
       ipcRenderer.invoke(CHANNELS.lspCompletion, path, languageId, line, column),
     hover: (path, languageId, line, column) =>
       ipcRenderer.invoke(CHANNELS.lspHover, path, languageId, line, column),
+    formatting: (path, languageId, options) =>
+      ipcRenderer.invoke(CHANNELS.lspFormatting, path, languageId, options),
+    definition: (path, languageId, line, column) =>
+      ipcRenderer.invoke(CHANNELS.lspDefinition, path, languageId, line, column),
     states: () => ipcRenderer.invoke(CHANNELS.lspStates),
     onDiagnostics: (listener) => subscribe(CHANNELS.lspDiagnostics, listener),
     onState: (listener) => subscribe(CHANNELS.lspStateChanged, listener),
@@ -100,6 +142,7 @@ const api: AdcodeApi = {
     status: () => ipcRenderer.invoke(CHANNELS.aiProviders),
     setKey: (provider, key) => ipcRenderer.invoke(CHANNELS.aiSetKey, provider, key),
     clearKey: (provider) => ipcRenderer.invoke(CHANNELS.aiClearKey, provider),
+    checkKey: (provider, key) => ipcRenderer.invoke(CHANNELS.aiCheckKey, provider, key),
     send: (text) => ipcRenderer.invoke(CHANNELS.aiSend, text),
     cancel: () => ipcRenderer.send(CHANNELS.aiCancel),
     reset: () => ipcRenderer.send(CHANNELS.aiReset),
@@ -185,6 +228,11 @@ const api: AdcodeApi = {
   },
   notices: {
     onShow: (listener) => subscribe(CHANNELS.serviceNotice, listener),
+  },
+  releases: {
+    onAnnouncement: (listener) => subscribe(CHANNELS.releaseAnnouncement, listener),
+    markSeen: (versions) => ipcRenderer.invoke(CHANNELS.releaseMarkSeen, versions),
+    list: () => ipcRenderer.invoke(CHANNELS.releaseList),
   },
   updates: {
     status: () => ipcRenderer.invoke(CHANNELS.updateStatus),
