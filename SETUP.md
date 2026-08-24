@@ -10,7 +10,7 @@ see it before moving on — that is the whole point of the sentence.
 all used inside their free tiers, and none of them asks for a card. The only steps that ever
 cost money are optional and clearly marked: code signing (step 16) and a lawyer (step 18).
 
-**No coding.** The code is finished and tested — 2103 tests, all green. Everything below
+**No coding.** The code is finished and tested — 2119 tests, all green. Everything below
 needs your account or your decision, which is exactly why it is not already done.
 
 ---
@@ -38,9 +38,17 @@ keep working at whatever address the page is served from.
 Firebase → Authentication → Settings → **Authorized domains** must list every hostname people
 sign in from. Both `adcode.bluethenics01.workers.dev` and `adcode.bluethenics.com` are in it.
 
-**Still to do: step 13** (your own domain), **step 14** (make yourself an admin), and the
-keepalive at the end of step 13 — which matters more than it looks, because a free Supabase
-project pauses after seven days idle.
+**Still to do: step 13** (your own domain) and the keepalive at the end of it — which
+matters more than it looks, because a free Supabase project pauses after seven days idle.
+Step 14 is already done: `bluethenics01@gmail.com` is the founding administrator, and more
+can be appointed from `/admin` → **Admins**.
+
+> ### `adcode` instead of `npm run …`
+>
+> `npm link` once from the repository root, and every command below has a shorter name that
+> says what it does. `adcode open` builds and opens the editor, `adcode site` runs the
+> website, `adcode check` runs everything, `adcode ship` deploys. `adcode help` lists them.
+> The npm scripts still work; this is a name over the top of them, not a replacement.
 
 > ### Never run `npm install` inside `apps/web`
 >
@@ -481,28 +489,30 @@ open `https://adcode.bluethenics.com/v1/health` — you should see `{"ok":true}`
 
 - [ ] `https://adcode.bluethenics.com/v1/health` returns `{"ok":true}`, keepalive ran green
 
-### 14 · Make yourself an admin
+### 14 · Sign in as the administrator
 
-The admin flag lives in the Firebase token, not a database row.
+**Nothing to configure — this is already done.** `bluethenics01@gmail.com` was written into
+the `admins` table when the database was created, so it is an administrator from the first
+sign-in.
 
-1. Open `https://adcode.bluethenics.com` and sign in — any method.
-2. Firebase console → **Authentication → Users**. Find your row and copy the **User UID**.
-3. In Supabase, this is not where the flag goes — it is a Firebase custom claim. The simplest
-   way to set one without writing a script is the Google Cloud Shell, which needs no local
-   setup:
-   - Open **https://console.cloud.google.com** with the same Google account, pick the
-     `adcode-idle` project, and click the **Activate Cloud Shell** icon (`>_`, top right).
-   - Run, replacing the UID:
+1. Open the site and sign in with **`bluethenics01@gmail.com`**, using **Google**.
+2. Open `/admin`. It should load, with an **Admins** tab.
 
-     ```
-     npm install firebase-admin
-     node -e "const a=require('firebase-admin');a.initializeApp();a.auth().setCustomUserClaims('<YOUR-UID>',{admin:true}).then(()=>console.log('done'))"
-     ```
+Appoint everybody else from that tab — an email address, and they are an administrator the
+first time they sign in. Nobody needs a console or a command again.
 
-   - It should print `done`.
-4. **Sign out and sign back in.** The claim is inside the token, so it takes effect on your
-   next sign-in and not before.
-5. Open `https://adcode.bluethenics.com/admin`. It should load.
+> **Why Google, and not Email/Password.** An administrator is an email address in a table,
+> and the API only honours it when the token says the *provider verified* that address.
+> Google does. A self-registered Email/Password account with the same address does not, and
+> is deliberately refused — otherwise anyone who knows an administrator's address could sign
+> up as them and take the site. If `/admin` says you are not an admin, that check is why:
+> sign in with Google.
+
+An older version of this file had you set a Firebase custom claim from the Google Cloud
+Shell. That is obsolete. Admin is a database row now, because a claim can only be *written*
+with a service-account key, and putting a second key with authority over every account into
+the Worker to save one database read is a bad trade. If you already set that claim, it is
+simply ignored; there is nothing to undo.
 
 - [ ] `/admin` loads for your account
 
