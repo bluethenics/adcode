@@ -33,8 +33,11 @@ import { shell } from "electron";
  *
  * Environment variables override these, for anyone testing against their own clients.
  */
-const GOOGLE_CLIENT_ID = process.env["ADCODE_GOOGLE_CLIENT_ID"] ?? "";
-const GITHUB_CLIENT_ID = process.env["ADCODE_GITHUB_CLIENT_ID"] ?? "";
+const GOOGLE_CLIENT_ID =
+  process.env["ADCODE_GOOGLE_CLIENT_ID"] ??
+  "345488063416-60i3dqfj1j8itg9bio2itshmcbq7e3mh.apps.googleusercontent.com";
+
+const GITHUB_CLIENT_ID = process.env["ADCODE_GITHUB_CLIENT_ID"] ?? "Ov23lienZUTAiNKAM0UV";
 
 /**
  * Optional, and only for Google.
@@ -42,6 +45,12 @@ const GITHUB_CLIENT_ID = process.env["ADCODE_GITHUB_CLIENT_ID"] ?? "";
  * Google marks `client_secret` optional on the token exchange when PKCE is used, and this
  * omits it. Some Desktop-type clients are issued one anyway; setting this covers that
  * case without making a secret a requirement.
+ *
+ * **The secret for this project's own client is deliberately not here.** Google issues one
+ * with every Desktop client whether the flow needs it or not, and ours does not - PKCE is
+ * what proves the exchange came from the same client that started it. Committing it would
+ * put a credential in every installer for no gain, and would mean rotating it broke every
+ * copy already installed.
  */
 const GOOGLE_CLIENT_SECRET = process.env["ADCODE_GOOGLE_CLIENT_SECRET"] ?? "";
 
