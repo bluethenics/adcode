@@ -79,7 +79,7 @@ electronFuses:
 # nobody publishes to, and they never update again.
 publish:
   provider: github
-  owner: adcode
+  owner: bluethenics
   repo: adcode
 
 win:

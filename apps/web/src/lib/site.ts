@@ -16,7 +16,7 @@ export const FIREBASE_PROJECT = process.env["NEXT_PUBLIC_FIREBASE_PROJECT_ID"] ?
 export const API_ORIGIN = process.env["NEXT_PUBLIC_API_ORIGIN"] ?? "https://api.adcode.bluethenics.com";
 
 /** Owner/repo that release artifacts are published to. */
-export const GITHUB_REPO = process.env["NEXT_PUBLIC_GITHUB_REPO"] ?? "adcode/adcode";
+export const GITHUB_REPO = process.env["NEXT_PUBLIC_GITHUB_REPO"] ?? "bluethenics/adcode";
 
 export const SITE = {
   name: "ADCode",

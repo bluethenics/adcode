@@ -12,7 +12,7 @@
 
 set -eu
 
-OWNER="${ADCODE_GH_OWNER:-adcode}"
+OWNER="${ADCODE_GH_OWNER:-bluethenics}"
 REPO="${ADCODE_GH_REPO:-adcode}"
 API="https://api.github.com/repos/${OWNER}/${REPO}/releases/latest"
 

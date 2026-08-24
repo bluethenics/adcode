@@ -12,7 +12,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$Owner = if ($env:ADCODE_GH_OWNER) { $env:ADCODE_GH_OWNER } else { 'adcode' }
+$Owner = if ($env:ADCODE_GH_OWNER) { $env:ADCODE_GH_OWNER } else { 'bluethenics' }
 $Repo  = if ($env:ADCODE_GH_REPO)  { $env:ADCODE_GH_REPO }  else { 'adcode' }
 $Api   = "https://api.github.com/repos/$Owner/$Repo/releases/latest"
 
