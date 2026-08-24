@@ -26,7 +26,17 @@ The first deployment is live. Steps 3 to 12 are finished; what is left is marked
 | Supabase project | `adcode` · ref `fwtpczrutatendnuavsb` · region `ap-southeast-2` |
 | Firebase project | `adcode-idle` — Anonymous, Google, GitHub, Email/Password all enabled |
 | Worker secrets | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FIREBASE_PROJECT_ID` |
-| Verified | `/v1/health` → `{"ok":true}`, 14 pages 200, `/v1/balance` 401 without a token |
+| Verified | `/v1/health` → `{"ok":true}`, 14 pages 200, `/v1/balance` 401 without a token, sign-in and dashboard working |
+
+`NEXT_PUBLIC_SITE_ORIGIN` in `apps/web/.env.production` and `apps/web/wrangler.jsonc` is set
+to the `workers.dev` hostname, because that is where the site actually answers. **Change both
+to `https://adcode.bluethenics.com` once step 13 is done**, delete `apps/web/.next` and
+`apps/web/.open-next`, and deploy again - canonical URLs, the sitemap and the social preview
+tags all read from it. The API calls do not: the browser calls `/v1/*` same-origin, so those
+keep working at whatever address the page is served from.
+
+Firebase → Authentication → Settings → **Authorized domains** must list every hostname people
+sign in from. Both `adcode.bluethenics01.workers.dev` and `adcode.bluethenics.com` are in it.
 
 **Still to do: step 13** (your own domain), **step 14** (make yourself an admin), and the
 keepalive at the end of step 13 — which matters more than it looks, because a free Supabase
@@ -606,3 +616,6 @@ public.
 | Deploy: `ENOENT ... pages-manifest.json` | Same cause, same fix. Next wrote the standalone output to a path OpenNext was not looking at. |
 | Build: every page times out after 60s | `NEXT_PUBLIC_API_ORIGIN` is set to an empty value somewhere. Leave the key out entirely rather than setting it blank. |
 | `Secret edit failed ... isn't currently deployed` | The Worker exists but has no version yet. Deploy once, then set secrets. |
+| You changed a `NEXT_PUBLIC_` value, redeployed, and the old one is still in the page | Turbopack caches compiled chunks and does not key that cache on env values, so the old literal is re-emitted. Delete `apps/web/.next` and `apps/web/.open-next`, then build again. |
+| Sign-in: "Couldn't sign in. Try again." | Almost always the host is missing from Firebase → Authentication → Settings → **Authorized domains**. Add the `workers.dev` hostname as well as the custom domain. |
+| The dashboard says "Couldn't reach the server" | Open the Network tab and read the URL it called. If it names a host that is not the one you are on, the bundle was built with a different `NEXT_PUBLIC_SITE_ORIGIN` - see the cache row above. |
