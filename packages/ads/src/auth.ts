@@ -323,7 +323,22 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
     if (response.status < 200 || response.status >= 300) {
       return authError(errorMessage(body, response.status));
     }
-    if (body === null) return authError("malformed link response");
+    if (body === null) return authError("the sign-in service returned something unreadable");
+
+    /*
+     * A 200 that is not a link.
+     *
+     * `returnIdpCredential` makes this endpoint answer "that email already belongs to a
+     * different sign-in method" with HTTP 200, `needConfirmation: true`, and no tokens -
+     * not with an error status. Falling through to the token check reported it as a
+     * malformed response, which names a bug in this client instead of the one thing the
+     * person can actually do something about.
+     */
+    if (body["needConfirmation"] === true) {
+      return authError(
+        "that email already signs in a different way - use that method instead, or pick another account",
+      );
+    }
 
     /*
      * The UID must not change.
@@ -339,7 +354,12 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
       );
     }
 
-    if (!(await adoptTokens(body))) return authError("malformed link response");
+    if (!(await adoptTokens(body))) {
+      // Name the fields that were missing. "Malformed" sent whoever hit this reading this
+      // client's parsing code, when the answer is always in what the service sent back.
+      const absent = ["idToken", "refreshToken", "localId"].filter((key) => typeof body[key] !== "string");
+      return authError(`the sign-in service did not return ${absent.join(", ")}`);
+    }
 
     return ok({
       email: asText(body["email"]),

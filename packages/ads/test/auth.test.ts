@@ -197,6 +197,45 @@ describe("linking", () => {
     expect(auth.uid()).toBe("uid-1");
   });
 
+  /*
+   * The 200 that is not a link.
+   *
+   * `returnIdpCredential` makes the endpoint answer "that email already belongs to another
+   * sign-in method" with a success status, `needConfirmation`, and no tokens. It reached
+   * the user as "malformed link response" - a sentence about this client's parsing, for a
+   * situation only the person signing in can resolve.
+   */
+  it("explains an email that already signs in another way", async () => {
+    const { auth } = build([signUpOk(), { json: { needConfirmation: true } }]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("google-id-token");
+
+    expect(linked.ok).toBe(false);
+    if (linked.ok) throw new Error("expected a refusal");
+    expect(linked.error.detail).toContain("already signs in a different way");
+  });
+
+  it("names the fields a malformed response was missing", async () => {
+    const { auth } = build([signUpOk(), { json: { idToken: "only-this" } }]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("google-id-token");
+
+    if (linked.ok) throw new Error("expected a refusal");
+    expect(linked.error.detail).toContain("refreshToken");
+    expect(linked.error.detail).toContain("localId");
+  });
+
+  it("keeps the uid it already had when a link is refused", async () => {
+    const { auth } = build([signUpOk(), { json: { needConfirmation: true } }]);
+    await auth.getToken();
+
+    await auth.linkGoogle("google-id-token");
+
+    expect(auth.uid()).toBe("uid-1");
+  });
+
   it("returns the profile the provider gave", async () => {
     const { auth } = build([signUpOk(), linkOk()]);
     await auth.getToken();
