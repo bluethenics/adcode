@@ -68,6 +68,64 @@ export type OAuthResult =
 /** How long a user gets to finish in the browser before we stop waiting. */
 const FLOW_TIMEOUT_MS = 3 * 60 * 1000;
 
+/**
+ * Cancels whichever sign-in is running, if one is.
+ *
+ * There is at most one at a time, because both flows are started from a button that
+ * disables itself. Without this a flow could only be escaped by waiting three minutes or
+ * quitting the app - and a person who closed the browser tab by accident had no way to
+ * start again, which is a bad enough dead end to be worth a whole mechanism.
+ */
+let cancelActive: (() => void) | null = null;
+
+export function cancelSignIn(): boolean {
+  if (cancelActive === null) return false;
+  cancelActive();
+  return true;
+}
+
+/**
+ * The page the browser lands on when the flow is over.
+ *
+ * It is the last thing a person sees before coming back to the editor, and for a moment it
+ * is the whole product - so it says what happened, and what to do next, rather than leaving
+ * a blank tab and a question. Self-contained: no fonts, no images, nothing to fetch from a
+ * local server that is about to close.
+ */
+function resultPage(heading: string, detail: string, ok: boolean): string {
+  const accent = ok ? "#3ddc97" : "#ff6b6b";
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADCode</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    background: #0f1115; color: #e7e9ee;
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .card {
+    max-width: 26rem; padding: 2.5rem; text-align: center;
+    border: 1px solid #262a33; border-radius: 14px; background: #151821;
+  }
+  .mark {
+    width: 44px; height: 44px; margin: 0 auto 1.25rem; border-radius: 11px;
+    display: grid; place-items: center; background: ${accent}1a; color: ${accent};
+    font-size: 22px; font-weight: 700;
+  }
+  h1 { margin: 0 0 .5rem; font-size: 1.35rem; letter-spacing: -0.01em; }
+  p  { margin: 0; color: #9aa2b1; }
+  .hint { margin-top: 1.5rem; font-size: .875rem; color: #6b7280; }
+</style></head>
+<body><div class="card">
+  <div class="mark">${ok ? "&check;" : "!"}</div>
+  <h1>${heading}</h1>
+  <p>${detail}</p>
+  <p class="hint">You can close this tab.</p>
+</div></body></html>`;
+}
+
 const base64url = (buffer: Buffer): string =>
   buffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
@@ -88,31 +146,61 @@ export async function linkWithGoogle(): Promise<OAuthResult> {
     const finish = (result: OAuthResult): void => {
       if (settled) return;
       settled = true;
+      cancelActive = null;
       clearTimeout(timer);
       server.close();
       resolve(result);
     };
 
+    cancelActive = () => finish({ ok: false, reason: "Sign-in cancelled." });
+
     const server = createServer((req, res) => {
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
-      const code = url.searchParams.get("code");
+
+      /*
+       * Only the redirect itself may decide anything.
+       *
+       * The browser asks this server for more than the callback - Chrome requests
+       * `/favicon.ico` the moment the page renders. That request carries no `state`, so
+       * treating every request as the callback failed the check and resolved the whole
+       * flow as "could not be verified" - while the token exchange from the *real*
+       * callback was still in flight. A successful sign-in reported itself as a forgery,
+       * and only sometimes, because it was a race.
+       */
+      if (url.pathname !== "/") {
+        res.writeHead(404).end();
+        return;
+      }
+
+      // Google sends `error=access_denied` when the person declines. That is a decision,
+      // not a fault, and it should not be described as one.
+      const denied = url.searchParams.get("error");
+      if (denied !== null) {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        res.end(resultPage("Sign-in cancelled", "Nothing has changed. You can try again from ADCode.", false));
+        finish({ ok: false, reason: "Sign-in was cancelled." });
+        return;
+      }
 
       // Compared before the code is used: without it, any page the user visits could
       // hand us a code from an attacker's account.
       if (url.searchParams.get("state") !== state) {
-        res.writeHead(400, { "content-type": "text/plain" });
-        res.end("Sign-in could not be verified. Close this tab and try again.");
+        res.writeHead(400, { "content-type": "text/html; charset=utf-8" });
+        res.end(resultPage("Couldn't verify that sign-in", "The response didn't match the request this app started. Try again from ADCode.", false));
         finish({ ok: false, reason: "The sign-in response could not be verified." });
         return;
       }
 
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end("<!doctype html><title>ADCode</title><body style=\"font:16px system-ui;padding:3rem\">Signed in. You can close this tab and go back to ADCode.</body>");
-
+      const code = url.searchParams.get("code");
       if (code === null) {
+        res.writeHead(400, { "content-type": "text/html; charset=utf-8" });
+        res.end(resultPage("Sign-in didn't finish", "Google didn't send anything to sign in with. Try again from ADCode.", false));
         finish({ ok: false, reason: "Sign-in was cancelled." });
         return;
       }
+
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(resultPage("Signed in", "ADCode has your account. Go back to the editor to carry on.", true));
 
       void exchangeGoogleCode(clientId, code, verifier, port).then(finish);
     });
@@ -227,37 +315,54 @@ export async function linkWithGitHub(onCode: (code: DeviceCode) => void): Promis
 
   const deadline = Date.now() + FLOW_TIMEOUT_MS;
 
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, interval * 1000));
+  // Cancellation has to interrupt the wait, not just the check after it: polling every five
+  // seconds means pressing Cancel would otherwise appear to do nothing for five seconds.
+  let cancelled = false;
+  let wake: (() => void) | null = null;
+  cancelActive = () => {
+    cancelled = true;
+    wake?.();
+  };
 
-    try {
-      const response = await fetch("https://github.com/login/oauth/access_token", {
-        method: "POST",
-        headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          client_id: clientId,
-          device_code: deviceCode,
-          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-        }),
-        signal: AbortSignal.timeout(20_000),
+  try {
+    while (Date.now() < deadline) {
+      await new Promise<void>((resolve) => {
+        wake = resolve;
+        setTimeout(resolve, interval * 1000);
       });
+      if (cancelled) return { ok: false, reason: "Sign-in cancelled." };
 
-      const body = (await response.json()) as Record<string, unknown>;
-      const token = body["access_token"];
-      if (typeof token === "string") return { ok: true, provider: "github.com", accessToken: token };
+      try {
+        const response = await fetch("https://github.com/login/oauth/access_token", {
+          method: "POST",
+          headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_id: clientId,
+            device_code: deviceCode,
+            grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+          }),
+          signal: AbortSignal.timeout(20_000),
+        });
 
-      const error = body["error"];
-      // `authorization_pending` is the normal state while the user is still typing.
-      if (error === "slow_down") interval += 5;
-      else if (error === "access_denied") return { ok: false, reason: "Sign-in was declined." };
-      else if (error === "expired_token") return { ok: false, reason: "The code expired. Try again." };
-      else if (error !== "authorization_pending") {
-        return { ok: false, reason: "GitHub refused the sign-in." };
+        const body = (await response.json()) as Record<string, unknown>;
+        const token = body["access_token"];
+        if (typeof token === "string") return { ok: true, provider: "github.com", accessToken: token };
+
+        const error = body["error"];
+        // `authorization_pending` is the normal state while the user is still typing.
+        if (error === "slow_down") interval += 5;
+        else if (error === "access_denied") return { ok: false, reason: "Sign-in was declined." };
+        else if (error === "expired_token") return { ok: false, reason: "The code expired. Try again." };
+        else if (error !== "authorization_pending") {
+          return { ok: false, reason: "GitHub refused the sign-in." };
+        }
+      } catch {
+        // A single failed poll is not a failed flow; keep waiting until the deadline.
       }
-    } catch {
-      // A single failed poll is not a failed flow; keep waiting until the deadline.
     }
-  }
 
-  return { ok: false, reason: "Sign-in timed out. Try again." };
+    return { ok: false, reason: "Sign-in timed out. Try again." };
+  } finally {
+    cancelActive = null;
+  }
 }

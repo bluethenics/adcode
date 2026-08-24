@@ -507,6 +507,8 @@ export const CHANNELS = {
   accountLink: "account:link",
   accountLinkEmail: "account:link-email",
   accountDeviceCode: "account:device-code",
+  accountSignOut: "account:sign-out",
+  accountCancelLink: "account:cancel-link",
   updateChanged: "update:changed",
   runtimeCheck: "runtime:check",
   runtimeOpenInstall: "runtime:open-install",
@@ -1248,6 +1250,17 @@ export interface AdcodeApi {
     /** Never rejects; a failure comes back as `{ ok: false, message }`. */
     link(provider: "google" | "github"): Promise<LinkOutcome>;
     linkEmail(email: string, password: string): Promise<LinkOutcome>;
+    /**
+     * Forget this machine's account.
+     *
+     * Safe once the account is linked: signing back in with the same provider returns the
+     * same UID and the balance with it. On an account that is still anonymous there is
+     * nothing to sign back in *as*, so the earnings are gone - which is why the caller has
+     * to confirm, and why `AccountState.linked` decides whether it is offered at all.
+     */
+    signOut(): Promise<AccountState>;
+    /** Abandon a sign-in that is waiting on the browser. False when none was running. */
+    cancelLink(): Promise<boolean>;
     onChanged(listener: (state: AccountState) => void): () => void;
     onDeviceCode(listener: (code: DeviceCode) => void): () => void;
   };

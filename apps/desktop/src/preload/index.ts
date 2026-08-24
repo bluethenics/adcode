@@ -224,6 +224,8 @@ const api: AdcodeApi = {
     link: (provider) => ipcRenderer.invoke(CHANNELS.accountLink, provider),
     linkEmail: (email, password) => ipcRenderer.invoke(CHANNELS.accountLinkEmail, email, password),
     onChanged: (listener) => subscribe(CHANNELS.accountChanged, listener),
+    signOut: () => ipcRenderer.invoke(CHANNELS.accountSignOut),
+    cancelLink: () => ipcRenderer.invoke(CHANNELS.accountCancelLink),
     onDeviceCode: (listener) => subscribe(CHANNELS.accountDeviceCode, listener),
   },
   notices: {

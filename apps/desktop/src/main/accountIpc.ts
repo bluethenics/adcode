@@ -13,7 +13,7 @@ import { app, ipcMain, BrowserWindow } from "electron";
 import { CHANNELS, type AccountState, type LinkOutcome } from "../shared/api.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock } from "./adPorts.ts";
 import { backendAccount } from "./backend.ts";
-import { linkWithGitHub, linkWithGoogle } from "./oauth.ts";
+import { linkWithGitHub, cancelSignIn, linkWithGoogle } from "./oauth.ts";
 
 function account() {
   return backendAccount({
@@ -91,6 +91,24 @@ export function registerAccountIpc(): void {
     broadcast(state);
     return { ok: true, state };
   });
+
+  /**
+   * Forget the account on this machine.
+   *
+   * `reset()` clears the stored identity, so the next request starts a fresh anonymous one.
+   * That is recoverable for a linked account - the provider returns the same UID, and the
+   * balance with it - and permanent for one that was never linked. The renderer only offers
+   * this once `linked` is true, and confirms first either way.
+   */
+  ipcMain.handle(CHANNELS.accountSignOut, async (): Promise<AccountState> => {
+    const auth = account();
+    if (auth !== null) await auth.reset();
+    const state = await currentAccount();
+    broadcast(state);
+    return state;
+  });
+
+  ipcMain.handle(CHANNELS.accountCancelLink, async (): Promise<boolean> => cancelSignIn());
 
   ipcMain.handle(
     CHANNELS.accountLinkEmail,
