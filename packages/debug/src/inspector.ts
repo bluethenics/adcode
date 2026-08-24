@@ -189,3 +189,36 @@ export function propertiesFrom(result: unknown): Variable[] {
 
   return variables;
 }
+
+/**
+ * The outcome of evaluating an expression in a paused frame.
+ *
+ * Pure, and separate from the socket call, because the interesting cases are all shapes of
+ * response rather than shapes of network: a thrown exception, a syntax error, `undefined`,
+ * and a value that is only a handle to an object. A console that prints "[object Object]"
+ * for the last of those is not worth having, so the description the protocol supplies is
+ * used and an `objectId` is reported alongside it.
+ */
+export function evaluationFrom(raw: unknown): { value: string; type: string; error: boolean } {
+  if (!isRecord(raw)) return { value: "No result.", type: "unknown", error: true };
+
+  /*
+   * An exception is not a failed call - the protocol returns success and puts the throw in
+   * `exceptionDetails`. Reading only `result` would print the exception's *value* as though
+   * the expression had evaluated to it, so `throw new Error("x")` would render as "Error:
+   * x" with no indication that anything went wrong.
+   */
+  const details = raw["exceptionDetails"];
+  if (isRecord(details)) {
+    const thrown = describeValue(details["exception"]);
+    const text = typeof details["text"] === "string" ? details["text"] : "Error";
+    return {
+      value: thrown.value === "" ? text : thrown.value,
+      type: "error",
+      error: true,
+    };
+  }
+
+  const described = describeValue(raw["result"]);
+  return { value: described.value, type: described.type, error: false };
+}

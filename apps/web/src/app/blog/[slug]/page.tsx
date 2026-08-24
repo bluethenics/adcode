@@ -1,9 +1,10 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { allPosts, getPost } from "@/lib/posts";
 import { renderMarkdown } from "@/lib/markdown";
 import { JsonLd } from "@/components/JsonLd";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { ReadingProgress } from "@/components/ReadingProgress";
 import { blogPosting, breadcrumbs } from "@/lib/schema";
 import { url } from "@/lib/site";
 import { DocsSidebar } from "@/components/DocsSidebar";
@@ -55,6 +56,7 @@ export default async function PostPage({ params }: Props) {
 
   return (
     <>
+      <ReadingProgress />
       <JsonLd data={blogPosting(post)} />
       <JsonLd
         data={breadcrumbs([
@@ -66,12 +68,17 @@ export default async function PostPage({ params }: Props) {
 
       <article className="docs-page band">
         <div className="wrap docs-layout">
-          <DocsSidebar />
-          <main className="docs-content"><Link href="/blog" className="docs-back">
-            ← All posts
-          </Link>
+          <DocsSidebar reading="blog" />
+          <main className="docs-content">
+            <Breadcrumbs
+              items={[
+                { name: "Home", href: "/" },
+                { name: "Blog", href: "/blog" },
+                { name: post.title },
+              ]}
+            />
 
-          <header className="docs-header" style={{ marginTop: 22 }}>
+          <header className="docs-header" style={{ marginTop: 10 }}>
             <div className="mono" style={{ fontSize: 12, color: "var(--faint)", marginBottom: 12 }}>
               <time dateTime={post.published}>{dateLabel(post.published)}</time> ·{" "}
               {post.readingMinutes} min read

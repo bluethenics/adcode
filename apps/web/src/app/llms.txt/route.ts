@@ -1,5 +1,7 @@
 import { FAQ } from "@/lib/schema";
 import { allPosts } from "@/lib/posts";
+import { docsBySection } from "@/lib/docs";
+import { allReleases } from "@/lib/releases";
 import { SITE, url } from "@/lib/site";
 
 /**
@@ -20,6 +22,26 @@ export async function GET(): Promise<Response> {
     .join("\n");
 
   const faq = FAQ.map((item) => `### ${item.q}\n\n${item.a}`).join("\n\n");
+
+  /*
+   * The documentation index, grouped the way the sidebar groups it. One line per feature
+   * with its plain-language sentence: enough for an assistant to answer "does ADCode do
+   * X" and to know which page to read for the detail.
+   */
+  const docs = (await docsBySection())
+    .map(
+      (section) =>
+        `### ${section.title}\n\n` +
+        section.pages
+          .map((page) => `- [${page.title}](${url(`/docs/${page.slug}`)}): ${page.description}`)
+          .join("\n"),
+    )
+    .join("\n\n");
+
+  const releaseLines = (await allReleases())
+    .slice(0, 10)
+    .map((release) => `- ${release.version} (${release.published}): ${release.title}`)
+    .join("\n");
 
   const text = `# ${SITE.name}
 
@@ -46,13 +68,24 @@ revenue to the developer using it.
 - [Home](${url("/")}): what ADCode is and how earnings work.
 - [Download](${url("/download")}): one-line install for Windows, macOS, and Linux.
 - [Advertise](${url("/advertise")}): targeting, pricing, and verification for advertisers.
+- [Documentation](${url("/docs")}): every feature, what it does and how to use it.
 - [Blog](${url("/blog")}): explanations of how the system works.
+- [Changelog](${url("/changelog")}): what changed in each release.
+- [Full text for machines](${url("/llms-full.txt")}): the complete text of every page in one file.
 - [Privacy](${url("/privacy")}): what is collected and what is not.
 - [Terms](${url("/terms")}): the terms of use.
+
+## Documentation
+
+${docs}
 
 ## Posts
 
 ${posts}
+
+## Releases
+
+${releaseLines.length === 0 ? "No releases published yet." : releaseLines}
 
 ## Frequently asked questions
 

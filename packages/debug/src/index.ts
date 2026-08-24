@@ -15,6 +15,7 @@
  */
 export {
   describeValue,
+  evaluationFrom,
   framesFrom,
   pauseReasonOf,
   propertiesFrom,

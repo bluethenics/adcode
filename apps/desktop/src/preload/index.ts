@@ -69,6 +69,7 @@ const api: AdcodeApi = {
     breakpoints: () => ipcRenderer.invoke(CHANNELS.debugBreakpoints),
     scopes: (frameId) => ipcRenderer.invoke(CHANNELS.debugScopes, frameId),
     properties: (objectId) => ipcRenderer.invoke(CHANNELS.debugProperties, objectId),
+    evaluate: (frameId, expression) => ipcRenderer.invoke(CHANNELS.debugEvaluate, frameId, expression),
     onState: (listener) => subscribe(CHANNELS.debugState, listener),
   },
   chat: {
@@ -106,6 +107,15 @@ const api: AdcodeApi = {
     openExternal: () => ipcRenderer.invoke(CHANNELS.previewOpenExternal),
     onChange: (listener) => subscribe(CHANNELS.previewChanged, listener),
     onOutput: (listener) => subscribe(CHANNELS.previewOutput, listener),
+  },
+  ports: {
+    list: () => ipcRenderer.invoke(CHANNELS.portsList),
+    stop: (pid) => ipcRenderer.invoke(CHANNELS.portsStop, pid),
+    open: (port) => ipcRenderer.invoke(CHANNELS.portsOpen, port),
+  },
+  output: {
+    history: () => ipcRenderer.invoke(CHANNELS.outputHistory),
+    onAppend: (listener) => subscribe(CHANNELS.outputAppend, listener),
   },
   language: {
     // `send`, not `invoke`: document synchronisation sits on the keystroke path, and §7 is
@@ -218,6 +228,11 @@ const api: AdcodeApi = {
   },
   notices: {
     onShow: (listener) => subscribe(CHANNELS.serviceNotice, listener),
+  },
+  releases: {
+    onAnnouncement: (listener) => subscribe(CHANNELS.releaseAnnouncement, listener),
+    markSeen: (versions) => ipcRenderer.invoke(CHANNELS.releaseMarkSeen, versions),
+    list: () => ipcRenderer.invoke(CHANNELS.releaseList),
   },
   updates: {
     status: () => ipcRenderer.invoke(CHANNELS.updateStatus),

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/components/AuthProvider";
 import { TagPicker } from "@/components/TagPicker";
-import { apiFetch, MESSAGES, type CampaignView } from "@/lib/api";
+import { apiFetch, MESSAGES, type AdvertiserView, type ApiResult, type CampaignView } from "@/lib/api";
 import { dollarsToMicros } from "@/components/money";
 import { PORTAL_TABS } from "../../tabs";
 
@@ -27,6 +27,19 @@ function NewCampaignForm() {
   const [tags, setTags] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Shown only when the server says this account has no advertiser yet. The form creates
+  // one and carries on in the same submit, rather than sending you to a separate sign-up
+  // page and back - which was three extra clicks to do the same two requests.
+  const [needsAdvertiser, setNeedsAdvertiser] = useState(false);
+  const [advertiserName, setAdvertiserName] = useState("");
+
+  const createCampaign = async (): Promise<ApiResult<CampaignView>> =>
+    apiFetch<CampaignView>({
+      path: "/portal/campaigns",
+      token: await token(),
+      method: "POST",
+      body: { name: name.trim(), cpmMicros: dollarsToMicros(cpm), budgetMicros: dollarsToMicros(budget), targetTags: tags },
+    });
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -53,12 +66,31 @@ function NewCampaignForm() {
     setBusy(true);
     setError(null);
 
-    const created = await apiFetch<CampaignView>({
-      path: "/portal/campaigns",
-      token: await token(),
-      method: "POST",
-      body: { name: name.trim(), cpmMicros, budgetMicros, targetTags: tags },
-    });
+    let created = await createCampaign();
+
+    if (!created.ok && created.error === "no-advertiser") {
+      if (advertiserName.trim().length === 0) {
+        setBusy(false);
+        setNeedsAdvertiser(true);
+        setError("First time publishing? Name your advertiser account below, then submit again.");
+        return;
+      }
+
+      const account = await apiFetch<AdvertiserView>({
+        path: "/portal/advertiser",
+        token: await token(),
+        method: "POST",
+        body: { name: advertiserName.trim() },
+      });
+
+      if (!account.ok) {
+        setBusy(false);
+        setError(MESSAGES[account.error]);
+        return;
+      }
+
+      created = await createCampaign();
+    }
 
     setBusy(false);
     if (!created.ok) {
@@ -72,8 +104,26 @@ function NewCampaignForm() {
   return (
     <form onSubmit={submit} style={{ maxWidth: 620 }}>
       {error !== null && (
-        <div className="notice" data-tone="error" role="alert">
+        <div className="notice" data-tone={needsAdvertiser ? "info" : "error"} role="alert">
           {error}
+        </div>
+      )}
+
+      {needsAdvertiser && (
+        <div className="field">
+          <label htmlFor="c-adv">Advertiser name</label>
+          <span className="field-hint">
+            The name developers see on your ads. Your account is created with the campaign —
+            no separate sign-up.
+          </span>
+          <input
+            id="c-adv"
+            className="input"
+            maxLength={60}
+            placeholder="Acme Inc."
+            value={advertiserName}
+            onChange={(e) => setAdvertiserName(e.target.value)}
+          />
         </div>
       )}
 

@@ -23,7 +23,8 @@ const PLATFORMS = [
     note: "Windows 10 or later, 64-bit",
     shell: "PowerShell",
     command: PS_INSTALL,
-    direct: `https://github.com/${GITHUB_REPO}/releases/latest`,
+    /** Stable filename pinned in electron-builder.yml, so this URL never goes stale. */
+    direct: `https://github.com/${GITHUB_REPO}/releases/latest/download/ADCode-Setup-x64.exe`,
   },
   {
     id: "macos",
@@ -39,7 +40,7 @@ const PLATFORMS = [
     note: "AppImage and .deb, x86-64",
     shell: "Terminal",
     command: SH_INSTALL,
-    direct: `https://github.com/${GITHUB_REPO}/releases/latest`,
+    direct: `https://github.com/${GITHUB_REPO}/releases/latest/download/ADCode-x86_64.AppImage`,
   },
 ] as const;
 
@@ -86,7 +87,11 @@ export default function DownloadPage() {
 
                 <p style={{ color: "var(--on-ink-muted)", fontSize: 13 }}>
                   <a href={platform.direct} className="btn btn-primary download-direct">Download installer</a>
-                  <span className="install-secondary">Or paste this into {platform.shell}.</span>
+                  <span className="install-secondary">
+                    {platform.id === "macos"
+                      ? "Or paste this into Terminal — the one-liner picks the right build."
+                      : "The file downloads directly. Or paste this into " + platform.shell + "."}
+                  </span>
                 </p>
               </div>
             ))}

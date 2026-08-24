@@ -728,10 +728,32 @@ select {
   bottom: 0;
   width: var(--preview-width, 0px);
   display: grid;
-  grid-template-rows: 32px 1fr;
+  /*
+   * Bar, device bar, stage, output drawer. The rows are assigned explicitly below because
+   * two of the four are `display: none` most of the time: with auto-placement the stage
+   * would slide up into the device bar's row whenever it was hidden, and the layout would
+   * depend on which combination of things happened to be showing.
+   */
+  grid-template-rows: 32px auto minmax(0, 1fr) auto;
   min-width: 0;
   background: var(--bg-editor);
   border-left: 1px solid var(--border-hairline);
+}
+
+.preview-bar {
+  grid-row: 1;
+}
+
+.device-bar {
+  grid-row: 2;
+}
+
+.preview-stage {
+  grid-row: 3;
+}
+
+.preview-output {
+  grid-row: 4;
 }
 
 .preview-bar {
@@ -763,11 +785,170 @@ select {
  * White, not `--bg-editor`. The frame holds the user's own page, and a preview that tints
  * it to match the workbench is showing them something their visitors will never see.
  */
-.preview-frame {
+/*
+ * Where the frame sits.
+ *
+ * Scrolls, so a viewport wider than the pane can still be inspected at 100%. The grey is
+ * deliberately not `--bg-editor`: at a device size the area around the frame is not part
+ * of the page, and it should not look like it might be.
+ */
+.preview-stage {
+  position: relative;
+  overflow: auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background: var(--bg-app);
+}
+
+/* No device size: the frame is the stage. */
+.preview-stage[data-device="off"] {
+  overflow: hidden;
+}
+
+.preview-stage[data-device="off"] .preview-frame {
   width: 100%;
   height: 100%;
+}
+
+/*
+ * White, not `--bg-editor`. The frame holds the user's own page, and a preview that tints
+ * it to match the workbench is showing them something their visitors will never see.
+ */
+.preview-frame {
   border: 0;
   background: #ffffff;
+  /* Scaling happens about the middle, so the frame stays centred as it shrinks. */
+  transform-origin: center center;
+}
+
+/* At a device size the frame gets a border, so its edges are visible against the stage. */
+.preview-stage[data-device="on"] .preview-frame {
+  border: 1px solid var(--border-hairline);
+  box-shadow: var(--shadow-floating);
+}
+
+/* ── The device bar ───────────────────────────────────────────────────── */
+
+.device-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--border-hairline);
+  min-width: 0;
+}
+
+.device-bar[hidden] {
+  display: none;
+}
+
+.device-preset,
+.device-zoom {
+  padding: 2px 6px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  min-width: 0;
+}
+
+.device-preset {
+  flex: 1;
+  min-width: 0;
+}
+
+.device-size {
+  width: 92px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+.device-action {
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+}
+
+/* The live size, which is the only feedback during a drag. */
+.device-readout {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* The toggle stays lit while device sizing is on. */
+.preview-bar .icon-button[data-active="true"] {
+  background: var(--bg-selected);
+  color: var(--accent);
+}
+
+/* ── Drag handles ─────────────────────────────────────────────────────── */
+
+/*
+ * Positioned from the middle out, using the frame's *drawn* size - which scaling changes.
+ * A handle placed on the frame's CSS width would sit off the edge of a scaled frame.
+ */
+.device-handle {
+  position: absolute;
+  z-index: 2;
+  touch-action: none;
+}
+
+.device-handle[hidden] {
+  display: none;
+}
+
+.device-handle-right {
+  top: 50%;
+  left: calc(50% + var(--device-drawn-width, 0px) / 2);
+  width: 10px;
+  height: 48px;
+  transform: translate(-50%, -50%);
+  cursor: ew-resize;
+}
+
+.device-handle-bottom {
+  left: 50%;
+  top: calc(50% + var(--device-drawn-height, 0px) / 2);
+  width: 48px;
+  height: 10px;
+  transform: translate(-50%, -50%);
+  cursor: ns-resize;
+}
+
+.device-handle-corner {
+  left: calc(50% + var(--device-drawn-width, 0px) / 2);
+  top: calc(50% + var(--device-drawn-height, 0px) / 2);
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  cursor: nwse-resize;
+}
+
+/* Invisible until aimed at, then a clear grab bar. */
+.device-handle::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 999px;
+  background: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity var(--duration-exit) var(--ease-sheet);
+}
+
+.device-handle:hover::after {
+  opacity: 0.9;
 }
 
 .editor-host[data-ready="true"] {
@@ -1194,7 +1375,7 @@ body[data-resizing="y"] {
  * makes the two impossible to compare.
  */
 .preview-pane[data-log="shown"] {
-  grid-template-rows: 32px 1fr 40%;
+  grid-template-rows: 32px auto minmax(0, 1fr) 40%;
 }
 
 /*

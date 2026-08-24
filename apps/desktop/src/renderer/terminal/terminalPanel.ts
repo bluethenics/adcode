@@ -56,7 +56,18 @@ export interface TerminalPanel {
 }
 
 export interface TerminalPanelDeps {
-  readonly panel: HTMLElement;
+  /**
+   * Where the terminals and the agent strip live.
+   *
+   * The terminal's own element, not the whole bottom panel. It used to be the panel, and
+   * this file used to open and close it directly - which stopped working the moment the
+   * panel grew tabs, because "close the terminal" and "close the panel" became different
+   * actions and a terminal cannot know whether Problems is still on screen.
+   */
+  readonly container: HTMLElement;
+  /** Ask the panel to show or hide this tab. Whoever owns the panel decides what that means. */
+  readonly setOpen: (open: boolean) => void;
+  readonly isOpen: () => boolean;
   readonly tabStrip: HTMLElement;
   readonly surface: HTMLElement;
   readonly profileId: () => string;
@@ -126,7 +137,7 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
   });
 
   strip.append(stripText, stripCommand, stripCopy, stripDismiss);
-  deps.panel.prepend(strip);
+  deps.container.prepend(strip);
 
   /**
    * Offer to connect a recognised agent to this project's memory.
@@ -225,8 +236,8 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
   }
 
   async function create(options?: { profileId?: string }): Promise<void> {
-    const wasClosed = deps.panel.hidden;
-    deps.panel.hidden = false;
+    const wasClosed = !deps.isOpen();
+    deps.setOpen(true);
 
     const element = document.createElement("div");
     element.className = "terminal-tab-body";
@@ -239,7 +250,7 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
       pane = await spawnPane(element, profileId);
     } catch (error) {
       element.remove();
-      if (wasClosed && tabs.length === 0) deps.panel.hidden = true;
+      if (wasClosed && tabs.length === 0) deps.setOpen(false);
       deps.notify(error instanceof Error ? error.message : "could not start terminal");
       return;
     }
@@ -301,7 +312,7 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
 
     if (tabs.length === 0) {
       activeTab = null;
-      deps.panel.hidden = true;
+      deps.setOpen(false);
       deps.onLayoutChange();
       deps.onActiveTitle(null);
       renderTabs();
@@ -327,7 +338,7 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
     activeTitle: () => (activeTab === null ? null : (findTab(activeTab)?.title ?? null)),
 
     close() {
-      deps.panel.hidden = true;
+      deps.setOpen(false);
       deps.onLayoutChange();
     },
 
@@ -372,8 +383,8 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
     },
 
     async toggle() {
-      if (!deps.panel.hidden) {
-        deps.panel.hidden = true;
+      if (deps.isOpen()) {
+        deps.setOpen(false);
         deps.onLayoutChange();
         return;
       }
@@ -385,13 +396,13 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
         return;
       }
 
-      deps.panel.hidden = false;
+      deps.setOpen(true);
       deps.onLayoutChange();
       fitActive();
       this.focus();
     },
 
-    isOpen: () => !deps.panel.hidden,
+    isOpen: () => deps.isOpen(),
     fit: fitActive,
 
     focus() {

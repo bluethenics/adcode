@@ -64,6 +64,8 @@ export const ICON = {
   /** Arrows pulling together - the card returning to its slot. */
   dock: "M2.5 2.5l4 4M6.5 3.5v3h-3M13.5 13.5l-4-4M9.5 12.5v-3h3",
   output: "M2.5 3.5h11M2.5 8h11M2.5 12.5h7",
+  /* A tablet beside a phone: "the same page at another size". */
+  device: "M2 3.5h7.5v9H2zM11 6.5h3v6h-3z",
 
   /* ── Severity, for the Problems panel's badges ──────────────────────────── */
 

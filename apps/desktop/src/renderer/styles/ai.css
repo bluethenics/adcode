@@ -13,8 +13,25 @@
 
   width: 420px;
   height: 520px;
+  /*
+   * Capped against the window, which can be as small as 680x420. Without these the card
+   * kept its full 520px height in a 420px window and hung 156px above the top edge -
+   * taking the header with it, which is the drag handle, the model picker and the close
+   * button. There was no way to get it back.
+   */
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 72px);
   display: grid;
+  /*
+   * `minmax(0, 1fr)`, not the implicit `auto` column. An `auto` track is at least as wide
+   * as its widest child's min-content, so the composer's textarea was making the whole
+   * card 54px wider than its own `width` - at every size, including the default one.
+   * This says the column may be narrower than its contents, and the contents must cope.
+   */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 40px 1fr auto;
+  /* So the parts inside can respond to the card's width rather than the window's. */
+  container-type: inline-size;
 
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-hairline);
@@ -66,6 +83,10 @@
 }
 
 .chat-transcript {
+  /* Takes the space the history does not, and is allowed to be narrower than the longest
+     unbroken thing in it - the bubbles already break anywhere. */
+  flex: 1;
+  min-width: 0;
   overflow-y: auto;
   padding: 12px;
   display: flex;
@@ -223,6 +244,14 @@
 
 .chat-input {
   flex: 1;
+  /*
+   * The whole reason the card would not narrow.
+   *
+   * A flex child's default `min-width: auto` refuses to shrink below its intrinsic width,
+   * and a `<textarea>`'s intrinsic width is its `cols` - about 393px here. That floor
+   * propagated up through the composer to the grid column and out to the card itself.
+   */
+  min-width: 0;
   resize: none;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-hairline);
@@ -237,6 +266,18 @@
 .chat-input:focus {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
+}
+
+/*
+ * `.chat-send` is worn by three unrelated buttons - this one, the inline diff's Apply, and
+ * the source control panel's Commit - so the layout rules that only make sense in a
+ * horizontal composer are scoped to it rather than added here.
+ */
+.chat-composer .chat-send {
+  /* Never shrink: once the input was allowed to narrow, the button was next in line, and
+     a squeezed "Send" wraps to two lines or loses its padding. */
+  flex: none;
+  white-space: nowrap;
 }
 
 .chat-send {
@@ -299,11 +340,26 @@
 .chat-history {
   display: flex;
   flex-direction: column;
-  flex: none;
-  width: 190px;
+  /* Prefers 190px, gives ground before the transcript does. `flex: none` meant a narrow
+     card spent its whole width on the list and left the conversation a sliver. */
+  flex: 0 1 190px;
+  min-width: 0;
   min-height: 0;
   border-right: 1px solid var(--border-hairline);
   background: var(--bg-hover);
+}
+
+/*
+ * On a card too narrow for both, the conversation wins.
+ *
+ * A container query, not a media query: what matters is how wide the *card* is, and the
+ * user can resize it independently of the window. Below this the two columns are each
+ * too narrow to read, and a history list you cannot read is worse than one you reopen.
+ */
+@container (max-width: 360px) {
+  .chat-history {
+    display: none;
+  }
 }
 
 .chat-history-search {

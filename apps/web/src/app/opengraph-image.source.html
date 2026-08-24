@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 630px; }
+  body {
+    background: linear-gradient(180deg, #050607 0%, #0b0f10 72%, #141a1b 100%);
+    color: #f1f3f3;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 76px 84px;
+    position: relative;
+    overflow: hidden;
+  }
+  .traces { position: absolute; inset: 0; opacity: 0.34; }
+  .traces path { fill: none; stroke: rgba(206,222,224,.4); stroke-width: 2; }
+  .traces circle { fill: #080b0c; stroke: rgba(225,236,238,.5); stroke-width: 2; }
+  .brand { display: flex; align-items: center; gap: 20px; position: relative; }
+  .brand svg { width: 58px; height: 58px; }
+  .brand span { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; }
+  h1 {
+    position: relative;
+    margin-top: 44px;
+    font-size: 88px;
+    line-height: 0.98;
+    letter-spacing: -0.045em;
+    font-weight: 700;
+    max-width: 18ch;
+  }
+  p { position: relative; margin-top: 28px; font-size: 30px; color: #9aa4a6; max-width: 30ch; line-height: 1.35; }
+  .foot { position: relative; margin-top: auto; font-size: 22px; color: #6b7274; letter-spacing: 0.02em; }
+</style>
+<svg class="traces" viewBox="0 0 1200 630" preserveAspectRatio="none">
+  <path d="M-20 120 H300 L380 200 H700"/>
+  <path d="M-20 470 H240 L330 380 H620 L700 460 H1220"/>
+  <path d="M900 -20 V150 L820 230 V420"/>
+  <path d="M1060 60 V300 L1160 400 V660"/>
+  <path d="M120 660 V520 L200 440 H460"/>
+  <circle cx="380" cy="200" r="9"/>
+  <circle cx="330" cy="380" r="9"/>
+  <circle cx="820" cy="230" r="9"/>
+  <circle cx="1160" cy="400" r="9"/>
+  <circle cx="200" cy="440" r="9"/>
+</svg>
+
+<div class="brand">
+  <svg viewBox="0 0 1024 1024">
+    <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M320 348L140 512L320 676" stroke-width="56"/>
+      <path d="M704 348L884 512L704 676" stroke-width="56"/>
+      <path d="M512 322V365" stroke-width="42"/>
+      <path d="M512 662V702" stroke-width="42"/>
+      <path d="M584 405C563 374 531 356 494 356C446 356 413 383 413 423C413 463 444 484 505 500C569 517 606 541 606 590C606 641 565 671 511 671C466 671 429 651 405 619" stroke-width="56"/>
+    </g>
+  </svg>
+  <span>ADCode</span>
+</div>
+
+<h1>Earn while you code</h1>
+<p>A complete code editor, funded by respectful ads. You keep half of every verified payment.</p>
+<div class="foot">Free for Windows, macOS and Linux</div>
+
+<!--
+  The source for `opengraph-image.png` and `twitter-image.png`.
+
+  Kept beside the images it produced so the next person can change the words without
+  reverse-engineering a PNG. It is not served: Next only treats `opengraph-image.*` and
+  `twitter-image.*` as route files, and `.source.html` is neither.
+
+  To regenerate, render it at 1200x630 and copy the result over both PNGs:
+
+    chrome --headless --window-size=1200,630 --hide-scrollbars \
+      --screenshot=opengraph-image.png apps/web/src/app/opengraph-image.source.html
+-->

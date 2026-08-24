@@ -24,10 +24,13 @@
     "test:emulator": "firebase emulators:exec --only firestore --project adcode-test \"vitest run services/api/test/emulator\"",
     "mock-server": "node mock-server/src/cli.ts",
     "smoke": "node scripts/smoke.mjs",
+    "release-note": "node scripts/release-note.mjs",
     "verify": "npm run typecheck && npm run firewall && npm run test",
     "icons": "electron scripts/make-icons.mjs",
     "web": "npm --prefix apps/web run dev",
-    "web:build": "npm --prefix apps/web run build"
+    "web:build": "npm --prefix apps/web run build",
+    "web:preview": "npm --prefix apps/web run preview",
+    "web:deploy": "npm --prefix apps/web run deploy"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
@@ -58,6 +61,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@supabase/supabase-js": "^2.112.3",
     "electron-updater": "^6.8.9",
     "firebase": "^12.18.0",
     "next": "^16.3.1",

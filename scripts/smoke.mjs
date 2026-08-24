@@ -641,6 +641,65 @@ checks.multipleTerminals = await evaluate(
  * start that shell, and the tab has to say which one it is - the tab strip is the only
  * place that information exists once two different shells are running.
  */
+/*
+ * Several terminals must not deform the panel.
+ *
+ * A regression test for a real bug. The list of open terminals used to be a horizontal strip
+ * in the panel header, and once that header also had to hold the five panel tabs, opening a
+ * third or fourth shell squeezed those tabs until their labels clipped - two scrolling tab
+ * strips cannot share one 32px row, and it got worse the more you used the terminal.
+ *
+ * The fix moved the list into a column beside the terminals, so this asserts the thing that
+ * would have caught it: the panel's own tab strip is exactly as wide with four terminals
+ * open as with one, and nothing about the panel's own size changed.
+ */
+checks.manyTerminalsDoNotDeformThePanel = await evaluate(
+  `(async () => {
+     // Make sure the Terminal tab is the one showing, so its header controls are present.
+     document.querySelector('#panel-tabs .panel-tab[data-tab="terminal"]')?.click();
+     await new Promise((r) => setTimeout(r, 400));
+
+     const tabsWidth = () =>
+       Math.round(document.getElementById('panel-tabs').getBoundingClientRect().width);
+     const panelWidth = () =>
+       Math.round(document.getElementById('panel').getBoundingClientRect().width);
+
+     const rail = document.getElementById('terminal-tabs');
+     const surface = document.getElementById('terminal-surface');
+     const newButton = document.getElementById('terminal-new');
+     if (!newButton) return 'no new-terminal button on the Terminal tab';
+
+     const beforeTabs = tabsWidth();
+     const beforePanel = panelWidth();
+     if (beforeTabs === 0) return 'the panel tab strip has no width to begin with';
+
+     // Three more, so four are open - which is where the old layout visibly broke.
+     for (let i = 0; i < 3; i += 1) {
+       newButton.click();
+       await new Promise((r) => setTimeout(r, 900));
+     }
+
+     const railBox = rail.getBoundingClientRect();
+     const surfaceBox = surface.getBoundingClientRect();
+
+     return {
+       open: document.querySelectorAll('#terminal-tabs .terminal-tab').length,
+       // The whole point. A strip in the header shrank this; a column does not.
+       tabStripUnchanged: tabsWidth() === beforeTabs,
+       panelUnchanged: panelWidth() === beforePanel,
+       railShown: !rail.hidden,
+       // A column, not a row: taller than a single row, and no wider than its fixed width.
+       railIsAColumn: railBox.height > 40 && railBox.width <= 160,
+       // Beside the terminals rather than above them.
+       railBesideSurface: railBox.left >= surfaceBox.right - 1,
+       // Every panel tab label still fully drawn rather than clipped.
+       labelsNotClipped: [...document.querySelectorAll('#panel-tabs .panel-tab-label')].every(
+         (l) => l.scrollWidth <= l.clientWidth + 1,
+       ),
+     };
+   })()`,
+);
+
 checks.terminalProfileLauncher = await (async () => {
   const chevron = await evaluate(
     `(() => {
@@ -1348,8 +1407,8 @@ try {
 
   checks.problemsPanelExplains = await evaluate(
     `(() => {
-       const view = document.getElementById('view-problems');
-       if (view.hidden) return 'the problems view did not show';
+       const view = document.getElementById('panel-body-problems');
+       if (view.hidden) return 'the problems tab did not show';
 
        const rows = view.querySelectorAll('.problems-row');
        if (rows.length === 0) return 'panel listed nothing: ' + (view.textContent ?? '').trim().slice(0, 120);
@@ -1376,7 +1435,7 @@ try {
 
   checks.problemsRowJumpsToTheColumn = await evaluate(
     `(async () => {
-       const row = document.querySelector('#view-problems .problems-row');
+       const row = document.querySelector('#panel-body-problems .problems-row');
        if (!row) return 'no row to click';
 
        row.click();
@@ -2608,7 +2667,7 @@ try {
 
   checks.missingServerBecomesAHint = await evaluate(
     `(() => {
-       const view = document.getElementById('view-problems');
+       const view = document.getElementById('panel-body-problems');
        const rows = [...view.querySelectorAll('.problems-row')];
        const hint = rows.find((row) => /smoke-lang|install|pyright/i.test(row.textContent ?? ''));
 
@@ -2861,14 +2920,128 @@ checks.panelDividerFollowsPanel = await evaluate(
    })()`,
 );
 
-// The `<$>` mark is drawn, not typed, so it cannot fall back to a missing font.
+/*
+ * The bottom panel's five tabs.
+ *
+ * The assertion the unit tests cannot make is the one about identity: switching tabs must
+ * hide a body, never rebuild it. A panel that re-created the terminal on every switch would
+ * pass every unit test and lose your scrollback whenever you glanced at Problems.
+ */
+checks.panelTabsSwitchAndKeepState = await evaluate(
+  `(async () => {
+     document.querySelector('.activity[data-view="problems"]').click();
+     await new Promise((r) => setTimeout(r, 400));
+
+     const panel = document.getElementById('panel');
+     if (panel.hidden) return 'the panel did not open on Problems';
+
+     const ids = [...document.querySelectorAll('#panel-tabs .panel-tab')].map((t) => t.dataset.tab);
+     const expected = ['problems', 'output', 'debug', 'terminal', 'ports'];
+     if (ids.join(',') !== expected.join(',')) return 'tabs were [' + ids.join(',') + ']';
+
+     const bodyFor = (id) => document.getElementById('panel-body-' + id);
+     const tabFor = (id) => document.querySelector('#panel-tabs .panel-tab[data-tab="' + id + '"]');
+     if (bodyFor('problems').hidden) return 'the Problems body is hidden while its tab is active';
+
+     // The node that must survive a round trip through another tab.
+     const mounted = bodyFor('problems').firstElementChild;
+
+     tabFor('output').click();
+     await new Promise((r) => setTimeout(r, 250));
+     if (!bodyFor('problems').hidden) return 'Problems stayed visible behind Output';
+     if (bodyFor('output').hidden) return 'the Output body did not show';
+
+     tabFor('problems').click();
+     await new Promise((r) => setTimeout(r, 250));
+
+     return {
+       // Identity, not equality: a rebuilt body is a different node.
+       keptMounted: bodyFor('problems').firstElementChild === mounted,
+       onlyOneVisible: expected.filter((id) => !bodyFor(id).hidden).length === 1,
+       tabMarked: tabFor('problems').getAttribute('aria-selected') === 'true',
+       // Header controls belong to a tab: the terminal's buttons must not be on Problems.
+       actionsFollowTheTab: document.getElementById('actions-terminal').hidden,
+     };
+   })()`,
+);
+
+/*
+ * Ports: the answer to "what is already using 3000".
+ *
+ * Driven against a port ADCode itself opened, because that is the only one whose number is
+ * known in advance - and because labelling our own server is the one thing the operating
+ * system's own tools cannot do.
+ */
+checks.portsTabNamesOurOwnServer = await evaluate(
+  `(async () => {
+     const status = await window.adcode.preview.start();
+     if (!status.running) return 'the preview did not start: ' + (status.error ?? 'no reason');
+     const port = String(new URL(status.url).port);
+
+     document.querySelector('#panel-tabs .panel-tab[data-tab="ports"]').click();
+     // netstat on a loaded Windows box is genuinely slow, and the table polls on a timer.
+     await new Promise((r) => setTimeout(r, 6000));
+
+     const rows = [...document.querySelectorAll('#panel-body-ports .ports-table tbody tr')];
+     if (rows.length === 0) return 'the table listed nothing at all';
+
+     const ours = rows.find((r) => (r.querySelector('.ports-port')?.textContent ?? '').startsWith(port));
+     if (!ours) return 'our own port ' + port + ' was not listed; ' + rows.length + ' rows were';
+
+     return {
+       listed: true,
+       labelled: (ours.querySelector('.ports-label')?.textContent ?? '') === 'Live Server',
+       // Open, Copy, Stop.
+       actions: ours.querySelectorAll('.ports-action').length === 3,
+     };
+   })()`,
+);
+
+/*
+ * Output: the channels, and the fact that they carry something.
+ *
+ * The Live Server channel is checked rather than a quieter one because the preview was just
+ * started above, so there is a line to find. An empty channel would prove nothing.
+ */
+checks.outputTabCarriesRealLogs = await evaluate(
+  `(async () => {
+     document.querySelector('#panel-tabs .panel-tab[data-tab="output"]').click();
+     await new Promise((r) => setTimeout(r, 500));
+
+     const picker = document.querySelector('.output-channel');
+     if (!picker) return 'no channel picker in the panel header';
+
+     const channels = [...picker.options].map((o) => o.value);
+     picker.value = 'live-server';
+     picker.dispatchEvent(new Event('change', { bubbles: true }));
+     await new Promise((r) => setTimeout(r, 300));
+
+     const text = document.querySelector('.output-view')?.textContent ?? '';
+
+     return {
+       channels: channels.join(','),
+       // History is replayed on open: the line was printed before anyone opened the tab.
+       liveServerLogged: /serving http/.test(text),
+       pickerInHeader: picker.closest('.panel-header') !== null,
+     };
+   })()`,
+);
+
+/*
+ * The `<$>` mark is drawn, not typed, so it cannot fall back to a missing font.
+ *
+ * Five paths: the two brackets, the dollar's S, and its stem - which is two strokes rather
+ * than one so the S is not crossed through the middle. The count is asserted rather than
+ * just "some paths" because losing a stroke is exactly the kind of change that looks fine
+ * at 16px and wrong at 64.
+ */
 checks.brandMarkDrawn = await evaluate(
   `(() => {
      const mark = document.querySelector('.welcome-mark .brand-mark');
      if (!mark) return 'no mark on the welcome screen';
      const paths = mark.querySelectorAll('path').length;
      const box = mark.getBoundingClientRect();
-     return paths === 4 && box.width > 0 ? true : 'paths=' + paths + ' width=' + box.width;
+     return paths === 5 && box.width > 0 ? true : 'paths=' + paths + ' width=' + box.width;
    })()`,
 );
 
@@ -3336,6 +3509,87 @@ checks.previewUndocksWithoutReloading = await evaluate(
 
      pane.querySelector('.icon-button[aria-label="Close preview"]')?.click();
      await new Promise((r) => setTimeout(r, 600));
+
+     return result;
+   })()`,
+);
+
+/*
+ * Device-size preview.
+ *
+ * The check that matters is the negative one: resizing must not reload the page. Setting a
+ * width is easy to get right and easy to get right the wrong way - wrapping the iframe, or
+ * swapping its `src`, both look correct in a screenshot and both throw away the running
+ * page. So this asserts the iframe is the same node with the same `src` afterwards, which is
+ * the same assertion the undocking check makes, for the same reason.
+ */
+checks.deviceSizingDoesNotReloadThePage = await evaluate(
+  `(async () => {
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'P', ctrlKey: true, shiftKey: true, bubbles: true }));
+     await new Promise((r) => setTimeout(r, 300));
+
+     const input = document.querySelector('.quickopen-input[aria-label="Command palette"]');
+     if (!input) return 'the palette did not open';
+     input.value = 'live preview';
+     input.dispatchEvent(new Event('input', { bubbles: true }));
+     await new Promise((r) => setTimeout(r, 250));
+
+     const row = [...document.querySelectorAll('.palette-row')].find(
+       (r) => r.querySelector('span')?.textContent === 'Toggle Live Preview',
+     );
+     if (!row) return 'no Toggle Live Preview command';
+     row.click();
+     await new Promise((r) => setTimeout(r, 2500));
+
+     const pane = document.querySelector('.preview-pane');
+     if (!pane || pane.hidden) return 'the preview pane did not open';
+
+     const frameBefore = pane.querySelector('iframe');
+     if (!frameBefore) return 'no preview frame';
+     const srcBefore = frameBefore.getAttribute('src');
+
+     const toggle = pane.querySelector('.icon-button[aria-label="Check other screen sizes"]');
+     if (!toggle) return 'no device button in the preview bar';
+     toggle.click();
+     await new Promise((r) => setTimeout(r, 350));
+
+     const bar = pane.querySelector('.device-bar');
+     if (!bar || bar.hidden) return 'the device bar did not show';
+
+     const size = bar.querySelector('.device-size');
+     size.value = '360x640';
+     size.dispatchEvent(new Event('change', { bubbles: true }));
+     await new Promise((r) => setTimeout(r, 350));
+
+     const frameAfter = pane.querySelector('iframe');
+     const widthAtPhone = frameAfter.style.width;
+     const preset = bar.querySelector('.device-preset')?.value;
+     const readout = bar.querySelector('.device-readout')?.textContent ?? '';
+
+     // Rotate is the only .device-action button.
+     bar.querySelector('.device-action').click();
+     await new Promise((r) => setTimeout(r, 300));
+     const widthRotated = frameAfter.style.width;
+
+     const result = {
+       // The whole design: same element, never reparented, never reloaded.
+       sameFrameNode: frameAfter === frameBefore,
+       sameSrc: frameAfter.getAttribute('src') === srcBefore,
+       tookTheWidth: widthAtPhone === '360px',
+       // 360 x 640 is a preset, so the dropdown should name it rather than say Custom.
+       recognisedPreset: preset === 'phone-small',
+       readsOutTheSize: /360/.test(readout),
+       rotates: widthRotated === '640px',
+       handlesShown: [...pane.querySelectorAll('.device-handle')].every((h) => !h.hidden),
+     };
+
+     // Off again, then closed, so later checks see the layout they expect.
+     toggle.click();
+     await new Promise((r) => setTimeout(r, 250));
+     result.turnsOff = frameAfter.style.width === '';
+
+     pane.querySelector('.icon-button[aria-label="Close preview"]')?.click();
+     await new Promise((r) => setTimeout(r, 500));
 
      return result;
    })()`,

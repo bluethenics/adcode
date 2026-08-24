@@ -12,8 +12,15 @@ export const SITE_ORIGIN = process.env["NEXT_PUBLIC_SITE_ORIGIN"] ?? "https://ad
 /** The Firebase project everything is deployed into. */
 export const FIREBASE_PROJECT = process.env["NEXT_PUBLIC_FIREBASE_PROJECT_ID"] ?? "adcode-idle";
 
-/** Where the API lives. Same default the desktop client uses in `main/backend.ts`. */
-export const API_ORIGIN = process.env["NEXT_PUBLIC_API_ORIGIN"] ?? "https://api.adcode.bluethenics.com";
+/**
+ * Where the API lives.
+ *
+ * The site's own origin, because `services/api` is served by this deployment at `/v1/*`
+ * rather than by a separate host - see `src/app/v1/[...segments]/route.ts`. That is what
+ * makes every call from these pages same-origin, so there is no CORS preflight and no
+ * second deployment to keep alive. Override only to point at a locally running API.
+ */
+export const API_ORIGIN = process.env["NEXT_PUBLIC_API_ORIGIN"] ?? SITE_ORIGIN;
 
 /** Owner/repo that release artifacts are published to. */
 export const GITHUB_REPO = process.env["NEXT_PUBLIC_GITHUB_REPO"] ?? "adcode/adcode";

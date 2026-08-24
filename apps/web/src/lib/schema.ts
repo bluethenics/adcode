@@ -91,6 +91,74 @@ export function blogPosting(post: {
 }
 
 /**
+ * A documentation page, as data.
+ *
+ * `TechArticle` rather than `BlogPosting`: the distinction is exactly the one the site
+ * makes between the two surfaces, and a search engine that knows a page is reference
+ * material rather than an essay can answer "how do I turn off format on save" with it.
+ */
+export function techArticle(page: {
+  title: string;
+  description: string;
+  slug: string;
+  section: string;
+  updated?: string;
+}): Node {
+  return {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    headline: page.title,
+    description: page.description,
+    articleSection: page.section,
+    ...(page.updated === undefined ? {} : { dateModified: page.updated }),
+    mainEntityOfPage: { "@type": "WebPage", "@id": url(`/docs/${page.slug}`) },
+    publisher: { "@id": url("/#organization") },
+    author: { "@id": url("/#organization") },
+    about: { "@id": url("/#app") },
+    isPartOf: {
+      "@type": "WebSite",
+      "@id": url("/#website"),
+      name: `${SITE.name} documentation`,
+      url: url("/docs"),
+    },
+    inLanguage: SITE.locale,
+  };
+}
+
+/**
+ * The changelog, as data.
+ *
+ * Each note is a `SoftwareApplication` carrying `softwareVersion` and `releaseNotes`,
+ * which is the vocabulary search engines already understand for "what changed in version
+ * N" - rather than an `Article` per version, which describes the writing instead of the
+ * software. Wrapped in an `ItemList` so the order is stated rather than inferred.
+ */
+export function changelog(
+  releases: readonly { version: string; title: string; body: string; published: string }[],
+): Node {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: `${SITE.name} release notes`,
+    itemListOrder: "https://schema.org/ItemListOrderDescending",
+    itemListElement: releases.map((release, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      item: {
+        "@type": "SoftwareApplication",
+        name: SITE.name,
+        applicationCategory: "DeveloperApplication",
+        operatingSystem: "Windows, macOS, Linux",
+        softwareVersion: release.version,
+        datePublished: release.published,
+        releaseNotes: `${release.title}. ${release.body}`.slice(0, 900),
+        offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      },
+    })),
+  };
+}
+
+/**
  * The questions people actually ask, answered in full sentences that stand alone.
  *
  * Written so each answer is quotable without its question - an answer engine lifting one

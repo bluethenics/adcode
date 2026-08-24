@@ -1,0 +1,288 @@
+/*
+ * The release note card, and the What's New sheet.
+ *
+ * The card sits above the notification stack rather than inside it. A sponsored toast and
+ * a release note look nothing alike on purpose: the toast is small, labelled, and leaves
+ * on its own, while this is squarer, quieter, and stays until it is answered. Confusing
+ * the two would make an ad look like the editor talking, which is the one thing §1 will
+ * not allow.
+ *
+ * Only `transform` and `opacity` are animated. Both are composited; animating `bottom` or
+ * `height` would force layout every frame in an editor somebody may be typing in.
+ */
+
+.release-card {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 40px));
+  padding: 16px 18px 14px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-floating);
+  font-family: var(--font-ui);
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+  transition:
+    opacity 220ms ease,
+    transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.release-card[data-state="open"] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.release-card[data-state="exiting"] {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+  transition-duration: 160ms;
+}
+
+.release-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.release-card-badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* The one visual difference a critical note gets. It is a change of weight, not a red
+   banner: the point is "read this now", not "something is broken". */
+.release-card[data-critical="true"] .release-card-badge {
+  color: var(--text-primary);
+}
+
+.release-card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+.release-card-highlights {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.release-card-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.release-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.release-card-more,
+.release-card-ok {
+  appearance: none;
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.release-card-more {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.release-card-more:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.release-card-ok {
+  border: 1px solid var(--border-hairline);
+  background: var(--bg-control);
+  color: var(--text-primary);
+}
+
+.release-card-ok:hover {
+  background: var(--bg-hover);
+}
+
+/* ── What's New ───────────────────────────────────────────────────────── */
+
+.whats-new-dialog {
+  border: 0;
+  padding: 0;
+  margin: auto;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.whats-new-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.whats-new-card {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, calc(100vw - 48px));
+  height: min(620px, calc(100vh - 96px));
+  overflow: hidden;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-floating);
+  font-family: var(--font-ui);
+}
+
+.whats-new-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex: none;
+  padding: 16px 12px 14px 20px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.whats-new-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  /* Without this the long subtitle refuses to wrap and widens the flex item instead -
+     the min-content floor a flex child gets by default. */
+  min-width: 0;
+}
+
+.whats-new-heading-main {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.whats-new-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.whats-new-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 20px 20px;
+}
+
+.whats-new-entry {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.whats-new-entry:last-child {
+  border-bottom: 0;
+}
+
+.whats-new-entry-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.whats-new-version {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.whats-new-current,
+.whats-new-critical {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid var(--border-hairline);
+  color: var(--text-tertiary);
+}
+
+.whats-new-critical {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.whats-new-date {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.whats-new-title {
+  margin: 6px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.whats-new-heading {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.whats-new-paragraph {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.whats-new-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.whats-new-empty {
+  margin: 24px 0;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--text-tertiary);
+}

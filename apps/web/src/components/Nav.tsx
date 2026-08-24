@@ -32,6 +32,9 @@ export function Nav() {
           <Link href="/advertise" data-optional="true">
             Advertise
           </Link>
+          <Link href="/docs" data-optional="true">
+            Docs
+          </Link>
           <Link href="/blog" data-optional="true">
             Blog
           </Link>

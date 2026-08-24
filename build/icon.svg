@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!--
     The ADCode mark: a dollar sign between two angle brackets.
 
@@ -7,6 +7,10 @@
 
     The plate is part of the icon and not of the inline mark: an app icon needs its own
     ground to sit on, and an inline mark needs to take the colour around it.
+
+    No `width`/`height` here, only a viewBox. `scripts/make-icons.mjs` stamps the size it
+    wants onto the opening tag, and a file that already carries them produces duplicate
+    attributes - which is a fatal XML error, and shows up as "the SVG did not decode".
   -->
   <rect width="1024" height="1024" rx="224" fill="#0b0b0f"/>
   <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">

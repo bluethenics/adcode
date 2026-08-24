@@ -12,6 +12,44 @@ import { DEFAULT_OPTIONS, format, formatSupported, organizeImports } from "@adco
 
 const LANGUAGES = ["json", "css", "scss", "html", "markdown", "typescript", "rust", "go"];
 
+/*
+ * Found by the idempotence property, not by review.
+ *
+ * Formatting an unterminated block comment returned it with a newline appended, and
+ * formatting that returned it with two - one extra blank line on every save, forever. An
+ * unclosed comment runs to the end of the file, so it swallowed the trailing newline that
+ * the line joiner then added back.
+ *
+ * Unterminated comments are not an exotic input. They are what a file looks like in the
+ * seconds after somebody opens one, which is exactly when format-on-save runs.
+ */
+describe("an unterminated comment", () => {
+  it.each(["css", "scss", "less"])("does not grow on every format in %s", (language) => {
+    let text = "/*";
+    for (let pass = 0; pass < 5; pass += 1) text = format(text, language, DEFAULT_OPTIONS);
+    expect(text).toBe("/*\n");
+  });
+
+  it("does not grow when there is code before it", () => {
+    const once = format("a{}/*", "css", DEFAULT_OPTIONS);
+    expect(format(once, "css", DEFAULT_OPTIONS)).toBe(once);
+  });
+
+  it("keeps the text of a comment that is closed", () => {
+    const once = format("/* keep  me */\na{color:red}", "css", DEFAULT_OPTIONS);
+    expect(once).toContain("/* keep  me */");
+    expect(format(once, "css", DEFAULT_OPTIONS)).toBe(once);
+  });
+
+  it("keeps the lines of a multi-line comment", () => {
+    const source = "/*\n * one\n * two\n */\na{color:red}";
+    const once = format(source, "css", DEFAULT_OPTIONS);
+    expect(once).toContain(" * one");
+    expect(once).toContain(" * two");
+    expect(format(once, "css", DEFAULT_OPTIONS)).toBe(once);
+  });
+});
+
 describe("idempotence", () => {
   it.each(LANGUAGES)("formatting %s twice is the same as once", (language) => {
     fc.assert(
@@ -20,7 +58,10 @@ describe("idempotence", () => {
         const twice = format(once, language, DEFAULT_OPTIONS);
         expect(twice).toBe(once);
       }),
-      { numRuns: 250 },
+      // 250 found the unterminated-comment bug below, but only on some seeds. The whole
+      // suite runs in about a tenth of a second, so the extra runs cost nothing and make
+      // the *next* bug of that shape likelier to be found here than by a user.
+      { numRuns: 600 },
     );
   });
 

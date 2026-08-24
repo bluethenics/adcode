@@ -1725,3 +1725,332 @@
 .debug-variable-value[data-type="null"] {
   color: var(--text-tertiary);
 }
+
+/* ── The bottom panel's tabs ──────────────────────────────────────────── */
+
+/*
+ * Five surfaces stacked in one grid cell, with `hidden` deciding which shows.
+ *
+ * Stacked rather than swapped in and out of the DOM: `bottomPanel.ts` keeps every body
+ * mounted so scrollback, scroll position and live subscriptions survive a tab switch, and
+ * that only works if the layout has a place for a hidden body to keep existing.
+ */
+.panel-bodies {
+  display: grid;
+  min-height: 0;
+}
+
+.panel-body {
+  grid-area: 1 / 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.panel-body[hidden] {
+  display: none;
+}
+
+/*
+ * The terminal body: terminals on the left, the list of them on the right.
+ *
+ * Explicit grid placement rather than auto-placement, because two of the three children
+ * come and go - the agent strip is hidden until an agent is noticed, and the rail is hidden
+ * until there is a second terminal. With auto-placement the surface would move into
+ * whichever cell happened to be free, and the layout would depend on what was showing.
+ *
+ * `minmax(0, 1fr)` on the terminal column, not `1fr`: a grid track's default minimum is its
+ * content, and xterm reports a content width that never shrinks. Without this the rail
+ * pushes the panel wider instead of the terminals getting narrower - the same trap the
+ * sidebar hit.
+ */
+.panel-body-terminal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+/* The agent strip spans both columns: it is about the panel, not about one terminal. */
+.panel-body-terminal .agent-strip {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.panel-body-terminal .terminal-surface {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.panel-body-terminal .terminal-tabs {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.panel-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.panel-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: 620;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  cursor: default;
+  white-space: nowrap;
+}
+
+.panel-tab:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
+/*
+ * The selected tab is marked by weight and colour, not a bottom border.
+ *
+ * The header already has a hairline under it; a second line under one tab reads as a
+ * misaligned duplicate of it at this row height.
+ */
+.panel-tab[aria-selected="true"] {
+  color: var(--text-primary);
+  background: var(--bg-active);
+}
+
+.panel-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The error count. Errors only - a warning count here is noise on a tab you read past. */
+.panel-tab-badge {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--danger);
+  color: var(--text-on-accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  letter-spacing: 0;
+}
+
+.panel-tab-badge[hidden] {
+  display: none;
+}
+
+.panel-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+/* Exactly one of these is visible: the active tab's. */
+.panel-tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.panel-tab-actions[hidden] {
+  display: none;
+}
+
+/* The spacer does the pushing now, so the title must not also claim the free space. */
+.panel-tab-actions .panel-title {
+  margin-right: 0;
+}
+
+/* ── Ports ────────────────────────────────────────────────────────────── */
+
+.ports-panel {
+  padding: 8px 12px 12px;
+}
+
+.ports-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.ports-table[hidden] {
+  display: none;
+}
+
+.ports-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 4px 8px;
+  background: var(--bg-app);
+  border-bottom: 1px solid var(--border-hairline);
+  text-align: left;
+  font-size: var(--text-xs);
+  font-weight: 620;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.ports-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border-hairline);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.ports-table tr:hover td {
+  background: var(--bg-hover);
+}
+
+.ports-port {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "This one is ours" - the single thing the operating system cannot tell the user. */
+.ports-label {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--bg-selected);
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 620;
+}
+
+.ports-unknown {
+  color: var(--text-tertiary);
+}
+
+.ports-actions {
+  text-align: right;
+}
+
+.ports-action {
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+}
+
+/* ── Output ───────────────────────────────────────────────────────────── */
+
+.output-panel {
+  display: grid;
+  min-height: 0;
+  height: 100%;
+}
+
+.output-view {
+  margin: 0;
+  padding: 8px 12px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+}
+
+/* An empty log says so, rather than being an unexplained blank rectangle. */
+.output-view.output-empty::before {
+  content: attr(data-empty);
+  color: var(--text-tertiary);
+  font-family: var(--font-ui);
+}
+
+.output-channel {
+  padding: 2px 6px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--text-xs);
+}
+
+/* ── Debug console ────────────────────────────────────────────────────── */
+
+.debug-console {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.debug-console-transcript {
+  overflow: auto;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.debug-console-line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.debug-console-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.debug-console-input:focus {
+  outline: none;
+}
+
+.debug-console-input:disabled {
+  color: var(--text-tertiary);
+}
+
+.debug-console-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border-hairline);
+}
+
+.debug-console-prompt {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+/* What you typed is dimmer than the answer: the answer is the thing being read. */
+.debug-console-input-line,
+.debug-console-line.debug-console-input {
+  color: var(--text-secondary);
+}
+
+.debug-console-line.debug-console-result {
+  color: var(--text-primary);
+}
+
+.debug-console-line.debug-console-error {
+  color: var(--danger);
+}
+
+.debug-console-line.debug-console-note {
+  color: var(--text-tertiary);
+  font-family: var(--font-ui);
+  font-style: italic;
+}

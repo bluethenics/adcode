@@ -21,12 +21,12 @@ export const UPDATES_ENTRIES: readonly HelpEntry[] = [
   },
   {
     id: "updates.whatsNew",
-    title: "What's new",
+    title: "Tell me what changed",
     plain: "Now and then, a small card tells you what changed in the version you just got.",
     why: "A feature nobody is told about may as well not exist. This is the one interruption ADCode allows itself, so it is kept rare.",
-    how: "Three rules keep it quiet: you see a given version's note once on this machine and never again, it waits for a moment when you are not typing, not running a command, and not debugging, and it only appears for releases worth reading - small fixes install silently. Dismiss it and it is gone for good.",
+    how: "Four rules keep it quiet: you see a given version's note once on this machine and never again, it waits for a moment when you are not typing, not running a command, and not debugging, it only appears for releases worth reading - small fixes install silently - and it never appears on a brand new install. Dismiss it and it is gone for good. Turn this off and nothing ever pops up; Help > What's New still has every note. A security fix is the one thing that will not wait for a quiet moment, though even that respects the switch being off.",
     group: "updates",
-    settingIds: [],
+    settingIds: ["adcode.updates.announce"],
     related: ["adcode.updates.auto"],
   },
 ];

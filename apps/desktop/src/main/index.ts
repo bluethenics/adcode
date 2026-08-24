@@ -18,6 +18,7 @@ import { registerIpc } from "./ipc.ts";
 import { registerSupportIpc } from "./supportIpc.ts";
 import { onUpdateStatus, registerUpdateIpc, startAutoUpdate } from "./autoUpdate.ts";
 import { startNoticePolling } from "./notices.ts";
+import { startReleasePolling } from "./releases.ts";
 import { registerAccountIpc } from "./accountIpc.ts";
 import { installApplicationMenu } from "./menu.ts";
 import { loadKeybindings } from "./keybindings.ts";
@@ -42,6 +43,36 @@ const useDevServer = !app.isPackaged && devUrl !== undefined;
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 }
+
+/*
+ * The dev binary is node_modules' stock electron.exe, whose built-in name is - surprise -
+ * "Electron". Without this, that default leaks into the menu bar, taskbar grouping, and
+ * every surface that asks the process for its identity until the packaged build replaces
+ * the binary. One line, before anything reads the name.
+ */
+app.setName("ADCode");
+
+/*
+ * Who Windows thinks is running.
+ *
+ * `setName` covers Electron's own idea of the app; this covers the operating system's.
+ * Without an explicit AppUserModelID, Windows falls back to the one baked into the
+ * executable - which in development is Electron's - and every toast notification is
+ * attributed to "Electron", the taskbar groups the window under Electron's identity, and
+ * the jump list belongs to Electron rather than to ADCode. It must match `appId` in
+ * electron-builder.yml or the installed app and the running app claim to be two different
+ * programs.
+ */
+app.setAppUserModelId("com.adcode.ide");
+
+/*
+ * The process name, for the places that read it: `ps` on macOS and Linux, and Electron's
+ * own task manager. Windows Task Manager reads the executable's name and version resource
+ * instead, which packaging sets - see `executableName` and `extraMetadata.description` in
+ * electron-builder.yml. Running unpackaged from `node_modules/electron` will always show
+ * as Electron there, because that genuinely is the program that is running.
+ */
+process.title = "ADCode";
 
 // Must run before app-ready: Electron only accepts scheme privileges at this point, and
 // without them `app://` is neither a secure context nor able to start module workers.
@@ -76,6 +107,13 @@ function createWindow(): BrowserWindow {
     icon: join(import.meta.dirname, "../../../../build/icon.png"),
     minWidth: 680,
     minHeight: 420,
+    /*
+     * The title the window carries from the instant it exists. Without it, Electron's
+     * default - "Electron" - is what the taskbar and Alt-Tab show during the gap between
+     * process spawn and the renderer's <title> landing, which is exactly the moment a new
+     * user is looking hardest.
+     */
+    title: "ADCode",
     // Painting the frame before the renderer is ready is what produces the white flash
     // every Electron app is recognised by. §7 budgets first paint under 1s; showing
     // late but correct beats showing early and blank.
@@ -141,6 +179,7 @@ void app.whenReady().then(() => {
 
   void startAutoUpdate(() => currentSettings()["adcode.updates.auto"] !== false);
   startNoticePolling();
+  startReleasePolling();
 
   /*
    * The shortcuts, then the menu.

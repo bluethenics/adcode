@@ -5,6 +5,7 @@
  * not a repository, or a git that is not installed, has to leave the editor working.
  */
 import { createGit, nodeGitExec, type Git } from "@adcode/git";
+import { appendOutput, appendOutputEvent } from "./output.ts";
 import { createWorkspaceSearch, rankCandidates, type WorkspaceSearch } from "@adcode/search";
 import { currentWorkspace } from "./workspace.ts";
 
@@ -17,13 +18,36 @@ function services(): { git: Git; search: WorkspaceSearch } | null {
   if (bound === null || bound.root !== workspace.root) {
     bound = {
       root: workspace.root,
-      git: createGit({ exec: nodeGitExec, root: workspace.root }),
+      git: createGit({ exec: loggingGitExec, root: workspace.root }),
       search: createWorkspaceSearch({ root: workspace.root }),
     };
   }
 
   return { git: bound.git, search: bound.search };
 }
+
+/**
+ * `nodeGitExec`, with every invocation written to the Output panel.
+ *
+ * A decorator rather than a change inside `@adcode/git`: the package is deliberately free
+ * of any dependency on the app, and logging is an app concern. This is also the single
+ * choke point through which every git command in the editor passes, so wrapping it here
+ * means no call site can forget.
+ *
+ * Failures print git's own stderr. That is the whole value - "why did my push fail" is
+ * answered by git and by nothing we could write instead.
+ */
+const loggingGitExec: typeof nodeGitExec = {
+  async run(args, options) {
+    appendOutputEvent("git", `git ${args.join(" ")}`);
+    const result = await nodeGitExec.run(args, options);
+    if (result.code !== 0) {
+      appendOutput("git", result.stderr === "" ? result.stdout : result.stderr);
+      appendOutputEvent("git", `exited ${result.code}`);
+    }
+    return result;
+  },
+};
 
 export function gitForWorkspace(): Git | null {
   return services()?.git ?? null;

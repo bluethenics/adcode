@@ -537,12 +537,61 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /* ── Dragging and resizing ────────────────────────────────────────────── */
 
+  /**
+   * A translation that keeps the header on screen.
+   *
+   * The card is anchored bottom-right and moved with a translate, so a large negative `y`
+   * walks it off the top of the window - and the header is the drag handle, the model
+   * picker and the close button. Once it was up there nothing could bring it back. This
+   * is also what a saved position needs on the way in: the window it was saved from may
+   * have been bigger than the one it is being restored into.
+   *
+   * The bottom and right edges are deliberately allowed to hang off. Only the header has
+   * to stay reachable, and clamping all four would fight the user over a card they
+   * dragged half off the edge on purpose.
+   */
+  function clamp(next: Position): Position {
+    const box = card.getBoundingClientRect();
+
+    /*
+     * A hidden card has no box, and clamping against an empty rect is not conservative -
+     * it is wrong. Every measurement below reads zero, so the "keep 48px on screen" floor
+     * became `x >= 48` and each call pushed the card another 48px right. Two calls before
+     * it was ever shown left it permanently 96px off the right edge.
+     */
+    if (box.width === 0 && box.height === 0) return next;
+
+    // Where the card would sit with no translation at all.
+    const restX = box.left - position.x;
+    const restY = box.top - position.y;
+
+    const KEEP = 48;
+    const minX = -restX - box.width + KEEP;
+    const maxX = window.innerWidth - restX - KEEP;
+    const minY = -restY;
+    const maxY = window.innerHeight - restY - KEEP;
+
+    return {
+      x: Math.min(Math.max(next.x, minX), Math.max(minX, maxX)),
+      y: Math.min(Math.max(next.y, minY), Math.max(minY, maxY)),
+    };
+  }
+
   function place(next: Position): void {
-    position = next;
+    position = clamp(next);
     // A translate, never `left`/`top`: §1 allows only transform and opacity to animate,
     // and dragging with layout properties janks the editor behind it.
     card.style.transform = `translate(${position.x}px, ${position.y}px)`;
   }
+
+  /*
+   * Shrinking the window can strand a card that was perfectly placed a moment ago, so the
+   * clamp is re-applied rather than only being checked while dragging. Passing the current
+   * position back through `place` is enough - `clamp` re-reads the window each time.
+   */
+  window.addEventListener("resize", () => {
+    place(position);
+  });
 
   header.addEventListener("pointerdown", (event) => {
     if ((event.target as HTMLElement).tagName === "BUTTON") return;
@@ -574,8 +623,23 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     resizeGrip.setPointerCapture(event.pointerId);
 
     const move = (moveEvent: PointerEvent): void => {
-      card.style.width = `${Math.max(320, startWidth + (moveEvent.clientX - startX))}px`;
-      card.style.height = `${Math.max(260, startHeight + (moveEvent.clientY - startY))}px`;
+      /*
+       * A ceiling as well as a floor. The minimums were always here; without maximums you
+       * could drag the card larger than the window it lives in, and the CSS `max-width`
+       * would then quietly disagree with the inline width - so the grip stopped following
+       * the pointer and the card looked stuck.
+       */
+      const maxWidth = Math.max(320, window.innerWidth - 32);
+      const maxHeight = Math.max(260, window.innerHeight - 72);
+
+      const width = startWidth + (moveEvent.clientX - startX);
+      const height = startHeight + (moveEvent.clientY - startY);
+
+      card.style.width = `${Math.min(Math.max(320, width), maxWidth)}px`;
+      card.style.height = `${Math.min(Math.max(260, height), maxHeight)}px`;
+
+      // Growing downward or rightward can push the header off; re-clamp as it changes.
+      place(position);
     };
 
     const release = (): void => {
@@ -611,6 +675,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
       card.hidden = false;
       requestAnimationFrame(() => {
+        /*
+         * The first moment the card has a box, so the first moment its saved position can
+         * honestly be checked against the window. Anything earlier measures a zero rect.
+         */
+        place(position);
+
         requestAnimationFrame(() => {
           card.dataset["state"] = "open";
           input.focus();

@@ -29,6 +29,8 @@
  * undocking costs nothing and the page keeps running.
  */
 import type { PreviewMode, PreviewStatus } from "../../shared/api.ts";
+import { createDeviceToolbar, type DeviceToolbar } from "./deviceToolbar.ts";
+import { formatViewport, parseViewport } from "./deviceSizes.ts";
 import { ICON, createIcon, iconButton } from "../workbench/icons.ts";
 import {
   MIN_FLOAT_HEIGHT,
@@ -78,6 +80,13 @@ export interface PreviewPane {
   setPlacement(placement: PreviewPlacement): void;
   togglePlacement(): void;
   placement(): PreviewPlacement;
+  /**
+   * Turn device-size preview on or off.
+   *
+   * Checking a layout at a phone width without leaving the editor. Resizing never reloads
+   * the page - see `deviceToolbar.ts` for why that is the whole design.
+   */
+  toggleDevice(): void;
   /** Placement, position and size are remembered per folder, as the chat card is. */
   setWorkspace(root: string | null): void;
 }
@@ -129,13 +138,23 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
   address.className = "preview-url";
   address.textContent = "Not running";
 
+  const deviceButton = iconButton("Check other screen sizes", ICON.device);
   const logButton = iconButton("Show output", ICON.output);
   const reloadButton = iconButton("Reload preview", ICON.reload);
   const dockButton = iconButton("Undock preview", ICON.undock);
   const externalButton = iconButton("Open in browser", ICON.external);
   const closeButton = iconButton("Close preview", ICON.close);
 
-  bar.append(engine, address, logButton, reloadButton, dockButton, externalButton, closeButton);
+  bar.append(
+    engine,
+    address,
+    deviceButton,
+    logButton,
+    reloadButton,
+    dockButton,
+    externalButton,
+    closeButton,
+  );
 
   const frame = document.createElement("iframe");
   frame.className = "preview-frame";
@@ -166,8 +185,38 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
   resizeGrip.className = "preview-grip";
   resizeGrip.setAttribute("aria-hidden", "true");
 
-  pane.append(bar, frame, output, resizeGrip);
+  /*
+   * The frame's home.
+   *
+   * Built here, once, with the iframe placed inside it before the iframe has ever loaded
+   * anything - which is the only moment it can be done. Moving the iframe later would
+   * destroy its document and reload the user's page, which is the trap this file's header
+   * describes and which device sizing would otherwise hit on every layout change.
+   *
+   * The stage scrolls, so a viewport larger than the pane at 100% can still be inspected.
+   */
+  const stage = document.createElement("div");
+  stage.className = "preview-stage";
+  stage.dataset["device"] = "off";
+  stage.append(frame);
+
+  const deviceToolbar: DeviceToolbar = createDeviceToolbar({
+    frame,
+    stage,
+    persist: (viewport) =>
+      write(workspace, "device", viewport === null ? "" : formatViewport(viewport)),
+  });
+
+  pane.append(bar, deviceToolbar.element, stage, output, resizeGrip);
   deps.host.append(pane);
+
+  /*
+   * Refit on any change to the stage's size, whatever caused it: the docked splitter, a
+   * floating drag, the window resizing, the output drawer opening. Observing the element is
+   * the only way to catch all four without a call at each site, and a missed one shows up
+   * as a frame that stays scaled for the wrong pane width.
+   */
+  new ResizeObserver(() => deviceToolbar.refit()).observe(stage);
 
   let open = false;
   let currentUrl: string | null = null;
@@ -364,6 +413,10 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     if (placement === "floating" && open) applyGeometry();
   });
 
+  deviceButton.addEventListener("click", () => {
+    deviceToolbar.toggle();
+    deviceButton.dataset["active"] = String(deviceToolbar.isActive());
+  });
   logButton.addEventListener("click", () => showLog(!logShown));
   reloadButton.addEventListener("click", () => api.reload());
   dockButton.addEventListener("click", () => api.togglePlacement());
@@ -462,6 +515,11 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
 
     placement: () => placement,
 
+    toggleDevice(): void {
+      deviceToolbar.toggle();
+      deviceButton.dataset["active"] = String(deviceToolbar.isActive());
+    },
+
     setWorkspace(root: string | null): void {
       workspace = root;
 
@@ -470,6 +528,11 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
       placement = read(root, "placement") === "floating" ? "floating" : "docked";
       position = parsePoint(read(root, "position")) ?? position;
       size = parseSize(read(root, "size")) ?? size;
+
+      // The device viewport is remembered per folder too: a project you were checking at
+      // 390 wide is one you are probably still checking at 390 wide.
+      deviceToolbar.restore(parseViewport(read(root, "device")));
+      deviceButton.dataset["active"] = String(deviceToolbar.isActive());
 
       // Chrome always, layout only when there is something on screen to lay out. Without the
       // first call the dock button keeps the previous folder's icon until the pane reopens.

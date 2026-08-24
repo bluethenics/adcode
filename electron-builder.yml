@@ -21,6 +21,11 @@ directories:
 
 extraMetadata:
   main: apps/desktop/out/main/index.js
+  # Windows Task Manager shows a process under its executable's FileDescription, which
+  # electron-builder takes from `description`. The repo's own description is a sentence
+  # about what ADCode is, which would read as a paragraph in a process list - so the
+  # packaged copy gets the name on its own.
+  description: ADCode
 
 files:
   - apps/desktop/out/**/*
@@ -84,6 +89,10 @@ publish:
 
 win:
   icon: build/icon.ico
+  # The name of the .exe itself, and so the name in Task Manager's Details tab. It defaults
+  # to productName, but stating it means a later change to productName cannot silently
+  # rename the binary the installers and the auto-updater look for.
+  executableName: ADCode
   target:
     - target: nsis
       arch: [x64]
@@ -98,6 +107,16 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: ADCode
+  # A stable filename, not "ADCode Setup 1.2.3.exe": the site links straight at
+  # releases/latest/download/<name>, which only works while the name never changes.
+  artifactName: ADCode-Setup-${arch}.${ext}
+
+# The portable build gets its own stable name for the same reason.
+portable:
+  artifactName: ADCode-Portable-${arch}.${ext}
+
+dmg:
+  artifactName: ADCode-${arch}.${ext}
 
 mac:
   icon: build/icon.png
@@ -119,3 +138,8 @@ linux:
     entry:
       Name: ADCode
       Categories: Development;IDE;
+
+appImage:
+  artifactName: ADCode-${arch}.AppImage
+deb:
+  artifactName: ADCode-${arch}.${ext}

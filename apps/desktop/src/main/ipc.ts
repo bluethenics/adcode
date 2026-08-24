@@ -15,6 +15,8 @@ import {
   stopPreview,
 } from "./preview.ts";
 import { stripAnsi } from "./devCommand.ts";
+import { listListeningPorts, stopPort } from "./ports.ts";
+import { appendOutput, appendOutputEvent, outputHistory, setOutputSink } from "./output.ts";
 import {
   completionAt,
   definitionAt,
@@ -44,6 +46,7 @@ import {
   currentDebugState,
   debugBreakpoints,
   debugPause,
+  debugEvaluate,
   debugProperties,
   debugResume,
   debugScopes,
@@ -142,6 +145,14 @@ function broadcast(channel: string, ...args: unknown[]): void {
  */
 function broadcastPreview(status: PreviewStatus): void {
   broadcast(CHANNELS.previewChanged, status);
+
+  // The transitions, in words. The static server produces no output of its own, so
+  // without this its channel would be permanently empty and its failures invisible.
+  if (status.error !== null && status.error !== undefined) {
+    appendOutputEvent(previewChannel(status), `failed: ${status.error}`);
+  } else if (status.running && status.url !== null) {
+    appendOutputEvent(previewChannel(status), `serving ${status.url}`);
+  }
 }
 
 /**
@@ -189,10 +200,24 @@ function applyLanguageSettings(values: Record<string, unknown>): void {
 
 const previewEvents = {
   onStatus: (status: PreviewStatus) => broadcastPreview(status),
-  onOutput: (chunk: string) => broadcast(CHANNELS.previewOutput, stripAnsi(chunk)),
+  onOutput: (chunk: string) => {
+    const text = stripAnsi(chunk);
+    // Both surfaces, deliberately. The preview drawer shows this while you are looking at
+    // the preview; the Output panel keeps it so it can still be read afterwards.
+    broadcast(CHANNELS.previewOutput, text);
+    appendOutput("dev-server", text);
+  },
 };
 
+/** Which Output channel a preview status belongs in. */
+const previewChannel = (status: PreviewStatus) =>
+  status.mode === "project" ? "dev-server" : "live-server";
+
 export function registerIpc(): void {
+  // Output produced before this point is still recorded; it is replayed by `output:history`
+  // when a panel first opens.
+  setOutputSink((line) => broadcast(CHANNELS.outputAppend, line));
+
   registerGitIpc();
   registerCollabIpc({ workspaceRoot: () => currentWorkspace()?.root ?? null });
 
@@ -524,6 +549,13 @@ export function registerIpc(): void {
 
   ipcMain.handle(CHANNELS.debugBreakpoints, () => debugBreakpoints());
 
+  ipcMain.handle(CHANNELS.debugEvaluate, async (_event, frameId: unknown, expression: unknown) => {
+    if (!isString(frameId) || !isString(expression) || expression.trim() === "") {
+      return { value: "Nothing to evaluate.", type: "error", error: true };
+    }
+    return debugEvaluate(frameId, expression);
+  });
+
   ipcMain.handle(CHANNELS.debugScopes, (_event, frameId: unknown) =>
     isString(frameId) ? debugScopes(frameId) : [],
   );
@@ -608,6 +640,45 @@ export function registerIpc(): void {
 
     await shell.openExternal(url);
   });
+
+  /* ── Ports and output ─────────────────────────────────────────────────── */
+
+  /*
+   * The ports ADCode itself is holding, so the panel can say "Live Server" instead of
+   * leaving the user to recognise a pid. Read fresh on every call rather than cached: the
+   * preview starts and stops constantly and a stale label is worse than none.
+   */
+  const ownedPorts = (): Map<number, string> => {
+    const owned = new Map<number, string>();
+    const { url, running, mode } = previewStatus();
+    if (running && url !== null) {
+      const port = Number(new URL(url).port);
+      if (Number.isInteger(port) && port > 0) {
+        owned.set(port, mode === "project" ? "Dev Server" : "Live Server");
+      }
+    }
+    return owned;
+  };
+
+  ipcMain.handle(CHANNELS.portsList, () => listListeningPorts(ownedPorts()));
+
+  ipcMain.handle(CHANNELS.portsStop, async (_event, pid: unknown) => {
+    // The renderer is hostile by assumption. `stopPort` re-checks this, and additionally
+    // refuses ADCode's own pid, which no amount of validation here would catch.
+    if (!isFiniteNumber(pid)) return { ok: false, error: "Not a process id." };
+    return stopPort(pid);
+  });
+
+  /*
+   * A port number in, a loopback URL out. The renderer never supplies the address, so
+   * there is no string it can pass that reaches anywhere but this machine.
+   */
+  ipcMain.handle(CHANNELS.portsOpen, async (_event, port: unknown) => {
+    if (!isFiniteNumber(port) || !Number.isInteger(port) || port < 1 || port > 65535) return;
+    await shell.openExternal(`http://localhost:${port}`);
+  });
+
+  ipcMain.handle(CHANNELS.outputHistory, () => outputHistory());
 
   /* ── Runtimes ─────────────────────────────────────────────────────────── */
 

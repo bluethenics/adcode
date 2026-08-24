@@ -26,6 +26,7 @@ import {
   framesFrom,
   pathToFileUrl,
   pauseReasonOf,
+  evaluationFrom,
   propertiesFrom,
   scopesFrom,
   type Breakpoint,
@@ -371,4 +372,48 @@ export async function debugProperties(objectId: string): Promise<Variable[]> {
   });
 
   return propertiesFrom(result);
+}
+
+/**
+ * Evaluate an expression in a paused frame.
+ *
+ * Two protocol options are deliberate. `includeCommandLineAPI` stays off: `$0`, `copy()`
+ * and friends are conveniences of a browser devtools console and pretending to offer them
+ * in a Node debugger would be a promise this cannot keep. `silent` stays off because a
+ * thrown exception is the answer to plenty of expressions and must come back rather than
+ * being swallowed.
+ *
+ * `returnByValue` is off too, so an object comes back as a handle with a description
+ * instead of being deep-serialised - the same treatment the variables panel gives it, and
+ * the reason a circular structure does not fail here.
+ */
+export async function debugEvaluate(
+  frameId: string,
+  expression: string,
+): Promise<{ value: string; type: string; error: boolean }> {
+  const active = session;
+  if (active === null) {
+    return { value: "Nothing is running.", type: "error", error: true };
+  }
+
+  try {
+    const result = await send(active, "Debugger.evaluateOnCallFrame", {
+      callFrameId: frameId,
+      expression,
+      objectGroup: "console",
+      includeCommandLineAPI: false,
+      silent: false,
+      returnByValue: false,
+      generatePreview: true,
+    });
+    return evaluationFrom(result);
+  } catch (error) {
+    // A rejected send means the session went away mid-evaluation - the program resumed and
+    // ran to completion, most often. That is not an error the user caused.
+    return {
+      value: error instanceof Error ? error.message : "Could not evaluate that.",
+      type: "error",
+      error: true,
+    };
+  }
 }

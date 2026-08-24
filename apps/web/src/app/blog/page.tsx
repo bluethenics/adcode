@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { allPosts } from "@/lib/posts";
 import { JsonLd } from "@/components/JsonLd";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { breadcrumbs } from "@/lib/schema";
 import { url } from "@/lib/site";
 import { DocsSidebar } from "@/components/DocsSidebar";
@@ -36,15 +37,17 @@ export default async function BlogIndex() {
 
       <section className="docs-page band">
         <div className="wrap docs-layout">
-          <DocsSidebar />
-          <main className="docs-content"><div className="docs-header">
-            <p className="eyebrow">Blog</p>
-            <h1>Documentation &amp; notes</h1>
-            <p className="lede">
-              Fewer announcements, more explanations. Mostly about money, targeting, and the
-              parts of an ad-supported editor that deserve to be argued with.
-            </p>
-          </div>
+          <DocsSidebar reading="blog" />
+          <main className="docs-content">
+            <Breadcrumbs items={[{ name: "Home", href: "/" }, { name: "Blog" }]} />
+
+            <div className="docs-header">
+              <h1>Documentation &amp; notes</h1>
+              <p className="lede">
+                Fewer announcements, more explanations. Mostly about money, targeting, and the
+                parts of an ad-supported editor that deserve to be argued with.
+              </p>
+            </div>
 
           <ul className="docs-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {posts.map((post) => (
@@ -68,7 +71,8 @@ export default async function BlogIndex() {
                 </Link>
               </li>
             ))}
-          </ul></main>
+          </ul>
+          </main>
         </div>
       </section>
     </>

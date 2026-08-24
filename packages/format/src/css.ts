@@ -129,7 +129,15 @@ export function formatCss(text: string, options: FormatOptions): string {
       const before = tidy(chunk);
       chunk = "";
       if (before.length > 0) emit(out, options, depth, before);
-      emit(out, options, depth, comment);
+
+      /*
+       * `trimEnd` matters only for an *unterminated* comment, and it is the difference
+       * between this being idempotent and not. A closed comment ends at `*​/` and has
+       * nothing to trim; an unclosed one runs to the end of the file and swallows the
+       * trailing newline, which the joiner then adds again - so `/*` grew by a blank line
+       * on every save, forever. The `//` branch below has always done this.
+       */
+      emit(out, options, depth, comment.trimEnd());
 
       index = end - 1;
       continue;

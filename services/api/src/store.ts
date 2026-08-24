@@ -154,12 +154,62 @@ export interface NoticeRecord {
 }
 
 /** A blog post. Authored in the admin panel, rendered by the marketing site. */
+/**
+ * Where a written page appears.
+ *
+ * One record rather than two collections, because the difference between a blog post and
+ * a documentation page is presentation, not substance: the same words about how targeting
+ * works are an essay in one place and a reference in the other. Splitting them would mean
+ * writing them twice and letting the two copies drift.
+ */
+export type PostSurface = "blog" | "docs" | "both";
+
 export interface PostRecord {
   slug: string;
   title: string;
   description: string;
   body: string;
   status: "draft" | "published";
+  /** Blog, docs, or both. Older records with no value are blog posts. */
+  surface: PostSurface;
+  /** The docs sidebar group this belongs under. Ignored for blog-only posts. */
+  section: string;
+  /** Position within its docs section. Ties break on title. */
+  order: number;
+  /** Slugs of related pages, for the "see also" list. */
+  related: string[];
+  authorUid: string;
+  publishedAt: number | null;
+  updatedAt: number;
+}
+
+/**
+ * A release, as announced to people already running the editor.
+ *
+ * Separate from a blog post because it answers a different question - "what changed in the
+ * version I just got" - and because the desktop client decides whether to interrupt anybody
+ * based on fields a post does not have.
+ */
+export interface ReleaseRecord {
+  /** Semver, and the key. One record per version, ever. */
+  version: string;
+  title: string;
+  /** Markdown, as the blog uses. */
+  body: string;
+  /** The two or three lines worth reading, for the popup that has room for little else. */
+  highlights: string[];
+  /**
+   * Whether this release is worth interrupting anybody about.
+   *
+   * False installs silently. Most releases should be false: a popup for every patch is how
+   * a release note becomes something people close without reading.
+   */
+  announce: boolean;
+  /** Bypasses the quiet-moment rules, and nothing else. Never the once-per-version rule. */
+  critical: boolean;
+  status: "draft" | "published";
+  /** `agent` when a tool drafted it. Shown in the admin list so a human knows to read it. */
+  authoredBy: "human" | "agent";
   authorUid: string;
   publishedAt: number | null;
   updatedAt: number;
@@ -251,6 +301,11 @@ export interface Store {
   putPost(post: PostRecord): Promise<void>;
   getPost(slug: string): Promise<PostRecord | null>;
   listPosts(options: { publishedOnly: boolean }): Promise<PostRecord[]>;
+
+  putRelease(release: ReleaseRecord): Promise<void>;
+  getRelease(version: string): Promise<ReleaseRecord | null>;
+  /** Newest first. Published only when `publishedOnly`; the admin view wants drafts too. */
+  listReleases(options: { publishedOnly: boolean }): Promise<ReleaseRecord[]>;
 
   /** Queues one creative to be served to this uid on their next request, ignoring targeting. */
   setTestServe(uid: string, creativeId: string): Promise<void>;

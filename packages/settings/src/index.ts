@@ -126,6 +126,15 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     true,
   ),
 
+  bool(
+    "adcode.updates.announce",
+    "updates",
+    "Tell me what changed",
+    "After an update installs, show a short note about what is new. Once per version, never while you are typing or running something, and only for releases worth mentioning. What's New under Help has every note whether this is on or off.",
+    true,
+    true,
+  ),
+
   /* ── Ads (§1, §8.1) ─────────────────────────────────────────────────── */
   bool(
     "adcode.ads.enabled",

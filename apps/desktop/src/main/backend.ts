@@ -19,7 +19,11 @@ import {
 } from "@adcode/ads";
 
 /** Production. Overridden by `ADCODE_AD_SERVER`, which is how the mock server is used. */
-export const DEFAULT_API_ORIGIN = "https://api.adcode.bluethenics.com";
+/*
+ * The site's origin, not an `api.` subdomain: the service is served by the same Cloudflare
+ * Worker as the marketing site, at `/v1/*`. One deployment, one hostname, one certificate.
+ */
+export const DEFAULT_API_ORIGIN = "https://adcode.bluethenics.com";
 
 /**
  * The Firebase web API key for `adcode-idle`.

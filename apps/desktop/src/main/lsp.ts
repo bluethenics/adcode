@@ -20,6 +20,7 @@
  * draw, because the alternative is an unhandled rejection in the main process taking the
  * window with it over a language server that was never essential.
  */
+import { appendOutput } from "./output.ts";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import {
   createMessageReader,
@@ -268,9 +269,17 @@ export function startServerFor(languageId: string): Session | null {
     for (const body of reader.push(new Uint8Array(chunk))) handleMessage(session, body);
   });
 
-  // Read and discard: a full stderr pipe blocks the child, and a language server that
-  // hangs at 40% of startup because nobody drained its logs is a very confusing bug.
-  child.stderr.on("data", () => {});
+  /*
+   * Drained, and now also kept.
+   *
+   * Draining is not optional - a full stderr pipe blocks the child, and a language server
+   * that hangs at 40% of startup because nobody read its logs is a very confusing bug. But
+   * discarding was throwing away the only account of *why* a server failed to start, which
+   * is the question people actually have. It goes to the Output panel now.
+   */
+  child.stderr.on("data", (chunk: Buffer) => {
+    appendOutput("language-server", `${spec.label}: ${chunk.toString("utf8")}`);
+  });
 
   child.on("error", (error) => {
     sessions.delete(languageId);

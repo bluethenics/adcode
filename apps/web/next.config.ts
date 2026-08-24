@@ -1,14 +1,21 @@
 import type { NextConfig } from "next";
 
 /**
- * `standalone` because this deploys to Cloud Run next to `services/api` - the output
- * carries its own trimmed node_modules, so the container does not need the repo's root
- * install (which includes Electron and Monaco, neither of which the site has any use for).
+ * This deploys to a Cloudflare Worker via `@opennextjs/cloudflare`.
+ *
+ * No `output: "standalone"`. That existed for Cloud Run, which needed a self-contained
+ * Node server in a container; the Cloudflare adapter builds its own bundle from `.next` and
+ * a standalone copy alongside it is just a second, unused build of the same app.
  */
 const config: NextConfig = {
-  output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
+
+  /*
+   * `services/api` lives outside this app's directory, and `/v1/*` imports it. Next
+   * refuses to bundle files from outside the project root without this.
+   */
+  experimental: { externalDir: true },
 
   async headers() {
     return [

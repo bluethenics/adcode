@@ -181,7 +181,52 @@ describe("blog posts", () => {
   };
 
   it("accepts a well-formed post", () => {
-    expect(parsePost(post)).toEqual(post);
+    expect(parsePost(post)).toMatchObject(post);
+  });
+
+  /*
+   * Every record written before pages could appear in the documentation is a blog post.
+   * Defaulting the other way would silently move old writing into a reference section it
+   * was never written for.
+   */
+  it("treats a post that says nothing about surfaces as a blog post", () => {
+    const read = parsePost(post);
+    expect(read?.surface).toBe("blog");
+    expect(read?.section).toBe("Guides");
+    expect(read?.order).toBe(0);
+    expect(read?.related).toEqual([]);
+  });
+
+  it("reads the docs fields when they are given", () => {
+    const read = parsePost({
+      ...post,
+      surface: "both",
+      section: "Editing",
+      order: 3,
+      related: ["other-page"],
+    });
+
+    expect(read?.surface).toBe("both");
+    expect(read?.section).toBe("Editing");
+    expect(read?.order).toBe(3);
+    expect(read?.related).toEqual(["other-page"]);
+  });
+
+  it("ignores a surface it does not recognise", () => {
+    expect(parsePost({ ...post, surface: "newsletter" })?.surface).toBe("blog");
+  });
+
+  it("drops a related slug that would break a URL", () => {
+    // These become links on a rendered page, so they get the same rule as a slug.
+    const read = parsePost({ ...post, related: ["fine-slug", "Not A Slug", "../escape"] });
+    expect(read?.related).toEqual(["fine-slug"]);
+  });
+
+  it("keeps the docs placement when an edit omits it", () => {
+    // The admin editor hides those fields for a blog-only page; saving from it must not
+    // wipe where the page sits should somebody move it back into the documentation.
+    const read = parsePost({ ...post, section: "   " });
+    expect(read?.section).toBe("Guides");
   });
 
   it("refuses a slug that would break a URL", () => {
