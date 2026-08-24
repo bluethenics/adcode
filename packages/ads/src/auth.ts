@@ -65,6 +65,33 @@ function readJson(bytes: Uint8Array): Record<string, unknown> | null {
   }
 }
 
+/**
+ * A refusal that arrived with a success status.
+ *
+ * `returnIdpCredential` changes how this endpoint reports failure: instead of an error
+ * status with `{ error: { message } }`, it answers 200 with a top-level `errorMessage`
+ * string. Nothing was looking for that, so a real refusal fell through to the token check
+ * and was reported as a malformed response.
+ *
+ * The codes below are the ones a person can act on. Anything else is passed through as
+ * sent, because an unrecognised code is still a better clue than a paraphrase of it.
+ */
+function idpRefusal(code: string): string {
+  if (code.startsWith("FEDERATED_USER_ID_ALREADY_LINKED")) {
+    return "that account is already attached to a different sign-in here - sign in with it instead of linking it";
+  }
+  if (code.startsWith("EMAIL_EXISTS")) {
+    return "that email already has an account here - sign in with the method you used before";
+  }
+  if (code.startsWith("CREDENTIAL_TOO_OLD_LOGIN_AGAIN")) {
+    return "that sign-in took too long to come back - try again";
+  }
+  if (code.startsWith("INVALID_IDP_RESPONSE")) {
+    return "the provider's response was not accepted - try again";
+  }
+  return code;
+}
+
 /** Firebase reports failures as `{ error: { message } }`; surface that message. */
 function errorMessage(body: Record<string, unknown> | null, status: number): string {
   const error = body?.["error"];
@@ -334,6 +361,11 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
      * malformed response, which names a bug in this client instead of the one thing the
      * person can actually do something about.
      */
+    // A 200 carrying a refusal. Checked before anything reads a token, because there will
+    // not be one.
+    const refused = body["errorMessage"];
+    if (typeof refused === "string" && refused.length > 0) return authError(idpRefusal(refused));
+
     if (body["needConfirmation"] === true) {
       return authError(
         "that email already signs in a different way - use that method instead, or pick another account",

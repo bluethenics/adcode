@@ -216,6 +216,33 @@ describe("linking", () => {
     expect(linked.error.detail).toContain("already signs in a different way");
   });
 
+  /*
+   * The other 200 that is not a link.
+   *
+   * `returnIdpCredential` reports failure as a success status with a top-level
+   * `errorMessage`, not as an error status. Reaching the token check at all means a real
+   * refusal was mistaken for a broken response.
+   */
+  it("reads a refusal that arrived with a 200", async () => {
+    const { auth } = build([signUpOk(), { json: { errorMessage: "FEDERATED_USER_ID_ALREADY_LINKED" } }]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("google-id-token");
+
+    if (linked.ok) throw new Error("expected a refusal");
+    expect(linked.error.detail).toContain("already attached to a different sign-in");
+  });
+
+  it("passes an unrecognised refusal through rather than paraphrasing it", async () => {
+    const { auth } = build([signUpOk(), { json: { errorMessage: "SOME_NEW_CODE" } }]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("google-id-token");
+
+    if (linked.ok) throw new Error("expected a refusal");
+    expect(linked.error.detail).toBe("SOME_NEW_CODE");
+  });
+
   it("names the fields a malformed response was missing", async () => {
     const { auth } = build([signUpOk(), { json: { idToken: "only-this" } }]);
     await auth.getToken();
