@@ -19,8 +19,19 @@ export const FIREBASE_PROJECT = process.env["NEXT_PUBLIC_FIREBASE_PROJECT_ID"] ?
  * rather than by a separate host - see `src/app/v1/[...segments]/route.ts`. That is what
  * makes every call from these pages same-origin, so there is no CORS preflight and no
  * second deployment to keep alive. Override only to point at a locally running API.
+ *
+ * Empty counts as unset. `.env.example` ships the key with no value - which is what "leave
+ * this alone unless you mean it" looks like in an env file - and `??` would happily hand
+ * back that empty string, making every server-side call a relative URL that no fetch can
+ * resolve. Anyone copying the example into `.env.production`, as SETUP.md step 8 says to,
+ * would hit it.
  */
-export const API_ORIGIN = process.env["NEXT_PUBLIC_API_ORIGIN"] ?? SITE_ORIGIN;
+const CONFIGURED_API_ORIGIN = process.env["NEXT_PUBLIC_API_ORIGIN"];
+
+export const API_ORIGIN =
+  CONFIGURED_API_ORIGIN === undefined || CONFIGURED_API_ORIGIN === ""
+    ? SITE_ORIGIN
+    : CONFIGURED_API_ORIGIN;
 
 /** Owner/repo that release artifacts are published to. */
 export const GITHUB_REPO = process.env["NEXT_PUBLIC_GITHUB_REPO"] ?? "bluethenics/adcode";
