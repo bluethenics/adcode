@@ -227,6 +227,28 @@ row, with `default_cpm_micros` of `8000000`.
 
 - [ ] "Success. No rows returned", 18 tables exist, `serving_config` has one row
 
+### 5b · Add the reporting and activity tables
+
+This is a second, smaller migration. It adds the timestamp that makes the advertiser charts
+possible and the table the editor reports coding activity into. **Run it after step 5, not
+instead of it.**
+
+1. Still in the **SQL Editor**, click **New query**.
+2. Open `supabase/migrations/20260824190000_activity_and_receipt_time.sql` from this repo.
+   Select all of it and copy it.
+3. Paste it in and click **Run**.
+
+You should see **"Success. No rows returned"** again.
+
+To check it worked: click **Table Editor** and look for a new table called
+`activity_daily` — that makes 19. Then click `receipts` and confirm it now has a
+`created_at` column on the right-hand end.
+
+If you skip this, the site still runs, but the portal's charts stay empty and the
+dashboard's "Coding" tab says no activity has been recorded.
+
+- [ ] "Success. No rows returned", `activity_daily` exists, `receipts` has `created_at`
+
 ### 6 · Copy the two Supabase values
 
 1. In the left sidebar, click the **gear icon** at the bottom (**Project Settings**).
@@ -269,7 +291,7 @@ no card.
 |---|---|
 | **Anonymous** | The editor signs in with no UI on first launch. Without this, nothing earns. |
 | **Google** | Sign-in from the editor and the web |
-| **GitHub** | Same |
+| **GitHub** | Same. Needs one more step - see 7b, or the button fails. |
 | **Email/Password** | Advertiser and admin sign-in on the web |
 
 **Anonymous is the one that breaks everything if you forget it.**
@@ -279,6 +301,61 @@ no card.
    message about an unauthorised domain — and it will look like a code bug.
 
 - [ ] All four providers enabled, `adcode.bluethenics.com` in Authorized domains
+
+### 7b · GitHub sign-in *on the website*
+
+Ticking **GitHub** in step 7 is not enough on its own. Google works with one switch because
+Firebase already has Google's credentials; every other provider needs an app you register
+yourself. Firebase will show the GitHub row as enabled and every attempt will fail with
+*"That sign-in method is switched off"* until you do this.
+
+This is a **different** OAuth app from the one in step 9b. That one is for the desktop
+editor and uses the device flow; this one is for a browser popup and needs a callback URL.
+One app cannot be both.
+
+**First, get the callback URL from Firebase.**
+
+1. In the Firebase console, **Build → Authentication → Sign-in method**.
+2. Click the **GitHub** row.
+3. Near the bottom is a line reading **"Authorisation callback URL"** with a value like
+   `https://adcode-idle.firebaseapp.com/__/auth/handler`. Click the copy icon next to it.
+   **Leave this tab open** — you come back to it in a moment.
+
+**Then register the app on GitHub.**
+
+4. In a new tab, go to **https://github.com/settings/developers**.
+5. Click **OAuth Apps**, then **New OAuth App**.
+6. Fill it in:
+
+| Field | What to put |
+|---|---|
+| **Application name** | `ADCode` — this is what people see on the consent screen, so use the real name |
+| **Homepage URL** | `https://adcode.bluethenics.com` |
+| **Authorization callback URL** | the URL you copied from Firebase in step 3 |
+
+7. Click **Register application**.
+8. On the page that appears, copy the **Client ID**.
+9. Click **Generate a new client secret**, then copy the secret. **It is shown once.** If you
+   navigate away without copying it, generate another one — you cannot read the first again.
+
+**Then finish in Firebase.**
+
+10. Back in the Firebase tab, paste the **Client ID** and **Client secret** into the GitHub
+    row, make sure the **Enable** toggle is on, and click **Save**.
+
+**To check it worked:** open `https://adcode.bluethenics.com/dashboard` in a private window
+and click **Continue with GitHub**. A GitHub window should open asking to authorise ADCode.
+After you approve it you land on the dashboard, signed in.
+
+If instead you see *"You already have an account with that email, created with a different
+sign-in method"*, that is not a fault — it means that email already signed up with Google or
+a password, and Firebase refuses to merge the two silently. Use the method you signed up
+with.
+
+No scopes are requested, so the consent screen only asks for your public profile and email.
+Nothing ADCode does needs access to anybody's repositories.
+
+- [ ] The GitHub button signs you in on the live site
 
 ### 8 · Copy the Firebase web values and write the env file
 
