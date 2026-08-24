@@ -316,6 +316,37 @@ deployed, which is next.
 
 - [ ] Ran with the key and saw the account button
 
+### 9b · Google and GitHub sign-in *in the editor* (optional)
+
+**Anonymous sign-in needs nothing more than the key above, and anonymous is the one that
+earns.** Skip this until people ask for it.
+
+The editor cannot use the website's sign-in. A popup in a browser and a desktop application
+are different OAuth cases, so the editor runs its own flows, and they need their own client
+ids. Without them those two buttons say *"Google sign-in isn't configured in this build"* —
+which is the truth, not a fault.
+
+**Google.** https://console.cloud.google.com → the `adcode-idle` project → **APIs & Services
+→ Credentials → Create credentials → OAuth client ID** → application type **Desktop app**.
+You get a client id and a client secret.
+
+**GitHub.** https://github.com/settings/developers → **New OAuth App**. Any homepage URL.
+Then open the app and **enable Device Flow** — the editor uses the device flow, because a
+desktop app cannot keep a redirect URL to itself.
+
+```powershell
+$env:ADCODE_FIREBASE_API_KEY  = "<the apiKey>"
+$env:ADCODE_GOOGLE_CLIENT_ID  = "<the desktop client id>"
+$env:ADCODE_GOOGLE_CLIENT_SECRET = "<the desktop client secret>"
+$env:ADCODE_GITHUB_CLIENT_ID  = "<the GitHub client id>"
+npm start
+```
+
+These are read when the app is **built**, so a packaged installer carries whatever was set
+when you ran `npm run package`.
+
+- [ ] Skipped, or both buttons work in the editor
+
 ---
 
 ## Phase 4 — Cloudflare (hosting)
@@ -596,7 +627,10 @@ public.
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `ADCODE_FIREBASE_API_KEY` | yes | Anonymous auth and account linking |
+| `ADCODE_FIREBASE_API_KEY` | yes | Anonymous sign-in and email/password linking |
+| `ADCODE_GOOGLE_CLIENT_ID` | no | Google sign-in in the editor. Without it that button says so. |
+| `ADCODE_GOOGLE_CLIENT_SECRET` | no | With the above |
+| `ADCODE_GITHUB_CLIENT_ID` | no | GitHub sign-in in the editor. Without it that button says so. |
 | `ADCODE_AD_SERVER` | no | Defaults to `https://adcode.bluethenics.com` |
 
 ---
