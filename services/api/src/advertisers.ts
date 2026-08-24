@@ -18,6 +18,7 @@ import {
   type CreateAdvertiserBody,
   type CreativeBody,
 } from "./contract.ts";
+import { startOfDayBefore } from "./day.ts";
 import { formatMicros } from "./money.ts";
 import type {
   AdvertiserRecord,
@@ -317,6 +318,46 @@ export async function listCreatives(
 
   const records = await deps.store.allCreativesForCampaign(campaignId);
   return ok(records.map(creativeView));
+}
+
+/* ── Reporting ──────────────────────────────────────────────────────────── */
+
+/** One campaign's numbers for one UTC day, as the portal reads them. */
+export interface SeriesPointView {
+  day: string;
+  campaignId: string;
+  impressions: number;
+  clicks: number;
+  spentMicros: string;
+}
+
+/**
+ * The daily rollup behind the portal's charts.
+ *
+ * Bounded rather than open-ended: `days` is clamped to a sane window by the caller, and
+ * every point is aggregate. An advertiser never learns who saw anything - the same rule
+ * `campaignView` follows, and the reason the ads are tolerated at all.
+ */
+export async function campaignSeries(
+  deps: AdvertiserDeps,
+  uid: string,
+  days: number,
+): Promise<Outcome<SeriesPointView[]>> {
+  const found = await requireAdvertiser(deps, uid);
+  if (!found.ok) return found;
+
+  const since = startOfDayBefore(deps.clock.now(), days);
+  const points = await deps.store.seriesForAdvertiser(found.value.advertiserId, since);
+
+  return ok(
+    points.map((point) => ({
+      day: point.day,
+      campaignId: point.campaignId,
+      impressions: point.impressions,
+      clicks: point.clicks,
+      spentMicros: formatMicros(point.spentMicros),
+    })),
+  );
 }
 
 /* ── Limits, published so the portal can validate before submitting ─────── */

@@ -44,6 +44,15 @@ export const LIMITS = {
   body: 160,
   creativeId: 64,
   url: 2048,
+  /**
+   * A logo may be a `data:` URI, so it gets its own ceiling.
+   *
+   * The portal resizes what you drop in to 128x128 before it is ever sent, which lands
+   * well under this - 96,000 characters is roughly a 70KB image once base64 has added
+   * its third. Large enough that a legitimate logo never trips it, small enough that a
+   * creative row cannot become a file store.
+   */
+  logo: 96_000,
   maxCreatives: 50,
 } as const;
 
@@ -228,6 +237,91 @@ export function parseReportRequest(raw: unknown): SubmitReportBody | null {
   return { kind: kind as ReportKind, title: t, body: b, appVersion: v, platform: p };
 }
 
+/* ── Editor activity ────────────────────────────────────────────────────── */
+
+/**
+ * One flush of editor activity: what happened since the last one.
+ *
+ * Every field is a count or a duration. There is deliberately no field that could carry
+ * a file name, a path, a language, a prompt, or a line of code - see `activity.ts`.
+ */
+export interface ActivityBody {
+  /** 'YYYY-MM-DD', UTC. The day the work happened on, not the day it was sent. */
+  day: string;
+  manualChars: number;
+  agentChars: number;
+  acceptedEdits: number;
+  rejectedEdits: number;
+  filesTouched: number;
+  activeMs: number;
+  sessions: number;
+}
+
+/**
+ * Ceilings, not expectations.
+ *
+ * A day cannot hold more than 86,400,000 milliseconds, and a person cannot type ten
+ * million characters in one. These exist so a client bug - or a client that is lying -
+ * cannot write a number that makes every chart after it unreadable. A flush that exceeds
+ * one is rejected whole rather than clamped: a silently corrected number is a number
+ * nobody investigates.
+ */
+export const ACTIVITY_CEILINGS = {
+  chars: 10_000_000,
+  edits: 100_000,
+  files: 10_000,
+  activeMs: 86_400_000,
+  sessions: 1_000,
+} as const;
+
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A whole, non-negative number no larger than `max`. Rejects NaN, Infinity, and 1.5. */
+function count(value: unknown, max: number): number | null {
+  if (typeof value !== "number" || !Number.isInteger(value)) return null;
+  return value < 0 || value > max ? null : value;
+}
+
+export function parseActivity(raw: unknown): ActivityBody | null {
+  if (!isRecord(raw)) return null;
+
+  const day = raw["day"];
+  if (typeof day !== "string" || !DAY.test(day)) return null;
+  // A string that matches the shape can still not be a date - '2026-13-45' does.
+  if (Number.isNaN(Date.parse(`${day}T00:00:00.000Z`))) return null;
+
+  const manualChars = count(raw["manualChars"], ACTIVITY_CEILINGS.chars);
+  const agentChars = count(raw["agentChars"], ACTIVITY_CEILINGS.chars);
+  const acceptedEdits = count(raw["acceptedEdits"], ACTIVITY_CEILINGS.edits);
+  const rejectedEdits = count(raw["rejectedEdits"], ACTIVITY_CEILINGS.edits);
+  const filesTouched = count(raw["filesTouched"], ACTIVITY_CEILINGS.files);
+  const activeMs = count(raw["activeMs"], ACTIVITY_CEILINGS.activeMs);
+  const sessions = count(raw["sessions"], ACTIVITY_CEILINGS.sessions);
+
+  if (
+    manualChars === null ||
+    agentChars === null ||
+    acceptedEdits === null ||
+    rejectedEdits === null ||
+    filesTouched === null ||
+    activeMs === null ||
+    sessions === null
+  ) {
+    return null;
+  }
+
+  return {
+    day,
+    manualChars,
+    agentChars,
+    acceptedEdits,
+    rejectedEdits,
+    filesTouched,
+    activeMs,
+    sessions,
+  };
+}
+
 /* ── Advertiser portal ──────────────────────────────────────────────────── */
 
 /**
@@ -287,6 +381,26 @@ function httpsUrl(value: unknown): string | null {
   }
 }
 
+/**
+ * A logo: an https URL, or an inline image.
+ *
+ * Inline is what the portal actually sends. Asking an advertiser to host a PNG somewhere
+ * before they can run an ad is a step that loses people who were otherwise ready to pay,
+ * so the portal resizes the file they drop in and sends the pixels.
+ *
+ * The allow-list of media types is the point of this function. `data:` is a URL scheme
+ * that carries a payload, and the one that carries `text/html` or `image/svg+xml` carries
+ * script - which would run wherever the card is rendered. Only the three raster formats
+ * are accepted, and none of them can execute anything.
+ */
+const LOGO_DATA = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+function logoSource(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > LIMITS.logo) return null;
+  if (value.startsWith("data:")) return LOGO_DATA.test(value) ? value : null;
+  return httpsUrl(value);
+}
+
 export function parseCreateAdvertiser(raw: unknown): CreateAdvertiserBody | null {
   if (!isRecord(raw)) return null;
   const name = boundedText(raw["name"], ADVERTISER_LIMITS.name);
@@ -336,8 +450,8 @@ export function parseCreative(raw: unknown): CreativeBody | null {
   }
 
   const clickUrl = httpsUrl(raw["clickUrl"]);
-  const logoLight = httpsUrl(raw["logoLight"]);
-  const logoDark = httpsUrl(raw["logoDark"]);
+  const logoLight = logoSource(raw["logoLight"]);
+  const logoDark = logoSource(raw["logoDark"]);
   if (clickUrl === null || logoLight === null || logoDark === null) return null;
 
   return { campaignId, advertiser, headline, body, clickUrl, logoLight, logoDark };

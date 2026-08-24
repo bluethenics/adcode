@@ -25,6 +25,7 @@
  */
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../src/ledger.ts";
 import {
+  ACTIVITY_COLS,
   ADVERTISER_COLS,
   ADMIN_COLS,
   AUDIT_COLS,
@@ -54,6 +55,7 @@ import {
   fromReport,
   fromServe,
   fromUser,
+  toActivity,
   toAdvertiser,
   toAdmin,
   toAudit,
@@ -69,6 +71,7 @@ import {
   toReport,
   toServe,
   toUser,
+  type ActivityRow,
   type AdvertiserRow,
   type AdminRow,
   type AuditRow,
@@ -86,8 +89,10 @@ import {
   type UserRow,
 } from "./supabaseRows.ts";
 import type {
+  ActivityDay,
   CampaignStats,
   EntryPage,
+  SeriesPoint,
   Page,
   ReportPage,
   ServingConfig,
@@ -348,8 +353,62 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
           p_outcome: receipt.outcome,
           p_credited_micros: fromMicros(receipt.creditedMicros),
           p_cost_micros: fromMicros(receipt.costMicros),
+          p_created_at: receipt.createdAt,
         }),
       );
+    },
+
+    async seriesForAdvertiser(advertiserId, since): Promise<SeriesPoint[]> {
+      // Grouped in the database, like `statsForCampaign` and for the same reason: the
+      // naive version pulls every receipt row across the wire to count it in JavaScript.
+      const rows = await many<{
+        day: string;
+        campaign_id: string;
+        impressions: number;
+        clicks: number;
+        spent_micros: string;
+      }>("seriesForAdvertiser", (db) =>
+        db.rpc("series_for_advertiser", { p_advertiser_id: advertiserId, p_since: since }),
+      );
+
+      return rows.map((row) => ({
+        day: row.day,
+        campaignId: row.campaign_id,
+        impressions: Number(row.impressions),
+        clicks: Number(row.clicks),
+        spentMicros: toMicros(row.spent_micros),
+      }));
+    },
+
+    async addActivity(delta) {
+      // A function, not an upsert: two editor windows flushing at once would both read
+      // the old row and both write their own delta over it, and the day would record
+      // whichever landed second instead of the sum.
+      const { error } = await (await lazy()).rpc("add_activity", {
+        p_uid: delta.uid,
+        p_day: delta.day,
+        p_manual_chars: delta.manualChars,
+        p_agent_chars: delta.agentChars,
+        p_accepted_edits: delta.acceptedEdits,
+        p_rejected_edits: delta.rejectedEdits,
+        p_files_touched: delta.filesTouched,
+        p_active_ms: delta.activeMs,
+        p_sessions: delta.sessions,
+        p_updated_at: delta.at,
+      });
+      if (error !== null) fail("addActivity", error);
+    },
+
+    async activityForUser(uid, sinceDay): Promise<ActivityDay[]> {
+      const rows = await many<ActivityRow>("activityForUser", (db) =>
+        db
+          .from("activity_daily")
+          .select(ACTIVITY_COLS)
+          .eq("uid", uid)
+          .gte("day", sinceDay)
+          .order("day", { ascending: false }),
+      );
+      return rows.map(toActivity);
     },
 
     async appendEntryAndUpdateBalance(entry: LedgerEntry) {

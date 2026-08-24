@@ -48,6 +48,7 @@ describe("receipt idempotency under Firestore", () => {
       outcome: "impression",
       creditedMicros: 4_000n,
       costMicros: 8_000n,
+      createdAt: 1_700_000_000_000,
     };
 
     expect(await store.createReceiptIfAbsent(record)).toBe(true);

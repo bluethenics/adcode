@@ -85,6 +85,8 @@ export interface ReceiptRecord {
   creditedMicros: bigint;
   /** What the advertiser was charged. The user's credit is a share of this. */
   costMicros: bigint;
+  /** When it was verified. Without this every advertiser figure is a lifetime total. */
+  createdAt: number;
 }
 
 /** What an advertiser sees for one campaign. Counts, not identities. */
@@ -94,6 +96,49 @@ export interface CampaignStats {
   impressions: number;
   clicks: number;
   spentMicros: bigint;
+}
+
+/**
+ * One campaign's numbers for one UTC day.
+ *
+ * The unit both advertiser charts are built from: summed across campaigns it is the
+ * account-wide line, kept split it is the per-campaign one.
+ */
+export interface SeriesPoint {
+  day: string;
+  campaignId: string;
+  impressions: number;
+  clicks: number;
+  spentMicros: bigint;
+}
+
+/**
+ * A day of editing, as the desktop app saw it.
+ *
+ * Counts only. Nothing here can reconstruct a keystroke, a filename or a line of code -
+ * the same rule the ad tags follow, for the same reason.
+ */
+export interface ActivityDay {
+  day: string;
+  manualChars: number;
+  agentChars: number;
+  acceptedEdits: number;
+  rejectedEdits: number;
+  filesTouched: number;
+  activeMs: number;
+  sessions: number;
+}
+
+/**
+ * One flush from an editor window: what happened since the last one.
+ *
+ * Deltas, not totals. A second window, a crash, or a reinstall all break the assumption
+ * that a client knows its own running total, and a client that under-reports a total
+ * would move the number backwards. Deltas only ever add.
+ */
+export interface ActivityDelta extends ActivityDay {
+  uid: string;
+  at: number;
 }
 
 export interface ServingConfig {
@@ -285,6 +330,14 @@ export interface Store {
 
   /** True when created, false when the id already existed. This is the idempotency gate. */
   createReceiptIfAbsent(receipt: ReceiptRecord): Promise<boolean>;
+
+  /** Per-campaign, per-day rollup for one advertiser, from `since` (ms) to now. */
+  seriesForAdvertiser(advertiserId: string, since: number): Promise<SeriesPoint[]>;
+
+  /** Adds one flush's deltas to its day. Concurrent flushes must both count. */
+  addActivity(delta: ActivityDelta): Promise<void>;
+  /** Newest day first, from `sinceDay` ('YYYY-MM-DD') inclusive. */
+  activityForUser(uid: string, sinceDay: string): Promise<ActivityDay[]>;
 
   /** Appends and updates the derived balance atomically. Throws if the entry id exists. */
   appendEntryAndUpdateBalance(entry: LedgerEntry): Promise<void>;

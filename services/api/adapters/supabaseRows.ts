@@ -19,6 +19,7 @@
  */
 import type { LedgerEntry } from "../src/ledger.ts";
 import type {
+  ActivityDay,
   AdvertiserRecord,
   AdminRecord,
   AuditRecord,
@@ -115,6 +116,20 @@ export interface ReceiptRow {
   outcome: string;
   credited_micros: string;
   cost_micros: string;
+  created_at: number;
+}
+
+export interface ActivityRow {
+  uid: string;
+  day: string;
+  manual_chars: string;
+  agent_chars: string;
+  accepted_edits: number;
+  rejected_edits: number;
+  files_touched: number;
+  active_ms: string;
+  sessions: number;
+  updated_at: number;
 }
 
 export interface LedgerRow {
@@ -252,6 +267,8 @@ export const CONFIG_COLS =
 export const AUDIT_COLS = "admin_uid,action,subject_uid,at";
 
 export const ADMIN_COLS = "email,added_by,added_at";
+export const ACTIVITY_COLS =
+  "uid,day,manual_chars::text,agent_chars::text,accepted_edits,rejected_edits,files_touched,active_ms::text,sessions,updated_at";
 
 // ---------------------------------------------------------------------------
 // Row to record.
@@ -398,6 +415,29 @@ export function toReceipt(row: ReceiptRow): ReceiptRecord {
     outcome: row.outcome,
     creditedMicros: toMicros(row.credited_micros),
     costMicros: toMicros(row.cost_micros),
+    createdAt: row.created_at,
+  };
+}
+
+/**
+ * An activity row to a day.
+ *
+ * The counters are `bigint` columns selected as text, like every other `bigint` here -
+ * but unlike money they are small enough to be numbers in the record, because a character
+ * count that reached 2^53 would mean nine petabytes of typing. `Number` is applied after
+ * the text arrives, so the truncation the text cast exists to prevent cannot happen on
+ * the wire either way.
+ */
+export function toActivity(row: ActivityRow): ActivityDay {
+  return {
+    day: row.day,
+    manualChars: Number(row.manual_chars),
+    agentChars: Number(row.agent_chars),
+    acceptedEdits: row.accepted_edits,
+    rejectedEdits: row.rejected_edits,
+    filesTouched: row.files_touched,
+    activeMs: Number(row.active_ms),
+    sessions: row.sessions,
   };
 }
 

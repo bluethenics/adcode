@@ -75,6 +75,10 @@ export async function handleReceipts(
       outcome: receipt.outcome,
       creditedMicros: credit,
       costMicros: cost,
+      // Verification time, not the client's claimed view time. The client controls the
+      // latter, and a receipt that could date itself could move spend into a day the
+      // advertiser has already been billed for.
+      createdAt: now,
     });
 
     if (!created) {

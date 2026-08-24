@@ -41,6 +41,7 @@ import { handleAdminListReports, handleSubmitReport } from "./reports.ts";
 import { checkRate } from "./rateLimit.ts";
 import { corsHeaders } from "./cors.ts";
 import {
+  campaignSeries,
   createAdvertiser,
   createCampaign,
   createCreative,
@@ -52,7 +53,8 @@ import {
   type AdvertiserError,
   type Outcome,
 } from "./advertisers.ts";
-import { parseCampaign, parseCreateAdvertiser, parseCreative } from "./contract.ts";
+import { ACTIVITY_LIMITS, readActivity, recordActivity } from "./activity.ts";
+import { parseActivity, parseCampaign, parseCreateAdvertiser, parseCreative } from "./contract.ts";
 import { handleFundingWebhook } from "./funding.ts";
 import { parseCountry, parseFundingAmount, type PaymentProvider } from "./payments.ts";
 import { createMemoryStore } from "./memoryStore.ts";
@@ -109,6 +111,20 @@ function pageFrom(url: URL): { limit: number; cursor: string | null } {
   const raw = Number(url.searchParams.get("limit") ?? String(DEFAULT_PAGE_LIMIT));
   const limit = Number.isInteger(raw) ? Math.max(1, Math.min(raw, MAX_PAGE_LIMIT)) : DEFAULT_PAGE_LIMIT;
   return { limit, cursor: url.searchParams.get("cursor") };
+}
+
+/**
+ * `?days=` for the two reporting endpoints.
+ *
+ * A missing, non-numeric, or out-of-range value falls back to the default rather than
+ * failing: a chart that refuses to render because a query string was fat-fingered is
+ * worse than a chart showing the usual window. The handlers clamp again on their own -
+ * this is the transport's answer, not the rule.
+ */
+function daysFrom(url: URL, fallback: number): number {
+  const raw = Number(url.searchParams.get("days") ?? "");
+  if (!Number.isInteger(raw) || raw < 1) return fallback;
+  return Math.min(raw, 365);
 }
 
 const ADMIN_LEDGER = /^\/v1\/admin\/users\/([^/]+)\/ledger$/;
@@ -649,6 +665,33 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
+    /* ── Editor activity ────────────────────────────────────────────── */
+
+    if (path === "/v1/activity" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const body = parseActivity(raw);
+      if (body === null) {
+        send(res, 400, { error: "malformed activity" }, cors);
+        return;
+      }
+      await recordActivity({ store, clock }, auth.uid, body);
+      // No body worth returning: the client is reporting, not asking. `{ ok: true }`
+      // rather than 204 so the response parses the same way every other one does.
+      send(res, 200, { ok: true }, cors);
+      return;
+    }
+
+    if (path === "/v1/activity" && req.method === "GET") {
+      send(
+        res,
+        200,
+        await readActivity({ store, clock }, auth.uid, daysFrom(url, ACTIVITY_LIMITS.defaultDays)),
+        cors,
+      );
+      return;
+    }
+
     /* ── Advertiser portal ──────────────────────────────────────────── */
 
     const advertiserDeps = { store, clock, ids };
@@ -683,6 +726,11 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
 
     if (path === "/v1/portal/campaigns" && req.method === "GET") {
       settle(await listCampaigns(advertiserDeps, auth.uid));
+      return;
+    }
+
+    if (path === "/v1/portal/series" && req.method === "GET") {
+      settle(await campaignSeries(advertiserDeps, auth.uid, daysFrom(url, 30)));
       return;
     }
 

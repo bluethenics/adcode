@@ -11,7 +11,10 @@
  * strings and converted at the boundary. That costs a little space and buys exactness.
  */
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../src/ledger.ts";
+import { utcDay } from "../src/day.ts";
 import type {
+  ActivityDay,
+  ActivityDelta,
   AdvertiserRecord,
   AdminRecord,
   AuditRecord,
@@ -27,6 +30,7 @@ import type {
   ReleaseRecord,
   ReportPage,
   ReportRecord,
+  SeriesPoint,
   UserPage,
   ServeRecord,
   ServingConfig,
@@ -249,6 +253,124 @@ export function createFirestoreStore(injected?: Firestore): Store {
       } catch {
         return false;
       }
+    },
+
+    async seriesForAdvertiser(advertiserId, since): Promise<SeriesPoint[]> {
+      const database = await lazy();
+
+      const campaignSnap = await database
+        .collection("campaigns")
+        .where("advertiserId", "==", advertiserId)
+        .get();
+      const mine = campaignSnap.docs.map((doc) => doc.id);
+      if (mine.length === 0) return [];
+
+      // `in` takes at most thirty values, so campaigns are queried in chunks. An
+      // advertiser with more than thirty campaigns is a normal advertiser, not an edge
+      // case, and a query that silently truncated at thirty would under-report spend.
+      const buckets = new Map<string, SeriesPoint>();
+
+      for (let index = 0; index < mine.length; index += 30) {
+        const snap = await database
+          .collection("receipts")
+          .where("campaignId", "in", mine.slice(index, index + 30))
+          .where("createdAt", ">=", since)
+          .get();
+
+        for (const doc of snap.docs) {
+          const raw = doc.data();
+          const campaignId = String(raw["campaignId"]);
+          const day = utcDay(Number(raw["createdAt"] ?? 0));
+          const key = `${day} ${campaignId}`;
+
+          const point = buckets.get(key) ?? {
+            day,
+            campaignId,
+            impressions: 0,
+            clicks: 0,
+            spentMicros: 0n,
+          };
+
+          if (raw["outcome"] === "click") point.clicks += 1;
+          else point.impressions += 1;
+          point.spentMicros += toMicros(raw["costMicros"]);
+
+          buckets.set(key, point);
+        }
+      }
+
+      return [...buckets.values()].sort(
+        (a, b) => a.day.localeCompare(b.day) || a.campaignId.localeCompare(b.campaignId),
+      );
+    },
+
+    async addActivity(delta: ActivityDelta) {
+      const database = await lazy();
+      // Composite id rather than a subcollection: one document per user per day is what
+      // the table's primary key means, and it makes the transaction below a single get.
+      const ref = database.collection("activity").doc(`${delta.uid}_${delta.day}`);
+
+      await database.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const raw = snap.data();
+
+        if (raw === undefined) {
+          tx.set(ref, {
+            uid: delta.uid,
+            day: delta.day,
+            manualChars: delta.manualChars,
+            agentChars: delta.agentChars,
+            acceptedEdits: delta.acceptedEdits,
+            rejectedEdits: delta.rejectedEdits,
+            filesTouched: delta.filesTouched,
+            activeMs: delta.activeMs,
+            sessions: delta.sessions,
+            updatedAt: delta.at,
+          });
+          return;
+        }
+
+        const at = (key: string): number => Number(raw[key] ?? 0);
+
+        tx.set(ref, {
+          uid: delta.uid,
+          day: delta.day,
+          manualChars: at("manualChars") + delta.manualChars,
+          agentChars: at("agentChars") + delta.agentChars,
+          acceptedEdits: at("acceptedEdits") + delta.acceptedEdits,
+          rejectedEdits: at("rejectedEdits") + delta.rejectedEdits,
+          // Not a sum: the client sends the day's distinct file count, and a file edited
+          // twice in a day is one file.
+          filesTouched: Math.max(at("filesTouched"), delta.filesTouched),
+          activeMs: at("activeMs") + delta.activeMs,
+          sessions: at("sessions") + delta.sessions,
+          updatedAt: delta.at,
+        });
+      });
+    },
+
+    async activityForUser(uid, sinceDay): Promise<ActivityDay[]> {
+      const snap = await (await lazy())
+        .collection("activity")
+        .where("uid", "==", uid)
+        .where("day", ">=", sinceDay)
+        .orderBy("day", "desc")
+        .get();
+
+      return snap.docs.map((doc) => {
+        const raw = doc.data();
+        const at = (key: string): number => Number(raw[key] ?? 0);
+        return {
+          day: String(raw["day"]),
+          manualChars: at("manualChars"),
+          agentChars: at("agentChars"),
+          acceptedEdits: at("acceptedEdits"),
+          rejectedEdits: at("rejectedEdits"),
+          filesTouched: at("filesTouched"),
+          activeMs: at("activeMs"),
+          sessions: at("sessions"),
+        };
+      });
     },
 
     async appendEntryAndUpdateBalance(entry: LedgerEntry) {

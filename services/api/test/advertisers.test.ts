@@ -102,6 +102,29 @@ describe("parseCreative", () => {
     expect(parseCreative({ ...CREATIVE, logoLight: "javascript:alert(1)" })).toBeNull();
   });
 
+  it("accepts an inline logo, which is what the portal uploads", () => {
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
+    expect(parseCreative({ ...CREATIVE, logoLight: png, logoDark: png })?.logoLight).toBe(png);
+  });
+
+  it("refuses an inline logo that could carry script", () => {
+    // `data:` is a URL scheme that carries a payload, and SVG and HTML payloads carry
+    // script - which would run wherever the card is rendered. Only raster formats pass.
+    for (const hostile of [
+      "data:image/svg+xml;base64,PHN2Zz48c2NyaXB0Pjwvc2NyaXB0Pjwvc3ZnPg==",
+      "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+      "data:image/png,<script>alert(1)</script>",
+      "data:image/png;base64,not base64 at all",
+    ]) {
+      expect(parseCreative({ ...CREATIVE, logoLight: hostile })).toBeNull();
+    }
+  });
+
+  it("refuses an inline logo past the size ceiling", () => {
+    const huge = `data:image/png;base64,${"A".repeat(100_000)}`;
+    expect(parseCreative({ ...CREATIVE, logoLight: huge })).toBeNull();
+  });
+
   it("refuses text past the limits the ad client enforces", () => {
     expect(parseCreative({ ...CREATIVE, headline: "x".repeat(81) })).toBeNull();
     expect(parseCreative({ ...CREATIVE, body: "x".repeat(161) })).toBeNull();

@@ -28,6 +28,7 @@ describe("receipt idempotency", () => {
       outcome: "impression",
       creditedMicros: 2000n,
       costMicros: 8_000n,
+      createdAt: 1_700_000_000_000,
     };
     expect(await store.createReceiptIfAbsent(record)).toBe(true);
     expect(await store.createReceiptIfAbsent(record)).toBe(false);
