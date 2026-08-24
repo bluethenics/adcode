@@ -89,6 +89,18 @@ export function authMessage(error: unknown): string {
       return "Use a password of at least six characters.";
     case "auth/popup-closed-by-user":
       return "The sign-in window closed before finishing.";
+    case "auth/popup-blocked":
+      return "Your browser blocked the sign-in window. Allow pop-ups for this site and try again.";
+    // The three below are configuration, not anything the person at the screen did wrong.
+    // They say so, because the generic message sent whoever hit this hunting in the wrong
+    // place - the host is missing from Firebase's Authorized domains, or the provider was
+    // never switched on. Both are one checkbox in a console nobody thinks to look at.
+    case "auth/unauthorized-domain":
+      return "This site's address isn't allowed to sign people in yet. Add it to Firebase → Authentication → Settings → Authorized domains.";
+    case "auth/operation-not-allowed":
+      return "That sign-in method is switched off. Enable it in Firebase → Authentication → Sign-in method.";
+    case "auth/configuration-not-found":
+      return "Sign-in is not configured for this Firebase project yet.";
     case "auth/too-many-requests":
       return "Too many attempts. Wait a few minutes and try again.";
     case "auth/network-request-failed":

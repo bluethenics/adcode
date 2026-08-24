@@ -45,6 +45,6 @@
 
   "vars": {
     /* Public by design: it identifies the site, it does not authorise anything. */
-    "NEXT_PUBLIC_SITE_ORIGIN": "https://adcode.bluethenics.com"
+    "NEXT_PUBLIC_SITE_ORIGIN": "https://adcode.bluethenics01.workers.dev"
   }
 }

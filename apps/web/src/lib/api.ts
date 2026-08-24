@@ -11,6 +11,21 @@
  */
 import { API_ORIGIN } from "./site";
 
+/**
+ * Where to send an API call from.
+ *
+ * Empty in the browser, which makes the call same-origin - correct by construction, because
+ * the API is this same deployment at `/v1/*`. `API_ORIGIN` is a `NEXT_PUBLIC_` value and so
+ * is frozen into the bundle at build time; using it here would pin the running page to
+ * whatever hostname was configured when it was built. That is not hypothetical: the first
+ * deployment answered on `workers.dev` while the bundle pointed every dashboard request at
+ * the custom domain, which did not resolve yet, and every call failed as "offline".
+ *
+ * On the server there is no origin to be relative to, so the absolute value is used - and
+ * must be non-empty, or static generation hangs rather than failing.
+ */
+const apiBase = (): string => (typeof window === "undefined" ? API_ORIGIN : "");
+
 export type ApiError =
   | "unauthenticated"
   | "no-advertiser"
@@ -82,7 +97,7 @@ export async function apiFetch<T>({ path, token, method = "GET", body }: ApiCall
   if (token === null) return { ok: false, error: "unauthenticated" };
 
   try {
-    const response = await fetch(`${API_ORIGIN}/v1${path}`, {
+    const response = await fetch(`${apiBase()}/v1${path}`, {
       method,
       headers: {
         authorization: `Bearer ${token}`,
