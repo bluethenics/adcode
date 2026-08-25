@@ -78,6 +78,7 @@ import { applyOverrides, matchesChord, parseChord, resolveBindings } from "../sh
 import type { BindingOverrides } from "../shared/keybindings.ts";
 import { scaffoldFor } from "@adcode/structure";
 import { createAccountMenu } from "./workbench/accountMenu.ts";
+import { createOnboardingSheet } from "./onboarding/onboardingSheet.ts";
 import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "./workbench/contextMenu.ts";
 import { createInlineEditor } from "./workbench/inlineEdit.ts";
 import type {
@@ -2076,6 +2077,32 @@ el<HTMLButtonElement>("report-toggle").addEventListener("click", () => reportDia
 
 /* The account button beside it, and the panel it opens. */
 createAccountMenu(el<HTMLButtonElement>("account-toggle"), document.body, confirmDialog);
+
+/*
+ * The welcome, on a machine that has not had one.
+ *
+ * After the account menu exists, because the tour's last step hands off to it rather than
+ * signing anybody in itself. Awaited against the main process rather than a local flag:
+ * the answer lives in `userData`, so a reinstall over the same profile does not re-run it
+ * and a genuinely fresh install does.
+ *
+ * Every step is skippable and the sheet is dismissible. First launch is promised to have
+ * no account and no wall (§8.4), and a tour you must finish before the editor works would
+ * be exactly that wall.
+ */
+const onboarding = createOnboardingSheet({
+  read: () => window.adcode.settings.read(),
+  write: (id, value) => window.adcode.settings.write(id, value),
+  openAccount: () => el<HTMLButtonElement>("account-toggle").click(),
+  complete: () => void window.adcode.onboarding.complete(),
+});
+
+void window.adcode.onboarding.completed().then((seen) => {
+  if (seen) return;
+  // A beat after first paint. Opening a modal in the same frame as the window appearing
+  // reads as a stutter rather than as a welcome.
+  window.setTimeout(() => onboarding.open(), 900);
+});
 
 /**
  * Who this window is signed in as, in the status bar after the version.

@@ -3755,6 +3755,49 @@ checks.helpGuideJumpsToSetting = await (async () => {
 })();
 
 /*
+ * The welcome sheet.
+ *
+ * Driven rather than waited for: the smoke run seeds its own `userData`, so this machine
+ * has never been welcomed and the sheet is on a 900ms timer from first paint. That timer
+ * has usually already fired by the time these run, which is why this opens it directly
+ * rather than racing it.
+ *
+ * What matters is that every step is escapable. First launch is promised to have no
+ * account and no wall, so a tour that could trap somebody - no skip, no Escape, a modal
+ * over an editor they cannot reach - would be a worse bug than the tour not existing.
+ */
+checks.onboardingIsSkippable = await (async () => {
+  const opened = await evaluate(
+    `(() => {
+       const existing = document.querySelector('dialog.onboarding');
+       if (existing === null) return 'no onboarding sheet in the document';
+       if (!existing.open) existing.showModal();
+       return {
+         steps: existing.querySelectorAll('.onboarding-dot').length,
+         hasSkip: existing.querySelector('.onboarding-skip') !== null,
+         hasThemeCards: existing.querySelectorAll('.theme-card').length,
+         heading: existing.querySelector('.onboarding-head h2')?.textContent ?? null,
+       };
+     })()`,
+  );
+  if (typeof opened === "string") return opened;
+
+  // Escape must close it. A modal that ignores Escape is a modal somebody is stuck in.
+  await evaluate(
+    `(() => { document.querySelector('dialog.onboarding')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return true; })()`,
+  );
+  await evaluate("document.querySelector('dialog.onboarding')?.close(); true");
+  await sleep(300);
+
+  return {
+    ...opened,
+    closes: (await evaluate("document.querySelector('dialog.onboarding')?.open === false")) === true,
+    // Once dismissed it must stay dismissed, or every launch reopens it.
+    remembered: (await evaluate("window.adcode.onboarding.completed()")) === true,
+  };
+})();
+
+/*
  * The theme picker, and that picking actually repaints the window.
  *
  * Themes are the one setting where the unit tests can prove the *rule* and nothing else:

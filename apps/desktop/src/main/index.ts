@@ -17,6 +17,7 @@ import { registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "
 import { registerIpc } from "./ipc.ts";
 import { registerSupportIpc } from "./supportIpc.ts";
 import { registerActivityIpc } from "./activity.ts";
+import { registerOnboardingIpc } from "./onboarding.ts";
 import { onUpdateStatus, registerUpdateIpc, startAutoUpdate } from "./autoUpdate.ts";
 import { startNoticePolling } from "./notices.ts";
 import { startReleasePolling } from "./releases.ts";
@@ -168,6 +169,7 @@ void app.whenReady().then(() => {
   registerIpc();
   registerSupportIpc();
   registerActivityIpc();
+  registerOnboardingIpc();
   registerUpdateIpc();
   registerAccountIpc();
 

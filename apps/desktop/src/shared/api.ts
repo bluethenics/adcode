@@ -529,6 +529,8 @@ export const CHANNELS = {
   appInfo: "app:info",
   supportSubmitReport: "support:submit-report",
   activityReport: "activity:report",
+  onboardingState: "onboarding:state",
+  onboardingComplete: "onboarding:complete",
   updateStatus: "update:status",
   serviceNotice: "notice:show",
   releaseAnnouncement: "release:announcement",
@@ -1322,6 +1324,12 @@ export interface AdcodeApi {
   readonly support: {
     /** Never rejects: a failure comes back as `{ ok: false, message }` to show the user. */
     submitReport(input: ReportInput): Promise<ReportResult>;
+  };
+  readonly onboarding: {
+    /** True once this machine has been welcomed. False on a fresh install. */
+    completed(): Promise<boolean>;
+    /** Records that it has. Never rejects - a failed write costs one repeat, not a crash. */
+    complete(): Promise<void>;
   };
   readonly activity: {
     /**

@@ -244,6 +244,10 @@ const api: AdcodeApi = {
   support: {
     submitReport: (input) => ipcRenderer.invoke(CHANNELS.supportSubmitReport, input),
   },
+  onboarding: {
+    completed: () => ipcRenderer.invoke(CHANNELS.onboardingState),
+    complete: () => ipcRenderer.invoke(CHANNELS.onboardingComplete),
+  },
   activity: {
     // `send`, not `invoke`: the renderer has nothing to wait for, and a counter flush
     // must never be able to hold up a keystroke.
