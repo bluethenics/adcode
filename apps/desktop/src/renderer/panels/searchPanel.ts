@@ -21,7 +21,16 @@ export interface SearchPanelDeps {
   readonly openAt: (path: string, line: number, column: number) => void;
   /** Called after a replace-all, so open editors can be re-read from disk. */
   readonly afterReplace: () => void;
+  /** Transient, non-blocking news: something happened and the panel carried on. */
   readonly notify: (message: string) => void;
+  /**
+   * An action that will not run, said where it cannot be missed.
+   *
+   * Separate from `notify` because the two are read differently: a refusal is the answer
+   * to a gesture somebody just made, and the status bar erases itself after four seconds
+   * whether or not anyone looked at it.
+   */
+  readonly refuse: (action: string, message: string) => void;
 }
 
 export function createSearchPanel(deps: SearchPanelDeps): SearchPanel {
@@ -176,7 +185,7 @@ export function createSearchPanel(deps: SearchPanelDeps): SearchPanel {
   replaceAll.addEventListener("click", () => {
     const query = currentQuery();
     if (query.pattern.length === 0) {
-      deps.notify("Type something to search for first.");
+      deps.refuse("Replace all", "Type something to search for first.");
       return;
     }
 

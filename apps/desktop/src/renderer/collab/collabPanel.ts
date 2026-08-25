@@ -29,7 +29,16 @@ export interface CollabPanelDeps {
   readonly host: HTMLElement;
   /** The status-bar button this hangs off. Drives placement and `aria-expanded`. */
   readonly anchor: HTMLElement;
+  /** Transient, non-blocking news: something happened and the panel carried on. */
   readonly notify: (message: string) => void;
+  /**
+   * An action that will not run, said where it cannot be missed.
+   *
+   * Separate from `notify` because the two are read differently: a refusal is the answer
+   * to a gesture somebody just made, and the status bar erases itself after four seconds
+   * whether or not anyone looked at it.
+   */
+  readonly refuse: (action: string, message: string) => void;
   /** Asks the user to confirm something consequential. Resolves false on cancel. */
   readonly confirm: (title: string, detail: string, confirmLabel: string) => Promise<boolean>;
   /** Asks for a line of text. `null` on cancel. */
@@ -267,7 +276,7 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
     void (async () => {
       const reissued = await window.adcode.collab.reencodeInvite(addressPicker.value);
       if (reissued === null) {
-        deps.notify("That address cannot be used for a session.");
+        deps.refuse("Change address", "That address cannot be used for a session.");
         return;
       }
 

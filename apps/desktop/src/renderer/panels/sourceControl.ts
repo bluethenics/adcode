@@ -274,7 +274,16 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
     event.preventDefault();
     const text = message.value.trim();
     if (text.length === 0) {
-      deps.notify("A commit needs a message.");
+      /*
+       * The dialog, not the status bar.
+       *
+       * Git's own "nothing is staged" refusal already lands here, because it comes back
+       * as a failed result. This one is caught before git is asked, and used to report to
+       * an 11px span in the corner that erases itself - so the same gesture, refused for
+       * two different reasons, answered in two different places and one of them was
+       * invisible. A refused action says so where the eye already is.
+       */
+      deps.reportResult({ action: "Commit", ok: false, message: "A commit needs a message." });
       return;
     }
 
@@ -481,7 +490,11 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   async function showBranchSwitcher(): Promise<void> {
     const branches = await window.adcode.git.branches().catch(() => []);
     if (branches.length === 0) {
-      deps.notify("No branches yet - make a commit first.");
+      deps.reportResult({
+        action: "Switch branch",
+        ok: false,
+        message: "No branches yet - make a commit first.",
+      });
       return;
     }
 
@@ -565,7 +578,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       await api.refresh();
       const paths = pathsWhere(false);
       if (paths.length === 0) {
-        deps.notify("Nothing to stage.");
+        deps.reportResult({ action: "Stage all", ok: false, message: "Nothing to stage." });
         return;
       }
 
@@ -579,7 +592,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       await api.refresh();
       const paths = pathsWhere(true);
       if (paths.length === 0) {
-        deps.notify("Nothing to unstage.");
+        deps.reportResult({ action: "Unstage all", ok: false, message: "Nothing to unstage." });
         return;
       }
 
