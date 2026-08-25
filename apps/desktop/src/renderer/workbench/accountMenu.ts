@@ -11,7 +11,7 @@
  * being believed the first time someone watched their balance rise while signed out.
  */
 import type { ConfirmDialog } from "../dialogs/confirmDialog.ts";
-import type { AccountState } from "../../shared/api.ts";
+import type { AccountState, LinkOutcome } from "../../shared/api.ts";
 
 export interface AccountMenu {
   isOpen(): boolean;
@@ -77,6 +77,20 @@ export function createAccountMenu(
 
   codeBox.append(codeValue, codeCopy, codeHint);
 
+  /**
+   * Shown only when a link was refused because the account already exists.
+   *
+   * The refusal used to end the conversation - it advised signing in with that account
+   * instead, and offered no way to. This is that way. It appears only when there is
+   * something to weigh: with nothing unclaimed on this machine, the main process signs
+   * in without asking and this button is never needed.
+   */
+  const signInInstead = document.createElement("button");
+  signInInstead.type = "button";
+  signInInstead.className = "account-provider account-signin-instead";
+  signInInstead.textContent = "Sign in to that account";
+  signInInstead.hidden = true;
+
   /** Shown only while a sign-in is waiting on the browser. */
   const cancel = document.createElement("button");
   cancel.type = "button";
@@ -94,7 +108,15 @@ export function createAccountMenu(
   footnote.className = "account-panel-foot";
   footnote.textContent = "Opens your browser. We never see your password.";
 
-  panel.append(heading, body, codeBox, actions, cancel, signOut, footnote);
+  /*
+   * Above the providers, not below them.
+   *
+   * When this button is showing, it is the answer - the two provider buttons underneath
+   * are the thing that just failed. Reading order should put the way forward first, and
+   * the accent fill separates it from the row of neutral buttons it would otherwise be
+   * mistaken for a third member of.
+   */
+  panel.append(heading, body, codeBox, signInInstead, actions, cancel, signOut, footnote);
   host.append(panel);
 
   let state: AccountState = { state: "anonymous" };
@@ -130,6 +152,7 @@ export function createAccountMenu(
       footnote.hidden = true;
       codeBox.hidden = true;
       cancel.hidden = true;
+      signInInstead.hidden = true;
       signOut.hidden = false;
 
       if (photo !== null && state.photoUrl !== null) {
@@ -147,6 +170,7 @@ export function createAccountMenu(
       "You're already earning — no account needed for that. Sign in to see your balance on the web and to withdraw it later.";
     actions.hidden = false;
     footnote.hidden = false;
+    signInInstead.hidden = true;
     signOut.hidden = true;
 
     if (photo !== null) photo.hidden = true;
@@ -164,13 +188,37 @@ export function createAccountMenu(
   const idle = (): void => {
     google.disabled = false;
     github.disabled = false;
+    signInInstead.disabled = false;
     cancel.hidden = true;
     codeBox.hidden = true;
+  };
+
+  /**
+   * Show whatever an attempt came back as.
+   *
+   * Three outcomes, not two: as well as done and refused there is now "the credential is
+   * fine, but the account already exists and switching to it costs this machine's
+   * unclaimed balance", which is a question rather than a failure and needs a button to
+   * answer it.
+   */
+  const settle = (outcome: LinkOutcome): void => {
+    idle();
+
+    if (outcome.ok) {
+      signInInstead.hidden = true;
+      state = outcome.state;
+      render();
+      return;
+    }
+
+    body.textContent = outcome.message;
+    signInInstead.hidden = !("decide" in outcome);
   };
 
   const attempt = (provider: "google" | "github") => {
     google.disabled = true;
     github.disabled = true;
+    signInInstead.hidden = true;
     cancel.hidden = false;
     codeBox.hidden = true;
     body.textContent =
@@ -180,20 +228,29 @@ export function createAccountMenu(
 
     void window.adcode.account
       .link(provider)
-      .then((outcome) => {
-        idle();
-        if (outcome.ok) {
-          state = outcome.state;
-          render();
-        } else {
-          body.textContent = outcome.message;
-        }
-      })
+      .then(settle)
       .catch(() => {
         idle();
+        signInInstead.hidden = true;
         body.textContent = "Sign-in didn't complete. Try again.";
       });
   };
+
+  signInInstead.addEventListener("click", () => {
+    signInInstead.disabled = true;
+    google.disabled = true;
+    github.disabled = true;
+    body.textContent = "Signing in…";
+
+    void window.adcode.account
+      .signInInstead()
+      .then(settle)
+      .catch(() => {
+        idle();
+        signInInstead.hidden = true;
+        body.textContent = "Sign-in didn't complete. Try again.";
+      });
+  });
 
   google.addEventListener("click", () => attempt("google"));
   github.addEventListener("click", () => attempt("github"));
@@ -202,6 +259,7 @@ export function createAccountMenu(
     // Optimistic: the flow resolves as cancelled a moment later and calls `idle()` itself,
     // but the button has to stop looking stuck the instant it is pressed.
     idle();
+    signInInstead.hidden = true;
     body.textContent = "Sign-in cancelled.";
     void window.adcode.account.cancelLink();
   });

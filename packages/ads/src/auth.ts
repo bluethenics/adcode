@@ -29,6 +29,7 @@ const SIGN_UP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signUp";
 const REFRESH_URL = "https://securetoken.googleapis.com/v1/token";
 const UPDATE_URL = "https://identitytoolkit.googleapis.com/v1/accounts:update";
 const IDP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp";
+const SIGN_IN_PASSWORD_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword";
 const LOOKUP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:lookup";
 const STORE_KEY = "ads/identity.json";
 
@@ -56,6 +57,16 @@ interface CachedToken {
 
 const authError = (detail: string): Result<never, AuthError> => err({ kind: "auth", detail });
 
+/**
+ * The refusal a caller can do something about.
+ *
+ * "This credential already belongs to another account" is the only failure where the
+ * remedy is mechanical rather than conversational - the credential is good, so signing
+ * in as the account it names works. `reason` carries that to the caller; see `AuthError`.
+ */
+const existsError = (detail: string): Result<never, AuthError> =>
+  err({ kind: "auth", detail, reason: "account-exists" });
+
 function readJson(bytes: Uint8Array): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(decoder.decode(bytes));
@@ -66,30 +77,40 @@ function readJson(bytes: Uint8Array): Record<string, unknown> | null {
 }
 
 /**
- * A refusal that arrived with a success status.
+ * What a refusal code means, whichever status carried it.
  *
  * `returnIdpCredential` changes how this endpoint reports failure: instead of an error
  * status with `{ error: { message } }`, it answers 200 with a top-level `errorMessage`
  * string. Nothing was looking for that, so a real refusal fell through to the token check
- * and was reported as a malformed response.
+ * and was reported as a malformed response. Both shapes arrive here now, because the same
+ * codes appear in both and reading them one way and not the other is how the 200 case got
+ * missed in the first place.
  *
  * The codes below are the ones a person can act on. Anything else is passed through as
  * sent, because an unrecognised code is still a better clue than a paraphrase of it.
  */
-function idpRefusal(code: string): string {
+function refusalOf(code: string): Result<never, AuthError> {
+  if (code.startsWith("EMAIL_NOT_FOUND")) {
+    return authError("no account here uses that email address");
+  }
+  if (code.startsWith("INVALID_PASSWORD") || code.startsWith("INVALID_LOGIN_CREDENTIALS")) {
+    return authError("that password does not match the account");
+  }
   if (code.startsWith("FEDERATED_USER_ID_ALREADY_LINKED")) {
-    return "that account is already attached to a different sign-in here - sign in with it instead of linking it";
+    return existsError(
+      "that account is already attached to a different sign-in here - sign in with it instead of linking it",
+    );
   }
   if (code.startsWith("EMAIL_EXISTS")) {
-    return "that email already has an account here - sign in with the method you used before";
+    return existsError("that email already has an account here - sign in with the method you used before");
   }
   if (code.startsWith("CREDENTIAL_TOO_OLD_LOGIN_AGAIN")) {
-    return "that sign-in took too long to come back - try again";
+    return authError("that sign-in took too long to come back - try again");
   }
   if (code.startsWith("INVALID_IDP_RESPONSE")) {
-    return "the provider's response was not accepted - try again";
+    return authError("the provider's response was not accepted - try again");
   }
-  return code;
+  return authError(code);
 }
 
 /** Firebase reports failures as `{ error: { message } }`; surface that message. */
@@ -150,6 +171,24 @@ export interface FirebaseAuth extends TokenProvider {
    */
   linkGoogle(googleIdToken: string): Promise<Result<LinkedProfile, AuthError>>;
   linkGitHub(githubAccessToken: string): Promise<Result<LinkedProfile, AuthError>>;
+
+  /**
+   * Adopt an account that already exists, instead of linking to this one.
+   *
+   * The mirror image of `link*`, and the thing that was missing: every link call names
+   * the current anonymous account in an `idToken`, which is exactly what makes Firebase
+   * treat it as a link and refuse when the credential belongs to somebody. Sending the
+   * same credential *without* an `idToken` signs in as its owner instead.
+   *
+   * This deliberately does the thing `link*` exists to prevent - the UID changes, so
+   * anything this machine earned anonymously stays on the UID being left behind. There
+   * is no merge; the server owns the ledger and it is keyed by UID. Call this only once
+   * the caller knows what is being given up, which in practice means after asking the
+   * server what the anonymous account's balance is.
+   */
+  signInGoogle(googleIdToken: string): Promise<Result<LinkedProfile, AuthError>>;
+  signInGitHub(githubAccessToken: string): Promise<Result<LinkedProfile, AuthError>>;
+  signInPassword(email: string, password: string): Promise<Result<LinkedProfile, AuthError>>;
 
   /** Null when the account is still anonymous. */
   profile(): Promise<Result<LinkedProfile | null, AuthError>>;
@@ -307,39 +346,41 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
   }
 
   /**
-   * Attach an identity-provider credential.
+   * An identity-provider credential, as the endpoint wants it.
+   *
+   * The same body whether the credential is being linked or signed in with - what makes
+   * the difference is the `idToken` the caller does or does not add alongside it.
    *
    * `requestUri` is required by the endpoint and unused when the credential arrives in a
    * post body, so any absolute URL satisfies it.
    */
-  async function linkIdp(
+  const idpPayload = (
     providerId: string,
     field: "id_token" | "access_token",
     credential: string,
-  ): Promise<Result<LinkedProfile, AuthError>> {
-    return link(IDP_URL, {
-      postBody: `${field}=${encodeURIComponent(credential)}&providerId=${providerId}`,
-      requestUri: "http://localhost",
-      returnIdpCredential: true,
-    });
-  }
+  ): Record<string, unknown> => ({
+    postBody: `${field}=${encodeURIComponent(credential)}&providerId=${providerId}`,
+    requestUri: "http://localhost",
+    returnIdpCredential: true,
+  });
 
-  async function link(
+  /**
+   * One call to an identity endpoint, with every way it says no already read.
+   *
+   * Shared by linking and signing in, which differ only in whether the request names the
+   * account already held (`idToken`) and in whether a change of UID is acceptable.
+   */
+  async function post(
     url: string,
     payload: Record<string, unknown>,
-  ): Promise<Result<LinkedProfile, AuthError>> {
-    const token = await currentToken();
-    if (!token.ok) return token;
-
-    const before = identity?.uid ?? null;
-
+  ): Promise<Result<Record<string, unknown>, AuthError>> {
     let response;
     try {
       response = await deps.http.request({
         method: "POST",
         url: `${url}?key=${encodeURIComponent(deps.apiKey)}`,
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...payload, idToken: token.value, returnSecureToken: true }),
+        body: JSON.stringify({ ...payload, returnSecureToken: true }),
         timeoutMs: AUTH_TIMEOUT_MS,
       });
     } catch (error) {
@@ -348,7 +389,7 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
 
     const body = readJson(response.body);
     if (response.status < 200 || response.status >= 300) {
-      return authError(errorMessage(body, response.status));
+      return refusalOf(errorMessage(body, response.status));
     }
     if (body === null) return authError("the sign-in service returned something unreadable");
 
@@ -364,28 +405,26 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
     // A 200 carrying a refusal. Checked before anything reads a token, because there will
     // not be one.
     const refused = body["errorMessage"];
-    if (typeof refused === "string" && refused.length > 0) return authError(idpRefusal(refused));
+    if (typeof refused === "string" && refused.length > 0) return refusalOf(refused);
 
     if (body["needConfirmation"] === true) {
+      /*
+       * Not marked `account-exists`, despite sounding like it.
+       *
+       * This one is not fixable by signing in with the same credential - the account uses
+       * a different method entirely, so re-sending this one without an `idToken` answers
+       * `needConfirmation` again. Only the person choosing another method resolves it.
+       */
       return authError(
         "that email already signs in a different way - use that method instead, or pick another account",
       );
     }
 
-    /*
-     * The UID must not change.
-     *
-     * If it did, the link created or switched to a different account and everything this
-     * machine has earned is now attached to a UID nobody is signed in as. Refusing keeps
-     * the anonymous identity intact so the balance is still reachable.
-     */
-    const localId = body["localId"];
-    if (before !== null && typeof localId === "string" && localId !== before) {
-      return authError(
-        "that account is already in use, so linking it would strand this machine's earnings",
-      );
-    }
+    return ok(body);
+  }
 
+  /** Take the tokens a successful call returned, and describe who was signed in. */
+  async function settle(body: Record<string, unknown>): Promise<Result<LinkedProfile, AuthError>> {
     if (!(await adoptTokens(body))) {
       // Name the fields that were missing. "Malformed" sent whoever hit this reading this
       // client's parsing code, when the answer is always in what the service sent back.
@@ -399,6 +438,57 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
       photoUrl: asText(body["photoUrl"]),
       providers: providersOf(body),
     });
+  }
+
+  async function link(
+    url: string,
+    payload: Record<string, unknown>,
+  ): Promise<Result<LinkedProfile, AuthError>> {
+    const token = await currentToken();
+    if (!token.ok) return token;
+
+    const before = identity?.uid ?? null;
+
+    const body = await post(url, { ...payload, idToken: token.value });
+    if (!body.ok) return body;
+
+    /*
+     * The UID must not change.
+     *
+     * If it did, the link created or switched to a different account and everything this
+     * machine has earned is now attached to a UID nobody is signed in as. Refusing keeps
+     * the anonymous identity intact so the balance is still reachable.
+     *
+     * Marked `account-exists`: the credential is good and names a real account, so the
+     * caller can offer to sign in as it once it knows what that would cost.
+     */
+    const localId = body.value["localId"];
+    if (before !== null && typeof localId === "string" && localId !== before) {
+      return existsError(
+        "that account is already in use, so linking it would strand this machine's earnings",
+      );
+    }
+
+    return settle(body.value);
+  }
+
+  /**
+   * The same call without the `idToken`, which is what makes it a sign-in.
+   *
+   * No UID check here, deliberately: changing UID is the point. Whatever the anonymous
+   * account held stays with the anonymous account.
+   */
+  async function signIn(
+    url: string,
+    payload: Record<string, unknown>,
+  ): Promise<Result<LinkedProfile, AuthError>> {
+    // Nothing on disk may overwrite the identity this is about to adopt.
+    loaded = true;
+
+    const body = await post(url, payload);
+    if (!body.ok) return body;
+
+    return settle(body.value);
   }
 
   return {
@@ -425,11 +515,23 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
     },
 
     async linkGoogle(googleIdToken: string): Promise<Result<LinkedProfile, AuthError>> {
-      return linkIdp("google.com", "id_token", googleIdToken);
+      return link(IDP_URL, idpPayload("google.com", "id_token", googleIdToken));
     },
 
     async linkGitHub(githubAccessToken: string): Promise<Result<LinkedProfile, AuthError>> {
-      return linkIdp("github.com", "access_token", githubAccessToken);
+      return link(IDP_URL, idpPayload("github.com", "access_token", githubAccessToken));
+    },
+
+    async signInGoogle(googleIdToken: string): Promise<Result<LinkedProfile, AuthError>> {
+      return signIn(IDP_URL, idpPayload("google.com", "id_token", googleIdToken));
+    },
+
+    async signInGitHub(githubAccessToken: string): Promise<Result<LinkedProfile, AuthError>> {
+      return signIn(IDP_URL, idpPayload("github.com", "access_token", githubAccessToken));
+    },
+
+    async signInPassword(email: string, password: string): Promise<Result<LinkedProfile, AuthError>> {
+      return signIn(SIGN_IN_PASSWORD_URL, { email, password });
     },
 
     async profile(): Promise<Result<LinkedProfile | null, AuthError>> {

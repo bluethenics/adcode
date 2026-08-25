@@ -396,3 +396,141 @@ describe("profile", () => {
     expect(profile.value.photoUrl).toBeNull();
   });
 });
+
+/* ── Signing in as an account that already exists ───────────────────────── */
+
+/*
+ * The dead end this closes.
+ *
+ * Every link names the current anonymous account in an `idToken`, and that is precisely
+ * what makes Firebase read the call as a link and refuse it when the credential already
+ * belongs to somebody. The refusal advised signing in with that account instead - advice
+ * nothing could follow, because linking was the only path this client had to the
+ * endpoint. These cover the path that was missing and the flag that tells a caller when
+ * to take it.
+ */
+describe("signing in as an account that already exists", () => {
+  it("sends no idToken, which is what makes it a sign-in and not a link", async () => {
+    const { http, auth } = build([signUpOk(), linkOk({ localId: "uid-existing" })]);
+    await auth.getToken();
+
+    await auth.signInGoogle("google-id-token");
+
+    const call = http.calls[1]!;
+    expect(call.url).toContain("accounts:signInWithIdp");
+    const body = JSON.parse(call.body ?? "{}");
+    expect(body).not.toHaveProperty("idToken");
+    expect(String(call.body)).toContain("id_token=google-id-token");
+  });
+
+  it("adopts the other account's uid, which linking exists to refuse", async () => {
+    const { auth } = build([signUpOk(), linkOk({ localId: "uid-existing" })]);
+    await auth.getToken();
+    expect(auth.uid()).toBe("uid-1");
+
+    const signed = await auth.signInGoogle("google-id-token");
+
+    expect(signed.ok).toBe(true);
+    expect(auth.uid()).toBe("uid-existing");
+  });
+
+  it("persists the adopted identity, so a restart stays on the new account", async () => {
+    const { store, auth } = build([signUpOk(), linkOk({ localId: "uid-existing" })]);
+    await auth.getToken();
+    await auth.signInGoogle("google-id-token");
+
+    const saved = JSON.parse(new TextDecoder().decode((await store.read("ads/identity.json"))!));
+    expect(saved.uid).toBe("uid-existing");
+    expect(saved.refreshToken).toBe("refresh-linked");
+  });
+
+  it("signs in with a password through accounts:signInWithPassword", async () => {
+    const { http, auth } = build([signUpOk(), linkOk({ localId: "uid-existing" })]);
+    await auth.getToken();
+
+    const signed = await auth.signInPassword("dev@example.com", "hunter2hunter2");
+
+    expect(signed.ok).toBe(true);
+    const call = http.calls[1]!;
+    expect(call.url).toContain("accounts:signInWithPassword");
+    expect(JSON.parse(call.body ?? "{}")).not.toHaveProperty("idToken");
+  });
+
+  it("sends a GitHub credential as an access_token here too", async () => {
+    const { http, auth } = build([signUpOk(), linkOk({ localId: "uid-existing" })]);
+    await auth.getToken();
+    await auth.signInGitHub("gho_token");
+
+    expect(String(http.calls[1]!.body)).toContain("access_token=gho_token");
+  });
+});
+
+describe("telling a caller when signing in would help", () => {
+  it("flags a credential that is already linked elsewhere", async () => {
+    const { auth } = build([signUpOk(), { json: { errorMessage: "FEDERATED_USER_ID_ALREADY_LINKED" } }]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("google-id-token");
+
+    if (linked.ok) throw new Error("expected a refusal");
+    expect(linked.error.reason).toBe("account-exists");
+  });
+
+  it("flags an email that is already taken", async () => {
+    const { auth } = build([signUpOk(), { json: { errorMessage: "EMAIL_EXISTS" } }]);
+    await auth.getToken();
+
+    const linked = await auth.linkPassword("dev@example.com", "hunter2hunter2");
+
+    if (linked.ok) throw new Error("expected a refusal");
+    expect(linked.error.reason).toBe("account-exists");
+  });
+
+  it("flags a link that moved the uid, since that account plainly exists", async () => {
+    const { auth } = build([signUpOk(), linkOk({ localId: "uid-someone-else" })]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("google-id-token");
+
+    if (linked.ok) throw new Error("expected a refusal");
+    expect(linked.error.reason).toBe("account-exists");
+  });
+
+  it("reads a refusal the same way when it arrives with an error status", async () => {
+    // The 200-shaped and 400-shaped refusals carry the same codes. Reading one and not
+    // the other is how the 200 case went unnoticed in the first place.
+    const { auth } = build([
+      signUpOk(),
+      { status: 400, json: { error: { message: "FEDERATED_USER_ID_ALREADY_LINKED" } } },
+    ]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("google-id-token");
+
+    if (linked.ok) throw new Error("expected a refusal");
+    expect(linked.error.reason).toBe("account-exists");
+    expect(linked.error.detail).toContain("already attached to a different sign-in");
+  });
+
+  it("does NOT flag a refusal that signing in would not fix", async () => {
+    // `needConfirmation` means the email signs in a different way entirely; re-sending
+    // this credential without an idToken answers `needConfirmation` again.
+    const { auth } = build([signUpOk(), { json: { needConfirmation: true } }]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("google-id-token");
+
+    if (linked.ok) throw new Error("expected a refusal");
+    expect(linked.error.reason).toBeUndefined();
+  });
+
+  it("does NOT flag a stale credential, which needs a fresh one and not a sign-in", async () => {
+    const { auth } = build([signUpOk(), { json: { errorMessage: "CREDENTIAL_TOO_OLD_LOGIN_AGAIN" } }]);
+    await auth.getToken();
+
+    const linked = await auth.linkGoogle("google-id-token");
+
+    if (linked.ok) throw new Error("expected a refusal");
+    expect(linked.error.reason).toBeUndefined();
+  });
+});

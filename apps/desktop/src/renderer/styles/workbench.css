@@ -1923,3 +1923,23 @@ body[data-resizing="y"] {
   font-size: 11px;
   color: var(--text-tertiary);
 }
+
+/*
+ * The recommended way out of a refused link.
+ *
+ * Filled with the accent rather than sharing `.account-provider`'s neutral chrome: when
+ * it is showing, it sits directly above the two buttons whose attempt just failed, and a
+ * third identical button is read as a third identical option rather than as the answer.
+ */
+.account-signin-instead {
+  margin-bottom: 2px;
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.account-signin-instead:hover {
+  /* The accent is already the loudest thing in the panel; lifting it further reads as a
+     different colour rather than a hover. Dimming keeps it recognisably the same button. */
+  background: color-mix(in srgb, var(--accent) 88%, var(--bg-elevated));
+}

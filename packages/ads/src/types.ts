@@ -198,6 +198,16 @@ export interface ValidationError {
 export interface AuthError {
   readonly kind: "auth";
   readonly detail: string;
+  /**
+   * Set when the refusal means "that credential already belongs to another account".
+   *
+   * The distinction matters because it is the one refusal a caller can act on without
+   * the user typing anything: the credential is good, it just names an account that
+   * already exists, so signing in as that account succeeds where linking to it cannot.
+   * Callers branch on this rather than matching the sentence, which is prose and will
+   * be reworded.
+   */
+  readonly reason?: "account-exists";
 }
 
 export interface ClientError {

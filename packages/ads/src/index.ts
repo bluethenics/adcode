@@ -29,6 +29,7 @@ export {
   REFRESH_SKEW_MS,
   type FirebaseAuth,
   type FirebaseAuthDeps,
+  type LinkedProfile,
 } from "./auth.ts";
 export { createAdClient, type AdClient, type AdClientDeps } from "./client.ts";
 export { createAssetCache, type AssetCache, type AssetCacheDeps } from "./assetCache.ts";
