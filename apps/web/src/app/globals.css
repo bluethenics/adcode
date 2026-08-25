@@ -2481,3 +2481,37 @@ body { background: #000; }
     opacity: 0.2;
   }
 }
+
+/* -- Avatar ------------------------------------------------------------- */
+
+/*
+ * The initial sits underneath the photo rather than instead of it, so the circle
+ * is never empty while the image is in flight and never a broken-image glyph if
+ * it fails. See `Avatar.tsx` for the three ways a Google avatar URL fails.
+ */
+.avatar {
+  position: relative;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.avatar-initial {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  transition: opacity 200ms var(--ease);
+}
+
+.avatar-initial[data-hidden="true"] {
+  opacity: 0;
+}
+
+.avatar-photo {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}

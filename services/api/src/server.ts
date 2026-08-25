@@ -354,6 +354,25 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
     /** Reads and parses a JSON body, answering 400 itself if it cannot. */
 
     /*
+     * Who the caller is, as this service sees them.
+     *
+     * The browser cannot work out `isAdmin` for itself. It used to try: the web app read
+     * a Firebase custom claim called `admin`, which was correct until administrators
+     * moved into a table (see `auth.ts`) and nothing has written that claim since. The
+     * result was an admin who could reach every admin endpoint and never saw the link to
+     * them, because the client had quietly decided they were not one.
+     *
+     * So the server says. It already computes this on every single request; this endpoint
+     * only returns what `authenticate` worked out a few lines above, and the admin gate
+     * below still re-checks it. A client that lies to itself about this reaches endpoints
+     * that refuse it anyway.
+     */
+    if (path === "/v1/me" && req.method === "GET") {
+      send(res, 200, { uid: auth.uid, isAdmin: auth.isAdmin }, cors);
+      return;
+    }
+
+    /*
      * One gate for the whole admin surface, ahead of every admin route.
      *
      * A per-route check is a check someone forgets when adding the next route. Matching

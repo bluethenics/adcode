@@ -76,15 +76,39 @@ export function AppShell({
   }
 
   if (requireAdmin && !isAdmin) {
+    /*
+     * Say which of the two reasons it is.
+     *
+     * An administrator is an email address in a table, and the API honours it only when
+     * the token says the provider *verified* that address - otherwise anyone who knew an
+     * admin's address could register it with a password and take the site. So the
+     * common way to be refused here is to be the right person signed in the wrong way,
+     * and "not an admin account" sends that person hunting in the database rather than
+     * pressing the Google button. `emailVerified` is on the Firebase user already, so
+     * the page can tell the two apart without asking the server anything.
+     */
+    const unverified = user.email !== null && !user.emailVerified;
+
     return (
       <section className="band">
         <div className="wrap">
           <div className="empty">
-            <h3>Not an admin account</h3>
-            <p>
-              You&apos;re signed in, but this area needs an admin role. If that&apos;s
-              wrong, sign out and back in — role changes apply on your next sign-in.
-            </p>
+            <h3>{unverified ? "This address isn't verified" : "Not an admin account"}</h3>
+            {unverified ? (
+              <p>
+                You&apos;re signed in as <strong>{user.email}</strong>, but that account was
+                created with a password and nobody has confirmed the address belongs to you.
+                Administrators have to sign in with a provider that verifies it. Sign out
+                and use <strong>Continue with Google</strong> or{" "}
+                <strong>Continue with GitHub</strong> instead.
+              </p>
+            ) : (
+              <p>
+                You&apos;re signed in as <strong>{user.email ?? user.uid}</strong>, and that
+                address isn&apos;t on the administrator list. If it should be, an existing
+                admin can add it from the Admins tab.
+              </p>
+            )}
           </div>
         </div>
       </section>

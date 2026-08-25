@@ -49,6 +49,52 @@ beforeEach(async () => {
 const get = (path: string, headers: Record<string, string> = auth) =>
   fetch(`${server.url}${path}`, { headers });
 
+/*
+ * `/v1/me` - the endpoint the browser needs because it cannot work this out itself.
+ *
+ * The web app used to read a Firebase custom claim called `admin`. Administrators moved
+ * into a table and nothing has written that claim since, so it read `undefined` and the
+ * founding administrator was shown no admin link while being allowed through every admin
+ * route. These assert the two halves that were disagreeing.
+ */
+describe("GET /v1/me", () => {
+  it("refuses without a token", async () => {
+    expect((await get("/v1/me", {})).status).toBe(401);
+  });
+
+  it("tells an ordinary account it is not an admin", async () => {
+    const body = await (await get("/v1/me")).json();
+    expect(body).toEqual({ uid: "u-1", isAdmin: false });
+  });
+
+  it("tells an admin that it is one", async () => {
+    const body = await (
+      await get("/v1/me", { authorization: "Bearer admin" })
+    ).json();
+    expect(body).toEqual({ uid: "admin-1", isAdmin: true });
+  });
+
+  it("agrees with what the admin gate actually does", async () => {
+    // The bug was the client and the server disagreeing, so this asserts they cannot:
+    // whatever `/v1/me` says about being an admin is what /v1/admin/* does about it.
+    for (const token of ["good", "admin"]) {
+      const headers = { authorization: `Bearer ${token}` };
+      const me = (await (await get("/v1/me", headers)).json()) as { isAdmin: boolean };
+      const reached = (await get("/v1/admin/users", headers)).status !== 403;
+      expect(me.isAdmin).toBe(reached);
+    }
+  });
+
+  it("stops calling someone an admin the moment they are removed", async () => {
+    await store.removeAdmin("admin@adcode.test");
+    const body = (await (
+      await get("/v1/me", { authorization: "Bearer admin" })
+    ).json()) as { isAdmin: boolean };
+    expect(body.isAdmin).toBe(false);
+  });
+});
+
+
 const post = (path: string, body: unknown, headers: Record<string, string> = auth) =>
   fetch(`${server.url}${path}`, { method: "POST", headers, body: JSON.stringify(body) });
 

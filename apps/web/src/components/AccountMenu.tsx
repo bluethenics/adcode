@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
+import { Avatar } from "./Avatar";
 import { signOutNow } from "@/lib/firebase";
 
 /**
@@ -42,9 +43,6 @@ export function AccountMenu() {
   if (user === null) return null;
 
   const label = user.email ?? user.uid;
-  // The first letter of the email, or of the uid when there is no email - an anonymous
-  // account still gets a face rather than a blank circle.
-  const initial = (label.trim()[0] ?? "?").toUpperCase();
 
   const signOut = async (): Promise<void> => {
     setLeaving(true);
@@ -65,18 +63,14 @@ export function AccountMenu() {
         aria-haspopup="menu"
         onClick={() => setOpen((was) => !was)}
       >
-        <span className="avatar" aria-hidden="true">
-          {initial}
-        </span>
+        <Avatar photoUrl={user.photoURL} label={label} />
         <span className="sr-only">Your account</span>
       </button>
 
       {open && (
         <div className="account-menu ios-sheet" role="menu">
           <div className="account-head">
-            <span className="avatar avatar-lg" aria-hidden="true">
-              {initial}
-            </span>
+            <Avatar photoUrl={user.photoURL} label={label} size="lg" />
             <div>
               <strong>{user.displayName ?? "Your account"}</strong>
               <span>{label}</span>

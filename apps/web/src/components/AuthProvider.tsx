@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { apiFetch } from "@/lib/api";
 import { watchUser, firebaseConfigured, type User } from "@/lib/firebase";
 
 /**
@@ -46,12 +47,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // The admin claim rides inside the verified token. Reading it here only decides
-      // what the UI offers - the API checks it again on every admin route, because a
-      // client-side check is a convenience, never a control.
+      /*
+       * Ask the server, because the browser cannot work this out.
+       *
+       * This used to read a Firebase custom claim called `admin`. That was right until
+       * administrators moved into a database table, and nothing has written the claim
+       * since - so it read `undefined`, every account was told it was not an admin, and
+       * the founding administrator could reach every admin endpoint while never being
+       * shown the link to them.
+       *
+       * `/v1/me` returns what `authenticate` already computed for this request. It still
+       * only decides what the UI offers: the API re-checks on every admin route, because
+       * a client-side check is a convenience, never a control.
+       */
       void next
-        .getIdTokenResult()
-        .then((result) => setIsAdmin(result.claims["admin"] === true))
+        .getIdToken()
+        .then((token) => apiFetch<{ uid: string; isAdmin: boolean }>({ path: "/me", token }))
+        .then((result) => setIsAdmin(result.ok && result.value.isAdmin))
         .catch(() => setIsAdmin(false));
     });
   }, []);
