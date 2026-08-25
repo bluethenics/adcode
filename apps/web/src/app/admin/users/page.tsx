@@ -1,24 +1,34 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AppShell } from "@/components/AppShell";
+import { AdminShell } from "@/components/AdminShell";
+import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES, type LedgerPageView, type LedgerRowView } from "@/lib/api";
 import { LedgerRows } from "@/components/LedgerRows";
 import { statusLabel, tone, when } from "@/components/money";
-import { ADMIN_TABS } from "../tabs";
 
 interface UserRow {
   uid: string;
   status: string;
   createdAt: number;
+  /**
+   * All optional, and usually absent.
+   *
+   * First launch signs in anonymously with no UI, so most accounts have never told this
+   * service a name or an address. They are captured from the verified token the moment
+   * somebody signs in with Google or GitHub - see `identityOf` in `services/api/src/auth.ts`.
+   */
+  email?: string;
+  displayName?: string;
+  photoUrl?: string;
 }
 
 export default function AdminUsers() {
   return (
-    <AppShell title="Admin" tabs={ADMIN_TABS} requireAdmin>
+    <AdminShell title="People" subtitle="Every account, what it has earned, and whether it is allowed to.">
       <UsersBody />
-    </AppShell>
+    </AdminShell>
   );
 }
 
@@ -94,6 +104,7 @@ function UsersBody() {
       )}
 
       <div className="notice" data-tone="info">
+        Names and addresses appear only for accounts that signed in with a provider.
         Opening someone&apos;s ledger is recorded — who looked, at whom, and when. So is
         every ban. You see exactly the rows and descriptions the user sees.
       </div>
@@ -106,22 +117,30 @@ function UsersBody() {
       ) : (
         <div className="rows">
           <div className="row row-head">
-            <span className="row-main">User</span>
+            <span className="row-main">Person</span>
             <span className="row-num">Actions</span>
           </div>
 
           {rows.map((row) => (
             <div key={row.uid}>
               <div className="row">
-                <span className="row-main">
-                  <span className="row-title mono" style={{ fontSize: 13 }}>
-                    {row.uid}
-                  </span>
-                  <span className="row-sub">
-                    <span className="pill" data-tone={tone(row.status)}>
-                      {row.status === "banned" ? "Banned" : "Active"}
-                    </span>{" "}
-                    joined {when(row.createdAt)}
+                <span className="row-main user-row">
+                  <Avatar photoUrl={row.photoUrl ?? null} label={row.displayName ?? row.email ?? row.uid} />
+                  <span>
+                    <span className="row-title">
+                      {/* A name if they gave one, then an address, then the uid. An
+                          anonymous account has only ever been a uid and saying so is
+                          more useful than showing a bare identifier and hoping. */}
+                      {row.displayName ?? row.email ?? "Anonymous"}
+                    </span>
+                    <span className="row-sub">
+                      <span className="pill" data-tone={tone(row.status)}>
+                        {row.status === "banned" ? "Banned" : "Active"}
+                      </span>{" "}
+                      {row.email !== undefined && row.displayName !== undefined ? `${row.email} · ` : ""}
+                      joined {when(row.createdAt)}
+                    </span>
+                    <span className="row-uid mono">{row.uid}</span>
                   </span>
                 </span>
 

@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AppShell } from "@/components/AppShell";
+import { AdminShell } from "@/components/AdminShell";
+import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
-import { ADMIN_TABS } from "../tabs";
 
 type Surface = "blog" | "docs" | "both";
 
@@ -71,9 +71,9 @@ function slugify(title: string): string {
  */
 export default function AdminBlog() {
   return (
-    <AppShell title="Admin" tabs={ADMIN_TABS} requireAdmin>
+    <AdminShell title="Blog & docs" subtitle="Everything this site says, in one place.">
       <BlogBody />
-    </AppShell>
+    </AdminShell>
   );
 }
 
@@ -238,12 +238,12 @@ function BlogBody() {
             <span className="field-hint">
               Markdown: ## headings, **bold**, `code`, - lists, [links](https://example.com).
             </span>
-            <textarea
+            <MarkdownEditor
               id="p-body"
-              className="textarea"
-              style={{ minHeight: 320, fontFamily: "var(--font-mono), ui-monospace, monospace", fontSize: 14 }}
+              rows={18}
+              placeholder="Write the post. The preview beside it is rendered by the same code the live site uses."
               value={draft.body}
-              onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+              onChange={(body) => setDraft({ ...draft, body })}
             />
           </div>
 

@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AppShell } from "@/components/AppShell";
+import { AdminShell } from "@/components/AdminShell";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
-import { ADMIN_TABS } from "../tabs";
 
 interface AdminRow {
   email: string;
@@ -23,9 +22,9 @@ interface AdminRow {
  */
 export default function AdminAdmins() {
   return (
-    <AppShell title="Admin" tabs={ADMIN_TABS} requireAdmin>
+    <AdminShell title="Administrators" subtitle="Who else can see any of this.">
       <AdminsBody />
-    </AppShell>
+    </AdminShell>
   );
 }
 

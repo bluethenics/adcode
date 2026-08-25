@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AppShell } from "@/components/AppShell";
+import { AdminShell } from "@/components/AdminShell";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
-import { ADMIN_TABS } from "../tabs";
 
 interface ReportRow {
   reportId: string;
@@ -28,9 +27,9 @@ const KIND_LABEL: Record<string, string> = {
 
 export default function AdminReports() {
   return (
-    <AppShell title="Admin" tabs={ADMIN_TABS} requireAdmin>
+    <AdminShell title="Feedback" subtitle="Bugs, requests and questions filed from inside the editor.">
       <ReportsBody />
-    </AppShell>
+    </AdminShell>
   );
 }
 

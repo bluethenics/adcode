@@ -2515,3 +2515,353 @@ body { background: #000; }
   object-fit: cover;
   display: block;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Admin
+   ═══════════════════════════════════════════════════════════════════════════
+
+   A sidebar, because nine destinations do not fit in a tab strip. The old one
+   put the last three off the right edge behind a scrollbar, which hid Notices,
+   Releases and Admins behind a gesture nobody makes on a page they just opened.
+
+   A sidebar also groups, which a tab strip cannot: the three groups are the
+   three jobs - deciding about other people's things, writing this site's words,
+   and running the machine.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.admin {
+  min-height: 78vh;
+  padding-block: 26px 80px;
+}
+
+.admin-layout {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 44px);
+  max-width: var(--page);
+  margin: 0 auto;
+  padding-inline: var(--gutter);
+}
+
+.admin-nav {
+  position: sticky;
+  top: 84px;
+  align-self: start;
+  display: grid;
+  gap: 22px;
+}
+
+.admin-nav-group h2 {
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 8px;
+  padding-inline: 10px;
+}
+
+.admin-nav-item {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 10px;
+  transition: background 160ms var(--ease);
+}
+
+.admin-nav-item span {
+  display: block;
+  font-size: 14px;
+  font-weight: 520;
+  color: var(--muted);
+}
+
+/* The hint is the difference between a nav and a list of jargon: "Notices" means
+   nothing until it says who sees them. */
+.admin-nav-item small {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--faint);
+  line-height: 1.35;
+}
+
+.admin-nav-item:hover {
+  background: var(--ios-fill);
+}
+
+.admin-nav-item:hover span {
+  color: var(--text);
+}
+
+.admin-nav-item[aria-current="page"] {
+  background: var(--ios-fill);
+}
+
+.admin-nav-item[aria-current="page"] span {
+  color: var(--text);
+  font-weight: 580;
+}
+
+.admin-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.admin-head h1 {
+  font-size: clamp(26px, 3.4vw, 34px);
+  letter-spacing: -0.035em;
+}
+
+.admin-head p {
+  margin-top: 6px;
+  font-size: 14.5px;
+  color: var(--muted);
+  max-width: 56ch;
+}
+
+.admin-head-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* The nav becomes a scrolling strip on a phone. The hints go: at that width they
+   cost more room than they earn. */
+@media (max-width: 860px) {
+  .admin-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-nav {
+    position: static;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    gap: 18px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .admin-nav-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .admin-nav-group h2 {
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+
+  .admin-nav-item small {
+    display: none;
+  }
+
+  .admin-nav-item span {
+    white-space: nowrap;
+  }
+}
+
+/* -- A person in a row -------------------------------------------------- */
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The uid stays visible but stops being the headline: it is what you quote in a
+   support thread, not who somebody is. */
+.row-uid {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--faint);
+  overflow-wrap: anywhere;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Markdown editor
+   ═══════════════════════════════════════════════════════════════════════════
+
+   The admin panel had a bare textarea, so publishing was the preview. The pane
+   on the right is rendered by the same `renderMarkdown` the live site uses - not
+   an approximation, so what is shown is what will be published.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.md-editor {
+  border: 1px solid var(--ios-hairline);
+  border-radius: var(--radius-ios);
+  background: var(--ios-raised);
+  overflow: hidden;
+}
+
+.md-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ios-hairline);
+}
+
+.md-actions,
+.md-views {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.md-action {
+  min-width: 30px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 560;
+  cursor: pointer;
+}
+
+.md-action:hover {
+  background: var(--ios-fill);
+  color: var(--text);
+}
+
+.md-view {
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.md-view[aria-checked="true"] {
+  background: var(--ios-fill);
+  color: var(--text);
+}
+
+.md-panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 260px;
+}
+
+.md-editor[data-view="write"] .md-panes {
+  grid-template-columns: 1fr;
+}
+
+.md-editor[data-view="write"] .md-preview {
+  display: none;
+}
+
+.md-editor[data-view="preview"] .md-panes {
+  grid-template-columns: 1fr;
+}
+
+.md-editor[data-view="preview"] .md-source {
+  display: none;
+}
+
+.md-source {
+  border: 0;
+  border-right: 1px solid var(--ios-hairline);
+  border-radius: 0;
+  background: transparent;
+  resize: vertical;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.md-source:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.md-editor[data-view="write"] .md-source {
+  border-right: 0;
+}
+
+.md-preview {
+  padding: 14px 18px;
+  overflow-y: auto;
+  max-height: 560px;
+  font-size: 14.5px;
+}
+
+.md-preview > div > :first-child {
+  margin-top: 0;
+}
+
+.md-preview h2 {
+  font-size: 19px;
+  margin: 18px 0 8px;
+}
+
+.md-preview h3 {
+  font-size: 16px;
+  margin: 16px 0 6px;
+}
+
+.md-preview p,
+.md-preview ul,
+.md-preview ol {
+  margin: 0 0 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.md-preview ul,
+.md-preview ol {
+  padding-left: 20px;
+}
+
+.md-preview code {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--ios-fill);
+}
+
+.md-preview a {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.md-status {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  padding: 7px 12px;
+  border-top: 1px solid var(--ios-hairline);
+  font-size: 11.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.md-status [data-over="true"] {
+  color: var(--warn);
+}
+
+@media (max-width: 720px) {
+  .md-panes {
+    grid-template-columns: 1fr;
+  }
+
+  .md-source {
+    border-right: 0;
+    border-bottom: 1px solid var(--ios-hairline);
+  }
+}

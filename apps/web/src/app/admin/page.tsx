@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AppShell } from "@/components/AppShell";
+import { AdminShell } from "@/components/AdminShell";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES, type CreativeView } from "@/lib/api";
-import { ADMIN_TABS } from "./tabs";
 
 /**
  * The creative review queue.
@@ -15,9 +14,9 @@ import { ADMIN_TABS } from "./tabs";
  */
 export default function AdminReview() {
   return (
-    <AppShell title="Admin" tabs={ADMIN_TABS} requireAdmin>
+    <AdminShell title="Review queue" subtitle="Cards waiting on a decision before they reach anyone’s editor.">
       <ReviewQueue />
-    </AppShell>
+    </AdminShell>
   );
 }
 

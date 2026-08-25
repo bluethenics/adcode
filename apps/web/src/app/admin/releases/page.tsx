@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AppShell } from "@/components/AppShell";
+import { AdminShell } from "@/components/AdminShell";
+import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
-import { ADMIN_TABS } from "../tabs";
 
 interface ReleaseRow {
   version: string;
@@ -45,9 +45,9 @@ const EMPTY = {
  */
 export default function AdminReleases() {
   return (
-    <AppShell title="Admin" tabs={ADMIN_TABS} requireAdmin>
+    <AdminShell title="Releases" subtitle="What shipped, and what the editor says about it.">
       <ReleasesBody />
-    </AppShell>
+    </AdminShell>
   );
 }
 
@@ -227,13 +227,12 @@ function ReleasesBody() {
             Shown on the changelog and in What&apos;s New. Markdown headings and bullet
             lists are understood; everything else is a paragraph.
           </span>
-          <textarea
+          <MarkdownEditor
             id="r-body"
-            className="textarea"
-            rows={8}
-            placeholder={"## Faster search\n\nSearching a large project no longer pauses.\n\n- Results stream in as they are found\n- Cancelling is instant"}
+            rows={10}
+            placeholder="## Faster search"
             value={draft.body}
-            onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+            onChange={(body) => setDraft({ ...draft, body })}
           />
         </div>
 

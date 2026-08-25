@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AppShell } from "@/components/AppShell";
+import { AdminShell } from "@/components/AdminShell";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { money, when } from "@/components/money";
-import { ADMIN_TABS } from "../tabs";
 
 interface AdvertiserRow {
   advertiserId: string;
@@ -19,9 +18,9 @@ interface AdvertiserRow {
 
 export default function AdminAdvertisers() {
   return (
-    <AppShell title="Admin" tabs={ADMIN_TABS} requireAdmin>
+    <AdminShell title="Advertisers" subtitle="Balances, campaigns, and who is allowed to serve.">
       <AdvertisersBody />
-    </AppShell>
+    </AdminShell>
   );
 }
 

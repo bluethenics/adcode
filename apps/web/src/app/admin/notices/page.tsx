@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AppShell } from "@/components/AppShell";
+import { AdminShell } from "@/components/AdminShell";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
-import { ADMIN_TABS } from "../tabs";
 
 interface NoticeRow {
   noticeId: string;
@@ -25,9 +24,9 @@ interface NoticeRow {
  */
 export default function AdminNotices() {
   return (
-    <AppShell title="Admin" tabs={ADMIN_TABS} requireAdmin>
+    <AdminShell title="Notices" subtitle="Messages shown to everyone running ADCode.">
       <NoticesBody />
-    </AppShell>
+    </AdminShell>
   );
 }
 
