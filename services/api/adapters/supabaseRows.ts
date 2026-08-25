@@ -63,6 +63,10 @@ export interface UserRow {
   status: string;
   created_at: number;
   linked_at: number | null;
+  // Null for every anonymous account, which is most of them - see the migration.
+  email: string | null;
+  display_name: string | null;
+  photo_url: string | null;
 }
 
 export interface AdvertiserRow {
@@ -241,7 +245,7 @@ export interface AuditRow {
 // here rather than as an undefined deep inside a handler.
 // ---------------------------------------------------------------------------
 
-export const USER_COLS = "uid,status,created_at,linked_at";
+export const USER_COLS = "uid,status,created_at,linked_at,email,display_name,photo_url";
 export const ADVERTISER_COLS =
   "advertiser_id,name,owner_uids,status,funded_micros::text,reserved_micros::text,created_at";
 export const CAMPAIGN_COLS =
@@ -284,6 +288,11 @@ export function toUser(row: UserRow): UserRecord {
     status: row.status === "banned" ? "banned" : "active",
     createdAt: row.created_at,
     ...(row.linked_at !== null ? { linkedAt: row.linked_at } : {}),
+    // Absent rather than null: `exactOptionalPropertyTypes` is on, and "never been told"
+    // has to stay distinguishable from "told us nothing".
+    ...(row.email !== null ? { email: row.email } : {}),
+    ...(row.display_name !== null ? { displayName: row.display_name } : {}),
+    ...(row.photo_url !== null ? { photoUrl: row.photo_url } : {}),
   };
 }
 
@@ -293,6 +302,9 @@ export function fromUser(user: UserRecord): UserRow {
     status: user.status,
     created_at: user.createdAt,
     linked_at: user.linkedAt ?? null,
+    email: user.email ?? null,
+    display_name: user.displayName ?? null,
+    photo_url: user.photoUrl ?? null,
   };
 }
 

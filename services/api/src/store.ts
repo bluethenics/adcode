@@ -25,6 +25,16 @@ export interface UserRecord {
   status: UserStatus;
   createdAt: number;
   linkedAt?: number;
+  /**
+   * Who they are, as the verified token last described them.
+   *
+   * All optional, and usually absent. First launch signs in anonymously with no UI, so an
+   * anonymous account never has any of these - `undefined` means "never been told", which
+   * is a different fact from "told us nothing" and has to stay distinguishable.
+   */
+  email?: string;
+  displayName?: string;
+  photoUrl?: string;
 }
 
 export interface AdvertiserRecord {

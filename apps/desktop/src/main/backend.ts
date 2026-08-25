@@ -22,8 +22,23 @@ import {
 /*
  * The site's origin, not an `api.` subdomain: the service is served by the same Cloudflare
  * Worker as the marketing site, at `/v1/*`. One deployment, one hostname, one certificate.
+ *
+ * **This is the workers.dev hostname on purpose.** It used to be
+ * `https://adcode.bluethenics.com`, which is the domain the site is *intended* to answer
+ * on and does not resolve yet - the custom domain needs `bluethenics.com`'s nameservers
+ * moved to Cloudflare, and a Workers custom domain cannot be a CNAME, so it cannot be
+ * done from the registrar. Until then that hostname has no DNS record at all.
+ *
+ * Every single thing this app does over the network went through it: ad serving,
+ * receipts, the balance, account linking, notices, releases, activity, and the feedback
+ * form - which is where it finally surfaced, as "Could not reach the server. Check your
+ * connection." That message was accurate and pointed at the user's network instead of at
+ * a hostname that has never existed.
+ *
+ * Change this back the day step 13 of SETUP.md is done. It is read at build time, so a
+ * packaged installer carries whatever was set when `npm run package` ran.
  */
-export const DEFAULT_API_ORIGIN = "https://adcode.bluethenics.com";
+export const DEFAULT_API_ORIGIN = "https://adcode.bluethenics01.workers.dev";
 
 /**
  * The Firebase web API key for `adcode-idle`.

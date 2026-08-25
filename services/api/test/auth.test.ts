@@ -101,3 +101,108 @@ describe("authenticate", () => {
     expect(result).toEqual({ ok: true, uid: "u-2", isAdmin: false });
   });
 });
+
+/*
+ * Capturing who somebody is.
+ *
+ * The admin panel could only ever show a uid, because a uid was all this service stored -
+ * identity lives in Firebase and `firebase-admin` cannot run on workerd. The verified
+ * token has carried the address and name all along; these cover it being taken from there
+ * without being taken from anywhere it should not be.
+ */
+describe("identity from the token", () => {
+  const withClaims = (claims: Record<string, unknown>): TokenVerifier => ({
+    async verify() {
+      return { uid: "u-1", claims };
+    },
+  });
+
+  const run = async (claims: Record<string, unknown>) => {
+    const store = createMemoryStore();
+    const deps = { store, verifier: withClaims(claims), clock: { now: () => 1000 } };
+    await authenticate(deps, "Bearer x");
+    return store.getUser("u-1");
+  };
+
+  it("records the address, name and picture a provider supplied", async () => {
+    const user = await run({
+      email: "Someone@Example.com",
+      name: "Someone",
+      picture: "https://example.com/a.png",
+    });
+
+    // Lowercased, because the admin lookup compares addresses and "A@b.com" and "a@b.com"
+    // are the same person.
+    expect(user?.email).toBe("someone@example.com");
+    expect(user?.displayName).toBe("Someone");
+    expect(user?.photoUrl).toBe("https://example.com/a.png");
+  });
+
+  it("stores nothing at all for an anonymous sign-in", async () => {
+    // The normal case, not an edge one: first launch signs in anonymously with no UI.
+    const user = await run({});
+
+    expect(user).not.toBeNull();
+    expect("email" in (user ?? {})).toBe(false);
+    expect("displayName" in (user ?? {})).toBe(false);
+  });
+
+  it("ignores claims that are not usable text", async () => {
+    const user = await run({ email: "   ", name: 42, picture: null });
+
+    expect("email" in (user ?? {})).toBe(false);
+    expect("displayName" in (user ?? {})).toBe(false);
+    expect("photoUrl" in (user ?? {})).toBe(false);
+  });
+
+  it("refuses an absurdly long display name", async () => {
+    // A verified token is trustworthy about who signed in, not about how long they made
+    // their name - and this string is rendered in the admin panel.
+    const user = await run({ name: "x".repeat(500) });
+    expect("displayName" in (user ?? {})).toBe(false);
+  });
+
+  it("follows a change of name on the next request", async () => {
+    const store = createMemoryStore();
+    const clock = { now: () => 1000 };
+
+    await authenticate({ store, verifier: withClaims({ name: "Before" }), clock }, "Bearer x");
+    await authenticate({ store, verifier: withClaims({ name: "After" }), clock }, "Bearer x");
+
+    expect((await store.getUser("u-1"))?.displayName).toBe("After");
+  });
+
+  it("does not write when nothing changed", async () => {
+    // Every authenticated request passes through here. An unconditional write would turn
+    // every read in the API into a read plus a write, on the busiest path there is.
+    const store = createMemoryStore();
+    let writes = 0;
+    const counting = {
+      ...store,
+      putUser: async (user: Parameters<typeof store.putUser>[0]) => {
+        writes += 1;
+        return store.putUser(user);
+      },
+    };
+    const deps = { store: counting, verifier: withClaims({ email: "a@b.com" }), clock: { now: () => 1 } };
+
+    await authenticate(deps, "Bearer x");
+    const afterFirst = writes;
+    await authenticate(deps, "Bearer x");
+
+    expect(afterFirst).toBe(1);
+    expect(writes).toBe(1);
+  });
+
+  it("never lets a claim resurrect a banned account", async () => {
+    const store = createMemoryStore();
+    await store.putUser({ uid: "u-1", status: "banned", createdAt: 0 });
+
+    const result = await authenticate(
+      { store, verifier: withClaims({ email: "a@b.com" }), clock: { now: () => 1 } },
+      "Bearer x",
+    );
+
+    expect(result).toEqual({ ok: false, failure: "banned" });
+  });
+});

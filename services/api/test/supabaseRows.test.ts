@@ -69,12 +69,49 @@ describe("money survives Postgres exactly", () => {
 
 describe("optional fields stay absent", () => {
   it("omits linkedAt entirely when the column is null", () => {
-    const user = toUser({ uid: "u1", status: "active", created_at: 5, linked_at: null });
+    const user = toUser({ uid: "u1", status: "active", created_at: 5, linked_at: null , email: null, display_name: null, photo_url: null });
     expect("linkedAt" in user).toBe(false);
   });
 
+  it("omits an identity nobody has ever supplied", () => {
+    // The normal case: first launch signs in anonymously with no UI, so an anonymous
+    // account has no address, no name and no picture - and "never been told" has to stay
+    // distinguishable from "told us nothing".
+    const user = toUser({
+      uid: "u1",
+      status: "active",
+      created_at: 5,
+      linked_at: null,
+      email: null,
+      display_name: null,
+      photo_url: null,
+    });
+
+    expect("email" in user).toBe(false);
+    expect("displayName" in user).toBe(false);
+    expect("photoUrl" in user).toBe(false);
+  });
+
+  it("carries an identity back and forth without inventing or losing one", () => {
+    const row = {
+      uid: "u1",
+      status: "active",
+      created_at: 5,
+      linked_at: null,
+      email: "someone@example.com",
+      display_name: "Someone",
+      photo_url: "https://example.com/a.png",
+    };
+
+    const user = toUser(row);
+    expect(user.email).toBe("someone@example.com");
+    expect(user.displayName).toBe("Someone");
+    expect(user.photoUrl).toBe("https://example.com/a.png");
+    expect(fromUser(user)).toEqual(row);
+  });
+
   it("keeps linkedAt when the column has a value", () => {
-    const user = toUser({ uid: "u1", status: "active", created_at: 5, linked_at: 9 });
+    const user = toUser({ uid: "u1", status: "active", created_at: 5, linked_at: 9 , email: null, display_name: null, photo_url: null });
     expect(user.linkedAt).toBe(9);
   });
 
@@ -203,7 +240,7 @@ describe("a value outside the known set does not become one", () => {
    * somewhere far away from the row that caused it.
    */
   it("treats an unknown user status as banned-by-default's opposite: active", () => {
-    expect(toUser({ uid: "u", status: "wat", created_at: 1, linked_at: null }).status).toBe("active");
+    expect(toUser({ uid: "u", status: "wat", created_at: 1, linked_at: null , email: null, display_name: null, photo_url: null }).status).toBe("active");
   });
 
   it("treats an unknown creative status as pending, never as approved", () => {
