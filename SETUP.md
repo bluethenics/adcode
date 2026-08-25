@@ -566,6 +566,27 @@ open `https://adcode.bluethenics.com/v1/health` — you should see `{"ok":true}`
 
 - [ ] `https://adcode.bluethenics.com/v1/health` returns `{"ok":true}`, keepalive ran green
 
+### 13b · Point the editor at the domain
+
+**Only after step 13 is finished and that health check passes.** Until then, skip this -
+doing it early breaks every network feature in the editor at once.
+
+The desktop app has the backend's address compiled into it. While the custom domain does
+not exist, it points at the workers.dev host instead, because a hostname with no DNS
+record makes ad serving, earnings, sign-in, notices and the feedback form all fail with
+*"Could not reach the server. Check your connection."* - a message that blames the user's
+network for a domain that was never registered.
+
+1. Open `apps/desktop/src/main/backend.ts`.
+2. Change `DEFAULT_API_ORIGIN` to `https://adcode.bluethenics.com`.
+3. Rebuild and repackage: `npm run desktop:build`, then `npm run package`.
+
+It is read at **build** time, so an installer you already shipped keeps whatever was set
+when it was packaged. Anyone running an older build keeps talking to workers.dev, which
+keeps working - so there is no rush and nothing breaks for them.
+
+- [ ] Skipped for now, or changed and repackaged after step 13
+
 ### 14 · Sign in as the administrator
 
 **Nothing to configure — this is already done.** `bluethenics01@gmail.com` was written into
