@@ -10,7 +10,7 @@ import { Donut } from "@/components/charts/Donut";
 import { StackedBars } from "@/components/charts/StackedBars";
 import { Sparkline, TimeChart } from "@/components/charts/TimeChart";
 import { MONEY, seriesColor } from "@/components/charts/palette";
-import { money, moneyExact } from "@/components/money";
+import { moneyExact, moneyProgress } from "@/components/money";
 import {
   apiFetch,
   MESSAGES,
@@ -146,7 +146,7 @@ function DashboardBody() {
         <strong className="hero-figure money">{moneyExact(balance?.availableMicros ?? "0")}</strong>
         <span className="hero-balance-sub">
           {moneyExact(balance?.lifetimeMicros ?? "0")} earned all time ·{" "}
-          {money((thisWeek * 1_000_000).toFixed(0))} in the last seven days
+          {moneyProgress((thisWeek * 1_000_000).toFixed(0))} in the last seven days
         </span>
         <div className="hero-balance-spark">
           <Sparkline values={earned.slice(-12)} color={MONEY} />

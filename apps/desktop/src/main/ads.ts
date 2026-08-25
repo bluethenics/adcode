@@ -258,6 +258,8 @@ export function createAdRuntime(): AdRuntime {
       hasServerBalance: view.hasServerBalance,
       enabled: currentSettings()["adcode.ads.enabled"] !== false,
       pendingReceipts,
+      // Straight from the scheduler's last decision. Null once nothing is blocking.
+      suppressedReason: service.lastReason(),
       // Straight from the view model, which read the projections out of `/v1/config`. No
       // figure here is computed in this process, let alone in the renderer.
       presets: view.presets.map((option) => ({

@@ -57,8 +57,8 @@ export const url = (path = "/"): string => new URL(path, SITE_ORIGIN).toString()
 export const ECONOMICS = {
   cpmMicros: 8_000_000n,
   revSharePercent: 50n,
-  /** Ads per hour at the default "standard" cadence. */
-  adsPerHourStandard: 4,
+  /** Ads per hour at the default "standard" cadence: one every ten minutes. */
+  adsPerHourStandard: 6,
 } as const;
 
 /** What one impression pays the user, in micros. Same arithmetic the server does. */

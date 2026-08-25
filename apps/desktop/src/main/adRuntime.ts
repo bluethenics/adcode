@@ -27,6 +27,9 @@ const NOOP_RUNTIME: AdRuntime = {
     hasServerBalance: false,
     enabled: false,
     pendingReceipts: 0,
+    // No runtime means nothing is scheduling, which is not a suppression - the report
+    // already says "waiting for the server" through `hasServerBalance`.
+    suppressedReason: null,
     presets: [],
   }),
 };

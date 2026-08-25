@@ -56,11 +56,24 @@ export interface RemoteCaps {
  * Brief §8.1. `off` is short-circuited by the `frequency-off` reason before caps are
  * ever consulted; its zeros exist so no code path can read an undefined cap.
  */
+/*
+ * Denser than they were - 60/30/15 minutes and 4/8/20 a day.
+ *
+ * At the old standard an impression arrived twice an hour, which is about two cents a
+ * week: a ledger that technically works and never visibly moves. The point of showing
+ * somebody their earnings is that they can watch them change, and a number that takes a
+ * fortnight to reach a cent teaches the opposite lesson.
+ *
+ * The restraint rules are untouched and they are the ones that actually protect focus: no
+ * card while typing, while debugging, while the window is unfocused, or inside the settle
+ * period after launch. This changes how often a *pause* is eligible, not whether work gets
+ * interrupted. `off` still means off.
+ */
 export const PRESETS: Readonly<Record<FrequencyPreset, FrequencyCaps>> = {
   off: { minIntervalMs: 0, dailyCap: 0 },
-  light: { minIntervalMs: 3_600_000, dailyCap: 4 },
-  standard: { minIntervalMs: 1_800_000, dailyCap: 8 },
-  max: { minIntervalMs: 900_000, dailyCap: 20 },
+  light: { minIntervalMs: 1_800_000, dailyCap: 8 },
+  standard: { minIntervalMs: 600_000, dailyCap: 24 },
+  max: { minIntervalMs: 300_000, dailyCap: 60 },
 };
 
 export const DEFAULT_PRESET: FrequencyPreset = "standard";

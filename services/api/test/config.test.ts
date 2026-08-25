@@ -10,9 +10,12 @@ beforeEach(() => {
 
 describe("handleConfig", () => {
   it("reports the kill switch and caps", async () => {
+    // Read from the default rather than restated. The server's caps are a ceiling the
+    // client's presets sit under, not a number this test has an opinion about - and
+    // pinning it here meant raising the ceiling failed a test about the kill switch.
     const res = await handleConfig(store);
     expect(res.killSwitch).toBe(false);
-    expect(res.caps.dailyCap).toBe(12);
+    expect(res.caps.dailyCap).toBe(DEFAULT_CONFIG.caps.dailyCap);
   });
 
   it("computes a projection for every cadence the client knows", async () => {

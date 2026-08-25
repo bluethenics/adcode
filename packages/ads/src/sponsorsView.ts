@@ -10,7 +10,7 @@
  * hold unless the server does the arithmetic, so `/v1/config` carries the table and this
  * module picks a row out of it.
  */
-import { formatMicros, formatMicrosCompact } from "./ledger.ts";
+import { formatMicros } from "./ledger.ts";
 import {
   PRESETS,
   micros,
@@ -44,6 +44,11 @@ export interface SponsorsViewModel {
  * The formatted hourly projection for one preset, or `null` if the server has not sent
  * a projections table. Returning `null` is deliberate: an estimate invented here would
  * be the client computing money.
+ *
+ * Full precision, not the compact cents form. An hour at the densest cadence is worth
+ * a few hundredths of a cent, so `formatMicrosCompact` rendered *every* preset as
+ * "$0.00" - four rows of identical zero next to four different choices, which is worse
+ * than showing nothing because it reads as a measurement rather than as a rounding.
  */
 export function projectionFor(
   config: RemoteConfig | null,
@@ -52,7 +57,7 @@ export function projectionFor(
   if (config === null) return null;
   const value = config.projections[preset];
   if (value === undefined) return null;
-  return formatMicrosCompact(value);
+  return formatMicros(value);
 }
 
 export interface SponsorsViewInput {
@@ -74,8 +79,10 @@ export function buildSponsorsView(input: SponsorsViewInput): SponsorsViewModel {
   }
 
   return {
-    availableLabel: formatMicrosCompact(available),
-    lifetimeLabel: formatMicrosCompact(lifetime),
+    // Also full precision: a first earning of 4,000 micros is real money and rounding it
+    // to cents shows a new user nothing at all.
+    availableLabel: formatMicros(available),
+    lifetimeLabel: formatMicros(lifetime),
     hasServerBalance: input.balance !== null,
     impressionCount,
     clickCount,

@@ -155,9 +155,9 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     available: true,
     options: [
       { value: "off", label: "Off", detail: "Never" },
-      { value: "light", label: "Light", detail: "60 min · 4/day" },
-      { value: "standard", label: "Standard", detail: "30 min · 8/day" },
-      { value: "max", label: "Max", detail: "15 min · 20/day" },
+      { value: "light", label: "Light", detail: "30 min · 8/day" },
+      { value: "standard", label: "Standard", detail: "10 min · 24/day" },
+      { value: "max", label: "Max", detail: "5 min · 60/day" },
     ],
   },
 

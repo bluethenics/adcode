@@ -116,7 +116,7 @@ File contents, file paths, and project names never leave the machine. Not hashed
 
 Advertisers pay a $8.00 CPM. You get 50% of it — **$0.004000** per card viewed — credited to your ledger the moment the receipt is verified.
 
-At the default cadence of four cards an hour, that is about **$0.016** for an hour of active editing.
+At the default cadence of six cards an hour, that is about **$0.024** for an hour of active editing.
 
 We would rather print that number than let you discover it. ADCode is a way to use a capable editor for free with some money coming back. It is not a way to earn a living, and any product in this category telling you otherwise is doing arithmetic it hopes you will not repeat.
 
@@ -229,7 +229,7 @@ The earnings system sounds like marketing until you trace one real payment throu
 
 ## The numbers up front
 
-Advertisers pay a **$8.00 CPM** - eight dollars per thousand verified views. You receive **50%**, so each verified card view credits **$0.004000** to your ledger. At the default cadence of four cards an hour, an hour of active editing earns about $0.016. We print that number everywhere because most products in this category hope you will not do the division.
+Advertisers pay a **$8.00 CPM** - eight dollars per thousand verified views. You receive **50%**, so each verified card view credits **$0.004000** to your ledger. At the default cadence of six cards an hour, an hour of active editing earns about $0.024. We print that number everywhere because most products in this category hope you will not do the division.
 
 ## Step 1: the editor asks for a card
 

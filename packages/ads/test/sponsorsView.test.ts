@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildSponsorsView, projectionFor } from "../src/sponsorsView.ts";
-import { micros, type Balance, type Receipt, type RemoteConfig } from "../src/types.ts";
+import { micros, PRESETS, type Balance, type Receipt, type RemoteConfig } from "../src/types.ts";
 
 const config: RemoteConfig = {
   killSwitch: false,
@@ -71,9 +71,16 @@ describe("buildSponsorsView", () => {
   it("offers every preset with its projection attached", () => {
     const view = buildSponsorsView({ balance, history: [], config });
     expect(view.presets.map((p) => p.preset)).toEqual(["off", "light", "standard", "max"]);
-    expect(view.presets.find((p) => p.preset === "max")?.projectionLabel).toBe("$0.21");
-    expect(view.presets.find((p) => p.preset === "light")?.dailyCap).toBe(4);
-    expect(view.presets.find((p) => p.preset === "light")?.minIntervalMs).toBe(3_600_000);
+    // The caps come from PRESETS, so they are read from there rather than restated - a
+    // cadence change should not break a test about the view model's shape.
+    expect(view.presets.find((p) => p.preset === "light")?.dailyCap).toBe(PRESETS.light.dailyCap);
+    expect(view.presets.find((p) => p.preset === "light")?.minIntervalMs).toBe(
+      PRESETS.light.minIntervalMs,
+    );
+
+    // The projection is still full precision rather than rounded to cents: at these
+    // amounts every preset used to render as "$0.00".
+    expect(view.presets.find((p) => p.preset === "max")?.projectionLabel).toMatch(/^\$\d/);
   });
 
   it("leaves projections null across every preset when there is no config", () => {

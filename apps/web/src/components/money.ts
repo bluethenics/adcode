@@ -18,6 +18,36 @@ export function money(micros: string): string {
   return `${negative ? "-" : ""}$${whole.toLocaleString("en-US")}.${cents.toString().padStart(2, "0")}`;
 }
 
+/**
+ * "$12.34", "$0.004", "$0.000034" - as many places as it takes to say something.
+ *
+ * Two decimals is right for figures people compare at a glance and wrong for the ones
+ * this product is mostly made of. A verified view credits four thousand micros, so a
+ * new user's first earnings, their first day, and often their first week all round to
+ * `$0.00` - which reads as "you have earned nothing" rather than as "this has been
+ * rounded". A balance that never appears to move is a balance nobody comes back to look
+ * at.
+ *
+ * So: two places once there is at least a cent, and the exact figure below that, with
+ * trailing zeros trimmed so `$0.004000` reads as `$0.004`. Never rounds up - a displayed
+ * balance must never be larger than the balance actually is.
+ */
+export function moneyProgress(micros: string): string {
+  const value = BigInt(micros || "0");
+  const negative = value < 0n;
+  const abs = negative ? -value : value;
+
+  // A cent is 10,000 micros. At or above that, the familiar form is the readable one.
+  if (abs >= 10_000n) return money(micros);
+  if (abs === 0n) return "$0.00";
+
+  const frac = abs.toString().padStart(6, "0");
+  let decimals = frac;
+  while (decimals.length > 2 && decimals.endsWith("0")) decimals = decimals.slice(0, -1);
+
+  return `${negative ? "-" : ""}$0.${decimals}`;
+}
+
 /** "$0.004000". Six places, for per-impression amounts that two places would show as zero. */
 export function moneyExact(micros: string): string {
   const value = BigInt(micros || "0");

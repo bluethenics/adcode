@@ -267,6 +267,18 @@ export interface EarningsSnapshot {
    * like lost earnings. It is shown as what it is: work waiting to be sent.
    */
   readonly pendingReceipts: number;
+  /**
+   * Why no card has appeared, or `null` when nothing is standing in the way.
+   *
+   * The scheduler has always known this - it returns a reason with every refusal - and
+   * it went nowhere but a debug log. So "I queued an ad and it never came" had no answer
+   * short of reading source: the honest reply is usually "you are eight minutes into a
+   * ten-minute gap", and there was no way for the app to say so.
+   *
+   * One of the `SuppressReason` values from `@adcode/ads`, kept as a plain string here
+   * because `shared/` must not import a package (the dependency firewall forbids it).
+   */
+  readonly suppressedReason: string | null;
   readonly presets: readonly EarningsPreset[];
 }
 

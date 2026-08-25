@@ -100,8 +100,12 @@ describe("decide - boundaries", () => {
   });
 
   it("blocks at exactly the daily cap, allows one below", () => {
-    expect(decide({ ...clear, impressionsToday: 8 })).toEqual({ show: false, reason: "daily-cap" });
-    expect(decide({ ...clear, impressionsToday: 7 })).toEqual({ show: true });
+    // Read from the preset rather than written out: the assertion is about the boundary,
+    // and hard-coding the number means every cadence change breaks a scheduler test that
+    // has nothing to do with cadence.
+    const cap = clear.caps.dailyCap;
+    expect(decide({ ...clear, impressionsToday: cap })).toEqual({ show: false, reason: "daily-cap" });
+    expect(decide({ ...clear, impressionsToday: cap - 1 })).toEqual({ show: true });
   });
 
   it("blocks one ms inside the interval, allows exactly at it", () => {
@@ -129,9 +133,11 @@ describe("tightenCaps", () => {
   });
 
   it("tightens each field independently", () => {
-    expect(tightenCaps(local, { minIntervalMs: 3_600_000, dailyCap: 500 })).toEqual({
-      minIntervalMs: 3_600_000,
-      dailyCap: 8,
+    // A longer remote interval wins; a looser remote cap does not.
+    const longer = local.minIntervalMs * 2;
+    expect(tightenCaps(local, { minIntervalMs: longer, dailyCap: 500 })).toEqual({
+      minIntervalMs: longer,
+      dailyCap: local.dailyCap,
     });
   });
 
@@ -155,7 +161,10 @@ describe("tightenCaps", () => {
   });
 
   it("accepts a remote zero cap - that is tightening, not hostile", () => {
-    expect(tightenCaps(local, { dailyCap: 0 })).toEqual({ minIntervalMs: 1_800_000, dailyCap: 0 });
+    expect(tightenCaps(local, { dailyCap: 0 })).toEqual({
+      minIntervalMs: local.minIntervalMs,
+      dailyCap: 0,
+    });
   });
 
   it("is unchanged by an empty remote config", () => {

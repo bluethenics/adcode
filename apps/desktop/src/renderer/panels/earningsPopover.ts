@@ -381,6 +381,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
           ? "Nothing pending"
           : `${snapshot.pendingReceipts} receipt${snapshot.pendingReceipts === 1 ? "" : "s"}`,
       ),
+      row("Next card", nextCardLabel(snapshot.suppressedReason, snapshot.enabled)),
     );
 
     presetList.replaceChildren(
@@ -488,4 +489,47 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   render();
 
   return api;
+}
+
+/**
+ * Why a card is not appearing, in words.
+ *
+ * The scheduler has always known this and it only ever reached a debug log, so "I set up
+ * an ad and it never showed" had no answer short of reading the source. Usually the
+ * honest answer is "you are partway through a gap", which is not a fault and should not
+ * have to be guessed at.
+ *
+ * Each of these names a condition the person can act on, or tells them to wait. None of
+ * them says "error", because none of them is one.
+ */
+function nextCardLabel(reason: string | null, enabled: boolean): string {
+  if (!enabled) return "Ads are switched off";
+  if (reason === null) return "Ready — at the next pause";
+
+  switch (reason) {
+    case "ads-disabled":
+      return "Ads are switched off";
+    case "frequency-off":
+      return "Frequency is set to Off";
+    case "kill-switch":
+      return "Paused by the server";
+    case "settling":
+      return "Just after launch — a moment";
+    case "window-unfocused":
+      return "When this window is in front";
+    case "debug-active":
+      return "Not while you are debugging";
+    case "do-not-disturb":
+      return "Do not disturb is on";
+    case "daily-cap":
+      return "You have reached today's limit";
+    case "min-interval":
+      return "Waiting out the gap since the last one";
+    case "no-creative":
+      return "No card available for you right now";
+    default:
+      // A reason from a newer build than this one. Saying nothing is better than
+      // printing an identifier at somebody.
+      return "Waiting for the right moment";
+  }
 }

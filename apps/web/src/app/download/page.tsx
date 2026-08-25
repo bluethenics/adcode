@@ -134,7 +134,7 @@ export default function DownloadPage() {
             <div className="rule">
               <dt className="rule-term">Ads start off quiet</dt>
               <dd className="rule-desc" style={{ margin: 0 }}>
-                The default cadence is four cards an hour, none of them during typing or
+                The default cadence is six cards an hour, none of them during typing or
                 debugging. Change it, or switch it off, in settings at any time.
               </dd>
             </div>
