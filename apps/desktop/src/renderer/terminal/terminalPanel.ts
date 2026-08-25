@@ -11,6 +11,7 @@
 import { createTerminalHost, type TerminalHost } from "./terminalHost.ts";
 import { uniqueTerminalTitle } from "./terminalTitles.ts";
 import { ICON, createIcon } from "../workbench/icons.ts";
+import type { ThemeChoice } from "../../shared/api.ts";
 
 interface Pane {
   readonly id: number;
@@ -51,7 +52,7 @@ export interface TerminalPanel {
   isOpen(): boolean;
   fit(): void;
   focus(): void;
-  applyTheme(theme: "light" | "dark"): void;
+  applyTheme(theme: ThemeChoice): void;
   count(): number;
 }
 
@@ -74,7 +75,7 @@ export interface TerminalPanelDeps {
   /** The shell's display name, which becomes the tab's title. */
   readonly profileLabel: (profileId: string) => string;
   readonly cwd: () => string | null;
-  readonly theme: () => "light" | "dark";
+  readonly theme: () => ThemeChoice;
   readonly notify: (message: string) => void;
   /** Called whenever the panel opens or closes, so the editor can re-layout. */
   readonly onLayoutChange: () => void;

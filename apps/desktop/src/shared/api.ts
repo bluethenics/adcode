@@ -42,6 +42,17 @@ import type { ActivityDelta } from "./activity.ts";
 
 export type { ActivityDelta };
 
+/**
+ * A theme, once it has been resolved.
+ *
+ * The *setting* has a fourth value, `system`, which is a way of declining to choose;
+ * by the time anything paints, that has become one of these three. Midnight is not
+ * "dark with different numbers" - it is the website's palette, and it inverts the
+ * accent, so the editor and the terminal each need their own colours for it rather
+ * than being handed `dark` and told to cope.
+ */
+export type ThemeChoice = "light" | "dark" | "midnight";
+
 export type ReportResult =
   | { readonly ok: true; readonly reportId: string }
   | { readonly ok: false; readonly message: string };
@@ -77,6 +88,22 @@ export type AccountState =
 
 export type LinkOutcome =
   | { readonly ok: true; readonly state: AccountState }
+  /**
+   * The credential is good, but it belongs to an account that already exists, and this
+   * machine has unclaimed earnings that signing in as that account would leave behind.
+   *
+   * Only raised when there is something to lose: with a zero balance the main process
+   * signs in without asking, because there is no decision to put to anyone. The
+   * credential is held for a moment so answering "yes" does not mean a second trip
+   * through the browser; `account.signInInstead()` spends it.
+   */
+  | {
+      readonly ok: false;
+      readonly decide: "sign-in-instead";
+      readonly message: string;
+      /** Formatted for display, e.g. `$1.23`. */
+      readonly unclaimed: string;
+    }
   | { readonly ok: false; readonly message: string };
 
 /** GitHub's device flow shows the user a code to type on github.com. */
@@ -514,6 +541,7 @@ export const CHANNELS = {
   accountDeviceCode: "account:device-code",
   accountSignOut: "account:sign-out",
   accountCancelLink: "account:cancel-link",
+  accountSignInInstead: "account:sign-in-instead",
   updateChanged: "update:changed",
   runtimeCheck: "runtime:check",
   runtimeOpenInstall: "runtime:open-install",
@@ -1264,6 +1292,13 @@ export interface AdcodeApi {
      * to confirm, and why `AccountState.linked` decides whether it is offered at all.
      */
     signOut(): Promise<AccountState>;
+    /**
+     * Answer "yes" to a `decide: "sign-in-instead"` outcome.
+     *
+     * Spends the credential that link held back, so it costs no second browser trip.
+     * Fails with a message if too long has passed and the credential has been dropped.
+     */
+    signInInstead(): Promise<LinkOutcome>;
     /** Abandon a sign-in that is waiting on the browser. False when none was running. */
     cancelLink(): Promise<boolean>;
     onChanged(listener: (state: AccountState) => void): () => void;

@@ -147,6 +147,50 @@ button {
   --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+/*
+ * Midnight - the website's palette, in the editor.
+ *
+ * The third theme, and the only one that is not the operating system's idea of light or
+ * dark. It is the identity adcode.dev wears: true black, greyscale chrome, and green
+ * spent on nothing but money.
+ *
+ * The accent inverts here, and that is the part worth stating. In Light and Dark the
+ * accent is systemBlue and `--text-on-accent` is white. On a true-black ground the accent
+ * *is* the light element - a near-white fill with near-black text on it - so the pair
+ * swaps. Everything that paints `var(--accent)` and sets `var(--text-on-accent)` keeps
+ * working; anything that hardcoded white on the accent did not, which is why the menu
+ * rows were changed to use the token (see menubar.css).
+ *
+ * `--success` is the money green. On the website that colour appears only where a real
+ * currency figure appears, and the same rule holds here: the earnings popover and the
+ * ledger, and nothing else.
+ */
+:root[data-theme="midnight"] {
+  color-scheme: dark;
+
+  --bg-app: #000000;
+  --bg-chrome: rgba(6, 8, 9, 0.78);
+  --bg-elevated: #131719;
+  --bg-editor: #08090b;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(255, 255, 255, 0.1);
+  /* A light wash rather than a blue one: there is no blue in this theme to select with. */
+  --bg-selected: rgba(255, 255, 255, 0.14);
+
+  --text-primary: #f1f3f3;
+  --text-secondary: #9aa4a6;
+  --text-tertiary: #6b7577;
+  --text-on-accent: #0a0c0d;
+
+  --border-hairline: rgba(255, 255, 255, 0.11);
+  --accent: #f1f3f3;
+  --danger: #ff453a;
+  --success: #30d158;
+  --warning: #ffb340;
+
+  --shadow-floating: 0 18px 48px rgba(0, 0, 0, 0.72), 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
 :root[data-density="compact"] {
   --density-row: 22px;
   --density-gap: 5px;

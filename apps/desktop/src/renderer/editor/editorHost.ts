@@ -23,13 +23,15 @@ import { createGitOverlay, type GitOverlay } from "./gitOverlay.ts";
 import { installPairedTagRename } from "./pairedTagRename.ts";
 import { installErrorLens } from "./errorLens.ts";
 import { installTodoHighlight } from "./todoHighlight.ts";
+import { installCommentTones } from "./commentTones.ts";
+import { installSpellCheck } from "./spellCheck.ts";
 import { installPathComplete } from "./pathComplete.ts";
 import { installFormatting } from "./formatting.ts";
 import { createDefinitions, symbolAt } from "./definitions.ts";
 import { installPeek } from "./peek.ts";
 import { installTreeSitterHighlight } from "./treeSitter.ts";
 import { organizeImports as organiseImportBlock, organizeSupported, DEFAULT_OPTIONS } from "@adcode/format";
-import type { BreakpointView, DirEntry, SearchHitView } from "../../shared/api.ts";
+import type { BreakpointView, DirEntry, SearchHitView, ThemeChoice } from "../../shared/api.ts";
 import { editorOptionsFor } from "./editorOptions.ts";
 import { createRemoteCursors, type RemoteCursors } from "../collab/remoteCursors.ts";
 import { installTagClosing } from "./autoCloseTags.ts";
@@ -143,6 +145,29 @@ function defineThemes(): void {
       "editorCursor.foreground": "#0a84ff",
     },
   });
+
+  /*
+   * Midnight shares Dark's syntax rules and changes only the surface.
+   *
+   * Re-tuning the token colours for a slightly darker ground would fork the one thing in
+   * this file that has actually been tuned, and leave two sets of syntax colours to keep
+   * in step. What changes is the chrome: a true-black canvas, a white caret and a
+   * greyscale selection, because this theme has no blue in it.
+   */
+  monaco.editor.defineTheme("adcode-midnight", {
+    base: "vs-dark",
+    inherit: true,
+    rules: SEMANTIC_RULES_DARK,
+    colors: {
+      "editor.background": "#08090b",
+      "editor.lineHighlightBackground": "#ffffff0a",
+      "editorLineNumber.foreground": "#6b7577",
+      "editorLineNumber.activeForeground": "#f1f3f3",
+      "editorIndentGuide.background1": "#ffffff12",
+      "editor.selectionBackground": "#ffffff26",
+      "editorCursor.foreground": "#f1f3f3",
+    },
+  });
 }
 
 export interface EditorHost {
@@ -204,7 +229,7 @@ export interface EditorHost {
   toggleWordWrap(): void;
   /** Current cursor line, for "go to line" and the status bar. */
   cursorLine(): number;
-  applyTheme(theme: "light" | "dark"): void;
+  applyTheme(theme: ThemeChoice): void;
   /**
    * Format one buffer, resolving once the text has settled.
    *
@@ -365,6 +390,8 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
   const pairedTagRename = installPairedTagRename(editor, monaco);
   const errorLens = installErrorLens(editor, monaco);
   const todoHighlight = installTodoHighlight(editor, monaco);
+  const commentTones = installCommentTones(editor, monaco);
+  const spellCheck = installSpellCheck(editor, monaco);
   const treeSitter = installTreeSitterHighlight(monaco);
 
   const formatting = installFormatting(monaco, {
@@ -707,7 +734,7 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
     },
 
     applyTheme(theme) {
-      monaco.editor.setTheme(theme === "dark" ? "adcode-dark" : "adcode-light");
+      monaco.editor.setTheme(`adcode-${theme}`);
     },
 
     async formatDocument(path) {
@@ -780,6 +807,9 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
       tagClosing.setEnabled(values["adcode.editing.autoCloseTags"] !== false);
       pairedTagRename.setEnabled(values["adcode.editing.autoRenamePairedTag"] !== false);
       todoHighlight.setEnabled(values["adcode.editing.todoHighlighting"] !== false);
+      // Opt-in, so the default is off rather than "anything but false".
+      commentTones.setEnabled(values["adcode.editing.commentTones"] === true);
+      spellCheck.setEnabled(values["adcode.editing.spellCheck"] === true);
       pathComplete.setEnabled(values["adcode.editing.pathAutocomplete"] !== false);
       formatting.setEnabled(values["adcode.formatting.formatter"] !== false);
       treeSitter.setEnabled(values["adcode.language.treeSitterHighlighting"] !== false);

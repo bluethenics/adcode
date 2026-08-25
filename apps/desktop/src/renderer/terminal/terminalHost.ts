@@ -10,6 +10,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import { createCommandLineReader, detectAgent, type DetectedAgent } from "@adcode/ai/agents";
+import type { ThemeChoice } from "../../shared/api.ts";
 
 export interface TerminalHost {
   dispose(): void;
@@ -25,7 +26,7 @@ export interface TerminalHost {
   paste(): void;
   /** Copy the selection. Returns false when nothing is selected. */
   copy(): Promise<boolean>;
-  applyTheme(theme: "light" | "dark"): void;
+  applyTheme(theme: ThemeChoice): void;
 }
 
 /** macOS uses Cmd where everything else uses Ctrl, including for the clipboard. */
@@ -74,6 +75,28 @@ const THEMES = {
     cyan: "#5ac8fa",
     white: "#f2f2f7",
   },
+  /*
+   * Midnight. True black behind the shell, and a white cursor rather than a blue one -
+   * this theme has no blue in it, and a systemBlue caret on a black terminal is the one
+   * pixel that would give away that the palette was borrowed.
+   *
+   * The ANSI colours stay: they are what programs ask for by name, and a `git diff` that
+   * printed grey instead of red would be this theme breaking other people's output.
+   */
+  midnight: {
+    background: "#000000",
+    foreground: "#f1f3f3",
+    cursor: "#f1f3f3",
+    selectionBackground: "#ffffff26",
+    black: "#08090b",
+    red: "#ff453a",
+    green: "#30d158",
+    yellow: "#ffb340",
+    blue: "#0a84ff",
+    magenta: "#bf5af2",
+    cyan: "#64d2ff",
+    white: "#f1f3f3",
+  },
 } as const;
 
 export async function createTerminalHost(
@@ -81,7 +104,7 @@ export async function createTerminalHost(
   options: {
     profileId?: string;
     cwd?: string;
-    theme: "light" | "dark";
+    theme: ThemeChoice;
     /** Told when a command line starts a known AI agent (`adcode.ai.terminalAgentDetection`). */
     onAgent?: (agent: DetectedAgent) => void;
   },
@@ -255,7 +278,8 @@ export async function createTerminalHost(
     send(text) {
       // Straight to the pty rather than into xterm: the shell is what should see the
       // keystrokes, and it echoes them back itself.
-      window.adcode.terminal.write(id, `${text}`);
+      window.adcode.terminal.write(id, `${text}
+`);
     },
     applyTheme(theme) {
       terminal.options.theme = { ...THEMES[theme] };

@@ -180,13 +180,16 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     group: "appearance",
     kind: "enum",
     label: "Appearance",
-    description: "Follows the system by default, including the accent colour.",
+    description: "Follows the system by default. Midnight is the look the website wears.",
     default: "system",
     available: true,
     options: [
       { value: "system", label: "System" },
       { value: "light", label: "Light" },
       { value: "dark", label: "Dark" },
+      // Not a brightness. Midnight is the palette adcode.dev wears - true black, greyscale
+      // chrome, green reserved for money - so it deliberately does not follow the system.
+      { value: "midnight", label: "Midnight" },
     ],
   },
 
@@ -197,6 +200,8 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   bool("adcode.editing.stickyScroll", "editing", "Sticky scroll", "Pin enclosing scopes to the top of the editor while scrolling.", true, true),
   bool("adcode.editing.indentGuides", "editing", "Indent guides", "Vertical rules showing indentation depth.", true, true),
   bool("adcode.editing.todoHighlighting", "editing", "TODO and FIXME highlighting", "Highlight TODO, FIXME, HACK, XXX and NOTE - inside comments only, never the word appearing in code.", true, true),
+  bool("adcode.editing.spellCheck", "editing", "Check spelling in comments", "Underline misspelled words in comments and offer the fix. Only words with a known correction are flagged - an unfamiliar name, library, or abbreviation is left alone rather than underlined, so this never has to be switched off to stop the noise. Code is never checked; an identifier is named, not spelled.", false, true),
+  bool("adcode.editing.commentTones", "editing", "Colour comments by intent", "Colour a comment by the character it starts with: ! for a warning, ? for an open question, * for the part worth reading first, and a repeated // for code you commented out. Line comments only - a /** block */ begins with * by convention, and colouring those would mark every documented function in a project.", false, true),
   bool("adcode.editing.autoCloseTags", "editing", "Close tags automatically", "Typing the end of an opening tag writes its closing tag, and typing </ completes the tag that is still open.", true, true),
   bool("adcode.editing.fileTemplates", "editing", "Start new files from a template", "A new file opens with the boilerplate its language always begins with - a doctype for HTML, a main function for C. Ctrl+Z undoes it.", true, true),
   bool("adcode.editing.autoRenamePairedTag", "editing", "Auto-rename paired tag", "Renaming an opening tag renames its closing tag, in the same undo step.", true, true),

@@ -22,6 +22,7 @@ import {
   type SettingValue,
 } from "@adcode/settings";
 import { createHelpButton, createHelpPopover } from "../help/helpPopover.ts";
+import { themePicker } from "./themePicker.ts";
 
 export interface SettingsView {
   open(): void;
@@ -333,6 +334,24 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
 
       row.classList.add("settings-row-stacked");
       row.append(field);
+    } else if (setting.id === "adcode.appearance.theme") {
+      /*
+       * The one enum that is shown rather than listed.
+       *
+       * "Light" and "Dark" are guessable; "Midnight" is not, and neither is what
+       * "System" resolves to on this machine. Four words in a segmented control ask
+       * somebody to click each one to find out - which is fine once and irritating
+       * every time after. Each card draws the window it produces instead.
+       */
+      row.classList.add("settings-row-stacked");
+      row.append(
+        themePicker(setting.options, String(current), !setting.available, (next) => {
+          void deps.write(setting.id, next).then((updated) => {
+            values = updated;
+            renderBody();
+          });
+        }),
+      );
     } else {
       // §8.1: show projected hourly earnings beside each frequency option. The figure is
       // computed by the server and selected here - the client never multiplies money.

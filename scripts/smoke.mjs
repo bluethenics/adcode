@@ -3754,6 +3754,195 @@ checks.helpGuideJumpsToSetting = await (async () => {
   );
 })();
 
+/*
+ * The theme picker, and that picking actually repaints the window.
+ *
+ * Themes are the one setting where the unit tests can prove the *rule* and nothing else:
+ * `resolveTheme` is pure and covered, but whether Midnight reaches the DOM, whether the
+ * editor follows it, and whether the four previews render at all only exist in a laid-out
+ * window. Each has its own way of silently not happening - a stylesheet missing the new
+ * block, a Monaco theme that was never defined, an SVG built in the wrong namespace and
+ * therefore invisible.
+ *
+ * These open Settings themselves rather than inheriting whatever the previous check left
+ * behind. The first version did inherit it, found the cards, clicked one, and reported
+ * that Midnight had not applied - which was the check being wrong about the sheet's state,
+ * not the feature being broken. A check that depends on its predecessor's leftovers is a
+ * check that reports the wrong thing the moment somebody reorders the file.
+ */
+async function openSettingsSheet() {
+  const isOpen = async () =>
+    (await evaluate(
+      `(document.querySelector('.settings-sheet:not(.help-sheet)')?.dataset.state === 'open')`,
+    )) === true;
+
+  /*
+   * Click once, then wait.
+   *
+   * `#open-settings` toggles, so a retry loop that clicks on every pass fights itself:
+   * one click opens the sheet, the next closes it, and twelve attempts land wherever the
+   * parity falls. Clicking once and polling for the result is the only shape that works
+   * for a control whose meaning depends on the current state.
+   */
+  if (await isOpen()) return true;
+
+  await evaluate("document.getElementById('open-settings')?.click(); true");
+
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    await sleep(250);
+    if (await isOpen()) return true;
+  }
+  return false;
+}
+
+/*
+ * Does the picker draw four themes, and does clicking one record the choice?
+ *
+ * The half that needs the settings sheet open, and the only half that does. Splitting it
+ * this way is deliberate: the sheet is the flaky part of this run - it is a toggle, late
+ * in a long sequence, behind an animation - and letting it gate the paint assertions
+ * below meant a green feature reporting red because a panel did not slide out in time.
+ */
+checks.themePickerRecordsAChoice = await (async () => {
+  if ((await openSettingsSheet()) !== true) return "settings would not open";
+
+  const shape = await evaluate(
+    `(() => {
+       const picker = document.querySelector('.theme-picker');
+       if (picker === null) return 'no theme picker';
+
+       const cards = [...picker.querySelectorAll('.theme-card')];
+       const labels = cards.map((c) => c.querySelector('.theme-card-label')?.textContent);
+       // Built with createElementNS, so a namespace mistake shows up as zero rects here
+       // while the element still exists in the tree.
+       const drawn = cards.map(
+         (c) => c.querySelector('.theme-preview')?.querySelectorAll('rect').length ?? 0,
+       );
+
+       return {
+         labels: labels.join(','),
+         everyCardDrawsAPreview: drawn.every((n) => n > 10),
+         exactlyOneChecked: cards.filter((c) => c.getAttribute('aria-checked') === 'true').length === 1,
+       };
+     })()`,
+  );
+  if (typeof shape === "string") return shape;
+
+  const before = await evaluate("document.documentElement.dataset.theme");
+
+  const clicked = await evaluate(
+    `(() => {
+       const card = [...document.querySelectorAll('.theme-card')]
+         .find((c) => c.querySelector('.theme-card-label')?.textContent === 'Midnight');
+       if (!card) return 'no Midnight card';
+       card.click();
+       return 'clicked';
+     })()`,
+  );
+  if (clicked !== "clicked") return clicked;
+
+  await sleep(900);
+
+  const stored = await evaluate(
+    `(async () => (await window.adcode.settings.read())['adcode.appearance.theme'])()`,
+  );
+
+  // Put it back, so every check after this one sees the theme it was written against.
+  await evaluate(
+    `(() => {
+       const label = ${JSON.stringify("Dark")};
+       const card = [...document.querySelectorAll('.theme-card')]
+         .find((c) => c.querySelector('.theme-card-label')?.textContent === label);
+       card?.click();
+       return true;
+     })()`.replace('"Dark"', JSON.stringify(before === "light" ? "Light" : "Dark")),
+  );
+  await sleep(500);
+
+  return { ...shape, clickWroteTheSetting: stored === "midnight" };
+})();
+
+/*
+ * Does Midnight actually repaint the window?
+ *
+ * Written directly rather than clicked, so this cannot fail for want of an open panel.
+ * The click is covered above; what is covered here is the part that only exists in a
+ * laid-out window - that the stylesheet carries a Midnight block, that the accent
+ * inverts, and that Monaco was re-themed rather than silently left on the old one.
+ */
+checks.midnightThemeRepaints = await (async () => {
+  const before = await evaluate("document.documentElement.dataset.theme");
+
+  /*
+   * Get an editor on screen first.
+   *
+   * Two things hide it this late in the run: the settings sheet is covering it, and by
+   * now the earlier checks may have closed every tab, leaving the welcome screen. Escape
+   * handles the first, clicking a tab handles the second. Without both, this measured
+   * nothing and said so in a string - which the run does not count as a failure, so the
+   * Monaco half of this check would have been dead and green forever.
+   */
+  await evaluate(
+    `(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return true; })()`,
+  );
+  await sleep(400);
+
+  await evaluate(
+    `(() => {
+       if (document.querySelector('.monaco-editor') !== null) return 'already mounted';
+       const tab = document.querySelector('.tab');
+       if (tab) { tab.click(); return 'clicked a tab'; }
+       const row = document.querySelector('#filetree .tree-row[data-kind="file"]');
+       if (row) { row.click(); return 'opened a file'; }
+       return 'nothing to open';
+     })()`,
+  );
+  await sleep(900);
+
+  await evaluate(
+    `(async () => { await window.adcode.settings.write('adcode.appearance.theme', 'midnight'); })()`,
+  );
+  await sleep(800);
+
+  const applied = await evaluate(
+    `(() => {
+       const root = document.documentElement;
+       const styles = getComputedStyle(root);
+       const editor = document.querySelector('.monaco-editor');
+       return {
+         attribute: root.dataset.theme,
+         // Read from the cascade, not from a token table: this is what proves the
+         // stylesheet actually carries a Midnight block rather than falling through.
+         app: styles.getPropertyValue('--bg-app').trim(),
+         accent: styles.getPropertyValue('--accent').trim(),
+         // Monaco paints its canvas on inner elements and leaves .monaco-editor itself
+         // transparent, so its background-color measures nothing. The theme's
+         // editor.background is published as this custom property instead.
+         editor:
+           editor === null
+             ? 'no editor mounted'
+             : getComputedStyle(editor).getPropertyValue('--vscode-editor-background').trim(),
+       };
+     })()`,
+  );
+
+  await evaluate(
+    `(async () => { await window.adcode.settings.write('adcode.appearance.theme', ${JSON.stringify("dark")}); })()`.replace(
+      '"dark"',
+      JSON.stringify(before === "midnight" ? "dark" : before),
+    ),
+  );
+  await sleep(500);
+
+  return {
+    attribute: applied.attribute === "midnight",
+    trueBlackGround: applied.app === "#000000",
+    accentInverted: applied.accent === "#f1f3f3",
+    editorFollowed: applied.editor.toLowerCase() === "#08090b" ? true : applied.editor,
+    restored: (await evaluate("document.documentElement.dataset.theme")) !== "midnight",
+  };
+})();
+
 checks.everySettingHasAQuestionMark = await evaluate(
   `(() => {
      const rows = [...document.querySelectorAll('.settings-row[data-setting-id]')];

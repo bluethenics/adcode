@@ -168,16 +168,25 @@
   color: #fff;
 }
 
+/*
+ * `--text-on-accent`, not white.
+ *
+ * White was right while every theme had a blue accent. The Midnight theme's accent is
+ * near-white, which made this white text on a white row - the menu was still there and
+ * completely unreadable. The token exists precisely so the pairing survives a palette it
+ * was not written for.
+ */
 .menu-item:hover,
 .menu-item:focus {
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
   outline: none;
 }
 
 .menu-item:hover .menu-item-accelerator,
 .menu-item:focus .menu-item-accelerator {
-  color: #ffffffcc;
+  color: var(--text-on-accent);
+  opacity: 0.8;
 }
 
 .menu-item-label {

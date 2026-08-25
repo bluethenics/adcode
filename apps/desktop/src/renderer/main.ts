@@ -60,6 +60,7 @@ import { ICON, createIcon, iconButton } from "./workbench/icons.ts";
 import { createSettingsView } from "./settings/settingsView.ts";
 import { createEditorHost, languageForFilename, type EditorHost } from "./editor/editorHost.ts";
 import { startActivityTracker } from "./activity/activityTracker.ts";
+import { resolveTheme } from "./theme.ts";
 import { createTerminalPanel, type TerminalPanel } from "./terminal/terminalPanel.ts";
 import { createNotificationCentre } from "./notifications/notifications.ts";
 import { createReleaseNotice } from "./releases/releaseNotice.ts";
@@ -86,6 +87,7 @@ import type {
   GitStatusView,
   OpenedWorkspace,
   TerminalProfile,
+  ThemeChoice,
 } from "../shared/api.ts";
 
 declare global {
@@ -114,7 +116,7 @@ const tabs: OpenTab[] = [];
 let activePath: string | null = null;
 let workspaceRoot: string | null = null;
 let terminal: TerminalPanel | null = null;
-let theme: "light" | "dark" = "dark";
+let theme: ThemeChoice = "dark";
 
 /*
  * Everything the editor needs from the shell.
@@ -163,6 +165,21 @@ let serverProjections: Record<string, string> | null = null;
 function applySettings(values: Record<string, boolean | string>): void {
   settingsValues = values;
 
+  /*
+   * The theme goes first, and that ordering is load-bearing.
+   *
+   * It used to be the last statement in this function, after a dozen calls into panels
+   * that may or may not still be mounted. Any one of them throwing skipped the theme
+   * silently - the setting was written to disk, the sheet showed the new choice as
+   * selected, and the window never repainted. That is the worst shape a bug can take:
+   * the state is correct everywhere except on screen, so it looks like the theme is
+   * broken rather than the function that applies it.
+   *
+   * Repainting is also the cheapest thing here and the only one the user is watching for,
+   * so it has no business queueing behind a git overlay refresh.
+   */
+  syncTheme();
+
   // §3: "Density is a setting, not a decision."
   const density = values["adcode.appearance.density"];
   document.documentElement.dataset["density"] = density === "compact" ? "compact" : "comfortable";
@@ -208,19 +225,15 @@ function applySettings(values: Record<string, boolean | string>): void {
   problemsPanel.render(diagnosticsHost.current());
   sourceControl.setTimelineEnabled(values["adcode.git.fileTimeline"] !== false);
   void refreshGitOverlay();
-  syncTheme();
 }
 
 /* ── Theme ────────────────────────────────────────────────────────────── */
 
 function syncTheme(): void {
-  const preference = settingsValues["adcode.appearance.theme"];
-  theme =
-    preference === "light" || preference === "dark"
-      ? preference
-      : window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
+  theme = resolveTheme(
+    settingsValues["adcode.appearance.theme"],
+    window.matchMedia("(prefers-color-scheme: dark)").matches,
+  );
 
   document.documentElement.dataset["theme"] = theme;
   editorHost.applyTheme(theme);
@@ -2029,6 +2042,18 @@ const relativePath = (absolute: string): string | null => {
 /* Git's heavyweight actions report here rather than into the status bar's corner. */
 const gitResultDialog = createResultDialog(document.body);
 
+/**
+ * An action that will not run, reported where it cannot be missed.
+ *
+ * The shape `gitResultDialog.show({ action, ok: false, message })` was already the idiom
+ * for a refusal here; naming it lets panels that are not about git take a refusal channel
+ * without taking git's whole result type. What it is *not* is `notify` - the status bar
+ * is for news, and a four-second span in the corner is not where you answer somebody who
+ * just pressed a button.
+ */
+const refuse = (action: string, message: string): void =>
+  gitResultDialog.show({ action, ok: false, message });
+
 /* Anything that destroys work asks first, through here. */
 const confirmDialog = createConfirmDialog(document.body);
 
@@ -2421,6 +2446,7 @@ const searchPanel = createSearchPanel({
   // honest answer: the buffer the user is looking at is no longer what is on disk.
   afterReplace: () => void reloadOpenFiles(),
   notify: (text) => setStatus(text, 4000),
+  refuse,
 });
 
 /**
@@ -3012,6 +3038,7 @@ const collabPanel = createCollabPanel({
   host: document.body,
   anchor: el("status-collab"),
   notify: (message) => setStatus(message, 6000),
+  refuse,
   confirm: (title, body, confirmLabel) => confirmDialog.ask({ title, body, confirmLabel }),
   prompt: (title, body, value) => promptDialog.ask({ title, body, value }),
 });
