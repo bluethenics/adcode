@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/AdminShell";
+import { HelpNote } from "@/components/HelpNote";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
@@ -118,12 +119,12 @@ function NoticesBody() {
         </div>
       )}
 
-      <div className="notice" data-tone="info">
+      <HelpNote id="admin-notices">
         The editor never tells anyone an ad request failed — it fails quietly on purpose,
         because a toast about a blip nobody can fix is just noise. This is the exception:
         you decide something is worth saying, and you say it. Use it for outages and
         planned downtime, not for every error in the logs.
-      </div>
+      </HelpNote>
 
       <form onSubmit={publish} style={{ maxWidth: 560, marginBottom: 34 }}>
         <h3 style={{ fontSize: 18, marginBottom: 12 }}>Send a notice</h3>

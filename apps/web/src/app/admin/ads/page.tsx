@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/AdminShell";
+import { UserPicker } from "@/components/UserPicker";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES, type CreativeView } from "@/lib/api";
 
@@ -11,7 +12,12 @@ import { apiFetch, MESSAGES, type CreativeView } from "@/lib/api";
  * Honest about what it can and cannot do: the server can put a creative at the front of
  * the queue for one user, but it cannot make the editor interrupt them. The editor's own
  * scheduler decides that, and it will not interrupt typing or a debug session no matter
- * who asks. So the copy says "next ad slot", not "instantly".
+ * who asks.
+ *
+ * It no longer has to wait out the *cadence*, though. A test card is flagged on the wire
+ * and skips the minimum gap and the daily cap - so the copy no longer advises turning the
+ * frequency up to Max, which was a workaround for a gap in the product printed inside the
+ * product. What it still waits for is a pause, which is the thing that must not change.
  */
 export default function AdminAds() {
   return (
@@ -57,7 +63,16 @@ function TestAdsBody() {
   }, [load]);
 
   useEffect(() => {
-    if (user !== null && targetUid.length === 0) setTargetUid(user.uid);
+    /*
+     * Deliberately no default any more.
+     *
+     * This used to preselect the admin's own web uid, which looks helpful and is the
+     * reason test cards vanished: the person driving admin is signed in on the website
+     * and their editor is signed in as something else - often an anonymous account made
+     * silently on first launch. The card was queued to an account that never asks for
+     * one, and the screen said "Queued." Making it an explicit choice costs one click
+     * and removes a failure with no symptom.
+     */
   }, [user, targetUid.length]);
 
   const send = async (event: React.FormEvent) => {
@@ -94,8 +109,9 @@ function TestAdsBody() {
       )}
       {queued && (
         <div className="notice" data-tone="ok">
-          Queued. It appears at that editor&apos;s next ad slot — set the cadence to
-          &ldquo;max&rdquo; in ADCode&apos;s settings if you don&apos;t want to wait.
+          Queued. It appears at that editor&apos;s next pause — usually within a minute. A
+          test card skips the frequency limits, but it still waits for the person to stop
+          typing, and it will not appear while they are debugging or in another window.
         </div>
       )}
 
@@ -130,21 +146,11 @@ function TestAdsBody() {
             </select>
           </div>
 
-          <div className="field">
-            <label htmlFor="t-uid">Send to which account</label>
-            <span className="field-hint">
-              Defaults to you. Paste another account&apos;s ID from the Users tab to send
-              it there instead.
-            </span>
-            <input
-              id="t-uid"
-              className="input mono"
-              style={{ fontSize: 13 }}
-              required
-              value={targetUid}
-              onChange={(e) => setTargetUid(e.target.value)}
-            />
-          </div>
+          <UserPicker
+            value={targetUid}
+            onChange={setTargetUid}
+            hint="The account signed in to the editor you want the card to appear in - which is usually not the one you are signed in as here. Search by name or address."
+          />
 
           <div className="actions">
             <button type="submit" className="btn btn-primary" disabled={busy}>

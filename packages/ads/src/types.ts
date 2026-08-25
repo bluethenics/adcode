@@ -153,6 +153,15 @@ export interface SchedulerState {
   readonly impressionsToday: number;
   readonly lastImpressionAt: number | null;
   readonly creativeAvailable: boolean;
+  /**
+   * The next card waiting is an admin test.
+   *
+   * Skips the daily cap and the minimum gap, and nothing else. Those two are pacing -
+   * how often it is *polite* to interrupt - and a test that waits out a ten-minute
+   * cadence gets its answer long after whoever asked has concluded delivery is broken.
+   * Everything above them in `decide` is restraint, and a test card obeys all of it.
+   */
+  readonly testCardWaiting?: boolean;
 }
 
 export type SchedulerDecision =
@@ -170,6 +179,8 @@ export interface Creative {
   readonly logoLight: string;
   readonly logoDark: string;
   readonly ttlMs: number;
+  /** An admin test card. Skips pacing, never restraint - see `decide`. */
+  readonly test?: boolean;
 }
 
 export interface Receipt {

@@ -76,6 +76,19 @@ export interface ServedCreative {
   logoLight: string;
   logoDark: string;
   ttlMs: number;
+  /**
+   * An admin test card, queued deliberately at somebody.
+   *
+   * Absent on every ordinary serve. The client uses it to skip the *pacing* rules - the
+   * minimum gap and the daily cap - because a test that has to wait out a ten-minute
+   * cadence is a test whose result arrives long after the person who asked for it has
+   * concluded it is broken. It never skips the restraint rules: a test card still waits
+   * for a pause, and still refuses to appear while somebody is typing or debugging.
+   *
+   * It bills nobody either way - `recordServe` already flags the serve, and the receipt
+   * it produces is worth zero.
+   */
+  test?: boolean;
 }
 
 export interface ServeResponseBody {

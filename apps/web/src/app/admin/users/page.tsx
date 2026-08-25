@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/AdminShell";
 import { Avatar } from "@/components/Avatar";
+import { HelpNote } from "@/components/HelpNote";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES, type LedgerPageView, type LedgerRowView } from "@/lib/api";
 import { LedgerRows } from "@/components/LedgerRows";
@@ -41,10 +42,11 @@ function UsersBody() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [ledger, setLedger] = useState<LedgerRowView[]>([]);
+  const [query, setQuery] = useState("");
 
   const load = useCallback(async () => {
     const found = await apiFetch<{ rows: UserRow[]; nextCursor: string | null }>({
-      path: "/admin/users?limit=50",
+      path: "/admin/users?limit=200",
       token: await token(),
     });
     if (found.ok) {
@@ -93,6 +95,24 @@ function UsersBody() {
     else setError(MESSAGES[found.error]);
   };
 
+  /*
+   * Filtered here rather than on the server.
+   *
+   * The endpoint is a keyset paginator with no search, and adding one is a larger change
+   * than this screen needs at its current size. The count beside the box says how many
+   * accounts are being searched, so a list that has outgrown this is visible rather than
+   * silently partial.
+   */
+  const needle = query.trim().toLowerCase();
+  const matches =
+    needle.length === 0
+      ? rows
+      : rows.filter((row) =>
+          [row.email, row.displayName, row.uid]
+            .filter((field): field is string => typeof field === "string")
+            .some((field) => field.toLowerCase().includes(needle)),
+        );
+
   if (loading) return <p className="lede">Loading…</p>;
 
   return (
@@ -103,16 +123,37 @@ function UsersBody() {
         </div>
       )}
 
-      <div className="notice" data-tone="info">
-        Names and addresses appear only for accounts that signed in with a provider.
-        Opening someone&apos;s ledger is recorded — who looked, at whom, and when. So is
-        every ban. You see exactly the rows and descriptions the user sees.
+      <HelpNote id="admin-users-audit">
+        Names and addresses appear only for accounts that signed in with a provider —
+        first launch signs in anonymously, so most accounts have none. Opening
+        someone&apos;s ledger is recorded: who looked, at whom, and when. So is every ban.
+        You see exactly the rows and descriptions the user sees.
+      </HelpNote>
+
+      <div className="admin-search">
+        <input
+          className="input"
+          type="search"
+          placeholder="Search by name, email, or account ID"
+          aria-label="Search accounts"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <span className="field-hint">
+          {matches.length === rows.length
+            ? `${rows.length} account${rows.length === 1 ? "" : "s"}`
+            : `${matches.length} of ${rows.length}`}
+        </span>
       </div>
 
-      {rows.length === 0 ? (
+      {matches.length === 0 ? (
         <div className="empty">
-          <h3>No users yet</h3>
-          <p>Accounts appear here the first time someone opens ADCode.</p>
+          <h3>{rows.length === 0 ? "No accounts yet" : "Nothing matches that"}</h3>
+          <p>
+            {rows.length === 0
+              ? "Accounts appear here the first time someone opens ADCode."
+              : "Try part of a name, an email address, or an account ID."}
+          </p>
         </div>
       ) : (
         <div className="rows">
@@ -121,7 +162,7 @@ function UsersBody() {
             <span className="row-num">Actions</span>
           </div>
 
-          {rows.map((row) => (
+          {matches.map((row) => (
             <div key={row.uid}>
               <div className="row">
                 <span className="row-main user-row">
@@ -184,7 +225,7 @@ function UsersBody() {
 
       {cursor !== null && (
         <p className="field-hint" style={{ marginTop: 14 }}>
-          Showing the 50 most recent accounts.
+          Showing the {rows.length} most recent accounts. Older ones are not searched.
         </p>
       )}
     </>

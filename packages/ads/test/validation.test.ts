@@ -245,3 +245,35 @@ describe("parseConfigResponse", () => {
     expect(parseConfigResponse(config({ killSwitch: "false" })).ok).toBe(false);
   });
 });
+
+/*
+ * The test flag on a served card.
+ *
+ * It lets a card skip the pacing rules, so it is exactly the field a malformed or
+ * hostile response would most like to set. `onlyKnownKeys` also means adding it to the
+ * wire without admitting it here would have made the client reject every test serve
+ * outright - the whole response, over one unrecognised key.
+ */
+describe("parseServeResponse - the admin test flag", () => {
+  it("accepts a card that carries it", () => {
+    const parsed = parseServeResponse(serve(creative({ test: true })), HOST);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.value[0]?.test).toBe(true);
+  });
+
+  it("leaves it absent on an ordinary card", () => {
+    const parsed = parseServeResponse(serve(creative()), HOST);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect("test" in (parsed.value[0] ?? {})).toBe(false);
+  });
+
+  it("treats anything that is not literally true as not a test", () => {
+    // Coercing here would let a malformed response bypass the daily cap, which is the
+    // shape of thing §1 refuses to let a server do.
+    for (const hostile of ["true", 1, {}, [], "yes"]) {
+      const parsed = parseServeResponse(serve(creative({ test: hostile })), HOST);
+      expect(parsed.ok, JSON.stringify(hostile)).toBe(true);
+      if (parsed.ok) expect(parsed.value[0]?.test, JSON.stringify(hostile)).toBeUndefined();
+    }
+  });
+});

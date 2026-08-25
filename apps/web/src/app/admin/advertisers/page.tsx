@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/AdminShell";
+import { HelpNote } from "@/components/HelpNote";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { money, when } from "@/components/money";
@@ -74,12 +75,12 @@ function AdvertisersBody() {
         </div>
       )}
 
-      <div className="notice" data-tone="info">
+      <HelpNote id="admin-advertisers">
         Suspending locks an advertiser out of the portal — no new campaigns, no funding, no
         changes. It does <strong>not</strong> stop campaigns already live, because that
         money is committed and halting paid delivery is a refund question, not a
         moderation one. Pause those explicitly if that&apos;s what you mean.
-      </div>
+      </HelpNote>
 
       {rows.length === 0 ? (
         <div className="empty">

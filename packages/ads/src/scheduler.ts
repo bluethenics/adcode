@@ -26,13 +26,24 @@ export function decide(state: SchedulerState): SchedulerDecision {
   if (state.debugActive) return { show: false, reason: "debug-active" };
   if (state.doNotDisturb) return { show: false, reason: "do-not-disturb" };
 
-  // Rate limits.
-  if (state.impressionsToday >= state.caps.dailyCap) return { show: false, reason: "daily-cap" };
-  if (
-    state.lastImpressionAt !== null &&
-    state.now - state.lastImpressionAt < state.caps.minIntervalMs
-  ) {
-    return { show: false, reason: "min-interval" };
+  /*
+   * Rate limits - and the one thing allowed to skip them.
+   *
+   * Everything above this point is restraint: what the product promises about not
+   * interrupting people. A test card obeys all of it. These two are pacing - how often
+   * it is polite to interrupt - and an admin proving delivery works needs an answer now,
+   * not at the far side of a ten-minute cadence. Before this, the admin screen had to
+   * advise turning the frequency up to Max to see a test at all, which is a workaround
+   * printed in the product for a gap in it.
+   */
+  if (state.testCardWaiting !== true) {
+    if (state.impressionsToday >= state.caps.dailyCap) return { show: false, reason: "daily-cap" };
+    if (
+      state.lastImpressionAt !== null &&
+      state.now - state.lastImpressionAt < state.caps.minIntervalMs
+    ) {
+      return { show: false, reason: "min-interval" };
+    }
   }
 
   // Inventory.

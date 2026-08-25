@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/AdminShell";
+import { HelpNote } from "@/components/HelpNote";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
@@ -121,11 +122,11 @@ function AdminsBody() {
         </div>
       )}
 
-      <div className="notice" data-tone="info">
+      <HelpNote id="admin-admins">
         An administrator can read every account, move money, approve ads and appoint more
         administrators. Only the address matters — whoever signs in with it, using any
         method, gets everything on these tabs. Appoint accordingly.
-      </div>
+      </HelpNote>
 
       <form onSubmit={add} style={{ maxWidth: 560, marginBottom: 34 }}>
         <h3 style={{ fontSize: 18, marginBottom: 12 }}>Appoint an administrator</h3>

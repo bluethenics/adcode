@@ -57,6 +57,8 @@ export async function handleServe(
             logoLight: creative.logoLight,
             logoDark: creative.logoDark,
             ttlMs: config.serveTtlMs,
+            // So the client can show it now rather than at the next scheduled slot.
+            test: true,
           },
         ],
       };

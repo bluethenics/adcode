@@ -171,3 +171,62 @@ describe("tightenCaps", () => {
     expect(tightenCaps(local, {})).toEqual(local);
   });
 });
+
+/*
+ * A test card skips pacing, never restraint.
+ *
+ * The distinction is the whole point. Everything above the rate limits in `decide` is a
+ * promise about not interrupting people, and an admin proving delivery works has no
+ * business overriding it. The two rate limits are only about how often it is *polite* to
+ * interrupt, and waiting ten minutes for a test means the person who asked has already
+ * concluded delivery is broken.
+ */
+describe("decide - an admin test card", () => {
+  const testing = { ...clear, testCardWaiting: true };
+
+  it("shows even at the daily cap", () => {
+    expect(decide({ ...testing, impressionsToday: testing.caps.dailyCap + 5 })).toEqual({
+      show: true,
+    });
+  });
+
+  it("shows even one millisecond into the minimum gap", () => {
+    expect(decide({ ...testing, lastImpressionAt: NOW - 1 })).toEqual({ show: true });
+  });
+
+  it("still refuses while somebody is typing, debugging, or away", () => {
+    // Restraint. A test card is not a licence to interrupt.
+    expect(decide({ ...testing, windowFocused: false })).toEqual({
+      show: false,
+      reason: "window-unfocused",
+    });
+    expect(decide({ ...testing, debugActive: true })).toEqual({
+      show: false,
+      reason: "debug-active",
+    });
+    expect(decide({ ...testing, doNotDisturb: true })).toEqual({
+      show: false,
+      reason: "do-not-disturb",
+    });
+  });
+
+  it("still respects the user having switched ads off", () => {
+    // An admin must not be able to put a card in front of somebody who declined them.
+    expect(decide({ ...testing, adsEnabled: false })).toEqual({
+      show: false,
+      reason: "ads-disabled",
+    });
+    expect(decide({ ...testing, preset: "off" })).toEqual({ show: false, reason: "frequency-off" });
+    expect(decide({ ...testing, killSwitch: true })).toEqual({ show: false, reason: "kill-switch" });
+  });
+
+  it("still waits out the settle period after launch", () => {
+    expect(decide({ ...testing, launchedAt: NOW })).toEqual({ show: false, reason: "settling" });
+  });
+
+  it("leaves the ordinary path alone when the flag is absent or false", () => {
+    const capped = { ...clear, impressionsToday: clear.caps.dailyCap };
+    expect(decide(capped)).toEqual({ show: false, reason: "daily-cap" });
+    expect(decide({ ...capped, testCardWaiting: false })).toEqual({ show: false, reason: "daily-cap" });
+  });
+});

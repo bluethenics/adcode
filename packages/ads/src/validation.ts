@@ -165,6 +165,10 @@ function integer(
 
 const CREATIVE_KEYS = [
   "creativeId", "advertiser", "headline", "body", "clickUrl", "logoLight", "logoDark", "ttlMs",
+  // Admin test cards carry this. It has to be listed: `onlyKnownKeys` rejects the whole
+  // response over one unrecognised field, which is the right strictness and means every
+  // new wire field must be admitted here before the server may send it.
+  "test",
 ] as const;
 
 function creative(value: unknown, index: number, assetHost: string): Result<Creative, ValidationError> {
@@ -207,6 +211,16 @@ function creative(value: unknown, index: number, assetHost: string): Result<Crea
     body = parsed.value;
   }
 
+  /*
+   * Only a literal `true` counts.
+   *
+   * This flag lets a card skip the pacing rules, so anything ambiguous - a string, a 1,
+   * a missing field - has to mean "no". Coercing here would let a malformed response
+   * bypass the daily cap, which is precisely the shape of thing §1 refuses to allow a
+   * server to do.
+   */
+  const test = value["test"] === true;
+
   return ok({
     creativeId: id,
     advertiser: advertiser.value,
@@ -216,6 +230,9 @@ function creative(value: unknown, index: number, assetHost: string): Result<Crea
     logoLight: logoLight.value,
     logoDark: logoDark.value,
     ttlMs: ttlMs.value,
+    // `exactOptionalPropertyTypes` is on: an optional field cannot be set to `undefined`,
+    // it has to be absent.
+    ...(test ? { test: true } : {}),
   });
 }
 

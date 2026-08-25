@@ -203,6 +203,9 @@ export function createAdService(deps: AdServiceDeps): AdService {
           impressionsToday: impressionsToday(now),
           lastImpressionAt: impressions.at(-1) ?? null,
           creativeAvailable: inventory.length > 0,
+          // The card about to be shown is the one at the front of the queue, and it is
+          // the only one whose test flag can matter to this decision.
+          testCardWaiting: inventory[0]?.test === true,
         });
 
         if (!decision.show) {
