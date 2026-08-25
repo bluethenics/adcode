@@ -67,6 +67,15 @@ export const DOC_SEED: readonly DocSeed[] = [
     related: ["editing-indent-guides", "editing-code-folding"],
   },
   {
+    slug: "editing-spell-check",
+    title: "Check spelling in comments",
+    section: "Editing",
+    description: "Misspelled words in comments get a wavy underline, and the fix is one click away on the lightbulb.",
+    why: "A typo in a comment is the one kind nothing else catches - the compiler does not read comments, the linter does not read them, and reviewers skim them. So it sits there forever.",
+    how: "Off by default. It only flags words it can name a correction for, so a library, a product, or somebody's name is left alone instead of underlined - which is why it never becomes the noise you switch off. Code is never checked: an identifier is named, not spelled.",
+    related: ["editing-todo-highlighting"],
+  },
+  {
     slug: "editing-auto-close-tags",
     title: "Close tags automatically",
     section: "Editing",
@@ -83,6 +92,15 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "A file is easier to read when the parts you are not working on are out of the way.",
     how: "On by default. Click the small arrow in the margin beside a line, or press Ctrl+Shift+[ to fold and Ctrl+Shift+] to unfold.",
     related: ["navigation-outline", "editing-sticky-scroll"],
+  },
+  {
+    slug: "editing-comment-tones",
+    title: "Colour comments by intent",
+    section: "Editing",
+    description: "Start a comment with !, ?, or * and it takes a colour. Start one with a second // and it fades, because that is code you commented out.",
+    why: "A warning, an open question, and a line of dead code are three different kinds of writing that all render the same grey. One character tells them apart.",
+    how: "Off by default. Line comments only - a /** block */ begins with * by convention, and colouring those would mark every documented function in a project.",
+    related: ["editing-todo-highlighting"],
   },
   {
     slug: "editing-column-selection",

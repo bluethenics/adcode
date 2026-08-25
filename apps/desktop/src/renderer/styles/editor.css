@@ -115,3 +115,55 @@
   border-color: transparent transparent transparent var(--warning);
   transform: translate(-50%, -50%);
 }
+
+/* ── Comment tones ────────────────────────────────────────────────────── */
+
+/*
+ * Colour, not decoration.
+ *
+ * These paint whole comments rather than the few characters a TODO badge covers, so the
+ * treatment has to be quieter than one: no background fill, no weight change, nothing that
+ * changes the metrics of a line of code somebody is reading. The existing semantic tokens
+ * are reused rather than four new ones invented - a warning comment should be the colour
+ * this app already uses for danger, in every theme, including the one where the accent
+ * inverts.
+ */
+.comment-tone-alert {
+  color: var(--danger);
+}
+
+.comment-tone-query {
+  color: var(--accent);
+}
+
+.comment-tone-highlight {
+  color: var(--success);
+}
+
+/*
+ * Commented-out code, pushed back rather than struck through.
+ *
+ * Strikethrough is what the original extension does and it is hard to read across a whole
+ * block - the point is to stop the eye landing on dead code, not to make it illegible if
+ * you do need to read it.
+ */
+.comment-tone-muted {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+/* ── Spelling ─────────────────────────────────────────────────────────── */
+
+/*
+ * A wavy underline, in the colour of a hint rather than an error.
+ *
+ * `text-decoration` rather than a background or a border: a misspelling is a mark *on* a
+ * word, and anything that fills or boxes it changes how the line reads. The colour is the
+ * secondary text colour deliberately - a typo in a comment is not the same order of
+ * problem as a compile error, and painting it red would say that it was.
+ */
+.spell-misspelling {
+  text-decoration: underline wavy var(--text-secondary);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 2px;
+}

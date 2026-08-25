@@ -50,6 +50,8 @@ export { closingTagFor, completeClosingTag, supportsTagClosing } from "./tags.ts
 export { pairedTagAt, type PairedTag, type TagNameSpan } from "./pairedTags.ts";
 
 export { todoMarksIn, type TodoKeyword, type TodoMark } from "./todos.ts";
+export { scanComments, type CommentSpan } from "./comments.ts";
+export { commentTonesIn, type Tone, type TonedComment } from "./commentTones.ts";
 
 export {
   describeEntry,

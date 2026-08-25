@@ -71,6 +71,28 @@ export const EDITING_ENTRIES: readonly HelpEntry[] = [
     related: ["adcode.editing.inlineErrorLens"],
   },
   {
+    id: "adcode.editing.spellCheck",
+    title: "Check spelling in comments",
+    plain:
+      "Misspelled words in comments get a wavy underline, and the fix is one click away on the lightbulb.",
+    why: "A typo in a comment is the one kind nothing else catches - the compiler does not read comments, the linter does not read them, and reviewers skim them. So it sits there forever.",
+    how: "Off by default. It only flags words it can name a correction for, so a library, a product, or somebody's name is left alone instead of underlined - which is why it never becomes the noise you switch off. Code is never checked: an identifier is named, not spelled.",
+    group: "editing",
+    settingIds: ["adcode.editing.spellCheck"],
+    related: ["adcode.editing.todoHighlighting"],
+  },
+  {
+    id: "adcode.editing.commentTones",
+    title: "Colour comments by intent",
+    plain:
+      "Start a comment with !, ?, or * and it takes a colour. Start one with a second // and it fades, because that is code you commented out.",
+    why: "A warning, an open question, and a line of dead code are three different kinds of writing that all render the same grey. One character tells them apart.",
+    how: "Off by default. Line comments only - a /** block */ begins with * by convention, and colouring those would mark every documented function in a project.",
+    group: "editing",
+    settingIds: ["adcode.editing.commentTones"],
+    related: ["adcode.editing.todoHighlighting"],
+  },
+  {
     id: "adcode.editing.autoCloseTags",
     title: "Close tags automatically",
     plain:

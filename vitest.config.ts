@@ -23,6 +23,7 @@ const alias = {
   "@adcode/collab": resolve(import.meta.dirname, "packages/collab/src/index.ts"),
   "@adcode/release": resolve(import.meta.dirname, "packages/release/src/index.ts"),
   "@adcode/structure": resolve(import.meta.dirname, "packages/structure/src/index.ts"),
+  "@adcode/spell": resolve(import.meta.dirname, "packages/spell/src/index.ts"),
   "@adcode/help": resolve(import.meta.dirname, "packages/help/src/index.ts"),
   "@adcode/format": resolve(import.meta.dirname, "packages/format/src/index.ts"),
   "@adcode/highlight": resolve(import.meta.dirname, "packages/highlight/src/index.ts"),

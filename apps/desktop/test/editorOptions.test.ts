@@ -100,6 +100,8 @@ describe("editorOptionsFor", () => {
      *   inlineErrorLens      errorLens.ts, from Monaco's markers
      *   inlineGitBlame       the git overlay
      *   todoHighlighting     todoHighlight.ts, over @adcode/structure's comment scan
+     *   spellCheck           spellCheck.ts, over @adcode/spell's comment scan
+     *   commentTones         commentTones.ts, over the same scan
      *   autoCloseTags        the editor host's tag-closing listener
      *   fileTemplates        the new-file flow, before the editor sees the buffer
      *   autoRenamePairedTag  pairedTagRename.ts
@@ -110,6 +112,8 @@ describe("editorOptionsFor", () => {
       "adcode.editing.inlineErrorLens",
       "adcode.editing.inlineGitBlame",
       "adcode.editing.todoHighlighting",
+      "adcode.editing.spellCheck",
+      "adcode.editing.commentTones",
       "adcode.editing.autoCloseTags",
       "adcode.editing.fileTemplates",
       "adcode.editing.autoRenamePairedTag",
