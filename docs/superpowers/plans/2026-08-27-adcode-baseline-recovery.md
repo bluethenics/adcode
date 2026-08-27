@@ -54,7 +54,7 @@
 - Consumes: Git checkpoint `11ca5214d` and its parent tree.
 - Produces: the exact `packages/**` tree from `11ca5214d^`, available through the existing `@adcode/*` TypeScript aliases.
 
-- [ ] **Step 1: Prove the recovery source contains the package entry points**
+- [x] **Step 1: Prove the recovery source contains the package entry points**
 
 Run:
 
@@ -64,7 +64,7 @@ git ls-tree -r --name-only '11ca5214d^' -- packages | Select-String -Pattern '^p
 
 Expected: output contains source files for all fifteen named package directories.
 
-- [ ] **Step 2: Restore only the deleted package tree**
+- [x] **Step 2: Restore only the deleted package tree**
 
 Run:
 
@@ -74,7 +74,7 @@ git restore --source='11ca5214d^' -- packages
 
 Expected: `git status --short -- packages` lists package files as restored additions and no path outside `packages/` changes.
 
-- [ ] **Step 3: Verify representative package entry points byte-for-byte**
+- [x] **Step 3: Verify representative package entry points byte-for-byte**
 
 Run:
 
@@ -85,7 +85,7 @@ cmd /d /c "git rev-parse 11ca5214d^^:packages/ads/src/index.ts && git hash-objec
 
 Expected: each historical/current hash pair is identical.
 
-- [ ] **Step 4: Run the TypeScript gate**
+- [x] **Step 4: Run the TypeScript gate**
 
 Run:
 
@@ -95,7 +95,7 @@ npm run typecheck
 
 Expected during recovery: FAIL only on the pre-existing missing `@adcode/release` package. All imports supplied by the restored package tree resolve. Task 2 adds that package test-first and reruns this gate to PASS.
 
-- [ ] **Step 5: Commit the recovered baseline tree**
+- [x] **Step 5: Commit the recovered baseline tree**
 
 Run:
 
@@ -117,11 +117,11 @@ Expected: one commit restoring only `packages/**`.
 - Consumes: public release records shaped as `{ version, title, body, highlights, announce, critical, publishedAt }` and renderer state shaped by `AnnounceState`.
 - Produces: `parseReleaseList(raw: unknown): Release[]`, `releasesInBuild(releases: readonly Release[], currentVersion: string): Release[]`, `decideAnnouncement(state: AnnounceState): AnnouncementDecision`, and `versionsToMarkSeen(state: AnnounceState, shown: Release): string[]`.
 
-- [ ] **Step 1: Write failing validation and ordering tests**
+- [x] **Step 1: Write failing validation and ordering tests**
 
 Create `packages/release/test/release.test.ts` with literal fixtures proving that malformed records are dropped, valid fields are normalized, versions newer than the running build are excluded, and remaining releases are newest first.
 
-- [ ] **Step 2: Run the release tests and verify RED**
+- [x] **Step 2: Run the release tests and verify RED**
 
 Run:
 
@@ -131,11 +131,11 @@ npx vitest run packages/release/test/release.test.ts
 
 Expected: FAIL because `packages/release/src/index.ts` does not exist.
 
-- [ ] **Step 3: Implement validation and semantic version comparison**
+- [x] **Step 3: Implement validation and semantic version comparison**
 
 Create `packages/release/src/index.ts` with the exact interfaces above. Accept versions matching `/^[0-9A-Za-z.\-+]{1,32}$/`, require non-empty bounded titles, default optional text/arrays/booleans safely, require a finite `publishedAt` or `null`, and compare numeric semantic-version cores without treating lexical `10` as older than `2`.
 
-- [ ] **Step 4: Run the release tests and verify GREEN**
+- [x] **Step 4: Run the release tests and verify GREEN**
 
 Run:
 
@@ -145,11 +145,11 @@ npx vitest run packages/release/test/release.test.ts
 
 Expected: PASS for validation and build filtering.
 
-- [ ] **Step 5: Add failing announcement-policy tests**
+- [x] **Step 5: Add failing announcement-policy tests**
 
 Extend `packages/release/test/release.test.ts` with literal states proving: disabled and first-run states never show; seen and non-announcing notes never show; normal notes wait while typing, a command runs, debugging is active, or the window is unfocused; a critical unseen note bypasses busy state; the newest eligible unseen note wins; and displaying it marks that version plus older unseen eligible versions.
 
-- [ ] **Step 6: Run the policy tests and verify RED**
+- [x] **Step 6: Run the policy tests and verify RED**
 
 Run:
 
@@ -159,11 +159,11 @@ npx vitest run packages/release/test/release.test.ts
 
 Expected: FAIL because the announcement functions are not implemented.
 
-- [ ] **Step 7: Implement the minimal announcement policy**
+- [x] **Step 7: Implement the minimal announcement policy**
 
 Implement `decideAnnouncement` and `versionsToMarkSeen` in `packages/release/src/index.ts`. Return `{ show: false, reason: "disabled" | "first-run" | "none" | "busy" }` or `{ show: true, release }`. Critical notes bypass only the quiet-moment checks; they do not bypass enabled, first-run, build-version, announce, or seen rules.
 
-- [ ] **Step 8: Verify release tests and TypeScript**
+- [x] **Step 8: Verify release tests and TypeScript**
 
 Run:
 
@@ -174,7 +174,7 @@ npm run typecheck
 
 Expected: both PASS and every `@adcode/release` consumer typechecks without casts beyond the existing API boundary.
 
-- [ ] **Step 9: Commit the release domain repair**
+- [x] **Step 9: Commit the release domain repair**
 
 Run:
 
@@ -199,7 +199,7 @@ Expected: one focused commit containing the missing pure package, its tests, and
 - Consumes: restored `@adcode/*` packages from Task 1.
 - Produces: a green dependency-boundary result and green repository test suite.
 
-- [ ] **Step 1: Run the architecture firewall**
+- [x] **Step 1: Run the architecture firewall**
 
 Run:
 
@@ -209,7 +209,7 @@ npm run firewall
 
 Expected: PASS with no forbidden dependency edge.
 
-- [ ] **Step 2: Run the complete unit and integration suite**
+- [x] **Step 2: Run the complete unit and integration suite**
 
 Run:
 
@@ -219,7 +219,7 @@ npm run test
 
 Expected: PASS with no skipped failure caused by a missing package.
 
-- [ ] **Step 3: Run the combined mandatory verification command**
+- [x] **Step 3: Run the combined mandatory verification command**
 
 Run:
 
@@ -229,7 +229,7 @@ npm run verify
 
 Expected: PASS for typecheck, firewall, and the full test suite in the same process chain.
 
-- [ ] **Step 4: Record the verified baseline without source changes**
+- [x] **Step 4: Record the verified baseline without source changes**
 
 Run:
 
@@ -251,7 +251,7 @@ Expected: only `supabase/.temp/` is untracked. If a diagnostic fix was required,
 - Consumes: green verification from Task 2.
 - Produces: production desktop/web bundles and Windows package artifacts for version `0.1.0`.
 
-- [ ] **Step 1: Build the desktop production bundle**
+- [x] **Step 1: Build the desktop production bundle**
 
 Run:
 
@@ -261,7 +261,7 @@ npm run desktop:build
 
 Expected: PASS and `apps/desktop/out/main/index.js` exists.
 
-- [ ] **Step 2: Build the web production bundle**
+- [x] **Step 2: Build the web production bundle**
 
 Run:
 
@@ -271,7 +271,7 @@ npm run web:build
 
 Expected: PASS and Next.js prints the complete route table.
 
-- [ ] **Step 3: Package the Windows desktop application**
+- [x] **Step 3: Package the Windows desktop application**
 
 Run:
 
@@ -281,7 +281,7 @@ npm run package
 
 Expected: PASS and `release/` contains the current setup executable, portable executable, `latest.yml`, blockmap, and unpacked application.
 
-- [ ] **Step 4: Validate artifact metadata**
+- [x] **Step 4: Validate artifact metadata**
 
 Run:
 
@@ -303,7 +303,7 @@ Expected: current timestamps, non-zero binaries, version `0.1.0`, SHA-512 metada
 - Consumes: packaged desktop artifacts from Task 3.
 - Produces: evidence that editor and ad flows cross their real Electron/IPC/server boundaries.
 
-- [ ] **Step 1: Run the packaged editor smoke suite**
+- [x] **Step 1: Run the packaged editor smoke suite**
 
 Run:
 
@@ -313,7 +313,7 @@ npm run smoke -- --packaged
 
 Expected: PASS for launch, folder open, edit/save, terminal, menus, navigation, and packaged runtime checks.
 
-- [ ] **Step 2: Run the ad delivery smoke suite**
+- [x] **Step 2: Run the ad delivery smoke suite**
 
 Run:
 
@@ -323,7 +323,7 @@ npm run smoke:ads
 
 Expected: PASS for serving, targeted creative display, inline cached asset, receipt acknowledgement, and balance refresh.
 
-- [ ] **Step 3: Confirm recovery did not change tracked files**
+- [x] **Step 3: Confirm recovery did not change tracked files**
 
 Run:
 
@@ -342,11 +342,11 @@ Expected: only `supabase/.temp/` remains untracked; generated build artifacts ar
 - Consumes: verification evidence from Tasks 1–5.
 - Produces: a checked-off recovery plan and stable base commit for Milestone 2.
 
-- [ ] **Step 1: Mark completed steps in this plan**
+- [x] **Step 1: Mark completed steps in this plan**
 
 Change each completed checkbox from `- [ ]` to `- [x]`. Leave a failed or externally blocked step unchecked and append its exact command and failure summary immediately below it.
 
-- [ ] **Step 2: Run the final tracked-state check**
+- [x] **Step 2: Run the final tracked-state check**
 
 Run:
 
@@ -357,7 +357,7 @@ git status --short
 
 Expected: no diff errors and only the deliberately untracked `supabase/.temp/` cache.
 
-- [ ] **Step 3: Commit the milestone record**
+- [x] **Step 3: Commit the milestone record**
 
 Run:
 
