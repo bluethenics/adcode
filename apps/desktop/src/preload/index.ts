@@ -150,6 +150,17 @@ const api: AdcodeApi = {
     onProposedEdit: (listener) => subscribe(CHANNELS.aiProposedEdit, listener),
     applyHunks: (path, ids) => ipcRenderer.invoke(CHANNELS.aiApplyHunks, path, ids),
   },
+  aiWorkspace: {
+    list: () => ipcRenderer.invoke(CHANNELS.aiWorkspaceList),
+    current: () => ipcRenderer.invoke(CHANNELS.aiWorkspaceCurrent),
+    changes: (taskId) => ipcRenderer.invoke(CHANNELS.aiWorkspaceChanges, taskId),
+    traces: (taskId) => ipcRenderer.invoke(CHANNELS.aiWorkspaceTraces, taskId),
+    apply: (taskId, selections) =>
+      ipcRenderer.invoke(CHANNELS.aiWorkspaceApply, taskId, selections),
+    discard: (taskId) => ipcRenderer.invoke(CHANNELS.aiWorkspaceDiscard, taskId),
+    rollback: (taskId) => ipcRenderer.invoke(CHANNELS.aiWorkspaceRollback, taskId),
+    onChanged: (listener) => subscribe(CHANNELS.aiWorkspaceChanged, listener),
+  },
   git: {
     status: () => ipcRenderer.invoke(CHANNELS.gitStatus),
     stage: (paths) => ipcRenderer.invoke(CHANNELS.gitStage, paths),

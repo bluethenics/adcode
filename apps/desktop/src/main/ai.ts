@@ -29,6 +29,7 @@ import {
   providerIn,
   transportFor,
   type Agent,
+  type AiWorkspaceTask,
   titleFor,
   withMessage,
   type CatalogueProvider,
@@ -38,8 +39,13 @@ import {
 import {
   CHANNELS,
   type AiKeyCheck,
+  type AiWorkspaceActionView,
+  type AiWorkspaceApplySelectionView,
+  type AiWorkspaceChangeView,
   type AiProviderInfo,
   type AiStatus,
+  type AiWorkspaceTaskView,
+  type AiWorkspaceTraceView,
   type ProposedEditView,
 } from "../shared/api.ts";
 import { recordAgentEdit } from "./activity.ts";
@@ -50,6 +56,13 @@ import { currentSettings } from "./settings.ts";
 import { currentWorkspace } from "./workspace.ts";
 import { clearSessions, deleteSession, readSessions, writeSession } from "./aiSessions.ts";
 import { createAiWorkspaceService, type AiWorkspaceService } from "./aiWorkspaceService.ts";
+import { normalizeForCompare } from "./pathSafety.ts";
+import {
+  toAiWorkspaceActionView,
+  toAiWorkspaceChangeViews,
+  toAiWorkspaceTaskView,
+  toAiWorkspaceTraceView,
+} from "./aiWorkspaceViews.ts";
 
 const keys = createKeychainStore();
 
@@ -110,6 +123,20 @@ function aiWorkspaceService(): AiWorkspaceService {
   return taskService;
 }
 
+function announceWorkspaceTask(task: Parameters<typeof toAiWorkspaceTaskView>[0]): void {
+  broadcast(CHANNELS.aiWorkspaceChanged, toAiWorkspaceTaskView(task));
+}
+
+function belongsToCurrentWorkspace(task: AiWorkspaceTask): boolean {
+  const root = currentWorkspace()?.root;
+  return root !== undefined && normalizeForCompare(root) === normalizeForCompare(task.workspaceRoot);
+}
+
+async function currentWorkspaceTask(taskId: string): Promise<AiWorkspaceTask | null> {
+  const task = await aiWorkspaceService().read(taskId);
+  return task !== null && belongsToCurrentWorkspace(task) ? task : null;
+}
+
 const REUSABLE_TASK_STATES = new Set(["ready", "running", "paused", "review", "conflict"]);
 
 async function ensureToolWorkspace() {
@@ -120,7 +147,7 @@ async function ensureToolWorkspace() {
   let task = activeTaskId === null ? null : await service.read(activeTaskId);
   if (
     task === null ||
-    task.workspaceRoot !== human ||
+    normalizeForCompare(task.workspaceRoot) !== normalizeForCompare(human) ||
     !REUSABLE_TASK_STATES.has(task.state)
   ) {
     task = await service.start({
@@ -128,6 +155,7 @@ async function ensureToolWorkspace() {
       prompt: currentTaskPrompt ?? "Continue the assistant task",
     });
     activeTaskId = task.id;
+    announceWorkspaceTask(task);
   }
 
   return {
@@ -273,6 +301,7 @@ function toolRunner() {
     writeSandboxFile: async (path, contents) => {
       if (activeTaskId === null) throw new Error("Task workspace is unavailable");
       const task = await aiWorkspaceService().write(activeTaskId, path, contents);
+      announceWorkspaceTask(task);
       const change = task.changes.find((item) => item.path === path);
       if (change === undefined) throw new Error("Task change was not recorded");
       return change;
@@ -282,6 +311,8 @@ function toolRunner() {
 
       const root = currentWorkspace()?.root;
       const view: ProposedEditView = {
+        taskId: edit.taskId,
+        relativePath: edit.relativePath,
         path: edit.path,
         displayPath: root === undefined ? edit.path : relative(root, edit.path),
         summary: edit.summary,
@@ -497,7 +528,11 @@ export async function aiSend(text: string): Promise<void> {
 
 export function aiCancel(): void {
   agent?.cancel();
-  if (activeTaskId !== null) void aiWorkspaceService().pause(activeTaskId);
+  if (activeTaskId !== null) {
+    void aiWorkspaceService().pause(activeTaskId).then((task) => {
+      if (task !== null) announceWorkspaceTask(task);
+    });
+  }
 }
 
 /**
@@ -508,7 +543,11 @@ export function aiCancel(): void {
  */
 export function aiReset(): void {
   agent?.reset();
-  if (activeTaskId !== null) void aiWorkspaceService().pause(activeTaskId);
+  if (activeTaskId !== null) {
+    void aiWorkspaceService().pause(activeTaskId).then((task) => {
+      if (task !== null) announceWorkspaceTask(task);
+    });
+  }
   pendingEdits.clear();
   activeTaskId = null;
   session = null;
@@ -523,10 +562,13 @@ export function aiReset(): void {
 export async function aiApplyHunks(path: string, acceptedHunkIds: readonly string[]): Promise<boolean> {
   const edit = pendingEdits.get(path);
   if (edit === undefined) return false;
+  if ((await currentWorkspaceTask(edit.taskId)) === null) return false;
 
   if (acceptedHunkIds.length === 0) {
     try {
       await aiWorkspaceService().reject(edit.taskId, edit.relativePath);
+      const task = await aiWorkspaceService().read(edit.taskId);
+      if (task !== null) announceWorkspaceTask(task);
       pendingEdits.delete(path);
       return true;
     } catch {
@@ -538,6 +580,7 @@ export async function aiApplyHunks(path: string, acceptedHunkIds: readonly strin
   const result = await aiWorkspaceService().apply(edit.taskId, [
     { path: edit.relativePath, acceptedHunkIds },
   ]);
+  announceWorkspaceTask(result.task);
 
   if (result.ok) {
     pendingEdits.delete(path);
@@ -554,4 +597,54 @@ export async function aiApplyHunks(path: string, acceptedHunkIds: readonly strin
   }
 
   return result.ok;
+}
+
+export async function aiWorkspaceTasks(): Promise<AiWorkspaceTaskView[]> {
+  const root = currentWorkspace()?.root;
+  if (root === undefined) return [];
+  return (await aiWorkspaceService().list(root)).map(toAiWorkspaceTaskView);
+}
+
+export async function aiCurrentWorkspaceTask(): Promise<AiWorkspaceTaskView | null> {
+  if (activeTaskId !== null) {
+    const active = await currentWorkspaceTask(activeTaskId);
+    if (active !== null) return toAiWorkspaceTaskView(active);
+  }
+  return (await aiWorkspaceTasks())[0] ?? null;
+}
+
+export async function aiWorkspaceChanges(taskId: string): Promise<AiWorkspaceChangeView[]> {
+  const task = await currentWorkspaceTask(taskId);
+  return task === null ? [] : toAiWorkspaceChangeViews(task);
+}
+
+export async function aiWorkspaceTraces(taskId: string): Promise<AiWorkspaceTraceView[]> {
+  if ((await currentWorkspaceTask(taskId)) === null) return [];
+  return (await aiWorkspaceService().traces(taskId)).map(toAiWorkspaceTraceView);
+}
+
+export async function aiWorkspaceApply(
+  taskId: string,
+  selections: readonly AiWorkspaceApplySelectionView[],
+): Promise<AiWorkspaceActionView> {
+  if ((await currentWorkspaceTask(taskId)) === null) throw new Error("Task is not in the open workspace");
+  const result = await aiWorkspaceService().apply(taskId, selections);
+  announceWorkspaceTask(result.task);
+  return toAiWorkspaceActionView(result);
+}
+
+export async function aiWorkspaceDiscard(taskId: string): Promise<AiWorkspaceTaskView | null> {
+  if ((await currentWorkspaceTask(taskId)) === null) return null;
+  const task = await aiWorkspaceService().discard(taskId);
+  if (task === null) return null;
+  if (activeTaskId === taskId) activeTaskId = null;
+  announceWorkspaceTask(task);
+  return toAiWorkspaceTaskView(task);
+}
+
+export async function aiWorkspaceRollback(taskId: string): Promise<AiWorkspaceActionView> {
+  if ((await currentWorkspaceTask(taskId)) === null) throw new Error("Task is not in the open workspace");
+  const result = await aiWorkspaceService().rollback(taskId);
+  announceWorkspaceTask(result.task);
+  return toAiWorkspaceActionView(result);
 }

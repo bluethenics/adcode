@@ -482,6 +482,14 @@ export const CHANNELS = {
   aiClearSessions: "ai:clear-sessions",
   aiCheckKey: "ai:check-key",
   aiApplyHunks: "ai:apply-hunks",
+  aiWorkspaceList: "ai-workspace:list",
+  aiWorkspaceCurrent: "ai-workspace:current",
+  aiWorkspaceChanges: "ai-workspace:changes",
+  aiWorkspaceTraces: "ai-workspace:traces",
+  aiWorkspaceApply: "ai-workspace:apply",
+  aiWorkspaceDiscard: "ai-workspace:discard",
+  aiWorkspaceRollback: "ai-workspace:rollback",
+  aiWorkspaceChanged: "ai-workspace:changed",
   gitStatus: "git:status",
   gitStage: "git:stage",
   gitUnstage: "git:unstage",
@@ -893,10 +901,70 @@ export interface DiffHunkView {
 }
 
 export interface ProposedEditView {
+  readonly taskId: string;
+  readonly relativePath: string;
   readonly path: string;
   readonly displayPath: string;
   readonly summary: string;
   readonly hunks: readonly DiffHunkView[];
+}
+
+export type AiWorkspaceTaskStateView =
+  | "preparing"
+  | "ready"
+  | "running"
+  | "paused"
+  | "review"
+  | "applying"
+  | "applied"
+  | "conflict"
+  | "discarded"
+  | "failed"
+  | "rolling-back"
+  | "rolled-back";
+
+/** Renderer-safe task metadata. Absolute workspace and sandbox paths never cross IPC. */
+export interface AiWorkspaceTaskView {
+  readonly id: string;
+  readonly prompt: string;
+  readonly mode: "single" | "team";
+  readonly reviewPolicy: "review" | "trusted";
+  readonly state: AiWorkspaceTaskStateView;
+  readonly sandboxKind: "git-worktree" | "shadow-copy" | null;
+  readonly changedPaths: readonly string[];
+  readonly usedTokens: number;
+  readonly tokenLimit: number;
+  readonly usedCostMicros: number;
+  readonly costMicrosLimit: number;
+  readonly checkpointPaths: readonly string[];
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
+export interface AiWorkspaceChangeView {
+  readonly path: string;
+  readonly hunks: readonly DiffHunkView[];
+}
+
+export interface AiWorkspaceTraceView {
+  readonly id: string;
+  readonly at: number;
+  readonly kind: string;
+  readonly summary: string;
+  readonly detail: string;
+  readonly outcome: "pending" | "ok" | "blocked" | "failed";
+}
+
+export interface AiWorkspaceApplySelectionView {
+  readonly path: string;
+  readonly acceptedHunkIds: readonly string[];
+}
+
+export interface AiWorkspaceActionView {
+  readonly ok: boolean;
+  readonly task: AiWorkspaceTaskView;
+  readonly conflicts: readonly string[];
+  readonly message: string;
 }
 
 /**
@@ -1188,6 +1256,19 @@ export interface AdcodeApi {
     onEvent(listener: (event: unknown) => void): () => void;
     onProposedEdit(listener: (edit: ProposedEditView) => void): () => void;
     applyHunks(path: string, acceptedHunkIds: readonly string[]): Promise<boolean>;
+  };
+  readonly aiWorkspace: {
+    list(): Promise<readonly AiWorkspaceTaskView[]>;
+    current(): Promise<AiWorkspaceTaskView | null>;
+    changes(taskId: string): Promise<readonly AiWorkspaceChangeView[]>;
+    traces(taskId: string): Promise<readonly AiWorkspaceTraceView[]>;
+    apply(
+      taskId: string,
+      selections: readonly AiWorkspaceApplySelectionView[],
+    ): Promise<AiWorkspaceActionView>;
+    discard(taskId: string): Promise<AiWorkspaceTaskView | null>;
+    rollback(taskId: string): Promise<AiWorkspaceActionView>;
+    onChanged(listener: (task: AiWorkspaceTaskView) => void): () => void;
   };
   readonly git: {
     status(): Promise<GitStatusView>;

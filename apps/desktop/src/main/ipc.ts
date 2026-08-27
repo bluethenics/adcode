@@ -94,8 +94,19 @@ import {
   aiRenameSession,
   aiResumeSession,
   aiSessions,
+  aiWorkspaceApply,
+  aiWorkspaceChanges,
+  aiWorkspaceDiscard,
+  aiWorkspaceRollback,
+  aiWorkspaceTasks,
+  aiWorkspaceTraces,
+  aiCurrentWorkspaceTask,
   checkProviderKey,
 } from "./ai.ts";
+import {
+  parseAiWorkspaceApply,
+  validAiWorkspaceTaskId,
+} from "./aiWorkspaceIpcValidation.ts";
 import {
   createTerminal,
   detectProfiles,
@@ -881,6 +892,34 @@ export function registerIpc(): void {
     if (!isString(path)) throw new Error("expected a path");
     if (!Array.isArray(ids) || !ids.every(isString)) throw new Error("expected hunk ids");
     return aiApplyHunks(path, ids);
+  });
+
+  ipcMain.handle(CHANNELS.aiWorkspaceList, () => aiWorkspaceTasks());
+  ipcMain.handle(CHANNELS.aiWorkspaceCurrent, () => aiCurrentWorkspaceTask());
+  ipcMain.handle(CHANNELS.aiWorkspaceChanges, (_event, taskId: unknown) => {
+    if (!validAiWorkspaceTaskId(taskId)) throw new Error("expected a task id");
+    return aiWorkspaceChanges(taskId);
+  });
+  ipcMain.handle(CHANNELS.aiWorkspaceTraces, (_event, taskId: unknown) => {
+    if (!validAiWorkspaceTaskId(taskId)) throw new Error("expected a task id");
+    return aiWorkspaceTraces(taskId);
+  });
+  ipcMain.handle(
+    CHANNELS.aiWorkspaceApply,
+    (_event, taskId: unknown, rawSelections: unknown) => {
+      if (!validAiWorkspaceTaskId(taskId)) throw new Error("expected a task id");
+      const selections = parseAiWorkspaceApply(rawSelections);
+      if (selections === null) throw new Error("expected reviewed hunk selections");
+      return aiWorkspaceApply(taskId, selections);
+    },
+  );
+  ipcMain.handle(CHANNELS.aiWorkspaceDiscard, (_event, taskId: unknown) => {
+    if (!validAiWorkspaceTaskId(taskId)) throw new Error("expected a task id");
+    return aiWorkspaceDiscard(taskId);
+  });
+  ipcMain.handle(CHANNELS.aiWorkspaceRollback, (_event, taskId: unknown) => {
+    if (!validAiWorkspaceTaskId(taskId)) throw new Error("expected a task id");
+    return aiWorkspaceRollback(taskId);
   });
 
   const ads = getAdRuntime();
