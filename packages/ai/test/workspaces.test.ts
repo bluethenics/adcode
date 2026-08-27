@@ -13,6 +13,7 @@ const task = (): AiWorkspaceTask =>
   createAiWorkspaceTask({
     id: "task-abc123",
     workspaceId: "workspace-123",
+    workspaceRoot: "C:/project",
     prompt: "Fix the failing parser test",
     now: 1_000,
   });
@@ -38,10 +39,10 @@ describe("AI workspace task", () => {
   it("trims the prompt and rejects unsafe identifiers", () => {
     expect(task().prompt).toBe("Fix the failing parser test");
     expect(() =>
-      createAiWorkspaceTask({ id: "../escape", workspaceId: "workspace-123", prompt: "x", now: 1 }),
+      createAiWorkspaceTask({ id: "../escape", workspaceId: "workspace-123", workspaceRoot: "C:/project", prompt: "x", now: 1 }),
     ).toThrow(/task id/i);
     expect(() =>
-      createAiWorkspaceTask({ id: "task-ok", workspaceId: "", prompt: "x", now: 1 }),
+      createAiWorkspaceTask({ id: "task-ok", workspaceId: "", workspaceRoot: "C:/project", prompt: "x", now: 1 }),
     ).toThrow(/workspace/i);
   });
 

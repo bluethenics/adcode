@@ -52,9 +52,18 @@ export interface AiFileChange {
   readonly proposed: string;
 }
 
+export interface AiCheckpointSummary {
+  readonly id: string;
+  readonly createdAt: number;
+  readonly appliedAt: number | null;
+  readonly paths: readonly string[];
+}
+
 export interface AiWorkspaceTask {
   readonly id: string;
   readonly workspaceId: string;
+  /** Local main-process metadata; never sent to a provider. */
+  readonly workspaceRoot: string;
   readonly prompt: string;
   readonly mode: AiTaskMode;
   readonly reviewPolicy: AiReviewPolicy;
@@ -63,6 +72,7 @@ export interface AiWorkspaceTask {
   readonly budget: AiBudgetLedger;
   readonly sandbox: AiSandboxRecord | null;
   readonly changes: readonly AiFileChange[];
+  readonly checkpoint: AiCheckpointSummary | null;
   readonly createdAt: number;
   readonly updatedAt: number;
 }
@@ -70,6 +80,7 @@ export interface AiWorkspaceTask {
 export interface CreateAiWorkspaceTaskInput {
   readonly id: string;
   readonly workspaceId: string;
+  readonly workspaceRoot: string;
   readonly prompt: string;
   readonly now: number;
   readonly tokenLimit?: number;
@@ -98,6 +109,9 @@ function positiveInteger(value: number, label: string): number {
 export function createAiWorkspaceTask(input: CreateAiWorkspaceTaskInput): AiWorkspaceTask {
   if (!TASK_ID.test(input.id)) throw new Error("Invalid task id");
   if (!WORKSPACE_ID.test(input.workspaceId)) throw new Error("Invalid workspace identity");
+  if (input.workspaceRoot.trim().length === 0 || input.workspaceRoot.includes("\u0000")) {
+    throw new Error("Invalid workspace root");
+  }
   if (!Number.isFinite(input.now) || input.now < 0) throw new Error("Invalid task timestamp");
 
   const prompt = input.prompt.trim();
@@ -106,6 +120,7 @@ export function createAiWorkspaceTask(input: CreateAiWorkspaceTaskInput): AiWork
   return {
     id: input.id,
     workspaceId: input.workspaceId,
+    workspaceRoot: input.workspaceRoot,
     prompt,
     mode: "single",
     reviewPolicy: "review",
@@ -122,6 +137,7 @@ export function createAiWorkspaceTask(input: CreateAiWorkspaceTaskInput): AiWork
     },
     sandbox: null,
     changes: [],
+    checkpoint: null,
     createdAt: input.now,
     updatedAt: input.now,
   };

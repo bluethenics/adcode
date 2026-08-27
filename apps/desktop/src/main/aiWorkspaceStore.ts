@@ -33,6 +33,7 @@ function isTask(value: unknown): value is AiWorkspaceTask {
     typeof value["id"] === "string" &&
     TASK_ID.test(value["id"]) &&
     typeof value["workspaceId"] === "string" &&
+    typeof value["workspaceRoot"] === "string" &&
     typeof value["prompt"] === "string" &&
     typeof value["state"] === "string" &&
     typeof value["createdAt"] === "number" &&

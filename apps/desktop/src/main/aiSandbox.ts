@@ -125,6 +125,26 @@ export interface CreatedAiSandbox {
   cleanup(): Promise<void>;
 }
 
+export interface RemoveAiSandboxInput {
+  readonly userDataDirectory: string;
+  readonly taskId: string;
+  readonly workspaceRoot: string;
+  readonly kind: AiSandboxRecord["kind"];
+}
+
+export async function removeAiSandbox(input: RemoveAiSandboxInput): Promise<void> {
+  if (!TASK_ID.test(input.taskId)) throw new Error("Invalid task id");
+  const sandboxesRoot = join(input.userDataDirectory, "ai-workspaces", "sandboxes");
+  const root = join(sandboxesRoot, input.taskId);
+  if (!isWithin(sandboxesRoot, root) || basename(root) !== input.taskId) {
+    throw new Error("Invalid sandbox registry path");
+  }
+  if (input.kind === "git-worktree") {
+    await gitOutput(input.workspaceRoot, ["worktree", "remove", "--force", root]);
+  }
+  await rm(root, { recursive: true, force: true });
+}
+
 export async function createAiSandbox(input: CreateAiSandboxInput): Promise<CreatedAiSandbox> {
   if (!TASK_ID.test(input.taskId)) throw new Error("Invalid task id");
   const workspace = await realpath(input.workspaceRoot);
@@ -157,12 +177,12 @@ export async function createAiSandbox(input: CreateAiSandboxInput): Promise<Crea
     async cleanup(): Promise<void> {
       if (cleaned) return;
       cleaned = true;
-      if (kind === "git-worktree") {
-        await gitOutput(workspace, ["worktree", "remove", "--force", root]);
-      }
-      if (isWithin(sandboxesRoot, root) && basename(root) === input.taskId) {
-        await rm(root, { recursive: true, force: true });
-      }
+      await removeAiSandbox({
+        userDataDirectory: input.userDataDirectory,
+        taskId: input.taskId,
+        workspaceRoot: workspace,
+        kind,
+      });
     },
   };
 }

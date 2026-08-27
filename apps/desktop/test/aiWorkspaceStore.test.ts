@@ -21,7 +21,7 @@ afterEach(async () => {
 });
 
 const makeTask = (id = "task-alpha", workspaceId = "workspace-one"): AiWorkspaceTask =>
-  createAiWorkspaceTask({ id, workspaceId, prompt: "Fix the parser", now: 1_000 });
+  createAiWorkspaceTask({ id, workspaceId, workspaceRoot: "C:/project", prompt: "Fix the parser", now: 1_000 });
 
 describe("AI workspace task persistence", () => {
   it("writes atomically and survives a new store instance", async () => {
@@ -43,6 +43,7 @@ describe("AI workspace task persistence", () => {
       createAiWorkspaceTask({
         id: "task-new",
         workspaceId: "workspace-one",
+        workspaceRoot: "C:/project",
         prompt: "Newer",
         now: 2_000,
       }),
