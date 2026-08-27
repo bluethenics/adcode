@@ -29,7 +29,7 @@
    * This says the column may be narrower than its contents, and the contents must cope.
    */
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 40px 1fr auto;
+  grid-template-rows: 40px auto minmax(0, 1fr) auto auto;
   /* So the parts inside can respond to the card's width rather than the window's. */
   container-type: inline-size;
 
@@ -80,6 +80,90 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Isolated-task status: part of the existing card, not a new panel or visual system. */
+.ai-workspace-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 7px;
+  min-width: 0;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--bg-app);
+  font-size: 10px;
+}
+
+.ai-workspace-strip[hidden] {
+  display: none;
+}
+
+.ai-workspace-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 150px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-weight: 560;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-workspace-state::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.ai-workspace-strip[data-state="applied"] .ai-workspace-state::before,
+.ai-workspace-strip[data-state="rolled-back"] .ai-workspace-state::before {
+  background: var(--success);
+}
+
+.ai-workspace-strip[data-state="conflict"] .ai-workspace-state::before,
+.ai-workspace-strip[data-state="failed"] .ai-workspace-state::before {
+  background: var(--danger);
+}
+
+.ai-workspace-strip[data-state="paused"] .ai-workspace-state::before,
+.ai-workspace-strip[data-state="discarded"] .ai-workspace-state::before {
+  background: var(--text-tertiary);
+}
+
+.ai-workspace-usage {
+  flex: none;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-workspace-notice {
+  flex: 1 0 100%;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.ai-workspace-notice:empty {
+  display: none;
+}
+
+.ai-workspace-strip .ghost-button {
+  padding: 2px 5px;
+  font-size: 10px;
+}
+
+.ai-workspace-danger:hover {
+  color: var(--danger);
+}
+
+:root[data-density="compact"] .ai-workspace-strip {
+  padding-block: 4px;
+  gap-block: 2px;
 }
 
 .chat-transcript {

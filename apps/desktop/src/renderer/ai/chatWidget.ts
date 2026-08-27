@@ -15,7 +15,18 @@
  * Only `transform` and `opacity` animate (§1) - the card is positioned with a translate,
  * never with `left`/`top`, so dragging never triggers layout.
  */
-import type { ChatSessionView, ProposedEditView } from "../../shared/api.ts";
+import type {
+  AiWorkspaceChangeView,
+  AiWorkspaceTaskView,
+  ChatSessionView,
+  ProposedEditView,
+} from "../../shared/api.ts";
+import {
+  aiWorkspaceActions,
+  formatAiWorkspaceUsage,
+  summarizeAiWorkspaceTask,
+  traceTone,
+} from "./aiWorkspaceViewModel.ts";
 
 interface Position {
   x: number;
@@ -290,6 +301,48 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   renderMemory(null);
 
+  /* -- Isolated task status -------------------------------------------- */
+
+  let activeWorkspaceTask: AiWorkspaceTaskView | null = null;
+  let taskRefreshGeneration = 0;
+
+  const taskStrip = document.createElement("section");
+  taskStrip.className = "ai-workspace-strip";
+  taskStrip.hidden = true;
+  taskStrip.setAttribute("aria-label", "Isolated AI task");
+
+  const taskState = document.createElement("span");
+  taskState.className = "ai-workspace-state";
+
+  const taskUsage = document.createElement("span");
+  taskUsage.className = "ai-workspace-usage";
+
+  const taskNotice = document.createElement("span");
+  taskNotice.className = "ai-workspace-notice";
+  taskNotice.setAttribute("role", "status");
+
+  const taskReview = document.createElement("button");
+  taskReview.type = "button";
+  taskReview.className = "ghost-button";
+  taskReview.textContent = "Review";
+
+  const taskTrace = document.createElement("button");
+  taskTrace.type = "button";
+  taskTrace.className = "ghost-button";
+  taskTrace.textContent = "Trace";
+
+  const taskDiscard = document.createElement("button");
+  taskDiscard.type = "button";
+  taskDiscard.className = "ghost-button ai-workspace-danger";
+  taskDiscard.textContent = "Discard";
+
+  const taskRollback = document.createElement("button");
+  taskRollback.type = "button";
+  taskRollback.className = "ghost-button";
+  taskRollback.textContent = "Roll back";
+
+  taskStrip.append(taskState, taskUsage, taskNotice, taskReview, taskTrace, taskDiscard, taskRollback);
+
   const composer = document.createElement("form");
   composer.className = "chat-composer";
 
@@ -314,7 +367,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   chatBody.className = "chat-body";
   chatBody.append(history, transcript);
 
-  card.append(header, chatBody, memory, composer, resizeGrip);
+  card.append(header, taskStrip, chatBody, memory, composer, resizeGrip);
 
   window.adcode.chat.onChanged((session) => renderMemory(session));
   void window.adcode.chat.current().then((session) => renderMemory(session));
@@ -357,6 +410,177 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     scrollToEnd();
     return element;
   }
+
+  function paintWorkspaceTask(task: AiWorkspaceTaskView | null): void {
+    activeWorkspaceTask = task;
+    taskStrip.hidden = task === null;
+    taskNotice.textContent = "";
+    if (task === null) return;
+
+    taskStrip.dataset["state"] = task.state;
+    taskState.textContent = summarizeAiWorkspaceTask(task);
+    taskState.title = task.changedPaths.length === 0 ? task.prompt : task.changedPaths.join("\n");
+    taskUsage.textContent = formatAiWorkspaceUsage(task);
+    taskUsage.title = "Task token and cost budget";
+
+    const actions = aiWorkspaceActions(task);
+    taskReview.hidden = !actions.review;
+    taskDiscard.hidden = !actions.discard;
+    taskRollback.hidden = !actions.rollback;
+    taskTrace.hidden = false;
+  }
+
+  async function refreshWorkspaceTask(): Promise<void> {
+    const generation = ++taskRefreshGeneration;
+    const task = await window.adcode.aiWorkspace.current().catch(() => null);
+    if (generation === taskRefreshGeneration) paintWorkspaceTask(task);
+  }
+
+  function persistedDiff(task: AiWorkspaceTaskView, change: AiWorkspaceChangeView): HTMLElement {
+    const panel = document.createElement("div");
+    panel.className = "diff-panel";
+    panel.dataset["taskReview"] = task.id;
+
+    const heading = document.createElement("div");
+    heading.className = "diff-heading";
+    heading.textContent = `Task change — ${change.path}`;
+    panel.append(heading);
+
+    const accepted = new Set(change.hunks.map((hunk) => hunk.id));
+    const apply = document.createElement("button");
+    apply.type = "button";
+    apply.className = "chat-send";
+    apply.textContent = "Apply selected";
+
+    for (const hunk of change.hunks) {
+      const block = document.createElement("div");
+      block.className = "diff-hunk";
+      block.dataset["accepted"] = "true";
+
+      const toggle = document.createElement("label");
+      toggle.className = "diff-toggle";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = true;
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) accepted.add(hunk.id);
+        else accepted.delete(hunk.id);
+        block.dataset["accepted"] = String(checkbox.checked);
+        apply.disabled = accepted.size === 0;
+      });
+      const label = document.createElement("span");
+      label.textContent = `Line ${String(hunk.startLine + 1)}`;
+      toggle.append(checkbox, label);
+
+      const body = document.createElement("pre");
+      body.className = "diff-body";
+      for (const line of hunk.original) {
+        const removed = document.createElement("span");
+        removed.className = "diff-line diff-removed";
+        removed.textContent = `- ${line}`;
+        body.append(removed);
+      }
+      for (const line of hunk.replacement) {
+        const added = document.createElement("span");
+        added.className = "diff-line diff-added";
+        added.textContent = `+ ${line}`;
+        body.append(added);
+      }
+      block.append(toggle, body);
+      panel.append(block);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "diff-actions";
+    apply.addEventListener("click", () => {
+      apply.disabled = true;
+      void window.adcode.aiWorkspace
+        .apply(task.id, [{ path: change.path, acceptedHunkIds: [...accepted] }])
+        .then((result) => {
+          paintWorkspaceTask(result.task);
+          heading.textContent = result.ok ? `Applied — ${change.path}` : result.message;
+          if (result.ok) actions.remove();
+          else apply.disabled = false;
+        })
+        .catch(() => {
+          heading.textContent = `Could not apply ${change.path}`;
+          apply.disabled = false;
+        });
+    });
+    actions.append(apply);
+    panel.append(actions);
+    return panel;
+  }
+
+  async function renderPersistedReview(task: AiWorkspaceTaskView): Promise<void> {
+    taskReview.disabled = true;
+    try {
+      const changes = await window.adcode.aiWorkspace.changes(task.id);
+      transcript.querySelectorAll(`[data-task-review="${task.id}"]`).forEach((node) => node.remove());
+      if (changes.length === 0) {
+        taskNotice.textContent = "No pending file changes.";
+        return;
+      }
+      for (const change of changes) transcript.append(persistedDiff(task, change));
+      scrollToEnd();
+    } finally {
+      taskReview.disabled = false;
+    }
+  }
+
+  async function renderPersistedTrace(task: AiWorkspaceTaskView): Promise<void> {
+    taskTrace.disabled = true;
+    try {
+      const events = await window.adcode.aiWorkspace.traces(task.id);
+      if (events.length === 0) {
+        taskNotice.textContent = "No operational trace events yet.";
+        return;
+      }
+      for (const event of events) {
+        trace(event.summary, event.detail, traceTone(event.outcome));
+      }
+    } finally {
+      taskTrace.disabled = false;
+    }
+  }
+
+  taskReview.addEventListener("click", () => {
+    if (activeWorkspaceTask !== null) void renderPersistedReview(activeWorkspaceTask);
+  });
+  taskTrace.addEventListener("click", () => {
+    if (activeWorkspaceTask !== null) void renderPersistedTrace(activeWorkspaceTask);
+  });
+  taskDiscard.addEventListener("click", () => {
+    const task = activeWorkspaceTask;
+    if (task === null || !window.confirm("Discard this isolated AI task and its pending changes?")) return;
+    taskDiscard.disabled = true;
+    void window.adcode.aiWorkspace
+      .discard(task.id)
+      .then((discarded) => {
+        paintWorkspaceTask(discarded);
+        taskNotice.textContent = discarded === null ? "Task was not found." : "Sandbox changes discarded.";
+      })
+      .finally(() => {
+        taskDiscard.disabled = false;
+      });
+  });
+  taskRollback.addEventListener("click", () => {
+    const task = activeWorkspaceTask;
+    if (task === null) return;
+    taskRollback.disabled = true;
+    void window.adcode.aiWorkspace
+      .rollback(task.id)
+      .then((result) => {
+        paintWorkspaceTask(result.task);
+        taskNotice.textContent = result.message;
+      })
+      .finally(() => {
+        taskRollback.disabled = false;
+      });
+  });
+
+  window.adcode.aiWorkspace.onChanged((task) => paintWorkspaceTask(task));
+  void refreshWorkspaceTask();
 
   function inlineDiff(edit: ProposedEditView): void {
     const panel = document.createElement("div");
@@ -417,13 +641,29 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     apply.className = "chat-send";
     apply.textContent = "Apply selected";
     apply.addEventListener("click", () => {
-      void window.adcode.ai.applyHunks(edit.path, [...accepted]).then((okay) => {
-        heading.textContent = okay
-          ? `Applied ${accepted.size} of ${edit.hunks.length} to ${edit.displayPath}`
-          : `Could not write ${edit.displayPath}`;
-        actions.remove();
-        deps.openExternalPath(edit.path);
-      });
+      if (accepted.size === 0) {
+        heading.textContent = `Select at least one change in ${edit.displayPath}`;
+        return;
+      }
+      apply.disabled = true;
+      void window.adcode.aiWorkspace
+        .apply(edit.taskId, [{ path: edit.relativePath, acceptedHunkIds: [...accepted] }])
+        .then((result) => {
+          paintWorkspaceTask(result.task);
+          heading.textContent = result.ok
+            ? `Applied ${accepted.size} of ${edit.hunks.length} to ${edit.displayPath}`
+            : result.message;
+          if (result.ok) {
+            actions.remove();
+            deps.openExternalPath(edit.path);
+          } else {
+            apply.disabled = false;
+          }
+        })
+        .catch(() => {
+          heading.textContent = `Could not apply ${edit.displayPath}`;
+          apply.disabled = false;
+        });
     });
 
     const reject = document.createElement("button");
@@ -692,6 +932,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           ? status.activeModel
           : "No API key — add one in Settings";
       });
+      void refreshWorkspaceTask();
 
       document.addEventListener("keydown", onKeydown);
     },
@@ -733,6 +974,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     setWorkspace(root: string | null): void {
       workspace = root;
       place(loadPosition(root) ?? { x: 0, y: 0 });
+      if (root === null) paintWorkspaceTask(null);
+      else void refreshWorkspaceTask();
     },
 
     onVisibilityChange(listener): void {
