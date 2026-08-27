@@ -1,0 +1,11 @@
+{
+  "name": "@adcode/release",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure release-note validation, build filtering, and announcement policy. No Electron, no DOM.",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

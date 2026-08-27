@@ -35,6 +35,7 @@
 - Restore: `packages/highlight/**` — tree-sitter encoding and language mappings.
 - Restore: `packages/lsp/**` — LSP framing, protocol, server registry, and tests.
 - Restore: `packages/memory/**` — local memory store, indexes, MCP server, and tests.
+- Create: `packages/release/**` — release-note validation, build filtering, announcement decisions, and tests.
 - Restore: `packages/search/**` — fuzzy and workspace text search and tests.
 - Restore: `packages/settings/**` — settings schema, migration, and tests.
 - Restore: `packages/spell/**` — comment spell correction and tests.
@@ -78,10 +79,8 @@ Expected: `git status --short -- packages` lists package files as restored addit
 Run:
 
 ```powershell
-git show '11ca5214d^:packages/ai/src/index.ts' | git hash-object --stdin
-git hash-object packages/ai/src/index.ts
-git show '11ca5214d^:packages/ads/src/index.ts' | git hash-object --stdin
-git hash-object packages/ads/src/index.ts
+cmd /d /c "git rev-parse 11ca5214d^^:packages/ai/src/index.ts && git hash-object --path=packages/ai/src/index.ts packages/ai/src/index.ts"
+cmd /d /c "git rev-parse 11ca5214d^^:packages/ads/src/index.ts && git hash-object --path=packages/ads/src/index.ts packages/ads/src/index.ts"
 ```
 
 Expected: each historical/current hash pair is identical.
@@ -94,7 +93,7 @@ Run:
 npm run typecheck
 ```
 
-Expected: PASS with all three TypeScript projects completing and no missing `@adcode/*` modules.
+Expected during recovery: FAIL only on the pre-existing missing `@adcode/release` package. All imports supplied by the restored package tree resolve. Task 2 adds that package test-first and reruns this gate to PASS.
 
 - [ ] **Step 5: Commit the recovered baseline tree**
 
@@ -107,7 +106,86 @@ git commit -m "fix: restore ADCode core packages"
 
 Expected: one commit restoring only `packages/**`.
 
-### Task 2: Prove architecture and unit behavior
+### Task 2: Complete the missing release-note domain
+
+**Files:**
+- Create: `packages/release/package.json`
+- Create: `packages/release/src/index.ts`
+- Create: `packages/release/test/release.test.ts`
+
+**Interfaces:**
+- Consumes: public release records shaped as `{ version, title, body, highlights, announce, critical, publishedAt }` and renderer state shaped by `AnnounceState`.
+- Produces: `parseReleaseList(raw: unknown): Release[]`, `releasesInBuild(releases: readonly Release[], currentVersion: string): Release[]`, `decideAnnouncement(state: AnnounceState): AnnouncementDecision`, and `versionsToMarkSeen(state: AnnounceState, shown: Release): string[]`.
+
+- [ ] **Step 1: Write failing validation and ordering tests**
+
+Create `packages/release/test/release.test.ts` with literal fixtures proving that malformed records are dropped, valid fields are normalized, versions newer than the running build are excluded, and remaining releases are newest first.
+
+- [ ] **Step 2: Run the release tests and verify RED**
+
+Run:
+
+```powershell
+npx vitest run packages/release/test/release.test.ts
+```
+
+Expected: FAIL because `packages/release/src/index.ts` does not exist.
+
+- [ ] **Step 3: Implement validation and semantic version comparison**
+
+Create `packages/release/src/index.ts` with the exact interfaces above. Accept versions matching `/^[0-9A-Za-z.\-+]{1,32}$/`, require non-empty bounded titles, default optional text/arrays/booleans safely, require a finite `publishedAt` or `null`, and compare numeric semantic-version cores without treating lexical `10` as older than `2`.
+
+- [ ] **Step 4: Run the release tests and verify GREEN**
+
+Run:
+
+```powershell
+npx vitest run packages/release/test/release.test.ts
+```
+
+Expected: PASS for validation and build filtering.
+
+- [ ] **Step 5: Add failing announcement-policy tests**
+
+Extend `packages/release/test/release.test.ts` with literal states proving: disabled and first-run states never show; seen and non-announcing notes never show; normal notes wait while typing, a command runs, debugging is active, or the window is unfocused; a critical unseen note bypasses busy state; the newest eligible unseen note wins; and displaying it marks that version plus older unseen eligible versions.
+
+- [ ] **Step 6: Run the policy tests and verify RED**
+
+Run:
+
+```powershell
+npx vitest run packages/release/test/release.test.ts
+```
+
+Expected: FAIL because the announcement functions are not implemented.
+
+- [ ] **Step 7: Implement the minimal announcement policy**
+
+Implement `decideAnnouncement` and `versionsToMarkSeen` in `packages/release/src/index.ts`. Return `{ show: false, reason: "disabled" | "first-run" | "none" | "busy" }` or `{ show: true, release }`. Critical notes bypass only the quiet-moment checks; they do not bypass enabled, first-run, build-version, announce, or seen rules.
+
+- [ ] **Step 8: Verify release tests and TypeScript**
+
+Run:
+
+```powershell
+npx vitest run packages/release/test/release.test.ts
+npm run typecheck
+```
+
+Expected: both PASS and every `@adcode/release` consumer typechecks without casts beyond the existing API boundary.
+
+- [ ] **Step 9: Commit the release domain repair**
+
+Run:
+
+```powershell
+git add packages/release docs/superpowers/plans/2026-08-27-adcode-baseline-recovery.md
+git commit -m "fix: complete release announcement domain"
+```
+
+Expected: one focused commit containing the missing pure package, its tests, and the corrected recovery plan.
+
+### Task 3: Prove architecture and unit behavior
 
 **Files:**
 - Verify: `.dependency-cruiser.cjs`
@@ -161,7 +239,7 @@ git status --short
 
 Expected: only `supabase/.temp/` is untracked. If a diagnostic fix was required, commit its focused tests and implementation before continuing.
 
-### Task 3: Prove production builds and installers
+### Task 4: Prove production builds and installers
 
 **Files:**
 - Verify: `apps/desktop/electron.vite.config.ts`
@@ -214,7 +292,7 @@ Get-Content release/latest.yml
 
 Expected: current timestamps, non-zero binaries, version `0.1.0`, SHA-512 metadata, and filenames matching `electron-builder.yml`.
 
-### Task 4: Prove packaged user flows
+### Task 5: Prove packaged user flows
 
 **Files:**
 - Verify: `scripts/smoke.mjs`
@@ -255,13 +333,13 @@ git status --short
 
 Expected: only `supabase/.temp/` remains untracked; generated build artifacts are ignored.
 
-### Task 5: Close the milestone
+### Task 6: Close the milestone
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-27-adcode-baseline-recovery.md`
 
 **Interfaces:**
-- Consumes: verification evidence from Tasks 1–4.
+- Consumes: verification evidence from Tasks 1–5.
 - Produces: a checked-off recovery plan and stable base commit for Milestone 2.
 
 - [ ] **Step 1: Mark completed steps in this plan**
