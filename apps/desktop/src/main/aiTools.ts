@@ -40,6 +40,7 @@ export interface AiToolWorkspace {
 
 export interface AiToolDeps {
   readonly workspace: () => Promise<AiToolWorkspace | null>;
+  readonly workspaceUnavailableMessage?: () => string;
   readonly memory: () => NodeMemory | null;
   readonly writeSandboxFile: (path: string, contents: string) => Promise<AiFileChange>;
   /** Called when the agent proposes an edit, so the renderer can show the diff. */
@@ -59,6 +60,9 @@ function resolveInWorkspace(root: string | null, input: unknown): string | null 
 }
 
 export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
+  const unavailable = (): ReturnType<typeof fail> =>
+    fail(deps.workspaceUnavailableMessage?.() ?? "No folder is open, so there is nothing to work on yet.");
+
   async function walk(directory: string, root: string, hits: string[]): Promise<void> {
     if (hits.length >= 2000) return;
 
@@ -85,7 +89,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
       switch (call.name) {
         case "read_file": {
           const workspace = await deps.workspace();
-          if (workspace === null) return fail("No folder is open, so there is nothing to work on yet.");
+          if (workspace === null) return unavailable();
           const root = workspace.sandboxRoot;
           const path = resolveInWorkspace(root, input["path"]);
           if (path === null) return fail("That path is outside the open workspace.");
@@ -111,7 +115,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
 
         case "list_files": {
           const workspace = await deps.workspace();
-          if (workspace === null) return fail("No folder is open, so there is nothing to work on yet.");
+          if (workspace === null) return unavailable();
           const root = workspace.sandboxRoot;
           const target = input["path"] === undefined ? root : resolveInWorkspace(root, input["path"]);
           if (target === null) return fail("That path is outside the open workspace.");
@@ -131,7 +135,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
 
         case "search": {
           const workspace = await deps.workspace();
-          if (workspace === null) return fail("No folder is open, so there is nothing to work on yet.");
+          if (workspace === null) return unavailable();
           const root = workspace.sandboxRoot;
           if (typeof input["pattern"] !== "string") return fail("search needs a pattern.");
 
@@ -172,7 +176,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
 
         case "propose_edit": {
           const workspace = await deps.workspace();
-          if (workspace === null) return fail("No folder is open, so there is nothing to work on yet.");
+          if (workspace === null) return unavailable();
           const root = workspace.sandboxRoot;
           const path = resolveInWorkspace(root, input["path"]);
           if (path === null) return fail("That path is outside the open workspace.");

@@ -14,6 +14,7 @@ import type {
   AgentEvent,
   Message,
   Provider,
+  ProviderRequest,
   StopReason,
   ToolCallBlock,
   ToolDefinition,
@@ -48,6 +49,22 @@ export interface AgentDeps {
   readonly runner: ToolRunner;
   readonly system?: string;
   readonly maxTokens?: number;
+  /** Return a user-facing reason to block this provider request, or null to allow it. */
+  readonly beforeRequest?: (request: ProviderRequest) => string | null | Promise<string | null>;
+}
+
+/**
+ * A deliberately conservative reservation estimate. It includes the maximum possible
+ * output, current conversation, system instruction, and tool schemas before a provider
+ * request begins. Provider-specific actual usage can later replace the reservation.
+ */
+export function estimateRequestTokens(request: ProviderRequest): number {
+  const context = JSON.stringify({
+    system: request.system,
+    messages: request.messages,
+    tools: request.tools,
+  });
+  return request.maxTokens + Math.ceil(context.length / 3) + 256;
 }
 
 export interface Agent {
@@ -94,16 +111,19 @@ export function createAgent(deps: AgentDeps): Agent {
       let failed = false;
 
       try {
-        const stream = deps.provider.stream(
-          {
-            model: deps.model,
-            system: deps.system ?? DEFAULT_SYSTEM,
-            messages,
-            tools: deps.tools,
-            maxTokens: deps.maxTokens ?? DEFAULT_MAX_TOKENS,
-          },
-          signal,
-        );
+        const request: ProviderRequest = {
+          model: deps.model,
+          system: deps.system ?? DEFAULT_SYSTEM,
+          messages,
+          tools: deps.tools,
+          maxTokens: deps.maxTokens ?? DEFAULT_MAX_TOKENS,
+        };
+        const blocked = (await deps.beforeRequest?.(request)) ?? null;
+        if (blocked !== null) {
+          yield { kind: "error", detail: blocked };
+          return;
+        }
+        const stream = deps.provider.stream(request, signal);
 
         for await (const event of stream) {
           if (signal.aborted) break;

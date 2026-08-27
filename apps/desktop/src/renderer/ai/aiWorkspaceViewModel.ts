@@ -46,9 +46,13 @@ function compact(value: number): string {
 }
 
 export function formatAiWorkspaceUsage(task: AiWorkspaceTaskView): string {
+  const tokens = `${compact(task.usedTokens)} / ${compact(task.tokenLimit)} tokens`;
+  // Pricing is provider/model specific. Until a provider reports or the routing catalogue
+  // supplies a reliable price, zero means unknown—not "free"—so do not display a fake $0.
+  if (task.usedCostMicros === 0) return tokens;
   const usedCost = (task.usedCostMicros / 1_000_000).toFixed(2);
   const limitCost = (task.costMicrosLimit / 1_000_000).toFixed(2);
-  return `${compact(task.usedTokens)} / ${compact(task.tokenLimit)} tokens · $${usedCost} / $${limitCost}`;
+  return `${tokens} · $${usedCost} / $${limitCost}`;
 }
 
 export function traceTone(

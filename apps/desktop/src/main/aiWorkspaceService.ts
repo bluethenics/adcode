@@ -5,10 +5,12 @@
  * path, overlap check, pre-apply checkpoint, human-workspace write, discard, and rollback.
  */
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import {
+  addUsage,
   applyHunks,
+  canReserveUsage,
   computeHunks,
   createAiWorkspaceTask,
   createFileChange,
@@ -18,6 +20,7 @@ import {
   type AiFileChange,
   type AiWorkspaceTask,
   type OperationalTrace,
+  type AiUsage,
 } from "@adcode/ai";
 import { createAiSandbox, removeAiSandbox, resolveSandboxPath } from "./aiSandbox.ts";
 import { createAiWorkspaceStore, type AiWorkspaceStore } from "./aiWorkspaceStore.ts";
@@ -31,6 +34,12 @@ export interface AiWorkspaceActionResult {
   readonly task: AiWorkspaceTask;
   readonly conflicts: readonly string[];
   readonly message: string;
+}
+
+export interface AiWorkspaceBudgetResult {
+  readonly ok: boolean;
+  readonly task: AiWorkspaceTask;
+  readonly reason: "token-limit" | "cost-limit" | null;
 }
 
 interface CheckpointEntry {
@@ -52,6 +61,19 @@ export interface AiWorkspaceServiceOptions {
   readonly userDataDirectory: string;
   readonly now?: () => number;
   readonly id?: (prefix: "task" | "trace" | "checkpoint") => string;
+  readonly storagePolicy?: () => AiWorkspaceStoragePolicy;
+}
+
+export interface AiWorkspaceStoragePolicy {
+  readonly quotaBytes: number;
+  readonly sandboxRetentionMs: number;
+  readonly checkpointRetentionMs: number;
+}
+
+export interface AiWorkspaceMaintenanceResult {
+  readonly ok: boolean;
+  readonly totalSandboxBytes: number;
+  readonly removedTaskIds: readonly string[];
 }
 
 export interface StartAiWorkspaceInput {
@@ -68,12 +90,14 @@ export interface AiWorkspaceService {
   write(taskId: string, path: string, contents: string): Promise<AiWorkspaceTask>;
   readSandboxFile(taskId: string, path: string): Promise<string>;
   pause(taskId: string): Promise<AiWorkspaceTask | null>;
+  reserveUsage(taskId: string, usage: AiUsage): Promise<AiWorkspaceBudgetResult>;
   apply(taskId: string, selections: readonly ApplySelection[]): Promise<AiWorkspaceActionResult>;
   reject(taskId: string, path: string): Promise<AiWorkspaceTask>;
   discard(taskId: string): Promise<AiWorkspaceTask | null>;
   rollback(taskId: string): Promise<AiWorkspaceActionResult>;
   traces(taskId: string): Promise<OperationalTrace[]>;
   recoverActive(): Promise<AiWorkspaceTask[]>;
+  maintainStorage(policy: AiWorkspaceStoragePolicy): Promise<AiWorkspaceMaintenanceResult>;
 }
 
 const hash = (text: string): string => createHash("sha256").update(text).digest("hex");
@@ -186,8 +210,98 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
     });
   }
 
+  async function directorySize(path: string): Promise<number> {
+    try {
+      const entries = await readdir(path, { withFileTypes: true });
+      let bytes = 0;
+      for (const entry of entries) {
+        const target = join(path, entry.name);
+        if (entry.isSymbolicLink()) continue;
+        if (entry.isDirectory()) bytes += await directorySize(target);
+        else bytes += (await lstat(target)).size;
+      }
+      return bytes;
+    } catch {
+      return 0;
+    }
+  }
+
+  async function maintainStorage(policy: AiWorkspaceStoragePolicy): Promise<AiWorkspaceMaintenanceResult> {
+    if (
+      !Number.isSafeInteger(policy.quotaBytes) ||
+      policy.quotaBytes <= 0 ||
+      !Number.isSafeInteger(policy.sandboxRetentionMs) ||
+      policy.sandboxRetentionMs < 0 ||
+      !Number.isSafeInteger(policy.checkpointRetentionMs) ||
+      policy.checkpointRetentionMs < 0
+    ) {
+      throw new Error("Invalid AI workspace storage policy");
+    }
+
+    const tasks = await store.listAll();
+    const removedTaskIds: string[] = [];
+    const terminal = new Set(["applied", "discarded", "failed", "rolled-back"]);
+
+    // Age-based cleanup first. An applied task may lose its sandbox, but never its only
+    // checkpoint; rollback reads the checkpoint and does not depend on the sandbox.
+    for (const original of tasks) {
+      let task = original;
+      const age = Math.max(0, now() - task.updatedAt);
+      if (task.sandbox !== null && terminal.has(task.state) && age >= policy.sandboxRetentionMs) {
+        try {
+          await removeTaskSandbox(task);
+          task = { ...task, sandbox: null, updatedAt: now() };
+          await store.save(task);
+          removedTaskIds.push(task.id);
+        } catch {
+          // A registered worktree can be temporarily busy. Leave its record intact so a
+          // later maintenance pass can retry safely.
+        }
+      }
+      if (
+        task.checkpoint !== null &&
+        task.state !== "applied" &&
+        task.state !== "conflict" &&
+        age >= policy.checkpointRetentionMs
+      ) {
+        try {
+          await rm(dirname(checkpointPath(task.id, task.checkpoint.id)), { recursive: true, force: true });
+          task = { ...task, checkpoint: null, updatedAt: now() };
+          await store.save(task);
+        } catch {
+          // Checkpoint cleanup is optional and never blocks task recovery.
+        }
+      }
+    }
+
+    const sandboxes = join(options.userDataDirectory, "ai-workspaces", "sandboxes");
+    let totalSandboxBytes = await directorySize(sandboxes);
+    if (totalSandboxBytes > policy.quotaBytes) {
+      const refreshed = (await store.listAll())
+        .filter((task) => task.sandbox !== null && terminal.has(task.state))
+        .sort((a, b) => a.updatedAt - b.updatedAt);
+      for (const task of refreshed) {
+        if (totalSandboxBytes <= policy.quotaBytes) break;
+        try {
+          await removeTaskSandbox(task);
+          await store.save({ ...task, sandbox: null, updatedAt: now() });
+          if (!removedTaskIds.includes(task.id)) removedTaskIds.push(task.id);
+          totalSandboxBytes = await directorySize(sandboxes);
+        } catch {
+          // Try the next eligible task; active work and checkpoints remain untouched.
+        }
+      }
+    }
+
+    return { ok: totalSandboxBytes <= policy.quotaBytes, totalSandboxBytes, removedTaskIds };
+  }
+
   return {
     async start(input): Promise<AiWorkspaceTask> {
+      const policy = options.storagePolicy?.();
+      if (policy !== undefined && !(await maintainStorage(policy)).ok) {
+        throw new Error("AI workspace storage quota is full. Increase it in Settings or discard a task.");
+      }
       const root = await import("node:fs/promises").then(({ realpath }) => realpath(input.workspaceRoot));
       const createdAt = now();
       let task = createAiWorkspaceTask({
@@ -209,6 +323,16 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
           now: createdAt,
         });
         runtimeCleanups.set(task.id, sandbox.cleanup);
+        if (policy !== undefined) {
+          const bytes = await directorySize(
+            join(options.userDataDirectory, "ai-workspaces", "sandboxes"),
+          );
+          if (bytes > policy.quotaBytes) {
+            await sandbox.cleanup();
+            runtimeCleanups.delete(task.id);
+            throw new Error("This project is larger than the AI workspace storage quota.");
+          }
+        }
         task = transitionTask({ ...task, sandbox: sandbox.record }, "ready", now());
         await store.save(task);
         await trace(task.id, "task", `Created ${sandbox.record.kind} task workspace`, "ok");
@@ -265,6 +389,29 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
         await trace(task.id, "state", "Paused task workspace", "ok");
       }
       return task;
+    },
+
+    async reserveUsage(taskId, usage): Promise<AiWorkspaceBudgetResult> {
+      let task = await required(taskId);
+      const reservation = canReserveUsage(task.budget, usage);
+      if (!reservation.ok) {
+        if (task.state === "ready" || task.state === "running" || task.state === "review") {
+          task = transitionTask(task, "paused", now());
+          await store.save(task);
+        }
+        await trace(
+          task.id,
+          "budget",
+          reservation.reason === "token-limit" ? "Token budget reached" : "Cost budget reached",
+          "blocked",
+        );
+        return { ok: false, task, reason: reservation.reason };
+      }
+
+      task = { ...task, budget: addUsage(task.budget, usage), updatedAt: now() };
+      await store.save(task);
+      await trace(task.id, "budget", `Reserved ${String(usage.tokens)} tokens`, "ok");
+      return { ok: true, task, reason: null };
     },
 
     async apply(taskId, selections): Promise<AiWorkspaceActionResult> {
@@ -504,5 +651,6 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
 
     traces: (taskId) => store.traces(taskId),
     recoverActive: () => store.recoverActive(now()),
+    maintainStorage,
   };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createAgent, MAX_TURNS } from "../src/agent.ts";
+import { createAgent, estimateRequestTokens, MAX_TURNS } from "../src/agent.ts";
 import type {
   AgentEvent,
   Provider,
@@ -92,6 +92,48 @@ describe("a plain turn", () => {
 
     const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner() });
     expect(kinds(await collect(agent.send("hi")))).toEqual(["thinking", "text", "turn-end"]);
+  });
+});
+
+describe("request budget gate", () => {
+  it("checks a conservative request estimate before contacting the provider", async () => {
+    const provider = scriptedProvider([[{ kind: "text", text: "never" }]]);
+    let estimate = 0;
+    const agent = createAgent({
+      provider,
+      model: "test-model",
+      tools: [],
+      runner: runner(),
+      beforeRequest: (request) => {
+        estimate = estimateRequestTokens(request);
+        return "Task token budget reached. Increase it or start a new task.";
+      },
+    });
+
+    const events = await collect(agent.send("hello"));
+    expect(estimate).toBeGreaterThanOrEqual(8_192);
+    expect(provider.requests).toBe(0);
+    expect(events).toEqual([
+      { kind: "error", detail: "Task token budget reached. Increase it or start a new task." },
+    ]);
+  });
+
+  it("includes tool schemas and conversation content in the estimate", () => {
+    const base = estimateRequestTokens({
+      model: "test",
+      system: "system",
+      messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+      tools: [],
+      maxTokens: 100,
+    });
+    const withTool = estimateRequestTokens({
+      model: "test",
+      system: "system",
+      messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+      tools: [echoTool],
+      maxTokens: 100,
+    });
+    expect(withTool).toBeGreaterThan(base);
   });
 });
 

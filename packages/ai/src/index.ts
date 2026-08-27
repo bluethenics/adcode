@@ -8,7 +8,13 @@
 export * from "./types.ts";
 export * from "./workspaces.ts";
 
-export { createAgent, MAX_TURNS, type Agent, type AgentDeps } from "./agent.ts";
+export {
+  createAgent,
+  estimateRequestTokens,
+  MAX_TURNS,
+  type Agent,
+  type AgentDeps,
+} from "./agent.ts";
 export { computeHunks, applyHunks, type Hunk } from "./diff.ts";
 export {
   IDLE_MS,

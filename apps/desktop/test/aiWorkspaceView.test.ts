@@ -55,6 +55,9 @@ describe("AI workspace task presentation", () => {
 
   it("formats usage compactly while distinguishing budget from cost", () => {
     expect(formatAiWorkspaceUsage(task("review"))).toBe("1.3k / 100k tokens · $0.25 / $2.00");
+    expect(formatAiWorkspaceUsage({ ...task("review"), usedCostMicros: 0 })).toBe(
+      "1.3k / 100k tokens",
+    );
   });
 
   it("maps operational outcomes to existing trace tones", () => {

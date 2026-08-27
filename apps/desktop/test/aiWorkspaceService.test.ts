@@ -61,6 +61,25 @@ describe("safe AI workspace service", () => {
     expect(await api.readSandboxFile(task.id, "one.txt")).toBe("one before\n");
   });
 
+  it("reserves a provider request before it can cross the hard task budget", async () => {
+    const api = service();
+    const task = await api.start({
+      workspaceRoot: project,
+      prompt: "Stay bounded",
+      tokenLimit: 100,
+      costMicrosLimit: 1_000,
+    });
+
+    const first = await api.reserveUsage(task.id, { tokens: 60, costMicros: 400 });
+    const blocked = await api.reserveUsage(task.id, { tokens: 41, costMicros: 1 });
+
+    expect(first.ok).toBe(true);
+    expect(first.task.budget.usedTokens).toBe(60);
+    expect(blocked).toMatchObject({ ok: false, reason: "token-limit" });
+    expect(blocked.task.budget.usedTokens).toBe(60);
+    expect((await api.read(task.id))?.budget.usedTokens).toBe(60);
+  });
+
   it("creates a durable checkpoint before applying selected files", async () => {
     const api = service();
     const task = await api.start({ workspaceRoot: project, prompt: "Edit one" });
@@ -217,5 +236,44 @@ describe("safe AI workspace service", () => {
     expect((await second.list(project)).map((item) => item.id)).toContain(task.id);
     expect(await second.readSandboxFile(task.id, "one.txt")).toBe("persisted proposal\n");
     expect((await second.traces(task.id)).some((event) => event.kind === "file-change")).toBe(true);
+  });
+
+  it("removes terminal sandboxes but keeps an applied task's only rollback checkpoint", async () => {
+    const api = service();
+    const task = await api.start({ workspaceRoot: project, prompt: "Apply then clean" });
+    await api.write(task.id, "one.txt", "one proposed\n");
+    await api.apply(task.id, [{ path: "one.txt", contents: "one proposed\n" }]);
+
+    const cleaned = await api.maintainStorage({
+      quotaBytes: 10_000_000,
+      sandboxRetentionMs: 0,
+      checkpointRetentionMs: 0,
+    });
+    const applied = await api.read(task.id);
+    expect(cleaned.removedTaskIds).toContain(task.id);
+    expect(applied?.sandbox).toBeNull();
+    expect(applied?.checkpoint).not.toBeNull();
+    expect((await api.rollback(task.id)).ok).toBe(true);
+
+    await api.maintainStorage({ quotaBytes: 10_000_000, sandboxRetentionMs: 0, checkpointRetentionMs: 0 });
+    expect((await api.read(task.id))?.checkpoint).toBeNull();
+  });
+
+  it("refuses a new sandbox that cannot fit without deleting active work", async () => {
+    const bounded = createAiWorkspaceService({
+      userDataDirectory: userData,
+      now: () => 20_000 + sequence,
+      id: (prefix) => `${prefix}-${String(++sequence).padStart(4, "0")}`,
+      storagePolicy: () => ({
+        quotaBytes: 1,
+        sandboxRetentionMs: 7 * 86_400_000,
+        checkpointRetentionMs: 30 * 86_400_000,
+      }),
+    });
+
+    await expect(bounded.start({ workspaceRoot: project, prompt: "Too large" })).rejects.toThrow(
+      /storage quota/i,
+    );
+    expect(await readFile(join(project, "one.txt"), "utf8")).toBe("one before\n");
   });
 });

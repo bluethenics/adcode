@@ -24,6 +24,7 @@ import {
   createAnthropicProvider,
   createGoogleProvider,
   createOpenAiCompatibleProvider,
+  estimateRequestTokens,
   mergeCatalogue,
   parseCatalogue,
   providerIn,
@@ -119,7 +120,14 @@ let currentTaskPrompt: string | null = null;
 let taskService: AiWorkspaceService | null = null;
 
 function aiWorkspaceService(): AiWorkspaceService {
-  taskService ??= createAiWorkspaceService({ userDataDirectory: app.getPath("userData") });
+  if (taskService === null) {
+    taskService = createAiWorkspaceService({
+      userDataDirectory: app.getPath("userData"),
+      storagePolicy: configuredStoragePolicy,
+    });
+    // Recovery changes state only. It never resumes a model, command, or terminal action.
+    void taskService.recoverActive();
+  }
   return taskService;
 }
 
@@ -142,6 +150,7 @@ const REUSABLE_TASK_STATES = new Set(["ready", "running", "paused", "review", "c
 async function ensureToolWorkspace() {
   const human = currentWorkspace()?.root ?? null;
   if (human === null) return null;
+  if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) return null;
 
   const service = aiWorkspaceService();
   let task = activeTaskId === null ? null : await service.read(activeTaskId);
@@ -153,6 +162,7 @@ async function ensureToolWorkspace() {
     task = await service.start({
       workspaceRoot: human,
       prompt: currentTaskPrompt ?? "Continue the assistant task",
+      tokenLimit: configuredTaskTokenBudget(),
     });
     activeTaskId = task.id;
     announceWorkspaceTask(task);
@@ -162,6 +172,25 @@ async function ensureToolWorkspace() {
     taskId: task.id,
     sandboxRoot: join(app.getPath("userData"), "ai-workspaces", "sandboxes", task.id),
     humanRoot: human,
+  };
+}
+
+function configuredTaskTokenBudget(): number {
+  const value = currentSettings()["adcode.ai.taskTokenBudget"];
+  return value === "25000" || value === "250000" ? Number(value) : 100_000;
+}
+
+function configuredStoragePolicy() {
+  const values = currentSettings();
+  const quota = values["adcode.ai.sandboxQuota"];
+  const sandboxRetention = values["adcode.ai.sandboxRetention"];
+  const checkpointRetention = values["adcode.ai.checkpointRetention"];
+  const day = 86_400_000;
+  return {
+    quotaBytes: quota === "1gb" ? 1_000_000_000 : quota === "10gb" ? 10_000_000_000 : 5_000_000_000,
+    sandboxRetentionMs: sandboxRetention === "1d" ? day : sandboxRetention === "30d" ? 30 * day : 7 * day,
+    checkpointRetentionMs:
+      checkpointRetention === "7d" ? 7 * day : checkpointRetention === "90d" ? 90 * day : 30 * day,
   };
 }
 
@@ -297,6 +326,10 @@ async function buildProvider(id: string): Promise<Provider | null> {
 function toolRunner() {
   return createAiToolRunner({
     workspace: ensureToolWorkspace,
+    workspaceUnavailableMessage: () =>
+      currentSettings()["adcode.ai.isolatedWorkspaces"] === false
+        ? "AI file tools are off because Isolate AI edits is disabled in Settings."
+        : "No folder is open, so there is nothing to work on yet.",
     memory: () => memoryForWorkspace(),
     writeSandboxFile: async (path, contents) => {
       if (activeTaskId === null) throw new Error("Task workspace is unavailable");
@@ -487,6 +520,25 @@ export async function aiSend(text: string): Promise<void> {
         model,
         tools: memoryEnabled ? BUILT_IN_TOOLS : TOOLS_WITHOUT_MEMORY,
         runner: toolRunner(),
+        beforeRequest: async (request) => {
+          // Chat without an open project remains available. With a project, every model
+          // round-trip reserves a conservative maximum before it can spend the user's key.
+          if (currentWorkspace() === null || currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
+            return null;
+          }
+          const workspace = await ensureToolWorkspace();
+          if (workspace === null) return null;
+          const reserved = await aiWorkspaceService().reserveUsage(workspace.taskId, {
+            tokens: estimateRequestTokens(request),
+            costMicros: 0,
+          });
+          announceWorkspaceTask(reserved.task);
+          return reserved.ok
+            ? null
+            : reserved.reason === "token-limit"
+              ? "Task token budget reached. Increase it in Settings or start a new task."
+              : "Task cost budget reached. Increase it in Settings or start a new task.";
+        },
       });
       agentProvider = providerId;
       agentModel = model;

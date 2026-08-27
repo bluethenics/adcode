@@ -63,6 +63,7 @@ describe("schema completeness", () => {
     ["adcode.ai.terminalAgentDetection", true],
     ["adcode.ai.memoryCapture", true],
     ["adcode.ai.mcpServer", true],
+    ["adcode.ai.isolatedWorkspaces", true],
   ];
 
   for (const [id, expected] of REQUIRED) {
@@ -123,6 +124,30 @@ describe("appearance", () => {
       expect(setting.options.map((o) => o.value)).toEqual(["comfortable", "compact"]);
     }
     expect(setting?.default).toBe("comfortable");
+  });
+});
+
+describe("AI workspace settings", () => {
+  it("defaults to isolated review with bounded task storage and tokens", () => {
+    expect(byId.get("adcode.ai.isolatedWorkspaces" as SettingId)?.default).toBe(true);
+
+    const expected = new Map([
+      ["adcode.ai.taskTokenBudget", ["25000", "100000", "250000"]],
+      ["adcode.ai.sandboxQuota", ["1gb", "5gb", "10gb"]],
+      ["adcode.ai.sandboxRetention", ["1d", "7d", "30d"]],
+      ["adcode.ai.checkpointRetention", ["7d", "30d", "90d"]],
+    ]);
+    for (const [id, options] of expected) {
+      const setting = byId.get(id as SettingId);
+      expect(setting?.kind).toBe("enum");
+      if (setting?.kind === "enum") expect(setting.options.map((option) => option.value)).toEqual(options);
+      expect(setting?.available).toBe(true);
+    }
+
+    expect(byId.get("adcode.ai.taskTokenBudget" as SettingId)?.default).toBe("100000");
+    expect(byId.get("adcode.ai.sandboxQuota" as SettingId)?.default).toBe("5gb");
+    expect(byId.get("adcode.ai.sandboxRetention" as SettingId)?.default).toBe("7d");
+    expect(byId.get("adcode.ai.checkpointRetention" as SettingId)?.default).toBe("30d");
   });
 });
 

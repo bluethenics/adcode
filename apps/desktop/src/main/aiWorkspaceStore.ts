@@ -48,6 +48,7 @@ export interface AiWorkspaceStore {
   save(task: AiWorkspaceTask): Promise<void>;
   read(id: string): Promise<AiWorkspaceTask | null>;
   list(workspaceId: string): Promise<AiWorkspaceTask[]>;
+  listAll(): Promise<AiWorkspaceTask[]>;
   recoverActive(now: number): Promise<AiWorkspaceTask[]>;
   appendTrace(event: OperationalTrace): Promise<void>;
   traces(taskId: string): Promise<OperationalTrace[]>;
@@ -96,6 +97,10 @@ export function createAiWorkspaceStore(userDataDirectory: string): AiWorkspaceSt
       return (await all())
         .filter((task) => task.workspaceId === workspaceId)
         .sort((a, b) => b.updatedAt - a.updatedAt || b.createdAt - a.createdAt);
+    },
+
+    async listAll(): Promise<AiWorkspaceTask[]> {
+      return (await all()).sort((a, b) => b.updatedAt - a.updatedAt || b.createdAt - a.createdAt);
     },
 
     async recoverActive(now): Promise<AiWorkspaceTask[]> {
