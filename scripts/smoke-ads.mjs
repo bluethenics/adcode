@@ -24,13 +24,14 @@ import { join } from "node:path";
 import process from "node:process";
 import { createRequire } from "node:module";
 import { createMockServer } from "../mock-server/src/server.ts";
+import { releaseDirectory } from "./release-directory.mjs";
 
 const REPO = process.cwd();
 const require = createRequire(join(REPO, "package.json"));
 
 const packaged = process.argv.includes("--packaged");
 const electronPath = packaged
-  ? join(REPO, "release", "win-unpacked", "ADCode.exe")
+  ? join(releaseDirectory(REPO), "win-unpacked", "ADCode.exe")
   : require("electron");
 const appArgs = packaged ? [] : ["apps/desktop"];
 

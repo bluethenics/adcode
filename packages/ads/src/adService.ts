@@ -111,6 +111,7 @@ export function createAdService(deps: AdServiceDeps): AdService {
   let remote: RemoteConfig | null = null;
   let cachedBalance: Balance | null = null;
   let inventory: Creative[] = [];
+  let inventoryFetchedAt: number | null = null;
   let impressions: number[] = [];
   let lastReason: SuppressReason | null = null;
   let stopped = false;
@@ -141,6 +142,12 @@ export function createAdService(deps: AdServiceDeps): AdService {
   }
 
   async function prefetch(): Promise<void> {
+    const now = deps.clock.now();
+    const fetchedAt = inventoryFetchedAt;
+    if (fetchedAt !== null) {
+      inventory = inventory.filter((creative) => now - fetchedAt < creative.ttlMs);
+      if (inventory.length === 0) inventoryFetchedAt = null;
+    }
     if (inventory.length > 0) return;
 
     // §1 and §8.2: only vocabulary tags leave the machine, and the tagger sees
@@ -156,7 +163,10 @@ export function createAdService(deps: AdServiceDeps): AdService {
       count: PREFETCH_TARGET,
     });
 
-    if (result.ok) inventory = [...result.value];
+    if (result.ok) {
+      inventory = [...result.value];
+      inventoryFetchedAt = inventory.length > 0 ? now : null;
+    }
   }
 
   async function flushReceipts(): Promise<void> {
@@ -164,7 +174,10 @@ export function createAdService(deps: AdServiceDeps): AdService {
     if (pending.length === 0) return;
 
     const result = await deps.client.postReceipts(pending);
-    if (result.ok) await deps.queue.ack(result.value);
+    if (result.ok) {
+      await deps.queue.ack(result.value);
+      await refreshBalance();
+    }
   }
 
   return {

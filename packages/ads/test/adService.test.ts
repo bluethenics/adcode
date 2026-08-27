@@ -356,6 +356,38 @@ describe("receipts", () => {
     await service.flushReceipts();
     expect(await queue.size()).toBe(1);
   });
+
+  it("refreshes the server balance after receipts are acknowledged", async () => {
+    let available = 0n;
+    const queue = createReceiptQueue({ store });
+    const renderer = createAdRenderer({ sink, clock, onReceipt: (r) => void queue.enqueue(r) });
+    const service = build({
+      queue,
+      renderer,
+      client: stubClient({
+        postReceipts: async (receipts) => {
+          available = 1_500n;
+          return { ok: true, value: receipts.map((receipt) => receipt.receiptId) };
+        },
+        balance: async () => ({
+          ok: true,
+          value: { availableMicros: micros(available), lifetimeMicros: micros(available) },
+        }),
+      }),
+    });
+
+    await service.start();
+    expect(service.balance()?.availableMicros).toBe(micros(0n));
+
+    clock.advance(SETTLE_MS + 1);
+    await service.tick();
+    service.onPainted();
+    clock.advance(MIN_DWELL_MS);
+    service.dismiss();
+    await service.flushReceipts();
+
+    expect(service.balance()?.availableMicros).toBe(micros(1_500n));
+  });
 });
 
 describe("prefetch", () => {
@@ -377,5 +409,25 @@ describe("prefetch", () => {
     await service.tick();
 
     expect(serveCalls).toBe(1);
+  });
+
+  it("asks the server again after cached creatives expire", async () => {
+    let serveCalls = 0;
+    const shortLived = { ...creative, ttlMs: 1_000 };
+    const counting = stubClient({
+      serve: async () => {
+        serveCalls += 1;
+        return { ok: true, value: [shortLived] };
+      },
+    });
+    const service = build({ client: counting });
+
+    await service.start();
+    expect(serveCalls).toBe(1);
+
+    clock.advance(shortLived.ttlMs + 1);
+    await service.tick();
+
+    expect(serveCalls).toBe(2);
   });
 });

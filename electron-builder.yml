@@ -1,26 +1,26 @@
 # Packaging ADCode into something a person can double-click.
 #
-# The app manifest is the repo's own package.json rather than apps/desktop's, because the
-# repo is not an npm workspace (deviation D6: FAT32 has no symlinks) and every runtime
-# dependency therefore lives in the root node_modules. `extraMetadata.main` retargets the
-# entry point at the built main process.
+# The desktop package is the app manifest. Dependencies are still installed in the root
+# node_modules because this FAT32-compatible repository cannot use npm workspaces. The
+# explicit file sets below stage only the dependencies declared by apps/desktop/package.json.
 
 appId: com.adcode.ide
 productName: ADCode
 copyright: ADCode
 
-# node-pty ships N-API prebuilds, which are ABI-stable across Node and Electron versions
-# and need no rebuild. Letting electron-builder run @electron/rebuild anyway drags in
-# node-gyp and winpty's build scripts, which need a full MSVC toolchain to produce a
-# binary identical to the one already in the box.
-npmRebuild: false
+# node-pty ships N-API prebuilds, which are ABI-stable across Node and Electron versions.
+# The hook stages dependencies through explicit file sets below and returns false so the
+# installed electron-builder does not fall back to the shared root lockfile and traverse
+# unrelated web/server dependencies.
+beforeBuild: ./scripts/electron-builder-before-build.mjs
 
 directories:
+  app: apps/desktop
   output: release
   buildResources: build
 
 extraMetadata:
-  main: apps/desktop/out/main/index.js
+  main: out/main/index.js
   # Windows Task Manager shows a process under its executable's FileDescription, which
   # electron-builder takes from `description`. The repo's own description is a sentence
   # about what ADCode is, which would read as a paragraph in a process list - so the
@@ -28,27 +28,24 @@ extraMetadata:
   description: ADCode
 
 files:
-  - apps/desktop/out/**/*
+  - out/**/*
   - package.json
   # The main process reads this at runtime for the window icon, so it has to be inside the
   # asar. `buildResources` above only feeds the installer and the executable's own embedded
   # icon; it puts nothing where a running app can read it, which is why the packaged build
   # logged "Failed to load image from path ...app.asar\build\icon.png" on every launch.
-  - build/icon.png
-  # Vite bundles these into the renderer at build time; the copies in node_modules would
-  # be about a hundred megabytes of dead weight inside the installer.
-  - "!node_modules/monaco-editor/**"
-  - "!node_modules/@xterm/**"
-  - "!node_modules/typescript/**"
-  - "!node_modules/electron/**"
-  - "!node_modules/electron-builder/**"
-  - "!node_modules/app-builder-lib/**"
-  - "!node_modules/vite/**"
-  - "!node_modules/vitest/**"
-  - "!node_modules/esbuild/**"
-  - "!node_modules/@esbuild/**"
-  - "!node_modules/dependency-cruiser/**"
-  - "!node_modules/.cache/**"
+  - from: ../..
+    to: .
+    filter:
+      - build/icon.png
+  - from: ../../node_modules/node-pty
+    to: node_modules/node-pty
+    filter:
+      - "**/*"
+  - from: ../../node_modules/node-addon-api
+    to: node_modules/node-addon-api
+    filter:
+      - "**/*"
 
 # node-pty resolves its native binary by building a path at runtime, which cannot be read
 # from inside an asar archive.

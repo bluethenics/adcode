@@ -29,6 +29,7 @@ import { shutdownAllServers } from "./lsp.ts";
 import { stopPreview } from "./preview.ts";
 import { getAdRuntime } from "./adRuntime.ts";
 import { currentSettings, loadSettings } from "./settings.ts";
+import { windowIconPath } from "./windowIcon.ts";
 import { CHANNELS } from "../shared/api.ts";
 
 /**
@@ -106,7 +107,7 @@ function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
-    icon: join(import.meta.dirname, "../../../../build/icon.png"),
+    icon: windowIconPath(app.getAppPath()),
     minWidth: 680,
     minHeight: 420,
     /*

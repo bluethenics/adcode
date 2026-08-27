@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
 import { createRequire } from "node:module";
+import { releaseDirectory } from "./release-directory.mjs";
 
 const REPO = process.cwd();
 
@@ -29,7 +30,7 @@ const require = createRequire(join(REPO, "package.json"));
 
 const packaged = process.argv.includes("--packaged");
 const electronPath = packaged
-  ? join(REPO, "release", "win-unpacked", "ADCode.exe")
+  ? join(releaseDirectory(REPO), "win-unpacked", "ADCode.exe")
   : require("electron");
 
 // A packaged app *is* the app; an unpackaged Electron has to be told where it lives.
@@ -1139,6 +1140,17 @@ try {
        })()`,
     );
 
+  async function waitForTreePath(suffix) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const found = await evaluate(
+        `[...document.querySelectorAll('#filetree .tree-row')].some(r => r.dataset.path?.endsWith(${JSON.stringify(suffix)}))`,
+      );
+      if (found === true) return true;
+      await sleep(100);
+    }
+    return false;
+  }
+
   const emptySpace = await emptyTreeSpace();
 
   await rightClickAt(emptySpace.x, emptySpace.y);
@@ -1166,9 +1178,10 @@ try {
   await pressEnter();
   await sleep(600);
 
-  checks.createFolder = await evaluate(
-    `[...document.querySelectorAll('#filetree .tree-row')].some(r => r.dataset.path?.endsWith(${JSON.stringify(SCRATCH)}))`,
-  );
+  checks.createFolder = await waitForTreePath(SCRATCH);
+  if (checks.createFolder !== true) {
+    throw new Error(`scratch folder ${SCRATCH} did not appear in the Explorer`);
+  }
 
   const folderPoint = await evaluate(
     `(() => {
@@ -1462,7 +1475,20 @@ try {
 
   // Delete, through however many confirmations this volume needs. A drive with no
   // Recycle Bin asks a second time before anything is removed for good.
-  await rightClickAt(folderPoint.x, folderPoint.y);
+  const deletePoint = await evaluate(
+    `(() => {
+       const row = [...document.querySelectorAll('#filetree .tree-row')]
+         .find(r => r.dataset.path?.endsWith(${JSON.stringify(SCRATCH)}));
+       if (!row) return null;
+       row.scrollIntoView({ block: 'center' });
+       const r = row.getBoundingClientRect();
+       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+     })()`,
+  );
+  if (deletePoint === null) {
+    throw new Error(`refusing to delete: scratch folder ${SCRATCH} is not visible`);
+  }
+  await rightClickAt(deletePoint.x, deletePoint.y);
   point = await contextItemPoint("Delete");
   await clickAt(point.x, point.y);
 
