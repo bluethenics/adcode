@@ -133,12 +133,12 @@ const TRANSITIONS: Readonly<Record<AiTaskState, readonly AiTaskState[]>> = {
   running: ["paused", "review", "failed"],
   paused: ["ready", "running", "review", "discarded", "failed"],
   review: ["applying", "discarded", "conflict", "failed"],
-  applying: ["applied", "conflict", "failed"],
+  applying: ["applied", "paused", "conflict", "failed"],
   applied: ["rolling-back"],
   conflict: ["review", "discarded", "failed"],
   discarded: [],
   failed: ["paused", "discarded"],
-  "rolling-back": ["rolled-back", "conflict", "failed"],
+  "rolling-back": ["rolled-back", "paused", "conflict", "failed"],
   "rolled-back": [],
 };
 
