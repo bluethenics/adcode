@@ -15,6 +15,164 @@ needs your account or your decision, which is exactly why it is not already done
 
 ---
 
+## Current payments and payouts runbook (2026-08-26)
+
+This section supersedes the older fixed-price and $10 payout instructions later in this
+file. The current product rules are:
+
+- advertisers buy non-expiring, non-transferable ad credits through a hosted Dodo Checkout
+  Session; **1 credit = $1 USD of ad spend**;
+- campaigns set a maximum bid per 500 impressions; a second-price auction charges the next
+  eligible bid plus $0.01 per block, with a **$1.00 per 500 impression floor**;
+- the developer receives **50% of the clearing price**;
+- users can request a payout at **$50.00**; an admin approves it, sends it manually, and
+  records the result;
+- there is no Wise API integration and no pay-by-email option. Payouts use structured bank
+  details for country/currency routes you have explicitly enabled.
+
+### A. Apply the new database migrations
+
+In Supabase Dashboard -> SQL Editor, run these files in filename order. Run the entire
+contents of each file once:
+
+1. `supabase/migrations/20260826100000_auction_settlement.sql`
+2. `supabase/migrations/20260826110000_advertiser_credits.sql`
+3. `supabase/migrations/20260826120000_payout_corridors_encryption.sql`
+4. `supabase/migrations/20260826130000_withdrawal_lifecycle.sql`
+5. `supabase/migrations/20260826140000_atomic_withdrawals.sql`
+
+All example payout routes are inserted **disabled**. That is intentional: Wise availability
+depends on the sender profile, destination, currency, recipient type, and current compliance
+checks.
+
+If the database already contains payout profiles or withdrawals, generate the encryption
+key first, then inspect and run the migration helper from the repository root:
+
+```powershell
+node scripts/migrate-payout-encryption.mjs
+node scripts/migrate-payout-encryption.mjs --apply
+```
+
+The first command is a dry run. The second encrypts legacy plaintext destinations and
+clears their plaintext name/account fields. Back up the database first and keep the same
+encryption key permanently; losing it makes stored payout details unreadable.
+
+### B. Create the payout encryption secret
+
+Generate a random 32-byte key locally. Do not paste its output into this file or chat:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+cd apps/web
+npx wrangler secret put PAYOUT_ENCRYPTION_KEY
+```
+
+Paste the generated value only into Wrangler's hidden prompt. The API fails closed on
+payout reads and writes when this secret is absent or invalid.
+
+### C. Configure Dodo Payments in test mode
+
+1. In the Dodo dashboard, switch to **Test mode**.
+2. Create a **one-time** USD product for “ADCode advertising credits”. It must support the
+   per-checkout amount sent in `product_cart.amount`; copy its product ID.
+3. Under **Developer -> API**, create a new test API key. The key previously pasted into
+   chat was revoked and is not stored anywhere in this repository. Use only its replacement.
+4. Under **Developer -> Webhooks**, create an endpoint at:
+
+   `https://YOUR-LIVE-HOST/v1/webhooks/dodo`
+
+5. Subscribe to these events:
+
+   - `payment.succeeded`
+   - `refund.succeeded`
+   - `dispute.opened`
+   - `dispute.accepted`
+   - `dispute.lost`
+   - `dispute.won`
+   - `dispute.cancelled`
+
+   Payment success grants credits. Refunds and lost/accepted disputes remove available
+   advertiser credits; if the advertiser becomes underfunded, the account and active
+   campaigns are suspended. Won/cancelled disputes restore the held credit.
+6. Copy the endpoint signing secret.
+7. From `apps/web`, enter each value into Wrangler's hidden prompt:
+
+```powershell
+npx wrangler secret put DODO_API_KEY
+npx wrangler secret put DODO_PRODUCT_ID
+npx wrangler secret put DODO_WEBHOOK_SECRET
+```
+
+Leave `DODO_MODE` unset for test mode. The app calls Dodo's `POST /checkouts` endpoint on
+the server, stores the internal order before redirecting, and uses the returned
+`session_id` and `checkout_url`. Browser redirects never grant credit; only a verified,
+matching webhook does. Dodo's current Checkout Sessions reference is
+<https://docs.dodopayments.com/api-reference/checkout-sessions/create> and its event list
+is <https://docs.dodopayments.com/developer-resources/webhooks/intents/webhook-events-guide>.
+
+### D. Test money in before enabling live mode
+
+1. Redeploy, sign in, create an advertiser, then open Portal -> Billing.
+2. Buy at least $10 in test credits and complete Dodo's hosted test checkout.
+3. Confirm the Dodo webhook delivery returned HTTP 200.
+4. Confirm `credit_orders` shows a paid order and the advertiser funded balance increased
+   exactly once.
+5. Replay the same webhook and confirm the balance does **not** increase again.
+6. Issue a test refund and confirm credits are removed without changing developer earnings
+   that were already settled.
+
+Only after those checks should you replace all three Dodo values with their live-mode
+versions, set `DODO_MODE=live` as a Worker secret, and redeploy.
+
+### E. Verify payout countries one at a time
+
+Open `/admin/money?tab=corridors`. For each route:
+
+1. In your own Wise account, start a real recipient flow from India for that exact country,
+   currency, and recipient type.
+2. Record every bank field Wise requires in the admin route configuration.
+3. Put the date and what you verified in the verification note.
+4. Enable the route only if Wise allows you to continue with the correct, truthful transfer
+   purpose. Recheck periodically and disable it immediately if Wise stops accepting it.
+
+Do **not** enable all countries from a generic country list. The public payout form shows
+only routes enabled in this admin screen, and eligibility is checked again when the user
+submits a request.
+
+### F. Important Wise India restriction
+
+The requested payout workflow is business-related: the platform owes developers money.
+Wise's current guidance says transfers on behalf of a business require a Wise Business
+account, while its India “sending from INR” guidance says a personal account can send for
+personal use or close relatives. Therefore, a normal personal Wise account from India
+should **not be assumed compliant for developer payouts**, even if the interface technically
+lets you create a recipient. See:
+
+- <https://wise.com/help/articles/2950528/how-do-i-send-money-as-a-business>
+- <https://wise.com/help/articles/2932151/guide-to-inr-transfers>
+
+Before the first real payout, ask Wise support (and your accountant/legal adviser) whether
+your exact entity, source of funds, purpose, and destination are permitted. Until you have
+written confirmation or an appropriate business payout method, keep corridors disabled.
+The software supports manual review; it cannot make a non-permitted personal transfer
+permitted.
+
+### G. Process a withdrawal
+
+1. A verified user with an account at least seven days old, an enabled payout route, no
+   in-flight request, and at least **$50.00 available** submits a request.
+2. In `/admin/money`, review it under **Needs review**. Check the account and bank fields,
+   then choose **Approve for manual transfer** or reject it with a useful reason.
+3. Approved requests move to **Ready to send**. Copy each structured field into Wise and
+   pay the transfer fee yourself; do not reduce the user's requested amount to cover it.
+4. If Wise sends it, paste the Wise reference and mark it paid. If Wise rejects it, record
+   the failure reason; the held money returns to the user's available balance.
+
+Never mark a request paid before Wise confirms the transfer. Approval alone does not move
+money.
+
+---
+
 ## Already done, on 2026-08-24
 
 The first deployment is live. Steps 3 to 12 are finished; what is left is marked below.
@@ -159,27 +317,26 @@ code change and no release.
 
 ### 3 · Create a GitHub repository and push
 
-This repo has **no git remote**. That blocks two things: the installers and the auto-updater
-fetch releases from GitHub, and the daily keepalive in step 13 runs as a GitHub Action.
+**This is already done.** The remote is `https://github.com/bluethenics/adcode.git`, and the
+four places that have to agree with it all say `bluethenics/adcode`:
 
-```
-git remote add origin https://github.com/<owner>/<repo>.git
-git push -u origin main
-```
-
-Then replace the `adcode/adcode` placeholder in **four** places:
-
-| File | What to change |
+| File | What it holds |
 |---|---|
 | `electron-builder.yml` | `publish.owner` and `publish.repo` |
 | `apps/web/public/install.ps1` | the `$Owner` / `$Repo` defaults |
 | `apps/web/public/install.sh` | the `OWNER` / `REPO` defaults |
-| `apps/web/.env.production` | `NEXT_PUBLIC_GITHUB_REPO` (you create this file in step 7) |
+| `apps/web/.env.production` | `NEXT_PUBLIC_GITHUB_REPO` |
 
-Getting this wrong ships installers that check an update feed nobody publishes to. They never
-update again, and there is no way to fix it remotely.
+Check it with `git remote -v` and move on.
 
-- [ ] Repo created, pushed, all four places updated
+The only reason to touch this again is a fork or a rename, and then all four change
+together. Getting that wrong ships installers that check an update feed nobody publishes to.
+They never update again, and there is no way to fix it remotely.
+
+Two things depend on the remote existing: the installers and the auto-updater fetch releases
+from GitHub, and the daily keepalive in step 13 runs as a GitHub Action.
+
+- [ ] `git remote -v` shows the repository, and your work is pushed to it
 
 ---
 
@@ -248,6 +405,120 @@ If you skip this, the site still runs, but the portal's charts stay empty and th
 dashboard's "Coding" tab says no activity has been recorded.
 
 - [ ] "Success. No rows returned", `activity_daily` exists, `receipts` has `created_at`
+
+### 5c · Add the creative artwork bucket
+
+One more small migration. It creates the place advertiser logos are stored.
+
+**Why this one matters more than it looks.** Before it, a logo was kept *inside* the
+creative's own database row as a base64 `data:` URL — about 31 kB per image, 63 kB per row.
+That broke ad serving completely, in two separate ways at once:
+
+- `/v1/serve` has to read that row. The read cost about **1,960ms**, when every other query
+  in the same request costs about 220ms. The whole request averaged **~3,089ms** — and the
+  editor gives up at **3,000ms**. It missed by 89 milliseconds, every single time. The
+  server still recorded the serve, so the database showed hundreds of ads delivered while
+  nobody ever saw one.
+- The editor rejects a `data:` logo anyway. It allows a creative URL of at most 2,048
+  characters and requires `https` on one known host. One bad logo fails the *entire* serve
+  response, so a single such creative hides every other one too.
+
+1. Still in the **SQL Editor**, click **New query**.
+2. Open `supabase/migrations/20260825140000_creative_assets.sql` from this repo. Select all
+   of it and copy it.
+3. Paste it in and click **Run**.
+
+You should see **"Success. No rows returned"**.
+
+To check it worked: click **Storage** in the left sidebar. You should see a bucket called
+**creative-assets**, marked **Private**. Private is correct — the editor never talks to
+Supabase directly; it fetches artwork from your own domain at `/assets/…`, and the service
+reads the bucket on its behalf.
+
+- [ ] "Success. No rows returned", and a private `creative-assets` bucket exists
+
+### 5e · Add the payout tables
+
+The last migration. It creates the two tables cash-out needs: where somebody wants to be
+paid, and what they have asked for.
+
+**Why this is separate from step 5.** The ledger has always had `withdrawal_requested`,
+`withdrawal_paid` and `withdrawal_failed` entry kinds — the balance arithmetic for cash-out
+was written and tested before anybody could use it. What was missing was somewhere to record
+*who* is owed money and where it goes. That is these two tables, which is why turning
+payouts on is an addition rather than a rebuild over live money.
+
+1. Still in the **SQL Editor**, click **New query**.
+2. Open `supabase/migrations/20260825170000_payouts.sql` from this repo. Select all of it
+   and copy it.
+3. Paste it in and click **Run**.
+
+You should see **"Success. No rows returned"**.
+
+To check it worked: click **Table Editor**. There should be two new tables,
+`payout_profiles` and `withdrawals` — that makes 21. Then click `users` and confirm it now
+has an `email_verified` column at the right-hand end, showing `false` on every existing row.
+That is correct: nothing had been checked, because nothing was being asked. It fills in by
+itself the next time each person signs in.
+
+If you skip this, everything else still works, but the **Payouts** tab on a user's dashboard
+shows an error and the admin panel's **Money** page stays empty.
+
+- [ ] "Success. No rows returned", `payout_profiles` and `withdrawals` exist, `users` has `email_verified`
+
+### 5d · Repair creatives that were saved before the bucket existed
+
+Only needed if an advertiser submitted a creative before you ran step 5c. If this is a
+fresh project, skip it — but running it anyway is harmless and takes a second.
+
+**Do this after you have deployed (step 12), not before** — it runs on the server, so the
+server needs the new code first.
+
+1. Sign in to your admin panel in the browser.
+2. Stay on an admin page, press **F12**, click the **Console** tab, paste all of this, and
+   press Enter.
+
+   It is longer than one line for a reason: the endpoint needs your sign-in token, and
+   Firebase keeps that in IndexedDB rather than anywhere a plain `fetch` would pick it up.
+   A bare `fetch("/v1/admin/rehost-assets", {method:"POST"})` sends no token and comes back
+   **401**. This reads the token, uses it, and prints only the result — never the token.
+
+```js
+const t = await new Promise((resolve) => {
+  const open = indexedDB.open("firebaseLocalStorageDb");
+  open.onsuccess = () => {
+    const all = open.result
+      .transaction("firebaseLocalStorage", "readonly")
+      .objectStore("firebaseLocalStorage")
+      .getAll();
+    all.onsuccess = () =>
+      resolve(
+        (all.result || []).find((r) => String(r.fbase_key).startsWith("firebase:authUser:"))
+          ?.value?.stsTokenManager?.accessToken ?? null,
+      );
+    all.onerror = () => resolve(null);
+  };
+  open.onerror = () => resolve(null);
+});
+await (
+  await fetch("/v1/admin/rehost-assets", {
+    method: "POST",
+    headers: { authorization: "Bearer " + t },
+  })
+).json();
+```
+
+If you get **401**, your token has expired — reload the page and run it again.
+
+You should see something like `{scanned: 1, rehosted: 1}`. `rehosted` is how many creatives
+were repaired. Running it a second time gives `rehosted: 0` — it only ever fixes what still
+needs fixing, so it is safe to repeat.
+
+To check it worked: in Supabase, click **Storage** → **creative-assets**. You should see one
+`.png` file per repaired creative, named after it. In **Table Editor** → `creatives`, the
+`logo_light` column should now read `https://…/assets/…png` instead of a wall of base64.
+
+- [ ] `rehosted` came back as at least 1, and `logo_light` is now a short URL
 
 ### 6 · Copy the two Supabase values
 
@@ -620,10 +891,66 @@ simply ignored; there is nothing to undo.
 
 ### 15 · Dodo Payments
 
-1. Create a Dodo account and a product for advertiser funding; note the product ID.
-2. Add a webhook endpoint pointing at **`https://adcode.bluethenics.com/v1/webhooks/dodo`**.
-3. Copy the signing secret.
-4. Set the secrets:
+This is how advertisers put money in. Nothing about it affects users earning or being paid —
+you can leave it until you have an advertiser who wants to pay you.
+
+**Test mode is the default and cannot take real money.** `DODO_MODE` is unset until you set
+it, and unset means test. Do the whole of this in test mode first.
+
+#### 15.1 · Create the product
+
+1. Sign up at **dodopayments.com** and finish their business verification.
+2. Make sure the dashboard is in **Test mode** — there is a mode switch, usually top-right.
+3. Go to **Products** → **Add product**.
+4. Choose a **one-time payment** product, not a subscription. Subscriptions bill on a
+   schedule; funding a balance is a single payment.
+5. Name it something an advertiser will recognise on a card statement — *ADCode advertising
+   credit* is fine. Set any price you like, for example $50.
+6. Save it, then copy the **product ID**. It is on the product's own page and looks like
+   `pdt_` followed by letters and numbers.
+
+**The listed price is not what gets charged.** Each checkout sends its own amount — whatever
+the advertiser typed into the portal — and the product is only the thing that amount is
+billed against. Set a sensible number anyway, because it is what shows if anyone ever opens
+the product page directly.
+
+- [ ] Product created in test mode, product ID copied
+
+#### 15.2 · Create the webhook
+
+This is the half that actually moves money into an advertiser's balance. A checkout link
+only invites somebody to pay; the balance rises when the signed webhook arrives, and nowhere
+else. Get this wrong and advertisers pay you and see nothing.
+
+1. Go to **Developer** → **Webhooks** → **Add endpoint**.
+2. For the URL, enter **exactly** the address your site actually answers on, with
+   `/v1/webhooks/dodo` on the end. Until step 13 is done that is the workers.dev address:
+
+   ```
+   https://adcode.bluethenics01.workers.dev/v1/webhooks/dodo
+   ```
+
+   and once the custom domain resolves it becomes:
+
+   ```
+   https://adcode.bluethenics.com/v1/webhooks/dodo
+   ```
+
+   **Check which one is live before you paste it.** Open `<address>/v1/health` in a browser
+   first - it must return `{"ok":true}`. A webhook pointed at a hostname that does not
+   resolve fails silently on Dodo's side: the advertiser is charged and nothing is credited.
+   If you move to the custom domain later, change this endpoint at the same time.
+3. Subscribe it to **`payment.succeeded`**. Subscribing to more is harmless — anything else
+   is acknowledged and ignored — but if `payment.succeeded` is missing, nothing is ever
+   credited.
+4. Save, then copy the **signing secret**. It starts with `whsec_`. It is shown once; if you
+   lose it, roll it and copy the new one.
+
+- [ ] Endpoint saved, subscribed to `payment.succeeded`, signing secret copied
+
+#### 15.3 · Set the three secrets
+
+From `apps/web`, run these one at a time. Each prompts for the value, and does not echo it:
 
 ```
 cd apps/web
@@ -632,15 +959,51 @@ npx wrangler secret put DODO_PRODUCT_ID
 npx wrangler secret put DODO_WEBHOOK_SECRET
 ```
 
-Leave `DODO_MODE` unset while testing — the code defaults to test mode, so a missing variable
-cannot take real money. Set it to `live` only when you mean it.
+`DODO_API_KEY` comes from **Developer** → **API keys** in Dodo. Create one for test mode.
 
-5. **Test in test mode first.** `services/api/adapters/dodoPayments.ts` was written from the
-   published API reference and **has never run against a real account** — treat its request
-   shape as a first draft. The webhook half (signature verification, idempotent crediting) has
-   28 tests and is the half that would cost you money if it were wrong.
+Leave `DODO_MODE` unset. Set it to `live` only when you have completed a test payment and
+mean to take real money — and remember the API key, product ID and webhook secret are all
+different in live mode, so switching means setting all four.
 
-- [ ] Test-mode payment completed end to end, balance appeared in the portal
+Then redeploy so the Worker picks them up:
+
+```
+npm run deploy
+```
+
+- [ ] Three secrets set, redeployed
+
+#### 15.4 · Make one test payment
+
+1. Open your site, sign in, go to **/portal**, and create an advertiser account if you have
+   not.
+2. Go to **Billing** and add funds — $10 is enough.
+3. You are sent to a Dodo checkout page. Pay with one of **Dodo's test cards** (their docs
+   list them; `4242 4242 4242 4242` with any future expiry and any CVC is the usual one).
+4. You are returned to `/portal/billing`.
+
+**What should have happened**, in this order:
+
+- In Dodo, **Developer** → **Webhooks** → your endpoint → **Recent deliveries** shows one
+  `payment.succeeded` with a **200** response. Anything else is the thing to debug, and the
+  response body says which of the four refusals it was.
+- In Supabase, **Table Editor** → `fundings` has one new row, with your advertiser's id in
+  `advertiser_id`.
+- In the portal, the funded balance has gone up by what you paid.
+
+If the delivery says **400**, the signature did not verify — the usual cause is a
+`DODO_WEBHOOK_SECRET` from a different endpoint than the one that sent it. If it says
+**stale**, your machine's clock and Dodo's are more than five minutes apart.
+
+If the payment succeeded but no webhook was delivered at all, the endpoint URL is wrong.
+
+**One thing to know about the code.** `services/api/adapters/dodoPayments.ts` — the half that
+*creates* a checkout link — was written from Dodo's published reference and has never run
+against a real account, so treat its request shape as a first draft. The half that receives
+money has 28 tests over signature verification, replay refusal and idempotent crediting, and
+that is the half that would cost you money if it were wrong.
+
+- [ ] Test payment completed, webhook delivered 200, balance appeared in the portal
 
 ---
 
@@ -686,21 +1049,101 @@ the row appear in the Supabase table editor. If it does, the write path works.
 `apps/web/src/app/terms/page.tsx`. Non-negotiable before you take advertiser money or owe
 users a payout.
 
+The page currently says so itself, in its own second paragraph: *"These terms are a template
+and have not been reviewed by a lawyer."* That sentence is live on the site right now. Delete
+it when it stops being true, and not before.
+
 - [ ] Reviewed
 
-### 19 · Decide about payouts
+### 18b · Make the three published addresses work
 
-**Users can earn but cannot withdraw.** The ledger has `withdrawal_requested`,
-`withdrawal_paid` and `withdrawal_failed` with `provider_ref` and `currency` columns, and the
-balance fold is unit-tested against all three — but **no endpoint raises them**. Cash-out is
-additive when you build it, not a migration over live money, which is why those entry kinds
-exist now.
+Three pages promise an email address, and none of the three mailboxes exists yet:
 
-Building it needs payout-provider access, KYC and tax handling.
+| Page | Address | What it is promised for |
+|---|---|---|
+| `/terms` | `support@adcode.bluethenics.com` | why an account was suspended |
+| `/privacy` | `privacy@adcode.bluethenics.com` | asking for your data, or its deletion |
+| `/advertise` | `advertise@adcode.bluethenics.com` | advertisers getting in touch |
 
-- [ ] Decided when payouts happen, and told users honestly in the meantime
+They are on `adcode.bluethenics.com`, which has no DNS record until step 13. A privacy page
+that publishes a deletion address nobody receives is worse than one that publishes none —
+in several jurisdictions that promise is the thing being regulated, not the page.
 
----
+Two ways out, and either is fine:
+
+1. **Do step 13 first**, then add email routing for the domain. Cloudflare Email Routing is
+   free and forwards `support@`, `privacy@` and `advertise@` to a mailbox you already read.
+   Dashboard → your domain → **Email** → **Email Routing** → **Create address**.
+2. **Or change the addresses** to a mailbox that already works, in
+   `apps/web/src/app/terms/page.tsx`, `privacy/page.tsx`, `advertise/page.tsx` and
+   `apps/web/src/lib/api.ts` (the suspended-account message), then redeploy.
+
+- [ ] All three addresses reach a mailbox somebody reads
+
+### 19 · Set yourself up to pay people
+
+**Legacy note — use the current runbook near the top of this file.** A user with $50 or more can ask to be paid from the **Payouts** tab on
+their dashboard, and the request lands in your admin panel under **Money**. Nothing is
+automatic: you make the transfer by hand and then record that you made it.
+
+That is a deliberate choice, not a stage of one. A payout API needs business verification,
+KYC and a settlement account, and none of that should stand between somebody earning $12 and
+being able to ask for it.
+
+#### What you need
+
+1. **A permitted payout method.** Do not assume an India personal Wise account is permitted
+   for business-related developer payouts. Verify the exact use with Wise before enabling
+   any route, and keep enough funds available only after that verification.
+2. Nothing else. There is no API key, no secret, and no configuration for payouts.
+
+#### The five conditions
+
+A request cannot even be made unless all of these are true. The user sees each one as a
+tick or a circle on their own dashboard, with how far off it is:
+
+| Condition | Why |
+|---|---|
+| $50.00 or more available | Below this a transfer costs more in fees and attention than it moves |
+| A confirmed email address | An address nobody checked is an address anybody can claim |
+| Account at least 7 days old | Time for the reversal rules to catch fake impressions before the money leaves |
+| Payout details on file | Name, country, currency, and where it goes |
+| No request already in progress | One at a time, so the same balance cannot be drained twice |
+
+To change the minimum or the waiting period, edit `PAYOUT_LIMITS` in
+`services/api/src/contract.ts` and redeploy. Both are read by the checklist as well as by the
+endpoint, so the screen and the rule can never disagree.
+
+#### Paying somebody
+
+1. Open **/admin** → **Money**. Anyone waiting is on the **Withdrawals** tab, and the count
+   is on the **Money** item in the sidebar from wherever you are in the panel.
+2. Press **Pay this one**. You get the name on the account, the destination, the amount, and
+   a fifth box with all of it together for a single paste.
+3. In Wise, send that amount to that recipient. Two things matter: the **name must match
+   exactly** — a mismatch is what makes a transfer bounce — and the amount shown is USD,
+   which Wise converts at the rate on the day.
+4. Copy the **transfer reference** Wise gives you, paste it back into the box, and press
+   **Mark as paid**.
+
+Or press **Decline and refund**, with a reason. The money goes straight back to their
+available balance, and they read your reason on their own dashboard — so write a sentence,
+not a word.
+
+#### What the ledger does
+
+The money is held the moment somebody asks: `withdrawal_requested` moves it out of available
+and into pending, so the same balance cannot be requested twice while you decide. Marking it
+paid clears the hold. Declining, or the user cancelling, releases it back.
+
+Nothing on those screens edits a number. Every change is a new ledger entry, which is why an
+admin who can see everything still cannot quietly change anything.
+
+#### Before you take real money
+
+- [ ] Wise account verified and funded
+- [ ] Read what the terms say about payouts (step 18) — you are now actually owing people money
+- [ ] Decided what you do about tax reporting in your country, and theirs
 
 ## Reference — every environment variable
 
@@ -711,6 +1154,7 @@ Building it needs payout-provider access, KYC and tax handling.
 | `SUPABASE_URL` | **yes** | Which Supabase project to talk to |
 | `SUPABASE_SERVICE_ROLE_KEY` | **yes** | The only credential that can read or write the database |
 | `FIREBASE_PROJECT_ID` | **yes** | Which project's ID tokens to accept. A token from any other project is refused. |
+| `PAYOUT_ENCRYPTION_KEY` | **yes** | Base64 32-byte AES key for payout destinations and withdrawal snapshots |
 | `DODO_API_KEY` | for billing | Checkout links |
 | `DODO_PRODUCT_ID` | for billing | Product funding bills against |
 | `DODO_WEBHOOK_SECRET` | for billing | Webhook signature verification |

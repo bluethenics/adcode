@@ -33,6 +33,27 @@ describe("receipt idempotency", () => {
     expect(await store.createReceiptIfAbsent(record)).toBe(true);
     expect(await store.createReceiptIfAbsent(record)).toBe(false);
   });
+
+  it("settles a receipt, earning, balance, and campaign spend exactly once", async () => {
+    const receipt = {
+      receiptId: "r-settle",
+      uid: "u-1",
+      creativeId: "c-1",
+      campaignId: "camp-1",
+      outcome: "impression",
+      creditedMicros: 2_505n,
+      costMicros: 5_010n,
+      createdAt: 1_700_000_000_000,
+    };
+    const earning = { ...entry("e-settle", 2_505n), refId: receipt.receiptId };
+
+    expect(await store.settleReceipt({ receipt, earning })).toBe(true);
+    expect(await store.getSpend("camp-1")).toBe(5_010n);
+    expect((await store.getBalance("u-1")).availableMicros).toBe(2_505n);
+    expect(await store.settleReceipt({ receipt, earning })).toBe(false);
+    expect(await store.getSpend("camp-1")).toBe(5_010n);
+    expect((await store.getBalance("u-1")).availableMicros).toBe(2_505n);
+  });
 });
 
 describe("appendEntryAndUpdateBalance", () => {
@@ -91,7 +112,17 @@ describe("listEntries", () => {
 
 describe("serve records", () => {
   it("finds an unexpired serve for the right uid and creative", async () => {
-    await store.recordServe({ serveId: "s-1", uid: "u-1", creativeId: "c-1", campaignId: "camp-1", servedAt: 1000, expiresAt: 2000 });
+    await store.recordServe({
+      serveId: "s-1",
+      uid: "u-1",
+      creativeId: "c-1",
+      campaignId: "camp-1",
+      servedAt: 1000,
+      expiresAt: 2000,
+      maxBidCpmMicros: 8_000_000n,
+      clearingCpmMicros: 5_010_000n,
+      costMicros: 5_010n,
+    });
 
     expect(await store.findServe("u-1", "c-1", 1500)).not.toBeNull();
     expect(await store.findServe("u-1", "c-1", 2500)).toBeNull();

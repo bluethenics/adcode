@@ -40,6 +40,8 @@ export type ApiError =
   | "not-admin"
   | "last-admin"
   | "provider-unavailable"
+  | "not-eligible"
+  | "invalid-amount"
   | "offline"
   | "bad-request"
   | "server-error";
@@ -59,6 +61,8 @@ const KNOWN: ReadonlySet<string> = new Set<ApiError>([
   "already-admin",
   "not-admin",
   "last-admin",
+  "not-eligible",
+  "invalid-amount",
 ]);
 
 function classify(status: number, body: unknown): ApiError {
@@ -89,6 +93,9 @@ export const MESSAGES: Record<ApiError, string> = {
   "already-admin": "That address is already an administrator.",
   "not-admin": "That address isn't an administrator.",
   "last-admin": "That's the only administrator left. Appoint someone else first, or nobody can get back in.",
+  "not-eligible":
+    "This account can't withdraw yet. The checklist above shows which condition isn't met.",
+  "invalid-amount": "That amount can't be paid out. Use whole cents, at or above the minimum.",
   "provider-unavailable": "The payment provider didn't respond. Try again shortly.",
   offline: "Couldn't reach the server. Check your connection.",
   "bad-request": "Something in that form wasn't accepted. Check the fields and retry.",
@@ -187,8 +194,9 @@ export interface LedgerPageView {
 }
 
 export interface CheckoutView {
-  paymentId: string;
-  paymentLink: string;
+  orderId: string;
+  sessionId: string;
+  checkoutUrl: string;
 }
 
 /** One campaign's numbers for one UTC day. `/portal/series` returns these oldest first. */
@@ -224,4 +232,96 @@ export interface ActivityView {
     /** Agent share of characters written, 0-100. Null when nothing was written at all. */
     agentPercent: number | null;
   };
+}
+
+/* ── Payouts ────────────────────────────────────────────────────────────── */
+
+export type PayoutMethod = "bank";
+
+export interface PayoutProfileView {
+  method: PayoutMethod;
+  legalName: string;
+  country: string;
+  currency: string;
+  email: string | null;
+  bankDetails: string | null;
+  fields?: Record<string, string>;
+  updatedAt: number;
+}
+
+export interface WithdrawalView {
+  withdrawalId: string;
+  amountMicros: string;
+  status: "requested" | "approved" | "paid" | "rejected" | "failed" | "cancelled";
+  currency: string;
+  createdAt: number;
+  decidedAt: number | null;
+  providerRef: string | null;
+  note: string | null;
+}
+
+/**
+ * One condition and whether this account meets it.
+ *
+ * The server sends the sentence as well as the verdict, so the checklist says the same
+ * thing here as it does in the admin panel and in any future client - and so that a rule
+ * changing its threshold does not need a matching edit in the browser.
+ */
+export interface EligibilityRuleView {
+  id: "minimum" | "verified-email" | "account-age" | "payout-details" | "no-pending";
+  ok: boolean;
+  label: string;
+  detail: string;
+}
+
+export interface PayoutsView {
+  minMicros: string;
+  availableMicros: string;
+  pendingMicros: string;
+  lifetimeMicros: string;
+  eligible: boolean;
+  rules: EligibilityRuleView[];
+  profile: PayoutProfileView | null;
+  withdrawals: WithdrawalView[];
+}
+
+export interface AdminWithdrawalView extends WithdrawalView {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  destination: {
+    method: PayoutMethod;
+    legalName: string;
+    country: string;
+    currency: string;
+    email: string | null;
+    bankDetails: string | null;
+    fields?: Record<string, string>;
+  };
+  availableMicros: string;
+  lifetimeMicros: string;
+}
+
+/** What is waiting for an administrator, in one number each. */
+export interface AdminOverviewView {
+  creativesWaiting: number;
+  withdrawalsPending: number;
+  reportsOpen: number;
+  advertisers: number;
+  noticesActive: number;
+  pendingWithdrawalMicros: string;
+}
+
+export interface PayoutCorridorView {
+  country: string;
+  currency: string;
+  requiredFields: string[];
+}
+
+export interface AdminPayoutCorridorView extends PayoutCorridorView {
+  enabled: boolean;
+  sourceNote: string;
+  verifiedAt: number | null;
+  updatedAt: number;
+  updatedBy: string;
 }

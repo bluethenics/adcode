@@ -39,7 +39,7 @@ function detect(): Platform {
  * the status bar, the download list, or the URL - a download should look like it came
  * from the product, because it did.
  *
- * Before hydration it renders as a plain link to `/download`, so the markup is honest on
+ * Before hydration it renders as a plain link to `/versions`, so the markup is honest on
  * first paint and gets faster, never wronger, once JS runs.
  */
 export function DownloadButton({
@@ -55,7 +55,7 @@ export function DownloadButton({
 
   if (platform === "unknown") {
     return (
-      <Link href="/download" className={className}>
+      <Link href="/versions" className={className}>
         {children ?? LABEL.unknown}
       </Link>
     );

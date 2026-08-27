@@ -901,5 +901,33 @@ export function registerIpc(): void {
     if (typeof suppressed === "boolean") ads.setSuppressed(suppressed);
   });
 
+  /*
+   * The editor describing itself to the ad client.
+   *
+   * Validated field by field rather than trusted, and each field applied independently:
+   * a renderer that somehow sends a good theme and a malformed file list should still get
+   * its logo in the right colour. Anything unrecognised is dropped, never coerced - the
+   * tagger intersects against a compiled-in vocabulary anyway, so the worst a bad value
+   * can do here is contribute no tags.
+   */
+  ipcMain.on(CHANNELS.adSignals, (_event, signals: unknown) => {
+    if (typeof signals !== "object" || signals === null) return;
+    const value = signals as Record<string, unknown>;
+
+    const theme = value["themeKind"];
+    if (theme === "light" || theme === "dark") ads.setThemeKind(theme);
+
+    const languageIds = value["languageIds"];
+    const filenames = value["filenames"];
+    if (
+      Array.isArray(languageIds) &&
+      languageIds.every(isString) &&
+      Array.isArray(filenames) &&
+      filenames.every(isString)
+    ) {
+      ads.setWorkspaceSignals(languageIds, filenames);
+    }
+  });
+
   ipcMain.handle(CHANNELS.adRefreshEarnings, () => ads.refreshEarnings());
 }

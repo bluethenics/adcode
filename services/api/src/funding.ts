@@ -13,7 +13,8 @@
  * network blip into invented money. The funding record is created first and the balance
  * raised only if that create won.
  */
-import { parseFundingEvent, verifyWebhook, type WebhookHeaders } from "./billing.ts";
+import { verifyWebhook, type WebhookHeaders } from "./billing.ts";
+import { parseProviderEvent } from "./providerEvents.ts";
 import type { Clock, Store } from "./store.ts";
 
 export interface FundingDeps {
@@ -48,36 +49,20 @@ export async function handleFundingWebhook(
     return { ok: false, status: 400, reason: "malformed" };
   }
 
-  const event = parseFundingEvent(parsed);
+  const event = parseProviderEvent(parsed, headers.id ?? "");
   if (event === null) {
     // Not an event we fund on. 200, so the provider stops retrying something we are
     // deliberately ignoring.
     return { ok: true, credited: false, reason: "ignored" };
   }
 
-  const advertiser = await deps.store.getAdvertiser(event.advertiserId);
-  if (advertiser === null) {
-    // Acknowledged rather than retried: an advertiser that does not exist here will not
-    // come into existence on the provider's next attempt.
-    return { ok: true, credited: false, reason: "ignored" };
+  const result = await deps.store.applyCreditEvent(event);
+  if (!result.applied) {
+    return {
+      ok: true,
+      credited: false,
+      reason: result.reason === "duplicate" ? "duplicate" : "ignored",
+    };
   }
-
-  const eventId = headers.id ?? "";
-  const created = await deps.store.recordFundingIfAbsent({
-    eventId,
-    paymentId: event.paymentId,
-    advertiserId: event.advertiserId,
-    amountMicros: event.amountMicros,
-    currency: event.currency,
-    at: nowMs,
-  });
-
-  if (!created) return { ok: true, credited: false, reason: "duplicate" };
-
-  await deps.store.putAdvertiser({
-    ...advertiser,
-    fundedMicros: advertiser.fundedMicros + event.amountMicros,
-  });
-
-  return { ok: true, credited: true, reason: "credited" };
+  return { ok: true, credited: event.type === "purchase", reason: event.type === "purchase" ? "credited" : "ignored" };
 }

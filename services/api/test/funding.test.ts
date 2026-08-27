@@ -16,9 +16,10 @@ const body = (over: Record<string, unknown> = {}) =>
     data: {
       payload_type: "Payment",
       payment_id: "pay_abc",
+      checkout_session_id: "chk_1",
       total_amount: 5000,
       currency: "USD",
-      metadata: { advertiserId: "adv-1" },
+      metadata: { orderId: "ord-1" },
       ...over,
     },
   });
@@ -40,6 +41,20 @@ beforeEach(async () => {
     reservedMicros: 0n,
     createdAt: 0,
   });
+  await store.createCreditOrder({
+    orderId: "ord-1",
+    advertiserId: "adv-1",
+    amountMicros: 50_000_000n,
+    currency: "USD",
+    billingCountry: "US",
+    customerEmail: "billing@acme.test",
+    status: "checkout_created",
+    providerSessionId: "chk_1",
+    checkoutUrl: "https://checkout.test/1",
+    providerPaymentId: null,
+    createdAt: 0,
+    updatedAt: 0,
+  });
 });
 
 describe("handleFundingWebhook", () => {
@@ -60,12 +75,12 @@ describe("handleFundingWebhook", () => {
     expect((await store.getAdvertiser("adv-1"))?.fundedMicros).toBe(50_000_000n);
   });
 
-  it("credits twice for two genuinely different events", async () => {
+  it("does not credit twice when a payment arrives under a new webhook id", async () => {
     const raw = body();
     await handleFundingWebhook(deps(), headers(raw, "evt_1"), raw);
     await handleFundingWebhook(deps(), headers(raw, "evt_2"), raw);
 
-    expect((await store.getAdvertiser("adv-1"))?.fundedMicros).toBe(100_000_000n);
+    expect((await store.getAdvertiser("adv-1"))?.fundedMicros).toBe(50_000_000n);
   });
 
   it("refuses a forged signature with 400, so the provider stops retrying", async () => {
@@ -104,7 +119,7 @@ describe("handleFundingWebhook", () => {
   });
 
   it("acknowledges a payment for an advertiser that does not exist here", async () => {
-    const raw = body({ metadata: { advertiserId: "adv-unknown" } });
+    const raw = body({ metadata: { orderId: "ord-unknown" } });
     const result = await handleFundingWebhook(deps(), headers(raw), raw);
 
     expect(result).toEqual({ ok: true, credited: false, reason: "ignored" });
@@ -118,13 +133,12 @@ describe("handleFundingWebhook", () => {
     expect(advertiser?.reservedMicros).toBe(0n);
   });
 
-  it("records the payment id, so a credit can be traced to a payment", async () => {
+  it("records the payment id on the server-authored order", async () => {
     const raw = body();
     await handleFundingWebhook(deps(), headers(raw), raw);
 
-    const funding = await store.listFunding("adv-1");
-    expect(funding).toHaveLength(1);
-    expect(funding[0]?.paymentId).toBe("pay_abc");
-    expect(funding[0]?.amountMicros).toBe(50_000_000n);
+    const order = await store.getCreditOrder("ord-1");
+    expect(order?.providerPaymentId).toBe("pay_abc");
+    expect(order?.amountMicros).toBe(50_000_000n);
   });
 });

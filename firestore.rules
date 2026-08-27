@@ -1,4 +1,4 @@
-rules_version = '2';
+orules_version = '2';
 
 // Every path is closed to clients.
 //

@@ -29,6 +29,7 @@ import type {
   IdGen,
   Store,
 } from "./store.ts";
+import { assetKey, assetUrl, isDataUrl, parseDataUrl } from "./assets.ts";
 
 export interface AdvertiserDeps {
   store: Store;
@@ -215,7 +216,7 @@ export async function setCampaignStatus(
   const owned = await ownedCampaign(deps, uid, campaignId);
   if (!owned.ok) return owned;
 
-  const { advertiser, campaign } = owned.value;
+  const { campaign } = owned.value;
   if (campaign.status === "ended") return fail("invalid-state");
   if (campaign.status === next) {
     return ok(campaignView(campaign, await deps.store.statsForCampaign(campaignId)));
@@ -227,28 +228,16 @@ export async function setCampaignStatus(
     const approved = await deps.store.creativesForCampaign(campaignId);
     if (approved.length === 0) return fail("no-approved-creative");
 
-    // Reserve the whole remaining budget up front. Serving money the advertiser has not
-    // paid for means crediting users against revenue that may never arrive.
-    const commitment = campaign.budgetMicros - spent;
-    const available = advertiser.fundedMicros - advertiser.reservedMicros;
-    if (commitment > available) return fail("insufficient-funds");
-
-    await deps.store.putAdvertiser({
-      ...advertiser,
-      reservedMicros: advertiser.reservedMicros + commitment,
-    });
-  } else {
-    // Releasing returns only what was never spent. Spend stays committed forever.
-    const release = campaign.budgetMicros - spent;
-    const floor = advertiser.reservedMicros - release;
-    await deps.store.putAdvertiser({
-      ...advertiser,
-      reservedMicros: floor < 0n ? 0n : floor,
-    });
   }
 
-  const updated: CampaignRecord = { ...campaign, status: next };
-  await deps.store.putCampaign(updated);
+  const transition = await deps.store.transitionCampaignCommitment({
+    advertiserId: campaign.advertiserId,
+    campaignId,
+    next,
+    spentMicros: spent,
+  });
+  if (!transition.ok) return fail(transition.reason);
+  const updated = transition.campaign;
 
   return ok(campaignView(updated, await deps.store.statsForCampaign(campaignId)));
 }
@@ -279,10 +268,38 @@ const creativeView = (record: CreativeRecord): CreativeView => ({
   status: record.status,
 });
 
+/**
+ * Store one logo and return the URL the row should hold.
+ *
+ * An https URL is already hosted somewhere the client can reach, so it passes straight
+ * through. A `data:` URL that cannot be decoded also passes through unchanged rather than
+ * failing the submission - `parseCreative` has already checked it against `LOGO_DATA`, so
+ * reaching that branch means something changed underneath, and losing a creative is worse
+ * than storing one the review step will look at anyway.
+ */
+async function hostLogo(
+  deps: AdvertiserDeps,
+  origin: string,
+  creativeId: string,
+  variant: "light" | "dark",
+  value: string,
+): Promise<string> {
+  if (!isDataUrl(value)) return value;
+
+  const parsed = parseDataUrl(value);
+  if (parsed === null) return value;
+
+  const key = assetKey(creativeId, variant, parsed.contentType);
+  await deps.store.putAsset(key, parsed);
+  return assetUrl(origin, key);
+}
+
 export async function createCreative(
   deps: AdvertiserDeps,
   uid: string,
   body: CreativeBody,
+  /** The service's own origin, for addressing artwork it stores. See `assets.ts`. */
+  origin: string,
 ): Promise<Outcome<CreativeView>> {
   const owned = await ownedCampaign(deps, uid, body.campaignId);
   if (!owned.ok) return owned;
@@ -299,10 +316,21 @@ export async function createCreative(
     headline: body.headline,
     body: body.body,
     clickUrl: body.clickUrl,
+    // Placeholders: the artwork is stored below, once the id above exists to key it by.
     logoLight: body.logoLight,
     logoDark: body.logoDark,
     status: "pending",
   };
+
+  /*
+   * The artwork leaves the row here, and this is the whole point of the change.
+   *
+   * The portal sends a `data:` URL, which is a good thing to accept and a fatal thing to
+   * store: it made the `creatives` read cost ~1,960ms inside a 3,000ms serve budget, and
+   * the client rejects a `data:` URL outright anyway. See `assets.ts` for the numbers.
+   */
+  record.logoLight = await hostLogo(deps, origin, record.creativeId, "light", body.logoLight);
+  record.logoDark = await hostLogo(deps, origin, record.creativeId, "dark", body.logoDark);
 
   await deps.store.putCreative(record);
   return ok(creativeView(record));

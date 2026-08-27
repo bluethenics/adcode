@@ -53,11 +53,18 @@ class ShimRequest {
   }
 }
 
-/** Just enough of `ServerResponse`: collect what was written instead of sending it. */
+/**
+ * Just enough of `ServerResponse`: collect what was written instead of sending it.
+ *
+ * The body is `string | Uint8Array`, not `string`. `/assets/:key` answers with image bytes,
+ * and a `Buffer` narrowed to `string` here would have been a lie that happened to work -
+ * `Response` accepts a `BufferSource`, so it would have shipped correct images with wrong
+ * types until somebody trusted the type and called `.length` on it.
+ */
 class ShimResponse {
   status = 200;
   readonly headers: Record<string, string> = {};
-  body: string | null = null;
+  body: string | Uint8Array | null = null;
   headersSent = false;
 
   writeHead(status: number, headers: Record<string, string> = {}): this {
@@ -67,9 +74,28 @@ class ShimResponse {
     return this;
   }
 
-  end(body?: string): void {
+  end(body?: string | Uint8Array): void {
     if (body !== undefined) this.body = body;
   }
+}
+
+/**
+ * What the shim collected, as something `Response` will take.
+ *
+ * The copy is not ceremony. `Buffer.from(...)` widens to `Uint8Array<ArrayBufferLike>`, and
+ * a `Response` body does not accept that - such a buffer can be backed by a
+ * `SharedArrayBuffer`, which a `Response` may not be. Copying into a fresh array yields a
+ * plain `ArrayBuffer` and says so in the type, rather than casting the problem away.
+ *
+ * `BodyInit` is deliberately not named: this file also compiles under a config without the
+ * DOM lib, where that type does not exist even though `Response` does.
+ */
+function toBodyInit(body: string | Uint8Array | null): string | ArrayBuffer | null {
+  if (body === null || typeof body === "string") return body;
+
+  const copy = new Uint8Array(body.byteLength);
+  copy.set(body);
+  return copy.buffer;
 }
 
 /**
@@ -115,6 +141,6 @@ export function createFetchHandler(
       }
     }
 
-    return new Response(res.body, { status: res.status, headers: res.headers });
+    return new Response(toBodyInit(res.body), { status: res.status, headers: res.headers });
   };
 }

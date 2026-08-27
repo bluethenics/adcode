@@ -38,7 +38,7 @@ export const GITHUB_REPO = process.env["NEXT_PUBLIC_GITHUB_REPO"] ?? "bluethenic
 
 export const SITE = {
   name: "ADCode",
-  tagline: "An editor that pays you back",
+  tagline: "Earn while you code",
   description:
     "ADCode is a full IDE - Monaco editing, real terminals, git, four AI providers - that shows an occasional sponsored card and credits you for it. Every cent is on an append-only ledger you can audit.",
   origin: SITE_ORIGIN,
@@ -55,11 +55,21 @@ export const url = (path = "/"): string => new URL(path, SITE_ORIGIN).toString()
  * page that states a figure reads it from here.
  */
 export const ECONOMICS = {
-  cpmMicros: 8_000_000n,
+  impressionsPerBlock: 500n,
+  floorBlockMicros: 1_000_000n,
+  floorCpmMicros: 2_000_000n,
+  cpmMicros: 2_000_000n,
   revSharePercent: 50n,
   /** Ads per hour at the default "standard" cadence: one every ten minutes. */
   adsPerHourStandard: 6,
 } as const;
+
+/** CPM is retained at the API boundary; the marketplace quotes 500-impression blocks. */
+export const cpmMicrosToBlockMicros = (cpmMicros: bigint): bigint =>
+  (cpmMicros * ECONOMICS.impressionsPerBlock) / 1000n;
+
+export const blockMicrosToCpmMicros = (blockMicros: bigint): bigint =>
+  (blockMicros * 1000n) / ECONOMICS.impressionsPerBlock;
 
 /** What one impression pays the user, in micros. Same arithmetic the server does. */
 export const perImpressionMicros =

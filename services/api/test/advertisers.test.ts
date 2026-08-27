@@ -48,7 +48,7 @@ async function withCampaign(uid = "u-1"): Promise<string> {
   if (!created.ok) throw new Error("campaign not created");
 
   const campaignId = created.value.campaignId;
-  await createCreative(deps(), uid, { ...parseCreative({ ...CREATIVE, campaignId })! });
+  await createCreative(deps(), uid, { ...parseCreative({ ...CREATIVE, campaignId })! }, "https://api.test");
 
   const pending = await store.allCreativesForCampaign(campaignId);
   for (const creative of pending) {
@@ -237,13 +237,38 @@ describe("setCampaignStatus", () => {
 
     const second = await createCampaign(deps(), "u-1", parseCampaign(CAMPAIGN)!);
     if (!second.ok) return;
-    await createCreative(deps(), "u-1", parseCreative({ ...CREATIVE, campaignId: second.value.campaignId })!);
+    await createCreative(deps(), "u-1", parseCreative({ ...CREATIVE, campaignId: second.value.campaignId })!, "https://api.test");
     for (const creative of await store.allCreativesForCampaign(second.value.campaignId)) {
       await store.putCreative({ ...creative, status: "approved" });
     }
 
     const activated = await setCampaignStatus(deps(), "u-1", second.value.campaignId, "active");
     expect(activated).toEqual({ ok: false, error: "insufficient-funds" });
+  });
+
+  it("atomically stops concurrent activations from promising the same credits", async () => {
+    const first = await withCampaign();
+    const advertiser = await store.advertiserForOwner("u-1");
+    await store.putAdvertiser({ ...advertiser!, fundedMicros: 60_000_000n });
+    const second = await createCampaign(deps(), "u-1", parseCampaign(CAMPAIGN)!);
+    if (!second.ok) return;
+    await createCreative(
+      deps(),
+      "u-1",
+      parseCreative({ ...CREATIVE, campaignId: second.value.campaignId })!,
+      "https://api.test",
+    );
+    for (const creative of await store.allCreativesForCampaign(second.value.campaignId)) {
+      await store.putCreative({ ...creative, status: "approved" });
+    }
+
+    const results = await Promise.all([
+      setCampaignStatus(deps(), "u-1", first, "active"),
+      setCampaignStatus(deps(), "u-1", second.value.campaignId, "active"),
+    ]);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect((await store.campaignsForAdvertiser(advertiser!.advertiserId)).filter((c) => c.status === "active"))
+      .toHaveLength(1);
   });
 
   it("releases only the unspent budget when paused", async () => {
@@ -294,6 +319,7 @@ describe("createCreative", () => {
       deps(),
       "u-1",
       parseCreative({ ...CREATIVE, campaignId: created.value.campaignId })!,
+      "https://api.test",
     );
 
     expect(creative.ok).toBe(true);
@@ -310,6 +336,7 @@ describe("createCreative", () => {
       deps(),
       "u-1",
       parseCreative({ ...CREATIVE, campaignId: created.value.campaignId })!,
+      "https://api.test",
     );
     if (!creative.ok) return;
 
@@ -320,7 +347,7 @@ describe("createCreative", () => {
     const mine = await withCampaign("u-1");
     await createAdvertiser(deps(), "u-2", { name: "Rival" });
 
-    const creative = await createCreative(deps(), "u-2", parseCreative({ ...CREATIVE, campaignId: mine })!);
+    const creative = await createCreative(deps(), "u-2", parseCreative({ ...CREATIVE, campaignId: mine })!, "https://api.test");
     expect(creative).toEqual({ ok: false, error: "not-found" });
   });
 });
@@ -335,6 +362,7 @@ describe("listCreatives", () => {
       deps(),
       "u-1",
       parseCreative({ ...CREATIVE, campaignId: created.value.campaignId })!,
+      "https://api.test",
     );
 
     const listed = await listCreatives(deps(), "u-1", created.value.campaignId);

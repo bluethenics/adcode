@@ -16,22 +16,14 @@ function paths(markup: string): string[] {
 }
 
 describe("palette", () => {
-  /*
-   * These are not style preferences. The slot order was chosen by enumeration to maximise
-   * the worst adjacent colour-blind separation, and it was measured: ΔE 18.7 under
-   * protanopia against the card surface, with the first three clearing 17.2 under
-   * all-pairs, which is what makes the donut legal. Re-ordering or extending this list
-   * without re-running that check silently gives some readers two series that look alike.
-   */
-  it("keeps the validated slot order", () => {
-    expect(SERIES).toEqual(["#2aa0b5", "#d97706", "#5e5ce6", "#ff375f", "#0a84ff", "#b88a00", "#bf5af2"]);
+  it("keeps every chart mark inside the monochrome visual system", () => {
+    expect(SERIES).toEqual(["#f5f5f5", "#d4d4d4", "#b3b3b3", "#929292", "#737373", "#555555", "#404040"]);
+    expect(SERIES.every((color) => /^#([0-9a-f]{2})\1\1$/i.test(color))).toBe(true);
   });
 
-  it("keeps green out of the categorical order", () => {
-    // `--money` is the one colour this site spends on nothing but currency. A green that
-    // meant "campaign 4" on Tuesday would spend it.
+  it("renders money in white without sharing its slot with a category", () => {
     expect(SERIES).not.toContain(MONEY);
-    expect(MONEY).toBe("#21a84a");
+    expect(MONEY).toBe("#ffffff");
   });
 
   it("gives an eighth series grey rather than starting the order again", () => {

@@ -1,115 +1,72 @@
 # Deploying ADCode
 
-Everything in the repo is built and tested. What remains needs credentials, a card, and in
-one place a lawyer — none of which can be done from a keyboard here.
+**[`SETUP.md`](../SETUP.md) is the authority.** It is a numbered click path from an empty
+account to a running deployment, and it is kept in step with the code. Follow it.
 
-Work through this in order; each step unblocks the next.
+This file is the shorter, architectural companion: what the deployment *is*, and the
+release step, which SETUP.md covers in one paragraph because it is the same on every
+platform and does not need clicking through a dashboard.
 
 ---
 
-## 1. Google Cloud and Firebase
+## What the deployment is
 
-1. Create a GCP project and enable billing.
-2. Enable **Firestore in Native mode**.
-3. Create a Firebase project on top of it.
-4. In Firebase Auth, enable **Anonymous** (the editor needs it), **Email/Password**, and
-   **Google** (the portal and admin panel use these).
-5. Deploy the security rules in `firestore.rules`. They deny every direct client read and
-   write, deliberately — the browser never talks to Firestore, only to `services/api`,
-   which uses the Admin SDK and bypasses rules.
+One Cloudflare Worker. `apps/web` is a Next app built through `@opennextjs/cloudflare`, and
+`services/api` is folded into it at `apps/web/src/app/v1/[...segments]/route.ts` — so the
+marketing site, the dashboard, the advertiser portal, the admin panel and the API are one
+origin, one certificate and one set of secrets. There is no second host to keep alive and no
+CORS preflight on the common path.
 
-Then set two TTL policies in Firestore, or these collections grow without bound:
+Behind it:
 
-| Collection | TTL field |
-|---|---|
-| `serves` | `expiresAt` |
-| `rateCounters` | `expiresAt` |
+| Piece | What it holds | Why |
+|---|---|---|
+| **Supabase Postgres** | every table, and the five money-critical operations as Postgres functions | PostgREST cannot do transactions, so anything that must not half-apply is a function |
+| **Firebase** | authentication only | free on Spark forever; tokens are verified with Web Crypto in `adapters/firebaseJwks.ts`, because `firebase-admin` cannot run on workerd |
+| **Dodo Payments** | advertiser funding | the only paid dependency, and only once you have advertisers |
 
-## 2. Seed serving config
+Worker secrets are `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `FIREBASE_PROJECT_ID`.
+Everything else is a `NEXT_PUBLIC_` build-time value in `apps/web/.env.production` and is
+public by design — those identify the project, they do not authorise anything.
 
-`services/api` reads its rates from a single document, `config/serving`. Create it:
+> **Not Firestore, not Cloud Run.** An earlier version of this file described a Google
+> Cloud deployment: Firestore in Native mode, `gcloud run deploy`, an `api.` subdomain, and
+> the admin bit as a Firebase custom claim. All of it needed Blaze, so on 2026-08-24 it was
+> replaced by the stack above. `services/api/adapters/firestoreStore.ts` still exists and is
+> still tested, but nothing deploys it, and `firestore.rules` is dead weight for the same
+> reason. Admin is now a row in Supabase, matched on the verified email in the token —
+> `services/api/src/auth.ts`.
 
-```
-killSwitch:        false
-caps:              { minIntervalMs: 300000, dailyCap: 12 }
-defaultCpmMicros:  "8000000"      # $8.00 CPM
-revSharePercent:   "50"           # the user's cut
-spendShardCount:   4
-serveTtlMs:        600000
-rateWindowMs:      60000
-requestsPerWindow: 120
-```
-
-Money fields are **strings**, not numbers. Firestore hands integers back to JavaScript as
-doubles, which silently lose precision above 2^53; the service parses these as BigInt.
-
-## 3. Make yourself an admin
-
-The admin claim lives in the Firebase token, not in a database row:
-
-```js
-await getAuth().setCustomUserClaims(uid, { admin: true });
-```
-
-It takes effect on that account's next sign-in.
-
-## 4. Deploy the API
+## Deploying
 
 ```
-gcloud run deploy adcode-api --source . --dockerfile services/api/Dockerfile
+cd apps/web && npm run deploy
 ```
 
-Environment it needs:
+Three things break only here, and none of them names its own cause:
 
-| Variable | Purpose |
-|---|---|
-| `DODO_API_KEY` | Creating checkout links |
-| `DODO_PRODUCT_ID` | The product advertiser funding is billed against |
-| `DODO_WEBHOOK_SECRET` | Verifying settlement webhooks (`whsec_…`) |
-| `DODO_MODE` | `live` for real money. Anything else stays in test mode |
-| `ADCODE_CORS_ORIGINS` | Extra allowed origins, comma-separated, for local development |
+1. **Never `npm install` inside `apps/web`.** Next and `@opennextjs/aws` find the workspace
+   root by walking up to the first lockfile. A `package-lock.json` in `apps/web` makes them
+   stop there, which puts `services/api` outside the project — `module-not-found` on every
+   adapter. Install from the repository root.
+2. `output: "standalone"` in `next.config.ts` is **required**. `@opennextjs/aws` reads
+   `.next/standalone` by hard-coded path.
+3. `wrangler secret put` refuses until a version is deployed. Deploy first, secrets second.
 
-Point DNS at it: **api.adcode.bluethenics.com**.
+`npm run verify` and `npm run web:build` from the root pass while any of these fails, which
+is why they are listed rather than trusted to a test.
 
-## 5. Deploy the site
+## Releases and updates
 
-```
-npm --prefix apps/web run build
-```
-
-Environment:
-
-| Variable | Purpose |
-|---|---|
-| `NEXT_PUBLIC_SITE_ORIGIN` | Canonical URLs, sitemap, installer commands |
-| `NEXT_PUBLIC_API_ORIGIN` | Where the browser calls the API |
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Browser sign-in |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Browser sign-in |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Browser sign-in |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | Browser sign-in |
-
-The `NEXT_PUBLIC_FIREBASE_*` values are public by design — they identify the project, they
-do not authorise anything. What protects the data is token verification in the API.
-
-Point DNS at it: **adcode.bluethenics.com**.
-
-## 6. Dodo Payments
-
-1. Create a product for advertiser funding; note its id.
-2. Add a webhook endpoint: `https://api.adcode.bluethenics.com/v1/webhooks/dodo`.
-3. Copy the signing secret into `DODO_WEBHOOK_SECRET`.
-4. **Test in test mode first.** `services/api/adapters/dodoPayments.ts` was written from
-   the published API reference and has never been run against a real account. Its request
-   shape is a first draft. The webhook side — signature verification, idempotent
-   crediting — is covered by 28 tests and is the half that would cost you money if wrong.
-
-## 7. Releases and updates
-
-Set the real GitHub owner and repo in **two** places, or installers will check an update
-feed nobody publishes to and never update again:
+The GitHub owner and repo appear in **four** places, and all four are already
+`bluethenics/adcode`. If you ever fork or rename, change all four together — getting this
+wrong ships installers that check an update feed nobody publishes to, and there is no way to
+fix that remotely:
 
 - `electron-builder.yml` → `publish.owner` / `publish.repo`
-- `apps/web/public/install.ps1` and `install.sh` → the `adcode/adcode` defaults
+- `apps/web/public/install.ps1` → the `$Owner` / `$Repo` defaults
+- `apps/web/public/install.sh` → the `OWNER` / `REPO` defaults
+- `apps/web/.env.production` → `NEXT_PUBLIC_GITHUB_REPO`
 
 Then:
 
@@ -118,29 +75,35 @@ npm run package                       # builds installers into release/
 gh release create v0.1.0 release/*    # publish, including latest*.yml
 ```
 
-The `latest.yml`, `latest-mac.yml`, and `latest-linux.yml` files matter: electron-updater
+The `latest.yml`, `latest-mac.yml` and `latest-linux.yml` files matter: electron-updater
 reads them to find updates, and the install scripts read them to verify checksums. Publish
 them with the binaries.
+
+Until a release exists, `/download` and `/dl/<platform>` answer "That build isn't published
+yet" — the site is up and the button is dead. Shipping the first release is what turns the
+download page on.
 
 Builds are **unsigned**. Windows shows a SmartScreen warning and macOS calls the app
 unidentified. Both download pages say so. Signing needs an OV/EV certificate (~$200-600/yr,
 several days to issue) and, for macOS, an Apple Developer account for notarisation.
 
-## 8. Before real money moves
+## Before real users
 
-- **Have a lawyer read `apps/web/src/app/terms/page.tsx`.** It says in its own first
-  paragraph that it is a template and has not been reviewed. That is true.
-- Run `npm run test:emulator` once with a JDK installed. It exercises the Firestore
-  adapter — bigint round-trips, transaction atomicity, receipt idempotency — and has never
-  been run.
-- Decide whether the economics work for you. At the shipped defaults a user earns about
-  **$0.016 an hour**, roughly $2.50 a month at full-time use. Both figures are on the
-  marketing site deliberately. Changing `defaultCpmMicros` or `revSharePercent` in
-  `config/serving` changes them everywhere with no client release.
+- **Have a lawyer read `apps/web/src/app/terms/page.tsx`.** Its own second paragraph says it
+  is a template and has not been reviewed, and that paragraph is live on the site right now.
+- **The support addresses have to exist.** `terms`, `privacy` and `advertise` publish
+  `support@`, `privacy@` and `advertise@adcode.bluethenics.com`. That domain has no DNS
+  record until SETUP.md step 13, so today those are three promises nobody can keep.
+- Decide whether the economics work for you. Campaigns compete in a second-price auction
+  from $1 per 500 impressions, and developers receive 50% of each clearing price. Earnings vary
+  with live demand and should not be presented as a fixed hourly figure.
 
 ## What is designed but not built
 
-**Paying users out.** The ledger has `withdrawal_requested`, `withdrawal_paid`, and
-`withdrawal_failed`, with `providerRef` and `currency` shaped for Wise, and the balance
-fold is unit-tested against all three. No endpoint raises them yet. Cash-out is additive
-when you build it, not a migration over live money — which is why they exist now.
+**Automatic payouts.** Cash-out is built, but the transfer itself is made by hand: a user
+requests at least $50, `withdrawal_requested` holds the amount, an administrator approves
+it, uses a legally permitted manual bank-transfer method, and records the reference, which
+raises `withdrawal_paid`. An India personal Wise account must not be assumed valid for
+business-related developer payouts; verify that use with Wise before enabling a route. Nothing
+here talks to a payout API, and adding one would replace only the admin decision — the
+ledger, the holds and the eligibility rules are already the shape a provider would need.

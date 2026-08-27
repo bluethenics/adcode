@@ -22,6 +22,7 @@ import type {
   UserPage,
   UserStatus,
 } from "./store.ts";
+import { assetKey, assetUrl, isDataUrl, parseDataUrl } from "./assets.ts";
 
 export interface AdminDeps {
   store: Store;
@@ -105,6 +106,68 @@ export async function handleSetCreativeStatus(
   const updated: CreativeRecord = { ...creative, status };
   await deps.store.putCreative(updated);
   return updated;
+}
+
+/**
+ * Move any artwork still stored inline onto the asset host.
+ *
+ * A repair tool, and it exists because the rows that need repairing were written before
+ * `createCreative` learned to store artwork separately. Those rows are individually fatal
+ * to serving: a `data:` logo makes the creatives read cost ~1,960ms of the editor's
+ * 3,000ms budget, and the editor rejects the value anyway - one bad creative fails the
+ * whole serve response, so a single unrepaired row takes every other creative with it.
+ *
+ * Idempotent: a creative whose logos are already https URLs is skipped, so running it
+ * twice costs two reads and changes nothing.
+ */
+export async function handleRehostAssets(
+  deps: AdminDeps,
+  adminUid: string,
+  origin: string,
+): Promise<{ scanned: number; rehosted: number }> {
+  await deps.store.writeAudit({
+    adminUid,
+    action: "rehost-assets",
+    subjectUid: "*",
+    at: deps.clock.now(),
+  });
+
+  const creatives = [
+    ...(await deps.store.creativesByStatus("approved")),
+    ...(await deps.store.creativesByStatus("pending")),
+  ];
+
+  let rehosted = 0;
+
+  for (const creative of creatives) {
+    if (!isDataUrl(creative.logoLight) && !isDataUrl(creative.logoDark)) continue;
+
+    const logoLight = await rehost(deps, origin, creative.creativeId, "light", creative.logoLight);
+    const logoDark = await rehost(deps, origin, creative.creativeId, "dark", creative.logoDark);
+
+    await deps.store.putCreative({ ...creative, logoLight, logoDark });
+    rehosted += 1;
+  }
+
+  return { scanned: creatives.length, rehosted };
+}
+
+/** One logo. Anything already hosted, or undecodable, is left exactly as it is. */
+async function rehost(
+  deps: AdminDeps,
+  origin: string,
+  creativeId: string,
+  variant: "light" | "dark",
+  value: string,
+): Promise<string> {
+  if (!isDataUrl(value)) return value;
+
+  const parsed = parseDataUrl(value);
+  if (parsed === null) return value;
+
+  const key = assetKey(creativeId, variant, parsed.contentType);
+  await deps.store.putAsset(key, parsed);
+  return assetUrl(origin, key);
 }
 
 /* ── Test serves ────────────────────────────────────────────────────────── */
@@ -596,4 +659,56 @@ export async function handleRemoveAdmin(
   });
 
   return { ok: true, admins: await deps.store.listAdmins() };
+}
+
+/**
+ * What is waiting for an administrator, in one number each.
+ *
+ * The panel had no home: opening it landed you in the creative queue, which said nothing
+ * about the three withdrawal requests or the eleven unread bug reports one page over. So
+ * every queue that can block somebody else is counted here, and the overview is the first
+ * screen rather than a queue that happens to be first alphabetically.
+ *
+ * Counts, not contents. This is read on every visit to the panel, and a screen that
+ * fetches five full lists to render five integers is a screen people stop opening.
+ */
+export interface AdminOverview {
+  creativesWaiting: number;
+  withdrawalsPending: number;
+  reportsOpen: number;
+  advertisers: number;
+  noticesActive: number;
+  /** Held across all accounts, so an unusual total is visible without opening the list. */
+  pendingWithdrawalMicros: string;
+}
+
+export async function handleOverview(deps: AdminDeps, adminUid: string): Promise<AdminOverview> {
+  await deps.store.writeAudit({
+    adminUid,
+    action: "read-overview",
+    subjectUid: "*",
+    at: deps.clock.now(),
+  });
+
+  const [creatives, withdrawals, reports, advertisers, notices] = await Promise.all([
+    deps.store.creativesByStatus("pending"),
+    deps.store.listWithdrawals(null, { limit: 200, cursor: null }),
+    deps.store.listReports({ limit: 200, cursor: null }),
+    deps.store.listAdvertisers(),
+    deps.store.listNotices({ activeOnly: true }),
+  ]);
+
+  const waiting = withdrawals.rows.filter(
+    (row) => row.status === "requested" || row.status === "approved",
+  );
+  const held = waiting.reduce((total, row) => total + row.amountMicros, 0n);
+
+  return {
+    creativesWaiting: creatives.length,
+    withdrawalsPending: waiting.length,
+    reportsOpen: reports.rows.filter((row) => row.status === "open").length,
+    advertisers: advertisers.length,
+    noticesActive: notices.length,
+    pendingWithdrawalMicros: held.toString(),
+  };
 }

@@ -53,23 +53,26 @@ beforeEach(async () => {
     campaignId: "camp-1",
     servedAt: NOW - 10_000,
     expiresAt: NOW + 10_000,
+    maxBidCpmMicros: 8_000_000n,
+    clearingCpmMicros: 5_010_000n,
+    costMicros: 5_010n,
   });
 });
 
 describe("handleReceipts", () => {
-  it("credits the user at the configured share of the CPM", async () => {
-    // 8 CPM = 8000 micros per impression; 50% share = 4000 micros to the user.
+  it("credits the user from the clearing price captured on the serve", async () => {
+    // $5.01 clearing CPM = 5010 micros per impression; 50% truncates to 2505 micros.
     const res = await handleReceipts(deps(), "u-1", { receipts: [receipt()] });
     expect(res.acked).toEqual(["r-1"]);
 
     const balance = await store.getBalance("u-1");
-    expect(balance.availableMicros).toBe(4_000n);
-    expect(balance.lifetimeMicros).toBe(4_000n);
+    expect(balance.availableMicros).toBe(2_505n);
+    expect(balance.lifetimeMicros).toBe(2_505n);
   });
 
   it("charges the campaign the full cost, not the user's share", async () => {
     await handleReceipts(deps(), "u-1", { receipts: [receipt()] });
-    expect(await store.getSpend("camp-1")).toBe(8_000n);
+    expect(await store.getSpend("camp-1")).toBe(5_010n);
   });
 
   it("is idempotent - a replayed receipt acks but pays once", async () => {
@@ -77,13 +80,13 @@ describe("handleReceipts", () => {
     const second = await handleReceipts(deps(), "u-1", { receipts: [receipt()] });
 
     expect(second.acked).toEqual(["r-1"]);
-    expect((await store.getBalance("u-1")).availableMicros).toBe(4_000n);
+    expect((await store.getBalance("u-1")).availableMicros).toBe(2_505n);
   });
 
   it("does not double-charge the campaign on a replay", async () => {
     await handleReceipts(deps(), "u-1", { receipts: [receipt()] });
     await handleReceipts(deps(), "u-1", { receipts: [receipt()] });
-    expect(await store.getSpend("camp-1")).toBe(8_000n);
+    expect(await store.getSpend("camp-1")).toBe(5_010n);
   });
 
   it("acks but does not pay a receipt with no matching serve", async () => {
@@ -151,12 +154,15 @@ describe("handleReceipts", () => {
       campaignId: "camp-1",
       servedAt: NOW,
       expiresAt: NOW + 10_000,
+      maxBidCpmMicros: 8_000_000n,
+      clearingCpmMicros: 5_010_000n,
+      costMicros: 5_010n,
     });
     const res = await handleReceipts(deps(), "u-1", {
       receipts: [receipt({ receiptId: "r-a" }), receipt({ receiptId: "r-b", outcome: "dismissed" })],
     });
     expect(res.acked).toEqual(["r-a", "r-b"]);
-    expect((await store.getBalance("u-1")).availableMicros).toBe(4_000n);
+    expect((await store.getBalance("u-1")).availableMicros).toBe(2_505n);
   });
 
   it("acks an empty batch", async () => {

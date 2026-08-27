@@ -5,7 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/components/AuthProvider";
 import { CopyField } from "@/components/CopyField";
 import { LedgerRows } from "@/components/LedgerRows";
-import { Segmented } from "@/components/ios/Segmented";
+import { PayoutPanel } from "@/components/PayoutPanel";
 import { Donut } from "@/components/charts/Donut";
 import { StackedBars } from "@/components/charts/StackedBars";
 import { Sparkline, TimeChart } from "@/components/charts/TimeChart";
@@ -20,13 +20,8 @@ import {
   type LedgerRowView,
 } from "@/lib/api";
 
-type View = "overview" | "activity" | "ledger";
-
-const VIEWS = [
-  { value: "overview" as const, label: "Overview" },
-  { value: "activity" as const, label: "Coding" },
-  { value: "ledger" as const, label: "Ledger" },
-];
+/** What counts as earning: exactly the kinds `lifetimeMicros` folds. */
+const EARNING_KINDS: ReadonlySet<string> = new Set(["impression", "click", "reversal"]);
 
 /** Manual and agent are two halves of one measure, so they take adjacent palette slots. */
 const MANUAL = seriesColor(0);
@@ -62,7 +57,6 @@ const hours = (ms: number): string => {
 function DashboardBody() {
   const { token, user } = useAuth();
 
-  const [view, setView] = useState<View>("overview");
   const [balance, setBalance] = useState<BalanceView | null>(null);
   const [activity, setActivity] = useState<ActivityView | null>(null);
   const [rows, setRows] = useState<LedgerRowView[]>([]);
@@ -103,10 +97,17 @@ function DashboardBody() {
 
   const days = useMemo(() => calendar(30), []);
 
-  /** Earnings per day, folded out of the ledger the page already has. */
+  /**
+   * Earnings per day, folded out of the ledger the page already has.
+   *
+   * Only the kinds that move `lifetimeMicros` count. A withdrawal is an entry on this
+   * ledger too, and including it would draw the day somebody cashed out as a cliff in
+   * what they earned - which is a different fact, and the wrong one for this chart.
+   */
   const earned = useMemo(() => {
     const byDay = new Map<string, bigint>();
     for (const row of rows) {
+      if (!EARNING_KINDS.has(row.kind)) continue;
       const day = new Date(row.createdAt).toISOString().slice(0, 10);
       byDay.set(day, (byDay.get(day) ?? 0n) + BigInt(row.micros || "0"));
     }
@@ -153,9 +154,8 @@ function DashboardBody() {
         </div>
       </div>
 
-      <Segmented label="Dashboard view" value={view} options={VIEWS} onChange={setView} />
-
-      {view === "overview" && (
+      <section className="workspace-section" id="earnings" aria-labelledby="earnings-title">
+        <h2 className="workspace-section-title" id="earnings-title">Earnings</h2>
         <>
           <section className="ios-card">
             <header className="ios-card-head">
@@ -213,13 +213,22 @@ function DashboardBody() {
           </div>
 
           <div className="notice" data-tone="info">
-            Withdrawals aren&apos;t open yet. Your balance keeps accruing and every entry
-            stays on this ledger — we&apos;ll say here when cash-out is available.
+            Withdrawals are open once your balance reaches $50.{" "}
+            <a className="link-button" href="#payouts">
+              Check whether you&apos;re eligible
+            </a>
+            .
           </div>
         </>
-      )}
+      </section>
 
-      {view === "activity" && (
+      <section className="workspace-section" id="payouts" aria-labelledby="payouts-title">
+        <h2 className="workspace-section-title" id="payouts-title">Payouts</h2>
+        <PayoutPanel />
+      </section>
+
+      <section className="workspace-section" id="activity" aria-labelledby="activity-title">
+        <h2 className="workspace-section-title" id="activity-title">Coding activity</h2>
         <>
           {written === 0 ? (
             <div className="empty">
@@ -335,9 +344,10 @@ function DashboardBody() {
             </>
           )}
         </>
-      )}
+      </section>
 
-      {view === "ledger" && (
+      <section className="workspace-section" id="ledger" aria-labelledby="ledger-title">
+        <h2 className="workspace-section-title" id="ledger-title">Ledger</h2>
         <>
           {rows.length === 0 ? (
             <div className="empty">
@@ -385,7 +395,7 @@ function DashboardBody() {
             you see here is exactly what we see.
           </p>
         </>
-      )}
+      </section>
     </>
   );
 }

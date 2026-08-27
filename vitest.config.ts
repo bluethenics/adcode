@@ -28,6 +28,9 @@ const alias = {
   "@adcode/format": resolve(import.meta.dirname, "packages/format/src/index.ts"),
   "@adcode/highlight": resolve(import.meta.dirname, "packages/highlight/src/index.ts"),
   "@adcode/debug": resolve(import.meta.dirname, "packages/debug/src/index.ts"),
+  // The website's own alias, last and with its slash: `@/lib/api` is apps/web/src/lib/api.
+  // The trailing slash is what keeps it from also matching `@adcode/...` above.
+  "@/": `${resolve(import.meta.dirname, "apps/web/src")}/`,
 };
 
 export default defineConfig({

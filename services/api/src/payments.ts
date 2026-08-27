@@ -12,6 +12,7 @@
  */
 
 export interface CheckoutRequest {
+  orderId: string;
   advertiserId: string;
   advertiserName: string;
   /** Dodo requires a customer; the signed-in advertiser's address is used. */
@@ -21,6 +22,7 @@ export interface CheckoutRequest {
   amountMicros: bigint;
   /** Where Dodo returns the browser once payment finishes. */
   returnUrl: string;
+  cancelUrl: string;
 }
 
 /** Two uppercase letters. Anything else is refused rather than sent on to the provider. */
@@ -29,9 +31,9 @@ export function parseCountry(raw: unknown): string | null {
 }
 
 export interface CheckoutSession {
-  paymentId: string;
+  sessionId: string;
   /** The hosted page to send the advertiser to. */
-  paymentLink: string;
+  checkoutUrl: string;
 }
 
 export interface PaymentProvider {
@@ -46,7 +48,7 @@ export function microsToMinorUnits(micros: bigint): number {
 
 /** Funding bounds, so a typo cannot create a $4m payment link. */
 export const FUNDING_LIMITS = {
-  minMicros: 10_000_000n, // $10
+  minMicros: 1_000_000n, // $1 — one 500-impression block at the auction floor
   maxMicros: 10_000_000_000n, // $10,000
 } as const;
 

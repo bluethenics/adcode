@@ -6,7 +6,7 @@
  * the facts stated as data rather than inferred from prose, which is why the economics
  * here come from `site.ts` rather than being typed twice.
  */
-import { SITE, url, perImpressionMicros, formatMicros, ECONOMICS } from "./site";
+import { SITE, url, formatMicros, ECONOMICS } from "./site";
 
 type Node = Record<string, unknown>;
 
@@ -175,7 +175,7 @@ export const FAQ: readonly { q: string; a: string }[] = [
   },
   {
     q: "How much can you earn using ADCode?",
-    a: `Advertisers pay a ${formatMicros(ECONOMICS.cpmMicros, 2)} CPM and the developer receives ${ECONOMICS.revSharePercent}% of it, which is ${formatMicros(perImpressionMicros)} per sponsored card viewed. At the default cadence of ${ECONOMICS.adsPerHourStandard} cards per hour, that is roughly ${formatMicros(perImpressionMicros * BigInt(ECONOMICS.adsPerHourStandard), 3)} an hour of active editing. These are small amounts; ADCode is a way to use a capable editor for free with some money coming back, not a way to earn a living.`,
+    a: `Advertisers bid in a second-price auction from ${formatMicros(ECONOMICS.floorBlockMicros, 2)} per 500 impressions. The developer receives ${ECONOMICS.revSharePercent}% of the winning ad's clearing price, so earnings vary with live demand. ADCode is a way to use a capable editor for free with some money coming back, not a promise of income.`,
   },
   {
     q: "Does ADCode read my source code?",

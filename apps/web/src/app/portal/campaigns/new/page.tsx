@@ -1,8 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { AppShell } from "@/components/AppShell";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { LogoDrop } from "@/components/LogoDrop";
 import { TagPicker } from "@/components/TagPicker";
@@ -15,7 +14,6 @@ import {
   type CreativeView,
 } from "@/lib/api";
 import { ECONOMICS, formatMicros } from "@/lib/site";
-import { PORTAL_TABS } from "../../tabs";
 
 /**
  * One screen from nothing to a campaign in review.
@@ -36,18 +34,12 @@ import { PORTAL_TABS } from "../../tabs";
 const LIMITS = { brand: 40, headline: 80, body: 160 } as const;
 
 export default function NewCampaign() {
-  return (
-    <AppShell
-      title="Start a campaign"
-      subtitle="Your logo, your message, a budget. That is the whole thing."
-      tabs={PORTAL_TABS}
-    >
-      <NewCampaignForm />
-    </AppShell>
-  );
+  const router = useRouter();
+  useEffect(() => router.replace("/portal#new-campaign"), [router]);
+  return null;
 }
 
-function NewCampaignForm() {
+export function NewCampaignForm() {
   const { token } = useAuth();
   const router = useRouter();
 
@@ -59,7 +51,7 @@ function NewCampaignForm() {
   const [darkLogo, setDarkLogo] = useState<string | null>(null);
   const [budget, setBudget] = useState("100.00");
   const [tags, setTags] = useState<string[]>([]);
-  const [cpm, setCpm] = useState(formatMicros(ECONOMICS.cpmMicros, 2).replace("$", ""));
+  const [cpm, setCpm] = useState(formatMicros(ECONOMICS.floorBlockMicros, 2).replace("$", ""));
   const [campaignName, setCampaignName] = useState("");
 
   const [busy, setBusy] = useState(false);
@@ -72,7 +64,8 @@ function NewCampaignForm() {
 
     const trimmedBrand = brand.trim();
     const budgetMicros = dollarsToMicros(budget);
-    const cpmMicros = dollarsToMicros(cpm);
+    const blockBidMicros = dollarsToMicros(cpm);
+    const cpmMicros = blockBidMicros === null ? null : (BigInt(blockBidMicros) * 2n).toString();
 
     // Checked here so the message names the field, rather than coming back as a generic
     // 400 that leaves you guessing which one was wrong.
@@ -97,7 +90,11 @@ function NewCampaignForm() {
       return;
     }
     if (cpmMicros === null) {
-      setError("CPM should be an amount like 8.00.");
+      setError("Maximum block bid should be an amount like 1.00.");
+      return;
+    }
+    if (BigInt(blockBidMicros ?? "0") < ECONOMICS.floorBlockMicros) {
+      setError(`The minimum bid is ${formatMicros(ECONOMICS.floorBlockMicros, 2)} per 500 impressions.`);
       return;
     }
 
@@ -173,11 +170,11 @@ function NewCampaignForm() {
       // The campaign exists, so the detail page is where they can retry the card rather
       // than starting the whole thing again.
       setError(`${MESSAGES[creative.error]} Your campaign was created — add the card there.`);
-      router.push(`/portal/campaigns/${campaign.value.campaignId}`);
+      router.push(`/portal?campaign=${campaign.value.campaignId}`);
       return;
     }
 
-    router.push(`/portal/campaigns/${campaign.value.campaignId}?created=1`);
+    router.push(`/portal?campaign=${campaign.value.campaignId}&created=1`);
   };
 
   return (
@@ -297,10 +294,10 @@ function NewCampaignForm() {
             <summary>Advanced</summary>
 
             <div className="field">
-              <label htmlFor="cpm">Cost per thousand views</label>
+              <label htmlFor="cpm">Maximum bid per 500 impressions</label>
               <span className="field-hint">
-                Half of it goes to the developer who saw the ad. The default is the going
-                rate; raising it wins more of the auction.
+                The floor is {formatMicros(ECONOMICS.floorBlockMicros, 2)}. A second-price
+                auction sets the clearing price, so a winning block can cost less than this bid.
               </span>
               <input
                 id="cpm"
@@ -345,7 +342,7 @@ function NewCampaignForm() {
           <button type="submit" className="btn btn-primary btn-large" disabled={busy}>
             {busy ? (step ?? "Working…") : "Start campaign"}
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => router.push("/portal")}>
+          <button type="button" className="btn btn-ghost" onClick={() => router.push("/portal#campaigns")}>
             Cancel
           </button>
         </div>
@@ -385,10 +382,8 @@ function NewCampaignForm() {
               <b>{tags.length === 0 ? "Every developer" : `${tags.length} tags`}</b>
             </li>
             <li>
-              <span>Per verified view</span>
-              <b className="money">
-                {formatMicros((dollarsToMicros(cpm) === null ? 0n : BigInt(dollarsToMicros(cpm) as string)) / 1000n)}
-              </b>
+              <span>Bid per 500 impressions</span>
+              <b className="money">${cpm || "0.00"}</b>
             </li>
           </ul>
         </div>

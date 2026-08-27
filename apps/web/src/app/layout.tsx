@@ -5,8 +5,6 @@ import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { JsonLd } from "@/components/JsonLd";
 import { AuthProvider } from "@/components/AuthProvider";
-import { ReleaseBar } from "@/components/ReleaseBar";
-import { latestRelease } from "@/lib/releases";
 import { organisation, softwareApplication } from "@/lib/schema";
 import "./globals.css";
 
@@ -90,16 +88,13 @@ export const viewport: Viewport = {
  * first paint or absent. Fetching it in the browser would mean a bar that appears a beat
  * after the page settles, which is exactly the kind of movement a reader resents.
  */
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const latest = await latestRelease();
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
       <body>
         <JsonLd data={organisation()} />
         <JsonLd data={softwareApplication()} />
         <AuthProvider>
-          <ReleaseBar version={latest?.version ?? null} title={latest?.title ?? ""} />
           <Nav />
           <main id="main">{children}</main>
           <Footer />

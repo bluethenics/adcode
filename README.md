@@ -23,6 +23,8 @@ npm run package         # installer + portable .exe into release/
 
 npm run verify          # typecheck + architecture rules + full suite (1666 tests)
 npm run smoke           # launch the built app and drive it (96 checks)
+npm run smoke:ads       # prove an ad reaches the user as a notification (23 checks)
+npm run smoke:all       # both smoke runs, in order
 npm run icons           # rasterise build/icon.svg into icon.ico and icon.png
 npm run dev             # electron-vite dev server, with hot reload
 npm run mock-server     # ad serving contract on :8787, no build step
@@ -74,8 +76,9 @@ above those two ports is covered by tests that need no cloud account.
 
 **What still needs a person, not code:** creating the GCP, Firebase, Dodo, and Wise
 accounts; registering the domain; and a lawyer reading `apps/web/src/app/terms/page.tsx`
-before real money moves. Paying users out is designed — the ledger has the withdrawal
-entry kinds and they are unit-tested — but no endpoint raises them yet.
+before real money moves. Paying users out is built and needs a person by design — a user
+requests, the ledger holds the amount, an administrator sends the Wise transfer by hand and
+records its reference. See `services/api/src/withdrawals.ts` and SETUP.md step 19.
 
 ## The learner surfaces
 
@@ -351,6 +354,20 @@ build, and the whole unit suite all missed — a bundled `node-pty` that broke e
 a hidden overlay that made the window unclickable, a menu bar that was dead to a real mouse,
 and a dropdown that opened behind the sidebar.
 `npm run smoke -- --packaged` runs the same checks against the installer's output.
+
+**Ads get their own smoke run.** `npm run smoke:ads` starts a real ad server, launches the
+built app pointed at it, and watches a sponsored card arrive: it asserts the toast painted
+and is on screen, that its logo is an inline `data:` URL rather than a request to an
+advertiser, that the serve request went out carrying real vocabulary tags and the theme the
+user is actually looking at, and that the receipt came back and moved the balance. It exists
+because `packages/ads` tests the ad client against fakes for the two ports the IDE supplies
+— `IdeSignals` and `NotificationSink` — so a total failure on the far side of that seam
+stays green. Four did: nothing answered the signals port at all, so every request was
+untargeted with a hard-coded dark theme; `debugActive` was still pinned to `false` long after
+the debugger landed; and the balance and remote config were read once at launch and never
+again, so earnings never moved while the app was open and the kill switch needed a restart.
+Unlike `npm run smoke`, only `true` passes it — a check that reports a problem as prose
+fails the run rather than being printed and ignored.
 
 **Drive at coordinates, not at nodes.** The menu bar shipped completely unclickable while its
 check stayed green, because the check called `element.click()` — which dispatches straight at

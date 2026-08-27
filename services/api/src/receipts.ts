@@ -13,7 +13,7 @@
 import type { ReceiptsRequestBody, ReceiptsResponseBody, SubmittedReceipt } from "./contract.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
 import { checkReceipt } from "./plausibility.ts";
-import { advertiserCostMicros, userCreditMicros } from "./money.ts";
+import { userCreditMicros } from "./money.ts";
 import type { LedgerEntry } from "./ledger.ts";
 
 export interface ReceiptDeps {
@@ -62,12 +62,10 @@ export async function handleReceipts(
      * so a replayed test receipt still cannot become a real one later.
      */
     const isTest = serve.test === true;
-    const cost = isTest ? 0n : advertiserCostMicros(config.defaultCpmMicros);
+    const cost = isTest ? 0n : serve.costMicros;
     const credit = isTest ? 0n : userCreditMicros(cost, config.revSharePercent);
 
-    // The idempotency gate. If this returns false the receipt was already paid, and we
-    // ack without paying again.
-    const created = await deps.store.createReceiptIfAbsent({
+    const receiptRecord = {
       receiptId: receipt.receiptId,
       uid,
       creativeId: receipt.creativeId,
@@ -79,12 +77,7 @@ export async function handleReceipts(
       // latter, and a receipt that could date itself could move spend into a day the
       // advertiser has already been billed for.
       createdAt: now,
-    });
-
-    if (!created) {
-      acked.push(receipt.receiptId);
-      continue;
-    }
+    };
 
     const entry: LedgerEntry = {
       entryId: deps.ids.next("e"),
@@ -96,12 +89,8 @@ export async function handleReceipts(
       description: describeEntry(creative.advertiser, receipt),
     };
 
-    // No ledger row and no spend for a test: an entry of zero is noise on someone's
-    // earnings page, and a zero charge is noise on an advertiser's invoice.
-    if (!isTest) {
-      await deps.store.appendEntryAndUpdateBalance(entry);
-      await deps.store.addSpend(creative.campaignId, cost);
-    }
+    if (isTest) await deps.store.createReceiptIfAbsent(receiptRecord);
+    else await deps.store.settleReceipt({ receipt: receiptRecord, earning: entry });
 
     acked.push(receipt.receiptId);
   }

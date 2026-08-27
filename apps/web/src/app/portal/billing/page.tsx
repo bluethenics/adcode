@@ -1,23 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AppShell } from "@/components/AppShell";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES, type AdvertiserView, type CheckoutView } from "@/lib/api";
 import { money, dollarsToMicros } from "@/components/money";
-import { PORTAL_TABS } from "../tabs";
 
 const PRESETS = ["50.00", "100.00", "500.00", "1000.00"] as const;
 
 export default function Billing() {
-  return (
-    <AppShell title="Billing" tabs={PORTAL_TABS}>
-      <BillingBody />
-    </AppShell>
-  );
+  const router = useRouter();
+  useEffect(() => router.replace("/portal#credits"), [router]);
+  return null;
 }
 
-function BillingBody() {
+export function BillingBody() {
   const { token, user } = useAuth();
 
   const [advertiser, setAdvertiser] = useState<AdvertiserView | null>(null);
@@ -55,8 +52,8 @@ function BillingBody() {
       setError("Enter an amount like 100.00.");
       return;
     }
-    if (BigInt(micros) < 10_000_000n) {
-      setError("The minimum payment is $10.00.");
+    if (BigInt(micros) < 1_000_000n) {
+      setError("The minimum payment is $1.00.");
       return;
     }
     if (BigInt(micros) % 10_000n !== 0n) {
@@ -82,7 +79,7 @@ function BillingBody() {
 
     // Leaving the site is the point - payment happens on Dodo's hosted page, so no card
     // details ever touch this app.
-    window.location.href = session.value.paymentLink;
+    window.location.href = session.value.checkoutUrl;
   };
 
   if (loading) return <p className="lede">Loading…</p>;
@@ -97,7 +94,7 @@ function BillingBody() {
 
       <div className="stats">
         <div className="stat">
-          <span className="stat-label">Available to commit</span>
+          <span className="stat-label">Available ad credits</span>
           <span className="stat-value money">{money(advertiser?.availableMicros ?? "0")}</span>
         </div>
         <div className="stat">
@@ -105,17 +102,17 @@ function BillingBody() {
           <span className="stat-value">{money(advertiser?.reservedMicros ?? "0")}</span>
         </div>
         <div className="stat">
-          <span className="stat-label">Total funded</span>
+          <span className="stat-label">Credits purchased</span>
           <span className="stat-value">{money(advertiser?.fundedMicros ?? "0")}</span>
         </div>
       </div>
 
       <form onSubmit={addFunds} style={{ maxWidth: 480 }}>
-        <h3 style={{ fontSize: 18, marginBottom: 12 }}>Add funds</h3>
+        <h3 style={{ fontSize: 18, marginBottom: 12 }}>Buy advertising credits</h3>
 
         <div className="field">
           <label htmlFor="b-amount">Amount</label>
-          <span className="field-hint">Minimum $10.00. Charged in your local currency by Dodo Payments.</span>
+          <span className="field-hint">Minimum $1.00. Charged in your local currency by Dodo Payments.</span>
           <input
             id="b-amount"
             className="input"

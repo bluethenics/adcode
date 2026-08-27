@@ -1,6 +1,6 @@
 # ADCode installer for Windows.
 #
-#   irm https://adcode.bluethenics.com/install.ps1 | iex
+#   irm https://adcode.bluethenics01.workers.dev/install.ps1 | iex
 #
 # Fetches the latest release from GitHub, downloads the installer, checks its SHA-256
 # against the checksum GitHub publishes alongside it, and runs it.
@@ -15,6 +15,12 @@ $ErrorActionPreference = 'Stop'
 $Owner = if ($env:ADCODE_GH_OWNER) { $env:ADCODE_GH_OWNER } else { 'bluethenics' }
 $Repo  = if ($env:ADCODE_GH_REPO)  { $env:ADCODE_GH_REPO }  else { 'adcode' }
 $Api   = "https://api.github.com/repos/$Owner/$Repo/releases/latest"
+
+# Where to send someone when this script cannot finish. The workers.dev hostname on
+# purpose, for the same reason `apps/desktop/src/main/backend.ts` uses it: the custom
+# domain has no DNS record until SETUP.md step 13 is done, and a failure message that
+# points at a hostname which does not resolve turns a recoverable problem into a dead end.
+$Site  = if ($env:ADCODE_SITE) { $env:ADCODE_SITE } else { 'https://adcode.bluethenics01.workers.dev' }
 
 function Fail($message) {
     Write-Host ""
@@ -44,7 +50,7 @@ $version = $release.tag_name
 $asset = $release.assets | Where-Object { $_.name -like '*.exe' -and $_.name -notlike '*portable*' } | Select-Object -First 1
 
 if (-not $asset) {
-    Fail "That release has no Windows installer in it. Try the download page instead: https://adcode.bluethenics.com/download"
+    Fail "That release has no Windows installer in it. Try the download page instead: $Site/download"
 }
 
 Write-Host "  Found $version ($([math]::Round($asset.size / 1MB)) MB)"
@@ -57,7 +63,7 @@ Write-Host "  Downloading..."
 try {
     Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $target -UseBasicParsing
 } catch {
-    Fail "Download failed. Try again, or grab the installer from https://adcode.bluethenics.com/download"
+    Fail "Download failed. Try again, or grab the installer from $Site/download"
 }
 
 # electron-builder publishes a latest.yml carrying the SHA-512 of each artifact. When it

@@ -16,6 +16,7 @@ import {
   handleListPosts,
   handleListUsers,
   handleQueueTestServe,
+  handleRehostAssets,
   handleReviewQueue,
   handleSavePost,
   handleSetCreativeStatus,
@@ -34,10 +35,35 @@ import {
   parseRelease,
   handleDraftRelease,
   handleListReleases,
+  handleOverview,
   handleSaveRelease,
 } from "./admin.ts";
 import { parseReceiptsRequest, parseReportRequest, parseServeRequest } from "./contract.ts";
-import { handleAdminListReports, handleSubmitReport } from "./reports.ts";
+import {
+  parseDecisionNote,
+  parsePayoutProfile,
+  parseProviderRef,
+  parseWithdrawalAmount,
+} from "./contract.ts";
+import {
+  handleAdminListReports,
+  handleDeleteReport,
+  handleSetReportStatus,
+  handleSubmitReport,
+} from "./reports.ts";
+import {
+  cancelWithdrawal,
+  approveWithdrawal,
+  listWithdrawals,
+  markWithdrawalPaid,
+  markWithdrawalFailed,
+  readPayouts,
+  rejectWithdrawal,
+  requestWithdrawal,
+  savePayoutProfile,
+  type Outcome as PayoutOutcome,
+  type PayoutError,
+} from "./withdrawals.ts";
 import { checkRate } from "./rateLimit.ts";
 import { corsHeaders } from "./cors.ts";
 import {
@@ -56,8 +82,12 @@ import {
 import { ACTIVITY_LIMITS, readActivity, recordActivity } from "./activity.ts";
 import { parseActivity, parseCampaign, parseCreateAdvertiser, parseCreative } from "./contract.ts";
 import { handleFundingWebhook } from "./funding.ts";
-import { parseCountry, parseFundingAmount, type PaymentProvider } from "./payments.ts";
+import type { PaymentProvider } from "./payments.ts";
+import { createCreditCheckout } from "./creditOrders.ts";
+import { readDemand } from "./demand.ts";
+import { PAYOUT_FIELD_KINDS } from "./payoutCorridors.ts";
 import { createMemoryStore } from "./memoryStore.ts";
+import { isSafeAssetKey } from "./assets.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
 
 export interface ApiServer {
@@ -127,7 +157,31 @@ function daysFrom(url: URL, fallback: number): number {
   return Math.min(raw, 365);
 }
 
+/**
+ * Payout refusals to status codes.
+ *
+ * `not-eligible` is a 409 rather than a 403: nothing about the caller is forbidden, the
+ * account simply is not in a state that allows the request yet, and `GET /v1/payouts`
+ * says exactly which rule it failed.
+ */
+const PAYOUT_STATUS: Record<PayoutError, number> = {
+  "not-eligible": 409,
+  "insufficient-funds": 402,
+  "invalid-amount": 400,
+  "not-found": 404,
+  "invalid-state": 409,
+};
+
 const ADMIN_LEDGER = /^\/v1\/admin\/users\/([^/]+)\/ledger$/;
+const REPORT_STATUSES: ReadonlySet<string> = new Set(["open", "triaged", "closed"]);
+const WITHDRAWAL_STATUSES: ReadonlySet<string> = new Set([
+  "requested",
+  "approved",
+  "paid",
+  "rejected",
+  "failed",
+  "cancelled",
+]);
 
 /** Node gives a repeated header as an array; a signature header must be one value. */
 function firstHeader(value: string | string[] | undefined): string | undefined {
@@ -171,6 +225,29 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
   const webhookSecret = options.webhookSecret ?? process.env["DODO_WEBHOOK_SECRET"];
   const siteOrigin = options.siteOrigin ?? "https://adcode.bluethenics.com";
 
+  /**
+   * The origin a caller actually reached us on.
+   *
+   * Creative artwork is addressed by absolute URL, and that URL has to be one the editor
+   * can fetch - so it is taken from the request rather than configured. Cloudflare sets
+   * `x-forwarded-proto`; a loopback host with no such header is a local run over http, and
+   * guessing https there would produce asset URLs that resolve to nothing.
+   */
+  const requestOrigin = (req: IncomingMessage): string => {
+    const host = req.headers.host;
+    if (typeof host !== "string" || host === "") return siteOrigin;
+
+    const forwarded = req.headers["x-forwarded-proto"];
+    const proto =
+      typeof forwarded === "string" && forwarded !== ""
+        ? (forwarded.split(",")[0] ?? "https").trim()
+        : /^(localhost|127\.0\.0\.1|\[::1\])(:|$)/.test(host)
+          ? "http"
+          : "https";
+
+    return `${proto}://${host}`;
+  };
+
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
@@ -181,6 +258,44 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
     if (req.method === "OPTIONS") {
       res.writeHead(204, cors);
       res.end();
+      return;
+    }
+
+    /*
+     * GET /assets/:key - creative artwork.
+     *
+     * Unauthenticated, and it has to be: the editor fetches these through its asset cache,
+     * which is a plain image fetch with no bearer token. Nothing here is secret - it is the
+     * picture an advertiser is paying to show people - and the key is unguessable enough to
+     * not be an enumeration surface worth defending.
+     *
+     * Not under `/v1`: the version prefix is the serving *contract*, and this is a file.
+     */
+    if (path.startsWith("/assets/") && (req.method === "GET" || req.method === "HEAD")) {
+      const key = decodeURIComponent(path.slice("/assets/".length));
+
+      // Keys are generated by `assetKey`, but this one arrived over the network. A key is a
+      // filename; anything else never reaches the storage layer.
+      if (!isSafeAssetKey(key)) {
+        send(res, 404, { error: "not found" }, cors);
+        return;
+      }
+
+      const asset = await store.getAsset(key);
+      if (asset === null) {
+        send(res, 404, { error: "not found" }, cors);
+        return;
+      }
+
+      res.writeHead(200, {
+        ...cors,
+        "content-type": asset.contentType,
+        "content-length": String(asset.bytes.byteLength),
+        // Keyed by creative id and content, so a given key's bytes never change meaning.
+        // The editor caches these on disk too; this is for everything in between.
+        "cache-control": "public, max-age=31536000, immutable",
+      });
+      res.end(req.method === "HEAD" ? undefined : Buffer.from(asset.bytes));
       return;
     }
 
@@ -211,6 +326,15 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         // is what an uptime check needs in order to page the right person.
         send(res, 503, { ok: false }, cors);
       }
+      return;
+    }
+
+    if (path === "/v1/demand" && req.method === "GET") {
+      const demand = await readDemand(store, clock.now());
+      send(res, 200, demand, {
+        ...cors,
+        "cache-control": "public, max-age=60, stale-while-revalidate=30",
+      });
       return;
     }
 
@@ -384,8 +508,180 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
+    const payoutDeps = { store, clock, ids };
+
+    /** Unwraps a payout Outcome onto the wire. Same shape as `settle`, different map. */
+    const settlePayout = <T,>(result: PayoutOutcome<T>): void => {
+      if (result.ok) send(res, 200, result.value, cors);
+      else send(res, PAYOUT_STATUS[result.error], { error: result.error }, cors);
+    };
+
+    if (path === "/v1/admin/overview" && req.method === "GET") {
+      send(res, 200, await handleOverview({ store, clock }, auth.uid), cors);
+      return;
+    }
+
     if (path === "/v1/admin/reports" && req.method === "GET") {
       send(res, 200, await handleAdminListReports({ store, clock, ids }, auth.uid, pageFrom(url)), cors);
+      return;
+    }
+
+    const reportStatus = /^\/v1\/admin\/reports\/([^/]+)\/status$/.exec(path);
+    if (reportStatus !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const next = (raw as Record<string, unknown>)["status"];
+      if (typeof next !== "string" || !REPORT_STATUSES.has(next)) {
+        send(res, 400, { error: "malformed status" }, cors);
+        return;
+      }
+      const changed = await handleSetReportStatus(
+        payoutDeps,
+        auth.uid,
+        decodeURIComponent(reportStatus[1] ?? ""),
+        next as "open" | "triaged" | "closed",
+      );
+      send(res, changed ? 200 : 404, changed ? { ok: true, status: next } : { error: "not-found" }, cors);
+      return;
+    }
+
+    const reportDelete = /^\/v1\/admin\/reports\/([^/]+)\/delete$/.exec(path);
+    if (reportDelete !== null && req.method === "POST") {
+      const removed = await handleDeleteReport(
+        payoutDeps,
+        auth.uid,
+        decodeURIComponent(reportDelete[1] ?? ""),
+      );
+      send(res, removed ? 200 : 404, removed ? { ok: true } : { error: "not-found" }, cors);
+      return;
+    }
+
+    if (path === "/v1/admin/withdrawals" && req.method === "GET") {
+      const asked = url.searchParams.get("status");
+      // An unknown status reads as "no filter" rather than as an error: the alternative is
+      // an admin screen that shows a 400 because a query string was mistyped.
+      const status = asked !== null && WITHDRAWAL_STATUSES.has(asked) ? asked : null;
+      send(
+        res,
+        200,
+        await listWithdrawals(
+          payoutDeps,
+          auth.uid,
+          status as "requested" | "approved" | "paid" | "rejected" | "failed" | "cancelled" | null,
+          pageFrom(url),
+        ),
+        cors,
+      );
+      return;
+    }
+
+    if (path === "/v1/admin/payout-corridors" && req.method === "GET") {
+      await store.writeAudit({
+        adminUid: auth.uid,
+        action: "read-payout-corridors",
+        subjectUid: "*",
+        at: clock.now(),
+      });
+      send(res, 200, { corridors: await store.listPayoutCorridors(false) }, cors);
+      return;
+    }
+
+    const payoutCorridor = /^\/v1\/admin\/payout-corridors\/([A-Z]{2})\/([A-Z]{3})$/.exec(path);
+    if (payoutCorridor !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const body = raw as Record<string, unknown>;
+      const enabled = body["enabled"];
+      const requiredFields = body["requiredFields"];
+      const sourceNote = body["sourceNote"];
+      const supported = new Set<string>(PAYOUT_FIELD_KINDS);
+      if (
+        typeof enabled !== "boolean" ||
+        !Array.isArray(requiredFields) ||
+        requiredFields.length === 0 ||
+        requiredFields.some((field) => typeof field !== "string" || !supported.has(field)) ||
+        typeof sourceNote !== "string" ||
+        sourceNote.trim().length < 10 ||
+        sourceNote.trim().length > 500
+      ) {
+        send(res, 400, { error: "malformed payout corridor" }, cors);
+        return;
+      }
+      const now = clock.now();
+      const country = payoutCorridor[1] ?? "";
+      const currency = payoutCorridor[2] ?? "";
+      const record = {
+        country,
+        currency,
+        enabled,
+        requiredFields: requiredFields as import("./store.ts").PayoutFieldKind[],
+        sourceNote: sourceNote.trim(),
+        verifiedAt: enabled ? now : null,
+        updatedAt: now,
+        updatedBy: auth.uid,
+      };
+      await store.putPayoutCorridor(record);
+      await store.writeAudit({
+        adminUid: auth.uid,
+        action: `payout-corridor:${country}:${currency}:${enabled ? "enabled" : "disabled"}`,
+        subjectUid: "*",
+        at: now,
+      });
+      send(res, 200, record, cors);
+      return;
+    }
+
+    const withdrawalApprove = /^\/v1\/admin\/withdrawals\/([^/]+)\/approve$/.exec(path);
+    if (withdrawalApprove !== null && req.method === "POST") {
+      settlePayout(
+        await approveWithdrawal(
+          payoutDeps,
+          auth.uid,
+          decodeURIComponent(withdrawalApprove[1] ?? ""),
+        ),
+      );
+      return;
+    }
+
+    const withdrawalPaid = /^\/v1\/admin\/withdrawals\/([^/]+)\/paid$/.exec(path);
+    if (withdrawalPaid !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const providerRef = parseProviderRef(raw);
+      if (providerRef === null) {
+        // Refused rather than defaulted: the reference is the only link from this record
+        // to the transfer that actually moved the money.
+        send(res, 400, { error: "malformed providerRef" }, cors);
+        return;
+      }
+      settlePayout(
+        await markWithdrawalPaid(
+          payoutDeps,
+          auth.uid,
+          decodeURIComponent(withdrawalPaid[1] ?? ""),
+          providerRef,
+        ),
+      );
+      return;
+    }
+
+    const withdrawalReject = /^\/v1\/admin\/withdrawals\/([^/]+)\/reject$/.exec(path);
+    if (withdrawalReject !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const note = parseDecisionNote(raw);
+      if (note === null) {
+        send(res, 400, { error: "malformed note" }, cors);
+        return;
+      }
+      settlePayout(
+        await rejectWithdrawal(
+          payoutDeps,
+          auth.uid,
+          decodeURIComponent(withdrawalReject[1] ?? ""),
+          note,
+        ),
+      );
       return;
     }
 
@@ -566,6 +862,19 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         return;
       }
       send(res, 200, updated, cors);
+      return;
+    }
+
+    /*
+     * POST /v1/admin/rehost-assets - repair creatives whose artwork is still inline.
+     *
+     * One-shot and idempotent. Needed once, for rows written before creatives learned to
+     * store their artwork separately; those rows cannot be served at all, so this is the
+     * difference between an ad system that works and one that silently has no inventory.
+     */
+    if (path === "/v1/admin/rehost-assets" && req.method === "POST") {
+      const result = await handleRehostAssets({ store, clock }, auth.uid, requestOrigin(req));
+      send(res, 200, result, cors);
       return;
     }
 
@@ -801,42 +1110,19 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         return;
       }
 
-      const found = await getMyAdvertiser(advertiserDeps, auth.uid);
-      if (!found.ok) {
-        send(res, ADVERTISER_STATUS[found.error], { error: found.error }, cors);
-        return;
-      }
-
       const raw = await jsonBodyOr400();
       if (raw === undefined) return;
       const fields = raw as Record<string, unknown>;
-
-      const amountMicros = parseFundingAmount(fields["amountMicros"]);
-      const billingCountry = parseCountry(fields["billingCountry"]);
-      const email = typeof fields["email"] === "string" ? fields["email"].trim() : "";
-
-      if (amountMicros === null || billingCountry === null || email.length === 0) {
-        send(res, 400, { error: "malformed checkout" }, cors);
-        return;
-      }
-
-      const session = await payments.createCheckout({
-        advertiserId: found.value.advertiserId,
-        advertiserName: found.value.name,
-        advertiserEmail: email,
-        billingCountry,
-        amountMicros,
-        returnUrl: `${siteOrigin}/portal/billing`,
+      const outcome = await createCreditCheckout({ store, payments, clock, ids, siteOrigin }, auth.uid, {
+        amountMicros: fields["amountMicros"],
+        billingCountry: fields["billingCountry"],
+        email: fields["email"],
       });
-
-      // 502, not 500: the failure is the provider's, and the distinction tells the portal
-      // whether retrying is worth offering.
-      if (session === null) {
-        send(res, 502, { error: "payment provider unavailable" }, cors);
+      if (!outcome.ok) {
+        send(res, outcome.status, { error: outcome.error }, cors);
         return;
       }
-
-      send(res, 200, session, cors);
+      send(res, 200, outcome.value, cors);
       return;
     }
 
@@ -848,7 +1134,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         send(res, 400, { error: "malformed creative" }, cors);
         return;
       }
-      settle(await createCreative(advertiserDeps, auth.uid, body));
+      settle(await createCreative(advertiserDeps, auth.uid, body, requestOrigin(req)));
       return;
     }
 
@@ -860,6 +1146,93 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
 
     if (path === "/v1/balance" && req.method === "GET") {
       send(res, 200, await handleBalance(store, auth.uid), cors);
+      return;
+    }
+
+    /*
+     * Cash out.
+     *
+     * One GET returns the whole screen - the rules, whether they pass, the details on
+     * file and every past request - because they are read together and a page that
+     * fetches them separately renders in four stages, each of which briefly says
+     * something untrue about whether you can be paid.
+     */
+    if (path === "/v1/payouts" && req.method === "GET") {
+      send(res, 200, await readPayouts(payoutDeps, auth.uid), cors);
+      return;
+    }
+
+    if (path === "/v1/payouts/profile" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const body = parsePayoutProfile(raw);
+      if (body === null) {
+        send(res, 400, { error: "malformed payout details" }, cors);
+        return;
+      }
+      const saved = await savePayoutProfile(payoutDeps, auth.uid, body);
+      if (saved === null) {
+        send(res, 400, { error: "payout corridor unavailable or details invalid" }, cors);
+        return;
+      }
+      send(res, 200, saved, cors);
+      return;
+    }
+
+    const withdrawalFailed = /^\/v1\/admin\/withdrawals\/([^/]+)\/failed$/.exec(path);
+    if (withdrawalFailed !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const note = parseDecisionNote(raw);
+      if (note === null) {
+        send(res, 400, { error: "malformed note" }, cors);
+        return;
+      }
+      settlePayout(
+        await markWithdrawalFailed(
+          payoutDeps,
+          auth.uid,
+          decodeURIComponent(withdrawalFailed[1] ?? ""),
+          note,
+        ),
+      );
+      return;
+    }
+
+    if (path === "/v1/payout-corridors" && req.method === "GET") {
+      const corridors = await store.listPayoutCorridors(true);
+      send(
+        res,
+        200,
+        {
+          corridors: corridors.map(({ country, currency, requiredFields }) => ({
+            country,
+            currency,
+            requiredFields,
+          })),
+        },
+        cors,
+      );
+      return;
+    }
+
+    if (path === "/v1/withdrawals" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const amountMicros = parseWithdrawalAmount(raw);
+      if (amountMicros === null) {
+        send(res, 400, { error: "invalid-amount" }, cors);
+        return;
+      }
+      settlePayout(await requestWithdrawal(payoutDeps, auth.uid, amountMicros));
+      return;
+    }
+
+    const cancelRequest = /^\/v1\/withdrawals\/([^/]+)\/cancel$/.exec(path);
+    if (cancelRequest !== null && req.method === "POST") {
+      settlePayout(
+        await cancelWithdrawal(payoutDeps, auth.uid, decodeURIComponent(cancelRequest[1] ?? "")),
+      );
       return;
     }
 

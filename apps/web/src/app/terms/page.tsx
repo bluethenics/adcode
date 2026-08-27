@@ -51,9 +51,13 @@ Also, obviously: do not use ADCode to break the law, and do not attack the servi
 
 ## Withdrawals
 
-Once withdrawals are available, you will be able to request a payout of your available balance above a minimum amount. Payouts are sent through Wise. You are responsible for any tax you owe on what you receive.
+You can request a payout of your available balance once it reaches **$50.00**. Five conditions apply, and your dashboard shows each of them with whether you meet it: the minimum balance, a confirmed email address, an account at least seven days old, payout details for a currently enabled country and currency, and no request already in progress.
 
-We may require identity verification before sending money, where the law requires it.
+Requesting moves the amount out of your available balance and holds it while we review. An administrator must approve each request before making a manual bank transfer. Country and currency availability can change, and a route may be disabled when the transfer provider or law does not permit it. Balances are held in US dollars; conversion and timing depend on the transfer actually offered at payout time.
+
+We may decline a request — for a name that does not match the receiving account, for a balance under review, or where the law requires identity verification we have not completed. If we decline, we tell you why and the money returns to your available balance immediately. You can also cancel your own request at any time before it is sent.
+
+You are responsible for any tax you owe on what you receive.
 
 ## Advertisers
 

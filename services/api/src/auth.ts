@@ -128,6 +128,17 @@ function identityOf(verified: VerifiedToken): Partial<UserRecord> {
     ...(email === null ? {} : { email: email.toLowerCase() }),
     ...(displayName === null ? {} : { displayName }),
     ...(photoUrl === null ? {} : { photoUrl }),
+    /*
+     * Always written, including as `false`.
+     *
+     * The others are absent when the provider said nothing, because "never been told" and
+     * "told us nothing" are different facts. This one is not like them: it decides whether
+     * an account may be paid, and an absent value would have to be read as "unverified"
+     * anyway. Writing it makes that reading explicit instead of implied - and strict
+     * equality against `true`, because a claim of the string "true" is not a verified
+     * address and a truthiness check here would make it one.
+     */
+    emailVerified: verified.claims["email_verified"] === true,
   };
 }
 
@@ -136,6 +147,7 @@ function differs(user: UserRecord, identity: Partial<UserRecord>): boolean {
   return (
     (identity.email !== undefined && identity.email !== user.email) ||
     (identity.displayName !== undefined && identity.displayName !== user.displayName) ||
-    (identity.photoUrl !== undefined && identity.photoUrl !== user.photoUrl)
+    (identity.photoUrl !== undefined && identity.photoUrl !== user.photoUrl) ||
+    identity.emailVerified !== user.emailVerified
   );
 }

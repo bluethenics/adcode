@@ -114,7 +114,7 @@ File contents, file paths, and project names never leave the machine. Not hashed
 
 ## 3. You get a real share, stated plainly
 
-Advertisers pay a $8.00 CPM. You get 50% of it — **$0.004000** per card viewed — credited to your ledger the moment the receipt is verified.
+Advertisers compete in a second-price auction starting at $1.00 per 500 impressions. You get 50% of the winning ad's clearing price, credited to your ledger when the receipt is verified.
 
 At the default cadence of six cards an hour, that is about **$0.024** for an hour of active editing.
 
@@ -211,7 +211,7 @@ The assistant is bring-your-own: Settings, then Connect a model, then pick a pro
 
 ## 6. Let it pay you back
 
-A sponsored card appears occasionally in the corner - never while typing, running commands, debugging, or when the window is unfocused. Each verified view credits half the advertiser's payment to [your ledger](/dashboard), visible to six decimals, row by row. Standard cadence is at most one card per half hour. Turn the frequency down, or turn ads off completely, and the editor does not change in any other way.
+A sponsored card appears occasionally in the corner. It never takes the caret, never steals focus, and never blocks what you are typing - it animates in at the edge and dismisses itself after eight seconds, or the moment you close it. It stays away entirely while you are debugging, and while your editor is not the window in front. Each verified view credits half the advertiser's payment to [your ledger](/dashboard), visible to six decimals, row by row. Standard cadence is at most one card per ten minutes. Turn the frequency down, or turn ads off completely, and the editor does not change in any other way.
 
 ## Where to go next
 
@@ -229,11 +229,11 @@ The earnings system sounds like marketing until you trace one real payment throu
 
 ## The numbers up front
 
-Advertisers pay a **$8.00 CPM** - eight dollars per thousand verified views. You receive **50%**, so each verified card view credits **$0.004000** to your ledger. At the default cadence of six cards an hour, an hour of active editing earns about $0.024. We print that number everywhere because most products in this category hope you will not do the division.
+Advertisers set a maximum bid per 500 impressions and compete in a **second-price auction** with a **$1.00 per 500 impression floor**. You receive **50% of the clearing price** for each verified view. The exact amount varies with live demand and is recorded on your ledger.
 
 ## Step 1: the editor asks for a card
 
-When you pause - never while typing, never mid-command, never while debugging, never with the window unfocused - the editor requests a card matching the generic tags of what you have open. That request contains tags like \`lang:rust\` and whether your theme is dark. No filenames, no code, no paths: those fields do not exist in the request.
+Every so often - never while debugging, and never when your editor is not the window in front - the editor requests a card matching the generic tags of what you have open. That request contains tags like \`lang:rust\` and whether your theme is dark. No filenames, no code, no paths: those fields do not exist in the request.
 
 ## Step 2: the server serves, and writes it down
 
@@ -286,7 +286,7 @@ Give the campaign a name only you will see ("Rust developers, Q3"), and choose w
 
 ## Step 3: set your economics
 
-Choose a CPM - the default is $8.00 per thousand verified views, of which half goes to the developer who saw the card - and a total budget starting at $1.00. The budget is reserved while the campaign is live and serving stops the instant it is spent. No overrun, no surprise invoice.
+Choose a maximum bid of at least $1.00 per 500 impressions and a total budget starting at $1.00. A second-price auction decides what winning views actually cost, and half of that clearing price goes to the developer. The budget is reserved while the campaign is live and serving stops the instant it is spent.
 
 Campaigns are created paused. Nothing spends until you deliberately go live.
 
@@ -354,7 +354,7 @@ Here VS Code wins and we will say so: hundreds of thousands of extensions beat d
 
 ## The part nobody else has
 
-Both other editors are free-or-subscription. ADCode inverts the ledger: a sponsored card appears a few times an hour - never while typing, debugging, or running commands - and half of every advertiser payment lands in YOUR account, on an append-only ledger you can audit row by row. Not a salary - but no other editor pays you anything, and none lets you turn its business model off without losing features.
+Both other editors are free-or-subscription. ADCode inverts the ledger: a sponsored card appears a few times an hour, at the edge of the window and never in the way of the caret - and half of every advertiser payment lands in YOUR account, on an append-only ledger you can audit row by row. Not a salary - but no other editor pays you anything, and none lets you turn its business model off without losing features.
 
 ## The honest scorecard
 

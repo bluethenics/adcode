@@ -49,6 +49,28 @@ describe("handleServe", () => {
     expect(await store.findServe("u-1", "c-1", 5_500)).not.toBeNull();
   });
 
+  it("snapshots the winning bid and clearing price on the serve record", async () => {
+    await store.putCampaign({
+      campaignId: "camp-2",
+      advertiserId: "adv-2",
+      name: "runner-up",
+      createdAt: 0,
+      cpmMicros: 5_000_000n,
+      budgetMicros: 1_000_000n,
+      targetTags: ["lang:rust"],
+      status: "active",
+    });
+
+    await handleServe(deps(), "u-1", { tags: ["lang:rust"], themeKind: "dark", count: 1 });
+    const serve = await store.findServe("u-1", "c-1", 5_500);
+
+    expect(serve).toMatchObject({
+      maxBidCpmMicros: 8_000_000n,
+      clearingCpmMicros: 5_020_000n,
+      costMicros: 5_020n,
+    });
+  });
+
   it("gives that record a TTL from config", async () => {
     await handleServe(deps(), "u-1", { tags: ["lang:rust"], themeKind: "dark", count: 1 });
     const beyondTtl = 5_000 + DEFAULT_CONFIG.serveTtlMs + 1;

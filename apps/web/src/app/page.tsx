@@ -1,32 +1,52 @@
-import Link from "next/link";
 import type { Metadata } from "next";
-import { DesktopMockup } from "@/components/DesktopMockup";
-import { HeroHeadline } from "@/components/HeroHeadline";
-import { HeroCircuit } from "@/components/HeroCircuit";
-import { HeroProduct } from "@/components/HeroProduct";
 import { DownloadButton } from "@/components/DownloadButton";
-import { JsonLd } from "@/components/JsonLd";
-import { FAQ, faqPage } from "@/lib/schema";
-import { ECONOMICS, formatMicros, perImpressionMicros, SITE, SITE_ORIGIN, url } from "@/lib/site";
+import { LandingBidBuilder } from "@/components/LandingBidBuilder";
+import { MarketDemand } from "@/components/MarketDemand";
+import { HeroCircuit } from "@/components/HeroCircuit";
+import { SITE, url } from "@/lib/site";
 
-export const metadata: Metadata = { title: `${SITE.name} - ${SITE.tagline}`, description: SITE.description, alternates: { canonical: url("/") } };
-
-const FEATURES = [
-  ["A full desktop workspace", "Monaco editing, real terminals, Git, diagnostics, and workspaces that stay out of your way."],
-  ["AI on your terms", "Bring the provider and key you want. Review every diff before it changes your code."],
-  ["Ads that respect focus", "A sponsor card waits for a pause; it never cuts into typing, debugging, or an unfocused window."],
-] as const;
-const RESTRAINT = [["Typing", "No sponsored card appears while you are writing."], ["Debugging", "Breakpoints, terminal commands, and active sessions are left alone."], ["Your privacy", "Only generic language and framework tags are used—never code, files, or paths."]] as const;
+export const metadata: Metadata = {
+  title: SITE.tagline,
+  description: "A privacy-first code editor funded by respectful advertising. Developers receive half of verified ad spend.",
+  alternates: { canonical: url("/") },
+};
 
 export default function Home() {
-  const perCard = formatMicros(perImpressionMicros);
-  return <><JsonLd data={faqPage(FAQ)} /><a className="skip-link" href="#main">Skip to content</a>
-    <section className="home-hero"><HeroCircuit /><div className="wrap home-hero-grid"><div className="hero-copy"><p className="eyebrow eyebrow-live"><span /> ADCode desktop · free forever</p><HeroHeadline /><p className="hero-lede">A complete code editor, funded by respectful ads. You keep half of every verified payment.</p><div className="hero-actions"><DownloadButton className="btn btn-primary btn-large hero-download"><span aria-hidden="true">↓</span> Download ADCode <i>· free</i></DownloadButton></div><div className="hero-subactions"><span>Windows · macOS · Linux</span><Link href="/download">All downloads <span aria-hidden="true">↗</span></Link></div><HeroProduct /></div></div></section>
-    <section className="proof-strip" aria-label="ADCode product facts"><div className="wrap proof-grid reveal"><p><strong>Real IDE</strong><span>Editor, terminal, Git, AI</span></p><p><strong>{perCard}</strong><span>developer share per view</span></p><p><strong>{formatMicros(ECONOMICS.cpmMicros, 2)} CPM</strong><span>verified advertiser views</span></p><p><strong>0</strong><span>data sold from your files</span></p></div></section>
-    <section className="band" id="how-it-works"><div className="wrap reveal"><div className="section-head section-head-wide"><p className="eyebrow">A proper editor first</p><h2>The tools you need. A business model you can inspect.</h2><p className="lede">ADCode is not an extension with a banner attached. It is a desktop workspace built for the work between the first keystroke and the final commit.</p></div><div className="feature-grid">{FEATURES.map(([title, description], index) => <article className="feature-card reveal" style={{ ["--delay" as string]: `${index * 90}ms` }} key={title}><span className="feature-index">0{index + 1}</span><h3>{title}</h3><p>{description}</p></article>)}</div></div></section>
-    <section className="band band-night" id="ledger"><div className="wrap split-layout reveal"><div className="section-head"><p className="eyebrow">Every cent has a receipt</p><h2>Your earnings are a ledger, not a promise.</h2><p className="lede">Each verified view creates a row. Corrections create an equally visible reversal. Nothing gets quietly changed after the fact.</p><div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginTop: 24 }}><Link href="/download" className="text-link">Start earning with ADCode <span aria-hidden="true">→</span></Link><Link href="/dashboard" className="text-link">See your earnings <span aria-hidden="true">→</span></Link></div></div><div className="ledger-panel"><div className="ledger-panel-head"><span>ADCode earnings</span><span className="status-dot">Live</span></div><div className="ledger-total"><span>Available balance</span><strong className="money">$0.000640</strong></div>{["Verified editor card", "Verified editor card", "Receipt settled"].map((text, index) => <div className="ledger-item" key={`${text}-${index}`}><span>{text}</span><b className="money">+{perCard}</b></div>)}</div></div></section>
-    <section className="band" id="restraint"><div className="wrap split-layout split-layout-top reveal"><div className="section-head"><p className="eyebrow">Respect is a feature</p><h2>Focus comes before revenue.</h2></div><dl className="rule-list rule-list-light">{RESTRAINT.map(([term, desc]) => <div className="rule" key={term}><dt>{term}</dt><dd>{desc}</dd></div>)}</dl></div></section>
-    <section className="band advertiser-callout"><div className="wrap advertiser-callout-grid reveal"><div><p className="eyebrow">For advertisers</p><h2>Meet developers where the work is happening.</h2><p>Buy verified attention in a carefully bounded placement. Half of every payment goes to the developer who saw it.</p></div><Link href="/advertise" className="btn btn-light btn-large">Start a campaign <span aria-hidden="true">→</span></Link></div></section>
-    <section className="band"><div className="wrap reveal"><div className="section-head"><p className="eyebrow">Questions</p><h2>Before you download.</h2></div><div className="faq">{FAQ.map((item) => <article className="faq-item" key={item.q}><h3>{item.q}</h3><p>{item.a}</p></article>)}</div></div></section>
-  </>;
+  return (
+    <div className="marketplace-home">
+      <a className="skip-link" href="#marketplace-main">Skip to content</a>
+      <section className="marketplace-hero" id="earn">
+        <HeroCircuit />
+        <div className="marketplace-wrap" id="marketplace-main">
+          <div className="marketplace-hero-copy">
+            <p className="marketplace-eyebrow"><span /> Privacy-first developer network</p>
+            <h1>Earn while you code</h1>
+            <p>Use a professional code editor for free. Respectful ads wait for a pause, and half of every verified payment goes to you.</p>
+            <div className="marketplace-hero-actions">
+              <DownloadButton className="marketplace-primary">Download ADCode <span aria-hidden="true">↓</span></DownloadButton>
+              <a href="#advertise" className="marketplace-secondary">Advertise to developers <span aria-hidden="true">↘</span></a>
+            </div>
+            <small>Windows · macOS · Linux · free to use</small>
+          </div>
+          <MarketDemand />
+        </div>
+      </section>
+
+      <section className="marketplace-bid" id="advertise">
+        <div className="marketplace-wrap marketplace-bid-grid">
+          <header className="marketplace-section-intro">
+            <p className="marketplace-eyebrow"><span /> Advertise on ADCode</p>
+            <h2>Reach developers<br />while they build.</h2>
+            <p>Bid from <strong>$1 per 500 verified impressions</strong>. Live demand sets the price, and a winning campaign can pay less than its maximum bid.</p>
+            <dl><div><dt>50%</dt><dd>paid to developers</dd></div><div><dt>$1</dt><dd>minimum block bid</dd></div><div><dt>0</dt><dd>personal code collected</dd></div></dl>
+          </header>
+          <LandingBidBuilder />
+        </div>
+      </section>
+
+      <section className="marketplace-principles" aria-label="How ADCode works">
+        <div className="marketplace-wrap"><p><span>01</span><strong>Verified attention</strong><small>Only a real, eligible view can bill.</small></p><p><span>02</span><strong>Second-price auction</strong><small>Win at your maximum; often pay less.</small></p><p><span>03</span><strong>Human review</strong><small>Every creative is checked before delivery.</small></p></div>
+      </section>
+    </div>
+  );
 }

@@ -167,6 +167,57 @@ const checks = {
   ),
 };
 
+/*
+ * The welcome sheet.
+ *
+ * Driven rather than waited for: the smoke run seeds its own `userData`, so this machine
+ * has never been welcomed and the sheet is on a 900ms timer from first paint. That timer
+ * has usually already fired by the time these run, which is why this opens it directly
+ * rather than racing it.
+ *
+ * What matters is that every step is escapable. First launch is promised to have no
+ * account and no wall, so a tour that could trap somebody - no skip, no Escape, a modal
+ * over an editor they cannot reach - would be a worse bug than the tour not existing.
+ *
+ * **This runs first, and dismissing it is the point.** It used to sit near the end of the
+ * file, which meant every pointer-driven check above it was aimed at a window with a modal
+ * over it: the menu bar did not open, no context menu appeared, the assistant and feedback
+ * buttons swallowed their clicks, and the sidebar and panel would not drag. Every one of
+ * those reported a string rather than `false`, so the run still exited 0 while roughly
+ * forty checks were quietly testing the onboarding dialog instead of the editor. The tour
+ * is escapable, so escaping it here is also the honest way to reach the app behind it.
+ */
+checks.onboardingIsSkippable = await (async () => {
+  const opened = await evaluate(
+    `(() => {
+       const existing = document.querySelector('dialog.onboarding');
+       if (existing === null) return 'no onboarding sheet in the document';
+       if (!existing.open) existing.showModal();
+       return {
+         steps: existing.querySelectorAll('.onboarding-dot').length,
+         hasSkip: existing.querySelector('.onboarding-skip') !== null,
+         hasThemeCards: existing.querySelectorAll('.theme-card').length,
+         heading: existing.querySelector('.onboarding-head h2')?.textContent ?? null,
+       };
+     })()`,
+  );
+  if (typeof opened === "string") return opened;
+
+  // Escape must close it. A modal that ignores Escape is a modal somebody is stuck in.
+  await evaluate(
+    `(() => { document.querySelector('dialog.onboarding')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return true; })()`,
+  );
+  await evaluate("document.querySelector('dialog.onboarding')?.close(); true");
+  await sleep(300);
+
+  return {
+    ...opened,
+    closes: (await evaluate("document.querySelector('dialog.onboarding')?.open === false")) === true,
+    // Once dismissed it must stay dismissed, or every launch reopens it.
+    remembered: (await evaluate("window.adcode.onboarding.completed()")) === true,
+  };
+})();
+
 // Drive the source-control view the way a click would.
 await evaluate("document.querySelector('.activity[data-view=\"scm\"]').click()");
 await sleep(1200);
@@ -265,7 +316,39 @@ async function rightClickAt(x, y) {
   return false;
 }
 
+/**
+ * Type, but never into a file this repository actually keeps.
+ *
+ * This run drives the real editor with the real repository open, and several checks type
+ * into a scratch file they just created. When one of them goes wrong the keystrokes do not
+ * vanish - they land in whatever tab happens to be active, and auto-save writes them to
+ * disk 1200ms later. That is not hypothetical: `firebase.json` started with `ll{`,
+ * `electron-builder.yml` with `e#` and the build prompt with `h<div class="smokecard">`,
+ * all three committed-file corruptions produced by earlier runs, and the YAML one would
+ * have failed `npm run package` at the worst possible moment.
+ *
+ * So the editor is only a legal target when the active tab is one of this script's own
+ * files. Anything else throws, which fails one check loudly instead of editing the tree
+ * silently. Typing into a dialog, a search box or the terminal is untouched by this - the
+ * guard only looks when focus is inside Monaco.
+ */
 async function typeText(text) {
+  const intruded = await evaluate(
+    `(() => {
+       const active = document.activeElement;
+       if (active === null || active.closest('.monaco-editor') === null) return null;
+       const label = document.querySelector('.tab[aria-selected="true"] .tab-label')?.textContent ?? '(no active tab)';
+       return /^smoke[-.]/.test(label) ? null : label;
+     })()`,
+  );
+
+  if (typeof intruded === "string") {
+    throw new Error(
+      `refusing to type into "${intruded}": the editor is focused on a file this script does not own. ` +
+        `Whatever was meant to receive ${JSON.stringify(text)} never opened.`,
+    );
+  }
+
   for (const character of text) await send("Input.dispatchKeyEvent", { type: "char", text: character });
   await sleep(120);
 }
@@ -831,14 +914,46 @@ checks.titleBarControlsWork = await (async () => {
   if (centre === null) return "no command centre";
 
   await clickAt(centre.x, centre.y);
-  const quickOpen = await evaluate("document.querySelector('.quickopen')?.hidden === false");
-  if (!quickOpen) return "the command centre did not open quick open";
 
+  /*
+   * "Is quick open showing" is not `document.querySelector('.quickopen')`.
+   *
+   * Two different overlays carry that class - `panels/searchPanel.ts` builds the file
+   * picker with it and `workbench/palette.ts` builds the command palette with it - and both
+   * are in the document from startup, hidden. `querySelector` returns whichever is first,
+   * which is the palette, which is not the one the command centre opens. This check read
+   * `hidden` off the wrong element and called a working button broken.
+   *
+   * So: find the overlay that is actually open, and tell the two apart by their rows -
+   * palette rows carry `.palette-row`, quick open's do not.
+   */
+  const quickOpen = await evaluate(
+    `(() => {
+       const open = [...document.querySelectorAll('.quickopen')].filter((o) => o.hidden === false);
+       if (open.length === 0) {
+         const hit = document.elementFromPoint(${centre.x}, ${centre.y});
+         return 'nothing opened; the pointer reached ' +
+           (hit === null ? 'nothing' : hit.tagName + '.' + (hit.getAttribute('class') ?? '(no class)'));
+       }
+       if (open.some((o) => o.querySelector('.palette-row') !== null)) return 'the command centre opened the palette, not quick open';
+       return true;
+     })()`,
+  );
+
+  // Always shut it, pass or fail. An overlay left open is `position: fixed; inset: 0`
+  // across the whole window, and every pointer check after this one would hit it instead.
   await evaluate(
-    "document.querySelector('.quickopen-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true",
+    `(() => {
+       for (const overlay of document.querySelectorAll('.quickopen')) {
+         if (overlay.hidden) continue;
+         overlay.querySelector('.quickopen-input')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+       }
+       return true;
+     })()`,
   );
   await sleep(200);
-  return true;
+
+  return quickOpen === true ? true : `the command centre: ${quickOpen}`;
 })();
 
 /*
@@ -899,7 +1014,19 @@ checks.reportDialogOpens = await (async () => {
   const form = await evaluate(
     `(() => {
        const dialog = document.querySelector('.report-dialog');
-       if (!dialog?.open) return 'the button did not open the form';
+       if (!dialog?.open) {
+         // Same reason as the command centre: name what the pointer actually reached.
+         const hit = document.elementFromPoint(${geometry.x}, ${geometry.y});
+         const button = document.getElementById('report-toggle');
+         return 'the button did not open the form ' + JSON.stringify({
+           hit: hit === null ? null : hit.tagName + '.' + (hit.getAttribute('class') ?? '(no class)'),
+           // A click on the icon inside the button still counts - it bubbles. What would
+           // not count is the pointer landing on something that is not the button at all.
+           hitIsTheButton: hit !== null && button !== null && button.contains(hit),
+           dialogExists: dialog !== null,
+           dialogOpen: dialog === null ? null : dialog.open,
+         });
+       }
        if (dialog.querySelectorAll('.report-kind').length !== 4) return 'the four report kinds are not all there';
        if (dialog.querySelector('.report-kind[aria-checked="true"]') === null) return 'no kind is selected by default';
        if (!dialog.querySelector('.report-input')) return 'no summary field';
@@ -1182,8 +1309,19 @@ try {
     `(() => {
        const row = [...document.querySelectorAll('#filetree .tree-row')].find(r => r.dataset.path?.endsWith('README.md'));
        if (!row) return null;
+       /*
+        * Scroll it into view before measuring.
+        *
+        * The checks above this one create, rename and move files, which grows the tree and
+        * pushes README.md below the fold. Its rect is still perfectly real down there, and
+        * right-clicking those coordinates dispatches into nothing - the failure printed
+        * "no menu", which reads as a broken context menu rather than a point off-screen.
+        */
+       row.scrollIntoView({ block: 'center' });
        const r = row.getBoundingClientRect();
-       return { x: Math.round(r.left + r.width/2), y: Math.round(r.top + r.height/2) };
+       const point = { x: Math.round(r.left + r.width/2), y: Math.round(r.top + r.height/2) };
+       if (point.y < 0 || point.y > window.innerHeight || point.x < 0 || point.x > window.innerWidth) return null;
+       return point;
      })()`,
   );
 
@@ -1192,7 +1330,14 @@ try {
     checks.gitGroupInMenu = await evaluate(
       `(() => {
          const panel = document.querySelector('.menu-panel[data-context]');
-         if (!panel) return 'no menu';
+         if (!panel) {
+           const hit = document.elementFromPoint(${trackedPoint.x}, ${trackedPoint.y});
+           return 'no menu ' + JSON.stringify({
+             hit: hit === null ? null : hit.tagName + '.' + (hit.className || '(no class)'),
+             anyPanels: document.querySelectorAll('.menu-panel').length,
+             rowUnderPoint: hit === null ? null : (hit.closest('.tree-row')?.dataset.path ?? null),
+           });
+         }
          const headings = [...panel.querySelectorAll('.menu-heading')].map(h => h.textContent);
          const labels = [...panel.querySelectorAll('.menu-item-label')].map(l => l.textContent);
          if (!headings.includes('Git')) return 'no Git heading';
@@ -3112,6 +3257,9 @@ checks.welcomeScreenIsUsable = await evaluate(
      return {
        offers: labels.join(','),
        primaryClickable: primary.contains(hit) || primary === hit,
+       // What the pointer reached instead, when it is not the button. Without this the
+       // failure is a bare false and every candidate looks equally likely.
+       hitWas: hit === null ? null : hit.tagName + '.' + (hit.className || '(no class)'),
        // The version is on screen, because it is what a bug report asks for.
        showsVersion: /Version \\d/.test(inner.querySelector('.welcome-version')?.textContent ?? ''),
        marked: inner.querySelector('.welcome-mark svg') !== null,
@@ -3347,6 +3495,24 @@ checks.earningsPopoverOpens = await evaluate(
        onScreen: box.left >= 0 && box.right <= window.innerWidth && box.top >= 0,
        // A figure, or an honest dash. Never blank.
        showsAFigure: (card.querySelector('.earnings-hero-value')?.textContent ?? '').length > 0,
+       /*
+        * The editor's own account id, copyable.
+        *
+        * This is the only place it is visible, and it is the only thing that identifies an
+        * account nobody has ever signed in to - which is what the admin panel's "queue a
+        * test ad" has to be given. Reported as a string when it is absent, because on a
+        * build with no Firebase project there is legitimately no id to show and that is a
+        * different thing from the row having broken.
+        */
+       accountId: (() => {
+         const uid = card.querySelector('.earnings-uid');
+         if (!uid) {
+           const row = card.querySelector('.earnings-account');
+           return row === null || row.hidden ? 'no account surface (no Firebase project?)' : 'account shown but no id row';
+         }
+         const full = uid.getAttribute('title') ?? '';
+         return full.length > 20 && (uid.textContent ?? '').includes('…');
+       })(),
        // Four presets, from the server's own table.
        presetRows: card.querySelectorAll('.earnings-preset').length,
        // The sidebar must not have changed: this is a popover, not a view.
@@ -3752,49 +3918,6 @@ checks.helpGuideJumpsToSetting = await (async () => {
        };
      })()`,
   );
-})();
-
-/*
- * The welcome sheet.
- *
- * Driven rather than waited for: the smoke run seeds its own `userData`, so this machine
- * has never been welcomed and the sheet is on a 900ms timer from first paint. That timer
- * has usually already fired by the time these run, which is why this opens it directly
- * rather than racing it.
- *
- * What matters is that every step is escapable. First launch is promised to have no
- * account and no wall, so a tour that could trap somebody - no skip, no Escape, a modal
- * over an editor they cannot reach - would be a worse bug than the tour not existing.
- */
-checks.onboardingIsSkippable = await (async () => {
-  const opened = await evaluate(
-    `(() => {
-       const existing = document.querySelector('dialog.onboarding');
-       if (existing === null) return 'no onboarding sheet in the document';
-       if (!existing.open) existing.showModal();
-       return {
-         steps: existing.querySelectorAll('.onboarding-dot').length,
-         hasSkip: existing.querySelector('.onboarding-skip') !== null,
-         hasThemeCards: existing.querySelectorAll('.theme-card').length,
-         heading: existing.querySelector('.onboarding-head h2')?.textContent ?? null,
-       };
-     })()`,
-  );
-  if (typeof opened === "string") return opened;
-
-  // Escape must close it. A modal that ignores Escape is a modal somebody is stuck in.
-  await evaluate(
-    `(() => { document.querySelector('dialog.onboarding')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return true; })()`,
-  );
-  await evaluate("document.querySelector('dialog.onboarding')?.close(); true");
-  await sleep(300);
-
-  return {
-    ...opened,
-    closes: (await evaluate("document.querySelector('dialog.onboarding')?.open === false")) === true,
-    // Once dismissed it must stay dismissed, or every launch reopens it.
-    remembered: (await evaluate("window.adcode.onboarding.completed()")) === true,
-  };
 })();
 
 /*

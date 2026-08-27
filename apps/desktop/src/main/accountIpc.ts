@@ -93,10 +93,22 @@ export async function currentAccount(): Promise<AccountState> {
   const auth = account();
   if (auth === null) return UNAVAILABLE;
 
+  /*
+   * Read before the profile call, so an offline machine still reports who it is.
+   *
+   * `uid()` is local - it comes off the persisted identity - whereas `profile()` is a
+   * round trip. Reporting the id even when the network is down is the point: "which
+   * account is this editor" is exactly the question somebody asks when nothing is
+   * arriving, which is also when the network is the prime suspect.
+   */
+  const uid = auth.uid();
+
   try {
     const profile = await auth.profile();
-    if (!profile.ok) return { state: "anonymous" };
-    if (profile.value === null) return { state: "anonymous" };
+    if (!profile.ok) return uid === null ? { state: "anonymous" } : { state: "anonymous", uid };
+    if (profile.value === null) {
+      return uid === null ? { state: "anonymous" } : { state: "anonymous", uid };
+    }
 
     return {
       state: "linked",
@@ -104,11 +116,12 @@ export async function currentAccount(): Promise<AccountState> {
       displayName: profile.value.displayName,
       photoUrl: profile.value.photoUrl,
       providers: [...profile.value.providers],
+      ...(uid === null ? {} : { uid }),
     };
   } catch {
     // Offline is not "signed out" - saying so would invite someone to re-link an account
     // they already have.
-    return { state: "anonymous" };
+    return uid === null ? { state: "anonymous" } : { state: "anonymous", uid };
   }
 }
 

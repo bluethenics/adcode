@@ -469,3 +469,130 @@ export function parseCreative(raw: unknown): CreativeBody | null {
 
   return { campaignId, advertiser, headline, body, clickUrl, logoLight, logoDark };
 }
+
+/* ── Payouts ────────────────────────────────────────────────────────────── */
+
+/**
+ * Cashing out.
+ *
+ * The transfer itself is made by hand from a Wise account, so everything here exists to
+ * put a correct, complete instruction in front of the person making it - and to refuse a
+ * request that should never have reached them.
+ */
+export type PayoutMethod = "bank";
+
+export const PAYOUT_LIMITS = {
+  /** Below this a transfer costs more in fees and attention than it moves. */
+  minWithdrawalMicros: 50_000_000n, // $50
+  /**
+   * A cooling-off window between opening an account and taking money out of it.
+   *
+   * Seven days is not a fraud control on its own. It is time for the reversal path to
+   * run: fake impressions are caught by the plausibility rules within a day, and a
+   * clawback that lands after the money has left is not a clawback.
+   */
+  minAccountAgeMs: 7 * 86_400_000,
+  legalName: 120,
+  email: 320,
+  bankDetails: 600,
+  note: 400,
+  providerRef: 120,
+} as const;
+
+export interface PayoutProfileBody {
+  method: PayoutMethod;
+  legalName: string;
+  country: string;
+  currency: string;
+  email: string | null;
+  bankDetails: string | null;
+  fields: Record<string, string>;
+}
+
+export interface WithdrawalRequestBody {
+  amountMicros: string;
+}
+
+const PAYOUT_METHODS: ReadonlySet<string> = new Set<PayoutMethod>(["bank"]);
+
+/**
+ * The currencies Wise can pay out in that this accepts.
+ *
+ * A list rather than "any three uppercase letters" because the value is typed once and
+ * then read by a human making a transfer: a typo that produces a currency Wise has never
+ * heard of is discovered at the bank, after the request was approved.
+ */
+export const PAYOUT_CURRENCIES = [
+  "USD", "EUR", "GBP", "AUD", "CAD", "NZD", "SGD", "JPY", "CHF", "SEK", "NOK", "DKK",
+  "PLN", "CZK", "HUF", "RON", "BGN", "TRY", "AED", "INR", "PKR", "BDT", "LKR", "NPR",
+  "PHP", "IDR", "MYR", "THB", "VND", "HKD", "KRW", "CNY", "ZAR", "NGN", "KES", "GHS",
+  "EGP", "MAD", "BRL", "MXN", "ARS", "CLP", "COP", "PEN", "UYU", "ILS", "SAR", "QAR",
+  "UAH", "GEL", "KZT",
+] as const;
+
+const CURRENCY_SET: ReadonlySet<string> = new Set(PAYOUT_CURRENCIES);
+
+/**
+ * An email address, to the extent an address can be checked without sending mail to it.
+ *
+ * Deliberately loose: the only thing worth refusing here is a value that plainly is not
+ * an address at all. Whether the Wise account exists is discovered when the transfer is
+ * made, and no regular expression was ever going to answer it.
+ */
+const EMAILISH = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/;
+
+export function parsePayoutProfile(raw: unknown): PayoutProfileBody | null {
+  if (!isRecord(raw)) return null;
+
+  const method = raw["method"];
+  if (typeof method !== "string" || !PAYOUT_METHODS.has(method)) return null;
+
+  const legalName = boundedText(raw["legalName"], PAYOUT_LIMITS.legalName);
+  if (legalName === null) return null;
+
+  const country = raw["country"];
+  if (typeof country !== "string" || !/^[A-Z]{2}$/.test(country)) return null;
+
+  const currency = raw["currency"];
+  if (typeof currency !== "string" || !CURRENCY_SET.has(currency)) return null;
+
+  const rawFields = raw["fields"];
+  if (!isRecord(rawFields)) return null;
+  const fields: Record<string, string> = {};
+  for (const [key, value] of Object.entries(rawFields)) {
+    const parsed = boundedText(value, PAYOUT_LIMITS.bankDetails);
+    if (parsed === null) return null;
+    fields[key] = parsed;
+  }
+  if (Object.keys(fields).length === 0) return null;
+  return { method: "bank", legalName, country, currency, email: null, bankDetails: null, fields };
+}
+
+/**
+ * The amount asked for, in micros.
+ *
+ * Whole cents only, for the same reason funding is: a bank moves cents, so a request for
+ * a fraction of one would be paid at a different figure than it recorded - and the
+ * difference would sit in the ledger forever as an unexplained rounding.
+ */
+export function parseWithdrawalAmount(raw: unknown): bigint | null {
+  if (!isRecord(raw)) return null;
+  const value = raw["amountMicros"];
+  if (typeof value !== "string" || !/^[0-9]{1,19}$/.test(value)) return null;
+  const micros = BigInt(value);
+  if (micros < PAYOUT_LIMITS.minWithdrawalMicros) return null;
+  if (micros % 10_000n !== 0n) return null;
+  return micros;
+}
+
+/** Wise's own reference for the transfer, so a query years later can be traced to it. */
+export function parseProviderRef(raw: unknown): string | null {
+  if (!isRecord(raw)) return null;
+  return boundedText(raw["providerRef"], PAYOUT_LIMITS.providerRef);
+}
+
+/** Why a request was refused. Shown to the person who made it, so it is never optional. */
+export function parseDecisionNote(raw: unknown): string | null {
+  if (!isRecord(raw)) return null;
+  return boundedText(raw["note"], PAYOUT_LIMITS.note);
+}

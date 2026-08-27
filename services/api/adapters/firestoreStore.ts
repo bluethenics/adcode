@@ -12,6 +12,12 @@
  */
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../src/ledger.ts";
 import { utcDay } from "../src/day.ts";
+import {
+  decryptDestination,
+  encryptDestination,
+  maskDestination,
+  type EncryptedDestination,
+} from "../src/payoutCrypto.ts";
 import type {
   ActivityDay,
   ActivityDelta,
@@ -21,6 +27,7 @@ import type {
   CampaignStats,
   CampaignRecord,
   CreativeRecord,
+  CreditOrderRecord,
   EntryPage,
   FundingRecord,
   Page,
@@ -28,8 +35,13 @@ import type {
   NoticeRecord,
   PostRecord,
   ReleaseRecord,
+  PayoutProfileRecord,
+  PayoutCorridorRecord,
   ReportPage,
   ReportRecord,
+  WithdrawalPage,
+  WithdrawalRecord,
+  WithdrawalStatus,
   SeriesPoint,
   UserPage,
   ServeRecord,
@@ -44,12 +56,59 @@ const DEFAULT_SHARD_COUNT = 4;
 const DEFAULT_SERVE_TTL_MS = 600_000;
 const DEFAULT_RATE_WINDOW_MS = 60_000;
 const DEFAULT_REQUESTS_PER_WINDOW = 120;
+const DEFAULT_FLOOR_CPM_MICROS = 2_000_000n;
+const DEFAULT_AUCTION_INCREMENT_CPM_MICROS = 20_000n;
 
 const toMicros = (v: unknown): bigint => BigInt(typeof v === "string" ? v : "0");
+
+/**
+ * A withdrawal, with its one money field as a string.
+ *
+ * Firestore has no bigint and its number type is a double, so an amount stored as a
+ * number would be a rounded amount. The same rule the ledger and the advertiser balances
+ * already follow here; only the field that is money goes through it.
+ */
+function toWithdrawalDoc(w: WithdrawalRecord, key: string): Record<string, unknown> {
+  return {
+    withdrawalId: w.withdrawalId,
+    uid: w.uid,
+    amountMicros: w.amountMicros.toString(),
+    status: w.status,
+    encryptedDestination: encryptDestination(key, w.destination),
+    destinationMask: maskDestination(w.destination),
+    createdAt: w.createdAt,
+    decidedAt: w.decidedAt,
+    decidedBy: w.decidedBy,
+    providerRef: w.providerRef,
+    note: w.note,
+    evidence: w.evidence ?? null,
+  };
+}
+
+function fromWithdrawalDoc(raw: Record<string, unknown>, key: string): WithdrawalRecord {
+  const encrypted = raw["encryptedDestination"] as EncryptedDestination | undefined;
+  const destination = encrypted === undefined
+    ? (raw["destination"] as WithdrawalRecord["destination"])
+    : decryptDestination(key, encrypted);
+  return {
+    ...(raw as Omit<WithdrawalRecord, "amountMicros" | "destination">),
+    amountMicros: toMicros(raw["amountMicros"]),
+    destination,
+  };
+}
+
 const fromMicros = (v: bigint): string => v.toString();
 
-export function createFirestoreStore(injected?: Firestore): Store {
+export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: string): Store {
   let db: Firestore | undefined = injected;
+
+  const payoutKey = (): string => {
+    const key = injectedPayoutKey ?? process.env["PAYOUT_ENCRYPTION_KEY"];
+    if (key === undefined || key === "") {
+      throw new Error("PAYOUT_ENCRYPTION_KEY is required for payout data");
+    }
+    return key;
+  };
 
   const lazy = async (): Promise<Firestore> => {
     if (db !== undefined) return db;
@@ -171,6 +230,49 @@ export function createFirestoreStore(injected?: Firestore): Store {
       };
     },
 
+    async transitionCampaignCommitment({ advertiserId, campaignId, next, spentMicros }) {
+      const database = await lazy();
+      const advertiserRef = database.collection("advertisers").doc(advertiserId);
+      const campaignRef = database.collection("campaigns").doc(campaignId);
+      return database.runTransaction(async (tx) => {
+        const [advertiserSnap, campaignSnap] = await Promise.all([
+          tx.get(advertiserRef),
+          tx.get(campaignRef),
+        ]);
+        if (!advertiserSnap.exists || !campaignSnap.exists) return { ok: false, reason: "not-found" };
+        const advertiserRaw = advertiserSnap.data() ?? {};
+        const campaignRaw = campaignSnap.data() ?? {};
+        const advertiser: AdvertiserRecord = {
+          ...(advertiserRaw as AdvertiserRecord),
+          fundedMicros: toMicros(advertiserRaw["fundedMicros"]),
+          reservedMicros: toMicros(advertiserRaw["reservedMicros"]),
+        };
+        const campaign: CampaignRecord = {
+          ...(campaignRaw as CampaignRecord),
+          cpmMicros: toMicros(campaignRaw["cpmMicros"]),
+          budgetMicros: toMicros(campaignRaw["budgetMicros"]),
+        };
+        if (campaign.advertiserId !== advertiserId) return { ok: false, reason: "not-found" };
+        if (campaign.status === "ended") return { ok: false, reason: "invalid-state" };
+        if (campaign.status === next) return { ok: true, campaign };
+        const remaining = campaign.budgetMicros - spentMicros;
+        let reservedMicros: bigint;
+        if (next === "active") {
+          if (remaining > advertiser.fundedMicros - advertiser.reservedMicros) {
+            return { ok: false, reason: "insufficient-funds" };
+          }
+          reservedMicros = advertiser.reservedMicros + remaining;
+        } else {
+          reservedMicros = advertiser.reservedMicros - remaining;
+          if (reservedMicros < 0n) reservedMicros = 0n;
+        }
+        const updated = { ...campaign, status: next };
+        tx.update(advertiserRef, { reservedMicros: fromMicros(reservedMicros) });
+        tx.update(campaignRef, { status: next });
+        return { ok: true, campaign: updated };
+      });
+    },
+
     async putCampaign(c) {
       await (await lazy())
         .collection("campaigns")
@@ -201,6 +303,37 @@ export function createFirestoreStore(injected?: Firestore): Store {
         .filter((c) => c.targetTags.length === 0 || c.targetTags.some((t) => wanted.has(t)));
     },
 
+    /*
+     * Artwork as a document, base64 in a field.
+     *
+     * Firestore has no blob store of its own here, and a document is capped at 1 MB - which
+     * `MAX_ASSET_BYTES` (512 kB, ~683 kB base64) stays under. The Supabase adapter uses real
+     * object storage; this one only has to be correct, since it is not the deployed path.
+     */
+    async putAsset(key, asset) {
+      let binary = "";
+      for (const byte of asset.bytes) binary += String.fromCharCode(byte);
+
+      await (await lazy())
+        .collection("assets")
+        .doc(key)
+        .set({ contentType: asset.contentType, base64: btoa(binary) });
+    },
+
+    async getAsset(key) {
+      const snap = await (await lazy()).collection("assets").doc(key).get();
+      if (!snap.exists) return null;
+
+      const raw = snap.data() as { contentType?: unknown; base64?: unknown };
+      if (typeof raw.contentType !== "string" || typeof raw.base64 !== "string") return null;
+
+      const binary = atob(raw.base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+      return { contentType: raw.contentType, bytes };
+    },
+
     async putCreative(c) {
       await (await lazy()).collection("creatives").doc(c.creativeId).set(c);
     },
@@ -228,7 +361,15 @@ export function createFirestoreStore(injected?: Firestore): Store {
     },
 
     async recordServe(serve) {
-      await (await lazy()).collection("serves").doc(serve.serveId).set(serve);
+      await (await lazy())
+        .collection("serves")
+        .doc(serve.serveId)
+        .set({
+          ...serve,
+          maxBidCpmMicros: fromMicros(serve.maxBidCpmMicros),
+          clearingCpmMicros: fromMicros(serve.clearingCpmMicros),
+          costMicros: fromMicros(serve.costMicros),
+        });
     },
 
     async findServe(uid, creativeId, now) {
@@ -240,7 +381,40 @@ export function createFirestoreStore(injected?: Firestore): Store {
         .limit(1)
         .get();
       const doc = snap.docs[0];
-      return doc === undefined ? null : (doc.data() as ServeRecord);
+      if (doc === undefined) return null;
+      const raw = doc.data();
+      return {
+        ...(raw as ServeRecord),
+        maxBidCpmMicros: toMicros(raw["maxBidCpmMicros"]),
+        clearingCpmMicros: toMicros(raw["clearingCpmMicros"]),
+        costMicros: toMicros(raw["costMicros"]),
+      };
+    },
+
+    async marketPriceHistory(since) {
+      const snap = await (await lazy())
+        .collection("serves")
+        .where("servedAt", ">=", since)
+        .orderBy("servedAt", "asc")
+        .limit(10_000)
+        .get();
+      const buckets = new Map<number, { total: bigint; count: bigint }>();
+      for (const doc of snap.docs) {
+        const raw = doc.data();
+        if (raw["test"] === true) continue;
+        const price = toMicros(raw["clearingCpmMicros"]);
+        if (price <= 0n) continue;
+        const servedAt = typeof raw["servedAt"] === "number" ? raw["servedAt"] : 0;
+        const at = Math.floor(servedAt / 3_600_000) * 3_600_000;
+        const bucket = buckets.get(at) ?? { total: 0n, count: 0n };
+        bucket.total += price;
+        bucket.count += 1n;
+        buckets.set(at, bucket);
+      }
+      return [...buckets.entries()].map(([at, bucket]) => ({
+        at,
+        clearingCpmMicros: bucket.total / bucket.count,
+      }));
     },
 
     async createReceiptIfAbsent(receipt: ReceiptRecord) {
@@ -253,6 +427,56 @@ export function createFirestoreStore(injected?: Firestore): Store {
       } catch {
         return false;
       }
+    },
+
+    async settleReceipt({ receipt, earning }) {
+      const database = await lazy();
+      const config = await store.getConfig();
+      const shard = Math.floor(Math.random() * config.spendShardCount);
+      const receiptRef = database.collection("receipts").doc(receipt.receiptId);
+      const entryRef = database.collection("ledger").doc(earning.entryId);
+      const balanceRef = database.collection("balances").doc(earning.uid);
+      const spendRef = database
+        .collection("campaigns")
+        .doc(receipt.campaignId)
+        .collection("spendShards")
+        .doc(String(shard));
+
+      return database.runTransaction(async (tx) => {
+        const [existingReceipt, existingEntry, balanceSnap, spendSnap] = await Promise.all([
+          tx.get(receiptRef),
+          tx.get(entryRef),
+          tx.get(balanceRef),
+          tx.get(spendRef),
+        ]);
+        if (existingReceipt.exists) return false;
+        if (existingEntry.exists) throw new Error(`ledger entry ${earning.entryId} already exists`);
+
+        const balanceRaw = balanceSnap.data();
+        const currentBalance: Balance = balanceSnap.exists
+          ? {
+              availableMicros: toMicros(balanceRaw?.["availableMicros"]),
+              lifetimeMicros: toMicros(balanceRaw?.["lifetimeMicros"]),
+              pendingWithdrawalMicros: toMicros(balanceRaw?.["pendingWithdrawalMicros"]),
+            }
+          : EMPTY_BALANCE;
+        const nextBalance = applyEntry(currentBalance, earning);
+        const nextSpend = toMicros(spendSnap.data()?.["micros"]) + receipt.costMicros;
+
+        tx.create(receiptRef, {
+          ...receipt,
+          creditedMicros: fromMicros(receipt.creditedMicros),
+          costMicros: fromMicros(receipt.costMicros),
+        });
+        tx.create(entryRef, { ...earning, micros: fromMicros(earning.micros) });
+        tx.set(balanceRef, {
+          availableMicros: fromMicros(nextBalance.availableMicros),
+          lifetimeMicros: fromMicros(nextBalance.lifetimeMicros),
+          pendingWithdrawalMicros: fromMicros(nextBalance.pendingWithdrawalMicros),
+        });
+        tx.set(spendRef, { micros: fromMicros(nextSpend) });
+        return true;
+      });
     },
 
     async seriesForAdvertiser(advertiserId, since): Promise<SeriesPoint[]> {
@@ -508,6 +732,148 @@ export function createFirestoreStore(injected?: Firestore): Store {
       });
     },
 
+    async createCreditOrder(order) {
+      await (await lazy())
+        .collection("creditOrders")
+        .doc(order.orderId)
+        .create({ ...order, amountMicros: fromMicros(order.amountMicros) });
+    },
+
+    async getCreditOrder(orderId) {
+      const snap = await (await lazy()).collection("creditOrders").doc(orderId).get();
+      if (!snap.exists) return null;
+      const raw = snap.data() ?? {};
+      return {
+        ...(raw as CreditOrderRecord),
+        amountMicros: toMicros(raw["amountMicros"]),
+      };
+    },
+
+    async putCreditOrder(order) {
+      await (await lazy())
+        .collection("creditOrders")
+        .doc(order.orderId)
+        .set({ ...order, amountMicros: fromMicros(order.amountMicros) });
+    },
+
+    async listCreditOrders(advertiserId) {
+      const snap = await (await lazy())
+        .collection("creditOrders")
+        .where("advertiserId", "==", advertiserId)
+        .orderBy("createdAt", "desc")
+        .get();
+      return snap.docs.map((doc) => {
+        const raw = doc.data();
+        return { ...(raw as CreditOrderRecord), amountMicros: toMicros(raw["amountMicros"]) };
+      });
+    },
+
+    async applyCreditEvent(event) {
+      const database = await lazy();
+      const objectId =
+        event.type === "purchase"
+          ? `purchase:${event.paymentId}`
+          : event.type === "refund"
+            ? `refund:${event.refundId}`
+            : `${event.type}:${event.disputeId}`;
+      const order =
+        event.type === "purchase"
+          ? await store.getCreditOrder(event.orderId)
+          : await (async () => {
+              const snap = await database
+                .collection("creditOrders")
+                .where("providerPaymentId", "==", event.paymentId)
+                .limit(1)
+                .get();
+              const doc = snap.docs[0];
+              if (doc === undefined) return null;
+              const raw = doc.data();
+              return { ...(raw as CreditOrderRecord), amountMicros: toMicros(raw["amountMicros"]) };
+            })();
+      if (order === null) return { applied: false, reason: "ignored" };
+
+      const eventRef = database.collection("providerEvents").doc(event.webhookId);
+      const objectRef = database.collection("providerObjects").doc(encodeURIComponent(objectId));
+      const orderRef = database.collection("creditOrders").doc(order.orderId);
+      const advertiserRef = database.collection("advertisers").doc(order.advertiserId);
+      const disputeRef =
+        event.type === "dispute-opened" ||
+        event.type === "dispute-final" ||
+        event.type === "dispute-release"
+          ? database.collection("disputeDebits").doc(event.disputeId)
+          : null;
+
+      return database.runTransaction(async (tx) => {
+        const reads = await Promise.all([
+          tx.get(eventRef),
+          tx.get(objectRef),
+          tx.get(orderRef),
+          tx.get(advertiserRef),
+          ...(disputeRef === null ? [] : [tx.get(disputeRef)]),
+        ]);
+        if (reads[0]?.exists || reads[1]?.exists) return { applied: false, reason: "duplicate" };
+        const rawAdvertiser = reads[3]?.data();
+        if (rawAdvertiser === undefined) return { applied: false, reason: "ignored" };
+        const advertiser = {
+          ...(rawAdvertiser as AdvertiserRecord),
+          fundedMicros: toMicros(rawAdvertiser["fundedMicros"]),
+          reservedMicros: toMicros(rawAdvertiser["reservedMicros"]),
+        };
+        tx.create(eventRef, { type: event.type, objectId, at: Date.now() });
+        tx.create(objectRef, { webhookId: event.webhookId });
+
+        if (event.type === "purchase") {
+          const valid =
+            order.amountMicros === event.amountMicros &&
+            order.currency === event.currency &&
+            order.providerSessionId === event.sessionId &&
+            order.status === "checkout_created";
+          if (!valid) {
+            tx.update(orderRef, { status: "review_required", updatedAt: Date.now() });
+            return { applied: false, reason: "review_required" };
+          }
+          tx.update(advertiserRef, {
+            fundedMicros: fromMicros(advertiser.fundedMicros + order.amountMicros),
+          });
+          tx.update(orderRef, {
+            status: "paid",
+            providerPaymentId: event.paymentId,
+            updatedAt: Date.now(),
+          });
+          return { applied: true, reason: "applied", advertiserId: advertiser.advertiserId };
+        }
+
+        let delta = 0n;
+        if (event.type === "refund" || event.type === "dispute-opened") {
+          const removable = advertiser.fundedMicros > 0n ? advertiser.fundedMicros : 0n;
+          const removed = event.amountMicros < removable ? event.amountMicros : removable;
+          delta = -removed;
+          if (event.type === "dispute-opened" && disputeRef !== null) {
+            tx.set(disputeRef, { micros: fromMicros(removed) });
+          }
+        } else if (event.type === "dispute-release") {
+          delta = toMicros(reads[4]?.data()?.["micros"]);
+        }
+        const fundedMicros = advertiser.fundedMicros + delta;
+        tx.update(advertiserRef, {
+          fundedMicros: fromMicros(fundedMicros),
+          ...(fundedMicros < advertiser.reservedMicros ? { status: "suspended" } : {}),
+        });
+        tx.update(orderRef, {
+          status:
+            event.type === "dispute-opened"
+              ? "disputed"
+              : fundedMicros === 0n
+                ? "reversed"
+                : fundedMicros < order.amountMicros
+                  ? "partially_reversed"
+                  : "paid",
+          updatedAt: Date.now(),
+        });
+        return { applied: true, reason: "applied", advertiserId: advertiser.advertiserId };
+      });
+    },
+
     async createReport(report: ReportRecord) {
       await (await lazy()).collection("reports").doc(report.reportId).set(report);
     },
@@ -527,6 +893,207 @@ export function createFirestoreStore(injected?: Firestore): Store {
       const last = rows.at(-1);
 
       return { rows, nextCursor: more && last !== undefined ? last.reportId : null };
+    },
+
+    async setReportStatus(reportId: string, status: ReportRecord["status"]) {
+      const doc = (await lazy()).collection("reports").doc(reportId);
+      const snap = await doc.get();
+      if (!snap.exists) return false;
+      await doc.update({ status });
+      return true;
+    },
+
+    async deleteReport(reportId: string) {
+      const doc = (await lazy()).collection("reports").doc(reportId);
+      const snap = await doc.get();
+      if (!snap.exists) return false;
+      await doc.delete();
+      return true;
+    },
+
+    async getPayoutProfile(uid: string): Promise<PayoutProfileRecord | null> {
+      const snap = await (await lazy()).collection("payoutProfiles").doc(uid).get();
+      if (!snap.exists) return null;
+      const raw = snap.data() as Record<string, unknown>;
+      const encrypted = raw["encryptedDestination"] as EncryptedDestination | undefined;
+      if (encrypted === undefined) {
+        payoutKey();
+        return raw as unknown as PayoutProfileRecord;
+      }
+      return {
+        uid,
+        ...decryptDestination(payoutKey(), encrypted),
+        updatedAt: Number(raw["updatedAt"]),
+      };
+    },
+
+    async putPayoutProfile(profile: PayoutProfileRecord) {
+      await (await lazy()).collection("payoutProfiles").doc(profile.uid).set({
+        uid: profile.uid,
+        encryptedDestination: encryptDestination(payoutKey(), profile),
+        destinationMask: maskDestination(profile),
+        updatedAt: profile.updatedAt,
+      });
+    },
+
+    async getPayoutCorridor(country, currency) {
+      const snap = await (await lazy()).collection("payoutCorridors").doc(`${country}:${currency}`).get();
+      return snap.exists ? (snap.data() as PayoutCorridorRecord) : null;
+    },
+
+    async putPayoutCorridor(corridor) {
+      await (await lazy())
+        .collection("payoutCorridors")
+        .doc(`${corridor.country}:${corridor.currency}`)
+        .set(corridor);
+    },
+
+    async listPayoutCorridors(enabledOnly) {
+      const collection = (await lazy()).collection("payoutCorridors");
+      const snap = await (enabledOnly ? collection.where("enabled", "==", true) : collection).get();
+      return snap.docs
+        .map((doc) => doc.data() as PayoutCorridorRecord)
+        .sort((a, b) => a.country.localeCompare(b.country) || a.currency.localeCompare(b.currency));
+    },
+
+    async createWithdrawal(withdrawal: WithdrawalRecord) {
+      await (await lazy())
+        .collection("withdrawals")
+        .doc(withdrawal.withdrawalId)
+        .set(toWithdrawalDoc(withdrawal, payoutKey()));
+    },
+
+    async reserveWithdrawal(withdrawal, entry) {
+      const database = await lazy();
+      const withdrawalRef = database.collection("withdrawals").doc(withdrawal.withdrawalId);
+      const entryRef = database.collection("ledger").doc(entry.entryId);
+      const balanceRef = database.collection("balances").doc(withdrawal.uid);
+      const inFlightQuery = database
+        .collection("withdrawals")
+        .where("uid", "==", withdrawal.uid)
+        .where("status", "in", ["requested", "approved"])
+        .limit(1);
+
+      return database.runTransaction<"created" | "in-flight" | "insufficient-funds">(async (tx) => {
+        const [inFlight, existingEntry, balanceSnap] = await Promise.all([
+          tx.get(inFlightQuery),
+          tx.get(entryRef),
+          tx.get(balanceRef),
+        ]);
+        if (!inFlight.empty) return "in-flight";
+        if (existingEntry.exists) throw new Error(`ledger entry ${entry.entryId} already exists`);
+        const raw = balanceSnap.data();
+        const current: Balance = balanceSnap.exists
+          ? {
+              availableMicros: toMicros(raw?.["availableMicros"]),
+              lifetimeMicros: toMicros(raw?.["lifetimeMicros"]),
+              pendingWithdrawalMicros: toMicros(raw?.["pendingWithdrawalMicros"]),
+            }
+          : EMPTY_BALANCE;
+        if (current.availableMicros < withdrawal.amountMicros) return "insufficient-funds";
+        const next = applyEntry(current, entry);
+        tx.create(withdrawalRef, toWithdrawalDoc(withdrawal, payoutKey()));
+        tx.create(entryRef, { ...entry, micros: fromMicros(entry.micros) });
+        tx.set(balanceRef, {
+          availableMicros: fromMicros(next.availableMicros),
+          lifetimeMicros: fromMicros(next.lifetimeMicros),
+          pendingWithdrawalMicros: fromMicros(next.pendingWithdrawalMicros),
+        });
+        return "created";
+      });
+    },
+
+    async transitionWithdrawal(input) {
+      const database = await lazy();
+      const withdrawalRef = database.collection("withdrawals").doc(input.withdrawalId);
+      const entryRef = input.entry === undefined
+        ? null
+        : database.collection("ledger").doc(input.entry.entryId);
+
+      return database.runTransaction<boolean>(async (tx) => {
+        const withdrawalSnap = await tx.get(withdrawalRef);
+        if (!withdrawalSnap.exists) return false;
+        const current = fromWithdrawalDoc(
+          withdrawalSnap.data() as Record<string, unknown>,
+          payoutKey(),
+        );
+        if (!input.expectedStatuses.includes(current.status)) return false;
+
+        if (input.entry !== undefined && entryRef !== null) {
+          const balanceRef = database.collection("balances").doc(current.uid);
+          const [existingEntry, balanceSnap] = await Promise.all([tx.get(entryRef), tx.get(balanceRef)]);
+          if (existingEntry.exists) return false;
+          const raw = balanceSnap.data();
+          const balance: Balance = balanceSnap.exists
+            ? {
+                availableMicros: toMicros(raw?.["availableMicros"]),
+                lifetimeMicros: toMicros(raw?.["lifetimeMicros"]),
+                pendingWithdrawalMicros: toMicros(raw?.["pendingWithdrawalMicros"]),
+              }
+            : EMPTY_BALANCE;
+          const nextBalance = applyEntry(balance, input.entry);
+          tx.create(entryRef, { ...input.entry, micros: fromMicros(input.entry.micros) });
+          tx.set(balanceRef, {
+            availableMicros: fromMicros(nextBalance.availableMicros),
+            lifetimeMicros: fromMicros(nextBalance.lifetimeMicros),
+            pendingWithdrawalMicros: fromMicros(nextBalance.pendingWithdrawalMicros),
+          });
+        }
+
+        tx.update(withdrawalRef, {
+          status: input.status,
+          decidedAt: input.decidedAt,
+          decidedBy: input.decidedBy,
+          providerRef: input.providerRef,
+          note: input.note,
+          evidence: input.evidence ?? null,
+        });
+        return true;
+      });
+    },
+
+    async getWithdrawal(withdrawalId: string): Promise<WithdrawalRecord | null> {
+      const snap = await (await lazy()).collection("withdrawals").doc(withdrawalId).get();
+      return snap.exists ? fromWithdrawalDoc(snap.data() as Record<string, unknown>, payoutKey()) : null;
+    },
+
+    async putWithdrawal(withdrawal: WithdrawalRecord) {
+      await (await lazy())
+        .collection("withdrawals")
+        .doc(withdrawal.withdrawalId)
+        .set(toWithdrawalDoc(withdrawal, payoutKey()));
+    },
+
+    async withdrawalsForUser(uid: string): Promise<WithdrawalRecord[]> {
+      const snap = await (await lazy())
+        .collection("withdrawals")
+        .where("uid", "==", uid)
+        .orderBy("createdAt", "desc")
+        .get();
+      return snap.docs.map((d) => fromWithdrawalDoc(d.data() as Record<string, unknown>, payoutKey()));
+    },
+
+    async listWithdrawals(
+      status: WithdrawalStatus | null,
+      page: Page,
+    ): Promise<WithdrawalPage> {
+      const database = await lazy();
+      let q = database.collection("withdrawals").orderBy("createdAt", "desc").limit(page.limit + 1);
+      if (status !== null) q = q.where("status", "==", status) as typeof q;
+
+      if (page.cursor !== null) {
+        const cursorSnap = await database.collection("withdrawals").doc(page.cursor).get();
+        if (cursorSnap.exists) q = q.startAfter(cursorSnap);
+      }
+
+      const snap = await q.get();
+      const rows = snap.docs
+        .slice(0, page.limit)
+        .map((d) => fromWithdrawalDoc(d.data() as Record<string, unknown>, payoutKey()));
+      const more = snap.docs.length > page.limit;
+      const last = rows.at(-1);
+
+      return { rows, nextCursor: more && last !== undefined ? last.withdrawalId : null };
     },
 
     async listUsers(page: Page): Promise<UserPage> {
@@ -639,6 +1206,14 @@ export function createFirestoreStore(injected?: Firestore): Store {
         killSwitch: raw["killSwitch"] === true,
         caps: (raw["caps"] as ServingConfig["caps"]) ?? {},
         defaultCpmMicros: toMicros(raw["defaultCpmMicros"]),
+        floorCpmMicros:
+          raw["floorCpmMicros"] === undefined
+            ? DEFAULT_FLOOR_CPM_MICROS
+            : toMicros(raw["floorCpmMicros"]),
+        auctionIncrementCpmMicros:
+          raw["auctionIncrementCpmMicros"] === undefined
+            ? DEFAULT_AUCTION_INCREMENT_CPM_MICROS
+            : toMicros(raw["auctionIncrementCpmMicros"]),
         revSharePercent: toMicros(raw["revSharePercent"]),
         spendShardCount:
           typeof raw["spendShardCount"] === "number" ? raw["spendShardCount"] : DEFAULT_SHARD_COUNT,
@@ -659,6 +1234,8 @@ export function createFirestoreStore(injected?: Firestore): Store {
         .set({
           ...config,
           defaultCpmMicros: fromMicros(config.defaultCpmMicros),
+          floorCpmMicros: fromMicros(config.floorCpmMicros),
+          auctionIncrementCpmMicros: fromMicros(config.auctionIncrementCpmMicros),
           revSharePercent: fromMicros(config.revSharePercent),
         });
     },

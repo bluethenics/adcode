@@ -75,7 +75,21 @@ export type ReportResult =
  * time, withdrawable.
  */
 export type AccountState =
-  | { readonly state: "anonymous" }
+  | {
+      readonly state: "anonymous";
+      /**
+       * The account id ads are actually served to.
+       *
+       * Surfaced because an anonymous account has nothing else to identify it by, and the
+       * admin panel's "queue a test ad" needs to name one. Its user picker searches by
+       * name and address - which is everything an anonymous account does not have - so
+       * without this there was no way to discover which account the editor was running
+       * as, and a card queued against the wrong one waited forever while the admin screen
+       * said "Queued". Pseudonymous by design (§8.4): it identifies a machine's earnings,
+       * not a person.
+       */
+      readonly uid?: string;
+    }
   /** No Firebase key in this build, or pointed at a dev server. Offer nothing. */
   | { readonly state: "unavailable" }
   | {
@@ -84,6 +98,7 @@ export type AccountState =
       readonly displayName: string | null;
       readonly photoUrl: string | null;
       readonly providers: readonly string[];
+      readonly uid?: string;
     };
 
 export type LinkOutcome =
@@ -228,6 +243,31 @@ export interface SponsoredToast {
   readonly body: string | null;
   readonly logoDataUrl: string | null;
   readonly autoDismissMs: number;
+}
+
+/**
+ * What the editor knows about itself that the ad client needs.
+ *
+ * These three arrive together because they come from one place - the shell - and travel
+ * one way. The ad client asks for them through `IdeSignals`, and until this channel
+ * existed nothing ever answered: `languageIds` and `filenames` were permanently empty,
+ * so every serve request went out untargeted and the whole tag vocabulary was dead in
+ * the shipped app; `themeKind` was permanently `"dark"`, so a light-theme user got the
+ * dark logo and every receipt reported a theme the user was not using.
+ *
+ * `themeKind` is two-valued where the app's own `ThemeChoice` is three: midnight is a
+ * dark theme, and an advertiser's light/dark artwork is the only thing this decides.
+ *
+ * Filenames are basenames, never paths - the tagger is documented to see basenames only
+ * (§8.2), and sending a path would put the user's directory layout on the wire for no
+ * gain.
+ */
+export interface AdSignals {
+  readonly themeKind: "light" | "dark";
+  /** Open editors' language ids. Never file contents. */
+  readonly languageIds: readonly string[];
+  /** Basenames of the open editors and the workspace root. Never full paths. */
+  readonly filenames: readonly string[];
 }
 
 /**
@@ -418,6 +458,7 @@ export const CHANNELS = {
   adDismissed: "ads:dismissed",
   adClicked: "ads:clicked",
   adSuppressionChanged: "ads:suppression",
+  adSignals: "ads:signals",
   adRefreshEarnings: "ads:refresh-earnings",
   earningsChanged: "ads:earnings",
   settingsRead: "settings:read",
@@ -1370,6 +1411,14 @@ export interface AdcodeApi {
     refreshEarnings(): Promise<EarningsSnapshot>;
     /** Zen, full-screen, and presentation mode (§8.3). */
     setSuppressed(suppressed: boolean): void;
+    /**
+     * Tell the main process what the editor currently looks like and holds open.
+     *
+     * Fire and forget, and coalesced by the caller: this rides on tab switches and theme
+     * changes, and a round trip per keystroke-adjacent event is exactly the latency §9
+     * forbids the ad path from adding.
+     */
+    reportSignals(signals: AdSignals): void;
   };
   /**
    * Live collaboration.

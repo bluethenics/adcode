@@ -61,6 +61,22 @@ export interface MockServer {
   seed(creatives: ServedCreative[]): void;
   setKillSwitch(on: boolean): void;
   receiptCount(): number;
+  /**
+   * What the last `/v1/serve` request actually asked for.
+   *
+   * The only way to prove from outside the client that targeting is alive. An editor that
+   * never answers the ad client's `IdeSignals` port still serves ads perfectly well - it
+   * just serves untargeted ones - and no assertion on the *response* can tell the two
+   * apart. This is an assertion on the request.
+   */
+  lastServe(): { readonly tags: readonly string[]; readonly themeKind: string } | null;
+  /**
+   * How many serve requests have arrived.
+   *
+   * A client that has stopped asking is indistinguishable from one that is asking and being
+   * refused if all you can see is the last request. Counting is what tells them apart.
+   */
+  serveCount(): number;
   /** Fail the next `count` requests with `status`, for backoff tests. */
   failNext(count: number, status: number): void;
   /** Return unparseable bytes for the next `count` requests. */
@@ -75,6 +91,8 @@ interface State {
   lifetimeMicros: bigint;
   killSwitch: boolean;
   seeded: ServedCreative[] | null;
+  lastServe: { tags: string[]; themeKind: string } | null;
+  serveCount: number;
   failures: { remaining: number; status: number };
   corruptions: number;
   hangs: { remaining: number; ms: number };
@@ -87,6 +105,8 @@ function freshState(): State {
     lifetimeMicros: 0n,
     killSwitch: false,
     seeded: null,
+    lastServe: null,
+    serveCount: 0,
     failures: { remaining: 0, status: 500 },
     corruptions: 0,
     hangs: { remaining: 0, ms: 0 },
@@ -228,6 +248,13 @@ export async function createMockServer(options: { port?: number } = {}): Promise
         return;
       }
 
+      // Recorded after validation, so what is kept is a request the contract accepted.
+      state.serveCount += 1;
+      state.lastServe = {
+        tags: (body["tags"] as unknown[]).filter((t): t is string => typeof t === "string"),
+        themeKind: body["themeKind"],
+      };
+
       const inventory = state.seeded ?? defaultInventory(publicAssetOrigin);
       const count = Math.max(0, Math.min(Math.floor(body["count"]), inventory.length));
       const payload: ServeResponseBody = { creatives: inventory.slice(0, count) };
@@ -324,6 +351,8 @@ export async function createMockServer(options: { port?: number } = {}): Promise
       state.killSwitch = on;
     },
     receiptCount: () => state.receipts.size,
+    lastServe: () => state.lastServe,
+    serveCount: () => state.serveCount,
     failNext: (count, status) => {
       state.failures = { remaining: count, status };
     },

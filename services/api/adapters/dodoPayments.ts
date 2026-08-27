@@ -7,13 +7,8 @@
  * webhook, idempotent crediting, budget reservation - is covered by tests that need no
  * account at all.
  *
- * The `advertiserId` goes into `metadata`, and that is what the webhook reads back to
- * decide whose balance to raise. It is the only link between a payment and an account,
- * so it must be set on every checkout.
- *
- * The reference marks POST /payments deprecated in favour of Checkout Sessions. It is
- * used here because its request and response shapes are documented in full; moving to
- * sessions later changes this file and nothing above it.
+ * The internal credit-order id goes into metadata. Webhooks resolve that server-authored
+ * order rather than trusting an advertiser id or amount supplied by the provider event.
  */
 import type { CheckoutRequest, CheckoutSession, PaymentProvider } from "../src/payments.ts";
 import { microsToMinorUnits } from "../src/payments.ts";
@@ -35,15 +30,15 @@ export function createDodoProvider(): PaymentProvider {
       if (apiKey === undefined || productId === undefined) return null;
 
       try {
-        const response = await fetch(`${baseUrl()}/payments`, {
+        const response = await fetch(`${baseUrl()}/checkouts`, {
           method: "POST",
           headers: {
             authorization: `Bearer ${apiKey}`,
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            payment_link: true,
             return_url: request.returnUrl,
+            cancel_url: request.cancelUrl,
             product_cart: [
               {
                 product_id: productId,
@@ -52,8 +47,8 @@ export function createDodoProvider(): PaymentProvider {
               },
             ],
             customer: { name: request.advertiserName, email: request.advertiserEmail },
-            billing: { country: request.billingCountry },
-            metadata: { advertiserId: request.advertiserId },
+            billing_address: { country: request.billingCountry },
+            metadata: { orderId: request.orderId },
           }),
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });
@@ -61,11 +56,11 @@ export function createDodoProvider(): PaymentProvider {
         if (!response.ok) return null;
 
         const parsed = (await response.json()) as Record<string, unknown>;
-        const paymentId = parsed["payment_id"];
-        const paymentLink = parsed["payment_link"];
+        const sessionId = parsed["session_id"];
+        const checkoutUrl = parsed["checkout_url"];
 
-        if (typeof paymentId !== "string" || typeof paymentLink !== "string") return null;
-        return { paymentId, paymentLink };
+        if (typeof sessionId !== "string" || typeof checkoutUrl !== "string") return null;
+        return { sessionId, checkoutUrl };
       } catch {
         return null;
       }

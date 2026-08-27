@@ -7,7 +7,7 @@
  */
 import type { ServeRequestBody, ServeResponseBody, ServedCreative } from "./contract.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
-import { selectCampaigns, type Candidate } from "./targeting.ts";
+import { runAuction, type Candidate } from "./targeting.ts";
 
 export interface ServeDeps {
   store: Store;
@@ -43,6 +43,9 @@ export async function handleServe(
         campaignId: creative.campaignId,
         servedAt: at,
         expiresAt: at + config.serveTtlMs,
+        maxBidCpmMicros: 0n,
+        clearingCpmMicros: 0n,
+        costMicros: 0n,
         test: true,
       });
 
@@ -74,13 +77,22 @@ export async function handleServe(
     })),
   );
 
-  const ranked = selectCampaigns(candidates, body.tags, body.count);
+  const ranked = runAuction({
+    candidates,
+    tags: body.tags,
+    count: body.count,
+    floorCpmMicros: config.floorCpmMicros,
+    incrementCpmMicros: config.auctionIncrementCpmMicros,
+    tieSeed: deps.ids.next("auction"),
+  });
 
   const now = deps.clock.now();
   const creatives: ServedCreative[] = [];
 
-  for (const campaign of ranked) {
+  for (const winner of ranked) {
     if (creatives.length >= body.count) break;
+
+    const { campaign } = winner;
 
     const approved = await deps.store.creativesForCampaign(campaign.campaignId);
     const creative = approved[0];
@@ -93,6 +105,9 @@ export async function handleServe(
       campaignId: campaign.campaignId,
       servedAt: now,
       expiresAt: now + config.serveTtlMs,
+      maxBidCpmMicros: winner.maxBidCpmMicros,
+      clearingCpmMicros: winner.clearingCpmMicros,
+      costMicros: winner.costMicros,
     });
 
     creatives.push({

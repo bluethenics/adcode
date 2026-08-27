@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useAuth } from "@/components/AuthProvider";
@@ -16,7 +15,8 @@ import {
   type CampaignView,
   type SeriesPointView,
 } from "@/lib/api";
-import { PORTAL_TABS } from "./tabs";
+import { BillingBody } from "./billing/page";
+import { NewCampaignForm } from "./campaigns/new/page";
 
 type Window = "7" | "30" | "90";
 
@@ -31,7 +31,6 @@ export default function PortalHome() {
     <AppShell
       title="Campaigns"
       subtitle="What you are spending, and what it is buying"
-      tabs={PORTAL_TABS}
     >
       <PortalBody />
     </AppShell>
@@ -134,11 +133,7 @@ function PortalBody() {
           One screen: your logo, your message, a budget. Your advertiser account is created
           along with the campaign — there is no separate sign-up to get through first.
         </p>
-        <div className="actions" style={{ justifyContent: "center" }}>
-          <Link href="/portal/campaigns/new" className="btn btn-primary">
-            Create a campaign
-          </Link>
-        </div>
+        <NewCampaignForm />
       </div>
     );
   }
@@ -158,12 +153,8 @@ function PortalBody() {
           {money(advertiser?.fundedMicros ?? "0")} funded all time
         </span>
         <div className="actions" style={{ marginTop: 18 }}>
-          <Link href="/portal/campaigns/new" className="btn btn-primary btn-small">
-            New campaign
-          </Link>
-          <Link href="/portal/billing" className="btn btn-outline btn-small">
-            Add funds
-          </Link>
+          <a href="#new-campaign" className="btn btn-primary btn-small">New campaign</a>
+          <a href="#credits" className="btn btn-outline btn-small">Add credits</a>
         </div>
       </div>
 
@@ -231,11 +222,7 @@ function PortalBody() {
             A campaign holds your budget, your card, and who sees it. One screen creates all
             three.
           </p>
-          <div className="actions" style={{ justifyContent: "center" }}>
-            <Link href="/portal/campaigns/new" className="btn btn-primary btn-small">
-              Create your first campaign
-            </Link>
-          </div>
+          <div className="actions" style={{ justifyContent: "center" }}><a href="#new-campaign" className="btn btn-primary btn-small">Create your first campaign</a></div>
         </div>
       ) : (
         <>
@@ -301,9 +288,9 @@ function PortalBody() {
             </section>
           </div>
 
-          <section>
+          <section id="campaigns" className="workspace-section">
             <h2 className="section-title">All campaigns</h2>
-            <div className="rows">
+            <div className="campaign-stack">
               <div className="row row-head">
                 <span className="row-main">Campaign</span>
                 <span className="row-num">Views</span>
@@ -311,12 +298,9 @@ function PortalBody() {
                 <span className="row-num">Spent</span>
               </div>
               {campaigns.map((campaign, index) => (
-                <Link
-                  key={campaign.campaignId}
-                  href={`/portal/campaigns/${campaign.campaignId}`}
-                  className="row"
-                >
-                  <span className="row-main">
+                <details key={campaign.campaignId} className="campaign-inline">
+                  <summary>
+                    <span className="row-main">
                     <span className="row-title">
                       <i className="row-dot" style={{ background: seriesColor(index) }} aria-hidden="true" />
                       {campaign.name}
@@ -331,15 +315,27 @@ function PortalBody() {
                         : `${campaign.targetTags.length} tag${campaign.targetTags.length === 1 ? "" : "s"}`}
                     </span>
                   </span>
-                  <span className="row-num mono">{campaign.impressions.toLocaleString("en-US")}</span>
-                  <span className="row-num mono">{campaign.clicks.toLocaleString("en-US")}</span>
-                  <span className="row-num mono">{money(campaign.spentMicros)}</span>
-                </Link>
+                    <span className="row-num mono">{campaign.impressions.toLocaleString("en-US")} views</span>
+                    <span className="row-num mono">{campaign.clicks.toLocaleString("en-US")} clicks</span>
+                    <span className="row-num mono">{money(campaign.spentMicros)} spent</span>
+                  </summary>
+                  <div className="campaign-inline-body"><p>Maximum bid and creative controls stay attached to this campaign. Detailed editing is being folded into this row; the current campaign remains fully tracked here.</p><dl><div><dt>Budget</dt><dd>{money(campaign.budgetMicros)}</dd></div><div><dt>Spent</dt><dd>{money(campaign.spentMicros)}</dd></div><div><dt>Audience</dt><dd>{campaign.targetTags.length === 0 ? "Every developer" : `${campaign.targetTags.length} contexts`}</dd></div></dl></div>
+                </details>
               ))}
             </div>
           </section>
         </>
       )}
+
+      <section className="workspace-section" id="credits" aria-labelledby="credits-title">
+        <h2 className="workspace-section-title" id="credits-title">Credits</h2>
+        <details className="workspace-disclosure"><summary>Buy advertising credits</summary><div className="workspace-disclosure-body"><BillingBody /></div></details>
+      </section>
+
+      <section className="workspace-section" id="new-campaign" aria-labelledby="new-campaign-title">
+        <h2 className="workspace-section-title" id="new-campaign-title">Create a campaign</h2>
+        <details className="workspace-disclosure"><summary>Open campaign builder</summary><div className="workspace-disclosure-body"><NewCampaignForm /></div></details>
+      </section>
     </>
   );
 }

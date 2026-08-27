@@ -59,7 +59,7 @@ revenue to the developer using it.
 - Ad format: one small sponsored card in the corner of the window.
 - Ad targeting: a fixed vocabulary of 45 generic tags for language, framework, tool, and
   platform. File contents, paths, and project names are never transmitted.
-- Revenue share: the developer receives 50% of the advertiser's CPM.
+- Revenue share: the developer receives 50% of the winning ad's clearing CPM.
 - Earnings record: an append-only ledger. Entries are never edited or deleted; corrections
   are recorded as reversals that reference the original entry.
 

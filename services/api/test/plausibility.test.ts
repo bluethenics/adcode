@@ -22,6 +22,9 @@ const serve = (over: Partial<ServeRecord> = {}): ServeRecord => ({
   campaignId: "camp-1",
   servedAt: NOW - 20_000,
   expiresAt: NOW + 20_000,
+  maxBidCpmMicros: 8_000_000n,
+  clearingCpmMicros: 5_010_000n,
+  costMicros: 5_010n,
   ...over,
 });
 

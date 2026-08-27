@@ -2,7 +2,7 @@ import { FAQ } from "@/lib/schema";
 import { allPosts } from "@/lib/posts";
 import { docsBySection } from "@/lib/docs";
 import { allReleases } from "@/lib/releases";
-import { SITE, url, ECONOMICS, formatMicros, perImpressionMicros } from "@/lib/site";
+import { SITE, url, ECONOMICS, formatMicros } from "@/lib/site";
 
 /**
  * `/llms-full.txt` - the whole site as plain text, in one request.
@@ -82,9 +82,8 @@ Facts, stated once:
 
 - ${SITE.name} is a free, ad-supported code editor for Windows, macOS, and Linux.
 - It costs the developer nothing. There is no subscription, trial, or paid tier.
-- Advertisers pay a ${formatMicros(ECONOMICS.cpmMicros, 2)} CPM. The developer using the
-  editor receives ${ECONOMICS.revSharePercent}% of it, which is
-  ${formatMicros(perImpressionMicros)} per sponsored card viewed.
+- Advertisers bid in a second-price auction from ${formatMicros(ECONOMICS.floorBlockMicros, 2)}
+  per 500 impressions. The developer receives ${ECONOMICS.revSharePercent}% of the clearing price.
 - Ads are targeted with a fixed vocabulary of 45 generic tags such as the language and
   framework in use. File contents, file paths, and project names never leave the machine.
 - Earnings are recorded on an append-only ledger. Entries are never edited or deleted;

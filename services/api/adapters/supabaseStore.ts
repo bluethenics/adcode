@@ -25,6 +25,12 @@
  */
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../src/ledger.ts";
 import {
+  decryptDestination,
+  encryptDestination,
+  maskDestination,
+  type EncryptedDestination,
+} from "../src/payoutCrypto.ts";
+import {
   ACTIVITY_COLS,
   ADVERTISER_COLS,
   ADMIN_COLS,
@@ -34,6 +40,7 @@ import {
   CONFIG_COLS,
   CREATIVE_COLS,
   FUNDING_COLS,
+  CREDIT_ORDER_COLS,
   LEDGER_COLS,
   NOTICE_COLS,
   POST_COLS,
@@ -48,10 +55,12 @@ import {
   fromConfig,
   fromCreative,
   fromFunding,
+  fromCreditOrder,
   fromMicros,
   fromNotice,
   fromPost,
   fromRelease,
+  fromPayoutProfile,
   fromReport,
   fromServe,
   fromUser,
@@ -64,10 +73,12 @@ import {
   toCreative,
   toEntry,
   toFunding,
+  toCreditOrder,
   toMicros,
   toNotice,
   toPost,
   toRelease,
+  toPayoutProfile,
   toReport,
   toServe,
   toUser,
@@ -80,11 +91,18 @@ import {
   type ConfigRow,
   type CreativeRow,
   type FundingRow,
+  type CreditOrderRow,
   type LedgerRow,
   type NoticeRow,
   type PostRow,
   type ReleaseRow,
+  toWithdrawal,
+  fromWithdrawal,
+  PAYOUT_PROFILE_COLS,
+  WITHDRAWAL_COLS,
+  type PayoutProfileRow,
   type ReportRow,
+  type WithdrawalRow,
   type ServeRow,
   type UserRow,
 } from "./supabaseRows.ts";
@@ -95,10 +113,22 @@ import type {
   SeriesPoint,
   Page,
   ReportPage,
+  WithdrawalPage,
   ServingConfig,
   Store,
+  PayoutDestination,
+  PayoutProfileRecord,
+  WithdrawalRecord,
   UserPage,
 } from "../src/store.ts";
+
+/**
+ * Where creative artwork lives.
+ *
+ * A private bucket: the bytes are handed out by the service's own `/assets/:key` route, so
+ * the client only ever talks to one hostname and the bucket needs no public policy.
+ */
+const ASSET_BUCKET = "creative-assets";
 
 type SupabaseClient = import("@supabase/supabase-js").SupabaseClient;
 
@@ -129,6 +159,8 @@ export interface SupabaseStoreOptions {
   serviceRoleKey?: string;
   /** For tests: an already-constructed client. */
   client?: SupabaseClient;
+  /** Base64-encoded 32-byte AES key. Falls back to `PAYOUT_ENCRYPTION_KEY`. */
+  payoutEncryptionKey?: string;
 }
 
 function fail(context: string, error: { message: string }): never {
@@ -137,6 +169,63 @@ function fail(context: string, error: { message: string }): never {
 
 export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
   let client: SupabaseClient | undefined = options.client;
+
+  const payoutKey = (): string => {
+    const key = options.payoutEncryptionKey ?? process.env["PAYOUT_ENCRYPTION_KEY"];
+    if (key === undefined || key === "") {
+      throw new Error("PAYOUT_ENCRYPTION_KEY is required for payout data");
+    }
+    return key;
+  };
+
+  const encryptedFromRow = (row: {
+    destination_version?: number | null;
+    destination_nonce?: string | null;
+    destination_ciphertext?: string | null;
+    destination_tag?: string | null;
+  }): PayoutDestination | null => {
+    payoutKey();
+    if (
+      row.destination_version !== 1 ||
+      typeof row.destination_nonce !== "string" ||
+      typeof row.destination_ciphertext !== "string" ||
+      typeof row.destination_tag !== "string"
+    ) return null;
+    const encrypted: EncryptedDestination = {
+      version: 1,
+      nonce: row.destination_nonce,
+      ciphertext: row.destination_ciphertext,
+      tag: row.destination_tag,
+    };
+    return decryptDestination(payoutKey(), encrypted);
+  };
+
+  const encryptedColumns = (destination: PayoutDestination): Record<string, unknown> => {
+    const encrypted = encryptDestination(payoutKey(), destination);
+    return {
+      method: "bank",
+      legal_name: "Encrypted payout destination",
+      country: destination.country,
+      currency: destination.currency,
+      email: null,
+      bank_details: null,
+      destination_version: encrypted.version,
+      destination_nonce: encrypted.nonce,
+      destination_ciphertext: encrypted.ciphertext,
+      destination_tag: encrypted.tag,
+      destination_mask: JSON.stringify(maskDestination(destination)),
+    };
+  };
+
+  const payoutProfileFromRow = (row: PayoutProfileRow): PayoutProfileRecord => {
+    const destination = encryptedFromRow(row) ?? toPayoutProfile(row);
+    return { uid: row.uid, ...destination, updatedAt: row.updated_at };
+  };
+
+  const withdrawalFromRow = (row: WithdrawalRow): WithdrawalRecord => {
+    const legacy = toWithdrawal(row);
+    return { ...legacy, destination: encryptedFromRow(row) ?? legacy.destination };
+  };
 
   const lazy = async (): Promise<SupabaseClient> => {
     if (client !== undefined) return client;
@@ -293,6 +382,55 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       };
     },
 
+    async transitionCampaignCommitment(input) {
+      const result = await scalar<{
+        ok: boolean;
+        reason?: "not-found" | "insufficient-funds" | "invalid-state";
+      }>("transitionCampaignCommitment", (db) =>
+        db.rpc("transition_campaign_commitment", {
+          p_advertiser_id: input.advertiserId,
+          p_campaign_id: input.campaignId,
+          p_next: input.next,
+          p_spent_micros: fromMicros(input.spentMicros),
+        }),
+      );
+      if (!result.ok) return { ok: false, reason: result.reason ?? "invalid-state" };
+      const row = await maybe<CampaignRow>("transitionCampaignCommitment.read", (db) =>
+        db.from("campaigns").select(CAMPAIGN_COLS).eq("campaign_id", input.campaignId).maybeSingle(),
+      );
+      return row === null
+        ? { ok: false, reason: "not-found" }
+        : { ok: true, campaign: toCampaign(row) };
+    },
+
+    /*
+     * Artwork goes to Storage, not to a column.
+     *
+     * `upsert: true` because the key is derived from the creative id: re-submitting a
+     * creative replaces its own artwork rather than leaving the old object orphaned.
+     *
+     * Storage is plain HTTPS on the same client, so it works on Cloudflare's runtime for
+     * the same reason PostgREST does - there is no socket involved.
+     */
+    async putAsset(key, asset) {
+      const { error } = await (await lazy()).storage
+        .from(ASSET_BUCKET)
+        .upload(key, asset.bytes, { contentType: asset.contentType, upsert: true });
+      if (error !== null) fail("putAsset", error);
+    },
+
+    async getAsset(key) {
+      const { data, error } = await (await lazy()).storage.from(ASSET_BUCKET).download(key);
+      // A missing object is a 404 from Storage, which arrives as an error rather than as
+      // empty data. That is "no such asset", not a failure worth throwing over.
+      if (error !== null || data === null) return null;
+
+      return {
+        contentType: data.type === "" ? "application/octet-stream" : data.type,
+        bytes: new Uint8Array(await data.arrayBuffer()),
+      };
+    },
+
     async putCreative(creative) {
       const { error } = await (await lazy()).from("creatives").upsert(fromCreative(creative));
       if (error !== null) fail("putCreative", error);
@@ -343,6 +481,32 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       return row === null ? null : toServe(row);
     },
 
+    async marketPriceHistory(since) {
+      const rows = await many<ServeRow>("marketPriceHistory", (db) =>
+        db
+          .from("serves")
+          .select(SERVE_COLS)
+          .gte("served_at", since)
+          .eq("test", false)
+          .order("served_at", { ascending: true })
+          .limit(10_000),
+      );
+      const buckets = new Map<number, { total: bigint; count: bigint }>();
+      for (const row of rows) {
+        const price = BigInt(row.clearing_cpm_micros);
+        if (price <= 0n) continue;
+        const at = Math.floor(row.served_at / 3_600_000) * 3_600_000;
+        const bucket = buckets.get(at) ?? { total: 0n, count: 0n };
+        bucket.total += price;
+        bucket.count += 1n;
+        buckets.set(at, bucket);
+      }
+      return [...buckets.entries()].map(([at, bucket]) => ({
+        at,
+        clearingCpmMicros: bucket.total / bucket.count,
+      }));
+    },
+
     async createReceiptIfAbsent(receipt) {
       return scalar<boolean>("createReceiptIfAbsent", (db) =>
         db.rpc("create_receipt_if_absent", {
@@ -354,6 +518,31 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
           p_credited_micros: fromMicros(receipt.creditedMicros),
           p_cost_micros: fromMicros(receipt.costMicros),
           p_created_at: receipt.createdAt,
+        }),
+      );
+    },
+
+    async settleReceipt({ receipt, earning }) {
+      const delta = applyEntry(EMPTY_BALANCE, earning);
+      return scalar<boolean>("settleReceipt", (db) =>
+        db.rpc("settle_receipt", {
+          p_receipt_id: receipt.receiptId,
+          p_uid: receipt.uid,
+          p_creative_id: receipt.creativeId,
+          p_campaign_id: receipt.campaignId,
+          p_outcome: receipt.outcome,
+          p_credited_micros: fromMicros(receipt.creditedMicros),
+          p_cost_micros: fromMicros(receipt.costMicros),
+          p_receipt_created_at: receipt.createdAt,
+          p_entry_id: earning.entryId,
+          p_entry_kind: earning.kind,
+          p_entry_micros: fromMicros(earning.micros),
+          p_entry_ref_id: earning.refId,
+          p_entry_created_at: earning.createdAt,
+          p_entry_description: earning.description,
+          p_available_delta: fromMicros(delta.availableMicros),
+          p_lifetime_delta: fromMicros(delta.lifetimeMicros),
+          p_pending_delta: fromMicros(delta.pendingWithdrawalMicros),
         }),
       );
     },
@@ -516,6 +705,62 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       return rows.map(toFunding);
     },
 
+    async createCreditOrder(order) {
+      const { error } = await (await lazy()).from("advertiser_credit_orders").insert(fromCreditOrder(order));
+      if (error !== null) fail("createCreditOrder", error);
+    },
+
+    async getCreditOrder(orderId) {
+      const row = await maybe<CreditOrderRow>("getCreditOrder", (db) =>
+        db
+          .from("advertiser_credit_orders")
+          .select(CREDIT_ORDER_COLS)
+          .eq("order_id", orderId)
+          .maybeSingle(),
+      );
+      return row === null ? null : toCreditOrder(row);
+    },
+
+    async putCreditOrder(order) {
+      const { error } = await (await lazy())
+        .from("advertiser_credit_orders")
+        .upsert(fromCreditOrder(order));
+      if (error !== null) fail("putCreditOrder", error);
+    },
+
+    async listCreditOrders(advertiserId) {
+      const rows = await many<CreditOrderRow>("listCreditOrders", (db) =>
+        db
+          .from("advertiser_credit_orders")
+          .select(CREDIT_ORDER_COLS)
+          .eq("advertiser_id", advertiserId)
+          .order("created_at", { ascending: false }),
+      );
+      return rows.map(toCreditOrder);
+    },
+
+    async applyCreditEvent(event) {
+      const providerObjectId =
+        event.type === "purchase"
+          ? event.paymentId
+          : event.type === "refund"
+            ? event.refundId
+            : event.disputeId;
+      return scalar("applyCreditEvent", (db) =>
+        db.rpc("apply_advertiser_credit_event", {
+          p_webhook_id: event.webhookId,
+          p_event_type: event.type,
+          p_provider_object_id: providerObjectId,
+          p_payment_id: event.paymentId,
+          p_order_id: event.type === "purchase" ? event.orderId : null,
+          p_session_id: event.type === "purchase" ? event.sessionId : null,
+          p_amount_micros: fromMicros(event.amountMicros),
+          p_currency: event.type === "purchase" ? event.currency : "USD",
+          p_received_at: Date.now(),
+        }),
+      );
+    },
+
     async createReport(report) {
       const { error } = await (await lazy()).from("reports").upsert(fromReport(report));
       if (error !== null) fail("createReport", error);
@@ -529,6 +774,205 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       );
       const { rows: kept, nextCursor } = cut(rows, page, (r) => r.report_id);
       return { rows: kept.map(toReport), nextCursor };
+    },
+
+    async setReportStatus(reportId, status) {
+      const rows = await many<{ report_id: string }>("setReportStatus", (db) =>
+        db.from("reports").update({ status }).eq("report_id", reportId).select("report_id"),
+      );
+      // The returned rows are how "there was nothing to update" is told apart from
+      // "updated": PostgREST reports both as a success with no error.
+      return rows.length > 0;
+    },
+
+    async deleteReport(reportId) {
+      const rows = await many<{ report_id: string }>("deleteReport", (db) =>
+        db.from("reports").delete().eq("report_id", reportId).select("report_id"),
+      );
+      return rows.length > 0;
+    },
+
+    async getPayoutProfile(uid) {
+      const row = await maybe<PayoutProfileRow>("getPayoutProfile", (db) =>
+        db.from("payout_profiles").select(PAYOUT_PROFILE_COLS).eq("uid", uid).maybeSingle(),
+      );
+      return row === null ? null : payoutProfileFromRow(row);
+    },
+
+    async putPayoutProfile(profile) {
+      const row = { ...fromPayoutProfile(profile), ...encryptedColumns(profile) };
+      const { error } = await (await lazy())
+        .from("payout_profiles")
+        .upsert(row);
+      if (error !== null) fail("putPayoutProfile", error);
+    },
+
+    async getPayoutCorridor(country, currency) {
+      const row = await maybe<Record<string, unknown>>("getPayoutCorridor", (db) =>
+        db
+          .from("payout_corridors")
+          .select("country,currency,enabled,required_fields,source_note,verified_at,updated_at,updated_by")
+          .eq("country", country)
+          .eq("currency", currency)
+          .maybeSingle(),
+      );
+      return row === null
+        ? null
+        : {
+            country: String(row["country"]),
+            currency: String(row["currency"]),
+            enabled: row["enabled"] === true,
+            requiredFields: row["required_fields"] as import("../src/store.ts").PayoutFieldKind[],
+            sourceNote: String(row["source_note"] ?? ""),
+            verifiedAt: typeof row["verified_at"] === "number" ? row["verified_at"] : null,
+            updatedAt: Number(row["updated_at"]),
+            updatedBy: String(row["updated_by"]),
+          };
+    },
+
+    async putPayoutCorridor(corridor) {
+      const { error } = await (await lazy()).from("payout_corridors").upsert({
+        country: corridor.country,
+        currency: corridor.currency,
+        enabled: corridor.enabled,
+        required_fields: corridor.requiredFields,
+        source_note: corridor.sourceNote,
+        verified_at: corridor.verifiedAt,
+        updated_at: corridor.updatedAt,
+        updated_by: corridor.updatedBy,
+      });
+      if (error !== null) fail("putPayoutCorridor", error);
+    },
+
+    async listPayoutCorridors(enabledOnly) {
+      let query = (await lazy())
+        .from("payout_corridors")
+        .select("country,currency,enabled,required_fields,source_note,verified_at,updated_at,updated_by")
+        .order("country")
+        .order("currency");
+      if (enabledOnly) query = query.eq("enabled", true);
+      const { data, error } = await query;
+      if (error !== null) fail("listPayoutCorridors", error);
+      return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+        country: String(row["country"]),
+        currency: String(row["currency"]),
+        enabled: row["enabled"] === true,
+        requiredFields: row["required_fields"] as import("../src/store.ts").PayoutFieldKind[],
+        sourceNote: String(row["source_note"] ?? ""),
+        verifiedAt: typeof row["verified_at"] === "number" ? row["verified_at"] : null,
+        updatedAt: Number(row["updated_at"]),
+        updatedBy: String(row["updated_by"]),
+      }));
+    },
+
+    async createWithdrawal(withdrawal) {
+      // `insert`, not `upsert`: a second request that reuses an id is a bug, and the
+      // unique violation is the only place it can still be caught.
+      const row = { ...fromWithdrawal(withdrawal), ...encryptedColumns(withdrawal.destination) };
+      const { error } = await (await lazy()).from("withdrawals").insert(row);
+      if (error !== null) fail("createWithdrawal", error);
+    },
+
+    async reserveWithdrawal(withdrawal, entry) {
+      const row = { ...fromWithdrawal(withdrawal), ...encryptedColumns(withdrawal.destination) };
+      const delta = applyEntry(EMPTY_BALANCE, entry);
+      return scalar<"created" | "in-flight" | "insufficient-funds">(
+        "reserveWithdrawal",
+        (db) => db.rpc("reserve_withdrawal", {
+          p_withdrawal: row,
+          p_entry: {
+            entry_id: entry.entryId,
+            uid: entry.uid,
+            kind: entry.kind,
+            micros: fromMicros(entry.micros),
+            ref_id: entry.refId,
+            created_at: entry.createdAt,
+            description: entry.description,
+            reason: entry.reason ?? null,
+            admin_uid: entry.adminUid ?? null,
+            provider_ref: entry.providerRef ?? null,
+            currency: entry.currency ?? null,
+          },
+          p_available_delta: fromMicros(delta.availableMicros),
+          p_lifetime_delta: fromMicros(delta.lifetimeMicros),
+          p_pending_delta: fromMicros(delta.pendingWithdrawalMicros),
+        }),
+      );
+    },
+
+    async transitionWithdrawal(input) {
+      const delta = input.entry === undefined ? EMPTY_BALANCE : applyEntry(EMPTY_BALANCE, input.entry);
+      return scalar<boolean>("transitionWithdrawal", (db) => db.rpc("transition_withdrawal", {
+        p_withdrawal_id: input.withdrawalId,
+        p_expected_statuses: input.expectedStatuses,
+        p_status: input.status,
+        p_decided_at: input.decidedAt,
+        p_decided_by: input.decidedBy,
+        p_provider_ref: input.providerRef,
+        p_note: input.note,
+        p_evidence: input.evidence ?? null,
+        p_entry: input.entry === undefined ? null : {
+          entry_id: input.entry.entryId,
+          uid: input.entry.uid,
+          kind: input.entry.kind,
+          micros: fromMicros(input.entry.micros),
+          ref_id: input.entry.refId,
+          created_at: input.entry.createdAt,
+          description: input.entry.description,
+          reason: input.entry.reason ?? null,
+          admin_uid: input.entry.adminUid ?? null,
+          provider_ref: input.entry.providerRef ?? null,
+          currency: input.entry.currency ?? null,
+        },
+        p_available_delta: fromMicros(delta.availableMicros),
+        p_lifetime_delta: fromMicros(delta.lifetimeMicros),
+        p_pending_delta: fromMicros(delta.pendingWithdrawalMicros),
+      }));
+    },
+
+    async getWithdrawal(withdrawalId) {
+      const row = await maybe<WithdrawalRow>("getWithdrawal", (db) =>
+        db
+          .from("withdrawals")
+          .select(WITHDRAWAL_COLS)
+          .eq("withdrawal_id", withdrawalId)
+          .maybeSingle(),
+      );
+      return row === null ? null : withdrawalFromRow(row);
+    },
+
+    async putWithdrawal(withdrawal) {
+      const row = { ...fromWithdrawal(withdrawal), ...encryptedColumns(withdrawal.destination) };
+      const { error } = await (await lazy())
+        .from("withdrawals")
+        .upsert(row);
+      if (error !== null) fail("putWithdrawal", error);
+    },
+
+    async withdrawalsForUser(uid) {
+      const rows = await many<WithdrawalRow>("withdrawalsForUser", (db) =>
+        db
+          .from("withdrawals")
+          .select(WITHDRAWAL_COLS)
+          .eq("uid", uid)
+          .order("created_at", { ascending: false })
+          .order("withdrawal_id", { ascending: false }),
+      );
+      return rows.map(withdrawalFromRow);
+    },
+
+    async listWithdrawals(status, page): Promise<WithdrawalPage> {
+      const rows = await many<WithdrawalRow>("listWithdrawals", (db) =>
+        db
+          .rpc("list_withdrawals_page", {
+            p_limit: overshoot(page),
+            p_status: status,
+            p_cursor: page.cursor,
+          })
+          .select(WITHDRAWAL_COLS),
+      );
+      const { rows: kept, nextCursor } = cut(rows, page, (r) => r.withdrawal_id);
+      return { rows: kept.map(withdrawalFromRow), nextCursor };
     },
 
     async listUsers(page): Promise<UserPage> {

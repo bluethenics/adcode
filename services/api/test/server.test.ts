@@ -28,7 +28,7 @@ let lastCheckout: unknown = null;
 const payments: PaymentProvider = {
   async createCheckout(request) {
     lastCheckout = request;
-    return { paymentId: "pay_test", paymentLink: "https://test.dodopayments.com/pay/abc" };
+    return { sessionId: "chk_test", checkoutUrl: "https://test.dodopayments.com/checkout/abc" };
   },
 };
 
@@ -288,14 +288,15 @@ describe("portal", () => {
 });
 
 describe("payment webhook", () => {
-  const eventBody = (advertiserId = "adv-1") =>
+  const eventBody = (orderId = "ord-route") =>
     JSON.stringify({
       type: "payment.succeeded",
       data: {
         payment_id: "pay_abc",
+        checkout_session_id: "chk_route",
         total_amount: 5000,
         currency: "USD",
-        metadata: { advertiserId },
+        metadata: { orderId },
       },
     });
 
@@ -316,7 +317,21 @@ describe("payment webhook", () => {
   it("needs no bearer token - the signature is the authentication", async () => {
     await post("/v1/portal/advertiser", { name: "Acme" });
     const advertiser = await store.advertiserForOwner("u-1");
-    const raw = eventBody(advertiser!.advertiserId);
+    await store.createCreditOrder({
+      orderId: "ord-route",
+      advertiserId: advertiser!.advertiserId,
+      amountMicros: 50_000_000n,
+      currency: "USD",
+      billingCountry: "US",
+      customerEmail: "billing@acme.test",
+      status: "checkout_created",
+      providerSessionId: "chk_route",
+      checkoutUrl: "https://checkout.test/route",
+      providerPaymentId: null,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const raw = eventBody();
 
     const res = await postWebhook(raw, "evt_route_1", nowSeconds());
     expect(res.status).toBe(200);
@@ -356,7 +371,8 @@ describe("checkout", () => {
 
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
-    expect(body["paymentLink"]).toContain("dodopayments.com");
+    expect(body["checkoutUrl"]).toContain("dodopayments.com");
+    expect(body["sessionId"]).toBe("chk_test");
     expect((lastCheckout as Record<string, unknown>)["amountMicros"]).toBe(50_000_000n);
   });
 
@@ -516,5 +532,97 @@ describe("admin routes", () => {
 
   it("still requires a token", async () => {
     expect((await get("/v1/admin/users/u-1/ledger", {})).status).toBe(401);
+  });
+});
+
+/*
+ * `GET /assets/:key` - creative artwork.
+ *
+ * Unauthenticated by necessity: the editor fetches these through its asset cache, which is
+ * an image fetch with no bearer token. The route is also the reason artwork can leave the
+ * creatives row at all, and that move is what took `/v1/serve` back under its own timeout.
+ */
+describe("GET /assets/:key", () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+  it("serves stored bytes with their content type, without a token", async () => {
+    await store.putAsset("cr-1-light.png", { contentType: "image/png", bytes: PNG });
+
+    // No auth header at all: this is exactly how the editor asks.
+    const response = await fetch(`${server.url}/assets/cr-1-light.png`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/png");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(PNG);
+  });
+
+  it("marks them immutable, since a key's bytes never change meaning", async () => {
+    await store.putAsset("cr-1-light.png", { contentType: "image/png", bytes: PNG });
+
+    const response = await fetch(`${server.url}/assets/cr-1-light.png`);
+    expect(response.headers.get("cache-control")).toContain("immutable");
+  });
+
+  it("404s an asset that does not exist", async () => {
+    expect((await fetch(`${server.url}/assets/cr-nope-light.png`)).status).toBe(404);
+  });
+
+  /** The key arrives over the network, so it is a filename or it is nothing. */
+  it("refuses a key that tries to climb out of the store", async () => {
+    const climbing = await fetch(`${server.url}/assets/..%2F..%2Fetc%2Fpasswd`);
+    expect(climbing.status).toBe(404);
+  });
+
+  it("refuses a key naming a format that can execute", async () => {
+    expect((await fetch(`${server.url}/assets/cr-1-light.svg`)).status).toBe(404);
+  });
+});
+
+describe("POST /v1/admin/rehost-assets", () => {
+  it("is refused to an ordinary account", async () => {
+    const response = await fetch(`${server.url}/v1/admin/rehost-assets`, {
+      method: "POST",
+      headers: auth,
+    });
+    expect(response.status).toBe(403);
+  });
+
+  it("repairs an inline-artwork row for an admin", async () => {
+    const png =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+    await store.putCampaign({
+      campaignId: "camp-1",
+      advertiserId: "adv-1",
+      name: "Acme",
+      createdAt: 0,
+      cpmMicros: 8_000_000n,
+      budgetMicros: 100_000_000n,
+      targetTags: [],
+      status: "active",
+    });
+    await store.putCreative({
+      creativeId: "cr-1",
+      campaignId: "camp-1",
+      advertiser: "Acme",
+      headline: "Ship faster",
+      body: null,
+      clickUrl: "https://acme.test/",
+      logoLight: png,
+      logoDark: png,
+      status: "approved",
+    });
+
+    const response = await fetch(`${server.url}/v1/admin/rehost-assets`, {
+      method: "POST",
+      headers: { authorization: "Bearer admin", "content-type": "application/json" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ scanned: 1, rehosted: 1 });
+
+    const fixed = await store.getCreative("cr-1");
+    expect(fixed?.logoLight.startsWith("data:")).toBe(false);
+    expect(fixed?.logoLight).toContain("/assets/cr-1-light.png");
   });
 });

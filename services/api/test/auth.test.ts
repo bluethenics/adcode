@@ -88,7 +88,14 @@ describe("authenticate", () => {
       uid: "u-1",
       isAdmin: false,
     });
-    expect(await fresh.getUser("u-1")).toEqual({ uid: "u-1", status: "active", createdAt: 1_000 });
+    // `emailVerified` is written even as false: it decides whether an account can be
+    // paid, and an absent value would have to be read as unverified anyway.
+    expect(await fresh.getUser("u-1")).toEqual({
+      uid: "u-1",
+      status: "active",
+      createdAt: 1_000,
+      emailVerified: false,
+    });
   });
 
   it("does not treat a non-boolean admin claim as admin", async () => {

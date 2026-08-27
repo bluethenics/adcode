@@ -261,6 +261,7 @@ const api: AdcodeApi = {
     clicked: (creativeId) => ipcRenderer.send(CHANNELS.adClicked, creativeId),
     refreshEarnings: () => ipcRenderer.invoke(CHANNELS.adRefreshEarnings),
     setSuppressed: (suppressed) => ipcRenderer.send(CHANNELS.adSuppressionChanged, suppressed),
+    reportSignals: (signals) => ipcRenderer.send(CHANNELS.adSignals, signals),
   },
   collab: {
     host: (options) => ipcRenderer.invoke(CHANNELS.collabHost, options),

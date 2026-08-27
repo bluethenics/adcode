@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { selectCampaigns, type Candidate } from "../src/targeting.ts";
+import { runAuction, selectCampaigns, type Candidate } from "../src/targeting.ts";
 import type { CampaignRecord } from "../src/store.ts";
 
 const campaign = (id: string, cpm: bigint, tags: string[], budget = 1_000_000n): CampaignRecord => ({
@@ -100,5 +100,71 @@ describe("selectCampaigns", () => {
 
   it("returns nothing when there are no candidates", () => {
     expect(selectCampaigns([], ["lang:rust"], 5)).toEqual([]);
+  });
+});
+
+describe("runAuction", () => {
+  const auction = (candidates: Candidate[], count = 1, tieSeed = "serve-1") =>
+    runAuction({
+      candidates,
+      tags: ["lang:rust"],
+      count,
+      floorCpmMicros: 3_000_000n,
+      incrementCpmMicros: 10_000n,
+      tieSeed,
+    });
+
+  it("charges the winner one increment above the runner-up, capped at its bid", () => {
+    const [winner] = auction([
+      candidate(campaign("high", 8_000_000n, ["lang:rust"])),
+      candidate(campaign("runner-up", 5_000_000n, ["lang:rust"])),
+    ]);
+
+    expect(winner).toMatchObject({
+      maxBidCpmMicros: 8_000_000n,
+      clearingCpmMicros: 5_010_000n,
+      costMicros: 5_010n,
+    });
+  });
+
+  it("uses the floor when there is no competing eligible bid", () => {
+    const [winner] = auction([candidate(campaign("only", 8_000_000n, ["lang:rust"]))]);
+    expect(winner?.clearingCpmMicros).toBe(3_000_000n);
+    expect(winner?.costMicros).toBe(3_000n);
+  });
+
+  it("excludes bids below the market floor", () => {
+    expect(auction([candidate(campaign("too-low", 2_990_000n, ["lang:rust"]))])).toEqual([]);
+  });
+
+  it("charges each batched winner from the next-ranked bid", () => {
+    const winners = auction(
+      [
+        candidate(campaign("first", 9_000_000n, ["lang:rust"])),
+        candidate(campaign("second", 7_000_000n, ["lang:rust"])),
+        candidate(campaign("third", 4_000_000n, ["lang:rust"])),
+      ],
+      2,
+    );
+
+    expect(winners.map((winner) => winner.clearingCpmMicros)).toEqual([
+      7_010_000n,
+      4_010_000n,
+    ]);
+  });
+
+  it("rotates equal bids deterministically across different serve seeds", () => {
+    const candidates = [
+      candidate(campaign("apple", 5_000_000n, ["lang:rust"])),
+      candidate(campaign("zebra", 5_000_000n, ["lang:rust"])),
+    ];
+    const observed = new Set(
+      Array.from({ length: 32 }, (_, index) => auction(candidates, 1, `serve-${index}`)[0]?.campaign.campaignId),
+    );
+
+    expect(observed).toEqual(new Set(["apple", "zebra"]));
+    expect(auction(candidates, 1, "same-seed")[0]?.campaign.campaignId).toBe(
+      auction(candidates, 1, "same-seed")[0]?.campaign.campaignId,
+    );
   });
 });

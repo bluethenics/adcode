@@ -27,6 +27,8 @@
     "test:emulator": "firebase emulators:exec --only firestore --project adcode-test \"vitest run services/api/test/emulator\"",
     "mock-server": "node mock-server/src/cli.ts",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:ads": "node scripts/smoke-ads.mjs",
+    "smoke:all": "node scripts/smoke.mjs && node scripts/smoke-ads.mjs",
     "release-note": "node scripts/release-note.mjs",
     "verify": "npm run typecheck && npm run firewall && npm run test",
     "icons": "electron scripts/make-icons.mjs",

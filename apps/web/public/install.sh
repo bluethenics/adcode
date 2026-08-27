@@ -2,7 +2,7 @@
 #
 # ADCode installer for macOS and Linux.
 #
-#   curl -fsSL https://adcode.bluethenics.com/install.sh | sh
+#   curl -fsSL https://adcode.bluethenics01.workers.dev/install.sh | sh
 #
 # Picks the right artifact for the platform, verifies it against the checksum published
 # with the release, and installs it.
@@ -15,6 +15,12 @@ set -eu
 OWNER="${ADCODE_GH_OWNER:-bluethenics}"
 REPO="${ADCODE_GH_REPO:-adcode}"
 API="https://api.github.com/repos/${OWNER}/${REPO}/releases/latest"
+
+# Where to send someone when this script cannot finish. The workers.dev hostname on
+# purpose, for the same reason `apps/desktop/src/main/backend.ts` uses it: the custom
+# domain has no DNS record until SETUP.md step 13 is done, and a failure message that
+# points at a hostname which does not resolve turns a recoverable problem into a dead end.
+SITE="${ADCODE_SITE:-https://adcode.bluethenics01.workers.dev}"
 
 BOLD=''
 DIM=''
@@ -69,7 +75,7 @@ URL="$(printf '%s' "$RELEASE" \
   | grep -E "$(printf '%s' "$PATTERN" | sed 's/"$//')$" \
   | head -n 1)"
 
-[ -n "$URL" ] || fail "That release has no build for your platform. See https://adcode.bluethenics.com/download"
+[ -n "$URL" ] || fail "That release has no build for your platform. See ${SITE}/download"
 
 VERSION="$(printf '%s' "$RELEASE" | grep -o '"tag_name": *"[^"]*"' | sed 's/.*: *"//; s/"$//')"
 FILE="$(basename "$URL")"
@@ -84,7 +90,7 @@ trap cleanup EXIT INT TERM
 
 say "Downloading $FILE..."
 curl -fsSL --progress-bar "$URL" -o "$WORKDIR/$FILE" \
-  || fail "Download failed. Try again, or grab it from https://adcode.bluethenics.com/download"
+  || fail "Download failed. Try again, or grab it from ${SITE}/download"
 
 # electron-builder publishes latest-mac.yml / latest-linux.yml with a SHA-512 per artifact.
 case "$OS" in

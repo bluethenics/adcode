@@ -33,10 +33,47 @@ import {
 import { CHANNELS, type EarningsSnapshot, type SponsoredToast } from "../shared/api.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock, toDataUrl } from "./adPorts.ts";
 import { currentSettings } from "./settings.ts";
-import { apiBaseUrl, createBackendTokens } from "./backend.ts";
+import { apiBaseUrl, apiOrigin, createBackendTokens } from "./backend.ts";
+import { currentDebugState } from "./debug.ts";
 
 /** §8.1: the 60s tick that asks the scheduler whether now is a moment to interrupt. */
-const TICK_MS = 60_000;
+const DEFAULT_TICK_MS = 60_000;
+
+/**
+ * How long a delivered toast may go unanswered before it is written off.
+ *
+ * The renderer owns the auto-dismiss timer, so in the normal case the toast comes down on
+ * its own and reports back within `AUTO_DISMISS_MS`. If it never reports - the window was
+ * reloaded, the renderer crashed and restored, the broadcast arrived when no window was
+ * open - then `AdRenderer.present` keeps refusing to replace a toast that is not on screen
+ * anywhere, and *no further ad ever shows for the rest of the session*. It fails exactly
+ * the way §9 says an ad failure must, silently, which is what makes it worth a watchdog
+ * rather than a log line.
+ *
+ * Dismissing through the service rather than dropping state directly, so the impression
+ * rule still decides: `report` only credits an impression if the toast genuinely painted,
+ * held focus, and lasted four seconds. A written-off toast that never painted earns
+ * nothing, which is correct.
+ *
+ * The grace is five minutes rather than a few seconds, and that is the load-bearing
+ * number. The renderer *pauses* its auto-dismiss while the pointer is over the card, so a
+ * toast can legitimately stay up for as long as somebody is reading it - and writing one
+ * off while they read would clear `liveCreativeId`, which is what `noteClicked` matches on.
+ * The user would then click an ad that is still on screen and nothing at all would happen.
+ * This exists to unwedge a session whose renderer is gone, not to enforce a deadline on a
+ * reader, so it is set far beyond any plausible hover. The cost of the long wait is at most
+ * one skipped card; every preset's gap is minutes anyway.
+ */
+const TOAST_WATCHDOG_GRACE_MS = 300_000;
+
+/**
+ * The tick interval. Development only, like `settleMs`, and for the same reason: a server
+ * that could set this would be able to make the IDE more annoying than it ships.
+ */
+function tickMs(): number {
+  const override = Number(process.env["ADCODE_AD_TICK_MS"]);
+  return Number.isFinite(override) && override > 0 ? override : DEFAULT_TICK_MS;
+}
 
 /**
  * §9 requires the ad client to fail invisibly, which also makes it impossible to debug
@@ -102,7 +139,27 @@ export function createAdRuntime(): AdRuntime {
   // https host while serving bytes from localhost. The rewrite is the transport's job;
   // the validator still sees, and still enforces, https on an exact hostname.
   const devServer = process.env["ADCODE_AD_SERVER"];
-  const assetHost = process.env["ADCODE_ASSET_HOST"] ?? "cdn.adcode.test";
+
+  /*
+   * The one host creative artwork may come from.
+   *
+   * This used to default to `cdn.adcode.test` in every build, including packaged ones -
+   * a hostname that has never existed. The validator enforces exact-hostname equality, so
+   * the shipped app was guaranteed to reject every real creative it was ever served, and
+   * did: one bad logo fails the whole `parseServeResponse`, so a single creative took the
+   * entire response with it and the editor concluded it had no inventory.
+   *
+   * Now it follows the API origin, because that is where the service hands out assets -
+   * `/assets/:key` on its own hostname. One deployment, one hostname, one certificate, and
+   * nothing to keep in step by hand.
+   *
+   * A dev server keeps the fake host: the mock advertises `cdn.adcode.test` while serving
+   * the bytes from localhost, and the rewrite below is what bridges the two. That is what
+   * lets the https rule be *tested* rather than relaxed.
+   */
+  const assetHost =
+    process.env["ADCODE_ASSET_HOST"] ??
+    (devServer === undefined ? new URL(apiOrigin()).hostname : "cdn.adcode.test");
 
   const rewrites: Array<readonly [string, string]> =
     devServer === undefined ? [] : [[`https://${assetHost}/assets`, `${devServer}/assets`]];
@@ -130,6 +187,7 @@ export function createAdRuntime(): AdRuntime {
   let liveCreativeId: string | null = null;
   let clickUrl: string | null = null;
   let lastBalance: Balance | null = null;
+  let watchdog: NodeJS.Timeout | null = null;
 
   /**
    * The `NotificationSink` the ad client writes into. Everything it produces crosses to
@@ -139,18 +197,46 @@ export function createAdRuntime(): AdRuntime {
     show(notification: SponsoredNotification): NotificationHandle {
       liveCreativeId = notification.creativeId;
       clickUrl = notification.clickUrl;
+      armWatchdog(notification);
 
       void deliver(notification);
 
       return {
         update: (next) => void deliver(next),
         dismiss: () => {
+          clearWatchdog();
           liveCreativeId = null;
           clickUrl = null;
         },
       };
     },
   };
+
+  function clearWatchdog(): void {
+    if (watchdog !== null) clearTimeout(watchdog);
+    watchdog = null;
+  }
+
+  /** See `TOAST_WATCHDOG_GRACE_MS`. */
+  function armWatchdog(notification: SponsoredNotification): void {
+    clearWatchdog();
+
+    watchdog = setTimeout(() => {
+      watchdog = null;
+      if (liveCreativeId !== notification.creativeId) return;
+
+      debug("toast went unanswered, writing it off", { creativeId: notification.creativeId });
+
+      // Through the service, so the impression rule still decides whether this earned
+      // anything and so the ad renderer's own `live` is cleared. That field is the one
+      // that would otherwise refuse every future card.
+      service.dismiss();
+      void pushEarnings();
+    }, notification.autoDismissMs + TOAST_WATCHDOG_GRACE_MS);
+
+    // Never the reason the app refuses to quit, same as the tick.
+    watchdog.unref?.();
+  }
 
   async function deliver(notification: SponsoredNotification): Promise<void> {
     let logoDataUrl: string | null = null;
@@ -213,10 +299,18 @@ export function createAdRuntime(): AdRuntime {
     },
     ide: {
       windowFocused: () => windowFocused,
-      // Wired to the real debug session once the DAP client exists. Reporting `false`
-      // here would be a claim this code cannot yet make honestly, but reporting `true`
-      // would suppress every ad forever - so `false` stands with this note on it.
-      debugActive: () => false,
+      /*
+       * §8.1's `debug-active`, now that the DAP client exists.
+       *
+       * Starting, running, and paused are all "the user is debugging"; a paused session
+       * most of all, because that is somebody reading a stack frame. `stopped` and
+       * `failed` are over - the session ended - and suppressing on those would mean one
+       * failed debug attempt silenced ads until the next launch.
+       */
+      debugActive: () => {
+        const state = currentDebugState().state;
+        return state === "starting" || state === "running" || state === "paused";
+      },
       doNotDisturb: () => false,
       themeKind: () => themeKind,
       languageIds: () => languageIds,
@@ -296,7 +390,7 @@ export function createAdRuntime(): AdRuntime {
             await pushEarnings();
           })
           .catch((error: unknown) => debug("tick failed", String(error)));
-      }, TICK_MS);
+      }, tickMs());
 
       // Node keeps the process alive for pending timers; an ad tick must never be the
       // reason the app refuses to quit.
@@ -306,6 +400,7 @@ export function createAdRuntime(): AdRuntime {
     stop(): void {
       if (timer !== null) clearInterval(timer);
       timer = null;
+      clearWatchdog();
       service.stop();
     },
 

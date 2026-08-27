@@ -63,6 +63,7 @@ import { startActivityTracker } from "./activity/activityTracker.ts";
 import { resolveTheme } from "./theme.ts";
 import { createTerminalPanel, type TerminalPanel } from "./terminal/terminalPanel.ts";
 import { createNotificationCentre } from "./notifications/notifications.ts";
+import { buildAdSignals } from "./ads/adSignals.ts";
 import { createReleaseNotice } from "./releases/releaseNotice.ts";
 import { createWhatsNewSheet } from "./releases/whatsNewSheet.ts";
 import { createResultDialog } from "./dialogs/resultDialog.ts";
@@ -239,6 +240,10 @@ function syncTheme(): void {
   document.documentElement.dataset["theme"] = theme;
   editorHost.applyTheme(theme);
   terminal?.applyTheme(theme);
+
+  // The ad client picks the advertiser's light or dark logo from this. Sent after the
+  // repaint above, never before it: the theme the user sees is the thing being reported.
+  reportAdSignals();
 }
 
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", syncTheme);
@@ -281,6 +286,11 @@ function renderTabs(): void {
   }
 
   revealActiveTab();
+
+  // Every open, close, and rename passes through here, which makes it the one hook that
+  // sees the set of open files change. Coalesced on the far side, so re-rendering the
+  // strip for a dirty dot costs nothing.
+  reportAdSignals();
 }
 
 /**
@@ -2711,6 +2721,7 @@ async function refreshRootFiles(): Promise<void> {
   if (workspaceRoot === null) {
     rootFileNames = [];
     runButton.refresh();
+    reportAdSignals();
     return;
   }
 
@@ -2722,6 +2733,10 @@ async function refreshRootFiles(): Promise<void> {
   }
 
   runButton.refresh();
+
+  // These are where the framework and toolchain tags come from - `package.json`,
+  // `Cargo.toml`, `next.config.ts`. Open editors alone only ever yield languages.
+  reportAdSignals();
 }
 
 const runButton = createRunButton({
@@ -3034,6 +3049,47 @@ const releaseNotice = createReleaseNotice({
 window.adcode.releases.onAnnouncement((announcement) => releaseNotice.offer(announcement));
 
 window.adcode.ads.onShow((toast) => notifications.showSponsored(toast));
+
+/*
+ * Telling the ad client what the editor is currently showing.
+ *
+ * The ad client asks for three things through its `IdeSignals` port - the theme, the open
+ * editors' languages, and the workspace filenames - and for a long time nothing on this
+ * side answered. The consequence was invisible in every test, because the ad package's own
+ * suite fakes this port: the tagger produced no tags, so every request for a creative went
+ * out untargeted, and the theme was permanently dark, so a light-theme user got the dark
+ * logo and every receipt reported a theme they were not using.
+ *
+ * Coalesced through a timer, and that is the whole reason this is not a direct send. It
+ * rides on tab switches and theme changes, which arrive in bursts - opening a folder
+ * renders the tab strip once per restored file - and §9's rule is that nothing in the ad
+ * path may cost the editor anything. One message after the burst settles costs nothing;
+ * one per render would put IPC on a path the user is watching.
+ */
+let adSignalsTimer: number | undefined;
+let lastAdSignals = "";
+
+function reportAdSignals(): void {
+  if (adSignalsTimer !== undefined) return;
+
+  adSignalsTimer = window.setTimeout(() => {
+    adSignalsTimer = undefined;
+
+    const signals = buildAdSignals({
+      theme,
+      openNames: tabs.map((tab) => tab.name),
+      rootFileNames,
+    });
+
+    // Nothing changed, so nothing is sent. Re-rendering the tab strip does not mean the
+    // set of open languages moved, and the main process would only recompute the same tags.
+    const encoded = JSON.stringify(signals);
+    if (encoded === lastAdSignals) return;
+
+    lastAdSignals = encoded;
+    window.adcode.ads.reportSignals(signals);
+  }, 250);
+}
 
 /*
  * Service notices - an outage, planned downtime, something worth knowing.

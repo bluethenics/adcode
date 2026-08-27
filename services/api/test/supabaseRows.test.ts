@@ -69,7 +69,7 @@ describe("money survives Postgres exactly", () => {
 
 describe("optional fields stay absent", () => {
   it("omits linkedAt entirely when the column is null", () => {
-    const user = toUser({ uid: "u1", status: "active", created_at: 5, linked_at: null , email: null, display_name: null, photo_url: null });
+    const user = toUser({ uid: "u1", status: "active", created_at: 5, linked_at: null , email: null, display_name: null, photo_url: null, email_verified: false });
     expect("linkedAt" in user).toBe(false);
   });
 
@@ -85,6 +85,7 @@ describe("optional fields stay absent", () => {
       email: null,
       display_name: null,
       photo_url: null,
+      email_verified: false,
     });
 
     expect("email" in user).toBe(false);
@@ -101,6 +102,7 @@ describe("optional fields stay absent", () => {
       email: "someone@example.com",
       display_name: "Someone",
       photo_url: "https://example.com/a.png",
+      email_verified: true,
     };
 
     const user = toUser(row);
@@ -111,7 +113,7 @@ describe("optional fields stay absent", () => {
   });
 
   it("keeps linkedAt when the column has a value", () => {
-    const user = toUser({ uid: "u1", status: "active", created_at: 5, linked_at: 9 , email: null, display_name: null, photo_url: null });
+    const user = toUser({ uid: "u1", status: "active", created_at: 5, linked_at: 9 , email: null, display_name: null, photo_url: null, email_verified: false });
     expect(user.linkedAt).toBe(9);
   });
 
@@ -123,6 +125,9 @@ describe("optional fields stay absent", () => {
       campaign_id: "camp1",
       served_at: 1,
       expires_at: 2,
+      max_bid_cpm_micros: "8000000",
+      clearing_cpm_micros: "5010000",
+      cost_micros: "5010",
     };
     expect("test" in toServe({ ...base, test: false })).toBe(false);
     expect(toServe({ ...base, test: true }).test).toBe(true);
@@ -155,6 +160,8 @@ describe("optional fields stay absent", () => {
       min_interval_ms: null,
       daily_cap: 12,
       default_cpm_micros: "8000000",
+      floor_cpm_micros: "3000000",
+      auction_increment_cpm_micros: "10000",
       rev_share_percent: "50",
       spend_shard_count: 4,
       serve_ttl_ms: 600_000,
@@ -205,6 +212,8 @@ describe("records round-trip through their rows", () => {
       killSwitch: true,
       caps: { minIntervalMs: 1000, dailyCap: 5 },
       defaultCpmMicros: 8_000_000n,
+      floorCpmMicros: 3_000_000n,
+      auctionIncrementCpmMicros: 10_000n,
       revSharePercent: 50n,
       spendShardCount: 4,
       serveTtlMs: 600_000,
@@ -216,7 +225,10 @@ describe("records round-trip through their rows", () => {
 
   it("preserves a user with no linked time", () => {
     const user = { uid: "u1", status: "active" as const, createdAt: 42 };
-    expect(toUser(fromUser(user))).toEqual(user);
+    // The round trip gains `emailVerified: false` rather than dropping it: unlike the
+    // identity fields, "we were never told" and "not verified" are the same answer to the
+    // only question it is asked.
+    expect(toUser(fromUser(user))).toEqual({ ...user, emailVerified: false });
   });
 
   it("preserves a serve", () => {
@@ -227,6 +239,9 @@ describe("records round-trip through their rows", () => {
       campaignId: "camp1",
       servedAt: 10,
       expiresAt: 20,
+      maxBidCpmMicros: 8_000_000n,
+      clearingCpmMicros: 5_010_000n,
+      costMicros: 5_010n,
     };
     expect(toServe(fromServe(serve))).toEqual(serve);
   });
@@ -240,7 +255,7 @@ describe("a value outside the known set does not become one", () => {
    * somewhere far away from the row that caused it.
    */
   it("treats an unknown user status as banned-by-default's opposite: active", () => {
-    expect(toUser({ uid: "u", status: "wat", created_at: 1, linked_at: null , email: null, display_name: null, photo_url: null }).status).toBe("active");
+    expect(toUser({ uid: "u", status: "wat", created_at: 1, linked_at: null , email: null, display_name: null, photo_url: null, email_verified: false }).status).toBe("active");
   });
 
   it("treats an unknown creative status as pending, never as approved", () => {

@@ -35,6 +35,15 @@ export interface UserRecord {
   email?: string;
   displayName?: string;
   photoUrl?: string;
+  /**
+   * Whether the provider says it confirmed the address belongs to them.
+   *
+   * Stored rather than read from the token at the point of use because the one place that
+   * needs it - deciding whether somebody may be paid - is not the place the token is
+   * verified. An address the provider never checked is an address anybody can claim, so
+   * a payout to one is a payout to whoever typed it.
+   */
+  emailVerified?: boolean;
 }
 
 export interface AdvertiserRecord {
@@ -60,6 +69,10 @@ export interface CampaignRecord {
   status: "active" | "paused" | "ended";
 }
 
+export type CampaignCommitmentResult =
+  | { ok: true; campaign: CampaignRecord }
+  | { ok: false; reason: "not-found" | "insufficient-funds" | "invalid-state" };
+
 export interface CreativeRecord {
   creativeId: string;
   campaignId: string;
@@ -72,6 +85,11 @@ export interface CreativeRecord {
   status: "approved" | "pending" | "rejected";
 }
 
+export interface AssetRecord {
+  contentType: string;
+  bytes: Uint8Array;
+}
+
 export interface ServeRecord {
   serveId: string;
   uid: string;
@@ -79,6 +97,12 @@ export interface ServeRecord {
   campaignId: string;
   servedAt: number;
   expiresAt: number;
+  /** The advertiser's maximum bid when this impression was auctioned. */
+  maxBidCpmMicros: bigint;
+  /** The second-price auction result captured at serve time. */
+  clearingCpmMicros: bigint;
+  /** Exact advertiser charge for this impression. Receipts must use this snapshot. */
+  costMicros: bigint;
   /**
    * An admin test serve. Its receipt is acknowledged and recorded but never bills the
    * advertiser or credits the user - testing delivery must not move anyone's money.
@@ -97,6 +121,18 @@ export interface ReceiptRecord {
   costMicros: bigint;
   /** When it was verified. Without this every advertiser figure is a lifetime total. */
   createdAt: number;
+}
+
+/** Privacy-safe hourly aggregate used by the public market chart. */
+export interface MarketPricePoint {
+  at: number;
+  clearingCpmMicros: bigint;
+}
+
+/** One indivisible money movement produced by a verified ad receipt. */
+export interface ReceiptSettlement {
+  receipt: ReceiptRecord;
+  earning: LedgerEntry;
 }
 
 /** What an advertiser sees for one campaign. Counts, not identities. */
@@ -155,6 +191,10 @@ export interface ServingConfig {
   killSwitch: boolean;
   caps: { minIntervalMs?: number; dailyCap?: number };
   defaultCpmMicros: bigint;
+  /** Minimum eligible advertiser bid and minimum clearing CPM. */
+  floorCpmMicros: bigint;
+  /** Amount placed above the next-ranked bid in the second-price auction. */
+  auctionIncrementCpmMicros: bigint;
   revSharePercent: bigint;
   spendShardCount: number;
   serveTtlMs: number;
@@ -188,6 +228,36 @@ export interface FundingRecord {
   currency: string;
   at: number;
 }
+
+export type CreditOrderStatus =
+  | "pending"
+  | "checkout_created"
+  | "paid"
+  | "partially_reversed"
+  | "reversed"
+  | "disputed"
+  | "cancelled"
+  | "failed"
+  | "review_required";
+
+export interface CreditOrderRecord {
+  orderId: string;
+  advertiserId: string;
+  amountMicros: bigint;
+  currency: "USD";
+  billingCountry: string;
+  customerEmail: string;
+  status: CreditOrderStatus;
+  providerSessionId: string | null;
+  checkoutUrl: string | null;
+  providerPaymentId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type CreditEventResult =
+  | { applied: true; reason: "applied"; advertiserId: string }
+  | { applied: false; reason: "duplicate" | "review_required" | "ignored" };
 
 /**
  * A message from the operators to everyone running the editor.
@@ -314,6 +384,125 @@ export interface AdminRecord {
   addedAt: number;
 }
 
+/**
+ * How somebody wants to be paid.
+ *
+ * Two shapes because the payout is made by hand from a Wise account, and Wise can send
+ * either to a person's Wise address or to an ordinary bank account. Asking for an IBAN
+ * from somebody who already has Wise is a form they abandon; offering only Wise excludes
+ * everyone who does not.
+ */
+export type PayoutMethod = "wise-email" | "bank";
+
+export type PayoutFieldKind =
+  | "iban"
+  | "bic"
+  | "accountNumber"
+  | "routingNumber"
+  | "sortCode"
+  | "ifsc"
+  | "bsb"
+  | "bankCode"
+  | "branchCode"
+  | "clabe"
+  | "bankName"
+  | "address"
+  | "email"
+  | "phone"
+  | "supplemental";
+
+export interface PayoutCorridorRecord {
+  country: string;
+  currency: string;
+  enabled: boolean;
+  requiredFields: PayoutFieldKind[];
+  sourceNote: string;
+  verifiedAt: number | null;
+  updatedAt: number;
+  updatedBy: string;
+}
+
+export interface PayoutDestination {
+  method: PayoutMethod;
+  /** As it appears on the account being paid. A mismatch is what makes a transfer bounce. */
+  legalName: string;
+  /** ISO 3166-1 alpha-2. */
+  country: string;
+  /** ISO 4217. What the recipient's account is denominated in. */
+  currency: string;
+  /** The address on their Wise account. Null unless `method` is `wise-email`. */
+  email: string | null;
+  /**
+   * Account number, IBAN, sort code, routing number - whatever their country uses.
+   *
+   * Free text on purpose: bank coordinates differ by country in ways a fixed set of
+   * fields gets wrong, and this is read by a human who is about to type it into Wise,
+   * not by a machine. Null unless `method` is `bank`.
+   */
+  bankDetails: string | null;
+  /** Country/currency-specific recipient fields; free-form field names are never accepted. */
+  fields?: Partial<Record<PayoutFieldKind, string>>;
+}
+
+export interface PayoutProfileRecord extends PayoutDestination {
+  uid: string;
+  updatedAt: number;
+}
+
+/**
+ * `cancelled` is the user withdrawing their own request; `rejected` is an admin refusing
+ * it. Both release the hold, and keeping them apart is the difference between a support
+ * conversation and a shrug.
+ */
+export type WithdrawalStatus =
+  | "requested"
+  | "approved"
+  | "paid"
+  | "rejected"
+  | "failed"
+  | "cancelled";
+
+export interface PaidEvidence {
+  provider: string;
+  providerRef: string;
+  sourceAmount: string;
+  sourceCurrency: string;
+  recipientAmount: string;
+  recipientCurrency: string;
+  exchangeRate: string | null;
+  providerCalculatedRate: boolean;
+  feeAmount: string;
+  feeCurrency: string;
+}
+
+export interface WithdrawalRecord {
+  withdrawalId: string;
+  uid: string;
+  amountMicros: bigint;
+  status: WithdrawalStatus;
+  /**
+   * The destination as it stood when the request was made.
+   *
+   * A snapshot, not a reference: somebody who edits their payout details after asking to
+   * be paid must not silently redirect a transfer an admin is part-way through making.
+   */
+  destination: PayoutDestination;
+  createdAt: number;
+  decidedAt: number | null;
+  /** The admin who paid or refused it. Null while pending, and on a self-cancellation. */
+  decidedBy: string | null;
+  /** Wise's reference for the transfer. Set on `paid`, so a query can be traced. */
+  providerRef: string | null;
+  /** Why it was refused, in words the person who asked will read. */
+  note: string | null;
+  evidence?: PaidEvidence | null;
+}
+
+export interface WithdrawalPage {
+  rows: WithdrawalRecord[];
+  nextCursor: string | null;
+}
+
 export interface Store {
   getUser(uid: string): Promise<UserRecord | null>;
   putUser(user: UserRecord): Promise<void>;
@@ -327,6 +516,23 @@ export interface Store {
   campaignsForAdvertiser(advertiserId: string): Promise<CampaignRecord[]>;
   activeCampaignsFor(tags: readonly string[]): Promise<CampaignRecord[]>;
   statsForCampaign(campaignId: string): Promise<CampaignStats>;
+  /** Atomically changes campaign state and its advertiser's reserved credits. */
+  transitionCampaignCommitment(input: {
+    advertiserId: string;
+    campaignId: string;
+    next: "active" | "paused" | "ended";
+    spentMicros: bigint;
+  }): Promise<CampaignCommitmentResult>;
+
+  /**
+   * Creative artwork, addressed by key.
+   *
+   * Separate from the creative row on purpose - see `assets.ts`. Inlining the bytes there
+   * is what made `/v1/serve` miss its own timeout, because the serving path reads that row
+   * and does not need the picture.
+   */
+  putAsset(key: string, asset: AssetRecord): Promise<void>;
+  getAsset(key: string): Promise<AssetRecord | null>;
 
   putCreative(creative: CreativeRecord): Promise<void>;
   getCreative(creativeId: string): Promise<CreativeRecord | null>;
@@ -337,9 +543,12 @@ export interface Store {
 
   recordServe(serve: ServeRecord): Promise<void>;
   findServe(uid: string, creativeId: string, now: number): Promise<ServeRecord | null>;
+  marketPriceHistory(since: number): Promise<MarketPricePoint[]>;
 
   /** True when created, false when the id already existed. This is the idempotency gate. */
   createReceiptIfAbsent(receipt: ReceiptRecord): Promise<boolean>;
+  /** Atomically creates receipt, earning, balance update, and advertiser spend. */
+  settleReceipt(settlement: ReceiptSettlement): Promise<boolean>;
 
   /** Per-campaign, per-day rollup for one advertiser, from `since` (ms) to now. */
   seriesForAdvertiser(advertiserId: string, since: number): Promise<SeriesPoint[]>;
@@ -364,8 +573,53 @@ export interface Store {
   recordFundingIfAbsent(funding: FundingRecord): Promise<boolean>;
   listFunding(advertiserId: string): Promise<FundingRecord[]>;
 
+  createCreditOrder(order: CreditOrderRecord): Promise<void>;
+  getCreditOrder(orderId: string): Promise<CreditOrderRecord | null>;
+  putCreditOrder(order: CreditOrderRecord): Promise<void>;
+  listCreditOrders(advertiserId: string): Promise<CreditOrderRecord[]>;
+  /** Applies provider idempotency, order validation, credit movement, and suspension atomically. */
+  applyCreditEvent(
+    event: import("./providerEvents.ts").NormalizedProviderEvent,
+  ): Promise<CreditEventResult>;
+
   createReport(report: ReportRecord): Promise<void>;
   listReports(page: Page): Promise<ReportPage>;
+  /** False when there is no such report. Triage, so a queue can be worked through. */
+  setReportStatus(reportId: string, status: ReportRecord["status"]): Promise<boolean>;
+  /** False when there was nothing to delete. The one record here that is really removed. */
+  deleteReport(reportId: string): Promise<boolean>;
+
+  getPayoutProfile(uid: string): Promise<PayoutProfileRecord | null>;
+  putPayoutProfile(profile: PayoutProfileRecord): Promise<void>;
+
+  getPayoutCorridor(country: string, currency: string): Promise<PayoutCorridorRecord | null>;
+  putPayoutCorridor(corridor: PayoutCorridorRecord): Promise<void>;
+  listPayoutCorridors(enabledOnly: boolean): Promise<PayoutCorridorRecord[]>;
+
+  createWithdrawal(withdrawal: WithdrawalRecord): Promise<void>;
+  /** Atomically creates a request and reserves its balance, refusing races. */
+  reserveWithdrawal(
+    withdrawal: WithdrawalRecord,
+    entry: import("./ledger.ts").LedgerEntry,
+  ): Promise<"created" | "in-flight" | "insufficient-funds">;
+  /** Atomically moves a request from one state and applies its optional ledger entry. */
+  transitionWithdrawal(input: {
+    withdrawalId: string;
+    expectedStatuses: WithdrawalStatus[];
+    status: WithdrawalStatus;
+    decidedAt: number;
+    decidedBy: string | null;
+    providerRef: string | null;
+    note: string | null;
+    evidence?: PaidEvidence | null;
+    entry?: import("./ledger.ts").LedgerEntry;
+  }): Promise<boolean>;
+  getWithdrawal(withdrawalId: string): Promise<WithdrawalRecord | null>;
+  putWithdrawal(withdrawal: WithdrawalRecord): Promise<void>;
+  /** Newest first. The user's own history, and the source of the pending check. */
+  withdrawalsForUser(uid: string): Promise<WithdrawalRecord[]>;
+  /** Every user's, newest first. `status` null means all of them. */
+  listWithdrawals(status: WithdrawalStatus | null, page: Page): Promise<WithdrawalPage>;
 
   listUsers(page: Page): Promise<UserPage>;
   listAdvertisers(): Promise<AdvertiserRecord[]>;

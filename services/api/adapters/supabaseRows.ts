@@ -25,8 +25,11 @@ import type {
   AuditRecord,
   CampaignRecord,
   CreativeRecord,
+  CreditOrderRecord,
   FundingRecord,
   NoticeRecord,
+  PayoutDestination,
+  PayoutProfileRecord,
   PostRecord,
   ReceiptRecord,
   ReleaseRecord,
@@ -34,6 +37,7 @@ import type {
   ServeRecord,
   ServingConfig,
   UserRecord,
+  WithdrawalRecord,
 } from "../src/store.ts";
 
 /**
@@ -67,6 +71,7 @@ export interface UserRow {
   email: string | null;
   display_name: string | null;
   photo_url: string | null;
+  email_verified: boolean | null;
 }
 
 export interface AdvertiserRow {
@@ -109,6 +114,9 @@ export interface ServeRow {
   campaign_id: string;
   served_at: number;
   expires_at: number;
+  max_bid_cpm_micros: string;
+  clearing_cpm_micros: string;
+  cost_micros: string;
   test: boolean;
 }
 
@@ -164,6 +172,21 @@ export interface FundingRow {
   amount_micros: string;
   currency: string;
   at: number;
+}
+
+export interface CreditOrderRow {
+  order_id: string;
+  advertiser_id: string;
+  amount_micros: string;
+  currency: string;
+  billing_country: string;
+  customer_email: string;
+  status: string;
+  provider_session_id: string | null;
+  checkout_url: string | null;
+  provider_payment_id: string | null;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface ReportRow {
@@ -222,6 +245,8 @@ export interface ConfigRow {
   min_interval_ms: number | null;
   daily_cap: number | null;
   default_cpm_micros: string;
+  floor_cpm_micros: string;
+  auction_increment_cpm_micros: string;
   rev_share_percent: string;
   spend_shard_count: number;
   serve_ttl_ms: number;
@@ -245,20 +270,24 @@ export interface AuditRow {
 // here rather than as an undefined deep inside a handler.
 // ---------------------------------------------------------------------------
 
-export const USER_COLS = "uid,status,created_at,linked_at,email,display_name,photo_url";
+export const USER_COLS =
+  "uid,status,created_at,linked_at,email,display_name,photo_url,email_verified";
 export const ADVERTISER_COLS =
   "advertiser_id,name,owner_uids,status,funded_micros::text,reserved_micros::text,created_at";
 export const CAMPAIGN_COLS =
   "campaign_id,advertiser_id,name,created_at,cpm_micros::text,budget_micros::text,target_tags,status";
 export const CREATIVE_COLS =
   "creative_id,campaign_id,advertiser,headline,body,click_url,logo_light,logo_dark,status";
-export const SERVE_COLS = "serve_id,uid,creative_id,campaign_id,served_at,expires_at,test";
+export const SERVE_COLS =
+  "serve_id,uid,creative_id,campaign_id,served_at,expires_at,max_bid_cpm_micros::text,clearing_cpm_micros::text,cost_micros::text,test";
 export const LEDGER_COLS =
   "entry_id,uid,kind,micros::text,ref_id,created_at,description,reason,admin_uid,provider_ref,currency";
 export const BALANCE_COLS =
   "uid,available_micros::text,lifetime_micros::text,pending_withdrawal_micros::text";
 export const FUNDING_COLS =
   "event_id,payment_id,advertiser_id,amount_micros::text,currency,at";
+export const CREDIT_ORDER_COLS =
+  "order_id,advertiser_id,amount_micros::text,currency,billing_country,customer_email,status,provider_session_id,checkout_url,provider_payment_id,created_at,updated_at";
 export const REPORT_COLS =
   "report_id,uid,kind,title,body,app_version,platform,status,created_at";
 export const NOTICE_COLS = "notice_id,severity,title,body,active,author_uid,created_at";
@@ -267,7 +296,7 @@ export const POST_COLS =
 export const RELEASE_COLS =
   "version,title,body,highlights,announce,critical,status,authored_by,author_uid,published_at,updated_at";
 export const CONFIG_COLS =
-  "kill_switch,min_interval_ms,daily_cap,default_cpm_micros::text,rev_share_percent::text,spend_shard_count,serve_ttl_ms,rate_window_ms,requests_per_window";
+  "kill_switch,min_interval_ms,daily_cap,default_cpm_micros::text,floor_cpm_micros::text,auction_increment_cpm_micros::text,rev_share_percent::text,spend_shard_count,serve_ttl_ms,rate_window_ms,requests_per_window";
 export const AUDIT_COLS = "admin_uid,action,subject_uid,at";
 
 export const ADMIN_COLS = "email,added_by,added_at";
@@ -293,6 +322,9 @@ export function toUser(row: UserRow): UserRecord {
     ...(row.email !== null ? { email: row.email } : {}),
     ...(row.display_name !== null ? { displayName: row.display_name } : {}),
     ...(row.photo_url !== null ? { photoUrl: row.photo_url } : {}),
+    // Not absent-when-null like the others: an unverified address and an address we
+    // were never told about are the same fact for the only question this answers.
+    emailVerified: row.email_verified === true,
   };
 }
 
@@ -305,6 +337,7 @@ export function fromUser(user: UserRecord): UserRow {
     email: user.email ?? null,
     display_name: user.displayName ?? null,
     photo_url: user.photoUrl ?? null,
+    email_verified: user.emailVerified ?? false,
   };
 }
 
@@ -402,6 +435,9 @@ export function toServe(row: ServeRow): ServeRecord {
     campaignId: row.campaign_id,
     servedAt: row.served_at,
     expiresAt: row.expires_at,
+    maxBidCpmMicros: toMicros(row.max_bid_cpm_micros),
+    clearingCpmMicros: toMicros(row.clearing_cpm_micros),
+    costMicros: toMicros(row.cost_micros),
     ...(row.test ? { test: true } : {}),
   };
 }
@@ -414,6 +450,9 @@ export function fromServe(s: ServeRecord): ServeRow {
     campaign_id: s.campaignId,
     served_at: s.servedAt,
     expires_at: s.expiresAt,
+    max_bid_cpm_micros: fromMicros(s.maxBidCpmMicros),
+    clearing_cpm_micros: fromMicros(s.clearingCpmMicros),
+    cost_micros: fromMicros(s.costMicros),
     test: s.test === true,
   };
 }
@@ -498,6 +537,40 @@ export function fromFunding(f: FundingRecord): FundingRow {
     amount_micros: fromMicros(f.amountMicros),
     currency: f.currency,
     at: f.at,
+  };
+}
+
+export function toCreditOrder(row: CreditOrderRow): CreditOrderRecord {
+  return {
+    orderId: row.order_id,
+    advertiserId: row.advertiser_id,
+    amountMicros: toMicros(row.amount_micros),
+    currency: "USD",
+    billingCountry: row.billing_country,
+    customerEmail: row.customer_email,
+    status: row.status as CreditOrderRecord["status"],
+    providerSessionId: row.provider_session_id,
+    checkoutUrl: row.checkout_url,
+    providerPaymentId: row.provider_payment_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function fromCreditOrder(order: CreditOrderRecord): CreditOrderRow {
+  return {
+    order_id: order.orderId,
+    advertiser_id: order.advertiserId,
+    amount_micros: fromMicros(order.amountMicros),
+    currency: order.currency,
+    billing_country: order.billingCountry,
+    customer_email: order.customerEmail,
+    status: order.status,
+    provider_session_id: order.providerSessionId,
+    checkout_url: order.checkoutUrl,
+    provider_payment_id: order.providerPaymentId,
+    created_at: order.createdAt,
+    updated_at: order.updatedAt,
   };
 }
 
@@ -633,6 +706,8 @@ export function toConfig(row: ConfigRow): ServingConfig {
       ...(row.daily_cap !== null ? { dailyCap: row.daily_cap } : {}),
     },
     defaultCpmMicros: toMicros(row.default_cpm_micros),
+    floorCpmMicros: toMicros(row.floor_cpm_micros),
+    auctionIncrementCpmMicros: toMicros(row.auction_increment_cpm_micros),
     revSharePercent: toMicros(row.rev_share_percent),
     spendShardCount: row.spend_shard_count,
     serveTtlMs: row.serve_ttl_ms,
@@ -648,6 +723,8 @@ export function fromConfig(config: ServingConfig): ConfigRow & { id: number } {
     min_interval_ms: config.caps.minIntervalMs ?? null,
     daily_cap: config.caps.dailyCap ?? null,
     default_cpm_micros: fromMicros(config.defaultCpmMicros),
+    floor_cpm_micros: fromMicros(config.floorCpmMicros),
+    auction_increment_cpm_micros: fromMicros(config.auctionIncrementCpmMicros),
     rev_share_percent: fromMicros(config.revSharePercent),
     spend_shard_count: config.spendShardCount,
     serve_ttl_ms: config.serveTtlMs,
@@ -696,5 +773,168 @@ export function fromAdmin(a: AdminRecord): AdminRow {
     email: a.email.toLowerCase(),
     added_by: a.addedBy,
     added_at: a.addedAt,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Payouts
+// ---------------------------------------------------------------------------
+
+export interface PayoutProfileRow {
+  uid: string;
+  method: string;
+  legal_name: string;
+  country: string;
+  currency: string;
+  email: string | null;
+  bank_details: string | null;
+  destination_version?: number | null;
+  destination_nonce?: string | null;
+  destination_ciphertext?: string | null;
+  destination_tag?: string | null;
+  destination_mask?: string | null;
+  updated_at: number;
+}
+
+export interface WithdrawalRow {
+  withdrawal_id: string;
+  uid: string;
+  amount_micros: string;
+  status: string;
+  method: string;
+  legal_name: string;
+  country: string;
+  currency: string;
+  email: string | null;
+  bank_details: string | null;
+  destination_version?: number | null;
+  destination_nonce?: string | null;
+  destination_ciphertext?: string | null;
+  destination_tag?: string | null;
+  destination_mask?: string | null;
+  created_at: number;
+  decided_at: number | null;
+  decided_by: string | null;
+  provider_ref: string | null;
+  note: string | null;
+}
+
+export const PAYOUT_PROFILE_COLS =
+  "uid,method,legal_name,country,currency,email,bank_details,destination_version,destination_nonce,destination_ciphertext,destination_tag,destination_mask,updated_at";
+
+export const WITHDRAWAL_COLS =
+  "withdrawal_id,uid,amount_micros::text,status,method,legal_name,country,currency,email,bank_details,destination_version,destination_nonce,destination_ciphertext,destination_tag,destination_mask,created_at,decided_at,decided_by,provider_ref,note";
+
+/**
+ * The destination, as stored on both a profile and a request.
+ *
+ * A withdrawal row repeats these columns rather than pointing at the profile, because it
+ * is a snapshot: editing your payout details must not redirect a transfer somebody is
+ * part-way through making. The duplication is the point.
+ */
+function toDestination(row: {
+  method: string;
+  legal_name: string;
+  country: string;
+  currency: string;
+  email: string | null;
+  bank_details: string | null;
+}): PayoutDestination {
+  let fields: PayoutDestination["fields"];
+  if (row.bank_details !== null && row.bank_details.startsWith("{")) {
+    try {
+      fields = JSON.parse(row.bank_details) as PayoutDestination["fields"];
+    } catch {
+      fields = undefined;
+    }
+  }
+  return {
+    // Anything unrecognised reads as a bank transfer: that is the shape whose details a
+    // human can still act on, whereas an unusable "wise-email" row is a dead end.
+    method: row.method === "wise-email" ? "wise-email" : "bank",
+    legalName: row.legal_name,
+    country: row.country,
+    currency: row.currency,
+    email: row.email,
+    bankDetails: fields === undefined ? row.bank_details : null,
+    ...(fields === undefined ? {} : { fields }),
+  };
+}
+
+export function toPayoutProfile(row: PayoutProfileRow): PayoutProfileRecord {
+  return { uid: row.uid, ...toDestination(row), updatedAt: row.updated_at };
+}
+
+export function fromPayoutProfile(profile: PayoutProfileRecord): PayoutProfileRow {
+  return {
+    uid: profile.uid,
+    method: profile.method,
+    legal_name: profile.legalName,
+    country: profile.country,
+    currency: profile.currency,
+    email: profile.email,
+    bank_details: profile.fields === undefined ? profile.bankDetails : JSON.stringify(profile.fields),
+    destination_version: null,
+    destination_nonce: null,
+    destination_ciphertext: null,
+    destination_tag: null,
+    destination_mask: null,
+    updated_at: profile.updatedAt,
+  };
+}
+
+const WITHDRAWAL_STATUSES = new Set([
+  "requested",
+  "approved",
+  "paid",
+  "rejected",
+  "failed",
+  "cancelled",
+]);
+
+export function toWithdrawal(row: WithdrawalRow): WithdrawalRecord {
+  return {
+    withdrawalId: row.withdrawal_id,
+    uid: row.uid,
+    amountMicros: toMicros(row.amount_micros),
+    // An unknown status reads as `pending`, which is the state that keeps a human in the
+    // loop. Defaulting to `paid` would quietly close a request nobody had acted on.
+    status: WITHDRAWAL_STATUSES.has(row.status)
+      ? (row.status as WithdrawalRecord["status"])
+      : "requested",
+    destination: toDestination(row),
+    createdAt: row.created_at,
+    decidedAt: row.decided_at,
+    decidedBy: row.decided_by,
+    providerRef: row.provider_ref,
+    note: row.note,
+  };
+}
+
+export function fromWithdrawal(w: WithdrawalRecord): WithdrawalRow {
+  return {
+    withdrawal_id: w.withdrawalId,
+    uid: w.uid,
+    amount_micros: fromMicros(w.amountMicros),
+    status: w.status,
+    method: w.destination.method,
+    legal_name: w.destination.legalName,
+    country: w.destination.country,
+    currency: w.destination.currency,
+    email: w.destination.email,
+    bank_details:
+      w.destination.fields === undefined
+        ? w.destination.bankDetails
+        : JSON.stringify(w.destination.fields),
+    destination_version: null,
+    destination_nonce: null,
+    destination_ciphertext: null,
+    destination_tag: null,
+    destination_mask: null,
+    created_at: w.createdAt,
+    decided_at: w.decidedAt,
+    decided_by: w.decidedBy,
+    provider_ref: w.providerRef,
+    note: w.note,
   };
 }

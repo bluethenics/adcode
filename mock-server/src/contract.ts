@@ -33,6 +33,15 @@ export interface ServedCreative {
   logoLight: string;
   logoDark: string;
   ttlMs: number;
+  /**
+   * An admin test card, queued against one account and served once.
+   *
+   * The real service has always sent this and the client has always parsed it; the mock
+   * was the only one of the three that did not know the field existed, so nothing could
+   * exercise a test card end to end. That gap is exactly the contract drift two
+   * independent implementations are supposed to make visible.
+   */
+  test?: boolean;
 }
 
 export interface ServeResponseBody {

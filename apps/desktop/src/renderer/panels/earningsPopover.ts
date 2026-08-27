@@ -94,6 +94,44 @@ function row(label: string, value: string): HTMLElement {
   return line;
 }
 
+/**
+ * The account id, with a button that copies it.
+ *
+ * Copyable rather than merely shown, because the only thing anyone does with a 28-character
+ * Firebase uid is paste it somewhere - into the admin panel's user picker, which searches by
+ * name and address and so cannot find an anonymous account any other way. Reading it off the
+ * screen by hand is how you queue a test card to the wrong account.
+ */
+function accountIdRow(uid: string): HTMLElement {
+  const line = document.createElement("div");
+  line.className = "earnings-row";
+
+  const name = document.createElement("span");
+  name.className = "earnings-row-label";
+  name.textContent = "This editor's account";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "earnings-row-value earnings-uid";
+  // The full id is the thing being copied, so it is the thing announced and the thing on
+  // hover - the middle is elided only because the popover is narrow.
+  button.textContent = `${uid.slice(0, 6)}…${uid.slice(-4)}`;
+  button.title = uid;
+  button.setAttribute("aria-label", `Copy account id ${uid}`);
+
+  button.addEventListener("click", () => {
+    void window.adcode.clipboard.writeText(uid).then(() => {
+      button.textContent = "Copied";
+      window.setTimeout(() => {
+        button.textContent = `${uid.slice(0, 6)}…${uid.slice(-4)}`;
+      }, 1200);
+    });
+  });
+
+  line.append(name, button);
+  return line;
+}
+
 export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopover {
   const card = document.createElement("section");
   card.className = "earnings-card";
@@ -193,7 +231,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
    * It does NOT say "sign in to earn", because that would be false: earnings accrue from
    * first launch with no account at all, which is the whole point of the no-wall design.
    * What an account buys is keeping the money - reaching it from the dashboard, and
-   * withdrawing it once withdrawals open. Saying the true thing is also the more
+   * withdrawing it from there. Saying the true thing is also the more
    * persuasive thing, because the false version collapses the moment someone notices
    * their balance rising while signed out.
    */
@@ -244,6 +282,11 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
   /** Paints whichever of the three states the account is in. */
   function renderAccount(state: AccountState): void {
+    accountUid = state.state === "unavailable" ? null : (state.uid ?? null);
+    // The id lives in the facts list, which `render` owns, so a state that arrives after
+    // the first paint has to ask for a redraw rather than only updating the card below.
+    if (latest !== null) render();
+
     if (state.state === "unavailable") {
       accountRow.hidden = true;
       return;
@@ -325,6 +368,8 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
   let open = false;
   let latest: EarningsSnapshot | null = null;
+  /** Null until the account state has been read, and on builds with no Firebase project. */
+  let accountUid: string | null = null;
   /** Guards against a second request while one is in flight, which would race the render. */
   let refreshing = false;
 
@@ -382,6 +427,10 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
           : `${snapshot.pendingReceipts} receipt${snapshot.pendingReceipts === 1 ? "" : "s"}`,
       ),
       row("Next card", nextCardLabel(snapshot.suppressedReason, snapshot.enabled)),
+      // Last, because it is a diagnostic rather than something to read every day - but
+      // here rather than buried in settings, because this popover is where somebody
+      // already is when they are wondering why no card has arrived.
+      ...(accountUid === null ? [] : [accountIdRow(accountUid)]),
     );
 
     presetList.replaceChildren(

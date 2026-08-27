@@ -64,7 +64,7 @@ export async function GET(
   if (!response.ok || response.body === null) {
     // The usual cause is a release that has not published this platform's asset yet, and
     // the download page is where someone can see which ones exist.
-    return new Response("That build isn't published yet. See /download for what is.", {
+    return new Response("That build isn't published yet. See /versions for what is.", {
       status: 404,
     });
   }

@@ -56,7 +56,7 @@ AI features send only what you explicitly ask them to send, to the provider whos
 
 On first launch the editor creates an **anonymous account** through Firebase Authentication. It has no email address, no name, and no password. Its only purpose is to have somewhere to credit your earnings.
 
-If you later choose to withdraw money, you can attach an email address to that same account. Your existing balance carries over because it is the same account, not a new one.
+If you later choose to withdraw money, you can attach an email address to that same account — an address the provider has confirmed, which is a condition of being paid. Your existing balance carries over because it is the same account, not a new one.
 
 ## What we store
 
@@ -64,6 +64,7 @@ If you later choose to withdraw money, you can attach an email address to that s
 - Your ledger: one row per credit, reversal, adjustment, or withdrawal, with the amount and a short description.
 - Records of ads served to you, kept briefly, so a receipt can be checked against a real serve.
 - Feedback you send, if you send any.
+- **If, and only if, you ask to be paid:** the payout details you enter — the full name on the receiving account, the country and currency, and either the email address on your Wise account or the bank details you give us. We store them so a person can make the transfer, and a copy is attached to each request so that editing your details later cannot redirect a payment already in progress. You can change or clear them at any time from the Payouts tab.
 
 ## Cookies and analytics
 
@@ -77,7 +78,7 @@ We share personal data with nobody for advertising purposes.
 
 Advertisers receive **aggregate** reporting: how many times their campaign was served, viewed, and clicked. They never receive your identifier, your tags, or anything that identifies you individually.
 
-We use Google Cloud and Firebase to run the service, Dodo Payments to take payment from advertisers, and Wise to send withdrawals. Each receives only what it needs to do its part.
+We use Google Cloud and Firebase to run the service, Dodo Payments to take payment from advertisers, and Wise to send withdrawals. Each receives only what it needs to do its part — Wise receives your payout details and the amount, and nothing about how you earned it.
 
 ## Your choices
 

@@ -15,7 +15,7 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "*",
         allow: "/",
         // Signed-in areas: nothing to index, and every URL under them redirects.
-        disallow: ["/portal/", "/dashboard/", "/admin/", "/api/"],
+        disallow: ["/portal/", "/dashboard/", "/admin/", "/support", "/api/"],
       },
     ],
     sitemap: url("/sitemap.xml"),

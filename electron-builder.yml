@@ -79,9 +79,10 @@ electronFuses:
 # Where updates come from. electron-updater reads this same block at runtime to find the
 # feed, so the app and the installer always agree on where releases live.
 #
-# The repo below is a placeholder - set GH_OWNER and GH_REPO, or edit it, before the first
-# real release. Publishing to the wrong repo produces installers that check an update feed
-# nobody publishes to, and they never update again.
+# The repo below is the real one and matches `git remote -v`. It also has to match three
+# other files - `apps/web/public/install.ps1`, `install.sh` and `apps/web/.env.production` -
+# so a fork or a rename changes all four together. Publishing to the wrong repo produces
+# installers that check an update feed nobody publishes to, and they never update again.
 publish:
   provider: github
   owner: bluethenics

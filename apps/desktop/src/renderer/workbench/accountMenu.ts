@@ -6,7 +6,7 @@
  *
  * It never blocks anything. §8.4 promises first launch has no wall, and earnings accrue
  * whether or not anyone ever presses this. What signing in buys is keeping the money -
- * reaching it from the web dashboard, and withdrawing it when withdrawals open. The copy
+ * reaching it from the web dashboard, and withdrawing it from there. The copy
  * says exactly that and no more, because "sign in to earn" would be false and would stop
  * being believed the first time someone watched their balance rise while signed out.
  */
