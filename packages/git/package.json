@@ -1,0 +1,11 @@
+{
+  "name": "@adcode/git",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Git operations over the git CLI, behind an injected exec port. No Electron, no DOM.",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

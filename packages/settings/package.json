@@ -1,0 +1,11 @@
+{
+  "name": "@adcode/settings",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Settings schema, defaults, and migration. Plain TypeScript; no Electron, no DOM.",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

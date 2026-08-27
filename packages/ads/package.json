@@ -1,0 +1,14 @@
+{
+  "name": "@adcode/ads",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Ad client core. Plain TypeScript: no Electron, no Monaco, no DOM, no runtime dependencies.",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  }
+}
