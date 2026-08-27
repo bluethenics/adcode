@@ -35,3 +35,6 @@ apps/web/.wrangler/
 .agents/skills/
 .claude/skills/
 skills-lock.json
+
+# Isolated implementation worktrees created by the development workflow.
+.worktrees/
