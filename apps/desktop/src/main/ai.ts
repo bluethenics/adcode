@@ -58,6 +58,8 @@ import { currentWorkspace } from "./workspace.ts";
 import { clearSessions, deleteSession, readSessions, writeSession } from "./aiSessions.ts";
 import { createAiWorkspaceService, type AiWorkspaceService } from "./aiWorkspaceService.ts";
 import { normalizeForCompare } from "./pathSafety.ts";
+import { recoverableDrafts } from "./history.ts";
+import { workspaceHasUnsavedDraft } from "./aiWorkspaceDrafts.ts";
 import {
   toAiWorkspaceActionView,
   toAiWorkspaceChangeViews,
@@ -118,6 +120,8 @@ const pendingEdits = new Map<string, ProposedEdit>();
 let activeTaskId: string | null = null;
 let currentTaskPrompt: string | null = null;
 let taskService: AiWorkspaceService | null = null;
+let taskRecovery: Promise<void> | null = null;
+let taskWorkspaceUnavailableReason: string | null = null;
 
 function aiWorkspaceService(): AiWorkspaceService {
   if (taskService === null) {
@@ -126,9 +130,15 @@ function aiWorkspaceService(): AiWorkspaceService {
       storagePolicy: configuredStoragePolicy,
     });
     // Recovery changes state only. It never resumes a model, command, or terminal action.
-    void taskService.recoverActive();
+    taskRecovery = taskService.recoverActive().then(() => undefined);
   }
   return taskService;
+}
+
+async function readyAiWorkspaceService(): Promise<AiWorkspaceService> {
+  const service = aiWorkspaceService();
+  await taskRecovery;
+  return service;
 }
 
 function announceWorkspaceTask(task: Parameters<typeof toAiWorkspaceTaskView>[0]): void {
@@ -141,7 +151,7 @@ function belongsToCurrentWorkspace(task: AiWorkspaceTask): boolean {
 }
 
 async function currentWorkspaceTask(taskId: string): Promise<AiWorkspaceTask | null> {
-  const task = await aiWorkspaceService().read(taskId);
+  const task = await (await readyAiWorkspaceService()).read(taskId);
   return task !== null && belongsToCurrentWorkspace(task) ? task : null;
 }
 
@@ -149,10 +159,22 @@ const REUSABLE_TASK_STATES = new Set(["ready", "running", "paused", "review", "c
 
 async function ensureToolWorkspace() {
   const human = currentWorkspace()?.root ?? null;
-  if (human === null) return null;
-  if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) return null;
+  taskWorkspaceUnavailableReason = null;
+  if (human === null) {
+    taskWorkspaceUnavailableReason = "Open a folder before using AI file tools.";
+    return null;
+  }
+  if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
+    taskWorkspaceUnavailableReason = "AI file tools are off because Isolate AI edits is disabled in Settings.";
+    return null;
+  }
+  if (workspaceHasUnsavedDraft(human, await recoverableDrafts())) {
+    taskWorkspaceUnavailableReason =
+      "Save your open file changes before starting AI file tools, so the isolated task begins from what you see.";
+    return null;
+  }
 
-  const service = aiWorkspaceService();
+  const service = await readyAiWorkspaceService();
   let task = activeTaskId === null ? null : await service.read(activeTaskId);
   if (
     task === null ||
@@ -327,13 +349,11 @@ function toolRunner() {
   return createAiToolRunner({
     workspace: ensureToolWorkspace,
     workspaceUnavailableMessage: () =>
-      currentSettings()["adcode.ai.isolatedWorkspaces"] === false
-        ? "AI file tools are off because Isolate AI edits is disabled in Settings."
-        : "No folder is open, so there is nothing to work on yet.",
+      taskWorkspaceUnavailableReason ?? "No folder is open, so there is nothing to work on yet.",
     memory: () => memoryForWorkspace(),
     writeSandboxFile: async (path, contents) => {
       if (activeTaskId === null) throw new Error("Task workspace is unavailable");
-      const task = await aiWorkspaceService().write(activeTaskId, path, contents);
+      const task = await (await readyAiWorkspaceService()).write(activeTaskId, path, contents);
       announceWorkspaceTask(task);
       const change = task.changes.find((item) => item.path === path);
       if (change === undefined) throw new Error("Task change was not recorded");
@@ -527,8 +547,13 @@ export async function aiSend(text: string): Promise<void> {
             return null;
           }
           const workspace = await ensureToolWorkspace();
-          if (workspace === null) return null;
-          const reserved = await aiWorkspaceService().reserveUsage(workspace.taskId, {
+          if (workspace === null) {
+            // A question-only chat still works before a task exists. Once a task exists,
+            // a new unsaved draft pauses its next provider turn instead of letting the
+            // agent continue from a stale filesystem snapshot.
+            return activeTaskId === null ? null : taskWorkspaceUnavailableReason;
+          }
+          const reserved = await (await readyAiWorkspaceService()).reserveUsage(workspace.taskId, {
             tokens: estimateRequestTokens(request),
             costMicros: 0,
           });
@@ -581,9 +606,12 @@ export async function aiSend(text: string): Promise<void> {
 export function aiCancel(): void {
   agent?.cancel();
   if (activeTaskId !== null) {
-    void aiWorkspaceService().pause(activeTaskId).then((task) => {
-      if (task !== null) announceWorkspaceTask(task);
-    });
+    const taskId = activeTaskId;
+    void readyAiWorkspaceService()
+      .then((service) => service.pause(taskId))
+      .then((task) => {
+        if (task !== null) announceWorkspaceTask(task);
+      });
   }
 }
 
@@ -596,9 +624,12 @@ export function aiCancel(): void {
 export function aiReset(): void {
   agent?.reset();
   if (activeTaskId !== null) {
-    void aiWorkspaceService().pause(activeTaskId).then((task) => {
-      if (task !== null) announceWorkspaceTask(task);
-    });
+    const taskId = activeTaskId;
+    void readyAiWorkspaceService()
+      .then((service) => service.pause(taskId))
+      .then((task) => {
+        if (task !== null) announceWorkspaceTask(task);
+      });
   }
   pendingEdits.clear();
   activeTaskId = null;
@@ -618,8 +649,9 @@ export async function aiApplyHunks(path: string, acceptedHunkIds: readonly strin
 
   if (acceptedHunkIds.length === 0) {
     try {
-      await aiWorkspaceService().reject(edit.taskId, edit.relativePath);
-      const task = await aiWorkspaceService().read(edit.taskId);
+      const service = await readyAiWorkspaceService();
+      await service.reject(edit.taskId, edit.relativePath);
+      const task = await service.read(edit.taskId);
       if (task !== null) announceWorkspaceTask(task);
       pendingEdits.delete(path);
       return true;
@@ -629,7 +661,7 @@ export async function aiApplyHunks(path: string, acceptedHunkIds: readonly strin
   }
 
   const next = applyHunks(edit.original, edit.hunks, acceptedHunkIds);
-  const result = await aiWorkspaceService().apply(edit.taskId, [
+  const result = await (await readyAiWorkspaceService()).apply(edit.taskId, [
     { path: edit.relativePath, acceptedHunkIds },
   ]);
   announceWorkspaceTask(result.task);
@@ -654,7 +686,7 @@ export async function aiApplyHunks(path: string, acceptedHunkIds: readonly strin
 export async function aiWorkspaceTasks(): Promise<AiWorkspaceTaskView[]> {
   const root = currentWorkspace()?.root;
   if (root === undefined) return [];
-  return (await aiWorkspaceService().list(root)).map(toAiWorkspaceTaskView);
+  return (await (await readyAiWorkspaceService()).list(root)).map(toAiWorkspaceTaskView);
 }
 
 export async function aiCurrentWorkspaceTask(): Promise<AiWorkspaceTaskView | null> {
@@ -672,7 +704,7 @@ export async function aiWorkspaceChanges(taskId: string): Promise<AiWorkspaceCha
 
 export async function aiWorkspaceTraces(taskId: string): Promise<AiWorkspaceTraceView[]> {
   if ((await currentWorkspaceTask(taskId)) === null) return [];
-  return (await aiWorkspaceService().traces(taskId)).map(toAiWorkspaceTraceView);
+  return (await (await readyAiWorkspaceService()).traces(taskId)).map(toAiWorkspaceTraceView);
 }
 
 export async function aiWorkspaceApply(
@@ -680,14 +712,14 @@ export async function aiWorkspaceApply(
   selections: readonly AiWorkspaceApplySelectionView[],
 ): Promise<AiWorkspaceActionView> {
   if ((await currentWorkspaceTask(taskId)) === null) throw new Error("Task is not in the open workspace");
-  const result = await aiWorkspaceService().apply(taskId, selections);
+  const result = await (await readyAiWorkspaceService()).apply(taskId, selections);
   announceWorkspaceTask(result.task);
   return toAiWorkspaceActionView(result);
 }
 
 export async function aiWorkspaceDiscard(taskId: string): Promise<AiWorkspaceTaskView | null> {
   if ((await currentWorkspaceTask(taskId)) === null) return null;
-  const task = await aiWorkspaceService().discard(taskId);
+  const task = await (await readyAiWorkspaceService()).discard(taskId);
   if (task === null) return null;
   if (activeTaskId === taskId) activeTaskId = null;
   announceWorkspaceTask(task);
@@ -696,7 +728,7 @@ export async function aiWorkspaceDiscard(taskId: string): Promise<AiWorkspaceTas
 
 export async function aiWorkspaceRollback(taskId: string): Promise<AiWorkspaceActionView> {
   if ((await currentWorkspaceTask(taskId)) === null) throw new Error("Task is not in the open workspace");
-  const result = await aiWorkspaceService().rollback(taskId);
+  const result = await (await readyAiWorkspaceService()).rollback(taskId);
   announceWorkspaceTask(result.task);
   return toAiWorkspaceActionView(result);
 }
