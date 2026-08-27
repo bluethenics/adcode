@@ -10,8 +10,8 @@
  * and completion degrade silently. Editing, terminal, and memory reads are unaffected."
  * Nothing in this file throws into the window.
  */
-import { relative } from "node:path";
-import { BrowserWindow } from "electron";
+import { join, relative } from "node:path";
+import { app, BrowserWindow } from "electron";
 import {
   BUILT_IN_TOOLS,
   BUNDLED_CATALOGUE,
@@ -47,8 +47,9 @@ import { createKeychainStore } from "./keychain.ts";
 import { createAiToolRunner, type ProposedEdit } from "./aiTools.ts";
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings } from "./settings.ts";
-import { currentWorkspace, writeTextFile } from "./workspace.ts";
+import { currentWorkspace } from "./workspace.ts";
 import { clearSessions, deleteSession, readSessions, writeSession } from "./aiSessions.ts";
+import { createAiWorkspaceService, type AiWorkspaceService } from "./aiWorkspaceService.ts";
 
 const keys = createKeychainStore();
 
@@ -100,6 +101,41 @@ function baseUrlOf(providerId: string): string | null {
 
 /** Proposals awaiting review, keyed by path. Nothing here has touched disk (§5.3). */
 const pendingEdits = new Map<string, ProposedEdit>();
+let activeTaskId: string | null = null;
+let currentTaskPrompt: string | null = null;
+let taskService: AiWorkspaceService | null = null;
+
+function aiWorkspaceService(): AiWorkspaceService {
+  taskService ??= createAiWorkspaceService({ userDataDirectory: app.getPath("userData") });
+  return taskService;
+}
+
+const REUSABLE_TASK_STATES = new Set(["ready", "running", "paused", "review", "conflict"]);
+
+async function ensureToolWorkspace() {
+  const human = currentWorkspace()?.root ?? null;
+  if (human === null) return null;
+
+  const service = aiWorkspaceService();
+  let task = activeTaskId === null ? null : await service.read(activeTaskId);
+  if (
+    task === null ||
+    task.workspaceRoot !== human ||
+    !REUSABLE_TASK_STATES.has(task.state)
+  ) {
+    task = await service.start({
+      workspaceRoot: human,
+      prompt: currentTaskPrompt ?? "Continue the assistant task",
+    });
+    activeTaskId = task.id;
+  }
+
+  return {
+    taskId: task.id,
+    sandboxRoot: join(app.getPath("userData"), "ai-workspaces", "sandboxes", task.id),
+    humanRoot: human,
+  };
+}
 
 /**
  * The conversation being written to.
@@ -162,6 +198,7 @@ export async function aiResumeSession(id: string): Promise<ChatSession | null> {
   session = found;
   // The agent's own history belongs to the previous conversation.
   agent = null;
+  activeTaskId = null;
   return found;
 }
 
@@ -231,8 +268,15 @@ async function buildProvider(id: string): Promise<Provider | null> {
 
 function toolRunner() {
   return createAiToolRunner({
-    workspaceRoot: () => currentWorkspace()?.root ?? null,
+    workspace: ensureToolWorkspace,
     memory: () => memoryForWorkspace(),
+    writeSandboxFile: async (path, contents) => {
+      if (activeTaskId === null) throw new Error("Task workspace is unavailable");
+      const task = await aiWorkspaceService().write(activeTaskId, path, contents);
+      const change = task.changes.find((item) => item.path === path);
+      if (change === undefined) throw new Error("Task change was not recorded");
+      return change;
+    },
     onProposedEdit: (edit) => {
       pendingEdits.set(edit.path, edit);
 
@@ -383,6 +427,7 @@ export async function checkProviderKey(providerId: string, key: string): Promise
  * of magical."
  */
 export async function aiSend(text: string): Promise<void> {
+  currentTaskPrompt = text;
   try {
     const providerId = activeProvider();
     const model = activeModel(providerId);
@@ -445,11 +490,14 @@ export async function aiSend(text: string): Promise<void> {
       kind: "error",
       detail: error instanceof Error ? error.message : "the assistant failed",
     });
+  } finally {
+    currentTaskPrompt = null;
   }
 }
 
 export function aiCancel(): void {
   agent?.cancel();
+  if (activeTaskId !== null) void aiWorkspaceService().pause(activeTaskId);
 }
 
 /**
@@ -460,7 +508,9 @@ export function aiCancel(): void {
  */
 export function aiReset(): void {
   agent?.reset();
+  if (activeTaskId !== null) void aiWorkspaceService().pause(activeTaskId);
   pendingEdits.clear();
+  activeTaskId = null;
   session = null;
 }
 
@@ -474,13 +524,23 @@ export async function aiApplyHunks(path: string, acceptedHunkIds: readonly strin
   const edit = pendingEdits.get(path);
   if (edit === undefined) return false;
 
-  pendingEdits.delete(path);
-  if (acceptedHunkIds.length === 0) return true;
+  if (acceptedHunkIds.length === 0) {
+    try {
+      await aiWorkspaceService().reject(edit.taskId, edit.relativePath);
+      pendingEdits.delete(path);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   const next = applyHunks(edit.original, edit.hunks, acceptedHunkIds);
-  const result = await writeTextFile(path, next);
+  const result = await aiWorkspaceService().apply(edit.taskId, [
+    { path: edit.relativePath, acceptedHunkIds },
+  ]);
 
   if (result.ok) {
+    pendingEdits.delete(path);
     // Counted here because this is the only place a model-authored change reaches disk.
     // The number is the growth in the file, not the size of the hunks: a hunk that
     // replaces twenty lines with twenty-one added one character of the agent's work, and

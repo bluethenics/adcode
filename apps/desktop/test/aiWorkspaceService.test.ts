@@ -53,6 +53,14 @@ describe("safe AI workspace service", () => {
     expect(await readFile(join(project, "one.txt"), "utf8")).toBe("one before\n");
   });
 
+  it("pauses without deleting the durable sandbox", async () => {
+    const api = service();
+    const task = await api.start({ workspaceRoot: project, prompt: "Pause me" });
+
+    expect((await api.pause(task.id))?.state).toBe("paused");
+    expect(await api.readSandboxFile(task.id, "one.txt")).toBe("one before\n");
+  });
+
   it("creates a durable checkpoint before applying selected files", async () => {
     const api = service();
     const task = await api.start({ workspaceRoot: project, prompt: "Edit one" });
@@ -96,6 +104,37 @@ describe("safe AI workspace service", () => {
     expect(await readFile(join(project, "one.txt"), "utf8")).toBe(
       hunks.length === 1 ? proposed : "ALPHA\nbeta\ngamma\n",
     );
+  });
+
+  it("accepts files one at a time while keeping one whole-task rollback checkpoint", async () => {
+    const api = service();
+    const task = await api.start({ workspaceRoot: project, prompt: "Review separately" });
+    await api.write(task.id, "one.txt", "one proposed\n");
+    await api.write(task.id, "two.txt", "two proposed\n");
+
+    const first = await api.apply(task.id, [{ path: "one.txt", contents: "one proposed\n" }]);
+    expect(first.task.state).toBe("review");
+    expect(first.task.changes.map((change) => change.path)).toEqual(["two.txt"]);
+    const second = await api.apply(task.id, [{ path: "two.txt", contents: "two proposed\n" }]);
+    expect(second.task.state).toBe("applied");
+    expect(second.task.checkpoint?.paths).toEqual(["one.txt", "two.txt"]);
+
+    expect((await api.rollback(task.id)).ok).toBe(true);
+    expect(await readFile(join(project, "one.txt"), "utf8")).toBe("one before\n");
+    expect(await readFile(join(project, "two.txt"), "utf8")).toBe("two before\n");
+  });
+
+  it("rejects one sandbox proposal without discarding other reviewed work", async () => {
+    const api = service();
+    const task = await api.start({ workspaceRoot: project, prompt: "Review separately" });
+    await api.write(task.id, "one.txt", "one proposed\n");
+    await api.write(task.id, "two.txt", "two proposed\n");
+
+    const rejected = await api.reject(task.id, "one.txt");
+    expect(rejected.state).toBe("review");
+    expect(rejected.changes.map((change) => change.path)).toEqual(["two.txt"]);
+    expect(await api.readSandboxFile(task.id, "one.txt")).toBe("one before\n");
+    expect(await api.readSandboxFile(task.id, "two.txt")).toBe("two proposed\n");
   });
 
   it("does not partially apply when any selected file overlaps human work", async () => {

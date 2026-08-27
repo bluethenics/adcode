@@ -3,9 +3,9 @@
  *
  * Two rules shape this file.
  *
- * §5.3: "Nothing is ever written to disk unseen." `propose_edit` therefore does not
- * write anything. It computes a diff and hands it to the renderer; the file changes only
- * when the user accepts hunks, through the ordinary save path.
+ * §5.3: "Nothing is ever written to disk unseen." `propose_edit` writes only into an
+ * isolated task sandbox. It computes a diff and hands it to the renderer; the human file
+ * changes only through the checkpointed apply service after review.
  *
  * §1: the renderer is hostile, and so, for this purpose, is model output. Every path a
  * tool touches goes through the same `isInsideWorkspace` confinement as an IPC call -
@@ -14,7 +14,7 @@
  */
 import { readFile, readdir, stat } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
-import { computeHunks, type ToolCallBlock, type ToolRunner } from "@adcode/ai";
+import { computeHunks, type AiFileChange, type ToolCallBlock, type ToolRunner } from "@adcode/ai";
 import type { NodeMemory } from "@adcode/memory";
 import { isInsideWorkspace } from "./pathSafety.ts";
 
@@ -23,6 +23,8 @@ const MAX_SEARCH_HITS = 60;
 const SKIP = new Set([".git", "node_modules", "dist", "out", ".next", "target", ".adcode"]);
 
 export interface ProposedEdit {
+  readonly taskId: string;
+  readonly relativePath: string;
   readonly path: string;
   readonly summary: string;
   readonly original: string;
@@ -30,9 +32,16 @@ export interface ProposedEdit {
   readonly hunks: ReturnType<typeof computeHunks>;
 }
 
+export interface AiToolWorkspace {
+  readonly taskId: string;
+  readonly sandboxRoot: string;
+  readonly humanRoot: string;
+}
+
 export interface AiToolDeps {
-  readonly workspaceRoot: () => string | null;
+  readonly workspace: () => Promise<AiToolWorkspace | null>;
   readonly memory: () => NodeMemory | null;
+  readonly writeSandboxFile: (path: string, contents: string) => Promise<AiFileChange>;
   /** Called when the agent proposes an edit, so the renderer can show the diff. */
   readonly onProposedEdit: (edit: ProposedEdit) => void;
 }
@@ -43,8 +52,9 @@ const fail = (content: string) => ({ content, isError: true });
 /** Resolve a workspace-relative path, refusing anything that escapes the workspace. */
 function resolveInWorkspace(root: string | null, input: unknown): string | null {
   if (root === null || typeof input !== "string") return null;
+  if (isAbsolute(input)) return null;
 
-  const candidate = isAbsolute(input) ? input : join(root, input);
+  const candidate = join(root, input);
   return isInsideWorkspace(root, candidate) ? candidate : null;
 }
 
@@ -70,13 +80,13 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
 
   return {
     async run(call: ToolCallBlock): Promise<{ content: string; isError: boolean }> {
-      const root = deps.workspaceRoot();
-      if (root === null) return fail("No folder is open, so there is nothing to work on yet.");
-
       const input = call.input;
 
       switch (call.name) {
         case "read_file": {
+          const workspace = await deps.workspace();
+          if (workspace === null) return fail("No folder is open, so there is nothing to work on yet.");
+          const root = workspace.sandboxRoot;
           const path = resolveInWorkspace(root, input["path"]);
           if (path === null) return fail("That path is outside the open workspace.");
 
@@ -100,6 +110,9 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
         }
 
         case "list_files": {
+          const workspace = await deps.workspace();
+          if (workspace === null) return fail("No folder is open, so there is nothing to work on yet.");
+          const root = workspace.sandboxRoot;
           const target = input["path"] === undefined ? root : resolveInWorkspace(root, input["path"]);
           if (target === null) return fail("That path is outside the open workspace.");
 
@@ -117,6 +130,9 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
         }
 
         case "search": {
+          const workspace = await deps.workspace();
+          if (workspace === null) return fail("No folder is open, so there is nothing to work on yet.");
+          const root = workspace.sandboxRoot;
           if (typeof input["pattern"] !== "string") return fail("search needs a pattern.");
 
           let regex: RegExp;
@@ -155,37 +171,45 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
         }
 
         case "propose_edit": {
+          const workspace = await deps.workspace();
+          if (workspace === null) return fail("No folder is open, so there is nothing to work on yet.");
+          const root = workspace.sandboxRoot;
           const path = resolveInWorkspace(root, input["path"]);
           if (path === null) return fail("That path is outside the open workspace.");
           if (typeof input["contents"] !== "string") return fail("propose_edit needs contents.");
 
-          let original = "";
+          let current = "";
           try {
-            original = await readFile(path, "utf8");
+            current = await readFile(path, "utf8");
           } catch {
             // A new file. An empty original makes the whole proposal one insertion hunk.
           }
 
           const proposed = input["contents"];
-          const hunks = computeHunks(original, proposed);
-
-          if (hunks.length === 0) {
+          if (current === proposed) {
             return ok("That file already has those contents; nothing to change.");
           }
 
+          const relativePath = relative(root, path).split(sep).join("/");
+          const stored = await deps.writeSandboxFile(relativePath, proposed);
+          const original = stored.original ?? "";
+          const hunks = computeHunks(original, stored.proposed);
+
           deps.onProposedEdit({
-            path,
+            taskId: workspace.taskId,
+            relativePath,
+            path: join(workspace.humanRoot, ...relativePath.split("/")),
             summary: typeof input["summary"] === "string" ? input["summary"] : "Proposed change",
             original,
-            proposed,
+            proposed: stored.proposed,
             hunks,
           });
 
-          // Deliberately not written. §5.3: the user reviews it hunk by hunk first, and
-          // the model is told so plainly rather than being left to assume it succeeded.
+          // Written only to the sandbox. The model is told that plainly so it can read its
+          // own new version on the next tool call without assuming the human file changed.
           return ok(
-            `Proposed ${hunks.length} change${hunks.length === 1 ? "" : "s"} to ${relative(root, path)}. ` +
-              `The user is reviewing them now; nothing has been written to disk.`,
+            `Proposed ${hunks.length} change${hunks.length === 1 ? "" : "s"} to ${relativePath}. ` +
+              "It is written only in the isolated task workspace and is waiting for human review.",
           );
         }
 

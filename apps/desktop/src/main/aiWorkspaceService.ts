@@ -67,7 +67,9 @@ export interface AiWorkspaceService {
   list(workspaceRoot: string): Promise<AiWorkspaceTask[]>;
   write(taskId: string, path: string, contents: string): Promise<AiWorkspaceTask>;
   readSandboxFile(taskId: string, path: string): Promise<string>;
+  pause(taskId: string): Promise<AiWorkspaceTask | null>;
   apply(taskId: string, selections: readonly ApplySelection[]): Promise<AiWorkspaceActionResult>;
+  reject(taskId: string, path: string): Promise<AiWorkspaceTask>;
   discard(taskId: string): Promise<AiWorkspaceTask | null>;
   rollback(taskId: string): Promise<AiWorkspaceActionResult>;
   traces(taskId: string): Promise<OperationalTrace[]>;
@@ -254,6 +256,17 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
       return readFile(target, "utf8");
     },
 
+    async pause(taskId): Promise<AiWorkspaceTask | null> {
+      let task = await store.read(taskId);
+      if (task === null) return null;
+      if (task.state === "ready" || task.state === "running") {
+        task = transitionTask(task, "paused", now());
+        await store.save(task);
+        await trace(task.id, "state", "Paused task workspace", "ok");
+      }
+      return task;
+    },
+
     async apply(taskId, selections): Promise<AiWorkspaceActionResult> {
       let task = await required(taskId);
       const refuse = (message: string, conflicts: readonly string[] = []): AiWorkspaceActionResult => ({
@@ -303,25 +316,43 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
         return { ok: false, task, conflicts, message: "Human changes overlap this task. Nothing was applied." };
       }
 
-      const checkpointId = id("checkpoint");
+      const existingManifest = task.checkpoint === null ? null : await readManifest(task);
+      const checkpointId = task.checkpoint?.id ?? id("checkpoint");
       if (!CHECKPOINT_ID.test(checkpointId)) throw new Error("Invalid generated checkpoint id");
+      const checkpointPaths = [
+        ...new Set([...(task.checkpoint?.paths ?? []), ...selected.map((item) => item.change.path)]),
+      ];
       const checkpoint: AiCheckpointSummary = {
         id: checkpointId,
-        createdAt: now(),
+        createdAt: task.checkpoint?.createdAt ?? now(),
         appliedAt: null,
-        paths: selected.map((item) => item.change.path),
+        paths: checkpointPaths,
       };
+      const selectedEntries = new Map(
+        selected.map((item) => [
+          item.change.path,
+          {
+            path: item.change.path,
+            original: item.change.original,
+            applied: item.contents,
+            appliedHash: hash(item.contents),
+          } satisfies CheckpointEntry,
+        ]),
+      );
+      const priorEntries = (existingManifest?.entries ?? []).map((entry) => {
+        const replacement = selectedEntries.get(entry.path);
+        if (replacement === undefined) return entry;
+        selectedEntries.delete(entry.path);
+        // A later accepted edit to the same file updates the applied side while retaining
+        // the pre-task original required for whole-task rollback.
+        return { ...replacement, original: entry.original };
+      });
       const manifest: CheckpointManifest = {
         id: checkpointId,
         taskId: task.id,
         workspaceRoot: task.workspaceRoot,
         createdAt: checkpoint.createdAt,
-        entries: selected.map((item) => ({
-          path: item.change.path,
-          original: item.change.original,
-          applied: item.contents,
-          appliedHash: hash(item.contents),
-        })),
+        entries: [...priorEntries, ...selectedEntries.values()],
       };
 
       task = transitionTask({ ...task, checkpoint }, "applying", now());
@@ -347,14 +378,54 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
       }
 
       const appliedAt = now();
+      const acceptedPaths = new Set(selected.map((item) => item.change.path));
+      const remainingChanges = task.changes.filter((change) => !acceptedPaths.has(change.path));
+      const nextState = remainingChanges.length === 0 ? "applied" : "review";
       task = transitionTask(
-        { ...task, checkpoint: { ...checkpoint, appliedAt } },
-        "applied",
+        {
+          ...task,
+          changes: remainingChanges,
+          checkpoint: { ...checkpoint, appliedAt: nextState === "applied" ? appliedAt : null },
+        },
+        nextState,
         appliedAt,
       );
       await store.save(task);
       await trace(task.id, "apply", `Applied ${selected.length} reviewed file(s)`, "ok");
       return { ok: true, task, conflicts: [], message: "Reviewed changes applied." };
+    },
+
+    async reject(taskId, path): Promise<AiWorkspaceTask> {
+      let task = await required(taskId);
+      if (task.state !== "review") throw new Error(`Task is ${task.state}, not awaiting review`);
+      const portable = createFileChange(path, null, "").path;
+      const change = task.changes.find((item) => item.path === portable);
+      if (change === undefined) throw new Error("That task change was not found");
+      const isolatedPath = await resolveSandboxPath(sandboxRoot(options.userDataDirectory, task.id), portable);
+      if (change.original === null) await rm(isolatedPath, { force: true });
+      else await writeAtomic(isolatedPath, change.original);
+
+      const changes = task.changes.filter((item) => item.path !== portable);
+      let nextState: "review" | "paused" | "applied" = "review";
+      if (changes.length === 0) nextState = task.checkpoint === null ? "paused" : "applied";
+      task =
+        nextState === "review"
+          ? { ...task, changes, updatedAt: now() }
+          : transitionTask(
+              {
+                ...task,
+                changes,
+                checkpoint:
+                  nextState === "applied" && task.checkpoint !== null
+                    ? { ...task.checkpoint, appliedAt: now() }
+                    : task.checkpoint,
+              },
+              nextState,
+              now(),
+            );
+      await store.save(task);
+      await trace(task.id, "file-change", `Rejected ${portable}`, "ok");
+      return task;
     },
 
     async discard(taskId): Promise<AiWorkspaceTask | null> {

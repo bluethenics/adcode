@@ -3,8 +3,8 @@
  *
  * Definitions only - pure data. The implementations live in the main process, because
  * they touch the filesystem and the memory store, and because §5.3 requires every
- * mutating result to pass through the inline diff widget rather than reaching disk
- * directly: "Nothing is ever written to disk unseen."
+ * mutating result to pass through an isolated task workspace and the inline diff widget
+ * rather than reaching the human project directly.
  *
  * The set is deliberately small. Brief §5.2 says of the MCP tools "expose exactly these
  * tools, and resist adding more", and the same reasoning applies here - every extra tool
@@ -59,7 +59,7 @@ export const SEARCH: ToolDefinition = {
 export const PROPOSE_EDIT: ToolDefinition = {
   name: "propose_edit",
   description:
-    "Propose a change to a file. The change is shown to the user as a reviewable diff and is NOT written to disk until they accept it, hunk by hunk. Send the file's complete new contents, not a patch.",
+    "Write a proposed complete file into the isolated task workspace. The human project is unchanged until the user reviews and accepts hunks. Send the file's complete new contents, not a patch.",
   inputSchema: {
     type: "object",
     properties: {
