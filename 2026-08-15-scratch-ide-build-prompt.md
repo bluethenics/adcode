@@ -213,8 +213,9 @@ escape hatch that replaces an extension system for languages you did not bundle.
 **Session** — workspace restore `on` · auto-save after delay `on` · local file history `on`
 · crash recovery of unsaved buffers `on`
 
-**AI** (see §5) — chat widget `on` · inline completion `on` · terminal agent detection `on`
-· memory capture `on` · MCP server `on`
+**AI** (see §5) — chat widget `on` · inline completion `on` · isolated workspaces `on` ·
+Team suggestions `on` · review approval `on` · scheduled messages `on` · terminal agent
+detection `on` · safe terminal continuation `off` · memory capture `on` · MCP server `on`
 
 > Dropping the extension system removes the single biggest risk a VS Code fork carries —
 > that Microsoft-licensed extensions (C/C++ tools, C# debugger, Pylance, Remote-SSH) cannot
@@ -309,19 +310,45 @@ decision on every session; widgets appear where the work is and get out of the w
 
 - **Chat widget** — a floating, draggable, resizable card summoned by keyboard shortcut.
   Remembers position per workspace. Dismisses on Escape without losing the conversation.
-- **Trace widget** — shows the agent's *workings*, live: which tool it called, which file it
-  read, which command it ran, what it decided. Collapsed to one line by default, expandable
-  to full detail. This is what makes the AI legible instead of magical, and it is what a
-  developer will judge the feature on.
+- **Trace widget** — shows operational events live: task and agent state, tools, files,
+  reservations, proposals, merges, checks, refusals, errors, apply and rollback. Collapsed
+  to one line by default, expandable to full detail. It never claims to expose a provider's
+  private chain of thought. This is what makes the AI legible instead of magical.
 - **Inline diff widget** — proposed changes appear at the edit site as a reviewable diff,
-  accepted or rejected per hunk. **Nothing is ever written to disk unseen.**
+  accepted or rejected per hunk in the default Review mode. Opt-in Trusted mode may apply a
+  completed proposal automatically, but only after isolation, overlap checks, and a durable
+  rollback checkpoint.
 - **Inline completion** — ghost text, tab to accept, debounced and cancellable. Subject to
   §1's rule that no AI feature may block a keystroke: the completion request is fired on an
-  idle callback and abandoned the instant the user types again.
+  idle callback and abandoned the instant the user types again. Users can also request it
+  with Alt+\; normal language-server, keyword, path, and human editing remain independent.
 - **Terminal agents are first-class.** Detect when a known CLI agent is running in the
   built-in terminal, surface its filesystem edits as the same inline diff widgets, and log
   its session to the same memory store. A developer running `claude` in your terminal should
   feel like they are using your IDE's AI, not working around it.
+
+### 5.4 Safe workspaces, Teams, and open-app automation
+
+- Every built-in file-editing task starts in a detached Git worktree or shadow copy. The
+  main process owns paths, budgets, checkpoints, apply, rollback, retention, and cleanup;
+  the renderer receives bounded redacted views.
+- ADCode may suggest several agents when independent work is likely to be faster or cheaper,
+  and a user may request Team mode manually. No extra provider request begins until the user
+  confirms the complete roles. Each role gets its own sandbox and allowance from one atomic
+  team budget; compact handoffs replace repeated full transcripts.
+- Team proposals merge deterministically into the ordinary review boundary. Overlapping
+  changes become explicit conflicts; the coordinator never silently picks a winner.
+- Task token ceilings are reserved before provider calls. Traces show usage and routes when
+  known without pretending estimates are invoices.
+- One-time scheduled prompts work only while ADCode, the project, and a compatible adapter
+  are available. Missed items wait for **Run now**. Terminal delivery requires a one-time
+  idle grant; unknown processes never receive typed input.
+- Usage-limit continuation is opt-in, capped, and accepts only an unambiguous reset time from
+  a recognized terminal agent. It sends the literal `continue` and cancels on state changes
+  or app close.
+- The editor breadcrumb is an interactive workspace > folder > file > symbol trail, with
+  keyboard filtering, file actions, nearby/recent files, and symbol navigation. It uses the
+  existing theme and motion system rather than creating an AI-only workbench.
 
 ---
 

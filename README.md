@@ -14,23 +14,27 @@ user dashboard, and admin panel. Not built: full language intelligence (LSP, DAP
 paying users out.
 
 **Deploying it?** `SETUP.md` is the ordered list of everything that needs your account,
-your card, or a lawyer. Nothing in it is a coding task.
+your card, or a lawyer. Nothing in it is a coding task. The current public-release decision
+and exact blockers are in [the 2026-08-28 readiness report](docs/RELEASE-READINESS-2026-08-28.md).
 
-**AI edits are isolated.** The built-in assistant prepares file changes in a private task
-workspace, shows them in the existing chat review flow, and writes only accepted hunks after
-a durable rollback checkpoint. See [Safe AI workspaces](docs/features/ai-workspaces.md) and
-the [security boundary](docs/architecture/ai-workspace-security.md). This is the
-single-agent foundation; Team mode, trusted apply, schedules, external-agent adapters, and
-automatic continuation are still planned rather than implied here.
+**AI work is isolated and observable.** The built-in assistant prepares file changes in a
+private task workspace and reaches the project only through overlap checks and a durable
+rollback checkpoint. Review mode offers hunk selection; opt-in Trusted mode auto-applies
+the exact checkpointed proposal. ADCode can suggest a confirmed multi-agent Team, schedule
+supported prompts while the app is open, safely continue recognized terminal agents after
+explicit usage-limit resets, and provide automatic or user-requested inline code
+suggestions. Interactive workspace > folder > file > symbol breadcrumbs preserve normal
+human navigation. See [AI workspaces and efficient coding](docs/features/ai-workspaces.md)
+and the [security boundary](docs/architecture/ai-workspace-security.md).
 
 ```
 npm install
 npm start               # build if needed, then launch
 npm run package         # installer + portable .exe into release/
 
-npm run verify          # typecheck + architecture rules + full suite (1666 tests)
-npm run smoke           # launch the built app and drive it (96 checks)
-npm run smoke:ads       # prove an ad reaches the user as a notification (23 checks)
+npm run verify          # typecheck + architecture rules + full test suite
+npm run smoke           # launch the built app and drive the desktop journey
+npm run smoke:ads       # prove an ad reaches the user as a notification
 npm run smoke:all       # both smoke runs, in order
 npm run icons           # rasterise build/icon.svg into icon.ico and icon.png
 npm run dev             # electron-vite dev server, with hot reload

@@ -7,11 +7,11 @@ import { url } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Privacy",
   description:
-    "What ADCode collects, what it never collects, and why. Your file contents, paths, and project names never leave your machine.",
+    "What ADCode collects, what its ad service never receives, and what a selected AI provider may receive.",
   alternates: { canonical: url("/privacy") },
 };
 
-const UPDATED = "2026-08-18";
+const UPDATED = "2026-08-28";
 
 /*
  * Written against what the code does, not against a template.
@@ -25,7 +25,8 @@ This explains what ADCode collects, what it does not, and why. It covers the ADC
 
 ## The short version
 
-- Your **file contents, file paths, and project names never leave your machine.** Not hashed, not truncated, not sampled.
+- ADCode's **advertising, earnings, and analytics services never receive file contents, file paths, or project names.**
+- AI features may send source text and prompts to the provider you select. ADCode explains and limits that separate path below.
 - Ads are targeted using a fixed list of **45 generic tags** describing the language or framework you have open.
 - You are identified by an **anonymous account created automatically**, with no email, name, or password, unless you choose to add one.
 - We do not sell personal data, and there are no third-party advertising trackers in the editor or on this site.
@@ -50,7 +51,9 @@ If you use the feedback button, we receive what you typed, the app version, and 
 
 ### AI features
 
-AI features send only what you explicitly ask them to send, to the provider whose key you configured. You supply your own API key, and that traffic goes to that provider under their terms, not through us.
+You choose the AI provider and supply its API key. Chat and agent tools can send your prompt, relevant source text, and tool results to that provider so it can answer or edit an isolated task workspace. Automatic inline completion sends bounded text around the cursor (up to 6,000 characters before it and 2,000 after it), the language, and a small output allowance; it does not send the file path. You can turn inline completion off in Settings.
+
+AI traffic goes directly from the desktop app to the selected provider under that provider's terms and privacy policy, not through ADCode's advertising service. ADCode keeps task sandboxes, rollback checkpoints, schedules, and operational traces locally. Traces describe actions and outcomes rather than storing a provider's private reasoning, and common credential shapes are redacted. ADCode also skips inline completion for common credential files, but you should still review what you ask any AI provider to read.
 
 ## Identity
 

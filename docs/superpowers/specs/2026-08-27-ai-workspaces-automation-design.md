@@ -6,20 +6,20 @@
 
 ## Implementation status
 
-**Milestone 2 — safe single-agent workspaces: implemented and verified on 2026-08-28.**
-The built-in assistant now uses isolated Git worktrees or shadow copies, validated review
-IPC, durable pre-apply checkpoints, conflict-aware rollback, local operational traces,
-conservative token reservation, retention/quota controls, restart pausing, and an unsaved
-editor-buffer guard. The existing chat widget gained a compact task strip without changing
-the normal human workbench.
+**Implementation complete through human navigation on 2026-08-28.** The built-in assistant
+uses isolated Git worktrees or shadow copies, validated IPC, durable pre-apply checkpoints,
+conflict-aware rollback, local operational traces, hard token reservations, retention/quota
+controls, restart pausing, and an unsaved-buffer guard. Confirmed Team agents receive
+separate sandboxes and a shared atomic budget, exchange compact handoffs, and merge into the
+same safe review boundary. Trusted apply remains sandboxed and checkpointed.
 
-Verification evidence: `npm run verify` passed all 2,477 tests with zero architecture
-errors; desktop and web production builds passed; the desktop smoke journey completed with
-zero suspicious log lines. User and security documentation is in
+Open-app one-time schedules, guarded terminal scheduling, opt-in capped usage-limit
+continuation, automatic and manual inline AI completion, and interactive workspace > folder
+> file > symbol breadcrumbs are also implemented. User and security documentation is in
 `docs/features/ai-workspaces.md` and `docs/architecture/ai-workspace-security.md`.
 
-Milestones for Team mode, trusted automatic apply, schedules and continuation, external
-agent adapters, and enhanced breadcrumbs remain unimplemented at this status point.
+Release verification and production deployment remain subject to the gates later in this
+document and the dated release-readiness report.
 
 ## Summary
 

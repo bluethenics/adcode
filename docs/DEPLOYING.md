@@ -1,5 +1,10 @@
 # Deploying ADCode
 
+Before publishing installers or deploying the public service, read the current dated
+release-readiness report in `docs/`. Passing source tests is necessary but does not replace
+signing, production secrets, legal review, payment testing, support channels, or rollback
+verification.
+
 **[`SETUP.md`](../SETUP.md) is the authority.** It is a numbered click path from an empty
 account to a running deployment, and it is kept in step with the code. Follow it.
 

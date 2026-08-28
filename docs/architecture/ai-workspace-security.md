@@ -1,135 +1,108 @@
-# AI workspace security boundary
+# AI workspace, Team, and automation security boundary
 
-This document describes the implemented safe single-agent boundary. It is the base that
-future Team mode, trusted apply, scheduling, and external adapters must reuse; those later
-capabilities are not part of this milestone.
+This document records the implemented authority boundary. Renderer controls request bounded
+actions; Electron's main process owns persistence, project identity, paths, budgets,
+sandboxes, merge validation, checkpoints, apply, rollback, schedules, and provider access.
 
-## Authority model
+## Authority and containment
 
-The Electron main process owns task persistence, sandbox creation, path resolution, budget
-reservation, apply, checkpoint, discard, rollback, cleanup, and restart recovery. The
-renderer receives bounded view models and may request allowlisted actions through typed
-IPC. It never receives the human workspace root, sandbox root, checkpoint path, or an
-arbitrary filesystem primitive.
+The renderer receives redacted view models and uses typed, allowlisted IPC. It never receives
+the human workspace root, sandbox root, checkpoint location, arbitrary filesystem handles,
+provider credentials, or raw provider payloads. Main-process validators bound identifier,
+text, path, list, graph, selection, and concurrency sizes before domain services run.
 
-The built-in tool runner is given three capabilities: a validated sandbox context, sandbox
-text reads, and sandbox text writes. Workspace list and search tools resolve against that
-sandbox too. A proposal is diffed against the human file version recorded for the task,
-but it reaches the human workspace only through the review/apply service.
+Agent paths must be portable non-empty relative paths. Absolute or drive paths, NUL bytes,
+empty segments, `.` and `..` are rejected. Resolution proves lexical containment and checks
+the nearest existing ancestor so a symlink or Windows junction cannot redirect creation
+outside the registered sandbox. Task/checkpoint IDs are restricted before joining storage
+paths, and cleanup verifies the resolved exact target below the registered task directory.
 
-```text
-model tool call
-    |
-    v
-validated tool runner --> isolated task workspace
-                              |
-renderer review request ------+--> main-process validation
-                                      |
-                                      v
-                           overlap check + checkpoint
-                                      |
-                                      v
-                              atomic human write
-```
+The built-in tool runner can list, search, read, and write only through a validated sandbox
+context. Turning isolation off disables file tools; it does not restore direct AI writes.
 
-## Path containment
+## Snapshot, apply, and rollback
 
-Agent and renderer paths must be portable, non-empty relative paths. Absolute paths, drive
-paths, NUL bytes, empty segments, `.` segments, and `..` segments are rejected. Resolution
-proves lexical containment and then resolves the nearest existing ancestor, preventing a
-symlink or Windows junction inside a sandbox from redirecting creation outside it.
+A clean repository root uses a detached Git worktree only when `HEAD` exists and tracked and
+untracked status are empty. Other projects use a shadow copy excluding VCS data, worktrees,
+dependencies, and generated output. Unsaved recovery drafts block file tools rather than
+letting an agent use a stale disk snapshot.
 
-Task and checkpoint identifiers are restricted before being used in storage paths. Cleanup
-derives its target from a validated identifier, verifies that it remains below the
-registered sandbox directory, and removes only that exact task directory. A Git-worktree
-cleanup first asks Git to unregister that exact worktree and then removes the validated
-directory.
+Every accepted file is compared byte-for-byte with the human version captured at task start.
+Before the first write, an atomic checkpoint stores the pre-task value, accepted value, and
+accepted SHA-256 hash. Writes use temporary siblings plus rename. A partial multi-file
+failure restores files already written. Rollback first verifies all current hashes still
+match the accepted state; later edits cause an all-or-nothing refusal.
 
-IPC validates bounded identifier/path lengths, duplicate selections, selection count, and
-hunk identifiers. The main process then independently verifies that the task belongs to the
-currently open workspace and that every selected path/hunk exists in the recorded proposal.
+Trusted mode changes approval timing, not authority. It collects proposals in the sandbox
+during the provider turn, then uses the same overlap check, checkpoint transaction, and
+rollback rules. Enabling Trusted requires an explicit setting confirmation.
 
-## Sandbox selection
+## Team coordination
 
-`createAiSandbox` uses a detached Git worktree only when all of these are true:
+A Team suggestion is deterministic renderer/main-process planning and starts no providers.
+Configuration is persisted first; only the explicit confirmed start operation may allocate
+children and schedule roles. Each role receives a separate sandbox from one immutable team
+base. A failure to allocate never falls back to the human workspace.
 
-- the open folder is the repository root;
-- `HEAD` exists;
-- tracked and untracked status is empty;
-- `git worktree add --detach` succeeds.
+Dependency-ready nodes are scheduled under a fixed concurrency cap and per-provider limits.
+Before every provider request, the coordinator atomically reserves a conservative maximum
+from the parent ledger and an agent allowance. Missing usage retains the conservative
+estimate. Compact bounded handoffs carry findings, decisions, changed paths, checks,
+blockers, and dead ends—not transcripts or hidden reasoning.
 
-Otherwise it makes a shadow copy while excluding VCS metadata, dependency directories, and
-common generated output. This avoids importing a dirty index into Git machinery and works
-for folders that do not use Git. Sandboxes are kept in ADCode user data rather than below
-the project.
+File claims are advisory. The actual merge compares every child proposal to the immutable
+base, orders compatible changes deterministically, rejects invented outputs, and stops on
+same-file overlap or delete/edit conflicts. It never chooses an agent's version implicitly.
+A successful merge creates another safe workspace proposal; it still cannot write the human
+project except through checkpointed review/apply.
 
-Unsaved renderer buffers are a separate boundary. Before creating or continuing a tool
-workspace, ADCode checks local recovery drafts for the open project. It blocks file tools
-until the buffers are saved, rather than allowing an agent to operate on a stale disk
-snapshot.
+## Automation and terminal input
 
-## Apply transaction and rollback
+Scheduled prompts are durable one-time local records. Delivery is gated by process lifetime,
+the enabled setting, the currently open project, a registered adapter, and that adapter's
+declared scheduled-prompt capability. Missed records remain inert until an explicit Run now
+request.
 
-For each selected file, the service re-reads the human path and compares it byte-for-byte
-with the proposal's original value. Any mismatch changes the task to conflict and prevents
-all selected writes.
+The built-in chat adapter uses its normal send path. A terminal adapter needs a one-time
+grant captured while a recognized assistant is visibly waiting; terminal activity revokes
+the grant. Adapter IDs and capabilities are stable and validated. Registration does not
+confer filesystem, command, network, or arbitrary IPC capabilities.
 
-Before writing, a checkpoint manifest is atomically persisted with:
+Automatic continuation is narrower still. It is opt-in, accepts only a recognized terminal
+assistant and an unambiguous usage/rate-limit message with an explicit retry delay, records
+the terminal generation, sends only the literal `continue`, and enforces retry and deadline
+caps. Changed or ambiguous state cancels it. Closing ADCode destroys every timer; startup
+recovery never sends pending input.
 
-- the task and checkpoint identifiers;
-- the workspace root (main-process storage only);
-- creation time;
-- every portable path;
-- the pre-task contents or `null` for a new file;
-- the accepted contents and their SHA-256 hash.
+## Inline completion boundary
 
-Files are written through a temporary sibling followed by rename. If a multi-file apply
-fails, previously written files are restored. Incremental reviews extend the same manifest,
-preserving the first pre-task version while updating the accepted side.
+Inline completion uses a tool-free provider request with a 128-token maximum output. IPC
+accepts bounded prefix/suffix text and language metadata only; no path is sent. Renderer
+context is capped at 6,000 prefix and 2,000 suffix characters. A generation/version check
+and abort signal prevent stale results from appearing after edits.
 
-Rollback first checks that every current file hash still equals the accepted hash. A
-mismatch preserves all later changes and blocks the entire rollback. Successfully rolled
-back new files are removed; existing files receive their pre-task contents.
+Both renderer and main process refuse common credential filenames, and empty or concurrent
+chat states fail closed. The returned text is normalized and displayed as a Monaco inline
+proposal; it has no file-write authority and requires normal editor acceptance.
 
-The checkpoint contains file contents and is therefore sensitive local data. It never
-crosses the renderer bridge. Future export or synchronization features must require an
-explicit privacy design rather than treating it as ordinary telemetry.
+## Persistence, traces, and cleanup
 
-## Persistence and crash behavior
+Task and Team JSON records use write-then-rename atomic replacement. Operational traces are
+append-only JSON Lines and are observability, never authority. Trace failure cannot turn a
+refused action into an allowed one. Common credential forms are redacted before persistence.
 
-Task JSON uses write-then-rename atomic replacement. Operational traces are append-only
-JSON Lines and are observability, not authority: trace failure cannot turn a safe refusal
-into an apply failure or vice versa. Common credential forms are redacted when trace events
-are created.
+Restart recovery changes transient task, team, and node states to paused without starting a
+provider, command, terminal action, or network request. Invalid task/team records and partial
+trace lines are skipped independently.
 
-Service access waits for restart recovery. Tasks left in transient active states become
-paused before the renderer can act on them. Recovery changes metadata only and never starts
-a provider, command, terminal process, or network operation. Invalid task records and
-partial trace lines are skipped independently.
+Retention removes eligible terminal sandboxes oldest first. Active work is never removed,
+and applied tasks retain the only checkpoint needed for rollback. Quota exhaustion refuses
+new work before allocation rather than weakening containment.
 
-## Budgets and permissions
+## Non-goals and remaining boundary work
 
-Task defaults allow reading the project and editing the sandbox. Commands and network
-access are false. Review mode and a single agent are the only implemented mode/policy in
-this milestone.
-
-Before each provider request, the agent loop estimates the complete system/tool/message
-context plus maximum output and reserves it against the task token limit. A request that
-would cross the hard limit is not sent. Cost fields exist in the domain, but ADCode does
-not claim cost enforcement while model-specific pricing is unavailable.
-
-## Storage maintenance
-
-Retention removes sandboxes only from terminal tasks. Quota recovery tries oldest eligible
-terminal sandboxes and never removes active work. Applied tasks retain their only rollback
-checkpoint. If cleanup cannot produce enough safe space, sandbox creation fails before a
-new agent task can proceed.
-
-## Required reuse by later milestones
-
-Team mode must allocate one isolated sandbox per agent, coordinate file claims above this
-service, and merge through the same validated checkpoint/apply boundary. Trusted mode may
-bypass manual file selection only after its test and policy gates pass; it may not bypass
-containment, overlap detection, or checkpointing. Schedulers and external adapters may
-request work only through explicit adapter capabilities and may never type blindly into an
-unknown terminal process.
+The feature does not expose model chain of thought, execute arbitrary scheduled terminal
+text, run background work while the app is closed, or grant external adapters implicit
+project authority. Workspace command/network permissions remain false. Binary patching,
+remote trace synchronization, and exporting checkpoints require separate threat models
+before implementation.

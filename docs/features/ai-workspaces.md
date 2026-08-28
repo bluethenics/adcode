@@ -1,105 +1,145 @@
-# Safe AI workspaces
+# AI workspaces and efficient coding
 
-ADCode's built-in assistant prepares file edits in a private task workspace. It does not
-write a model's proposal directly into the open project. You can inspect the changed files
-and hunks, apply only what you accept, discard the task, or roll an applied task back.
+ADCode keeps normal human editing at the center of the product while giving AI assistants
+safe places to work. The built-in assistant can prepare changes in isolation, several
+confirmed agents can cooperate on one task, and a user can inspect or roll back everything
+that reaches the open project.
 
-This is the safe single-agent foundation. It does not yet include Team mode, trusted
-automatic apply, scheduled prompts, external terminal/MCP/API agents, automatic
-continuation, or the planned breadcrumb expansion.
+## Safe edits by default
 
-## Using a task
+The first AI file operation for a project creates a private task workspace. A clean Git
+repository uses a detached worktree at the current commit; a dirty or non-Git folder uses a
+shadow copy. Neither method changes the user's branch or index.
 
-1. Open a project and save any editor changes. ADCode blocks AI file tools while that
-   project has an unsaved recovery draft, because a filesystem sandbox cannot safely
-   represent a newer in-memory buffer.
-2. Ask the built-in assistant to inspect or change files. Ordinary question-only chat still
-   works without an open project.
-3. ADCode creates an isolated task on the first model request for the project. The compact
-   strip in the existing chat widget shows its state and reserved token use.
-4. Choose **Review** to inspect proposed files and hunks. Applying an empty selection does
-   nothing. A path or hunk that was not in the proposal is refused.
-5. Apply reviewed changes, reject individual files, or choose **Discard**. Discard removes
-   the task sandbox and never writes its remaining proposals to the project.
-6. After a complete apply, choose **Roll back** to restore the task's pre-apply contents.
-   Rollback is blocked if a person or another tool changed an applied file afterward, so
-   later work is preserved.
-
-Applying files one at a time still creates one whole-task rollback point. If any selected
-file no longer matches the version the assistant started from, the entire apply is stopped
+The task strip in chat shows state, changed files, and reserved tokens. Choose **Review** to
+accept individual files or hunks, **Trace** for the local operational timeline,
+**Discard** to remove a proposal, or **Roll back** after apply. Applying is all-or-nothing:
+if a human or another tool changed any selected file since the task started, ADCode stops
 before the first write.
 
-## What the task strip shows
+Unsaved editor recovery drafts block AI file tools. Save those buffers first so the model
+cannot work from an older on-disk version. Ordinary question-only chat remains available.
 
-- a state dot and text label;
-- the changed-file count and names in its tooltip;
-- reserved token usage against the task limit;
-- **Review**, **Trace**, **Discard**, and **Roll back** when those actions are valid.
+## Review and Trusted modes
 
-**Trace** is a local operational timeline: task state, file proposals, budget reservations,
-checkpoints, applies, refusals, errors, and rollback. It does not expose or pretend to expose
-a model's private chain of thought. Provider cost is omitted until ADCode has reliable
-model-specific pricing instead of displaying a misleading zero.
+**Review every change** is the default. It provides hunk-by-hunk control before a proposal
+reaches the project.
 
-## Isolation types
+**Trusted auto-apply** is an opt-in setting. Enabling it requires confirmation. Trusted does
+not give a model direct filesystem authority: the turn still runs in a sandbox, ADCode still
+checks for overlapping changes, and a durable rollback checkpoint is written before the
+exact proposal is applied. Switch back to Review at any time; new tasks use the selected
+policy. A rollback stops instead of overwriting later human edits.
 
-For a clean Git repository whose root is the open folder, ADCode creates a detached Git
-worktree at the current commit. It does not create a branch or alter the user's index.
+## Team mode
 
-For a dirty repository, a non-Git folder, or a Git worktree failure, ADCode uses a shadow
-copy. It excludes `.git`, `.worktrees`, `node_modules`, `.next`, `.turbo`, `coverage`,
-`dist`, and `out`. Dependency folders are not linked into the copy. This milestone does not
-run agent commands, so a sandbox is for file inspection and proposals rather than building
-inside it.
+ADCode can locally suggest Team mode when a task appears to contain independent work. The
+suggestion explains why, proposes roles, and estimates time and tokens. A suggestion never
+starts a model request. Choose **Not now** to continue with one agent, or use **Team** beside
+the composer to request it yourself.
 
-## Conflicts, checkpoints, and recovery
+Choose **Set up Team**, inspect the roles, and then choose **Start Team**. Only that final
+confirmation may create agent workspaces or contact providers. The current implementation:
 
-Immediately before the first accepted write, ADCode durably records each original and
-applied file version. A failed multi-file apply restores every file already written. A
-failed rollback attempts to put already-restored files back into the applied state, leaving
-the checkpoint available for recovery.
+- gives every role its own isolated child workspace from one immutable project base;
+- runs at most two roles concurrently;
+- routes each role to a connected, tool-capable model within the confirmed policy;
+- reserves from one hard parent token budget before concurrent requests;
+- passes compact findings and changed-path handoffs instead of full agent transcripts;
+- treats file claims as coordination warnings, never as locks on human editing;
+- merges deterministic, non-overlapping proposals into one ordinary review task;
+- stops on overlapping changes and shows conflicts instead of silently choosing a winner;
+- exposes per-agent operational trace lanes, usage, progress, review, and cancellation.
 
-On restart, a task that was preparing, ready, running, applying, or rolling back is changed
-to **Paused**. ADCode never silently resumes a model, command, or terminal action after a
-crash. Corrupt task records and incomplete final trace lines are ignored independently so
-one damaged record does not hide other tasks.
+The combined proposal reaches the project only through the same checkpointed apply and
+rollback boundary as a single-agent task. Price information is an estimate when a provider
+publishes comparable pricing, never an invoice.
 
-## Settings
+## Scheduled messages
 
-The AI settings include:
+Write a prompt in chat and choose **Schedule**. Select a supported target and a local time.
+Schedules are durable one-time local records, but delivery happens only while ADCode is
+open, scheduled messages are enabled, the same project is open, and the target adapter is
+available.
 
-- **Isolate AI edits** — on by default. Turning it off leaves chat available but disables
-  built-in file tools; it does not restore direct-to-project AI writes.
-- **Task token budget** — 25,000, 100,000 (default), or 250,000 tokens. ADCode reserves a
-  conservative maximum before each provider request and pauses before crossing the limit.
-- **Sandbox storage** — 1 GB, 5 GB (default), or 10 GB.
-- **Keep task sandboxes** — 1, 7 (default), or 30 days after terminal tasks.
-- **Keep rollback checkpoints** — 7, 30 (default), or 90 days where cleanup is safe.
+Built-in chat is supported. A compatible adapter can register the same explicit scheduled-
+prompt capability. A detected terminal assistant requires **Allow next schedule** while its
+prompt is visibly idle; that permission is single-use and any later terminal activity
+removes it. ADCode never types into an unknown terminal process.
 
-Cleanup never deletes an active sandbox. An applied task keeps the checkpoint required for
-rollback. If active work leaves no safe space under the quota, starting another task is
-refused with an explanation.
+If the app, project, setting, or adapter is unavailable at the delivery time, the item is
+marked missed. It does not create a startup backlog or run by itself later. Choose **Run
+now** to deliver a missed item deliberately.
 
-## Storage and privacy
+## Safe terminal continuation
 
-Tasks live under Electron's local ADCode user-data folder:
+**Continue terminal AI after limits** is off by default. When enabled, ADCode watches only
+output already visible in its built-in terminal. A recognized assistant must report a clear
+usage or rate limit and an explicit retry delay before ADCode schedules the literal message
+`continue`.
 
-```text
-ai-workspaces/
-  sandboxes/<task-id>/
-  tasks/<task-id>/task.json
-  tasks/<task-id>/trace.jsonl
-  tasks/<task-id>/checkpoints/<checkpoint-id>/manifest.json
-```
+Unknown reset times, ambiguous output, changed terminal state, closing ADCode, or disabling
+the setting cancels the continuation. Repeated limits may continue only up to the selected
+cap (1, 3, or 5; default 3). This is not a general terminal macro and it never runs while
+ADCode is closed.
 
-Absolute workspace and sandbox locations remain in the main process and are not sent to
-the renderer's task views. Trace details redact common credential shapes. Task state is
-local; this feature does not upload traces or sandboxes. File contents sent to the selected
-AI provider still follow that provider's normal request path and privacy policy.
+## Inline AI suggestions
 
-## Current limits
+AI ghost text is enabled by default and is separate from Monaco, language-server, keyword,
+and path suggestions. ADCode requests a short completion after an idle pause without
+blocking typing. Press **Tab** to accept, keep typing to ignore it, or press **Alt+\\** to
+request **Suggest Code with AI** yourself.
 
-Only the built-in single agent uses safe workspaces in this milestone. Command and network
-permissions default to off, and there is no task command runner yet. Tasks use text files;
-binary edits are outside this workflow. Scheduling and continuation will run only while
-ADCode is open when those later milestones are implemented.
+The request contains only bounded text around the cursor (up to 6,000 prefix characters
+and 2,000 suffix characters), language information, and a small output allowance. It does
+not include the file path. A buffer change or newer request cancels stale work. Suggestions
+are skipped for common credential files such as `.env*`, private keys, credential/secret
+files, `.npmrc`, and `.netrc`.
+
+## Interactive file location
+
+The editor path trail now shows workspace, folders, file, and code symbols in the existing
+workbench. Select a segment to search nearby locations: folders show children and siblings,
+the file segment shows sibling and recent files plus Quick Open, and symbol segments list
+the current file's structure.
+
+Use Left and Right Arrow to move between levels, Down Arrow or Enter to open a level, type
+to filter, and Enter to select. The file menu also exposes **Copy full path**, **Reveal**,
+**Rename**, **Structure**, **Compare**, and **History**. Hovering reveals the absolute path;
+the compact bar does not permanently spend editor space on it.
+
+## Budgets, storage, and traces
+
+The task token budget is a hard pre-request reservation: 25k, 100k (default), or 250k.
+ADCode pauses before a request would cross it. Team reservations are atomic at the parent
+level so parallel agents cannot each spend the same remaining allowance.
+
+Sandbox storage defaults to 5 GB, with 1/5/10 GB choices. Finished sandboxes default to
+seven-day retention and rollback checkpoints to 30 days. Cleanup never removes active work
+or the only usable rollback checkpoint. If there is no safe room, ADCode refuses a new task
+with an explanation.
+
+Trace means an operational event log: task states, agents, routes, files, reservations,
+checks, proposals, merges, applies, refusals, errors, and rollback. It deliberately does not
+expose or claim to expose a provider's private chain of thought. Common credential shapes
+are redacted, traces remain local, and provider cost is omitted when trustworthy pricing is
+unavailable.
+
+## Recovery and privacy
+
+On restart, active tasks and teams become paused. ADCode never silently restarts a provider,
+terminal action, schedule, or command after a crash. Corrupt records and incomplete final
+trace lines are isolated so one bad entry does not hide other tasks.
+
+Tasks and teams live below Electron's local ADCode user-data folder. Absolute workspace,
+sandbox, and checkpoint roots stay in the main process and are not returned to renderer
+task views. Traces and sandboxes are not uploaded. Source text intentionally sent to a
+selected provider remains subject to that provider's normal request path and privacy policy.
+
+## Current boundaries
+
+AI workspace edits are text-only. Team mode currently uses built-in provider agents and a
+conservative fixed concurrency limit; compatible scheduling adapters do not automatically
+gain file or command authority. Commands and network permissions remain off in the
+workspace task model. Scheduling and automatic continuation require the desktop app to stay
+open.
