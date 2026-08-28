@@ -7,6 +7,7 @@
  */
 export * from "./types.ts";
 export * from "./workspaces.ts";
+export * from "./team.ts";
 
 export {
   createAgent,
