@@ -628,6 +628,7 @@ function retitleTab(oldPath: string, newPath: string): void {
   if (activePath === oldPath) activePath = newPath;
 
   renderTabs();
+  refreshBreadcrumbs();
   rememberSession();
 }
 
@@ -899,6 +900,32 @@ function beginRename(path: string): void {
 
   row.hidden = true;
   wrapper.prepend(editor);
+}
+
+/** Rename an open file from its location menu without requiring its tree row to be visible. */
+async function renameFromBreadcrumb(path: string): Promise<void> {
+  if (editorHost.isReadOnly(path)) {
+    setStatus("Past revisions are read-only. Open the working copy to rename it.", 4000);
+    return;
+  }
+  const name = await promptDialog.ask({
+    title: "Rename file",
+    body: "The open tab and editor will follow the new name.",
+    value: baseName(path),
+    confirmLabel: "Rename",
+  });
+  if (name === null || name.trim() === baseName(path)) return;
+
+  const result = await window.adcode.files.rename(path, name.trim());
+  if (!result.ok || result.path === undefined) {
+    setStatus(result.message, 4000);
+    return;
+  }
+
+  retitleTab(path, result.path);
+  await refreshDirectory(containingDirOf(path));
+  void sourceControl.refresh();
+  setStatus(result.message, 3000);
 }
 
 /**
@@ -1786,12 +1813,22 @@ const settingsView = createSettingsView({
 /* ── Breadcrumbs and symbol search (§4 Navigation) ────────────────────── */
 
 const breadcrumbs = createBreadcrumbs({
-  displayPath: (path) => relativePath(path) ?? path,
-  revealFolder: (directory) => {
-    setStatus(directory, 2000);
-  },
+  workspaceRoot: () => workspaceRoot,
+  list: (directory) => window.adcode.workspace.list(directory),
+  recentFiles: () => tabs.map((tab) => tab.path).reverse(),
+  openFile: (path) => void openFile(path),
+  openQuick: (seed) => quickOpen.open(seed),
   showStructure: () => structurePopup.open("file"),
   goToLine: (line) => editorHost.revealLine(line),
+  copyPath: (path) => void copyText(path, "Path copied"),
+  revealPath: (path) => void revealInExplorer(path),
+  renamePath: (path) => void renameFromBreadcrumb(path),
+  comparePath: (path) => {
+    void openFile(path).then(() => {
+      showView("scm");
+      sourceControl.setActiveFile(relativePath(path));
+    });
+  },
 });
 
 // Between the tab strip and the editor, which is where the trail belongs: it describes the
@@ -3581,6 +3618,7 @@ function registerCommands(): void {
   add("run.file", "Run Active File", () => runButton.activate());
   add("ai.toggle", "Assistant", () => chat.toggle());
   add("ai.connect", "Connect a Model", () => connectView.open());
+  add("ai.complete", "Suggest Code with AI", () => editorHost.triggerInlineCompletion());
   add("view.toggleWordWrap", "Toggle Word Wrap", () => editorHost.toggleWordWrap());
 
   /* Go */
@@ -3876,6 +3914,7 @@ const RENDERER_HANDLED: ReadonlySet<string> = new Set([
   "view.togglePanel",
   "view.toggleSidebar",
   "ai.toggle",
+  "ai.complete",
   "go.file",
   "palette.open",
   "view.explorer",

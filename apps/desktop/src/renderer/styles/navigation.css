@@ -63,6 +63,152 @@
   font-size: var(--text-xs);
 }
 
+/* Searchable level menu. Fixed so the breadcrumb row can keep clipping its long trail. */
+.breadcrumb-popover {
+  position: fixed;
+  z-index: 130;
+  box-sizing: border-box;
+  max-height: min(440px, calc(100vh - 16px));
+  overflow: hidden;
+  padding: 6px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  box-shadow: var(--shadow-floating);
+  backdrop-filter: saturate(180%) blur(20px);
+  animation: breadcrumb-popover-in 160ms cubic-bezier(.32, .72, 0, 1) both;
+}
+
+.breadcrumb-popover[hidden] { display: none; }
+
+@keyframes breadcrumb-popover-in {
+  from { opacity: 0; transform: translateY(-4px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.breadcrumb-search {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  outline: none;
+  background: color-mix(in srgb, var(--bg-editor) 76%, var(--bg-elevated));
+  color: var(--text-primary);
+  font: 400 var(--text-sm) var(--font-ui);
+}
+
+.breadcrumb-search:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.breadcrumb-menu-list {
+  max-height: 350px;
+  overflow: auto;
+  padding-top: 3px;
+  scrollbar-width: thin;
+}
+
+.breadcrumb-menu-heading {
+  padding: 7px 9px 3px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.breadcrumb-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 9px 4px calc(9px + var(--breadcrumb-indent, 0px));
+  border: 0;
+  border-radius: 7px;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  text-align: left;
+  cursor: default;
+}
+
+.breadcrumb-menu-row[aria-selected="true"],
+.breadcrumb-menu-row:hover {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.breadcrumb-choice-mark {
+  flex: none;
+  width: 16px;
+  color: var(--text-tertiary);
+  font: 600 12px var(--font-mono);
+  text-align: center;
+}
+
+.breadcrumb-menu-row[aria-selected="true"] .breadcrumb-choice-mark,
+.breadcrumb-menu-row:hover .breadcrumb-choice-mark,
+.breadcrumb-menu-row[aria-selected="true"] .breadcrumb-choice-detail,
+.breadcrumb-menu-row:hover .breadcrumb-choice-detail {
+  color: var(--text-on-accent);
+  opacity: .78;
+}
+
+.breadcrumb-choice-words {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.breadcrumb-choice-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breadcrumb-choice-detail {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breadcrumb-menu-empty {
+  margin: 0;
+  padding: 14px 10px;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+html[data-density="compact"] .breadcrumb-menu-row { min-height: 28px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .breadcrumb-popover {
+    animation-duration: 100ms;
+    animation-name: breadcrumb-popover-fade;
+  }
+
+  @keyframes breadcrumb-popover-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
 /* ── Peek ─────────────────────────────────────────────────────────────── */
 
 .peek {

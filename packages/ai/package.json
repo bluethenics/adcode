@@ -9,6 +9,7 @@
     ".": "./src/index.ts",
     "./adapter": "./src/adapter.ts",
     "./agents": "./src/agents.ts",
-    "./continuation": "./src/continuation.ts"
+    "./continuation": "./src/continuation.ts",
+    "./completion": "./src/completion.ts"
   }
 }

@@ -61,7 +61,7 @@ export const NAVIGATION_ENTRIES: readonly HelpEntry[] = [
     plain:
       "A line above the editor showing the trail to where you are: the folder, the file, and the function your cursor is inside.",
     why: "It answers 'where am I' at a glance, and every part of the trail is a button.",
-    how: "On by default. Click any part of the trail to jump to it, or to see what else is beside it at that level.",
+    how: "On by default. Click a workspace or folder to browse inside it and across sibling folders. Click the file for sibling and recent files, Quick Open, copy, reveal, rename, and comparison/history actions. Click a symbol to search the file outline. With a crumb focused, use Left and Right to move through levels, Down or Enter to open one, then type to filter and press Enter to switch.",
     group: "navigation",
     settingIds: ["adcode.navigation.breadcrumbs"],
     related: ["adcode.editing.stickyScroll", "adcode.navigation.outline"],

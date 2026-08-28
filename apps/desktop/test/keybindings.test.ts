@@ -36,6 +36,10 @@ describe("parseChord", () => {
     expect(parseChord("CmdOrCtrl+PageDown")?.key).toBe("PageDown");
   });
 
+  it("accepts the manual AI suggestion chord", () => {
+    expect(parseChord("Alt+\\")).toEqual({ key: "\\", mod: false, shift: false, alt: true });
+  });
+
   it("refuses what is not a chord", () => {
     expect(parseChord("")).toBeNull();
     expect(parseChord("Ctrl+")).toBeNull();

@@ -35,6 +35,8 @@ import type { BreakpointView, DirEntry, SearchHitView, ThemeChoice } from "../..
 import { editorOptionsFor } from "./editorOptions.ts";
 import { createRemoteCursors, type RemoteCursors } from "../collab/remoteCursors.ts";
 import { installTagClosing } from "./autoCloseTags.ts";
+import { installAiInlineCompletion } from "./aiInlineCompletion.ts";
+import { allowsAiCompletionForPath } from "./inlineCompletionContext.ts";
 // Re-exported rather than defined here: the table decides highlighting, completions, the
 // Structure view and the Run button, and it lives in a file with no Monaco import so it
 // can be tested without launching a window.
@@ -227,6 +229,8 @@ export interface EditorHost {
   runAction(actionId: string): void;
   /** Toggle word wrap, which is an option rather than an action. */
   toggleWordWrap(): void;
+  /** Ask the selected model for ghost text now; automatic requests use the same provider. */
+  triggerInlineCompletion(): void;
   /** Current cursor line, for "go to line" and the status bar. */
   cursorLine(): number;
   applyTheme(theme: ThemeChoice): void;
@@ -517,6 +521,11 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
 
   const models = new Map<string, OpenModel>();
   let active: string | null = null;
+  const aiInlineCompletion = installAiInlineCompletion(editor, (model) => {
+    if (active === null) return false;
+    const entry = models.get(active);
+    return entry?.model === model && !entry.readOnly && allowsAiCompletionForPath(active);
+  });
 
   const dirtyListeners: ((path: string, dirty: boolean) => void)[] = [];
   const cursorListeners: ((line: number, column: number) => void)[] = [];
@@ -715,6 +724,10 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
       editor.updateOptions({ wordWrap: current === "on" ? "off" : "on" });
     },
 
+    triggerInlineCompletion() {
+      aiInlineCompletion.trigger();
+    },
+
     cursorLine: () => editor.getPosition()?.lineNumber ?? 1,
 
     revealLine(line) {
@@ -811,6 +824,7 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
       commentTones.setEnabled(values["adcode.editing.commentTones"] === true);
       spellCheck.setEnabled(values["adcode.editing.spellCheck"] === true);
       pathComplete.setEnabled(values["adcode.editing.pathAutocomplete"] !== false);
+      aiInlineCompletion.setEnabled(values["adcode.ai.inlineCompletion"] !== false);
       formatting.setEnabled(values["adcode.formatting.formatter"] !== false);
       treeSitter.setEnabled(values["adcode.language.treeSitterHighlighting"] !== false);
 

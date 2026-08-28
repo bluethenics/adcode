@@ -33,6 +33,7 @@
       "@adcode/ai/agents": ["./packages/ai/src/agents.ts"],
       "@adcode/ai/adapter": ["./packages/ai/src/adapter.ts"],
       "@adcode/ai/continuation": ["./packages/ai/src/continuation.ts"],
+      "@adcode/ai/completion": ["./packages/ai/src/completion.ts"],
       "@adcode/ai": ["./packages/ai/src/index.ts"],
       "@adcode/diagnostics": ["./packages/diagnostics/src/index.ts"],
       "@adcode/lsp": ["./packages/lsp/src/index.ts"],

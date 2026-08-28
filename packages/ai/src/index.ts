@@ -26,8 +26,10 @@ export {
 export { computeHunks, applyHunks, type Hunk } from "./diff.ts";
 export {
   IDLE_MS,
+  MAX_INLINE_COMPLETION_CHARS,
   decideCompletion,
   initialCompletionState,
+  normalizeInlineCompletion,
   type CompletionDecision,
   type CompletionEffect,
   type CompletionEvent,

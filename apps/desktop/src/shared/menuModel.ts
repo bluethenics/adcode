@@ -244,6 +244,7 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         },
         separator,
         { label: "Format &Document", command: "edit.format", accelerator: "Shift+Alt+F" },
+        { label: "Suggest Code with &AI", command: "ai.complete", accelerator: "Alt+\\" },
       ],
     },
     {

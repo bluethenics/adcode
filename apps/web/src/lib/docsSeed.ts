@@ -235,7 +235,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Finding your way",
     description: "A line above the editor showing the trail to where you are: the folder, the file, and the function your cursor is inside.",
     why: "It answers 'where am I' at a glance, and every part of the trail is a button.",
-    how: "On by default. Click any part of the trail to jump to it, or to see what else is beside it at that level.",
+    how: "On by default. Click a workspace or folder to browse inside it and across sibling folders. Click the file for sibling and recent files, Quick Open, copy, reveal, rename, and comparison/history actions. Click a symbol to search the file outline. With a crumb focused, use Left and Right to move through levels, Down or Enter to open one, then type to filter and press Enter to switch.",
     related: ["editing-sticky-scroll", "navigation-outline"],
   },
   {
@@ -475,7 +475,8 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "The assistant",
     description: "Grey text appears ahead of your cursor guessing the rest of what you are writing. Press Tab to take it.",
     why: "For the lines that are boring and predictable, which is more of them than anybody likes to admit.",
-    how: "On by default. Press Tab to accept the suggestion, or just keep typing to ignore it.",
+    how: "On by default. ADCode asks the selected model after you pause, without delaying a keystroke, and cancels the request as soon as the buffer changes. Press Tab to accept grey ghost text, keep typing to ignore it, or press Alt+\\ to request a suggestion yourself. Local keyword and language-server suggestions continue to work separately.",
+    shortcut: "Alt+\\",
     related: ["editing-suggestions", "ai-provider"],
   },
   {

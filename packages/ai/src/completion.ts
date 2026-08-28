@@ -17,6 +17,23 @@
 
 /** §5.3's idle callback delay. Long enough not to fire mid-word, short enough to feel live. */
 export const IDLE_MS = 250;
+export const MAX_INLINE_COMPLETION_CHARS = 2_048;
+
+/** Convert a provider reply into text that is safe to insert directly at the caret. */
+export function normalizeInlineCompletion(raw: string, prefix = ""): string {
+  let text = raw.trimEnd();
+  const fenced = /^```[^\n]*\n([\s\S]*?)\n?```\s*$/.exec(text.trim());
+  if (fenced !== null) text = fenced[1] ?? "";
+
+  // Inline completion has nowhere to put prose. Refusing it is safer than inserting an
+  // English sentence into source code and asking the user to undo it.
+  if (/^(?:here(?:'s| is)|sure[,!:]|the (?:code|completion)|explanation\b)/i.test(text.trimStart())) {
+    return "";
+  }
+
+  if (prefix.length > 0 && text.startsWith(prefix)) text = text.slice(prefix.length).trimStart();
+  return text.slice(0, MAX_INLINE_COMPLETION_CHARS);
+}
 
 export interface Suggestion {
   readonly requestId: number;

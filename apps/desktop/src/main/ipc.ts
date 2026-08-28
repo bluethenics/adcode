@@ -84,6 +84,8 @@ import { invalidateFileCache } from "./sourceControl.ts";
 import {
   aiApplyHunks,
   aiCancel,
+  aiCancelCompletion,
+  aiCompletion,
   aiReset,
   aiSend,
   aiStatus,
@@ -120,6 +122,7 @@ import {
   aiTeamTraces,
   createAiTeamId,
 } from "./ai.ts";
+import { parseAiCompletionInput } from "./aiCompletionIpcValidation.ts";
 import {
   parseAiAutomationCreate,
   validAiAutomationId,
@@ -928,6 +931,15 @@ export function registerIpc(): void {
   ipcMain.handle(CHANNELS.aiSend, (_event, text: unknown) => {
     if (!isString(text)) throw new Error("expected text");
     return aiSend(text);
+  });
+
+  ipcMain.handle(CHANNELS.aiCompletion, (_event, input: unknown) =>
+    aiCompletion(parseAiCompletionInput(input)),
+  );
+  ipcMain.on(CHANNELS.aiCancelCompletion, (_event, requestId: unknown) => {
+    if (Number.isSafeInteger(requestId) && (requestId as number) >= 0) {
+      aiCancelCompletion(requestId as number);
+    }
   });
 
   ipcMain.on(CHANNELS.aiCancel, () => aiCancel());

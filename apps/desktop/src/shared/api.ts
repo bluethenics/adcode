@@ -470,6 +470,8 @@ export const CHANNELS = {
   aiSetKey: "ai:set-key",
   aiClearKey: "ai:clear-key",
   aiSend: "ai:send",
+  aiCompletion: "ai:completion",
+  aiCancelCompletion: "ai:cancel-completion",
   aiCancel: "ai:cancel",
   aiReset: "ai:reset",
   aiEvent: "ai:event",
@@ -991,6 +993,14 @@ export interface AiAutomationCreateInputView {
   readonly dueAt: number;
 }
 
+/** Bounded, path-free context for one cancellable ghost-text request. */
+export interface AiCompletionInputView {
+  readonly requestId: number;
+  readonly languageId: string;
+  readonly prefix: string;
+  readonly suffix: string;
+}
+
 export interface AiAutomationView extends AiAutomationCreateInputView {
   readonly id: string;
   readonly state: "pending" | "delivering" | "missed" | "delivered" | "cancelled";
@@ -1411,6 +1421,8 @@ export interface AdcodeApi {
     checkKey(provider: string, key: string): Promise<AiKeyCheck>;
     /** True when the turn reached a normal provider completion. */
     send(text: string): Promise<boolean>;
+    complete(input: AiCompletionInputView): Promise<string | null>;
+    cancelCompletion(requestId: number): void;
     cancel(): void;
     reset(): void;
     /** The agent's workings, live - this is what the trace widget renders (§5.3). */

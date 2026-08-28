@@ -426,7 +426,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     ],
   },
   bool("adcode.ai.chatWidget", "ai", "Chat widget", "The floating chat card, summoned by keyboard shortcut.", true, true),
-  bool("adcode.ai.inlineCompletion", "ai", "Inline completion", "Ghost text suggestions, accepted with Tab.", true, true),
+  bool("adcode.ai.inlineCompletion", "ai", "Inline completion", "Cancellable ghost text after an idle pause, accepted with Tab or requested with Alt+\\.", true, true),
   bool("adcode.ai.terminalAgentDetection", "ai", "Terminal agent detection", "Recognise an AI agent started in the built-in terminal and offer to share this project's memory with it. Recognised from the command you typed - nothing else is inspected.", true, true),
   bool(
     "adcode.ai.autoContinue",

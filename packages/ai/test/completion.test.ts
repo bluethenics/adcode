@@ -4,6 +4,7 @@ import {
   IDLE_MS,
   decideCompletion,
   initialCompletionState,
+  normalizeInlineCompletion,
   type CompletionEvent,
   type CompletionState,
 } from "../src/completion.ts";
@@ -163,6 +164,24 @@ describe("disabled", () => {
     const { effects } = run([keystroke(1000), idle(1000 + IDLE_MS)], off);
 
     expect(effects).not.toContain("request");
+  });
+});
+
+describe("provider text normalization", () => {
+  it("keeps only insertable code and strips markdown fences", () => {
+    expect(normalizeInlineCompletion("```ts\nreturn value;\n```")).toBe("return value;");
+  });
+
+  it("removes a repeated cursor prefix without changing a genuine suffix", () => {
+    expect(normalizeInlineCompletion("const total = price * count;", "const total = ")).toBe(
+      "price * count;",
+    );
+    expect(normalizeInlineCompletion("price * count;", "const total = ")).toBe("price * count;");
+  });
+
+  it("rejects explanations and bounds unexpectedly large replies", () => {
+    expect(normalizeInlineCompletion("Here is the code you requested:\nreturn 1;")).toBe("");
+    expect(normalizeInlineCompletion("x".repeat(10_000)).length).toBeLessThanOrEqual(2_048);
   });
 });
 

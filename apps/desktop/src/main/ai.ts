@@ -29,6 +29,7 @@ import {
   createTeamHandoff,
   estimateRequestTokens,
   mergeCatalogue,
+  normalizeInlineCompletion,
   parseCatalogue,
   providerIn,
   suggestTeam,
@@ -57,6 +58,7 @@ import {
   type AiTeamView,
   type AiAutomationCreateInputView,
   type AiAutomationView,
+  type AiCompletionInputView,
   type ProposedEditView,
 } from "../shared/api.ts";
 import { recordAgentEdit } from "./activity.ts";
@@ -149,6 +151,7 @@ let teamRecovery: Promise<void> | null = null;
 let automationService: AiAutomationService | null = null;
 let automationRecovery: Promise<void> | null = null;
 let sendInFlight = false;
+let completionInFlight: { readonly id: number; readonly controller: AbortController } | null = null;
 
 function aiWorkspaceService(): AiWorkspaceService {
   if (taskService === null) {
@@ -779,6 +782,73 @@ export async function aiSend(text: string): Promise<boolean> {
   }
 }
 
+/** A small, tool-free, cancellable request used only for Monaco ghost text. */
+export async function aiCompletion(input: AiCompletionInputView): Promise<string | null> {
+  if (currentSettings()["adcode.ai.inlineCompletion"] === false) return null;
+  if (sendInFlight || input.prefix.trim().length === 0) return null;
+
+  completionInFlight?.controller.abort();
+  const controller = new AbortController();
+  completionInFlight = { id: input.requestId, controller };
+
+  try {
+    const providerId = activeProvider();
+    const provider = await buildProvider(providerId);
+    if (provider === null || controller.signal.aborted) return null;
+
+    const request = {
+      model: activeModel(providerId),
+      system: [
+        "Complete code at the cursor.",
+        "Return only the exact text to insert: no markdown fences, explanation, or repeated prefix.",
+        "Prefer the smallest useful continuation and preserve the surrounding style.",
+      ].join(" "),
+      messages: [
+        {
+          role: "user" as const,
+          content: [
+            {
+              type: "text" as const,
+              text: [
+                `Language: ${input.languageId}`,
+                "<before-cursor>",
+                input.prefix,
+                "</before-cursor>",
+                "<after-cursor>",
+                input.suffix,
+                "</after-cursor>",
+              ].join("\n"),
+            },
+          ],
+        },
+      ],
+      tools: [],
+      maxTokens: 128,
+    };
+
+    let answer = "";
+    for await (const event of provider.stream(request, controller.signal)) {
+      if (controller.signal.aborted) return null;
+      if (event.kind === "text") answer += event.text;
+      if (answer.length > 4_096) break;
+      if (event.kind === "stop" && event.reason === "refusal") return null;
+    }
+    if (controller.signal.aborted) return null;
+    return normalizeInlineCompletion(answer, input.prefix) || null;
+  } catch {
+    // Completion degrades silently. The editor, LSP, and local suggestions keep working.
+    return null;
+  } finally {
+    if (completionInFlight?.id === input.requestId) completionInFlight = null;
+  }
+}
+
+export function aiCancelCompletion(requestId: number): void {
+  if (completionInFlight?.id !== requestId) return;
+  completionInFlight.controller.abort();
+  completionInFlight = null;
+}
+
 /**
  * Production Team-role runner. It is intentionally created on demand: suggestions and
  * configured plans cannot reach a provider merely by existing.
@@ -982,6 +1052,8 @@ export function createAiTeamId(): string {
 }
 
 export function aiCancel(): void {
+  completionInFlight?.controller.abort();
+  completionInFlight = null;
   agent?.cancel();
   if (activeTaskId !== null) {
     const taskId = activeTaskId;
@@ -1000,6 +1072,8 @@ export function aiCancel(): void {
  * next to a history list has to mean "put that one away", not "throw it away".
  */
 export function aiReset(): void {
+  completionInFlight?.controller.abort();
+  completionInFlight = null;
   agent?.reset();
   if (activeTaskId !== null) {
     const taskId = activeTaskId;

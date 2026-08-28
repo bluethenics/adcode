@@ -39,9 +39,10 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     title: "Inline completion",
     plain: "Grey text appears ahead of your cursor guessing the rest of what you are writing. Press Tab to take it.",
     why: "For the lines that are boring and predictable, which is more of them than anybody likes to admit.",
-    how: "On by default. Press Tab to accept the suggestion, or just keep typing to ignore it.",
+    how: "On by default. ADCode asks the selected model after you pause, without delaying a keystroke, and cancels the request as soon as the buffer changes. Press Tab to accept grey ghost text, keep typing to ignore it, or press Alt+\\ to request a suggestion yourself. Local keyword and language-server suggestions continue to work separately.",
     group: "ai",
     settingIds: ["adcode.ai.inlineCompletion"],
+    shortcut: "Alt+\\",
     related: ["adcode.editing.suggestions", "adcode.ai.provider"],
   },
   {
