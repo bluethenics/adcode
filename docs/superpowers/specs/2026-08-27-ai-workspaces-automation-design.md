@@ -4,6 +4,23 @@
 **Status:** Approved design  
 **Product:** ADCode desktop IDE
 
+## Implementation status
+
+**Milestone 2 — safe single-agent workspaces: implemented and verified on 2026-08-28.**
+The built-in assistant now uses isolated Git worktrees or shadow copies, validated review
+IPC, durable pre-apply checkpoints, conflict-aware rollback, local operational traces,
+conservative token reservation, retention/quota controls, restart pausing, and an unsaved
+editor-buffer guard. The existing chat widget gained a compact task strip without changing
+the normal human workbench.
+
+Verification evidence: `npm run verify` passed all 2,477 tests with zero architecture
+errors; desktop and web production builds passed; the desktop smoke journey completed with
+zero suspicious log lines. User and security documentation is in
+`docs/features/ai-workspaces.md` and `docs/architecture/ai-workspace-security.md`.
+
+Milestones for Team mode, trusted automatic apply, schedules and continuation, external
+agent adapters, and enhanced breadcrumbs remain unimplemented at this status point.
+
 ## Summary
 
 ADCode will remain a complete, conventional IDE for human developers while gaining a

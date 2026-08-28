@@ -407,6 +407,15 @@ export const DOC_SEED: readonly DocSeed[] = [
     related: ["editing-bracket-pair-colorization", "navigation-outline"],
   },
   {
+    slug: "ai-workspace-storage",
+    title: "AI workspace storage",
+    section: "The assistant",
+    description: "Limits how much disk space task copies use and how long finished sandboxes and rollback checkpoints stay.",
+    why: "Project copies can be large, but deleting the only safe way back is worse than filling a quota. ADCode treats active work and rollback checkpoints differently for that reason.",
+    how: "Terminal sandboxes are cleaned oldest first. An applied task may lose its sandbox when space is tight, but its only rollback checkpoint is kept. If active work leaves no safe room, ADCode refuses the new task and tells you to raise the quota or discard one.",
+    related: ["ai-isolated-workspaces", "ai-task-token-budget"],
+  },
+  {
     slug: "ai-sessions",
     title: "Chat history and memory",
     section: "The assistant",
@@ -452,6 +461,15 @@ export const DOC_SEED: readonly DocSeed[] = [
     related: ["editing-suggestions", "ai-provider"],
   },
   {
+    slug: "ai-isolated-workspaces",
+    title: "Isolated AI edits",
+    section: "The assistant",
+    description: "The assistant works in a separate copy of your project. Your real files change only after you review them, with a way back kept first.",
+    why: "A model can make a useful mistake very quickly. Isolation lets it read its own edits and keep working without putting unfinished or conflicting changes into the project you are using.",
+    how: "On by default. The assistant shows the task state, changed files, and Review button. Accept individual hunks, discard the sandbox, or roll an applied task back. Turning this off keeps chat available but disables the built-in file tools.",
+    related: ["ai-chat-widget", "ai-task-token-budget"],
+  },
+  {
     slug: "ai-mcp-server",
     title: "MCP server",
     section: "The assistant",
@@ -486,6 +504,15 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Different models are better at different things, and cost different amounts. ADCode does not resell anybody's AI, so the choice - and the bill - is yours.",
     how: "Open Connect a model, pick a provider, and paste your key. ADCode checks the key works before saving it. Keys are kept in your operating system's own password store, never in a settings file. The local option needs no key at all - it talks to a model running on your own machine.",
     related: ["ai-connect", "ai-chat-widget"],
+  },
+  {
+    slug: "ai-task-token-budget",
+    title: "Task token budget",
+    section: "The assistant",
+    description: "Sets a hard ceiling for one assistant task, checked before each new request can spend your key.",
+    why: "Long tool loops and repeated context can cost far more than the first question suggests. Checking the whole request before it starts is safer than warning after the tokens are gone.",
+    how: "The default is 100k. The task strip shows reserved tokens. ADCode pauses before the next request would cross the limit; raise it in Settings or start a new task when you want a fresh allowance.",
+    related: ["ai-isolated-workspaces", "ai-provider"],
   },
   {
     slug: "ai-terminal-agent-detection",

@@ -16,6 +16,13 @@ paying users out.
 **Deploying it?** `SETUP.md` is the ordered list of everything that needs your account,
 your card, or a lawyer. Nothing in it is a coding task.
 
+**AI edits are isolated.** The built-in assistant prepares file changes in a private task
+workspace, shows them in the existing chat review flow, and writes only accepted hunks after
+a durable rollback checkpoint. See [Safe AI workspaces](docs/features/ai-workspaces.md) and
+the [security boundary](docs/architecture/ai-workspace-security.md). This is the
+single-agent foundation; Team mode, trusted apply, schedules, external-agent adapters, and
+automatic continuation are still planned rather than implied here.
+
 ```
 npm install
 npm start               # build if needed, then launch
