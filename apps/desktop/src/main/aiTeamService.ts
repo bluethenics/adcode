@@ -5,11 +5,17 @@ import { join } from "node:path";
 import {
   completeTeamNode,
   createTeamHandoff,
+  failTeamNode,
+  pauseRunningTeamNodes,
   planTeamMerge,
+  reserveTeamBudget,
+  settleTeamReservation,
   startTeamNode,
   teamGraphState,
   type FileClaim,
   type TeamBudgetLedger,
+  type TeamBudgetReservation,
+  type TeamBudgetBlockReason,
   type TeamHandoff,
   type TeamPlan,
 } from "@adcode/ai";
@@ -20,7 +26,9 @@ import {
   createAiTeamStore,
   transitionAiTeamRecord,
   type AiTeamRecord,
+  type AiTeamRouteRecord,
   type AiTeamStore,
+  type AiTeamTraceKind,
 } from "./aiTeamStore.ts";
 import type { AiWorkspaceService, StartAiWorkspaceInput } from "./aiWorkspaceService.ts";
 
@@ -60,6 +68,23 @@ export interface AiTeamService {
   startConfirmed(id: string): Promise<AiTeamRecord>;
   startNode(id: string, nodeId: string): Promise<AiTeamRecord>;
   completeNode(id: string, handoff: TeamHandoff): Promise<AiTeamRecord>;
+  failNode(id: string, nodeId: string, reason: string): Promise<AiTeamRecord>;
+  recordRoute(id: string, nodeId: string, route: AiTeamRouteRecord): Promise<AiTeamRecord>;
+  reserveRequest(
+    id: string,
+    reservation: TeamBudgetReservation,
+  ): Promise<
+    | { readonly ok: true; readonly team: AiTeamRecord }
+    | { readonly ok: false; readonly team: AiTeamRecord; readonly reason: TeamBudgetBlockReason }
+  >;
+  settleRequest(
+    id: string,
+    reservationId: string,
+    actual: { readonly tokens: number; readonly costMicros: number } | null,
+  ): Promise<AiTeamRecord>;
+  pause(id: string, reason: string): Promise<AiTeamRecord>;
+  fail(id: string, reason: string): Promise<AiTeamRecord>;
+  cancel(id: string): Promise<AiTeamRecord>;
   buildCombinedReview(id: string): Promise<AiTeamRecord>;
   traces(id: string): ReturnType<AiTeamStore["traces"]>;
   recoverActive(): ReturnType<AiTeamStore["recoverActive"]>;
@@ -76,6 +101,7 @@ export function createAiTeamService(options: AiTeamServiceOptions): AiTeamServic
     outcome: "ok" | "blocked" | "failed",
     detail = "",
     nodeId: string | null = null,
+    kind: AiTeamTraceKind = outcome === "failed" ? "error" : "state",
   ): Promise<void> {
     try {
       await store.appendTrace({
@@ -83,7 +109,7 @@ export function createAiTeamService(options: AiTeamServiceOptions): AiTeamServic
         teamId: team.id,
         nodeId,
         at: now(),
-        kind: outcome === "failed" ? "error" : "state",
+        kind,
         summary,
         detail,
         outcome,
@@ -196,6 +222,113 @@ export function createAiTeamService(options: AiTeamServiceOptions): AiTeamServic
       };
       await store.save(team);
       await trace(team, handoff.summary, "ok", handoff.changedPaths.join(", "), handoff.nodeId);
+      return team;
+    },
+
+    async failNode(id, nodeId, reason): Promise<AiTeamRecord> {
+      let team = await store.read(id);
+      if (team === null || team.state !== "running") throw new Error("AI Team cannot fail a node");
+      team = { ...team, graph: failTeamNode(team.graph, nodeId, reason, now()), updatedAt: now() };
+      await store.save(team);
+      await trace(team, `Failed ${nodeId}`, "failed", reason, nodeId, "agent");
+      return team;
+    },
+
+    async recordRoute(id, nodeId, route): Promise<AiTeamRecord> {
+      let team = await store.read(id);
+      if (team === null || team.state !== "running") throw new Error("AI Team cannot route a node");
+      if (!team.plan.nodes.some((node) => node.id === nodeId)) throw new Error("AI Team route node was not found");
+      team = { ...team, routes: { ...team.routes, [nodeId]: route }, updatedAt: now() };
+      await store.save(team);
+      await trace(team, `Routed ${nodeId} to ${route.providerId}/${route.modelId}`, "ok", route.reason, nodeId, "route");
+      return team;
+    },
+
+    async reserveRequest(id, reservation) {
+      let team = await store.read(id);
+      if (team === null || team.state !== "running") throw new Error("AI Team cannot reserve a request");
+      if (!team.plan.nodes.some((node) => node.id === reservation.agentId)) {
+        throw new Error("AI Team budget node was not found");
+      }
+      if (team.graph.nodes.find((node) => node.id === reservation.agentId)?.state !== "running") {
+        throw new Error("AI Team budget node is not running");
+      }
+      const result = reserveTeamBudget(team.budget, reservation);
+      if (!result.ok) {
+        await trace(team, `Blocked request for ${reservation.agentId}`, "blocked", result.reason, reservation.agentId, "budget");
+        return { ok: false as const, team, reason: result.reason };
+      }
+      team = { ...team, budget: result.ledger, updatedAt: now() };
+      await store.save(team);
+      await trace(
+        team,
+        `Reserved ${String(reservation.tokens)} tokens for ${reservation.agentId}`,
+        "ok",
+        reservation.id,
+        reservation.agentId,
+        "budget",
+      );
+      return { ok: true as const, team };
+    },
+
+    async settleRequest(id, reservationId, actual): Promise<AiTeamRecord> {
+      let team = await store.read(id);
+      if (team === null) throw new Error("AI Team was not found");
+      const reservation = team.budget.reservations.find((candidate) => candidate.id === reservationId);
+      if (reservation === undefined) return team;
+      const settled = actual ?? { tokens: reservation.tokens, costMicros: reservation.costMicros };
+      team = {
+        ...team,
+        budget: settleTeamReservation(team.budget, reservationId, settled),
+        updatedAt: now(),
+      };
+      await store.save(team);
+      await trace(
+        team,
+        `Settled ${String(settled.tokens)} tokens for ${reservation.agentId}`,
+        "ok",
+        reservationId,
+        reservation.agentId,
+        "budget",
+      );
+      return team;
+    },
+
+    async pause(id, reason): Promise<AiTeamRecord> {
+      let team = await store.read(id);
+      if (team === null) throw new Error("AI Team was not found");
+      if (team.state === "paused") return team;
+      const pausedAt = now();
+      team = {
+        ...transitionAiTeamRecord(team, "paused", pausedAt),
+        graph: pauseRunningTeamNodes(team.graph, pausedAt),
+      };
+      await store.save(team);
+      await trace(team, "Team paused", "blocked", reason);
+      return team;
+    },
+
+    async fail(id, reason): Promise<AiTeamRecord> {
+      let team = await store.read(id);
+      if (team === null) throw new Error("AI Team was not found");
+      if (team.state === "failed") return team;
+      team = transitionAiTeamRecord(team, "failed", now());
+      await store.save(team);
+      await trace(team, "Team failed", "failed", reason);
+      return team;
+    },
+
+    async cancel(id): Promise<AiTeamRecord> {
+      let team = await store.read(id);
+      if (team === null) throw new Error("AI Team was not found");
+      if (team.state === "cancelled") return team;
+      const cancelledAt = now();
+      team = {
+        ...transitionAiTeamRecord(team, "cancelled", cancelledAt),
+        graph: pauseRunningTeamNodes(team.graph, cancelledAt),
+      };
+      await store.save(team);
+      await trace(team, "Team cancelled", "blocked");
       return team;
     },
 

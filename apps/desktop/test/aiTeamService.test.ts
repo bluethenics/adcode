@@ -178,6 +178,20 @@ describe("AI Team child workspace allocation", () => {
     await expect(service.startConfirmed("team-alpha")).rejects.toThrow(/cannot start|confirmed/i);
   });
 
+  it("does not reserve provider spend for a role before its node is running", async () => {
+    const service = createAiTeamService({ userDataDirectory: userData, workspaceService: workspaceService() });
+    await configure(service);
+    await service.startConfirmed("team-alpha");
+    await expect(
+      service.reserveRequest("team-alpha", {
+        id: "request-one",
+        agentId: "desktop-change",
+        tokens: 100,
+        costMicros: 0,
+      }),
+    ).rejects.toThrow(/not running/i);
+  });
+
   it("combines completed role proposals without touching or rebasing onto later human text", async () => {
     await writeFile(join(project, "shared.txt"), "one\ntwo\nthree\nfour\n", "utf8");
     const real = workspaceService();

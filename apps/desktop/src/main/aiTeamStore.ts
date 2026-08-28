@@ -8,6 +8,7 @@ import {
   createTeamHandoff,
   createTeamPlan,
   pauseRunningTeamNodes,
+  settleTeamReservation,
   validateFileClaims,
   validateTeamBudgetLedger,
   type FileClaim,
@@ -220,14 +221,24 @@ function parseRoutes(raw: unknown): Record<string, AiTeamRouteRecord> {
     const cost = candidate["blendedCostMicrosPerMillion"];
     if (
       typeof candidate["providerId"] !== "string" ||
+      candidate["providerId"].length === 0 ||
+      candidate["providerId"].length > 160 ||
+      candidate["providerId"].includes("\u0000") ||
       typeof candidate["modelId"] !== "string" ||
+      candidate["modelId"].length === 0 ||
+      candidate["modelId"].length > 160 ||
+      candidate["modelId"].includes("\u0000") ||
       typeof candidate["reason"] !== "string" ||
+      candidate["reason"].trim().length === 0 ||
+      candidate["reason"].length > 2_000 ||
+      candidate["reason"].includes("\u0000") ||
       typeof candidate["priceKnown"] !== "boolean" ||
-      (cost !== null && (!Number.isSafeInteger(cost) || (cost as number) < 0))
+      (cost !== null && (!Number.isSafeInteger(cost) || (cost as number) < 0)) ||
+      (candidate["priceKnown"] === true) !== (cost !== null)
     ) {
       throw new Error("Invalid AI Team route fields");
     }
-    result[nodeId] = candidate as unknown as AiTeamRouteRecord;
+    result[nodeId] = { ...candidate, reason: candidate["reason"].trim() } as unknown as AiTeamRouteRecord;
   }
   return result;
 }
@@ -469,10 +480,18 @@ export function createAiTeamStore(userDataDirectory: string): AiTeamStore {
       for (const record of await all()) {
         if (!["preparing", "running", "merging"].includes(record.state)) continue;
         const recoveredAt = Math.max(now, record.updatedAt, record.graph.updatedAt);
+        let budget = record.budget;
+        for (const reservation of record.budget.reservations) {
+          budget = settleTeamReservation(budget, reservation.id, {
+            tokens: reservation.tokens,
+            costMicros: reservation.costMicros,
+          });
+        }
         const paused = {
           ...record,
           state: "paused" as const,
           graph: pauseRunningTeamNodes(record.graph, recoveredAt),
+          budget,
           updatedAt: recoveredAt,
         };
         await this.save(paused);

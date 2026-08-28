@@ -6,6 +6,7 @@ import {
   createFileClaim,
   createTeamBudget,
   createTeamPlan,
+  reserveTeamBudget,
   startTeamNode,
   type TeamPlanInput,
 } from "@adcode/ai";
@@ -122,6 +123,14 @@ describe("durable AI Team records", () => {
     let active = confirmAiTeamRecord(record(), 1_001);
     active = transitionAiTeamRecord(active, "running", 1_002);
     active = { ...active, graph: startTeamNode(active.graph, "desktop-change", 1_003), updatedAt: 1_003 };
+    const reserved = reserveTeamBudget(active.budget, {
+      id: "request-recovery",
+      agentId: "desktop-change",
+      tokens: 400,
+      costMicros: 25,
+    });
+    if (!reserved.ok) throw new Error("test reservation unexpectedly blocked");
+    active = { ...active, budget: reserved.ledger };
     const configured = record("C:/private/project", "team-configured");
     await store.save(active);
     await store.save(configured);
@@ -132,6 +141,9 @@ describe("durable AI Team records", () => {
     expect(recovered[0]?.graph.nodes.find((node) => node.id === "desktop-change")?.state).toBe(
       "paused",
     );
+    expect(recovered[0]?.budget.usedTokens).toBe(400);
+    expect(recovered[0]?.budget.usedCostMicros).toBe(25);
+    expect(recovered[0]?.budget.reservations).toEqual([]);
     expect((await store.read("team-configured"))?.state).toBe("configured");
     expect((await store.read("team-configured"))?.confirmedAt).toBeNull();
   });
@@ -140,6 +152,23 @@ describe("durable AI Team records", () => {
     const store = createAiTeamStore(directory);
     await expect(store.read("../settings")).resolves.toBeNull();
     await expect(store.traces("C:\\outside")).resolves.toEqual([]);
+  });
+
+  it("rejects unbounded or internally inconsistent persisted routes", async () => {
+    const store = createAiTeamStore(directory);
+    const invalid = {
+      ...record(),
+      routes: {
+        "desktop-change": {
+          providerId: "provider-a",
+          modelId: "model-one",
+          reason: "x".repeat(2_001),
+          priceKnown: false,
+          blendedCostMicrosPerMillion: 100,
+        },
+      },
+    };
+    await expect(store.save(invalid)).rejects.toThrow(/invalid/i);
   });
 });
 

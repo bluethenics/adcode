@@ -300,6 +300,17 @@ describe("cancellation", () => {
 
     expect(kinds(events)).toContain("cancelled");
   });
+
+  it("honors an already-aborted external Team lane signal before contacting the provider", async () => {
+    const provider = scriptedProvider([[{ kind: "text", text: "must not run" }]]);
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner() });
+    const controller = new AbortController();
+    controller.abort();
+
+    const events = await collect(agent.send("hi", controller.signal));
+    expect(provider.requests).toBe(0);
+    expect(kinds(events)).toEqual(["cancelled"]);
+  });
 });
 
 describe("conversation history", () => {

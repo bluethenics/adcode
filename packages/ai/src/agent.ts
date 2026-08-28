@@ -68,7 +68,7 @@ export function estimateRequestTokens(request: ProviderRequest): number {
 }
 
 export interface Agent {
-  send(text: string): AsyncIterable<AgentEvent>;
+  send(text: string, signal?: AbortSignal): AsyncIterable<AgentEvent>;
   cancel(): void;
   history(): readonly Message[];
   reset(): void;
@@ -96,14 +96,22 @@ export function createAgent(deps: AgentDeps): Agent {
     }
   }
 
-  async function* send(text: string): AsyncIterable<AgentEvent> {
+  async function* send(text: string, externalSignal?: AbortSignal): AsyncIterable<AgentEvent> {
     controller?.abort();
     controller = new AbortController();
     const signal = controller.signal;
+    const abortFromExternal = (): void => controller?.abort();
+    if (externalSignal?.aborted === true) controller.abort();
+    else externalSignal?.addEventListener("abort", abortFromExternal, { once: true });
 
-    messages.push({ role: "user", content: [{ type: "text", text }] });
+    try {
+      if (signal.aborted) {
+        yield { kind: "cancelled" };
+        return;
+      }
+      messages.push({ role: "user", content: [{ type: "text", text }] });
 
-    for (let turn = 0; turn < MAX_TURNS; turn++) {
+      for (let turn = 0; turn < MAX_TURNS; turn++) {
       const assistantContent: Array<{ type: "text"; text: string } | ToolCallBlock> = [];
       const pendingCalls: ToolCallBlock[] = [];
       let stop: StopReason = "end-turn";
@@ -208,7 +216,10 @@ export function createAgent(deps: AgentDeps): Agent {
       messages.push({ role: "user", content: results });
     }
 
-    yield { kind: "turn-end", reason: "max-tokens" };
+      yield { kind: "turn-end", reason: "max-tokens" };
+    } finally {
+      externalSignal?.removeEventListener("abort", abortFromExternal);
+    }
   }
 
   return {

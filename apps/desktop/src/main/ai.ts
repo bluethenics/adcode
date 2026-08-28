@@ -24,6 +24,7 @@ import {
   createAnthropicProvider,
   createGoogleProvider,
   createOpenAiCompatibleProvider,
+  createTeamHandoff,
   estimateRequestTokens,
   mergeCatalogue,
   parseCatalogue,
@@ -66,6 +67,10 @@ import {
   toAiWorkspaceTaskView,
   toAiWorkspaceTraceView,
 } from "./aiWorkspaceViews.ts";
+import {
+  createBudgetedTeamProvider,
+  type AiTeamNodeRunner,
+} from "./aiTeamCoordinator.ts";
 
 const keys = createKeychainStore();
 
@@ -324,7 +329,7 @@ function activeModel(provider: string): string {
  * That is what makes hundreds of providers reachable without hundreds of adapters, and it
  * is the same mechanism the custom endpoint uses.
  */
-async function buildProvider(id: string): Promise<Provider | null> {
+export async function buildProvider(id: string): Promise<Provider | null> {
   const key = KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? "");
   if (!KEYLESS.has(id) && key.length === 0 && id !== "custom") return null;
 
@@ -601,6 +606,89 @@ export async function aiSend(text: string): Promise<void> {
   } finally {
     currentTaskPrompt = null;
   }
+}
+
+/**
+ * Production Team-role runner. It is intentionally created on demand: suggestions and
+ * configured plans cannot reach a provider merely by existing.
+ */
+export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
+  return async (input) => {
+    const provider = await buildProvider(input.route.providerId);
+    if (provider === null) throw new Error(`No connection for ${input.route.providerId}`);
+    const service = await readyAiWorkspaceService();
+    const task = await service.read(input.childTaskId);
+    if (task === null || task.sandbox === null) throw new Error("Team role workspace is unavailable");
+    const before = new Map(task.changes.map((change) => [change.path, change.proposed]));
+    const fixedWorkspace = {
+      taskId: task.id,
+      sandboxRoot: join(app.getPath("userData"), "ai-workspaces", "sandboxes", task.id),
+      humanRoot: task.workspaceRoot,
+    };
+    const runner = createAiToolRunner({
+      workspace: async () => fixedWorkspace,
+      workspaceUnavailableMessage: () => "This Team role's isolated workspace is unavailable.",
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => {
+        const updated = await service.writeFromSandboxBase(task.id, path, contents);
+        const change = updated.changes.find((candidate) => candidate.path === path);
+        if (change === undefined) throw new Error("Team role change was not recorded");
+        return change;
+      },
+      // Individual lanes remain in Team traces. Only the combined task becomes a human
+      // review diff, so concurrent role proposals never appear as if they were ready to apply.
+      onProposedEdit: () => undefined,
+    });
+    const roleProvider = createBudgetedTeamProvider(provider, input.route, input.reserveRequest);
+    const roleAgent = createAgent({
+      provider: roleProvider,
+      model: input.route.modelId,
+      tools: TOOLS_WITHOUT_MEMORY,
+      runner,
+      system: [
+        "You are one isolated role inside an explicitly confirmed ADCode Team.",
+        `Role: ${input.context.role.label}`,
+        `Role objective: ${input.context.role.objective}`,
+        "Work only on this node. Use the isolated file tools; never assume another role's transcript.",
+        "Finish with a concise outcome summary. All edits remain review-only until the Team merge.",
+      ].join("\n"),
+    });
+    const compactPrompt = JSON.stringify({
+      task: input.context.taskPrompt,
+      acceptanceCriteria: input.context.taskAcceptanceCriteria,
+      node: input.context.node,
+      dependencies: input.context.dependencies,
+      claims: input.context.claims,
+    });
+    let answer = "";
+    let failure: Error | null = null;
+    for await (const event of roleAgent.send(compactPrompt, input.signal)) {
+      if (event.kind === "text") answer += event.text;
+      if (event.kind === "error") failure = new Error(event.detail);
+      if (event.kind === "refusal") failure = new Error(event.detail);
+      if (event.kind === "cancelled") failure = new DOMException("Team role cancelled", "AbortError");
+    }
+    if (input.signal.aborted) throw new DOMException("Team role cancelled", "AbortError");
+    if (failure !== null) throw failure;
+
+    const after = await service.read(task.id);
+    if (after === null) throw new Error("Team role workspace disappeared");
+    const changedPaths = after.changes
+      .filter((change) => before.get(change.path) !== change.proposed)
+      .map((change) => change.path);
+    const summary = answer.trim().slice(0, 2_000) || `${input.node.title} completed.`;
+    return createTeamHandoff({
+      nodeId: input.node.id,
+      summary,
+      findings: [],
+      decisions: [],
+      changedPaths,
+      tests: [],
+      blockers: [],
+      deadEnds: [],
+      completedAt: Date.now(),
+    });
+  };
 }
 
 export function aiCancel(): void {
