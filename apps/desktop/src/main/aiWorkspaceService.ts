@@ -22,7 +22,12 @@ import {
   type OperationalTrace,
   type AiUsage,
 } from "@adcode/ai";
-import { createAiSandbox, removeAiSandbox, resolveSandboxPath } from "./aiSandbox.ts";
+import {
+  createAiSandbox,
+  removeAiSandbox,
+  resolveSandboxPath,
+  type AiSandboxSource,
+} from "./aiSandbox.ts";
 import { createAiWorkspaceStore, type AiWorkspaceStore } from "./aiWorkspaceStore.ts";
 
 export type ApplySelection =
@@ -81,6 +86,10 @@ export interface StartAiWorkspaceInput {
   readonly prompt: string;
   readonly tokenLimit?: number;
   readonly costMicrosLimit?: number;
+  /** Main-process-only immutable Team base. Never accepted from renderer IPC. */
+  readonly sandboxSource?: AiSandboxSource;
+  /** Bytes held by the immutable Team base that count against the same sandbox quota. */
+  readonly reservedStorageBytes?: number;
 }
 
 export interface AiWorkspaceService {
@@ -299,7 +308,16 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
   return {
     async start(input): Promise<AiWorkspaceTask> {
       const policy = options.storagePolicy?.();
-      if (policy !== undefined && !(await maintainStorage(policy)).ok) {
+      const reservedStorageBytes = input.reservedStorageBytes ?? 0;
+      if (!Number.isSafeInteger(reservedStorageBytes) || reservedStorageBytes < 0) {
+        throw new Error("Invalid reserved AI workspace storage");
+      }
+      if (policy !== undefined && reservedStorageBytes >= policy.quotaBytes) {
+        throw new Error("The Team base uses the entire AI workspace storage quota.");
+      }
+      const sandboxPolicy =
+        policy === undefined ? undefined : { ...policy, quotaBytes: policy.quotaBytes - reservedStorageBytes };
+      if (sandboxPolicy !== undefined && !(await maintainStorage(sandboxPolicy)).ok) {
         throw new Error("AI workspace storage quota is full. Increase it in Settings or discard a task.");
       }
       const root = await import("node:fs/promises").then(({ realpath }) => realpath(input.workspaceRoot));
@@ -321,13 +339,14 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
           taskId: task.id,
           workspaceRoot: root,
           now: createdAt,
+          ...(input.sandboxSource === undefined ? {} : { source: input.sandboxSource }),
         });
         runtimeCleanups.set(task.id, sandbox.cleanup);
-        if (policy !== undefined) {
+        if (sandboxPolicy !== undefined) {
           const bytes = await directorySize(
             join(options.userDataDirectory, "ai-workspaces", "sandboxes"),
           );
-          if (bytes > policy.quotaBytes) {
+          if (bytes > sandboxPolicy.quotaBytes) {
             await sandbox.cleanup();
             runtimeCleanups.delete(task.id);
             throw new Error("This project is larger than the AI workspace storage quota.");

@@ -18,6 +18,7 @@ import {
   type TeamPlan,
   type TeamNodeState,
 } from "@adcode/ai";
+import type { AiSandboxBaseRecord } from "./aiSandbox.ts";
 
 export type AiTeamState =
   | "configured"
@@ -59,6 +60,7 @@ export interface AiTeamRecord {
   readonly childTaskIds: Readonly<Record<string, string>>;
   readonly routes: Readonly<Record<string, AiTeamRouteRecord>>;
   readonly merge: AiTeamMergeRecord;
+  readonly base: AiSandboxBaseRecord | null;
   readonly confirmedAt: number | null;
   readonly createdAt: number;
   readonly updatedAt: number;
@@ -129,6 +131,7 @@ export function createAiTeamRecord(input: CreateAiTeamRecordInput): AiTeamRecord
     childTaskIds: {},
     routes: {},
     merge: { state: "idle", combinedTaskId: null, conflicts: [] },
+    base: null,
     confirmedAt: null,
     createdAt: now,
     updatedAt: now,
@@ -242,6 +245,25 @@ function parseMerge(raw: unknown, nodeId: string): AiTeamMergeRecord {
   return { state: raw["state"] as AiTeamMergeRecord["state"], combinedTaskId: combined, conflicts };
 }
 
+function parseBase(raw: unknown): AiSandboxBaseRecord | null {
+  if (raw === null) return null;
+  if (!isRecord(raw)) throw new Error("Invalid AI Team base");
+  const sizeBytes = raw["sizeBytes"];
+  if (!Number.isSafeInteger(sizeBytes) || (sizeBytes as number) < 0) {
+    throw new Error("Invalid AI Team base size");
+  }
+  if (raw["kind"] === "shadow-base") return { kind: "shadow-base", sizeBytes: sizeBytes as number };
+  if (
+    raw["kind"] === "git-revision" &&
+    typeof raw["revision"] === "string" &&
+    /^[a-f0-9]{40,64}$/i.test(raw["revision"])
+  ) {
+    if (sizeBytes !== 0) throw new Error("Git Team bases do not reserve copied storage");
+    return { kind: "git-revision", revision: raw["revision"], sizeBytes: 0 };
+  }
+  throw new Error("Invalid AI Team base");
+}
+
 function parseTeam(raw: unknown): AiTeamRecord | null {
   try {
     if (!isRecord(raw) || typeof raw["id"] !== "string" || !TEAM_ID.test(raw["id"])) return null;
@@ -256,6 +278,7 @@ function parseTeam(raw: unknown): AiTeamRecord | null {
     const nodeForPaths = plan.nodes[0]?.id;
     if (nodeForPaths === undefined) return null;
     const nodeIds = new Set(plan.nodes.map((node) => node.id));
+    const roleIds = new Set(plan.roles.map((role) => role.id));
     const createdAt = validTime(raw["createdAt"] as number);
     const updatedAt = validTime(raw["updatedAt"] as number, createdAt);
     const claims = validateFileClaims(raw["claims"] as FileClaim[]);
@@ -263,14 +286,15 @@ function parseTeam(raw: unknown): AiTeamRecord | null {
     const childTaskIds = parseStringMap(raw["childTaskIds"], TASK_ID);
     const routes = parseRoutes(raw["routes"]);
     const budget = validateTeamBudgetLedger(raw["budget"]);
+    const base = parseBase(raw["base"]);
     if (
       claims.some((claim) => !nodeIds.has(claim.nodeId)) ||
       handoffs.some((handoff) => !nodeIds.has(handoff.nodeId)) ||
       new Set(handoffs.map((handoff) => handoff.nodeId)).size !== handoffs.length ||
-      Object.keys(childTaskIds).some((nodeId) => !nodeIds.has(nodeId)) ||
+      Object.keys(childTaskIds).some((roleId) => !roleIds.has(roleId)) ||
       Object.keys(routes).some((nodeId) => !nodeIds.has(nodeId)) ||
       Object.keys(budget.agentTokenLimits).some((nodeId) => !nodeIds.has(nodeId)) ||
-      (state === "configured" && confirmedAt !== null)
+      (state === "configured" && (confirmedAt !== null || base !== null))
     ) {
       return null;
     }
@@ -287,6 +311,7 @@ function parseTeam(raw: unknown): AiTeamRecord | null {
       childTaskIds,
       routes,
       merge: parseMerge(raw["merge"], nodeForPaths),
+      base,
       confirmedAt: confirmedAt === null ? null : validTime(confirmedAt as number, createdAt),
       createdAt,
       updatedAt,

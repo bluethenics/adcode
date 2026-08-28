@@ -1,12 +1,14 @@
 /** Main-process creation and containment of isolated AI workspaces. */
 import { execFile as execFileCallback } from "node:child_process";
-import { cp, lstat, mkdir, realpath, rm } from "node:fs/promises";
+import { cp, lstat, mkdir, readdir, realpath, rm } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import type { AiSandboxRecord } from "@adcode/ai";
 
 const execFile = promisify(execFileCallback);
 const TASK_ID = /^[a-z0-9][a-z0-9-]{2,63}$/;
+const TEAM_ID = /^[a-z][a-z0-9-]{2,63}$/;
+const GIT_REVISION = /^[a-f0-9]{40,64}$/i;
 const SHADOW_EXCLUDES = new Set([
   ".git",
   ".worktrees",
@@ -110,11 +112,89 @@ async function createShadowCopy(workspaceRoot: string, target: string): Promise<
   });
 }
 
+async function createShadowCopyOrClean(source: string, target: string): Promise<void> {
+  try {
+    await createShadowCopy(source, target);
+  } catch (error) {
+    await rm(target, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 export interface CreateAiSandboxInput {
   readonly userDataDirectory: string;
   readonly taskId: string;
   readonly workspaceRoot: string;
   readonly now: number;
+  readonly source?: AiSandboxSource;
+}
+
+export type AiSandboxSource =
+  | { readonly kind: "git-revision"; readonly revision: string }
+  | { readonly kind: "shadow-base"; readonly root: string };
+
+export type AiSandboxBaseRecord =
+  | { readonly kind: "git-revision"; readonly revision: string; readonly sizeBytes: 0 }
+  | { readonly kind: "shadow-base"; readonly sizeBytes: number };
+
+export interface CapturedAiSandboxBase {
+  readonly record: AiSandboxBaseRecord;
+  readonly source: AiSandboxSource;
+  cleanup(): Promise<void>;
+}
+
+export interface CaptureAiSandboxBaseInput {
+  readonly userDataDirectory: string;
+  readonly teamId: string;
+  readonly workspaceRoot: string;
+}
+
+async function directorySize(path: string): Promise<number> {
+  const entries = await readdir(path, { withFileTypes: true });
+  let bytes = 0;
+  for (const entry of entries) {
+    const target = join(path, entry.name);
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) bytes += await directorySize(target);
+    else bytes += (await lstat(target)).size;
+  }
+  return bytes;
+}
+
+export async function captureAiSandboxBase(
+  input: CaptureAiSandboxBaseInput,
+): Promise<CapturedAiSandboxBase> {
+  if (!TEAM_ID.test(input.teamId)) throw new Error("Invalid Team id");
+  const workspace = await realpath(input.workspaceRoot);
+  if (await cleanGitRoot(workspace)) {
+    const revision = await gitOutput(workspace, ["rev-parse", "HEAD"]);
+    if (revision !== null && GIT_REVISION.test(revision)) {
+      return {
+        record: { kind: "git-revision", revision, sizeBytes: 0 },
+        source: { kind: "git-revision", revision },
+        async cleanup(): Promise<void> {},
+      };
+    }
+  }
+
+  const teamsRoot = join(input.userDataDirectory, "ai-teams");
+  const baseRoot = join(teamsRoot, input.teamId, "base");
+  if (!isWithin(teamsRoot, baseRoot) || (await exists(baseRoot))) {
+    throw new Error("Team shadow base already exists or is outside the Team registry");
+  }
+  await mkdir(dirname(baseRoot), { recursive: true });
+  await createShadowCopyOrClean(workspace, baseRoot);
+  let cleaned = false;
+  return {
+    record: { kind: "shadow-base", sizeBytes: await directorySize(baseRoot) },
+    source: { kind: "shadow-base", root: baseRoot },
+    async cleanup(): Promise<void> {
+      if (cleaned) return;
+      cleaned = true;
+      if (!isWithin(teamsRoot, baseRoot)) throw new Error("Invalid Team shadow base path");
+      await rm(baseRoot, { recursive: true, force: true });
+    },
+  };
 }
 
 export interface CreatedAiSandbox {
@@ -156,17 +236,37 @@ export async function createAiSandbox(input: CreateAiSandboxInput): Promise<Crea
   }
 
   let kind: AiSandboxRecord["kind"] = "shadow-copy";
-  if (await cleanGitRoot(workspace)) {
+  if (input.source?.kind === "git-revision") {
+    if (!GIT_REVISION.test(input.source.revision)) throw new Error("Invalid captured Git revision");
+    const added = await gitOutput(workspace, [
+      "worktree",
+      "add",
+      "--detach",
+      root,
+      input.source.revision,
+    ]);
+    if (added === null) {
+      await gitOutput(workspace, ["worktree", "remove", "--force", root]);
+      await rm(root, { recursive: true, force: true });
+      throw new Error("Could not create a worktree at the captured revision");
+    }
+    kind = "git-worktree";
+  } else if (input.source?.kind === "shadow-base") {
+    const teamsRoot = join(input.userDataDirectory, "ai-teams");
+    const sourceRoot = await realpath(input.source.root);
+    if (!isWithin(teamsRoot, sourceRoot)) throw new Error("Captured shadow base is outside Team storage");
+    await createShadowCopyOrClean(sourceRoot, root);
+  } else if (await cleanGitRoot(workspace)) {
     const added = await gitOutput(workspace, ["worktree", "add", "--detach", root, "HEAD"]);
     if (added !== null) kind = "git-worktree";
   }
 
-  if (kind === "shadow-copy") {
+  if (kind === "shadow-copy" && input.source?.kind !== "shadow-base") {
     // A failed worktree command can leave a partial directory even though it returned an
     // error. It is safe to remove only because `root` was derived from the validated task
     // id and proved inside this store's registry above.
     await rm(root, { recursive: true, force: true });
-    await createShadowCopy(workspace, root);
+    await createShadowCopyOrClean(workspace, root);
   }
 
   let cleaned = false;

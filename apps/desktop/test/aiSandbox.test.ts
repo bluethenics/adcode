@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createAiSandbox, resolveSandboxPath } from "../src/main/aiSandbox.ts";
+import {
+  captureAiSandboxBase,
+  createAiSandbox,
+  resolveSandboxPath,
+} from "../src/main/aiSandbox.ts";
 
 const execFile = promisify(execFileCallback);
 let root: string;
@@ -32,6 +36,72 @@ async function initialiseGit(): Promise<void> {
 }
 
 describe("AI sandbox creation", () => {
+  it("pins every clean-Git child to one captured revision", async () => {
+    await initialiseGit();
+    const base = await captureAiSandboxBase({
+      userDataDirectory: userData,
+      teamId: "team-clean",
+      workspaceRoot: root,
+    });
+    cleanups.push(base.cleanup);
+    await writeFile(join(root, "tracked.txt"), "later human edit\n", "utf8");
+
+    const first = await createAiSandbox({
+      userDataDirectory: userData,
+      taskId: "task-team-one",
+      workspaceRoot: root,
+      now: 100,
+      source: base.source,
+    });
+    const second = await createAiSandbox({
+      userDataDirectory: userData,
+      taskId: "task-team-two",
+      workspaceRoot: root,
+      now: 101,
+      source: base.source,
+    });
+    cleanups.push(first.cleanup, second.cleanup);
+
+    expect(base.record.kind).toBe("git-revision");
+    expect((await readFile(join(first.root, "tracked.txt"), "utf8")).replaceAll("\r\n", "\n")).toBe(
+      "original\n",
+    );
+    expect((await readFile(join(second.root, "tracked.txt"), "utf8")).replaceAll("\r\n", "\n")).toBe(
+      "original\n",
+    );
+  });
+
+  it("copies dirty and non-Git children from one immutable shadow base", async () => {
+    await writeFile(join(root, "index.ts"), "captured\n", "utf8");
+    const base = await captureAiSandboxBase({
+      userDataDirectory: userData,
+      teamId: "team-shadow",
+      workspaceRoot: root,
+    });
+    cleanups.push(base.cleanup);
+    await writeFile(join(root, "index.ts"), "later human edit\n", "utf8");
+
+    const first = await createAiSandbox({
+      userDataDirectory: userData,
+      taskId: "task-shadow-one",
+      workspaceRoot: root,
+      now: 100,
+      source: base.source,
+    });
+    const second = await createAiSandbox({
+      userDataDirectory: userData,
+      taskId: "task-shadow-two",
+      workspaceRoot: root,
+      now: 101,
+      source: base.source,
+    });
+    cleanups.push(first.cleanup, second.cleanup);
+
+    expect(base.record.kind).toBe("shadow-base");
+    expect(await readFile(join(first.root, "index.ts"), "utf8")).toBe("captured\n");
+    expect(await readFile(join(second.root, "index.ts"), "utf8")).toBe("captured\n");
+  });
+
   it("uses a detached worktree for a clean Git workspace", async () => {
     await initialiseGit();
     const created = await createAiSandbox({
