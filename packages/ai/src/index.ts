@@ -8,6 +8,7 @@
 export * from "./types.ts";
 export * from "./workspaces.ts";
 export * from "./team.ts";
+export * from "./teamGraph.ts";
 
 export {
   createAgent,
