@@ -490,6 +490,14 @@ export const CHANNELS = {
   aiWorkspaceDiscard: "ai-workspace:discard",
   aiWorkspaceRollback: "ai-workspace:rollback",
   aiWorkspaceChanged: "ai-workspace:changed",
+  aiTeamSuggest: "ai-team:suggest",
+  aiTeamConfigure: "ai-team:configure",
+  aiTeamList: "ai-team:list",
+  aiTeamRead: "ai-team:read",
+  aiTeamStart: "ai-team:start",
+  aiTeamCancel: "ai-team:cancel",
+  aiTeamTraces: "ai-team:traces",
+  aiTeamChanged: "ai-team:changed",
   gitStatus: "git:status",
   gitStage: "git:stage",
   gitUnstage: "git:unstage",
@@ -967,6 +975,133 @@ export interface AiWorkspaceActionView {
   readonly message: string;
 }
 
+export interface AiTeamRoleInputView {
+  readonly id: string;
+  readonly label: string;
+  readonly objective: string;
+}
+
+export interface AiTeamNodeInputView {
+  readonly id: string;
+  readonly title: string;
+  readonly objective: string;
+  readonly roleId: string;
+  readonly dependsOn: readonly string[];
+  readonly acceptanceCriteria: readonly string[];
+  readonly fileHints: readonly string[];
+}
+
+export interface AiTeamConfigureInputView {
+  readonly prompt: string;
+  readonly acceptanceCriteria: readonly string[];
+  readonly roles: readonly AiTeamRoleInputView[];
+  readonly nodes: readonly AiTeamNodeInputView[];
+  readonly concurrency: number;
+  readonly claims: readonly {
+    readonly nodeId: string;
+    readonly path: string;
+    readonly scope: "file" | "directory";
+    readonly exclusive?: boolean;
+  }[];
+  readonly tokenLimit: number;
+  readonly costMicrosLimit: number;
+}
+
+export interface AiTeamSuggestionInputView {
+  readonly prompt: string;
+  readonly contextTokens: number;
+  readonly fileHints: readonly string[];
+}
+
+export interface AiTeamSuggestionView {
+  readonly dismissalKey: string;
+  readonly reasons: readonly string[];
+  readonly roles: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly objective: string;
+    readonly fileHints: readonly string[];
+  }[];
+  readonly estimatedSequentialMinutes: { readonly min: number; readonly max: number };
+  readonly estimatedParallelMinutes: { readonly min: number; readonly max: number };
+  readonly estimatedTokens: { readonly min: number; readonly max: number };
+}
+
+export type AiTeamStateView =
+  | "configured"
+  | "preparing"
+  | "running"
+  | "paused"
+  | "merging"
+  | "review"
+  | "conflict"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export interface AiTeamConflictView {
+  readonly path: string;
+  readonly reason: "different-base" | "overlapping-hunks";
+  readonly proposals: readonly {
+    readonly nodeId: string;
+    readonly hunks: readonly DiffHunkView[];
+  }[];
+}
+
+/** Renderer-safe parent summary. Workspace roots, child ids, and base revisions stay privileged. */
+export interface AiTeamView {
+  readonly id: string;
+  readonly state: AiTeamStateView;
+  readonly prompt: string;
+  readonly acceptanceCriteria: readonly string[];
+  readonly concurrency: number;
+  readonly roles: readonly AiTeamRoleInputView[];
+  readonly nodes: readonly (AiTeamNodeInputView & {
+    readonly state: "pending" | "running" | "paused" | "completed" | "failed" | "blocked";
+    readonly failure: string | null;
+  })[];
+  readonly handoffs: readonly {
+    readonly nodeId: string;
+    readonly summary: string;
+    readonly changedPaths: readonly string[];
+    readonly completedAt: number;
+  }[];
+  readonly routes: Readonly<Record<string, {
+    readonly providerId: string;
+    readonly modelId: string;
+    readonly reason: string;
+    readonly priceKnown: boolean;
+    readonly blendedCostMicrosPerMillion: number | null;
+  }>>;
+  readonly budget: {
+    readonly usedTokens: number;
+    readonly tokenLimit: number;
+    readonly reservedTokens: number;
+    readonly usedCostMicros: number;
+    readonly costMicrosLimit: number;
+    readonly reservedCostMicros: number;
+  };
+  readonly merge: {
+    readonly state: "idle" | "queued" | "merging" | "review" | "conflict" | "completed";
+    readonly combinedTaskId: string | null;
+    readonly conflicts: readonly AiTeamConflictView[];
+  };
+  readonly baseKind: "git-revision" | "shadow-base" | null;
+  readonly confirmedAt: number | null;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
+export interface AiTeamTraceView {
+  readonly id: string;
+  readonly nodeId: string | null;
+  readonly at: number;
+  readonly kind: string;
+  readonly summary: string;
+  readonly detail: string;
+  readonly outcome: "pending" | "ok" | "blocked" | "failed";
+}
+
 /**
  * Everything a user needs to connect an external agent to the shared memory.
  *
@@ -1269,6 +1404,16 @@ export interface AdcodeApi {
     discard(taskId: string): Promise<AiWorkspaceTaskView | null>;
     rollback(taskId: string): Promise<AiWorkspaceActionView>;
     onChanged(listener: (task: AiWorkspaceTaskView) => void): () => void;
+  };
+  readonly aiTeam: {
+    suggest(input: AiTeamSuggestionInputView): Promise<AiTeamSuggestionView | null>;
+    configure(input: AiTeamConfigureInputView): Promise<AiTeamView>;
+    list(): Promise<readonly AiTeamView[]>;
+    read(id: string): Promise<AiTeamView | null>;
+    start(id: string): Promise<AiTeamView>;
+    cancel(id: string): Promise<AiTeamView>;
+    traces(id: string): Promise<readonly AiTeamTraceView[]>;
+    onChanged(listener: (team: AiTeamView) => void): () => void;
   };
   readonly git: {
     status(): Promise<GitStatusView>;

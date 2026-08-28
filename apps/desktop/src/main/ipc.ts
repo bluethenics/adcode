@@ -102,11 +102,24 @@ import {
   aiWorkspaceTraces,
   aiCurrentWorkspaceTask,
   checkProviderKey,
+  aiTeamCancel,
+  aiTeamConfigure,
+  aiTeamList,
+  aiTeamRead,
+  aiTeamStart,
+  aiTeamSuggestion,
+  aiTeamTraces,
+  createAiTeamId,
 } from "./ai.ts";
 import {
   parseAiWorkspaceApply,
   validAiWorkspaceTaskId,
 } from "./aiWorkspaceIpcValidation.ts";
+import {
+  parseAiTeamConfigure,
+  parseAiTeamSuggestion,
+  validAiTeamId,
+} from "./aiTeamIpcValidation.ts";
 import {
   createTerminal,
   detectProfiles,
@@ -920,6 +933,33 @@ export function registerIpc(): void {
   ipcMain.handle(CHANNELS.aiWorkspaceRollback, (_event, taskId: unknown) => {
     if (!validAiWorkspaceTaskId(taskId)) throw new Error("expected a task id");
     return aiWorkspaceRollback(taskId);
+  });
+  ipcMain.handle(CHANNELS.aiTeamSuggest, (_event, raw: unknown) => {
+    const input = parseAiTeamSuggestion(raw);
+    return input === null ? null : aiTeamSuggestion(input);
+  });
+  ipcMain.handle(CHANNELS.aiTeamConfigure, (_event, raw: unknown) => {
+    const id = createAiTeamId();
+    const input = parseAiTeamConfigure(raw, id);
+    if (input === null) throw new Error("expected a bounded Team plan");
+    return aiTeamConfigure(id, input);
+  });
+  ipcMain.handle(CHANNELS.aiTeamList, () => aiTeamList());
+  ipcMain.handle(CHANNELS.aiTeamRead, (_event, id: unknown) => {
+    if (!validAiTeamId(id)) throw new Error("expected a Team id");
+    return aiTeamRead(id);
+  });
+  ipcMain.handle(CHANNELS.aiTeamStart, (_event, id: unknown) => {
+    if (!validAiTeamId(id)) throw new Error("expected a Team id");
+    return aiTeamStart(id);
+  });
+  ipcMain.handle(CHANNELS.aiTeamCancel, (_event, id: unknown) => {
+    if (!validAiTeamId(id)) throw new Error("expected a Team id");
+    return aiTeamCancel(id);
+  });
+  ipcMain.handle(CHANNELS.aiTeamTraces, (_event, id: unknown) => {
+    if (!validAiTeamId(id)) throw new Error("expected a Team id");
+    return aiTeamTraces(id);
   });
 
   const ads = getAdRuntime();

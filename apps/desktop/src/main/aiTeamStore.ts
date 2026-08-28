@@ -101,7 +101,7 @@ const NODE_STATES = new Set<TeamNodeState>([
   "blocked",
 ]);
 
-const workspaceIdentity = (root: string): string =>
+export const aiTeamWorkspaceIdentity = (root: string): string =>
   `ws-${createHash("sha256").update(root).digest("hex").slice(0, 32)}`;
 
 function validTime(value: number, minimum = 0): number {
@@ -122,7 +122,7 @@ export function createAiTeamRecord(input: CreateAiTeamRecordInput): AiTeamRecord
   const now = validTime(input.now);
   return {
     id: input.id,
-    workspaceId: workspaceIdentity(root),
+    workspaceId: aiTeamWorkspaceIdentity(root),
     workspaceRoot: root,
     state: "configured",
     plan: createTeamPlan(input.plan),
@@ -298,7 +298,7 @@ function parseTeam(raw: unknown): AiTeamRecord | null {
     if (!isRecord(raw) || typeof raw["id"] !== "string" || !TEAM_ID.test(raw["id"])) return null;
     if (typeof raw["workspaceId"] !== "string" || typeof raw["workspaceRoot"] !== "string") return null;
     const plan = createTeamPlan(raw["plan"] as unknown as TeamPlan);
-    if (plan.id !== raw["id"] || raw["workspaceId"] !== workspaceIdentity(raw["workspaceRoot"])) return null;
+    if (plan.id !== raw["id"] || raw["workspaceId"] !== aiTeamWorkspaceIdentity(raw["workspaceRoot"])) return null;
     const state = raw["state"] as AiTeamState;
     if (!TEAM_STATES.has(state)) return null;
     const confirmedAt = raw["confirmedAt"];

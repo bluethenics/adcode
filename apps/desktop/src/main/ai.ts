@@ -10,6 +10,7 @@
  * and completion degrade silently. Editing, terminal, and memory reads are unaffected."
  * Nothing in this file throws into the window.
  */
+import { randomUUID } from "node:crypto";
 import { join, relative } from "node:path";
 import { app, BrowserWindow } from "electron";
 import {
@@ -29,6 +30,7 @@ import {
   mergeCatalogue,
   parseCatalogue,
   providerIn,
+  suggestTeam,
   transportFor,
   type Agent,
   type AiWorkspaceTask,
@@ -48,6 +50,10 @@ import {
   type AiStatus,
   type AiWorkspaceTaskView,
   type AiWorkspaceTraceView,
+  type AiTeamSuggestionInputView,
+  type AiTeamSuggestionView,
+  type AiTeamTraceView,
+  type AiTeamView,
   type ProposedEditView,
 } from "../shared/api.ts";
 import { recordAgentEdit } from "./activity.ts";
@@ -68,9 +74,14 @@ import {
   toAiWorkspaceTraceView,
 } from "./aiWorkspaceViews.ts";
 import {
+  createAiTeamCoordinator,
   createBudgetedTeamProvider,
+  type AiTeamCoordinator,
   type AiTeamNodeRunner,
 } from "./aiTeamCoordinator.ts";
+import { createAiTeamService, type AiTeamService } from "./aiTeamService.ts";
+import type { ParsedAiTeamConfigure } from "./aiTeamIpcValidation.ts";
+import { toAiTeamTraceView, toAiTeamView } from "./aiTeamViews.ts";
 
 const keys = createKeychainStore();
 
@@ -127,6 +138,9 @@ let currentTaskPrompt: string | null = null;
 let taskService: AiWorkspaceService | null = null;
 let taskRecovery: Promise<void> | null = null;
 let taskWorkspaceUnavailableReason: string | null = null;
+let teamService: AiTeamService | null = null;
+let teamCoordinator: AiTeamCoordinator | null = null;
+let teamRecovery: Promise<void> | null = null;
 
 function aiWorkspaceService(): AiWorkspaceService {
   if (taskService === null) {
@@ -143,6 +157,24 @@ function aiWorkspaceService(): AiWorkspaceService {
 async function readyAiWorkspaceService(): Promise<AiWorkspaceService> {
   const service = aiWorkspaceService();
   await taskRecovery;
+  return service;
+}
+
+function aiTeamService(): AiTeamService {
+  if (teamService === null) {
+    teamService = createAiTeamService({
+      userDataDirectory: app.getPath("userData"),
+      workspaceService: aiWorkspaceService(),
+      onChanged: (team) => broadcast(CHANNELS.aiTeamChanged, toAiTeamView(team)),
+    });
+    teamRecovery = teamService.recoverActive().then(() => undefined);
+  }
+  return teamService;
+}
+
+async function readyAiTeamService(): Promise<AiTeamService> {
+  const service = aiTeamService();
+  await teamRecovery;
   return service;
 }
 
@@ -689,6 +721,125 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
       completedAt: Date.now(),
     });
   };
+}
+
+async function routeCurrentTeamModel() {
+  const providerId = activeProvider();
+  const modelId = activeModel(providerId);
+  if ((await buildProvider(providerId)) === null) {
+    throw new Error(`Connect ${providerId} before starting this Team`);
+  }
+  const model = providerIn(catalogue, providerId)?.models.find((candidate) => candidate.id === modelId);
+  const priceKnown =
+    model?.inputCostMicrosPerMillion !== null &&
+    model?.inputCostMicrosPerMillion !== undefined &&
+    model.outputCostMicrosPerMillion !== null;
+  return {
+    providerId,
+    modelId,
+    reason: "Used the connected model selected in ADCode settings.",
+    priceKnown,
+    blendedCostMicrosPerMillion: priceKnown
+      ? Math.round(
+          model.inputCostMicrosPerMillion! * 0.75 + model.outputCostMicrosPerMillion! * 0.25,
+        )
+      : null,
+  };
+}
+
+async function readyAiTeamCoordinator(): Promise<AiTeamCoordinator> {
+  const service = await readyAiTeamService();
+  teamCoordinator ??= createAiTeamCoordinator({
+    teamService: service,
+    resolveRoute: routeCurrentTeamModel,
+    runNode: createBuiltInAiTeamNodeRunner(),
+    // Two concurrent requests is fast enough to benefit Team mode without creating a
+    // burst likely to trip a provider's default account limits.
+    providerConcurrency: () => 2,
+  });
+  return teamCoordinator;
+}
+
+async function currentTeam(id: string) {
+  const root = currentWorkspace()?.root;
+  if (root === undefined) return null;
+  const team = await (await readyAiTeamService()).read(id);
+  return team !== null && normalizeForCompare(team.workspaceRoot) === normalizeForCompare(root)
+    ? team
+    : null;
+}
+
+export function aiTeamSuggestion(input: AiTeamSuggestionInputView): AiTeamSuggestionView | null {
+  const root = currentWorkspace()?.root;
+  if (root === undefined) return null;
+  return suggestTeam({ workspaceId: root, ...input });
+}
+
+export async function aiTeamConfigure(
+  id: string,
+  input: ParsedAiTeamConfigure,
+): Promise<AiTeamView> {
+  const root = currentWorkspace()?.root;
+  if (root === undefined) throw new Error("Open a folder before configuring a Team");
+  const team = await (await readyAiTeamService()).configure({
+    id,
+    workspaceRoot: root,
+    plan: input.plan,
+    claims: input.claims,
+    budget: input.budget,
+  });
+  return toAiTeamView(team);
+}
+
+export async function aiTeamList(): Promise<AiTeamView[]> {
+  const root = currentWorkspace()?.root;
+  if (root === undefined) return [];
+  return (await (await readyAiTeamService()).list(root)).map(toAiTeamView);
+}
+
+export async function aiTeamRead(id: string): Promise<AiTeamView | null> {
+  const team = await currentTeam(id);
+  return team === null ? null : toAiTeamView(team);
+}
+
+export async function aiTeamStart(id: string): Promise<AiTeamView> {
+  const team = await currentTeam(id);
+  if (team === null) throw new Error("That Team does not belong to the open workspace");
+  if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
+    throw new Error("Enable Isolate AI edits before starting a Team");
+  }
+  if (workspaceHasUnsavedDraft(team.workspaceRoot, await recoverableDrafts())) {
+    throw new Error("Save open file changes before starting the Team's immutable workspace");
+  }
+  const started = await (await readyAiTeamCoordinator()).startConfirmed(id);
+  return toAiTeamView(started);
+}
+
+export async function aiTeamCancel(id: string): Promise<AiTeamView> {
+  if ((await currentTeam(id)) === null) {
+    throw new Error("That Team does not belong to the open workspace");
+  }
+  return toAiTeamView(await (await readyAiTeamCoordinator()).cancel(id));
+}
+
+export async function aiTeamTraces(id: string): Promise<AiTeamTraceView[]> {
+  const team = await currentTeam(id);
+  if (team === null) return [];
+  const userData = app.getPath("userData");
+  const roots = [
+    team.workspaceRoot,
+    join(userData, "ai-teams", team.id),
+    ...Object.values(team.childTaskIds).map((taskId) =>
+      join(userData, "ai-workspaces", "sandboxes", taskId),
+    ),
+  ];
+  return (await (await readyAiTeamService()).traces(id)).map((trace) =>
+    toAiTeamTraceView(trace, roots),
+  );
+}
+
+export function createAiTeamId(): string {
+  return `team-${randomUUID()}`;
 }
 
 export function aiCancel(): void {

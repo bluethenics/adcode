@@ -22,6 +22,7 @@ import {
 import { captureAiSandboxBase, type CapturedAiSandboxBase } from "./aiSandbox.ts";
 import {
   confirmAiTeamRecord,
+  aiTeamWorkspaceIdentity,
   createAiTeamRecord,
   createAiTeamStore,
   transitionAiTeamRecord,
@@ -60,11 +61,13 @@ export interface AiTeamServiceOptions {
   readonly workspaceService: AiWorkspaceAllocator;
   readonly now?: () => number;
   readonly traceId?: () => string;
+  readonly onChanged?: (team: AiTeamRecord) => void | Promise<void>;
 }
 
 export interface AiTeamService {
   configure(input: ConfigureAiTeamInput): Promise<AiTeamRecord>;
   read(id: string): Promise<AiTeamRecord | null>;
+  list(workspaceRoot: string): Promise<AiTeamRecord[]>;
   startConfirmed(id: string): Promise<AiTeamRecord>;
   startNode(id: string, nodeId: string): Promise<AiTeamRecord>;
   completeNode(id: string, handoff: TeamHandoff): Promise<AiTeamRecord>;
@@ -93,7 +96,18 @@ export interface AiTeamService {
 export function createAiTeamService(options: AiTeamServiceOptions): AiTeamService {
   const now = options.now ?? Date.now;
   const traceId = options.traceId ?? (() => `trace-${randomUUID()}`);
-  const store = createAiTeamStore(options.userDataDirectory);
+  const durableStore = createAiTeamStore(options.userDataDirectory);
+  const store: AiTeamStore = {
+    ...durableStore,
+    async save(team): Promise<void> {
+      await durableStore.save(team);
+      try {
+        await options.onChanged?.(team);
+      } catch {
+        // Renderer notifications are observability, never durable Team authority.
+      }
+    },
+  };
 
   async function trace(
     team: AiTeamRecord,
@@ -137,6 +151,10 @@ export function createAiTeamService(options: AiTeamServiceOptions): AiTeamServic
     },
 
     read: (id) => store.read(id),
+    async list(workspaceRoot): Promise<AiTeamRecord[]> {
+      const root = await realpath(workspaceRoot);
+      return store.list(aiTeamWorkspaceIdentity(root));
+    },
 
     async startConfirmed(id): Promise<AiTeamRecord> {
       const existing = await store.read(id);

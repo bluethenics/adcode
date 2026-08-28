@@ -161,6 +161,16 @@ const api: AdcodeApi = {
     rollback: (taskId) => ipcRenderer.invoke(CHANNELS.aiWorkspaceRollback, taskId),
     onChanged: (listener) => subscribe(CHANNELS.aiWorkspaceChanged, listener),
   },
+  aiTeam: {
+    suggest: (input) => ipcRenderer.invoke(CHANNELS.aiTeamSuggest, input),
+    configure: (input) => ipcRenderer.invoke(CHANNELS.aiTeamConfigure, input),
+    list: () => ipcRenderer.invoke(CHANNELS.aiTeamList),
+    read: (id) => ipcRenderer.invoke(CHANNELS.aiTeamRead, id),
+    start: (id) => ipcRenderer.invoke(CHANNELS.aiTeamStart, id),
+    cancel: (id) => ipcRenderer.invoke(CHANNELS.aiTeamCancel, id),
+    traces: (id) => ipcRenderer.invoke(CHANNELS.aiTeamTraces, id),
+    onChanged: (listener) => subscribe(CHANNELS.aiTeamChanged, listener),
+  },
   git: {
     status: () => ipcRenderer.invoke(CHANNELS.gitStatus),
     stage: (paths) => ipcRenderer.invoke(CHANNELS.gitStage, paths),
