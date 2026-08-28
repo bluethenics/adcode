@@ -17,6 +17,7 @@ import {
   type TeamHandoff,
   type TeamPlan,
   type TeamNodeState,
+  type TeamMergeConflict,
 } from "@adcode/ai";
 import type { AiSandboxBaseRecord } from "./aiSandbox.ts";
 
@@ -43,7 +44,7 @@ export interface AiTeamRouteRecord {
 export interface AiTeamMergeRecord {
   readonly state: "idle" | "queued" | "merging" | "review" | "conflict" | "completed";
   readonly combinedTaskId: string | null;
-  readonly conflicts: readonly string[];
+  readonly conflicts: readonly TeamMergeConflict[];
 }
 
 export interface AiTeamRecord {
@@ -239,9 +240,26 @@ function parseMerge(raw: unknown, nodeId: string): AiTeamMergeRecord {
   if (combined !== null && (typeof combined !== "string" || !TASK_ID.test(combined))) {
     throw new Error("Invalid combined task id");
   }
-  const conflicts = raw["conflicts"].map((path) =>
-    createFileClaim({ nodeId, path: path as string, scope: "file" }).path,
-  );
+  const conflicts = raw["conflicts"].map((candidate): TeamMergeConflict => {
+    if (
+      !isRecord(candidate) ||
+      !Array.isArray(candidate["nodeIds"]) ||
+      !Array.isArray(candidate["proposals"]) ||
+      !["different-base", "overlapping-hunks"].includes(candidate["reason"] as string) ||
+      (candidate["original"] !== null && typeof candidate["original"] !== "string") ||
+      !candidate["nodeIds"].every((id) => typeof id === "string" && NODE_ID.test(id)) ||
+      !candidate["proposals"].every((proposal) => typeof proposal === "string")
+    ) {
+      throw new Error("Invalid AI Team merge conflict");
+    }
+    return {
+      path: createFileClaim({ nodeId, path: candidate["path"] as string, scope: "file" }).path,
+      nodeIds: candidate["nodeIds"] as string[],
+      reason: candidate["reason"] as TeamMergeConflict["reason"],
+      original: candidate["original"] as string | null,
+      proposals: candidate["proposals"] as string[],
+    };
+  });
   return { state: raw["state"] as AiTeamMergeRecord["state"], combinedTaskId: combined, conflicts };
 }
 
@@ -287,6 +305,7 @@ function parseTeam(raw: unknown): AiTeamRecord | null {
     const routes = parseRoutes(raw["routes"]);
     const budget = validateTeamBudgetLedger(raw["budget"]);
     const base = parseBase(raw["base"]);
+    const merge = parseMerge(raw["merge"], nodeForPaths);
     if (
       claims.some((claim) => !nodeIds.has(claim.nodeId)) ||
       handoffs.some((handoff) => !nodeIds.has(handoff.nodeId)) ||
@@ -294,6 +313,12 @@ function parseTeam(raw: unknown): AiTeamRecord | null {
       Object.keys(childTaskIds).some((roleId) => !roleIds.has(roleId)) ||
       Object.keys(routes).some((nodeId) => !nodeIds.has(nodeId)) ||
       Object.keys(budget.agentTokenLimits).some((nodeId) => !nodeIds.has(nodeId)) ||
+      merge.conflicts.some(
+        (conflict) =>
+          conflict.nodeIds.length < 2 ||
+          conflict.nodeIds.length !== conflict.proposals.length ||
+          conflict.nodeIds.some((nodeId) => !nodeIds.has(nodeId)),
+      ) ||
       (state === "configured" && (confirmedAt !== null || base !== null))
     ) {
       return null;
@@ -310,7 +335,7 @@ function parseTeam(raw: unknown): AiTeamRecord | null {
       budget,
       childTaskIds,
       routes,
-      merge: parseMerge(raw["merge"], nodeForPaths),
+      merge,
       base,
       confirmedAt: confirmedAt === null ? null : validTime(confirmedAt as number, createdAt),
       createdAt,

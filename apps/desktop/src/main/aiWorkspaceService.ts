@@ -97,6 +97,10 @@ export interface AiWorkspaceService {
   read(taskId: string): Promise<AiWorkspaceTask | null>;
   list(workspaceRoot: string): Promise<AiWorkspaceTask[]>;
   write(taskId: string, path: string, contents: string): Promise<AiWorkspaceTask>;
+  /** Main-process Team merge path: retain the immutable sandbox base, not the later human file. */
+  writeFromSandboxBase(taskId: string, path: string, contents: string): Promise<AiWorkspaceTask>;
+  /** Import a pure Team merge only when its claimed base matches the combined sandbox. */
+  importChange(taskId: string, change: AiFileChange): Promise<AiWorkspaceTask>;
   readSandboxFile(taskId: string, path: string): Promise<string>;
   pause(taskId: string): Promise<AiWorkspaceTask | null>;
   reserveUsage(taskId: string, usage: AiUsage): Promise<AiWorkspaceBudgetResult>;
@@ -305,6 +309,35 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
     return { ok: totalSandboxBytes <= policy.quotaBytes, totalSandboxBytes, removedTaskIds };
   }
 
+  async function writeProposal(
+    taskId: string,
+    path: string,
+    contents: string,
+    baseline: "human" | "sandbox",
+  ): Promise<AiWorkspaceTask> {
+    if (typeof contents !== "string") throw new Error("Sandbox contents must be text");
+    const task = await required(taskId);
+    if (task.sandbox === null) throw new Error("Task sandbox is unavailable");
+    const portable = createFileChange(path, null, contents).path;
+    const humanPath = await resolveSandboxPath(task.workspaceRoot, portable);
+    const isolatedPath = await resolveSandboxPath(sandboxRoot(options.userDataDirectory, task.id), portable);
+    const previous = task.changes.find((change) => change.path === portable);
+    const original =
+      previous === undefined
+        ? await readMaybe(baseline === "human" ? humanPath : isolatedPath)
+        : previous.original;
+    const change = createFileChange(portable, original, contents);
+
+    await writeAtomic(isolatedPath, contents);
+    const changes = [...task.changes.filter((item) => item.path !== portable), change].sort((a, b) =>
+      a.path.localeCompare(b.path),
+    );
+    const updated = updateForReview(task, changes, now());
+    await store.save(updated);
+    await trace(task.id, "file-change", `Proposed ${portable}`, "ok");
+    return updated;
+  }
+
   return {
     async start(input): Promise<AiWorkspaceTask> {
       const policy = options.storagePolicy?.();
@@ -371,25 +404,21 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
       return store.list(workspaceIdentity(root));
     },
 
-    async write(taskId, path, contents): Promise<AiWorkspaceTask> {
-      if (typeof contents !== "string") throw new Error("Sandbox contents must be text");
+    write: (taskId, path, contents) => writeProposal(taskId, path, contents, "human"),
+    writeFromSandboxBase: (taskId, path, contents) =>
+      writeProposal(taskId, path, contents, "sandbox"),
+    async importChange(taskId, input): Promise<AiWorkspaceTask> {
+      const change = createFileChange(input.path, input.original, input.proposed);
       const task = await required(taskId);
       if (task.sandbox === null) throw new Error("Task sandbox is unavailable");
-      const portable = createFileChange(path, null, contents).path;
-      const humanPath = await resolveSandboxPath(task.workspaceRoot, portable);
-      const isolatedPath = await resolveSandboxPath(sandboxRoot(options.userDataDirectory, task.id), portable);
-      const previous = task.changes.find((change) => change.path === portable);
-      const original = previous?.original ?? (await readMaybe(humanPath));
-      const change = createFileChange(portable, original, contents);
-
-      await writeAtomic(isolatedPath, contents);
-      const changes = [...task.changes.filter((item) => item.path !== portable), change].sort((a, b) =>
-        a.path.localeCompare(b.path),
+      const isolatedPath = await resolveSandboxPath(
+        sandboxRoot(options.userDataDirectory, task.id),
+        change.path,
       );
-      const updated = updateForReview(task, changes, now());
-      await store.save(updated);
-      await trace(task.id, "file-change", `Proposed ${portable}`, "ok");
-      return updated;
+      if ((await readMaybe(isolatedPath)) !== change.original) {
+        throw new Error(`Team merge base changed for ${change.path}`);
+      }
+      return writeProposal(taskId, change.path, change.proposed, "sandbox");
     },
 
     async readSandboxFile(taskId, path): Promise<string> {

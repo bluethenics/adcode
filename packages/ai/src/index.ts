@@ -11,6 +11,7 @@ export * from "./team.ts";
 export * from "./teamGraph.ts";
 export * from "./routing.ts";
 export * from "./teamBudget.ts";
+export * from "./teamMerge.ts";
 
 export {
   createAgent,
