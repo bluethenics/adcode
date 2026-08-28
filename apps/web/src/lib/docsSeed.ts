@@ -452,6 +452,15 @@ export const DOC_SEED: readonly DocSeed[] = [
     related: ["ai-provider", "ai-model", "ai-sessions"],
   },
   {
+    slug: "ai-auto-continue",
+    title: "Continue terminal AI after limits",
+    section: "The assistant",
+    description: "A detected terminal assistant can receive a literal “continue” after it says a usage or rate limit has reset.",
+    why: "Long-running terminal tasks should not need you to watch the clock and return only to type one word.",
+    how: "Off by default. When enabled, ADCode reads only the terminal output already visible in its own terminal. A clear usage-limit message with an explicit retry delay schedules one continuation. Unknown reset times and changed or ambiguous terminal state stop safely. A repeated limit may schedule the next attempt up to your retry cap. Closing ADCode or turning this setting off cancels every pending continuation.",
+    related: ["ai-terminal-agent-detection", "ai-mcp-server"],
+  },
+  {
     slug: "ai-custom-base-url",
     title: "Custom endpoint",
     section: "The assistant",
@@ -513,6 +522,15 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Different models are better at different things, and cost different amounts. ADCode does not resell anybody's AI, so the choice - and the bill - is yours.",
     how: "Open Connect a model, pick a provider, and paste your key. ADCode checks the key works before saving it. Keys are kept in your operating system's own password store, never in a settings file. The local option needs no key at all - it talks to a model running on your own machine.",
     related: ["ai-connect", "ai-chat-widget"],
+  },
+  {
+    slug: "ai-scheduled-messages",
+    title: "Scheduled AI messages",
+    section: "The assistant",
+    description: "Write a prompt now and ask a supported AI target to receive it later while ADCode is open.",
+    why: "A reminder that can actually reach the assistant is useful for follow-up reviews, delayed provider windows, and work you want to queue without leaving an agent running.",
+    how: "Choose Schedule beside the chat composer, select an available adapter and local time, then confirm. Built-in chat is always supported. For a detected terminal AI, first choose Allow next schedule while its prompt is visibly waiting; any later terminal activity removes that one-time permission. Compatible internal adapters use the same registration contract. If ADCode, the project, or scheduled messages are unavailable at delivery time, the one-time message is marked missed and does nothing until you choose Run now.",
+    related: ["ai-auto-continue", "ai-chat-widget"],
   },
   {
     slug: "ai-task-token-budget",

@@ -171,6 +171,17 @@ const api: AdcodeApi = {
     traces: (id) => ipcRenderer.invoke(CHANNELS.aiTeamTraces, id),
     onChanged: (listener) => subscribe(CHANNELS.aiTeamChanged, listener),
   },
+  aiAutomation: {
+    create: (input) => ipcRenderer.invoke(CHANNELS.aiAutomationCreate, input),
+    list: () => ipcRenderer.invoke(CHANNELS.aiAutomationList),
+    claimDue: () => ipcRenderer.invoke(CHANNELS.aiAutomationClaim),
+    complete: (id) => ipcRenderer.invoke(CHANNELS.aiAutomationComplete, id),
+    retry: (id, reason, dueAt) => ipcRenderer.invoke(CHANNELS.aiAutomationRetry, id, reason, dueAt),
+    cancel: (id) => ipcRenderer.invoke(CHANNELS.aiAutomationCancel, id),
+    confirmMissed: (id) => ipcRenderer.invoke(CHANNELS.aiAutomationConfirmMissed, id),
+    markDueMissed: () => ipcRenderer.invoke(CHANNELS.aiAutomationMarkDueMissed),
+    onChanged: (listener) => subscribe(CHANNELS.aiAutomationChanged, listener),
+  },
   git: {
     status: () => ipcRenderer.invoke(CHANNELS.gitStatus),
     stage: (paths) => ipcRenderer.invoke(CHANNELS.gitStage, paths),

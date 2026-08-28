@@ -17,6 +17,7 @@ import "./styles/help.css";
 import "./styles/releases.css";
 import "./styles/editor.css";
 import "./styles/navigation.css";
+import "./ai/automationHost.ts";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
 import { createBreadcrumbs } from "./editor/breadcrumbs.ts";
 import { createSymbolSearch } from "./panels/symbolSearch.ts";
@@ -197,6 +198,10 @@ function applySettings(values: Record<string, boolean | string>): void {
 
   breadcrumbs.setEnabled(values["adcode.navigation.breadcrumbs"] !== false);
   terminal?.setAgentDetection(values["adcode.ai.terminalAgentDetection"] !== false);
+  terminal?.setAutoContinue(
+    values["adcode.ai.autoContinue"] === true,
+    Number(values["adcode.ai.autoContinueRetries"] ?? 3),
+  );
 
   // The lines are drawn by every tree, so the switch is one attribute on the root rather
   // than a call into three panels.
@@ -1593,6 +1598,10 @@ function terminalPanel(): TerminalPanel {
   // once at startup, and the terminal usually does not exist yet when it does.
   if (created) {
     terminal.setAgentDetection(settingsValues["adcode.ai.terminalAgentDetection"] !== false);
+    terminal.setAutoContinue(
+      settingsValues["adcode.ai.autoContinue"] === true,
+      Number(settingsValues["adcode.ai.autoContinueRetries"] ?? 3),
+    );
   }
 
   return terminal;

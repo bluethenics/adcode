@@ -107,6 +107,11 @@ export async function createTerminalHost(
     theme: ThemeChoice;
     /** Told when a command line starts a known AI agent (`adcode.ai.terminalAgentDetection`). */
     onAgent?: (agent: DetectedAgent) => void;
+    /** Raw visible output, used only for explicit usage-limit continuation. */
+    onOutput?: (data: string) => void;
+    /** Keystrokes already being sent to the pty; adapters use them to yield ownership. */
+    onUserInput?: (data: string) => void;
+    onSubmittedLine?: (line: string) => void;
   },
 ): Promise<TerminalHost> {
   const terminal = new Terminal({
@@ -140,7 +145,10 @@ export async function createTerminalHost(
   });
 
   const offData = window.adcode.terminal.onData((incomingId, data) => {
-    if (incomingId === id) terminal.write(data);
+    if (incomingId === id) {
+      terminal.write(data);
+      options.onOutput?.(data);
+    }
   });
 
   const offExit = window.adcode.terminal.onExit((incomingId, exitCode) => {
@@ -160,11 +168,13 @@ export async function createTerminalHost(
 
   terminal.onData((data) => {
     window.adcode.terminal.write(id, data);
+    options.onUserInput?.(data);
 
     if (!agentDetection || options.onAgent === undefined) return;
 
     const line = commandLine.push(data);
     if (line === null) return;
+    options.onSubmittedLine?.(line);
 
     const agent = detectAgent(line);
     if (agent !== null) options.onAgent(agent);

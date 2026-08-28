@@ -130,9 +130,14 @@ describe("appearance", () => {
 describe("AI workspace settings", () => {
   it("defaults to isolated review with bounded task storage and tokens", () => {
     expect(byId.get("adcode.ai.isolatedWorkspaces" as SettingId)?.default).toBe(true);
+    expect(byId.get("adcode.ai.autoContinue" as SettingId)?.default).toBe(false);
+    expect(byId.get("adcode.ai.autoContinue" as SettingId)?.available).toBe(true);
+    expect(byId.get("adcode.ai.autoContinueRetries" as SettingId)?.default).toBe("3");
+    expect(byId.get("adcode.ai.scheduledMessages" as SettingId)?.default).toBe(true);
 
     const expected = new Map([
       ["adcode.ai.editPolicy", ["review", "trusted"]],
+      ["adcode.ai.autoContinueRetries", ["1", "3", "5"]],
       ["adcode.ai.taskTokenBudget", ["25000", "100000", "250000"]],
       ["adcode.ai.sandboxQuota", ["1gb", "5gb", "10gb"]],
       ["adcode.ai.sandboxRetention", ["1d", "7d", "30d"]],

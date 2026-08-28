@@ -29,7 +29,7 @@
    * This says the column may be narrower than its contents, and the contents must cope.
    */
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 40px auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: 40px auto auto auto minmax(0, 1fr) auto auto;
   /* So the parts inside can respond to the card's width rather than the window's. */
   container-type: inline-size;
 
@@ -301,6 +301,95 @@
 :root[data-density="compact"] .ai-team-panel {
   gap: 5px;
   padding-block: 6px;
+}
+
+.ai-automation-panel {
+  display: grid;
+  gap: 7px;
+  max-height: 184px;
+  padding: 9px 10px;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--border-hairline);
+  background: color-mix(in srgb, var(--bg-elevated) 92%, var(--accent) 8%);
+}
+
+.ai-automation-panel[hidden] {
+  display: none;
+}
+
+.ai-automation-top,
+.ai-automation-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.ai-automation-title,
+.ai-automation-copy {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-automation-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(118px, 0.9fr) auto;
+  gap: 5px;
+}
+
+.ai-automation-target,
+.ai-automation-due {
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font: 10px var(--font-ui);
+}
+
+.ai-automation-notice {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.ai-automation-list {
+  display: grid;
+  gap: 4px;
+}
+
+.ai-automation-row {
+  padding-top: 4px;
+  border-top: 1px solid var(--border-hairline);
+}
+
+.ai-automation-row[data-state="delivered"] .ai-automation-copy {
+  color: var(--success);
+}
+
+.ai-automation-panel .ghost-button,
+.ai-automation-panel .chat-send {
+  padding: 4px 7px;
+  font-size: 10px;
+}
+
+@container (max-width: 390px) {
+  .ai-automation-fields {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .ai-automation-due {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
 }
 
 .chat-transcript {

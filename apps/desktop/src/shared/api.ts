@@ -498,6 +498,15 @@ export const CHANNELS = {
   aiTeamCancel: "ai-team:cancel",
   aiTeamTraces: "ai-team:traces",
   aiTeamChanged: "ai-team:changed",
+  aiAutomationCreate: "ai-automation:create",
+  aiAutomationList: "ai-automation:list",
+  aiAutomationClaim: "ai-automation:claim",
+  aiAutomationComplete: "ai-automation:complete",
+  aiAutomationRetry: "ai-automation:retry",
+  aiAutomationCancel: "ai-automation:cancel",
+  aiAutomationConfirmMissed: "ai-automation:confirm-missed",
+  aiAutomationMarkDueMissed: "ai-automation:mark-due-missed",
+  aiAutomationChanged: "ai-automation:changed",
   gitStatus: "git:status",
   gitStage: "git:stage",
   gitUnstage: "git:unstage",
@@ -975,6 +984,22 @@ export interface AiWorkspaceActionView {
   readonly message: string;
 }
 
+export interface AiAutomationCreateInputView {
+  readonly message: string;
+  readonly targetId: string;
+  readonly targetLabel: string;
+  readonly dueAt: number;
+}
+
+export interface AiAutomationView extends AiAutomationCreateInputView {
+  readonly id: string;
+  readonly state: "pending" | "delivering" | "missed" | "delivered" | "cancelled";
+  readonly attempts: number;
+  readonly lastError: string | null;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
 export interface AiTeamRoleInputView {
   readonly id: string;
   readonly label: string;
@@ -1384,7 +1409,8 @@ export interface AdcodeApi {
      * out when it is pasted is the point of the Connect screen.
      */
     checkKey(provider: string, key: string): Promise<AiKeyCheck>;
-    send(text: string): Promise<void>;
+    /** True when the turn reached a normal provider completion. */
+    send(text: string): Promise<boolean>;
     cancel(): void;
     reset(): void;
     /** The agent's workings, live - this is what the trace widget renders (§5.3). */
@@ -1414,6 +1440,17 @@ export interface AdcodeApi {
     cancel(id: string): Promise<AiTeamView>;
     traces(id: string): Promise<readonly AiTeamTraceView[]>;
     onChanged(listener: (team: AiTeamView) => void): () => void;
+  };
+  readonly aiAutomation: {
+    create(input: AiAutomationCreateInputView): Promise<AiAutomationView>;
+    list(): Promise<readonly AiAutomationView[]>;
+    claimDue(): Promise<AiAutomationView | null>;
+    complete(id: string): Promise<AiAutomationView>;
+    retry(id: string, reason: string, dueAt: number): Promise<AiAutomationView>;
+    cancel(id: string): Promise<AiAutomationView>;
+    confirmMissed(id: string): Promise<AiAutomationView>;
+    markDueMissed(): Promise<void>;
+    onChanged(listener: (item: AiAutomationView) => void): () => void;
   };
   readonly git: {
     status(): Promise<GitStatusView>;

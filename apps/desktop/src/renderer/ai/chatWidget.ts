@@ -16,6 +16,7 @@
  * never with `left`/`top`, so dragging never triggers layout.
  */
 import type {
+  AiAutomationView,
   AiTeamSuggestionView,
   AiTeamView,
   AiWorkspaceChangeView,
@@ -37,6 +38,15 @@ import {
   formatAiTeamUsage,
   manualTeamSuggestion,
 } from "./aiTeamViewModel.ts";
+import {
+  aiAutomationCanCancel,
+  aiAutomationCanRunMissed,
+  summarizeAiAutomation,
+} from "./aiAutomationViewModel.ts";
+import {
+  aiAutomationTargets,
+  onAiAutomationTargetsChanged,
+} from "./automationHost.ts";
 
 interface Position {
   x: number;
@@ -426,6 +436,48 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   );
   teamPanel.append(teamTop, teamRoles, teamReason, teamNotice, teamActions);
 
+  /* -- Scheduled AI messages ----------------------------------------- */
+
+  const automationPanel = document.createElement("section");
+  automationPanel.className = "ai-automation-panel";
+  automationPanel.hidden = true;
+  automationPanel.setAttribute("aria-label", "Scheduled AI messages");
+
+  const automationTop = document.createElement("div");
+  automationTop.className = "ai-automation-top";
+  const automationTitle = document.createElement("span");
+  automationTitle.className = "ai-automation-title";
+  automationTitle.textContent = "Schedule a message";
+  const automationClose = document.createElement("button");
+  automationClose.type = "button";
+  automationClose.className = "ghost-button";
+  automationClose.textContent = "Close";
+  automationTop.append(automationTitle, automationClose);
+
+  const automationFields = document.createElement("div");
+  automationFields.className = "ai-automation-fields";
+  const automationTarget = document.createElement("select");
+  automationTarget.className = "ai-automation-target";
+  automationTarget.setAttribute("aria-label", "AI target");
+  const automationDue = document.createElement("input");
+  automationDue.className = "ai-automation-due";
+  automationDue.type = "datetime-local";
+  automationDue.setAttribute("aria-label", "Delivery time");
+  const automationCreate = document.createElement("button");
+  automationCreate.type = "button";
+  automationCreate.className = "chat-send";
+  automationCreate.textContent = "Schedule";
+  automationFields.append(automationTarget, automationDue, automationCreate);
+
+  const automationNotice = document.createElement("p");
+  automationNotice.className = "ai-automation-notice";
+  automationNotice.setAttribute("role", "status");
+  automationNotice.textContent = "Messages run only while ADCode is open and this project is active.";
+
+  const automationList = document.createElement("div");
+  automationList.className = "ai-automation-list";
+  automationPanel.append(automationTop, automationFields, automationNotice, automationList);
+
   const composer = document.createElement("form");
   composer.className = "chat-composer";
 
@@ -446,7 +498,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   manualTeam.textContent = "Team";
   manualTeam.title = "Split this task into isolated AI roles";
 
-  composer.append(input, manualTeam, sendButton);
+  const scheduleMessage = document.createElement("button");
+  scheduleMessage.className = "chat-team-button";
+  scheduleMessage.type = "button";
+  scheduleMessage.textContent = "Schedule";
+  scheduleMessage.title = "Send this message later while ADCode is open";
+
+  composer.append(input, manualTeam, scheduleMessage, sendButton);
 
   const resizeGrip = document.createElement("div");
   resizeGrip.className = "chat-resize";
@@ -456,7 +514,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   chatBody.className = "chat-body";
   chatBody.append(history, transcript);
 
-  card.append(header, taskStrip, teamPanel, chatBody, memory, composer, resizeGrip);
+  card.append(header, taskStrip, teamPanel, automationPanel, chatBody, memory, composer, resizeGrip);
 
   window.adcode.chat.onChanged((session) => renderMemory(session));
   void window.adcode.chat.current().then((session) => renderMemory(session));
@@ -728,6 +786,129 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (activeTeam === null || activeTeam.id === team.id) paintTeam(team);
   });
   void refreshTeam();
+
+  function localDateTimeValue(at: number): string {
+    const date = new Date(at);
+    const local = new Date(at - date.getTimezoneOffset() * 60_000);
+    return local.toISOString().slice(0, 16);
+  }
+
+  function refreshAutomationTargets(): void {
+    const selected = automationTarget.value;
+    automationTarget.replaceChildren();
+    for (const target of aiAutomationTargets()) {
+      const option = document.createElement("option");
+      option.value = target.id;
+      option.textContent = target.label;
+      automationTarget.append(option);
+    }
+    if ([...automationTarget.options].some((option) => option.value === selected)) {
+      automationTarget.value = selected;
+    }
+    automationCreate.disabled = automationTarget.options.length === 0;
+    if (automationTarget.options.length === 0 && !automationPanel.hidden) {
+      automationNotice.textContent = "Connect the built-in assistant or start a supported terminal AI first.";
+    }
+  }
+
+  function paintAutomations(items: readonly AiAutomationView[]): void {
+    automationList.replaceChildren();
+    const visible = items
+      .filter((item) => item.state !== "cancelled")
+      .sort((a, b) => {
+        const activeA = aiAutomationCanCancel(a) ? 0 : 1;
+        const activeB = aiAutomationCanCancel(b) ? 0 : 1;
+        return activeA - activeB || a.dueAt - b.dueAt;
+      })
+      .slice(0, 4);
+    for (const item of visible) {
+      const row = document.createElement("div");
+      row.className = "ai-automation-row";
+      row.dataset["state"] = item.state;
+      const copy = document.createElement("span");
+      copy.className = "ai-automation-copy";
+      copy.textContent = summarizeAiAutomation(item);
+      copy.title = item.lastError === null ? item.message : `${item.message}\n${item.lastError}`;
+      row.append(copy);
+      if (aiAutomationCanRunMissed(item)) {
+        const run = document.createElement("button");
+        run.type = "button";
+        run.className = "chat-send";
+        run.textContent = "Run now";
+        run.addEventListener("click", () => {
+          if (!window.confirm("Run this missed AI message now?")) return;
+          run.disabled = true;
+          void window.adcode.aiAutomation.confirmMissed(item.id).then(() => refreshAutomations());
+        });
+        row.append(run);
+      }
+      if (aiAutomationCanCancel(item)) {
+        const cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.className = "ghost-button ai-workspace-danger";
+        cancel.textContent = "Cancel";
+        cancel.addEventListener("click", () => {
+          cancel.disabled = true;
+          void window.adcode.aiAutomation.cancel(item.id).then(() => refreshAutomations());
+        });
+        row.append(cancel);
+      }
+      automationList.append(row);
+    }
+  }
+
+  async function refreshAutomations(): Promise<void> {
+    paintAutomations(await window.adcode.aiAutomation.list().catch(() => []));
+  }
+
+  scheduleMessage.addEventListener("click", () => {
+    automationPanel.hidden = false;
+    refreshAutomationTargets();
+    if (automationDue.value.length === 0) {
+      automationDue.value = localDateTimeValue(Date.now() + 15 * 60_000);
+    }
+    void refreshAutomations();
+  });
+
+  automationClose.addEventListener("click", () => {
+    automationPanel.hidden = true;
+  });
+
+  automationCreate.addEventListener("click", () => {
+    const message = input.value.trim();
+    const option = automationTarget.selectedOptions[0];
+    const dueAt = new Date(automationDue.value).getTime();
+    if (message.length === 0) {
+      automationNotice.textContent = "Write the message in the composer first.";
+      input.focus();
+      return;
+    }
+    if (option === undefined || !Number.isFinite(dueAt)) {
+      automationNotice.textContent = "Choose a connected AI and delivery time.";
+      return;
+    }
+    automationCreate.disabled = true;
+    void window.adcode.aiAutomation
+      .create({ message, targetId: option.value, targetLabel: option.textContent, dueAt })
+      .then((item) => {
+        bubble("user", `Scheduled for ${item.targetLabel}: ${message}`);
+        input.value = "";
+        automationNotice.textContent = "Scheduled locally. It will run only while ADCode and this project are open.";
+        return refreshAutomations();
+      })
+      .catch((error: unknown) => {
+        automationNotice.textContent = error instanceof Error ? error.message : "Could not schedule the message.";
+      })
+      .finally(() => {
+        automationCreate.disabled = automationTarget.options.length === 0;
+      });
+  });
+
+  onAiAutomationTargetsChanged(refreshAutomationTargets);
+  window.adcode.aiAutomation.onChanged(() => {
+    if (!automationPanel.hidden) void refreshAutomations();
+  });
+  refreshAutomationTargets();
 
   function paintWorkspaceTask(task: AiWorkspaceTaskView | null): void {
     activeWorkspaceTask = task;
@@ -1318,6 +1499,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       });
       void refreshWorkspaceTask();
       void refreshTeam();
+      if (!automationPanel.hidden) void refreshAutomations();
 
       document.addEventListener("keydown", onKeydown);
     },
@@ -1366,6 +1548,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       activeSuggestion = null;
       activeTeam = null;
       teamPanel.hidden = true;
+      automationPanel.hidden = true;
+      automationList.replaceChildren();
       place(loadPosition(root) ?? { x: 0, y: 0 });
       if (root === null) {
         paintWorkspaceTask(null);

@@ -6,6 +6,9 @@
   "description": "Provider-neutral agent loop, inline diff, and completion scheduling. No Electron, no DOM.",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./adapter": "./src/adapter.ts",
+    "./agents": "./src/agents.ts",
+    "./continuation": "./src/continuation.ts"
   }
 }

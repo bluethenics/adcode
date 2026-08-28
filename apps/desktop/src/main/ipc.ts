@@ -99,6 +99,14 @@ import {
   aiWorkspaceChanges,
   aiWorkspaceDiscard,
   aiWorkspaceRollback,
+  aiAutomationCreate,
+  aiAutomationList,
+  aiAutomationClaimDue,
+  aiAutomationComplete,
+  aiAutomationRetry,
+  aiAutomationCancel,
+  aiAutomationConfirmMissed,
+  aiAutomationMarkDueMissed,
   aiWorkspaceTasks,
   aiWorkspaceTraces,
   aiCurrentWorkspaceTask,
@@ -112,6 +120,10 @@ import {
   aiTeamTraces,
   createAiTeamId,
 } from "./ai.ts";
+import {
+  parseAiAutomationCreate,
+  validAiAutomationId,
+} from "./aiAutomationIpcValidation.ts";
 import {
   parseAiWorkspaceApply,
   validAiWorkspaceTaskId,
@@ -954,6 +966,35 @@ export function registerIpc(): void {
     if (!validAiWorkspaceTaskId(taskId)) throw new Error("expected a task id");
     return aiWorkspaceRollback(taskId);
   });
+  ipcMain.handle(CHANNELS.aiAutomationCreate, (_event, raw: unknown) => {
+    const input = parseAiAutomationCreate(raw);
+    if (input === null) throw new Error("expected a bounded AI schedule");
+    return aiAutomationCreate(input);
+  });
+  ipcMain.handle(CHANNELS.aiAutomationList, () => aiAutomationList());
+  ipcMain.handle(CHANNELS.aiAutomationClaim, () => aiAutomationClaimDue());
+  ipcMain.handle(CHANNELS.aiAutomationComplete, (_event, id: unknown) => {
+    if (!validAiAutomationId(id)) throw new Error("expected an automation id");
+    return aiAutomationComplete(id);
+  });
+  ipcMain.handle(
+    CHANNELS.aiAutomationRetry,
+    (_event, id: unknown, reason: unknown, dueAt: unknown) => {
+      if (!validAiAutomationId(id) || !isString(reason) || !isFiniteNumber(dueAt)) {
+        throw new Error("expected an automation retry");
+      }
+      return aiAutomationRetry(id, reason, dueAt);
+    },
+  );
+  ipcMain.handle(CHANNELS.aiAutomationCancel, (_event, id: unknown) => {
+    if (!validAiAutomationId(id)) throw new Error("expected an automation id");
+    return aiAutomationCancel(id);
+  });
+  ipcMain.handle(CHANNELS.aiAutomationConfirmMissed, (_event, id: unknown) => {
+    if (!validAiAutomationId(id)) throw new Error("expected an automation id");
+    return aiAutomationConfirmMissed(id);
+  });
+  ipcMain.handle(CHANNELS.aiAutomationMarkDueMissed, () => aiAutomationMarkDueMissed());
   ipcMain.handle(CHANNELS.aiTeamSuggest, (_event, raw: unknown) => {
     const input = parseAiTeamSuggestion(raw);
     return input === null ? null : aiTeamSuggestion(input);

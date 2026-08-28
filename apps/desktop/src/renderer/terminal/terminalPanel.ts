@@ -12,11 +12,29 @@ import { createTerminalHost, type TerminalHost } from "./terminalHost.ts";
 import { uniqueTerminalTitle } from "./terminalTitles.ts";
 import { ICON, createIcon } from "../workbench/icons.ts";
 import type { ThemeChoice } from "../../shared/api.ts";
+import {
+  createAiUsageLimitReader,
+  type AiUsageLimitReader,
+} from "@adcode/ai/continuation";
+import type { DetectedAgent } from "@adcode/ai/agents";
+import {
+  refreshAiAutomationTargets,
+  registerAiAutomationAdapter,
+} from "../ai/automationHost.ts";
 
 interface Pane {
   readonly id: number;
   readonly element: HTMLElement;
   readonly host: TerminalHost;
+  agent: DetectedAgent | null;
+  readonly limitReader: AiUsageLimitReader;
+  continuationTimer: number | null;
+  continuationArmTimer: number | null;
+  continuationRetryAt: number | null;
+  continuationAttempts: number;
+  continuationDeadline: number | null;
+  activityVersion: number;
+  scheduleGrantVersion: number | null;
 }
 
 interface Tab {
@@ -44,6 +62,8 @@ export interface TerminalPanel {
   send(text: string): void;
   /** `adcode.ai.terminalAgentDetection`. */
   setAgentDetection(enabled: boolean): void;
+  /** Opt-in literal `continue` after a detected agent reports a usage limit. */
+  setAutoContinue(enabled: boolean, maxAttempts?: number): void;
   /** Paste the clipboard into the active terminal. */
   paste(): void;
   /** Copy the active terminal's selection. */
@@ -101,10 +121,70 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
   let nextId = 1;
 
   const findTab = (id: number): Tab | undefined => tabs.find((tab) => tab.id === id);
+  const activePane = (): Pane | undefined => {
+    const tab = activeTab === null ? undefined : findTab(activeTab);
+    return tab?.panes[tab.activePane];
+  };
+
+  registerAiAutomationAdapter({
+    snapshot: () => {
+      const pane = activePane();
+      const limited =
+        pane !== undefined &&
+        (pane.continuationTimer !== null || pane.continuationArmTimer !== null);
+      const ready =
+        pane?.agent !== null &&
+        pane?.agent !== undefined &&
+        pane.scheduleGrantVersion === pane.activityVersion;
+      return {
+        id: "terminal:active",
+        label: pane?.agent === null || pane?.agent === undefined ? "Active terminal AI" : pane.agent.name,
+        kind: "terminal" as const,
+        connected: pane?.agent !== null && pane?.agent !== undefined,
+        promptState: limited ? ("limited" as const) : ready ? ("ready" as const) : ("ambiguous" as const),
+        capabilities: { scheduledPrompts: true, cancellation: false, safeContinuation: true },
+      };
+    },
+    deliver(message) {
+      const pane = activePane();
+      if (pane?.agent === null || pane?.agent === undefined) {
+        throw new Error("No detected AI is active in the terminal");
+      }
+      if (pane.continuationTimer !== null || pane.continuationArmTimer !== null) {
+        throw new Error("The terminal AI is waiting for a usage limit to reset");
+      }
+      if (pane.scheduleGrantVersion !== pane.activityVersion) {
+        throw new Error("Confirm the terminal AI is waiting at its prompt before delivery");
+      }
+      pane.scheduleGrantVersion = null;
+      refreshAiAutomationTargets();
+      pane.host.send(message);
+    },
+  });
 
   /* ── The shared-memory offer ────────────────────────────────────────── */
 
   let agentDetection = true;
+  let autoContinue = false;
+  let autoContinueMaxAttempts = 3;
+
+  function clearContinuation(pane: Pane): void {
+    if (pane.continuationTimer !== null) window.clearTimeout(pane.continuationTimer);
+    if (pane.continuationArmTimer !== null) window.clearTimeout(pane.continuationArmTimer);
+    pane.continuationTimer = null;
+    pane.continuationArmTimer = null;
+    pane.continuationRetryAt = null;
+  }
+
+  function releaseAgent(pane: Pane): void {
+    clearContinuation(pane);
+    pane.agent = null;
+    pane.limitReader.reset();
+    pane.continuationAttempts = 0;
+    pane.continuationDeadline = null;
+    pane.scheduleGrantVersion = null;
+    refreshAiAutomationTargets();
+  }
 
   /**
    * Agents already offered to, this session.
@@ -129,6 +209,12 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
   stripCopy.className = "ghost-button";
   stripCopy.textContent = "Copy";
 
+  const stripSchedule = document.createElement("button");
+  stripSchedule.type = "button";
+  stripSchedule.className = "ghost-button";
+  stripSchedule.textContent = "Allow next schedule";
+  stripSchedule.hidden = true;
+
   const stripDismiss = document.createElement("button");
   stripDismiss.type = "button";
   stripDismiss.className = "ghost-button";
@@ -137,7 +223,7 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
     strip.hidden = true;
   });
 
-  strip.append(stripText, stripCommand, stripCopy, stripDismiss);
+  strip.append(stripText, stripCommand, stripCopy, stripSchedule, stripDismiss);
   deps.container.prepend(strip);
 
   /**
@@ -210,6 +296,7 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
     fitActive();
     deps.onActiveTitle(findTab(id)?.title ?? null);
     findTab(id)?.panes[findTab(id)?.activePane ?? 0]?.host.focus();
+    refreshAiAutomationTargets();
   }
 
   function fitActive(): void {
@@ -224,16 +311,115 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
     into.append(element);
 
     const cwd = deps.cwd();
+    let pane: Pane | null = null;
     const host = await createTerminalHost(element, {
       ...(profileId === undefined || profileId === "" ? {} : { profileId }),
       ...(cwd === null ? {} : { cwd }),
       theme: deps.theme(),
-      onAgent: (agent) => offerMemory(agent),
+      onAgent: (agent) => {
+        if (pane !== null) {
+          pane.agent = agent;
+          pane.limitReader.reset();
+          pane.continuationAttempts = 0;
+          pane.continuationDeadline = null;
+          pane.activityVersion += 1;
+          pane.scheduleGrantVersion = null;
+          stripText.textContent = `${agent.name} detected. Confirm its prompt before scheduling terminal input.`;
+          stripSchedule.hidden = false;
+          stripSchedule.onclick = () => {
+            if (pane?.agent?.id !== agent.id) return;
+            pane.scheduleGrantVersion = pane.activityVersion;
+            stripSchedule.textContent = "Next schedule allowed";
+            refreshAiAutomationTargets();
+          };
+          strip.hidden = false;
+          refreshAiAutomationTargets();
+        }
+        offerMemory(agent);
+      },
+      onOutput: (data) => {
+        if (pane === null) return;
+        pane.activityVersion += 1;
+        if (pane.scheduleGrantVersion !== null) {
+          pane.scheduleGrantVersion = null;
+          stripSchedule.textContent = "Allow next schedule";
+          refreshAiAutomationTargets();
+        }
+        if (pane.continuationTimer !== null) {
+          clearContinuation(pane);
+          deps.notify("Automatic continuation was cancelled because the terminal state changed.");
+          return;
+        }
+        if (!autoContinue || pane.agent === null) return;
+        const limit = pane.limitReader.push(data, Date.now());
+        if (limit === null) {
+          if (pane.continuationArmTimer !== null) clearContinuation(pane);
+          return;
+        }
+        if (
+          pane.continuationAttempts >= autoContinueMaxAttempts ||
+          (pane.continuationDeadline !== null && limit.retryAt > pane.continuationDeadline)
+        ) {
+          clearContinuation(pane);
+          deps.notify(`${pane.agent.name} reached the automatic continuation limit.`);
+          return;
+        }
+        const agent = pane.agent;
+        pane.continuationDeadline ??= Date.now() + 24 * 60 * 60_000;
+        pane.continuationRetryAt = limit.retryAt;
+        if (pane.continuationArmTimer !== null) window.clearTimeout(pane.continuationArmTimer);
+        pane.continuationArmTimer = window.setTimeout(() => {
+          pane!.continuationArmTimer = null;
+          const retryAt = pane!.continuationRetryAt;
+          if (retryAt === null || pane!.agent?.id !== agent.id) return;
+          pane!.continuationTimer = window.setTimeout(() => {
+            pane!.continuationTimer = null;
+            pane!.continuationRetryAt = null;
+            pane!.limitReader.reset();
+            if (!autoContinue || pane!.agent?.id !== agent.id) return;
+            pane!.continuationAttempts += 1;
+            pane!.host.send("continue");
+            deps.notify(`${agent.name} continued after its usage limit.`);
+          }, Math.max(0, retryAt - Date.now()));
+          deps.notify(
+            `${agent.name} paused at its usage limit. ADCode will continue it at ${new Date(retryAt).toLocaleTimeString()}.`,
+          );
+        }, 1_000);
+      },
+      onUserInput: (data) => {
+        if (pane === null) return;
+        pane.activityVersion += 1;
+        pane.scheduleGrantVersion = null;
+        stripSchedule.textContent = "Allow next schedule";
+        refreshAiAutomationTargets();
+        if (pane.continuationTimer !== null || pane.continuationArmTimer !== null) {
+          clearContinuation(pane);
+          deps.notify("Automatic continuation was cancelled because you used the terminal.");
+        }
+        if (data.includes("\u0003") || data.includes("\u0004")) releaseAgent(pane);
+      },
+      onSubmittedLine: (line) => {
+        if (pane !== null && /^\s*(?:\/)?(?:exit|quit)\s*$/i.test(line)) releaseAgent(pane);
+      },
     });
 
     host.setAgentDetection(agentDetection);
 
-    return { id: nextId++, element, host };
+    pane = {
+      id: nextId++,
+      element,
+      host,
+      agent: null,
+      limitReader: createAiUsageLimitReader(),
+      continuationTimer: null,
+      continuationArmTimer: null,
+      continuationRetryAt: null,
+      continuationAttempts: 0,
+      continuationDeadline: null,
+      activityVersion: 0,
+      scheduleGrantVersion: null,
+    };
+    return pane;
   }
 
   async function create(options?: { profileId?: string }): Promise<void> {
@@ -308,7 +494,10 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
     const [tab] = tabs.splice(index, 1);
     if (tab === undefined) return;
 
-    for (const pane of tab.panes) pane.host.dispose();
+    for (const pane of tab.panes) {
+      clearContinuation(pane);
+      pane.host.dispose();
+    }
     tab.element.remove();
 
     if (tabs.length === 0) {
@@ -317,6 +506,7 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
       deps.onLayoutChange();
       deps.onActiveTitle(null);
       renderTabs();
+      refreshAiAutomationTargets();
       return;
     }
 
@@ -330,6 +520,20 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
 
       for (const tab of tabs) {
         for (const pane of tab.panes) pane.host.setAgentDetection(enabled);
+      }
+    },
+
+    setAutoContinue(enabled: boolean, maxAttempts = 3): void {
+      autoContinue = enabled;
+      autoContinueMaxAttempts = Number.isFinite(maxAttempts)
+        ? Math.min(5, Math.max(1, Math.floor(maxAttempts)))
+        : 3;
+      if (enabled) return;
+      for (const tab of tabs) {
+        for (const pane of tab.panes) {
+          clearContinuation(pane);
+          pane.limitReader.reset();
+        }
       }
     },
 

@@ -55,6 +55,8 @@ import {
   type AiTeamSuggestionView,
   type AiTeamTraceView,
   type AiTeamView,
+  type AiAutomationCreateInputView,
+  type AiAutomationView,
   type ProposedEditView,
 } from "../shared/api.ts";
 import { recordAgentEdit } from "./activity.ts";
@@ -83,6 +85,8 @@ import {
 import { createAiTeamService, type AiTeamService } from "./aiTeamService.ts";
 import type { ParsedAiTeamConfigure } from "./aiTeamIpcValidation.ts";
 import { toAiTeamTraceView, toAiTeamView } from "./aiTeamViews.ts";
+import { createAiAutomationService, type AiAutomationService } from "./aiAutomationService.ts";
+import { toAiAutomationView } from "./aiAutomationViews.ts";
 
 const keys = createKeychainStore();
 
@@ -142,6 +146,9 @@ let taskWorkspaceUnavailableReason: string | null = null;
 let teamService: AiTeamService | null = null;
 let teamCoordinator: AiTeamCoordinator | null = null;
 let teamRecovery: Promise<void> | null = null;
+let automationService: AiAutomationService | null = null;
+let automationRecovery: Promise<void> | null = null;
+let sendInFlight = false;
 
 function aiWorkspaceService(): AiWorkspaceService {
   if (taskService === null) {
@@ -177,6 +184,89 @@ async function readyAiTeamService(): Promise<AiTeamService> {
   const service = aiTeamService();
   await teamRecovery;
   return service;
+}
+
+function aiAutomationService(): AiAutomationService {
+  if (automationService === null) {
+    automationService = createAiAutomationService({ userDataDirectory: app.getPath("userData") });
+    automationRecovery = automationService.recover();
+  }
+  return automationService;
+}
+
+async function readyAiAutomationService(): Promise<AiAutomationService> {
+  const service = aiAutomationService();
+  await automationRecovery;
+  return service;
+}
+
+function announceAutomation(item: Parameters<typeof toAiAutomationView>[0]): AiAutomationView {
+  const view = toAiAutomationView(item);
+  broadcast(CHANNELS.aiAutomationChanged, view);
+  return view;
+}
+
+function automationWorkspaceRoot(): string {
+  const root = currentWorkspace()?.root;
+  if (root === undefined) throw new Error("Open a folder before scheduling an AI message");
+  return root;
+}
+
+export async function aiAutomationCreate(input: AiAutomationCreateInputView): Promise<AiAutomationView> {
+  const item = await (await readyAiAutomationService()).create(automationWorkspaceRoot(), input);
+  return announceAutomation(item);
+}
+
+export async function aiAutomationList(): Promise<AiAutomationView[]> {
+  const root = currentWorkspace()?.root;
+  if (root === undefined) return [];
+  return (await (await readyAiAutomationService()).list(root)).map(toAiAutomationView);
+}
+
+export async function aiAutomationClaimDue(): Promise<AiAutomationView | null> {
+  const root = currentWorkspace()?.root;
+  const service = await readyAiAutomationService();
+  if (root === undefined) {
+    await service.missInactive(null);
+    return null;
+  }
+  const item = await service.claimDue(root);
+  return item === null ? null : announceAutomation(item);
+}
+
+export async function aiAutomationComplete(id: string): Promise<AiAutomationView> {
+  return announceAutomation(
+    await (await readyAiAutomationService()).complete(automationWorkspaceRoot(), id),
+  );
+}
+
+export async function aiAutomationRetry(
+  id: string,
+  reason: string,
+  dueAt: number,
+): Promise<AiAutomationView> {
+  return announceAutomation(
+    await (await readyAiAutomationService()).retry(automationWorkspaceRoot(), id, reason, dueAt),
+  );
+}
+
+export async function aiAutomationCancel(id: string): Promise<AiAutomationView> {
+  return announceAutomation(
+    await (await readyAiAutomationService()).cancel(automationWorkspaceRoot(), id),
+  );
+}
+
+export async function aiAutomationConfirmMissed(id: string): Promise<AiAutomationView> {
+  return announceAutomation(
+    await (await readyAiAutomationService()).confirmMissed(automationWorkspaceRoot(), id),
+  );
+}
+
+export async function aiAutomationMarkDueMissed(): Promise<void> {
+  await (await readyAiAutomationService()).missInactive(
+    null,
+    "Scheduled messages were disabled at delivery time",
+  );
 }
 
 function announceWorkspaceTask(task: Parameters<typeof toAiWorkspaceTaskView>[0]): void {
@@ -556,7 +646,9 @@ export async function checkProviderKey(providerId: string, key: string): Promise
  * read, which command it ran, what it decided. This is what makes the AI legible instead
  * of magical."
  */
-export async function aiSend(text: string): Promise<void> {
+export async function aiSend(text: string): Promise<boolean> {
+  if (sendInFlight) throw new Error("The built-in assistant is already handling a message");
+  sendInFlight = true;
   currentTaskPrompt = text;
   try {
     const providerId = activeProvider();
@@ -576,7 +668,7 @@ export async function aiSend(text: string): Promise<void> {
             : `No API key for ${name}. Add one in Connect a model.`;
 
         broadcast(CHANNELS.aiEvent, { kind: "error", detail });
-        return;
+        return false;
       }
 
       const memoryEnabled = currentSettings()["adcode.ai.memoryCapture"] !== false;
@@ -673,14 +765,17 @@ export async function aiSend(text: string): Promise<void> {
 
     await writeSession(currentWorkspace()?.root ?? null, session);
     broadcast(CHANNELS.aiSessionChanged, session);
+    return turnSucceeded;
   } catch (error) {
     // §9: a failure here costs an answer, never the editor.
     broadcast(CHANNELS.aiEvent, {
       kind: "error",
       detail: error instanceof Error ? error.message : "the assistant failed",
     });
+    return false;
   } finally {
     currentTaskPrompt = null;
+    sendInFlight = false;
   }
 }
 
