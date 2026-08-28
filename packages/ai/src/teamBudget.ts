@@ -52,6 +52,50 @@ export function createTeamBudget(input: TeamBudgetInput): TeamBudgetLedger {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Validate a ledger restored from local persistence before it can authorize another request. */
+export function validateTeamBudgetLedger(value: unknown): TeamBudgetLedger {
+  if (!isRecord(value) || !isRecord(value["agentTokenLimits"]) || !isRecord(value["agentUsedTokens"])) {
+    throw new Error("Persisted Team budget is invalid");
+  }
+  const base = createTeamBudget({
+    tokenLimit: positive(value["tokenLimit"] as number, "Team token limit"),
+    costMicrosLimit: positive(value["costMicrosLimit"] as number, "Team cost limit"),
+    agentTokenLimits: value["agentTokenLimits"] as Record<string, number>,
+  });
+  const usedTokens = nonNegative(value["usedTokens"] as number, "Used tokens");
+  const usedCostMicros = nonNegative(value["usedCostMicros"] as number, "Used cost");
+  const agentUsedTokens: Record<string, number> = Object.create(null) as Record<string, number>;
+  for (const [agentId, used] of Object.entries(value["agentUsedTokens"])) {
+    if (!ID.test(agentId)) throw new Error("Persisted Team budget agent id is invalid");
+    agentUsedTokens[agentId] = nonNegative(used as number, "Agent used tokens");
+  }
+  if (!Array.isArray(value["reservations"])) throw new Error("Persisted Team reservations are invalid");
+  let ledger: TeamBudgetLedger = { ...base, usedTokens, usedCostMicros, agentUsedTokens };
+  if (usedTokens > ledger.tokenLimit || usedCostMicros > ledger.costMicrosLimit) {
+    throw new Error("Persisted Team usage exceeds its hard limit");
+  }
+  for (const raw of value["reservations"]) {
+    if (!isRecord(raw)) throw new Error("Persisted Team reservation is invalid");
+    const result = reserveTeamBudget(ledger, {
+      id: raw["id"] as string,
+      agentId: raw["agentId"] as string,
+      tokens: raw["tokens"] as number,
+      costMicros: raw["costMicros"] as number,
+    });
+    if (!result.ok) throw new Error("Persisted Team reservations exceed a hard limit");
+    ledger = result.ledger;
+  }
+  for (const [agentId, used] of Object.entries(agentUsedTokens)) {
+    const limit = ledger.agentTokenLimits[agentId];
+    if (limit !== undefined && used > limit) throw new Error("Persisted agent usage exceeds its limit");
+  }
+  return ledger;
+}
+
 export type TeamBudgetBlockReason =
   | "team-token-limit"
   | "team-cost-limit"

@@ -1,6 +1,6 @@
 import type { TeamPlan, TeamPlanNode, TeamRole } from "./team.ts";
 
-export type TeamNodeState = "pending" | "running" | "completed" | "failed" | "blocked";
+export type TeamNodeState = "pending" | "running" | "paused" | "completed" | "failed" | "blocked";
 
 export interface TeamGraphNode extends TeamPlanNode {
   readonly state: TeamNodeState;
@@ -90,6 +90,27 @@ export function completeTeamNode(graph: TeamGraph, nodeId: string, now: number):
   });
 }
 
+export function pauseRunningTeamNodes(graph: TeamGraph, now: number): TeamGraph {
+  timestamp(now, graph.updatedAt);
+  return {
+    nodes: graph.nodes.map((node) =>
+      node.state === "running" ? { ...node, state: "paused", updatedAt: now } : node,
+    ),
+    updatedAt: now,
+  };
+}
+
+export function resumeTeamNode(graph: TeamGraph, nodeId: string, now: number): TeamGraph {
+  const resumed = updateNode(graph, nodeId, now, (node) => {
+    if (node.state !== "paused") throw new Error("Only a paused Team node can resume");
+    return { ...node, state: "pending", updatedAt: now };
+  });
+  if (!readyTeamNodes(resumed).some((node) => node.id === nodeId)) {
+    throw new Error("Paused Team node dependencies are not complete");
+  }
+  return resumed;
+}
+
 function blockFailedDependants(nodes: readonly TeamGraphNode[], now: number): TeamGraphNode[] {
   let result = [...nodes];
   let changed = true;
@@ -129,7 +150,10 @@ export function failTeamNode(
 
 export function teamGraphState(graph: TeamGraph): "active" | "completed" | "failed" {
   if (graph.nodes.every((node) => node.state === "completed")) return "completed";
-  if (readyTeamNodes(graph).length > 0 || graph.nodes.some((node) => node.state === "running")) {
+  if (
+    readyTeamNodes(graph).length > 0 ||
+    graph.nodes.some((node) => node.state === "running" || node.state === "paused")
+  ) {
     return "active";
   }
   return "failed";
