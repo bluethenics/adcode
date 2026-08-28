@@ -54,3 +54,26 @@ export interface HelpEntry {
   /** Other entry ids worth reading next. */
   readonly related: readonly string[];
 }
+
+/** A catalogue action that delegates to the desktop command registry. */
+export interface FeatureCommandAction {
+  readonly kind: "command";
+  readonly command: string;
+  readonly label: string;
+}
+
+/** A catalogue action that deep-links to one exact Settings row. */
+export interface FeatureSettingAction {
+  readonly kind: "setting";
+  readonly settingId: string;
+  readonly label: string;
+}
+
+export type FeatureAction = FeatureCommandAction | FeatureSettingAction;
+
+/** One user-recognisable capability, its explanation, and the safe ways into it. */
+export interface FeatureRecord {
+  readonly entry: HelpEntry;
+  readonly actions: readonly FeatureAction[];
+  readonly keywords: readonly string[];
+}

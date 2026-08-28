@@ -12,7 +12,15 @@ import { HELP_ENTRIES } from "./entries/index.ts";
 import type { HelpEntry, HelpGroupId } from "./types.ts";
 
 export { HELP_ENTRIES };
-export type { HelpEntry, HelpGroupId };
+export { FEATURE_COMMANDS, featureFor, featureRecords, searchFeatures } from "./features.ts";
+export type {
+  FeatureAction,
+  FeatureCommandAction,
+  FeatureRecord,
+  FeatureSettingAction,
+  HelpEntry,
+  HelpGroupId,
+} from "./types.ts";
 
 const BY_ID = new Map<string, HelpEntry>(HELP_ENTRIES.map((entry) => [entry.id, entry]));
 

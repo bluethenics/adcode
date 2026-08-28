@@ -5,6 +5,16 @@ import type { HelpEntry } from "../types.ts";
 
 export const AI_ENTRIES: readonly HelpEntry[] = [
   {
+    id: "ai.team",
+    title: "AI Team",
+    plain: "Several assistants can divide one larger task, work in parallel, and bring their results back to one reviewed task.",
+    why: "Independent research, coding, and checking can finish faster without making one assistant carry every detail in the same context.",
+    how: "Open the Assistant, describe the task, then choose Team. Review the suggested roles, files, token budget, and overlap warnings before you confirm. Team uses the same isolated workspaces, review policy, traces, and rollback protections as a single assistant.",
+    group: "ai",
+    settingIds: [],
+    related: ["adcode.ai.isolatedWorkspaces", "adcode.ai.taskTokenBudget", "adcode.ai.editPolicy"],
+  },
+  {
     id: "adcode.ai.provider",
     title: "Provider",
     plain: "Which company's AI you want to use. You bring your own account and key.",

@@ -10,6 +10,26 @@ import type { HelpEntry } from "../types.ts";
 
 export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
   {
+    id: "workbench.allFeatures",
+    title: "All Features",
+    plain: "A searchable library of everything ADCode can do, with an Open button and a plain explanation beside every feature.",
+    why: "You should not need to know a command's name, shortcut, or menu before you can discover it.",
+    how: "Choose the four-cell All Features button below Earnings, or open View and choose All Features. Search by a feature name or describe what you want to do. Choose Open to use it and ? to understand it.",
+    group: "workbench",
+    settingIds: [],
+    related: ["workbench.universalSearch", "workbench.commandPalette"],
+  },
+  {
+    id: "workbench.universalSearch",
+    title: "Universal search",
+    plain: "The search box in the title bar finds ADCode features, commands, files, recent folders, and symbols together.",
+    why: "One search is faster when you remember what you want but not which menu, panel, or file contains it.",
+    how: "Choose the title-bar search and type a name or goal. Use the arrow keys and Enter to open a result. Start with > for commands. Ctrl+P, Ctrl+Shift+P, Ctrl+T, and Ctrl+Shift+F still open their focused searches.",
+    group: "workbench",
+    settingIds: [],
+    related: ["workbench.allFeatures", "workbench.commandPalette", "adcode.navigation.fuzzyFileOpen"],
+  },
+  {
     id: "workbench.commandPalette",
     title: "Command palette",
     plain: "One box that can run anything ADCode does. Type what you want rather than hunting a menu.",
