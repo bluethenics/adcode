@@ -12,6 +12,11 @@ export interface CatalogueModel {
   /** Whether the model can call tools. An agent that cannot is a chat box. */
   readonly toolCall: boolean;
   readonly reasoning: boolean;
+  /** Upstream USD-per-million prices converted to integer microdollars. */
+  readonly inputCostMicrosPerMillion?: number | null;
+  readonly outputCostMicrosPerMillion?: number | null;
+  readonly cacheReadCostMicrosPerMillion?: number | null;
+  readonly cacheWriteCostMicrosPerMillion?: number | null;
 }
 
 export interface CatalogueProvider {

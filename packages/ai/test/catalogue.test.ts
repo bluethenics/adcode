@@ -16,7 +16,16 @@ const provider = (id: string, models: string[]): CatalogueProvider => ({
   name: id,
   env: [],
   doc: null,
-  models: models.map((model) => ({ id: model, name: model, toolCall: true, reasoning: false })),
+  models: models.map((model) => ({
+    id: model,
+    name: model,
+    toolCall: true,
+    reasoning: false,
+    inputCostMicrosPerMillion: null,
+    outputCostMicrosPerMillion: null,
+    cacheReadCostMicrosPerMillion: null,
+    cacheWriteCostMicrosPerMillion: null,
+  })),
 });
 
 describe("the bundled snapshot", () => {
@@ -49,7 +58,13 @@ describe("parseCatalogue", () => {
       env: ["ANTHROPIC_API_KEY"],
       doc: "https://example.com",
       models: {
-        "claude-x": { id: "claude-x", name: "Claude X", tool_call: true, reasoning: true },
+        "claude-x": {
+          id: "claude-x",
+          name: "Claude X",
+          tool_call: true,
+          reasoning: true,
+          cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 },
+        },
       },
     },
   };
@@ -62,7 +77,27 @@ describe("parseCatalogue", () => {
       name: "Claude X",
       toolCall: true,
       reasoning: true,
+      inputCostMicrosPerMillion: 5_000_000,
+      outputCostMicrosPerMillion: 25_000_000,
+      cacheReadCostMicrosPerMillion: 500_000,
+      cacheWriteCostMicrosPerMillion: 6_250_000,
     });
+  });
+
+  it("labels absent or hostile prices unknown instead of inventing a zero", () => {
+    const [one] = parseCatalogue({
+      p: {
+        models: {
+          absent: { id: "absent" },
+          hostile: { id: "hostile", cost: { input: -2, output: "free" } },
+        },
+      },
+    });
+
+    expect(one?.models.map((model) => [model.id, model.inputCostMicrosPerMillion])).toEqual([
+      ["absent", null],
+      ["hostile", null],
+    ]);
   });
 
   it("drops a provider with no models", () => {

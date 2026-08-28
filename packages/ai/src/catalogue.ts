@@ -28,6 +28,12 @@ export const BUNDLED_CATALOGUE: readonly CatalogueProvider[] = SNAPSHOT_PROVIDER
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
+function costMicros(raw: unknown): number | null {
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0) return null;
+  const micros = Math.round(raw * 1_000_000);
+  return Number.isSafeInteger(micros) ? micros : null;
+}
+
 function modelsFrom(raw: unknown): CatalogueModel[] {
   if (!isRecord(raw)) return [];
 
@@ -40,11 +46,16 @@ function modelsFrom(raw: unknown): CatalogueModel[] {
     if (typeof id !== "string" || id.length === 0) continue;
 
     const name = entry["name"];
+    const cost = isRecord(entry["cost"]) ? entry["cost"] : {};
     models.push({
       id,
       name: typeof name === "string" && name.length > 0 ? name : id,
       toolCall: entry["tool_call"] === true,
       reasoning: entry["reasoning"] === true,
+      inputCostMicrosPerMillion: costMicros(cost["input"]),
+      outputCostMicrosPerMillion: costMicros(cost["output"]),
+      cacheReadCostMicrosPerMillion: costMicros(cost["cache_read"]),
+      cacheWriteCostMicrosPerMillion: costMicros(cost["cache_write"]),
     });
   }
 
