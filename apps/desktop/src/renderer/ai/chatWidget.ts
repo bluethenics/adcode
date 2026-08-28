@@ -16,6 +16,8 @@
  * never with `left`/`top`, so dragging never triggers layout.
  */
 import type {
+  AiTeamSuggestionView,
+  AiTeamView,
   AiWorkspaceChangeView,
   AiWorkspaceTaskView,
   ChatSessionView,
@@ -27,6 +29,14 @@ import {
   summarizeAiWorkspaceTask,
   traceTone,
 } from "./aiWorkspaceViewModel.ts";
+import {
+  aiTeamActions,
+  aiTeamStateLabel,
+  buildAiTeamConfigureInput,
+  extractTeamFileHints,
+  formatAiTeamUsage,
+  manualTeamSuggestion,
+} from "./aiTeamViewModel.ts";
 
 interface Position {
   x: number;
@@ -343,6 +353,79 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   taskStrip.append(taskState, taskUsage, taskNotice, taskReview, taskTrace, taskDiscard, taskRollback);
 
+  /* -- Team suggestion and progress ----------------------------------- */
+
+  let activeTeam: AiTeamView | null = null;
+  let activeSuggestion: AiTeamSuggestionView | null = null;
+  let suggestionPrompt = "";
+  let teamRefreshGeneration = 0;
+  let suggestionGeneration = 0;
+  let suggestionTimer: number | null = null;
+
+  const teamPanel = document.createElement("section");
+  teamPanel.className = "ai-team-panel";
+  teamPanel.hidden = true;
+  teamPanel.setAttribute("aria-label", "AI Team");
+
+  const teamTop = document.createElement("div");
+  teamTop.className = "ai-team-top";
+  const teamState = document.createElement("span");
+  teamState.className = "ai-team-state";
+  const teamUsage = document.createElement("span");
+  teamUsage.className = "ai-team-usage";
+  teamTop.append(teamState, teamUsage);
+
+  const teamRoles = document.createElement("div");
+  teamRoles.className = "ai-team-roles";
+
+  const teamReason = document.createElement("p");
+  teamReason.className = "ai-team-reason";
+
+  const teamNotice = document.createElement("p");
+  teamNotice.className = "ai-team-notice";
+  teamNotice.setAttribute("role", "status");
+
+  const teamActions = document.createElement("div");
+  teamActions.className = "ai-team-actions";
+  const teamSetup = document.createElement("button");
+  teamSetup.type = "button";
+  teamSetup.className = "chat-send";
+  teamSetup.textContent = "Set up Team";
+  const teamStart = document.createElement("button");
+  teamStart.type = "button";
+  teamStart.className = "chat-send";
+  teamStart.textContent = "Start Team";
+  const teamTrace = document.createElement("button");
+  teamTrace.type = "button";
+  teamTrace.className = "ghost-button";
+  teamTrace.textContent = "Trace";
+  const teamReview = document.createElement("button");
+  teamReview.type = "button";
+  teamReview.className = "ghost-button";
+  teamReview.textContent = "Review";
+  const teamConflict = document.createElement("button");
+  teamConflict.type = "button";
+  teamConflict.className = "ghost-button";
+  teamConflict.textContent = "Conflicts";
+  const teamCancel = document.createElement("button");
+  teamCancel.type = "button";
+  teamCancel.className = "ghost-button ai-workspace-danger";
+  teamCancel.textContent = "Cancel";
+  const teamDismiss = document.createElement("button");
+  teamDismiss.type = "button";
+  teamDismiss.className = "ghost-button";
+  teamDismiss.textContent = "Not now";
+  teamActions.append(
+    teamSetup,
+    teamStart,
+    teamTrace,
+    teamReview,
+    teamConflict,
+    teamCancel,
+    teamDismiss,
+  );
+  teamPanel.append(teamTop, teamRoles, teamReason, teamNotice, teamActions);
+
   const composer = document.createElement("form");
   composer.className = "chat-composer";
 
@@ -357,7 +440,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   sendButton.type = "submit";
   sendButton.textContent = "Send";
 
-  composer.append(input, sendButton);
+  const manualTeam = document.createElement("button");
+  manualTeam.className = "chat-team-button";
+  manualTeam.type = "button";
+  manualTeam.textContent = "Team";
+  manualTeam.title = "Split this task into isolated AI roles";
+
+  composer.append(input, manualTeam, sendButton);
 
   const resizeGrip = document.createElement("div");
   resizeGrip.className = "chat-resize";
@@ -367,7 +456,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   chatBody.className = "chat-body";
   chatBody.append(history, transcript);
 
-  card.append(header, taskStrip, chatBody, memory, composer, resizeGrip);
+  card.append(header, taskStrip, teamPanel, chatBody, memory, composer, resizeGrip);
 
   window.adcode.chat.onChanged((session) => renderMemory(session));
   void window.adcode.chat.current().then((session) => renderMemory(session));
@@ -410,6 +499,235 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     scrollToEnd();
     return element;
   }
+
+  function showOnlyTeamActions(visible: readonly HTMLButtonElement[]): void {
+    const shown = new Set(visible);
+    for (const button of [
+      teamSetup,
+      teamStart,
+      teamTrace,
+      teamReview,
+      teamConflict,
+      teamCancel,
+      teamDismiss,
+    ]) {
+      button.hidden = !shown.has(button);
+    }
+  }
+
+  function renderTeamRole(label: string, state: string): void {
+    const role = document.createElement("span");
+    role.className = "ai-team-role";
+    role.dataset["state"] = state;
+    role.textContent = label;
+    teamRoles.append(role);
+  }
+
+  function paintTeamSuggestion(suggestion: AiTeamSuggestionView, prompt: string): void {
+    activeSuggestion = suggestion;
+    suggestionPrompt = prompt;
+    teamPanel.hidden = false;
+    teamPanel.dataset["mode"] = "suggestion";
+    teamPanel.dataset["state"] = "configured";
+    teamState.textContent = "Team suggested";
+    teamUsage.textContent = `${String(suggestion.estimatedParallelMinutes.min)}-${String(
+      suggestion.estimatedParallelMinutes.max,
+    )} min · up to ${String(Math.ceil(suggestion.estimatedTokens.max / 1_000))}k tokens`;
+    teamRoles.replaceChildren();
+    for (const role of suggestion.roles) renderTeamRole(role.label, "suggested");
+    teamReason.textContent = suggestion.reasons.join(" ");
+    teamNotice.textContent = "Review the roles first. No agent starts until you confirm Start Team.";
+    showOnlyTeamActions([teamSetup, teamDismiss]);
+  }
+
+  function paintTeam(team: AiTeamView | null): void {
+    activeTeam = team;
+    activeSuggestion = null;
+    teamNotice.textContent = "";
+    if (team === null) {
+      teamPanel.hidden = true;
+      return;
+    }
+    teamPanel.hidden = false;
+    teamPanel.dataset["mode"] = "team";
+    teamPanel.dataset["state"] = team.state;
+    teamState.textContent = aiTeamStateLabel(team.state);
+    teamUsage.textContent = formatAiTeamUsage(team);
+    teamRoles.replaceChildren();
+    for (const role of team.roles) {
+      const nodes = team.nodes.filter((node) => node.roleId === role.id);
+      const state =
+        nodes.find((node) => node.state === "running")?.state ??
+        nodes.find((node) => node.state === "failed" || node.state === "blocked")?.state ??
+        (nodes.every((node) => node.state === "completed") ? "completed" : nodes[0]?.state ?? "pending");
+      renderTeamRole(role.label, state);
+    }
+    const completed = team.nodes.filter((node) => node.state === "completed").length;
+    teamReason.textContent =
+      team.state === "configured"
+        ? "The role plan is saved. Starting captures one immutable base and may use your connected model."
+        : `${String(completed)} of ${String(team.nodes.length)} tasks complete · ${String(team.concurrency)} max in parallel`;
+    const actions = aiTeamActions(team);
+    const visibleActions: HTMLButtonElement[] = [];
+    if (actions.start) visibleActions.push(teamStart);
+    if (actions.trace) visibleActions.push(teamTrace);
+    if (actions.review) visibleActions.push(teamReview);
+    if (actions.conflict) visibleActions.push(teamConflict);
+    if (actions.cancel) visibleActions.push(teamCancel);
+    showOnlyTeamActions(visibleActions);
+  }
+
+  async function refreshTeam(): Promise<void> {
+    const generation = ++teamRefreshGeneration;
+    const teams = await window.adcode.aiTeam.list().catch(() => []);
+    if (generation === teamRefreshGeneration) paintTeam(teams[0] ?? null);
+  }
+
+  async function renderTeamTrace(team: AiTeamView): Promise<void> {
+    teamTrace.disabled = true;
+    try {
+      const events = await window.adcode.aiTeam.traces(team.id);
+      if (events.length === 0) {
+        teamNotice.textContent = "No Team trace events yet.";
+        return;
+      }
+      for (const event of events) {
+        const lane = event.nodeId === null ? "Team" : event.nodeId;
+        trace(`${lane} · ${event.summary}`, event.detail, traceTone(event.outcome));
+      }
+    } finally {
+      teamTrace.disabled = false;
+    }
+  }
+
+  function renderTeamConflicts(team: AiTeamView): void {
+    transcript.querySelectorAll(`[data-team-conflict="${team.id}"]`).forEach((node) => node.remove());
+    for (const conflict of team.merge.conflicts) {
+      const panel = document.createElement("div");
+      panel.className = "diff-panel";
+      panel.dataset["teamConflict"] = team.id;
+      const heading = document.createElement("div");
+      heading.className = "diff-heading";
+      heading.textContent = `Team conflict — ${conflict.path}`;
+      panel.append(heading);
+      for (const proposal of conflict.proposals) {
+        const roleHeading = document.createElement("div");
+        roleHeading.className = "ai-team-conflict-role";
+        roleHeading.textContent = proposal.nodeId;
+        panel.append(roleHeading);
+        for (const hunk of proposal.hunks) {
+          const body = document.createElement("pre");
+          body.className = "diff-body ai-team-conflict-hunk";
+          for (const line of hunk.original) {
+            const removed = document.createElement("span");
+            removed.className = "diff-line diff-removed";
+            removed.textContent = `- ${line}`;
+            body.append(removed);
+          }
+          for (const line of hunk.replacement) {
+            const added = document.createElement("span");
+            added.className = "diff-line diff-added";
+            added.textContent = `+ ${line}`;
+            body.append(added);
+          }
+          panel.append(body);
+        }
+      }
+      transcript.append(panel);
+    }
+    teamNotice.textContent = "No proposal was chosen automatically. Inspect each role before continuing.";
+    scrollToEnd();
+  }
+
+  teamSetup.addEventListener("click", () => {
+    const suggestion = activeSuggestion;
+    if (suggestion === null || suggestionPrompt.length === 0) return;
+    teamSetup.disabled = true;
+    void window.adcode.aiTeam
+      .configure(buildAiTeamConfigureInput(suggestionPrompt, suggestion))
+      .then((team) => {
+        paintTeam(team);
+        bubble("user", `Team plan: ${suggestionPrompt}`);
+        input.value = "";
+      })
+      .catch((error: unknown) => {
+        teamNotice.textContent = error instanceof Error ? error.message : "Could not configure Team.";
+      })
+      .finally(() => {
+        teamSetup.disabled = false;
+      });
+  });
+
+  teamStart.addEventListener("click", () => {
+    const team = activeTeam;
+    if (team === null) return;
+    teamStart.disabled = true;
+    teamNotice.textContent = "Capturing the immutable project base…";
+    void window.adcode.aiTeam
+      .start(team.id)
+      .then((started) => paintTeam(started))
+      .catch((error: unknown) => {
+        teamNotice.textContent = error instanceof Error ? error.message : "Could not start Team.";
+      })
+      .finally(() => {
+        teamStart.disabled = false;
+      });
+  });
+
+  teamTrace.addEventListener("click", () => {
+    if (activeTeam !== null) void renderTeamTrace(activeTeam);
+  });
+  teamReview.addEventListener("click", () => {
+    const combinedId = activeTeam?.merge.combinedTaskId;
+    if (combinedId === null || combinedId === undefined) return;
+    teamReview.disabled = true;
+    void window.adcode.aiWorkspace
+      .list()
+      .then((tasks) => {
+        const task = tasks.find((candidate) => candidate.id === combinedId);
+        if (task === undefined) {
+          teamNotice.textContent = "Combined review task was not found.";
+          return;
+        }
+        paintWorkspaceTask(task);
+        return renderPersistedReview(task);
+      })
+      .finally(() => {
+        teamReview.disabled = false;
+      });
+  });
+  teamConflict.addEventListener("click", () => {
+    if (activeTeam !== null) renderTeamConflicts(activeTeam);
+  });
+  teamCancel.addEventListener("click", () => {
+    const team = activeTeam;
+    if (team === null || !window.confirm("Cancel this Team? Isolated proposals remain unavailable to the project.")) {
+      return;
+    }
+    teamCancel.disabled = true;
+    void window.adcode.aiTeam
+      .cancel(team.id)
+      .then((cancelled) => paintTeam(cancelled))
+      .finally(() => {
+        teamCancel.disabled = false;
+      });
+  });
+  teamDismiss.addEventListener("click", () => {
+    if (activeSuggestion !== null && activeSuggestion.dismissalKey !== "manual-team") {
+      try {
+        localStorage.setItem(activeSuggestion.dismissalKey, "dismissed");
+      } catch {
+        // A disabled local store costs only this remembered dismissal.
+      }
+    }
+    activeSuggestion = null;
+    teamPanel.hidden = true;
+  });
+
+  window.adcode.aiTeam.onChanged((team) => {
+    if (activeTeam === null || activeTeam.id === team.id) paintTeam(team);
+  });
+  void refreshTeam();
 
   function paintWorkspaceTask(task: AiWorkspaceTaskView | null): void {
     activeWorkspaceTask = task;
@@ -752,6 +1070,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const text = input.value.trim();
     if (text.length === 0) return;
 
+    if (activeSuggestion !== null) {
+      activeSuggestion = null;
+      teamPanel.hidden = true;
+    }
+
     bubble("user", text);
     input.value = "";
     sendButton.disabled = true;
@@ -773,6 +1096,67 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       event.preventDefault();
       submit();
     }
+  });
+
+  function canOfferAnotherTeam(): boolean {
+    return (
+      activeTeam === null ||
+      activeTeam.state === "completed" ||
+      activeTeam.state === "cancelled"
+    );
+  }
+
+  async function suggestForComposer(manual: boolean): Promise<void> {
+    const prompt = input.value.trim();
+    if (prompt.length === 0) {
+      input.placeholder = "Describe the task, then choose Team";
+      input.focus();
+      return;
+    }
+    if (!canOfferAnotherTeam()) {
+      teamNotice.textContent = "Finish or cancel the current Team before setting up another.";
+      return;
+    }
+    const generation = ++suggestionGeneration;
+    const fileHints = extractTeamFileHints(prompt);
+    const suggested = await window.adcode.aiTeam
+      .suggest({
+        prompt,
+        contextTokens: Math.ceil(prompt.length / 3),
+        fileHints,
+      })
+      .catch(() => null);
+    if (generation !== suggestionGeneration || input.value.trim() !== prompt) return;
+    const result = suggested ?? (manual ? manualTeamSuggestion(prompt) : null);
+    if (result === null) return;
+    if (!manual) {
+      try {
+        if (localStorage.getItem(result.dismissalKey) === "dismissed") return;
+      } catch {
+        // A disabled local store means the suggestion may return next time.
+      }
+    }
+    if (activeTeam?.state === "completed" || activeTeam?.state === "cancelled") activeTeam = null;
+    paintTeamSuggestion(result, prompt);
+  }
+
+  manualTeam.addEventListener("click", () => {
+    void suggestForComposer(true);
+  });
+
+  input.addEventListener("input", () => {
+    if (suggestionTimer !== null) window.clearTimeout(suggestionTimer);
+    if (!canOfferAnotherTeam() || input.value.trim().length < 20) {
+      if (activeSuggestion !== null) {
+        activeSuggestion = null;
+        teamPanel.hidden = true;
+      }
+      return;
+    }
+    suggestionTimer = window.setTimeout(() => {
+      suggestionTimer = null;
+      void suggestForComposer(false);
+    }, 350);
   });
 
   /* ── Dragging and resizing ────────────────────────────────────────────── */
@@ -933,6 +1317,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           : "No API key — add one in Settings";
       });
       void refreshWorkspaceTask();
+      void refreshTeam();
 
       document.addEventListener("keydown", onKeydown);
     },
@@ -973,9 +1358,21 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
     setWorkspace(root: string | null): void {
       workspace = root;
+      suggestionGeneration += 1;
+      if (suggestionTimer !== null) {
+        window.clearTimeout(suggestionTimer);
+        suggestionTimer = null;
+      }
+      activeSuggestion = null;
+      activeTeam = null;
+      teamPanel.hidden = true;
       place(loadPosition(root) ?? { x: 0, y: 0 });
-      if (root === null) paintWorkspaceTask(null);
-      else void refreshWorkspaceTask();
+      if (root === null) {
+        paintWorkspaceTask(null);
+      } else {
+        void refreshWorkspaceTask();
+        void refreshTeam();
+      }
     },
 
     onVisibilityChange(listener): void {
