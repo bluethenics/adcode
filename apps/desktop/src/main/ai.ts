@@ -703,8 +703,15 @@ export async function aiWorkspaceChanges(taskId: string): Promise<AiWorkspaceCha
 }
 
 export async function aiWorkspaceTraces(taskId: string): Promise<AiWorkspaceTraceView[]> {
-  if ((await currentWorkspaceTask(taskId)) === null) return [];
-  return (await (await readyAiWorkspaceService()).traces(taskId)).map(toAiWorkspaceTraceView);
+  const task = await currentWorkspaceTask(taskId);
+  if (task === null) return [];
+  const roots = {
+    workspaceRoot: task.workspaceRoot,
+    sandboxRoot: join(app.getPath("userData"), "ai-workspaces", "sandboxes", task.id),
+  };
+  return (await (await readyAiWorkspaceService()).traces(taskId)).map((trace) =>
+    toAiWorkspaceTraceView(trace, roots),
+  );
 }
 
 export async function aiWorkspaceApply(

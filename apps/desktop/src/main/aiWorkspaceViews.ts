@@ -39,13 +39,37 @@ export function toAiWorkspaceChangeViews(task: AiWorkspaceTask): AiWorkspaceChan
   }));
 }
 
-export function toAiWorkspaceTraceView(trace: OperationalTrace): AiWorkspaceTraceView {
+export interface AiWorkspaceTraceRoots {
+  readonly workspaceRoot: string;
+  readonly sandboxRoot: string;
+}
+
+function redactTraceRoots(value: string, roots: AiWorkspaceTraceRoots): string {
+  const replacements: Array<readonly [string, string]> = [
+    [roots.sandboxRoot, "[task sandbox]"],
+    [roots.workspaceRoot, "[workspace]"],
+  ];
+  let result = value;
+  for (const [root, replacement] of replacements) {
+    const variants = new Set([root, root.replaceAll("\\", "/")]);
+    for (const variant of variants) {
+      const escaped = variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      result = result.replace(new RegExp(escaped, "gi"), replacement);
+    }
+  }
+  return result;
+}
+
+export function toAiWorkspaceTraceView(
+  trace: OperationalTrace,
+  roots: AiWorkspaceTraceRoots,
+): AiWorkspaceTraceView {
   return {
     id: trace.id,
     at: trace.at,
     kind: trace.kind,
-    summary: trace.summary,
-    detail: trace.detail,
+    summary: redactTraceRoots(trace.summary, roots),
+    detail: redactTraceRoots(trace.detail, roots),
     outcome: trace.outcome,
   };
 }

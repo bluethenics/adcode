@@ -57,12 +57,17 @@ await writeFile(
   "utf8",
 );
 
+// Codex and some CI launchers use Electron's executable as a Node runtime. That inherited
+// switch would make the child run this package as a script and no renderer could exist.
+const childEnv = { ...process.env, ELECTRON_ENABLE_LOGGING: "1" };
+delete childEnv.ELECTRON_RUN_AS_NODE;
+
 const child = spawn(
   electronPath,
   [...appArgs, "--enable-logging", `--remote-debugging-port=${PORT}`, `--user-data-dir=${userData}`],
   {
     cwd: REPO,
-    env: { ...process.env, ELECTRON_ENABLE_LOGGING: "1" },
+    env: childEnv,
     stdio: ["ignore", "pipe", "pipe"],
     shell: false,
   },

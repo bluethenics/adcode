@@ -4,7 +4,12 @@ export interface PathJoiner {
   join(...paths: string[]): string;
 }
 
-/** Resolve the window icon inside the live application directory (including app.asar). */
-export function windowIconPath(appPath: string, path: PathJoiner = { join }): string {
-  return path.join(appPath, "build", "icon.png");
+/** Resolve the icon inside app.asar when packaged and the repository root in development. */
+export function windowIconPath(
+  appPath: string,
+  packaged: boolean,
+  path: PathJoiner = { join },
+): string {
+  const iconRoot = packaged ? appPath : path.join(appPath, "..", "..");
+  return path.join(iconRoot, "build", "icon.png");
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AiWorkspaceTaskView } from "../src/shared/api.ts";
+import { toAiWorkspaceTraceView } from "../src/main/aiWorkspaceViews.ts";
 import {
   aiWorkspaceActions,
   aiWorkspaceStateLabel,
@@ -65,5 +66,26 @@ describe("AI workspace task presentation", () => {
     expect(traceTone("pending")).toBe("running");
     expect(traceTone("blocked")).toBe("error");
     expect(traceTone("failed")).toBe("error");
+  });
+
+  it("keeps privileged workspace locations out of renderer trace views", () => {
+    const view = toAiWorkspaceTraceView(
+      {
+        id: "trace-view",
+        taskId: "task-view",
+        at: 1,
+        kind: "error",
+        summary: "Could not read E:\\private\\project\\src\\file.ts",
+        detail: "ENOENT at E:/private/project and C:\\ADCode\\tasks\\task-view\\file.ts",
+        outcome: "failed",
+      },
+      {
+        workspaceRoot: "E:\\private\\project",
+        sandboxRoot: "C:\\ADCode\\tasks\\task-view",
+      },
+    );
+
+    expect(view.summary).toBe("Could not read [workspace]\\src\\file.ts");
+    expect(view.detail).toBe("ENOENT at [workspace] and [task sandbox]\\file.ts");
   });
 });

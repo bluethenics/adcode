@@ -107,7 +107,7 @@ function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
-    icon: windowIconPath(app.getAppPath()),
+    icon: windowIconPath(app.getAppPath(), app.isPackaged),
     minWidth: 680,
     minHeight: 420,
     /*

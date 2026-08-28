@@ -3,6 +3,13 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("packaged smoke safety", () => {
+  it("cannot inherit Electron's Node-only mode from the invoking agent shell", () => {
+    const source = readFileSync(resolve(import.meta.dirname, "../../../scripts/smoke.mjs"), "utf8");
+
+    expect(source).toContain("delete childEnv.ELECTRON_RUN_AS_NODE");
+    expect(source).toContain("env: childEnv");
+  });
+
   it("re-resolves its scratch folder before destructive Explorer checks", () => {
     const source = readFileSync(resolve(import.meta.dirname, "../../../scripts/smoke.mjs"), "utf8");
     const start = source.indexOf("// Delete, through however many confirmations");
