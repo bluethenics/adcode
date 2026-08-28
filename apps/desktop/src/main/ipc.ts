@@ -6,7 +6,7 @@
  * - a compromised renderer talks to `ipcRenderer` directly.
  */
 import { stat } from "node:fs/promises";
-import { BrowserWindow, app, clipboard, ipcMain, shell } from "electron";
+import { BrowserWindow, app, clipboard, dialog, ipcMain, shell } from "electron";
 import {
   detectPreviewProject,
   previewLog,
@@ -77,6 +77,7 @@ import {
 import { mcpConnection } from "./memory.ts";
 import { registerGitIpc } from "./gitIpc.ts";
 import { installApplicationMenu } from "./menu.ts";
+import { requiresTrustedEditConfirmation } from "./aiEditPolicy.ts";
 import { clearRecents, forgetRecent, recentFolders, rememberRecent } from "./recents.ts";
 import { collabFileChanged, disposeCollab, registerCollabIpc } from "./collabIpc.ts";
 import { invalidateFileCache } from "./sourceControl.ts";
@@ -833,9 +834,28 @@ export function registerIpc(): void {
 
   ipcMain.handle(CHANNELS.settingsRead, () => readSettings());
 
-  ipcMain.handle(CHANNELS.settingsWrite, (_event, id: unknown, value: unknown) => {
+  ipcMain.handle(CHANNELS.settingsWrite, async (event, id: unknown, value: unknown) => {
     if (!isString(id)) throw new Error("expected a setting id");
     if (typeof value !== "boolean" && !isString(value)) throw new Error("expected a value");
+    if (requiresTrustedEditConfirmation(id, value, currentSettings()[id])) {
+      const parent = BrowserWindow.fromWebContents(event.sender);
+      const options = {
+        type: "warning" as const,
+        title: "Enable Trusted AI edits?",
+        message: "Trusted tasks can apply AI file changes automatically.",
+        detail:
+          "ADCode still uses an isolated workspace, checks for overlapping human edits, and creates a rollback checkpoint. Review every change is safer.",
+        buttons: ["Enable Trusted mode", "Keep Review mode"],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      };
+      const result =
+        parent === null
+          ? await dialog.showMessageBox(options)
+          : await dialog.showMessageBox(parent, options);
+      if (result.response !== 0) return readSettings();
+    }
     return writeSetting(id, value);
   });
 

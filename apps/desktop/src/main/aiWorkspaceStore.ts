@@ -73,7 +73,13 @@ export function createAiWorkspaceStore(userDataDirectory: string): AiWorkspaceSt
     if (!TASK_ID.test(id)) return null;
     try {
       const parsed: unknown = JSON.parse(await readFile(taskFile(id), "utf8"));
-      return isTask(parsed) && parsed.id === id ? parsed : null;
+      if (!isTask(parsed) || parsed.id !== id) return null;
+      // Tasks created before approval modes existed are deliberately migrated to the
+      // conservative policy. Corrupt or invented policy values never become trusted.
+      return {
+        ...parsed,
+        reviewPolicy: parsed.reviewPolicy === "trusted" ? "trusted" : "review",
+      };
     } catch {
       return null;
     }

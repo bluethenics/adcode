@@ -103,6 +103,48 @@ describe("safe AI workspace service", () => {
     await expect(access(manifest)).resolves.toBeUndefined();
   });
 
+  it("auto-applies every exact proposal only for an explicitly trusted task", async () => {
+    const api = service();
+    const task = await api.start({
+      workspaceRoot: project,
+      prompt: "Trusted edit",
+      reviewPolicy: "trusted",
+    });
+    await api.write(task.id, "one.txt", "one trusted\n");
+    await api.write(task.id, "two.txt", "two trusted\n");
+
+    const result = await api.applyTrusted(task.id);
+
+    expect(result.ok).toBe(true);
+    expect(result.task.state).toBe("applied");
+    expect(result.task.reviewPolicy).toBe("trusted");
+    expect(result.task.checkpoint?.paths).toEqual(["one.txt", "two.txt"]);
+    expect(await readFile(join(project, "one.txt"), "utf8")).toBe("one trusted\n");
+    expect(await readFile(join(project, "two.txt"), "utf8")).toBe("two trusted\n");
+    expect((await api.rollback(task.id)).ok).toBe(true);
+  });
+
+  it("refuses trusted apply for review tasks and preserves overlapping human work", async () => {
+    const api = service();
+    const review = await api.start({ workspaceRoot: project, prompt: "Review this" });
+    await api.write(review.id, "one.txt", "review proposal\n");
+    expect((await api.applyTrusted(review.id)).ok).toBe(false);
+    expect(await readFile(join(project, "one.txt"), "utf8")).toBe("one before\n");
+
+    const trusted = await api.start({
+      workspaceRoot: project,
+      prompt: "Trusted but overlapping",
+      reviewPolicy: "trusted",
+    });
+    await api.write(trusted.id, "two.txt", "trusted proposal\n");
+    await writeFile(join(project, "two.txt"), "human changed two\n", "utf8");
+    const blocked = await api.applyTrusted(trusted.id);
+
+    expect(blocked.ok).toBe(false);
+    expect(blocked.conflicts).toEqual(["two.txt"]);
+    expect(await readFile(join(project, "two.txt"), "utf8")).toBe("human changed two\n");
+  });
+
   it("applies only reviewed hunk ids and rejects invented ids", async () => {
     const api = service();
     await writeFile(join(project, "one.txt"), "alpha\nbeta\ngamma\n", "utf8");

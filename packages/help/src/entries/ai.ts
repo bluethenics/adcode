@@ -100,6 +100,19 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     related: ["adcode.ai.chatWidget", "adcode.ai.taskTokenBudget"],
   },
   {
+    id: "adcode.ai.editPolicy",
+    title: "AI edit approval",
+    plain:
+      "Choose whether each AI file change waits for your review or is applied automatically after a successful task turn.",
+    why:
+      "Review mode gives you hunk-by-hunk control. Trusted mode is faster for projects and agents you are comfortable with, while keeping isolation, overlap checks, and a rollback checkpoint.",
+    how:
+      "Review every change is the default. Trusted auto-apply never writes during the model turn: ADCode first collects exact proposals in the sandbox, then checkpoints and applies them together. Switch back to Review every change at any time; the next task uses the safer policy. Use Rollback on an applied task to go back, unless later human edits overlap it.",
+    group: "ai",
+    settingIds: ["adcode.ai.editPolicy"],
+    related: ["adcode.ai.isolatedWorkspaces", "adcode.ai.taskTokenBudget"],
+  },
+  {
     id: "adcode.ai.taskTokenBudget",
     title: "Task token budget",
     plain: "Sets a hard ceiling for one assistant task, checked before each new request can spend your key.",

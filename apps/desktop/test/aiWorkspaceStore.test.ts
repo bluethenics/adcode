@@ -36,6 +36,17 @@ describe("AI workspace task persistence", () => {
     expect(names).not.toContain("task.json.tmp");
   });
 
+  it("migrates tasks saved before edit approval existed to safe review mode", async () => {
+    const store = createAiWorkspaceStore(directory);
+    await store.save(makeTask());
+    const path = join(directory, "ai-workspaces", "tasks", "task-alpha", "task.json");
+    const legacy = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+    delete legacy["reviewPolicy"];
+    await writeFile(path, JSON.stringify(legacy), "utf8");
+
+    expect((await createAiWorkspaceStore(directory).read("task-alpha"))?.reviewPolicy).toBe("review");
+  });
+
   it("lists only the requested workspace, newest first", async () => {
     const store = createAiWorkspaceStore(directory);
     await store.save(makeTask("task-old", "workspace-one"));

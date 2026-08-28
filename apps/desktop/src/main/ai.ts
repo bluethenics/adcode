@@ -21,6 +21,7 @@ import {
   TOOLS_WITHOUT_MEMORY,
   applyHunks,
   baseUrlFor,
+  computeHunks,
   createAgent,
   createAnthropicProvider,
   createGoogleProvider,
@@ -212,15 +213,18 @@ async function ensureToolWorkspace() {
   }
 
   const service = await readyAiWorkspaceService();
+  const reviewPolicy = configuredEditPolicy();
   let task = activeTaskId === null ? null : await service.read(activeTaskId);
   if (
     task === null ||
     normalizeForCompare(task.workspaceRoot) !== normalizeForCompare(human) ||
+    task.reviewPolicy !== reviewPolicy ||
     !REUSABLE_TASK_STATES.has(task.state)
   ) {
     task = await service.start({
       workspaceRoot: human,
       prompt: currentTaskPrompt ?? "Continue the assistant task",
+      reviewPolicy,
       tokenLimit: configuredTaskTokenBudget(),
     });
     activeTaskId = task.id;
@@ -232,6 +236,10 @@ async function ensureToolWorkspace() {
     sandboxRoot: join(app.getPath("userData"), "ai-workspaces", "sandboxes", task.id),
     humanRoot: human,
   };
+}
+
+function configuredEditPolicy(): "review" | "trusted" {
+  return currentSettings()["adcode.ai.editPolicy"] === "trusted" ? "trusted" : "review";
 }
 
 function configuredTaskTokenBudget(): number {
@@ -387,6 +395,7 @@ function toolRunner() {
     workspace: ensureToolWorkspace,
     workspaceUnavailableMessage: () =>
       taskWorkspaceUnavailableReason ?? "No folder is open, so there is nothing to work on yet.",
+    reviewPolicy: configuredEditPolicy,
     memory: () => memoryForWorkspace(),
     writeSandboxFile: async (path, contents) => {
       if (activeTaskId === null) throw new Error("Task workspace is unavailable");
@@ -610,10 +619,45 @@ export async function aiSend(text: string): Promise<void> {
     session = withMessage(session, { role: "user", text, at: Date.now() });
 
     let answer = "";
+    let turnSucceeded = true;
 
     for await (const event of agent.send(text)) {
       broadcast(CHANNELS.aiEvent, event);
       if (event.kind === "text") answer += event.text;
+      if (event.kind === "error" || event.kind === "refusal" || event.kind === "cancelled") {
+        turnSucceeded = false;
+      }
+    }
+
+    if (turnSucceeded && activeTaskId !== null) {
+      const service = await readyAiWorkspaceService();
+      const task = await currentWorkspaceTask(activeTaskId);
+      if (task?.reviewPolicy === "trusted" && task.state === "review" && task.changes.length > 0) {
+        const changes = task.changes;
+        const result = await service.applyTrusted(task.id);
+        announceWorkspaceTask(result.task);
+        if (result.ok) {
+          for (const [path, edit] of pendingEdits) {
+            if (edit.taskId === task.id) pendingEdits.delete(path);
+          }
+          recordAgentEdit({
+            chars: changes.reduce(
+              (total, change) => total + Math.max(0, change.proposed.length - (change.original?.length ?? 0)),
+              0,
+            ),
+            acceptedEdits: changes.reduce(
+              (total, change) => total + computeHunks(change.original ?? "", change.proposed).length,
+              0,
+            ),
+            rejectedEdits: 0,
+          });
+        } else if (result.conflicts.length > 0) {
+          broadcast(CHANNELS.aiEvent, {
+            kind: "error",
+            detail: "Trusted apply stopped because your files changed during the task. Nothing was applied.",
+          });
+        }
+      }
     }
 
     /*

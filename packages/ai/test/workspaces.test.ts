@@ -36,6 +36,30 @@ describe("AI workspace task", () => {
     expect(created.budget.usedTokens).toBe(0);
   });
 
+  it("records trusted review policy only when it is explicitly requested", () => {
+    const trusted = createAiWorkspaceTask({
+      id: "task-trusted",
+      workspaceId: "workspace-123",
+      workspaceRoot: "C:/project",
+      prompt: "Apply this after the turn",
+      reviewPolicy: "trusted",
+      now: 1_000,
+    });
+
+    expect(trusted.reviewPolicy).toBe("trusted");
+    expect(task().reviewPolicy).toBe("review");
+    expect(() =>
+      createAiWorkspaceTask({
+        id: "task-invalid",
+        workspaceId: "workspace-123",
+        workspaceRoot: "C:/project",
+        prompt: "Invalid policy",
+        reviewPolicy: "automatic" as never,
+        now: 1_000,
+      }),
+    ).toThrow(/review policy/i);
+  });
+
   it("trims the prompt and rejects unsafe identifiers", () => {
     expect(task().prompt).toBe("Fix the failing parser test");
     expect(() =>

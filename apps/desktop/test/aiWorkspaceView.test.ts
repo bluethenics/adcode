@@ -36,6 +36,12 @@ describe("AI workspace task presentation", () => {
     expect(summarizeAiWorkspaceTask(task("ready"))).toBe("Isolated workspace ready");
   });
 
+  it("keeps trusted mode visibly distinct from review mode", () => {
+    expect(summarizeAiWorkspaceTask({ ...task("applied"), reviewPolicy: "trusted" })).toBe(
+      "Trusted · Applied with checkpoint",
+    );
+  });
+
   it("enables only actions that are legal for the current state", () => {
     expect(aiWorkspaceActions(task("review", ["a.ts"]))).toEqual({
       review: true,

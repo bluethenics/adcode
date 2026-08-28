@@ -18,6 +18,7 @@ import {
   transitionTask,
   type AiCheckpointSummary,
   type AiFileChange,
+  type AiReviewPolicy,
   type AiWorkspaceTask,
   type OperationalTrace,
   type AiUsage,
@@ -84,6 +85,8 @@ export interface AiWorkspaceMaintenanceResult {
 export interface StartAiWorkspaceInput {
   readonly workspaceRoot: string;
   readonly prompt: string;
+  /** Review is the safe default. Trusted remains isolated and checkpointed. */
+  readonly reviewPolicy?: AiReviewPolicy;
   readonly tokenLimit?: number;
   readonly costMicrosLimit?: number;
   /** Main-process-only immutable Team base. Never accepted from renderer IPC. */
@@ -105,6 +108,8 @@ export interface AiWorkspaceService {
   pause(taskId: string): Promise<AiWorkspaceTask | null>;
   reserveUsage(taskId: string, usage: AiUsage): Promise<AiWorkspaceBudgetResult>;
   apply(taskId: string, selections: readonly ApplySelection[]): Promise<AiWorkspaceActionResult>;
+  /** Apply every exact proposal only when this task was explicitly created as trusted. */
+  applyTrusted(taskId: string): Promise<AiWorkspaceActionResult>;
   reject(taskId: string, path: string): Promise<AiWorkspaceTask>;
   discard(taskId: string): Promise<AiWorkspaceTask | null>;
   rollback(taskId: string): Promise<AiWorkspaceActionResult>;
@@ -338,7 +343,7 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
     return updated;
   }
 
-  return {
+  const api: AiWorkspaceService = {
     async start(input): Promise<AiWorkspaceTask> {
       const policy = options.storagePolicy?.();
       const reservedStorageBytes = input.reservedStorageBytes ?? 0;
@@ -361,6 +366,7 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
         workspaceRoot: root,
         prompt: input.prompt,
         now: createdAt,
+        ...(input.reviewPolicy === undefined ? {} : { reviewPolicy: input.reviewPolicy }),
         ...(input.tokenLimit === undefined ? {} : { tokenLimit: input.tokenLimit }),
         ...(input.costMicrosLimit === undefined ? {} : { costMicrosLimit: input.costMicrosLimit }),
       });
@@ -590,6 +596,35 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
       return { ok: true, task, conflicts: [], message: "Reviewed changes applied." };
     },
 
+    async applyTrusted(taskId): Promise<AiWorkspaceActionResult> {
+      const task = await required(taskId);
+      if (task.reviewPolicy !== "trusted") {
+        return {
+          ok: false,
+          task,
+          conflicts: [],
+          message: "This task requires human review before apply.",
+        };
+      }
+      if (task.state !== "review" || task.changes.length === 0) {
+        return {
+          ok: false,
+          task,
+          conflicts: [],
+          message: `Trusted task is ${task.state}, not ready to apply.`,
+        };
+      }
+      const result = await api.apply(
+        taskId,
+        task.changes.map((change) => ({ path: change.path, contents: change.proposed })),
+      );
+      if (result.ok) {
+        await trace(task.id, "apply", `Trusted mode auto-applied ${String(task.changes.length)} file(s)`, "ok");
+        return { ...result, message: "Trusted changes applied with a rollback checkpoint." };
+      }
+      return result;
+    },
+
     async reject(taskId, path): Promise<AiWorkspaceTask> {
       let task = await required(taskId);
       if (task.state !== "review") throw new Error(`Task is ${task.state}, not awaiting review`);
@@ -701,4 +736,5 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
     recoverActive: () => store.recoverActive(now()),
     maintainStorage,
   };
+  return api;
 }

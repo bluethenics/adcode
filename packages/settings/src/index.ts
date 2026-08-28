@@ -356,6 +356,20 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     true,
   ),
   {
+    id: "adcode.ai.editPolicy",
+    group: "ai",
+    kind: "enum",
+    label: "AI edit approval",
+    description:
+      "Review each proposal, or let trusted tasks apply exact sandbox changes after creating a rollback checkpoint.",
+    default: "review",
+    available: true,
+    options: [
+      { value: "review", label: "Review every change", detail: "Recommended" },
+      { value: "trusted", label: "Trusted auto-apply", detail: "Rollback checkpoint kept" },
+    ],
+  },
+  {
     id: "adcode.ai.taskTokenBudget",
     group: "ai",
     kind: "enum",

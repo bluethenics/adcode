@@ -86,6 +86,24 @@ describe("sandboxed built-in AI tools", () => {
     expect(await readFile(join(human, "src", "file.ts"), "utf8")).toBe("human version\n");
   });
 
+  it("tells a trusted agent that apply waits for a successful turn and keeps a checkpoint", async () => {
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
+      reviewPolicy: () => "trusted",
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, "sandbox version\n", contents),
+      onProposedEdit: () => undefined,
+    });
+
+    const result = await runner.run(
+      call("propose_edit", { path: "src/file.ts", contents: "agent version\n" }),
+      new AbortController().signal,
+    );
+
+    expect(result.content).toContain("after this turn succeeds");
+    expect(result.content).toContain("rollback checkpoint");
+  });
+
   it("refuses traversal and absolute human paths before calling the write authority", async () => {
     const writeSandboxFile = vi.fn(async (path: string, contents: string) =>
       createFileChange(path, null, contents),

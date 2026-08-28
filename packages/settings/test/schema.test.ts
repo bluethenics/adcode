@@ -132,6 +132,7 @@ describe("AI workspace settings", () => {
     expect(byId.get("adcode.ai.isolatedWorkspaces" as SettingId)?.default).toBe(true);
 
     const expected = new Map([
+      ["adcode.ai.editPolicy", ["review", "trusted"]],
       ["adcode.ai.taskTokenBudget", ["25000", "100000", "250000"]],
       ["adcode.ai.sandboxQuota", ["1gb", "5gb", "10gb"]],
       ["adcode.ai.sandboxRetention", ["1d", "7d", "30d"]],
@@ -145,6 +146,7 @@ describe("AI workspace settings", () => {
     }
 
     expect(byId.get("adcode.ai.taskTokenBudget" as SettingId)?.default).toBe("100000");
+    expect(byId.get("adcode.ai.editPolicy" as SettingId)?.default).toBe("review");
     expect(byId.get("adcode.ai.sandboxQuota" as SettingId)?.default).toBe("5gb");
     expect(byId.get("adcode.ai.sandboxRetention" as SettingId)?.default).toBe("7d");
     expect(byId.get("adcode.ai.checkpointRetention" as SettingId)?.default).toBe("30d");

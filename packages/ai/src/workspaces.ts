@@ -83,6 +83,8 @@ export interface CreateAiWorkspaceTaskInput {
   readonly workspaceRoot: string;
   readonly prompt: string;
   readonly now: number;
+  /** Defaults to review. Trusted must always be an explicit caller decision. */
+  readonly reviewPolicy?: AiReviewPolicy;
   readonly tokenLimit?: number;
   readonly costMicrosLimit?: number;
 }
@@ -113,6 +115,9 @@ export function createAiWorkspaceTask(input: CreateAiWorkspaceTaskInput): AiWork
     throw new Error("Invalid workspace root");
   }
   if (!Number.isFinite(input.now) || input.now < 0) throw new Error("Invalid task timestamp");
+  if (input.reviewPolicy !== undefined && !["review", "trusted"].includes(input.reviewPolicy)) {
+    throw new Error("Invalid review policy");
+  }
 
   const prompt = input.prompt.trim();
   if (prompt.length === 0) throw new Error("Task prompt is required");
@@ -123,7 +128,7 @@ export function createAiWorkspaceTask(input: CreateAiWorkspaceTaskInput): AiWork
     workspaceRoot: input.workspaceRoot,
     prompt,
     mode: "single",
-    reviewPolicy: "review",
+    reviewPolicy: input.reviewPolicy ?? "review",
     state: "preparing",
     permissions: { ...DEFAULT_AI_PERMISSIONS },
     budget: {

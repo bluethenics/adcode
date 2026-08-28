@@ -20,7 +20,8 @@ export function aiWorkspaceStateLabel(state: AiWorkspaceTaskStateView): string {
 }
 
 export function summarizeAiWorkspaceTask(task: AiWorkspaceTaskView): string {
-  const label = aiWorkspaceStateLabel(task.state);
+  const state = aiWorkspaceStateLabel(task.state);
+  const label = task.reviewPolicy === "trusted" ? `Trusted · ${state}` : state;
   const count = task.changedPaths.length;
   return count === 0 ? label : `${label} · ${String(count)} file${count === 1 ? "" : "s"}`;
 }

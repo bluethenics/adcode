@@ -41,6 +41,8 @@ export interface AiToolWorkspace {
 export interface AiToolDeps {
   readonly workspace: () => Promise<AiToolWorkspace | null>;
   readonly workspaceUnavailableMessage?: () => string;
+  /** Trusted still means sandbox first; only the successful turn's checkpointed apply is automatic. */
+  readonly reviewPolicy?: () => "review" | "trusted";
   readonly memory: () => NodeMemory | null;
   readonly writeSandboxFile: (path: string, contents: string) => Promise<AiFileChange>;
   /** Called when the agent proposes an edit, so the renderer can show the diff. */
@@ -213,7 +215,9 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           // own new version on the next tool call without assuming the human file changed.
           return ok(
             `Proposed ${hunks.length} change${hunks.length === 1 ? "" : "s"} to ${relativePath}. ` +
-              "It is written only in the isolated task workspace and is waiting for human review.",
+              (deps.reviewPolicy?.() === "trusted"
+                ? "It is isolated now and will be auto-applied with a rollback checkpoint after this turn succeeds."
+                : "It is written only in the isolated task workspace and is waiting for human review."),
           );
         }
 
