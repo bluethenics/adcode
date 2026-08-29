@@ -18,7 +18,7 @@
  * from any directory, and always acts on this checkout.
  */
 import { spawn } from "node:child_process";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 import process from "node:process";
@@ -33,7 +33,7 @@ const { version } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"))
  * this repository's own package.json.
  */
 const COMMANDS = [
-  { name: "open", script: "start", blurb: "Build the editor and open it" },
+  { name: "open", script: "start", blurb: "Open the complete editor, optionally at a path" },
   { name: "dev", script: "dev", blurb: "Open the editor with reloading, for working on it" },
   { name: "site", script: "web", blurb: "Run the website on http://localhost:3000" },
   { name: "build", script: "desktop:build", blurb: "Build the editor without opening it" },
@@ -54,6 +54,8 @@ ${COMMANDS.map((c) => `  ${c.name.padEnd(10)} ${c.blurb}`).join("\n")}
   version    ${version}
 
 Anything after the command is passed straight through, so
+  adcode open .
+opens the current folder with every built-in ADCode feature, and
   adcode test services/api
 runs only those tests.
 `;
@@ -94,7 +96,12 @@ const windows = process.platform === "win32";
  */
 const quote = (argument) => (/[\s"&|<>^%]/.test(argument) ? `"${argument.replace(/"/g, '""')}"` : argument);
 
-const args = ["run", command.script, ...(rest.length > 0 ? ["--", ...rest] : [])];
+// `adcode` always runs npm from its own checkout. Resolve an open target before changing
+// directory so `adcode open .` means the caller's project, not ADCode's source directory.
+const forwarded = command.name === "open" && rest[0] !== undefined
+  ? [resolve(process.cwd(), rest[0]), ...rest.slice(1)]
+  : rest;
+const args = ["run", command.script, ...(forwarded.length > 0 ? ["--", ...forwarded] : [])];
 
 const child = spawn(windows ? "npm.cmd" : "npm", windows ? args.map(quote) : args, {
   cwd: ROOT,

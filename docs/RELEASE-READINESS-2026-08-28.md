@@ -7,7 +7,8 @@ production release.**
 
 The desktop feature candidate builds, packages, and passes both packaged smoke journeys.
 The 2026-08-29 candidate also includes the complete feature library, universal search, menu
-routes, generated feature guide, and repeatable accessibility/visual smoke coverage.
+routes, a public generated feature guide, `adcode open [path]`, and repeatable
+accessibility/visual smoke coverage.
 The existing Cloudflare Worker is healthy on its `workers.dev` address. Public release is
 blocked by identity/signing, domain/support, legal, dependency-risk, production-mode, and
 release-channel gates that cannot be truthfully completed by source changes alone.
@@ -20,9 +21,10 @@ available through an update channel with no verified rollback release.
 
 | Gate | Result | Evidence |
 |---|---|---|
-| Desktop typecheck, architecture firewall, full unit/integration suite | Pass | Final `npm run verify`: 185 files / 2,633 tests; 0 architecture errors (37 existing orphan warnings) |
+| Desktop typecheck, architecture firewall, full unit/integration suite | Pass | Final `npm run verify`: 187 files / 2,638 tests; 0 architecture errors (35 existing orphan warnings) |
 | Desktop production build | Pass | Electron/Vite built main, preload, and 1,469 renderer modules |
-| Web production build | Pass | `npm run web:build`; Next compiled, typechecked, and generated 30 static pages |
+| Web production build | Pass | `npm run web:build`; Next compiled, typechecked, and generated 117 pages, including the docs index and 88 feature articles |
+| Docs and terminal launch | Pass | The shared desktop/mobile header exposes Docs with active-state semantics; `adcode open [folder-or-file]` enters the ordinary full-service desktop session, with focused route and launch-intent tests |
 | Windows packaging | Pass | `npm run package -- --win`; installer, portable binary, blockmap, and `latest.yml` generated |
 | Feature discovery and universal search | Pass | Developer and packaged journeys verified the activity icon below Earnings, View-menu route, explanatory search, What/Why/How help, safe setting dispatch, Features/Commands/Files/Symbols/Recent folders, focused search shortcuts, Escape/outside-click cleanup, and stable workbench sizing |
 | Visual and accessibility audit | Pass | `node scripts/smoke.mjs --visual-only`; inspected light/comfortable, Midnight/compact, approximately 208% zoom, keyboard result selection, dialog/combobox/listbox semantics, reduced-motion transform removal, and forced-colors 2px focus outline |

@@ -37,7 +37,9 @@ Search remain available for focused workflows. See the
 
 ```
 npm install
-npm start               # build if needed, then launch
+npm link                # install the `adcode` command once
+adcode open .           # build if needed; open this folder with the complete editor
+npm start               # equivalent launch without choosing a folder
 npm run package         # installer + portable .exe into release/
 
 npm run verify          # typecheck + architecture rules + full test suite

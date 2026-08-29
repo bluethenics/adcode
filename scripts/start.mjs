@@ -133,4 +133,6 @@ if (await needsBuild()) {
 const electronPath = require("electron");
 process.stdout.write("Starting ADCode…\n");
 
-process.exit(await run(electronPath, [join(REPO, "apps", "desktop")]));
+const requested = process.argv.slice(2).filter((argument) => argument !== "--force");
+const launchArguments = requested.length === 0 ? [] : ["--adcode-open", requested[0]];
+process.exit(await run(electronPath, [join(REPO, "apps", "desktop"), ...launchArguments]));

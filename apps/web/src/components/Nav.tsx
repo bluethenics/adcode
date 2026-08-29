@@ -43,6 +43,13 @@ export function Nav() {
 
   const secondaryLinks = (
     <>
+      <Link
+        href="/docs"
+        className="glass-nav-link"
+        aria-current={pathname === "/docs" || pathname.startsWith("/docs/") ? "page" : undefined}
+      >
+        Docs
+      </Link>
       <Link href="/support" className="glass-nav-link" aria-current={pathname === "/support" ? "page" : undefined}>Support</Link>
       <Link href="/versions" className="glass-nav-link" aria-current={pathname === "/versions" ? "page" : undefined}>Versions</Link>
       {isAdmin && <Link href="/admin" className="glass-nav-link">Admin</Link>}

@@ -8,6 +8,7 @@
 import { stat } from "node:fs/promises";
 import { app } from "electron";
 import { createSessionStore, type SessionState, type SessionStore } from "./sessionStore.ts";
+import { launchSessionFromArguments } from "./launchIntent.ts";
 import { currentSettings } from "./settings.ts";
 import { setWorkspaceRoot } from "./workspace.ts";
 
@@ -26,6 +27,15 @@ function get(): SessionStore {
  */
 export async function restoreSession(): Promise<SessionState> {
   const empty: SessionState = { root: null, openFiles: [], activeFile: null };
+
+  // An explicit `adcode open <path>` is a user action, so it wins over both the previous
+  // session and the restore preference. It still returns the ordinary session shape: the
+  // renderer follows exactly the same secure startup path and initializes every service.
+  const launched = await launchSessionFromArguments(process.argv, process.cwd());
+  if (launched !== null) {
+    setWorkspaceRoot(launched.root);
+    return launched;
+  }
 
   // §4: "Restore workspace `on`" - a default, not a decision made for the user.
   if (currentSettings()["adcode.session.workspaceRestore"] === false) return empty;
