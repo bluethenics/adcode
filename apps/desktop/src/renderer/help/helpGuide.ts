@@ -34,6 +34,8 @@ export interface HelpGuide {
 
 export interface HelpGuideDeps {
   readonly host: HTMLElement;
+  /** Run the catalogue's primary safe route for this feature. */
+  readonly openFeature: (entryId: string) => void;
   /**
    * Open the settings screen at a row.
    *
@@ -149,6 +151,16 @@ export function createHelpGuide(deps: HelpGuideDeps): HelpGuide {
 
     const footer = document.createElement("div");
     footer.className = "help-card-footer";
+
+    const openFeature = document.createElement("button");
+    openFeature.type = "button";
+    openFeature.className = "ghost-button help-card-jump";
+    openFeature.textContent = "Open";
+    openFeature.addEventListener("click", () => {
+      api.close();
+      deps.openFeature(entry.id);
+    });
+    footer.append(openFeature);
 
     /*
      * Only the first setting gets a button.

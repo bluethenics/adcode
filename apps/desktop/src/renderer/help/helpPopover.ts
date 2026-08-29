@@ -140,9 +140,9 @@ export function createHelpPopover(host: HTMLElement): HelpPopover {
       anchored = anchor;
 
       title.textContent = entry.title;
-      plain.textContent = entry.plain;
-      why.textContent = entry.why;
-      how.textContent = entry.how;
+      plain.textContent = `What it does: ${entry.plain}`;
+      why.textContent = `Why use it: ${entry.why}`;
+      how.textContent = `How to use it: ${entry.how}`;
 
       card.hidden = false;
       anchor.setAttribute("aria-expanded", "true");

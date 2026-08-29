@@ -14,6 +14,7 @@ import "./styles/popups.css";
 import "./styles/menubar.css";
 import "./styles/dialogs.css";
 import "./styles/help.css";
+import "./styles/features.css";
 import "./styles/releases.css";
 import "./styles/editor.css";
 import "./styles/navigation.css";
@@ -74,6 +75,8 @@ import { createReportDialog } from "./dialogs/reportDialog.ts";
 import { createMissingRuntimeDialog } from "./dialogs/missingRuntimeDialog.ts";
 import { createShortcutsDialog } from "./dialogs/shortcutsDialog.ts";
 import { createHelpGuide } from "./help/helpGuide.ts";
+import { createFeatureLibrary } from "./features/featureLibrary.ts";
+import { featureFor, type FeatureAction } from "@adcode/help";
 import { formatAccelerator } from "../shared/menuModel.ts";
 import { commandWordOf } from "../shared/runtimes.ts";
 import { applyOverrides, matchesChord, parseChord, resolveBindings } from "../shared/keybindings.ts";
@@ -2236,6 +2239,31 @@ const shortcutsDialog = createShortcutsDialog(document.body, {
   resetChord: (command) => window.adcode.keybindings.reset(command),
 });
 
+/** One safe dispatcher shared by All Features, universal search, and the Guide. */
+function runFeatureAction(action: FeatureAction): void {
+  if (action.kind === "command") {
+    if (!commands.has(action.command)) {
+      setStatus(`Nothing is bound to ${action.command} yet.`, 3000);
+      return;
+    }
+    commands.run(action.command);
+    return;
+  }
+  settingsView.openAt(action.settingId);
+}
+
+function openFeature(entryId: string): void {
+  const feature = featureFor(entryId);
+  const action = feature?.actions.find(
+    (candidate) => candidate.kind === "setting" || commands.has(candidate.command),
+  );
+  if (action === undefined) {
+    setStatus("This feature is not available in this window.", 3000);
+    return;
+  }
+  runFeatureAction(action);
+}
+
 /**
  * The guide.
  *
@@ -2246,6 +2274,7 @@ const shortcutsDialog = createShortcutsDialog(document.body, {
 const helpGuide = createHelpGuide({
   host: document.body,
   openSetting: (settingId) => settingsView.openAt(settingId),
+  openFeature,
   formatShortcut: (accelerator) => formatAccelerator(accelerator, platform),
 });
 
@@ -3769,6 +3798,14 @@ const palette = createPalette({
   run: (id) => commands.run(id),
   restoreFocus: () => editorHost.focus(),
 });
+
+const featureLibrary = createFeatureLibrary({
+  host: document.body,
+  button: el<HTMLButtonElement>("open-features"),
+  hasCommand: (command) => commands.has(command),
+  runAction: (action) => runFeatureAction(action),
+});
+openFeatureLibrary = () => featureLibrary.toggle();
 
 /* The menu bar owns the title bar's left edge on Windows and Linux; macOS uses the
    system menu the main process installs instead. */
