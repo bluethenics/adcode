@@ -183,6 +183,22 @@ than a generated form.
 **Density is a setting, not a decision.** iOS spacing is generous; developers with 13-inch
 laptops are not. Ship `comfortable` and `compact` and let the user choose.
 
+**Every feature must be discoverable.** Put a four-cell **All Features** icon directly
+below Earnings and expose the same library through **View → All Features** and **Help →
+Feature Guide**. Its searchable, categorized iOS-style popover contains every shipped
+feature, including ordinary editing workflows, with **What it does**, **Why use it**, **How
+to use it**, prerequisites, and a safe Open or Settings action. Generate the library, Help
+guide, menu routes, and written feature inventory from one typed catalogue so they cannot
+quietly disagree.
+
+The title-bar field is **Universal Search** across features, commands, files, recent
+projects, and workspace symbols, with grouped progressive results and stale-query
+cancellation. Starting with `>` favours commands. Keep the focused tools and their muscle
+memory: Quick Open `Ctrl+P`, Command Palette `Ctrl+Shift+P`, Symbol Search `Ctrl+T`, and
+project Content Search `Ctrl+Shift+F`. Provider failure must not hide local results, and
+selecting a result may dispatch only a registered command, a known setting, or a validated
+workspace/file/symbol location.
+
 ---
 
 ## 4. Built-in feature roster
@@ -383,6 +399,7 @@ CI should measure the first two on every release build.
 | Cold start → editable | **< 2s** |
 | Open a 100MB file | No freeze; degrade features, never the frame rate |
 | Fuzzy file open, 50k files | First results **< 100ms** |
+| Universal Search local results | First grouped results **< 100ms**; async sources cannot replace a newer query |
 | Memory, 10 open editors | **< 600MB** RSS |
 
 Ship the VS Code default keymap so muscle memory transfers on day one, with full rebinding

@@ -27,6 +27,14 @@ suggestions. Interactive workspace > folder > file > symbol breadcrumbs preserve
 human navigation. See [AI workspaces and efficient coding](docs/features/ai-workspaces.md)
 and the [security boundary](docs/architecture/ai-workspace-security.md).
 
+**Everything is discoverable without memorizing the UI.** The four-cell **All Features**
+button below Earnings opens a searchable, categorized library with an explanation and a
+safe Open action for every capability. **View → All Features** and **Help → Feature Guide**
+open the same catalogue. The title-bar search is universal across features, commands,
+files, recent projects, and symbols; Quick Open, Command Palette, Symbol Search, and Content
+Search remain available for focused workflows. See the
+[complete feature guide](docs/features/complete-feature-guide.md).
+
 ```
 npm install
 npm start               # build if needed, then launch
@@ -65,7 +73,7 @@ npm run test:emulator   # the Firestore adapter (needs firebase-tools and a JDK)
 | `mock-server` | All four `/v1/*` endpoints, an asset host, fault injection. 21 tests. |
 | `services/api` | The real backend: auth, serving, receipts, campaigns, advertiser funding, the admin surface, and an append-only money ledger. Firestore behind a port, so it tests with no cloud project. 294 tests. |
 | `apps/web` | adcode.bluethenics.com: marketing site, blog, advertiser portal, user dashboard, admin panel. Next.js, 23 routes. |
-| `apps/desktop` | The shell: menu bar, command centre, command palette, tabs, tree with right-click actions and drag-and-drop, git and search panels, commit browser, Problems panel, Structure popup, editable keyboard shortcuts, live preview, multi-terminal with a shell launcher, resizable layout, settings, chat, session restore. |
+| `apps/desktop` | The shell: menu bar, Universal Search, All Features library, command palette, tabs, tree with right-click actions and drag-and-drop, git and search panels, commit browser, Problems panel, Structure popup, editable keyboard shortcuts, live preview, multi-terminal with a shell launcher, resizable layout, settings, chat, session restore. |
 
 **Not built:** the DAP client and tree-sitter highlighting; the Navigation rows that
 genuinely need a language server — go-to-definition and workspace symbol search — and, the

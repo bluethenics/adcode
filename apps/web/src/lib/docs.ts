@@ -66,6 +66,10 @@ function bodyFromSeed(seed: (typeof DOC_SEED)[number]): string {
 
   parts.push("## When you would want it", "", seed.why, "");
 
+  parts.push("## Where to find it", "");
+  for (const route of seed.access) parts.push(`- ${route}`);
+  parts.push("");
+
   if (guide?.benefits !== undefined && guide.benefits.length > 0) {
     parts.push("## What you get out of it", "");
     for (const benefit of guide.benefits) parts.push(`- ${benefit}`);
@@ -90,6 +94,13 @@ function bodyFromSeed(seed: (typeof DOC_SEED)[number]): string {
   if (seed.shortcut !== undefined) {
     parts.push("## Shortcut", "", `\`${seed.shortcut}\``, "");
   }
+
+  parts.push(
+    "## Find it in Universal Search",
+    "",
+    seed.keywords.map((keyword) => `\`${keyword}\``).join(" · "),
+    "",
+  );
 
   return parts.join("\n").trimEnd();
 }

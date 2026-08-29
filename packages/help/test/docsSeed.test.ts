@@ -29,7 +29,8 @@ describe("the generated docs seed", () => {
     // Groups the generator deliberately publishes. An entry outside them is not a bug.
     const published = new Set([
       "editing", "navigation", "formatting", "structure", "language",
-      "ai", "git", "session", "workbench", "appearance", "ads", "updates",
+      "ai", "git", "session", "workbench", "appearance", "account", "gestures",
+      "ads", "updates",
     ]);
 
     const missing = HELP_ENTRIES.filter((entry) => published.has(entry.group)).filter(
@@ -44,5 +45,14 @@ describe("the generated docs seed", () => {
     expect(seed).not.toContain('description: ""');
     expect(seed).not.toContain('why: ""');
     expect(seed).not.toContain('how: ""');
+  });
+
+  it("publishes search keywords and a route into every documented feature", () => {
+    const seed = readFileSync(SEED, "utf8");
+
+    expect(seed).toContain("readonly keywords: readonly string[]");
+    expect(seed).toContain("readonly access: readonly string[]");
+    expect(seed).not.toContain("keywords: []");
+    expect(seed).not.toContain("access: []");
   });
 });

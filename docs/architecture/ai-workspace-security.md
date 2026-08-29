@@ -20,6 +20,20 @@ paths, and cleanup verifies the resolved exact target below the registered task 
 The built-in tool runner can list, search, read, and write only through a validated sandbox
 context. Turning isolation off disables file tools; it does not restore direct AI writes.
 
+## Discovery and dispatch boundary
+
+The All Features library, Help guide, menu bar, and Universal Search share one typed feature
+catalogue. A card cannot carry arbitrary JavaScript, IPC, paths, or shell text: its action
+is either a registered renderer command or a known setting identifier. The renderer uses
+the same safe dispatcher for feature cards and search results, and recent-project results
+go through the validated indexed recent-workspace command rather than opening an arbitrary
+path from display text.
+
+Search providers are treated as independent read-only sources. Slow symbol and recent-file
+providers are generation-scoped; stale generations are discarded, and a provider failure
+does not suppress local command or feature results. Discovery grants no authority beyond
+the command or setting the user explicitly selects.
+
 ## Snapshot, apply, and rollback
 
 A clean repository root uses a detached Git worktree only when `HEAD` exists and tracked and

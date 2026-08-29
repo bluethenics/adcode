@@ -5,6 +5,19 @@ safe places to work. The built-in assistant can prepare changes in isolation, se
 confirmed agents can cooperate on one task, and a user can inspect or roll back everything
 that reaches the open project.
 
+## Find the AI features
+
+Open the four-cell **All Features** button below Earnings and choose **The assistant**, or
+use **View → AI** for the main Assistant, connection, suggestion, Team, and scheduling
+routes. **Help → Feature Guide** explains every AI control with What it does, Why use it,
+and How to use it. The title-bar **Universal Search** also finds them by goals such as
+“multiple AI”, “safe edits”, “send later”, “continue after limit”, and “suggest code”.
+Normal menu items and specialized keyboard searches remain available; none of these routes
+requires AI to be connected merely to browse the explanations.
+
+For a complete inventory, including prerequisites and alternate routes, see the
+[complete feature guide](./complete-feature-guide.md).
+
 ## Safe edits by default
 
 The first AI file operation for a project creates a private task workspace. A clean Git
