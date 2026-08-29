@@ -20,3 +20,16 @@ export {
   type WorkspaceSearch,
   type WorkspaceSearchDeps,
 } from "./textSearch.ts";
+
+export {
+  createUniversalSearchCoordinator,
+  rankUniversalItems,
+  type UniversalSearchCoordinator,
+  type UniversalSearchCoordinatorDeps,
+  type UniversalSearchFailure,
+  type UniversalSearchItem,
+  type UniversalSearchKind,
+  type UniversalSearchLimits,
+  type UniversalSearchProvider,
+  type UniversalSearchSnapshot,
+} from "./universal.ts";
