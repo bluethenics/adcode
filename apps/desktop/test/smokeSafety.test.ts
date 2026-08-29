@@ -3,6 +3,26 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("packaged smoke safety", () => {
+  it("routes the title-bar centre to universal search while preserving focused searches", () => {
+    const main = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/main.ts"),
+      "utf8",
+    );
+    const centre = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/workbench/commandCentre.ts"),
+      "utf8",
+    );
+
+    expect(centre).toContain('aria-label", "Search all of ADCode"');
+    expect(centre).toContain("deps.openSearch(text)");
+    expect(main).toContain("createUniversalSearch");
+    expect(main).toContain("openUniversalSearch = (seed = \"\") => universalSearch.open(seed)");
+    expect(main).toContain('add("go.file", "Go to File", () => quickOpen.toggle())');
+    expect(main).toContain('add("go.symbol", "Go to Symbol", () => symbolSearch.open())');
+    expect(main).toContain('add("palette.open", "Command Palette", () => palette.toggle())');
+    expect(main).toContain('add("view.search", "Find in Files", () => showView("search"))');
+  });
+
   it("cannot inherit Electron's Node-only mode from the invoking agent shell", () => {
     const source = readFileSync(resolve(import.meta.dirname, "../../../scripts/smoke.mjs"), "utf8");
 

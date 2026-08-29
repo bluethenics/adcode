@@ -22,6 +22,7 @@ import "./ai/automationHost.ts";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
 import { createBreadcrumbs } from "./editor/breadcrumbs.ts";
 import { createSymbolSearch } from "./panels/symbolSearch.ts";
+import { findWorkspaceSymbols } from "./panels/workspaceSymbols.ts";
 import { createDebugView } from "./debug/debugView.ts";
 import { createStyleHints } from "./panels/styleHints.ts";
 import { createCommandRegistry } from "./workbench/commands.ts";
@@ -29,6 +30,15 @@ import { createMenuBar } from "./workbench/menuBar.ts";
 import { shortenPath } from "./workbench/pathLabel.ts";
 import { createAltMenuActivation } from "./workbench/altMenuActivation.ts";
 import { createCommandCentre } from "./workbench/commandCentre.ts";
+import { createUniversalSearch } from "./workbench/universalSearch.ts";
+import {
+  commandUniversalItems,
+  featureUniversalItems,
+  fileUniversalItems,
+  recentUniversalItems,
+  symbolUniversalItems,
+  type UniversalDesktopAction,
+} from "./workbench/universalSearchModel.ts";
 import { createPalette } from "./workbench/palette.ts";
 import { fileIcon, folderIcon } from "./workbench/fileIcons.ts";
 import { createWelcomeView } from "./workbench/welcomeView.ts";
@@ -76,7 +86,7 @@ import { createMissingRuntimeDialog } from "./dialogs/missingRuntimeDialog.ts";
 import { createShortcutsDialog } from "./dialogs/shortcutsDialog.ts";
 import { createHelpGuide } from "./help/helpGuide.ts";
 import { createFeatureLibrary } from "./features/featureLibrary.ts";
-import { featureFor, type FeatureAction } from "@adcode/help";
+import { featureFor, featureRecords, type FeatureAction } from "@adcode/help";
 import { formatAccelerator } from "../shared/menuModel.ts";
 import { commandWordOf } from "../shared/runtimes.ts";
 import { applyOverrides, matchesChord, parseChord, resolveBindings } from "../shared/keybindings.ts";
@@ -3104,6 +3114,7 @@ const chat = createChatWidget({
  * the first. Whoever adds the fourth consumer should only have to edit this function.
  */
 function setRendererWorkspace(root: string | null): void {
+  if (universalSearch.isOpen()) universalSearch.close(false);
   chat.setWorkspace(root);
   previewPane.setWorkspace(root);
 }
@@ -3484,7 +3495,8 @@ function showShortcuts(): void {
  * with their complete surfaces without re-registering ids.
  */
 let openFeatureLibrary: () => void = () => helpGuide.open();
-let openUniversalSearch: () => void = () => palette.open();
+let openUniversalSearch: (seed?: string) => void = (seed = "") =>
+  palette.open(seed.trimStart().startsWith(">") ? seed.trimStart().slice(1).trimStart() : seed);
 
 function registerCommands(): void {
   const add = (id: string, title: string, run: (arg?: string) => void | Promise<void>): void =>
@@ -3932,12 +3944,51 @@ if (menuBar !== null) el("menubar-slot").append(menuBar.element);
 el("ai-toggle").addEventListener("click", () => commands.run("ai.toggle"));
 
 const commandCentre = createCommandCentre({
-  openFiles: (seed) => quickOpen.open(seed),
-  openCommands: (seed) => palette.open(seed),
+  openSearch: (seed) => openUniversalSearch(seed),
 });
 
 el("command-centre-slot").append(commandCentre.element);
 commandCentre.setWorkspace(null);
+
+function runUniversalAction(action: UniversalDesktopAction): void {
+  if (action.kind === "feature") {
+    openFeature(action.featureId);
+    return;
+  }
+  if (action.kind === "command") {
+    commands.run(action.command, action.arg);
+    return;
+  }
+  if (action.kind === "file") {
+    void openFile(absolutePath(action.path));
+    return;
+  }
+  const absolute = absolutePath(action.path);
+  void openFile(absolute).then(() => editorHost.revealPosition(action.line, action.column));
+}
+
+const universalSearch = createUniversalSearch({
+  host: document.body,
+  localItems: () => [
+    ...featureUniversalItems(featureRecords()),
+    ...commandUniversalItems(commands.all()),
+  ],
+  files: async (query) => fileUniversalItems(await window.adcode.search.quickOpen(query)),
+  recents: async () => recentUniversalItems(await window.adcode.workspace.recents()),
+  symbols: async (query) => {
+    const hits = await window.adcode.search.run({ pattern: query, isRegex: false });
+    return symbolUniversalItems(
+      findWorkspaceSymbols(
+        hits,
+        query,
+        (path) => languageForFilename(path.split(/[\\/]/).pop() ?? path),
+      ),
+    );
+  },
+  run: runUniversalAction,
+  restoreFocus: () => commandCentre.focus(),
+});
+openUniversalSearch = (seed = "") => universalSearch.open(seed);
 
 chat.onVisibilityChange((open) => el("ai-toggle").setAttribute("aria-pressed", String(open)));
 
@@ -4070,6 +4121,10 @@ window.addEventListener("keydown", (event) => {
     if (menuBar?.isFocused() === true) {
       menuBar.close();
       editorHost.focus();
+      return;
+    }
+    if (universalSearch.isOpen()) {
+      universalSearch.close();
       return;
     }
     if (palette.isOpen()) {

@@ -1,19 +1,11 @@
 /**
  * The command centre: the search box in the middle of the title bar.
  *
- * A launcher, not a third search. Quick open already ranks files and the palette already
- * ranks commands; adding a box that did its own matching would mean three implementations
- * of "type and pick" drifting apart. So this owns no results - it decides which of the two
- * existing overlays the keystroke belongs to and hands the text over.
- *
- * The split is VS Code's, because it is the one people already have in their fingers: a
- * leading `>` means commands, anything else means files.
+ * A launcher rather than a search implementation. The universal overlay owns result
+ * providers and ranking; this title-bar control only hands over a click or first character.
  *
  * Idle it shows the folder name, which is what the title bar's own label used to carry.
  */
-
-/** The character that switches quick open over to commands. */
-const COMMAND_PREFIX = ">";
 
 export interface CommandCentre {
   readonly element: HTMLElement;
@@ -23,17 +15,15 @@ export interface CommandCentre {
 }
 
 export interface CommandCentreDeps {
-  /** Open quick open, seeded with whatever has been typed so far. */
-  readonly openFiles: (seed: string) => void;
-  /** Open the palette, seeded with the text after the `>`. */
-  readonly openCommands: (seed: string) => void;
+  /** Open universal search, seeded with whatever has been typed so far. */
+  readonly openSearch: (seed: string) => void;
 }
 
 export function createCommandCentre(deps: CommandCentreDeps): CommandCentre {
   const element = document.createElement("button");
   element.className = "command-centre";
   element.type = "button";
-  element.setAttribute("aria-label", "Search files and commands");
+  element.setAttribute("aria-label", "Search all of ADCode");
 
   // Built node by node rather than through `innerHTML`: the shell runs under a strict CSP
   // and nothing here is worth making an exception for.
@@ -62,8 +52,7 @@ export function createCommandCentre(deps: CommandCentreDeps): CommandCentre {
   element.append(icon, label, hint);
 
   function route(text: string): void {
-    if (text.startsWith(COMMAND_PREFIX)) deps.openCommands(text.slice(COMMAND_PREFIX.length));
-    else deps.openFiles(text);
+    deps.openSearch(text);
   }
 
   element.addEventListener("click", () => route(""));

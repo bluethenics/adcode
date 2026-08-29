@@ -9,7 +9,12 @@ const item = (
   id: string,
   title: string,
   detail?: string,
-): UniversalSearchItem => ({ id: `${kind}:${id}`, kind, title, detail });
+): UniversalSearchItem => ({
+  id: `${kind}:${id}`,
+  kind,
+  title,
+  ...(detail === undefined ? {} : { detail }),
+});
 
 describe("universal search ranking", () => {
   it("orders equal matches by useful result kind", () => {

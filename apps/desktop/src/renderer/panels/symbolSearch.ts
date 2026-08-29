@@ -14,8 +14,8 @@
  * That inverts the usual cost: nothing is computed until somebody asks, and what comes back
  * is derived from the files as they are on disk right now.
  */
-import { declarationOn, type SymbolKind } from "@adcode/structure";
 import type { SearchHitView } from "../../shared/api.ts";
+import { findWorkspaceSymbols, type WorkspaceSymbolHit } from "./workspaceSymbols.ts";
 
 export interface SymbolSearch {
   open(): void;
@@ -30,14 +30,6 @@ export interface SymbolSearchDeps {
   readonly languageFor: (path: string) => string;
   readonly open: (relativePath: string, line: number, column: number) => void;
   readonly restoreFocus: () => void;
-}
-
-interface SymbolHit {
-  readonly kind: SymbolKind;
-  readonly name: string;
-  readonly path: string;
-  readonly line: number;
-  readonly column: number;
 }
 
 /** Long enough that the search is worth running; shorter matches everything. */
@@ -68,19 +60,6 @@ const KIND_MARK: Readonly<Record<string, string>> = {
   rule: "{}",
   heading: "#",
 };
-
-/**
- * Best matches first.
- *
- * An exact name beats a prefix, a prefix beats a substring, and a shorter name beats a
- * longer one containing the same text - `get` should not be buried under `getConfiguration`.
- */
-function rank(name: string, query: string): number {
-  const lower = name.toLowerCase();
-  if (lower === query) return 0;
-  if (lower.startsWith(query)) return 1;
-  return 2;
-}
 
 export function createSymbolSearch(deps: SymbolSearchDeps): SymbolSearch {
   let open = false;
@@ -116,7 +95,7 @@ export function createSymbolSearch(deps: SymbolSearchDeps): SymbolSearch {
   overlay.append(box);
   deps.host.append(overlay);
 
-  let results: SymbolHit[] = [];
+  let results: WorkspaceSymbolHit[] = [];
   let selected = 0;
 
   function renderRows(): void {
@@ -183,36 +162,7 @@ export function createSymbolSearch(deps: SymbolSearchDeps): SymbolSearch {
     // A newer keystroke started while this was running.
     if (mine !== generation) return;
 
-    const found: SymbolHit[] = [];
-    const seen = new Set<string>();
-
-    for (const hit of hits) {
-      const declaration = declarationOn(deps.languageFor(hit.path), hit.text);
-      if (declaration === null) continue;
-      if (!declaration.name.toLowerCase().includes(needle)) continue;
-
-      // The same declaration can be reported twice when a name appears twice on its line.
-      const key = `${hit.path}:${String(hit.line)}:${declaration.name}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      found.push({
-        kind: declaration.kind,
-        name: declaration.name,
-        path: hit.path,
-        line: hit.line,
-        column: hit.column,
-      });
-    }
-
-    found.sort(
-      (a, b) =>
-        rank(a.name, needle) - rank(b.name, needle) ||
-        a.name.length - b.name.length ||
-        a.name.localeCompare(b.name),
-    );
-
-    results = found.slice(0, MAX_ROWS);
+    results = [...findWorkspaceSymbols(hits, needle, deps.languageFor, MAX_ROWS)];
     selected = 0;
     renderRows();
   }
