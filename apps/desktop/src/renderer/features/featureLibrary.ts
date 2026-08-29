@@ -215,12 +215,16 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
     });
 
     const selectedRow = results.querySelector<HTMLElement>('[aria-selected="true"]');
-    selectedRow?.scrollIntoView({ block: "nearest" });
-    const activeId = selectedRow?.dataset["featureId"];
-    if (activeId === undefined) search.removeAttribute("aria-activedescendant");
-    else {
-      selectedRow.id = `feature-result-${activeId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-      search.setAttribute("aria-activedescendant", selectedRow.id);
+    if (selectedRow === null) {
+      search.removeAttribute("aria-activedescendant");
+    } else {
+      selectedRow.scrollIntoView({ block: "nearest" });
+      const activeId = selectedRow.dataset["featureId"];
+      if (activeId === undefined) search.removeAttribute("aria-activedescendant");
+      else {
+        selectedRow.id = `feature-result-${activeId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+        search.setAttribute("aria-activedescendant", selectedRow.id);
+      }
     }
   }
 
@@ -257,17 +261,28 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
 
   function place(): void {
     const anchor = deps.button.getBoundingClientRect();
-    const box = sheet.getBoundingClientRect();
-    const margin = 8;
+    // Placement must use the final layout size, not the opening transform's scaled visual
+    // box. Measuring `getBoundingClientRect()` here underestimates both dimensions by 1.5%.
+    const width = sheet.offsetWidth;
+    const height = sheet.offsetHeight;
+    // Keep two physical pixels of rounding headroom beyond the promised 8px gutter.
+    // Chromium can report a nominal 8px edge as 7.998px at non-integer page zooms.
+    const margin = 10;
     const gap = 8;
     const right = anchor.right + gap;
-    const left = right + box.width <= window.innerWidth - margin
+    const left = right + width <= window.innerWidth - margin
       ? right
-      : Math.max(margin, anchor.left - gap - box.width);
-    const top = Math.max(margin, Math.min(anchor.top, window.innerHeight - box.height - margin));
+      : Math.max(margin, anchor.left - gap - width);
+    const top = Math.max(margin, Math.min(anchor.top, window.innerHeight - height - margin));
     sheet.style.left = `${String(Math.round(left))}px`;
     sheet.style.top = `${String(Math.round(top))}px`;
   }
+
+  // The first measurement can precede the UI font settling. Re-clamp when the sheet's
+  // real content size changes so a late three-pixel growth cannot escape the 8px margin.
+  const sizeObserver = new ResizeObserver(() => {
+    if (open) place();
+  });
 
   const onPointerDown = (event: PointerEvent): void => {
     const target = event.target;
@@ -293,6 +308,7 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
       search.value = "";
       render();
       sheet.hidden = false;
+      sizeObserver.observe(sheet);
       place();
       void sheet.offsetHeight;
       sheet.dataset["state"] = "open";
@@ -309,6 +325,7 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
       helpPopover.close();
       delete sheet.dataset["state"];
       sheet.hidden = true;
+      sizeObserver.unobserve(sheet);
       deps.button.setAttribute("aria-expanded", "false");
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("keydown", onKeydown, true);

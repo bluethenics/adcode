@@ -4,7 +4,7 @@ import {
   rankUniversalItems,
   type UniversalSearchKind,
   type UniversalSearchSnapshot,
-} from "@adcode/search";
+} from "@adcode/search/universal";
 import { createHelpButton, createHelpPopover } from "../help/helpPopover.ts";
 import type {
   UniversalDesktopAction,

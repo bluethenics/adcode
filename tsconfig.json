@@ -40,6 +40,7 @@
       "@adcode/git": ["./packages/git/src/index.ts"],
       "@adcode/git/conflicts": ["./packages/git/src/conflicts.ts"],
       "@adcode/search/fuzzy": ["./packages/search/src/fuzzy.ts"],
+      "@adcode/search/universal": ["./packages/search/src/universal.ts"],
       "@adcode/search": ["./packages/search/src/index.ts"],
       "@adcode/collab": ["./packages/collab/src/index.ts"],
       "@adcode/release": ["./packages/release/src/index.ts"],

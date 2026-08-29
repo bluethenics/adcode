@@ -25,6 +25,7 @@ const alias = {
   // Same reasoning as the git alias above: the renderer wants the fuzzy matcher without
   // the workspace walker, which imports node:fs and cannot run in a sandboxed window.
   "@adcode/search/fuzzy": resolve(import.meta.dirname, "../../packages/search/src/fuzzy.ts"),
+  "@adcode/search/universal": resolve(import.meta.dirname, "../../packages/search/src/universal.ts"),
   "@adcode/search": resolve(import.meta.dirname, "../../packages/search/src/index.ts"),
   "@adcode/collab": resolve(import.meta.dirname, "../../packages/collab/src/index.ts"),
   "@adcode/release": resolve(import.meta.dirname, "../../packages/release/src/index.ts"),

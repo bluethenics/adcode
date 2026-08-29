@@ -23,6 +23,54 @@ describe("packaged smoke safety", () => {
     expect(main).toContain('add("view.search", "Find in Files", () => showView("search"))');
   });
 
+  it("keeps the universal ranking core on a browser-safe package entrypoint", () => {
+    const renderer = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/workbench/universalSearch.ts"),
+      "utf8",
+    );
+    const config = readFileSync(
+      resolve(import.meta.dirname, "../electron.vite.config.ts"),
+      "utf8",
+    );
+
+    expect(renderer).toContain('from "@adcode/search/universal"');
+    expect(renderer).not.toContain('from "@adcode/search"');
+    expect(config).toContain('"@adcode/search/universal"');
+    expect(config.indexOf('"@adcode/search/universal"')).toBeLessThan(
+      config.indexOf('"@adcode/search"'),
+    );
+  });
+
+  it("drives the complete feature-discovery journey in the built app", () => {
+    const source = readFileSync(
+      resolve(import.meta.dirname, "../../../scripts/smoke.mjs"),
+      "utf8",
+    );
+
+    for (const check of [
+      "featureLibraryPlacement",
+      "featureLibrarySearch",
+      "featureLibraryHelp",
+      "featureLibraryActionDispatch",
+      "featureLibraryFromViewMenu",
+      "universalSearchSources",
+      "discoveryCloseRestoresEditor",
+      "focusedSearchShortcuts",
+    ]) {
+      expect(source).toContain(`checks.${check}`);
+    }
+
+    expect(source).toContain("#open-features");
+    expect(source).toContain(".feature-library-search");
+    expect(source).toContain(".help-popover-detail");
+    expect(source).toContain('chooseMenu("View", "All Features…")');
+    expect(source).toContain(".universal-search-group-title");
+    expect(source).toContain("Quick open");
+    expect(source).toContain("Command palette");
+    expect(source).toContain("Go to symbol in project");
+    expect(source).toContain("Search the workspace");
+  });
+
   it("cannot inherit Electron's Node-only mode from the invoking agent shell", () => {
     const source = readFileSync(resolve(import.meta.dirname, "../../../scripts/smoke.mjs"), "utf8");
 

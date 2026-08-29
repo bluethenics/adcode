@@ -1,5 +1,5 @@
 import type { FeatureRecord } from "@adcode/help";
-import type { UniversalSearchItem } from "@adcode/search";
+import type { UniversalSearchItem } from "@adcode/search/universal";
 import type { QuickOpenHit, RecentFolderView } from "../../shared/api.ts";
 import type { Command } from "./commands.ts";
 import type { WorkspaceSymbolHit } from "../panels/workspaceSymbols.ts";

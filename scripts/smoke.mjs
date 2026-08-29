@@ -473,7 +473,7 @@ async function chooseMenu(topLabel, itemLabel) {
   await clickAt(top.x, top.y);
   await sleep(300);
 
-  await evaluate(
+  const chosen = await evaluate(
     `(() => {
        const item = [...document.querySelectorAll('.menu-panel .menu-item')]
          .find((i) => i.querySelector('.menu-item-label')?.textContent === ${JSON.stringify(itemLabel)});
@@ -482,6 +482,8 @@ async function chooseMenu(topLabel, itemLabel) {
        return true;
      })()`,
   );
+
+  if (chosen !== true) throw new Error(`${topLabel} > ${itemLabel}: ${String(chosen)}`);
 
   await sleep(500);
 }
@@ -684,8 +686,464 @@ checks.nothingCoversWindow = await evaluate(
        return r.width >= innerWidth * 0.9 && r.height >= innerHeight * 0.9;
      });
      return covering.length === 0 ? true : covering.map((e) => e.className).join(',');
+  })()`,
+);
+
+/* ── Complete feature discovery ─────────────────────────────────────────── */
+
+const featureLauncherPoint = await evaluate(
+  `(() => {
+     const button = document.querySelector('#open-features');
+     if (!button) return null;
+     const r = button.getBoundingClientRect();
+     return {
+       x: Math.round(r.left + r.width / 2),
+       y: Math.round(r.top + r.height / 2),
+       sidebarWidth: Math.round(document.getElementById('sidebar').getBoundingClientRect().width),
+       panelHeight: Math.round(document.getElementById('panel').getBoundingClientRect().height),
+     };
    })()`,
 );
+
+if (featureLauncherPoint === null) {
+  checks.featureLibraryPlacement = false;
+  checks.featureLibrarySearch = false;
+  checks.featureLibraryHelp = false;
+  checks.featureLibraryActionDispatch = false;
+} else {
+  await clickAt(featureLauncherPoint.x, featureLauncherPoint.y);
+  await sleep(500);
+
+  checks.featureLibraryPlacementEvidence = await evaluate(
+    `(() => {
+       const button = document.querySelector('#open-features');
+       const sheet = document.querySelector('.feature-library');
+       if (!button || !sheet || sheet.hidden) return false;
+       const anchor = button.getBoundingClientRect();
+       const box = sheet.getBoundingClientRect();
+       const overlaps =
+         anchor.left < box.right && anchor.right > box.left &&
+         anchor.top < box.bottom && anchor.bottom > box.top;
+       return {
+         belowEarnings: button.previousElementSibling?.id === 'open-earnings',
+         expanded: button.getAttribute('aria-expanded') === 'true',
+         open: sheet.dataset.state === 'open',
+         margin: box.left >= 8 && box.top >= 8 && box.right <= window.innerWidth - 8 && box.bottom <= window.innerHeight - 8,
+         box: { left: box.left, top: box.top, right: box.right, bottom: box.bottom },
+         viewport: { width: window.innerWidth, height: window.innerHeight },
+         launcherClear: !overlaps,
+         sidebarStable: Math.round(document.getElementById('sidebar').getBoundingClientRect().width) === ${String(featureLauncherPoint.sidebarWidth)},
+         panelStable: Math.round(document.getElementById('panel').getBoundingClientRect().height) === ${String(featureLauncherPoint.panelHeight)},
+       };
+     })()`,
+  );
+  checks.featureLibraryPlacement =
+    typeof checks.featureLibraryPlacementEvidence === "object" &&
+    ["belowEarnings", "expanded", "open", "margin", "launcherClear", "sidebarStable", "panelStable"]
+      .every((key) => checks.featureLibraryPlacementEvidence[key] === true);
+
+  checks.featureLibrarySearch = await evaluate(
+    `(() => {
+       const input = document.querySelector('.feature-library-search');
+       if (!input) return false;
+       input.value = 'send something to ai later';
+       input.dispatchEvent(new Event('input', { bubbles: true }));
+       const rows = [...document.querySelectorAll('.feature-library-row')];
+       return rows.length > 0 &&
+         rows.some((row) => row.dataset.featureId === 'adcode.ai.scheduledMessages');
+     })()`,
+  );
+
+  const featureHelpPoint = await evaluate(
+    `(() => {
+       const row = document.querySelector('.feature-library-row[data-feature-id="adcode.ai.scheduledMessages"]');
+       const button = row?.querySelector('.help-button');
+       if (!button) return null;
+       const r = button.getBoundingClientRect();
+       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+     })()`,
+  );
+  if (featureHelpPoint === null) {
+    checks.featureLibraryHelp = false;
+  } else {
+    await clickAt(featureHelpPoint.x, featureHelpPoint.y);
+    await sleep(350);
+    checks.featureLibraryHelp = await evaluate(
+      `(() => {
+         const pop = document.querySelector('.help-popover:not([hidden])');
+         if (!pop) return false;
+         const details = [...pop.querySelectorAll('.help-popover-detail')]
+           .map((one) => one.textContent ?? '');
+         return (
+           (pop.querySelector('.help-popover-plain')?.textContent ?? '').startsWith('What it does:') &&
+           details.some((text) => text.startsWith('Why use it:')) &&
+           details.some((text) => text.startsWith('How to use it:'))
+         );
+       })()`,
+    );
+    await pressEscape();
+  }
+
+  const actionPoint = await evaluate(
+    `(() => {
+       const input = document.querySelector('.feature-library-search');
+       input.value = 'trusted auto apply';
+       input.dispatchEvent(new Event('input', { bubbles: true }));
+       const row = document.querySelector('.feature-library-row[data-feature-id="adcode.ai.editPolicy"]');
+       const button = row?.querySelector('.feature-library-open');
+       if (!button || button.disabled) return null;
+       const r = button.getBoundingClientRect();
+       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+     })()`,
+  );
+  if (actionPoint === null) {
+    checks.featureLibraryActionDispatch = false;
+  } else {
+    await clickAt(actionPoint.x, actionPoint.y);
+    await sleep(900);
+    checks.featureLibraryActionEvidence = await evaluate(
+      `(() => {
+         const library = document.querySelector('.feature-library');
+         const settings = document.querySelector('.settings-sheet:not(.help-sheet)');
+         const row = document.querySelector('[data-setting-id="adcode.ai.editPolicy"]');
+         return {
+           libraryClosed: library?.hidden === true,
+           settingsVisible: settings?.hidden === false,
+           settingsAnimatedOpen: settings?.dataset.state === 'open',
+           rowExists: row !== null,
+           rowMarked: row?.dataset.highlight === 'true',
+         };
+       })()`,
+    );
+    checks.featureLibraryActionDispatch =
+      typeof checks.featureLibraryActionEvidence === "object" &&
+      checks.featureLibraryActionEvidence.libraryClosed === true &&
+      checks.featureLibraryActionEvidence.settingsVisible === true &&
+      checks.featureLibraryActionEvidence.rowExists === true;
+    await pressEscape();
+  }
+}
+
+for (let attempt = 0; attempt < 10; attempt += 1) {
+  const settingsVisible = await evaluate(
+    `document.querySelector('.settings-sheet:not(.help-sheet)')?.hidden === false`,
+  );
+  if (settingsVisible !== true) break;
+  await pressEscape();
+}
+
+await chooseMenu("View", "All Features…");
+checks.featureLibraryMenuEvidence = await evaluate(
+  `(() => {
+     const library = document.querySelector('.feature-library');
+     return {
+       visible: library?.hidden === false,
+       state: library?.dataset.state ?? null,
+       expanded: document.querySelector('#open-features')?.getAttribute('aria-expanded'),
+     };
+   })()`,
+);
+checks.featureLibraryFromViewMenu =
+  checks.featureLibraryMenuEvidence?.visible === true &&
+  checks.featureLibraryMenuEvidence?.state === "open" &&
+  checks.featureLibraryMenuEvidence?.expanded === "true";
+await pressEscape();
+
+const commandCentrePoint = await evaluate(
+  `(() => {
+     const button = document.querySelector('.command-centre');
+     if (!button) return null;
+     const r = button.getBoundingClientRect();
+     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+   })()`,
+);
+
+let baseUniversalGroups = [];
+let symbolUniversalGroup = false;
+if (commandCentrePoint !== null) {
+  await clickAt(commandCentrePoint.x, commandCentrePoint.y);
+  await sleep(1800);
+  baseUniversalGroups = await evaluate(
+    `[...document.querySelectorAll('.universal-search-group-title')].map((one) => one.textContent)`,
+  );
+
+  await evaluate(
+    `(() => {
+       const input = document.querySelector('.universal-search-input');
+       if (!input) return false;
+       input.value = 'createEditorHost';
+       input.dispatchEvent(new Event('input', { bubbles: true }));
+       return true;
+     })()`,
+  );
+  // Workspace symbol discovery scans real project content. A cold antivirus/file-cache
+  // run can take several seconds, so poll the state instead of treating one timing as API.
+  for (let attempt = 0; attempt < 20 && !symbolUniversalGroup; attempt += 1) {
+    await sleep(1000);
+    symbolUniversalGroup =
+      (await evaluate(
+        `[...document.querySelectorAll('.universal-search-group-title')]
+          .some((one) => one.textContent === 'Symbols')`,
+      )) === true;
+  }
+}
+
+checks.universalSearchEvidence = { baseGroups: baseUniversalGroups, symbols: symbolUniversalGroup };
+checks.universalSearchSources =
+  Array.isArray(baseUniversalGroups) &&
+  ["Features", "Commands", "Files", "Recent folders"].every((name) =>
+    baseUniversalGroups.includes(name),
+  ) &&
+  symbolUniversalGroup;
+
+if (commandCentrePoint !== null) {
+  const outside = await evaluate(
+    `(() => ({ x: window.innerWidth - 10, y: window.innerHeight - 10 }))()`,
+  );
+  await clickAt(outside.x, outside.y);
+  await sleep(250);
+}
+
+const editorFocusPoint = await evaluate(
+  `(() => {
+     const editor = document.querySelector('.monaco-editor');
+     if (!editor) return null;
+     const r = editor.getBoundingClientRect();
+     return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+   })()`,
+);
+if (editorFocusPoint !== null) await clickAt(editorFocusPoint.x, editorFocusPoint.y);
+checks.discoveryCloseRestoresEditor = await evaluate(
+  `document.querySelector('.universal-search-overlay')?.hidden === true &&
+   document.querySelector('.feature-library')?.hidden === true &&
+   document.activeElement?.closest('.monaco-editor') !== null`,
+);
+
+const focusedSearchEvidence = {};
+await pressChord("p");
+focusedSearchEvidence.quickOpen = await evaluate(
+    `document.querySelector('.quickopen-input[aria-label="Go to file"]')?.closest('.quickopen')?.hidden === false`,
+  );
+await pressEscape();
+
+await pressChord("p", { shift: true });
+focusedSearchEvidence.palette = await evaluate(
+    `document.querySelector('.quickopen-input[aria-label="Command palette"]')?.closest('.quickopen')?.hidden === false`,
+  );
+await pressEscape();
+
+await chooseMenu("Go", "Go to Symbol…");
+focusedSearchEvidence.symbols = await evaluate(
+    `document.querySelector('.quickopen-input[aria-label="Go to symbol in project"]')?.closest('.quickopen')?.hidden === false`,
+  );
+await pressEscape();
+
+await pressChord("f", { shift: true });
+focusedSearchEvidence.content = await evaluate(
+    `(() => {
+       const input = document.querySelector('input[aria-label="Search the workspace"]');
+       const view = document.getElementById('view-search');
+       return input !== null && view?.hidden === false;
+     })()`,
+  );
+checks.focusedSearchEvidence = focusedSearchEvidence;
+checks.focusedSearchShortcuts = Object.values(focusedSearchEvidence).every((value) => value === true);
+await evaluate(`document.querySelector('.activity[data-view="explorer"]')?.click(); true`);
+await sleep(300);
+
+if (process.argv.includes("--visual-only")) {
+  const screenshotPaths = [];
+
+  async function captureFeatureLibrary(name) {
+    const path = join(tmpdir(), `adcode-feature-library-${name}.png`);
+    const response = await send("Page.captureScreenshot", {
+      format: "png",
+      fromSurface: true,
+    });
+    const data = response.result?.data;
+    if (typeof data !== "string") {
+      throw new Error(`could not capture ${name} feature-library screenshot`);
+    }
+    await writeFile(path, Buffer.from(data, "base64"));
+    screenshotPaths.push(path);
+  }
+
+  async function applyAppearance(theme, density) {
+    const applied = await evaluate(
+      `(async () => {
+         await window.adcode.settings.write('adcode.appearance.theme', ${JSON.stringify(theme)});
+         await window.adcode.settings.write('adcode.appearance.density', ${JSON.stringify(density)});
+         await new Promise((resolve) => setTimeout(resolve, 250));
+         document.querySelector('#open-features')?.click();
+         await new Promise((resolve) => setTimeout(resolve, 250));
+         return {
+           theme: document.documentElement.dataset.theme,
+           density: document.documentElement.dataset.density,
+           open: document.querySelector('.feature-library')?.dataset.state === 'open',
+         };
+       })()`,
+    );
+    return applied;
+  }
+
+  const visual = {};
+  visual.lightComfortable = await applyAppearance("light", "comfortable");
+  await captureFeatureLibrary("light-comfortable");
+  await pressEscape();
+
+  visual.midnightCompact = await applyAppearance("midnight", "compact");
+  visual.compactRowPadding = await evaluate(
+    `getComputedStyle(document.querySelector('.feature-library-row')).paddingTop`,
+  );
+  await captureFeatureLibrary("midnight-compact");
+
+  visual.keyboard = await evaluate(
+    `(() => ({
+       startsInSearch: document.activeElement?.classList.contains('feature-library-search') === true,
+       searchRole: document.querySelector('.feature-library-search')?.getAttribute('role'),
+       resultRole: document.querySelector('.feature-library-results')?.getAttribute('role'),
+       dialogRole: document.querySelector('.feature-library')?.getAttribute('role'),
+     }))()`,
+  );
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "ArrowDown",
+    code: "ArrowDown",
+    windowsVirtualKeyCode: 40,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "ArrowDown",
+    code: "ArrowDown",
+    windowsVirtualKeyCode: 40,
+  });
+  visual.keyboard.arrowSelectsResult = await evaluate(
+    `document.querySelector('.feature-library-row[aria-selected="true"]') !== null &&
+     document.querySelector('.feature-library-search')?.hasAttribute('aria-activedescendant') === true`,
+  );
+  await pressEscape();
+
+  const viewportBeforeZoom = await evaluate(`({ width: innerWidth, height: innerHeight })`);
+  for (let step = 0; step < 8; step += 1) {
+    await evaluate(`window.adcode.window.zoom(1); true`);
+    await sleep(80);
+  }
+  const viewportAtZoom = await evaluate(`({ width: innerWidth, height: innerHeight })`);
+  await evaluate(`document.querySelector('#open-features')?.click(); true`);
+  await sleep(300);
+  visual.zoom = await evaluate(
+    `(() => {
+       const box = document.querySelector('.feature-library')?.getBoundingClientRect();
+       if (!box) return false;
+       return {
+         before: ${JSON.stringify(viewportBeforeZoom)},
+         after: ${JSON.stringify(viewportAtZoom)},
+         approximately200Percent: innerWidth <= ${String(viewportBeforeZoom.width)} * 0.55,
+         box: { left: box.left, top: box.top, right: box.right, bottom: box.bottom },
+         onScreen: box.left >= 8 && box.top >= 8 &&
+           box.right <= innerWidth - 8 && box.bottom <= innerHeight - 8,
+       };
+     })()`,
+  );
+  await captureFeatureLibrary("midnight-compact-200-percent");
+  await pressEscape();
+  await evaluate(`window.adcode.window.zoom(0); true`);
+  await sleep(300);
+
+  await send("Emulation.setEmulatedMedia", {
+    media: "",
+    features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+  });
+  await evaluate(`document.querySelector('#open-features')?.click(); true`);
+  await sleep(200);
+  visual.reducedMotion = await evaluate(
+    `(() => {
+       const style = getComputedStyle(document.querySelector('.feature-library'));
+       return {
+         mediaMatches: matchMedia('(prefers-reduced-motion: reduce)').matches,
+         transform: style.transform,
+         transitionDuration: style.transitionDuration,
+       };
+     })()`,
+  );
+  await pressEscape();
+
+  await send("Emulation.setEmulatedMedia", {
+    media: "",
+    features: [{ name: "forced-colors", value: "active" }],
+  });
+  await evaluate(
+    `(() => {
+       document.querySelector('#open-features')?.click();
+       document.querySelector('.feature-library-category')?.focus();
+       return true;
+     })()`,
+  );
+  await sleep(200);
+  visual.highContrastFocus = await evaluate(
+    `(() => {
+       const focused = document.activeElement;
+       const style = getComputedStyle(focused);
+       return {
+         forcedColors: matchMedia('(forced-colors: active)').matches,
+         element: focused?.className ?? null,
+         outlineStyle: style.outlineStyle,
+         outlineWidth: style.outlineWidth,
+       };
+     })()`,
+  );
+  await captureFeatureLibrary("forced-colors-focus");
+  await pressEscape();
+  await send("Emulation.setEmulatedMedia", { media: "", features: [] });
+  await evaluate(
+    `(async () => {
+       await window.adcode.settings.write('adcode.appearance.theme', 'system');
+       await window.adcode.settings.write('adcode.appearance.density', 'comfortable');
+     })()`,
+  );
+
+  socket.close();
+  child.kill();
+  await sleep(500);
+  await rm(userData, { recursive: true, force: true }).catch(() => {});
+  process.stdout.write(`${JSON.stringify({ visual, screenshotPaths }, null, 2)}\n`);
+
+  const visualPassed =
+    visual.lightComfortable?.theme === "light" &&
+    visual.lightComfortable?.density === "comfortable" &&
+    visual.lightComfortable?.open === true &&
+    visual.midnightCompact?.theme === "midnight" &&
+    visual.midnightCompact?.density === "compact" &&
+    visual.midnightCompact?.open === true &&
+    visual.keyboard?.startsInSearch === true &&
+    visual.keyboard?.searchRole === "combobox" &&
+    visual.keyboard?.resultRole === "listbox" &&
+    visual.keyboard?.dialogRole === "dialog" &&
+    visual.keyboard?.arrowSelectsResult === true &&
+    visual.zoom?.approximately200Percent === true &&
+    visual.zoom?.onScreen === true &&
+    visual.reducedMotion?.mediaMatches === true &&
+    visual.reducedMotion?.transform === "none" &&
+    visual.highContrastFocus?.forcedColors === true &&
+    visual.highContrastFocus?.outlineStyle !== "none" &&
+    visual.highContrastFocus?.outlineWidth !== "0px";
+  process.exit(visualPassed ? 0 : 1);
+}
+
+if (process.argv.includes("--discovery-only")) {
+  socket.close();
+  child.kill();
+  await sleep(500);
+  await rm(userData, { recursive: true, force: true }).catch(() => {});
+  const discovery = Object.fromEntries(
+    Object.entries(checks).filter(([name]) =>
+      /featureLibrary|universalSearch|discoveryClose|focusedSearch/.test(name),
+    ),
+  );
+  process.stdout.write(`${JSON.stringify(discovery, null, 2)}\n`);
+  const failedDiscovery = Object.entries(discovery).filter(([, value]) => value === false);
+  process.exit(failedDiscovery.length === 0 ? 0 : 1);
+}
 
 checks.paletteFinds = await evaluate(
   `(async () => {
@@ -921,45 +1379,23 @@ checks.titleBarControlsWork = await (async () => {
 
   await clickAt(centre.x, centre.y);
 
-  /*
-   * "Is quick open showing" is not `document.querySelector('.quickopen')`.
-   *
-   * Two different overlays carry that class - `panels/searchPanel.ts` builds the file
-   * picker with it and `workbench/palette.ts` builds the command palette with it - and both
-   * are in the document from startup, hidden. `querySelector` returns whichever is first,
-   * which is the palette, which is not the one the command centre opens. This check read
-   * `hidden` off the wrong element and called a working button broken.
-   *
-   * So: find the overlay that is actually open, and tell the two apart by their rows -
-   * palette rows carry `.palette-row`, quick open's do not.
-   */
-  const quickOpen = await evaluate(
+  const universal = await evaluate(
     `(() => {
-       const open = [...document.querySelectorAll('.quickopen')].filter((o) => o.hidden === false);
-       if (open.length === 0) {
+       const overlay = document.querySelector('.universal-search-overlay');
+       const input = document.querySelector('.universal-search-input[aria-label="Search all of ADCode"]');
+       if (overlay?.hidden !== false || input === null) {
          const hit = document.elementFromPoint(${centre.x}, ${centre.y});
          return 'nothing opened; the pointer reached ' +
            (hit === null ? 'nothing' : hit.tagName + '.' + (hit.getAttribute('class') ?? '(no class)'));
        }
-       if (open.some((o) => o.querySelector('.palette-row') !== null)) return 'the command centre opened the palette, not quick open';
-       return true;
+       return overlay.dataset.state === 'open' && document.activeElement === input;
      })()`,
   );
 
-  // Always shut it, pass or fail. An overlay left open is `position: fixed; inset: 0`
-  // across the whole window, and every pointer check after this one would hit it instead.
-  await evaluate(
-    `(() => {
-       for (const overlay of document.querySelectorAll('.quickopen')) {
-         if (overlay.hidden) continue;
-         overlay.querySelector('.quickopen-input')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-       }
-       return true;
-     })()`,
-  );
-  await sleep(200);
+  // Always shut the fixed overlay, pass or fail, so later pointer checks reach the app.
+  await pressEscape();
 
-  return quickOpen === true ? true : `the command centre: ${quickOpen}`;
+  return universal === true ? true : `the command centre: ${universal}`;
 })();
 
 /*
@@ -2173,6 +2609,12 @@ try {
     await pressEscape();
     return found;
   })();
+  checks.symbolSearchJourney =
+    typeof checks.symbolSearchFindsADeclaration === "object" &&
+    checks.symbolSearchFindsADeclaration.found === true &&
+    checks.symbolSearchFindsADeclaration.namesTheSymbol === true &&
+    checks.symbolSearchFindsADeclaration.inTheRightFile === true &&
+    checks.symbolSearchFindsADeclaration.saysWhatKindItIs === true;
 
   checks.peekShowsTheDefinition = await (async () => {
     // Put the cursor on `alpha` on the second line - the use, not the declaration.
@@ -3881,7 +4323,7 @@ checks.collabSessionStartsAndStops = await evaluate(
  */
 
 checks.helpGuideOpens = await (async () => {
-  await chooseMenu("Help", "ADCode Guide");
+  await chooseMenu("Help", "Feature Guide");
   await sleep(500);
 
   return await evaluate(

@@ -1,4 +1,4 @@
-# ADCode release readiness — 2026-08-28
+# ADCode release readiness — 2026-08-28 (updated 2026-08-29)
 
 ## Decision
 
@@ -6,6 +6,8 @@
 production release.**
 
 The desktop feature candidate builds, packages, and passes both packaged smoke journeys.
+The 2026-08-29 candidate also includes the complete feature library, universal search, menu
+routes, generated feature guide, and repeatable accessibility/visual smoke coverage.
 The existing Cloudflare Worker is healthy on its `workers.dev` address. Public release is
 blocked by identity/signing, domain/support, legal, dependency-risk, production-mode, and
 release-channel gates that cannot be truthfully completed by source changes alone.
@@ -18,11 +20,13 @@ available through an update channel with no verified rollback release.
 
 | Gate | Result | Evidence |
 |---|---|---|
-| Desktop typecheck, architecture firewall, full unit/integration suite | Pass | Final `npm run verify`: 176 files / 2,589 tests; 0 architecture errors (37 existing orphan warnings) |
-| Desktop production build | Pass | Electron/Vite built main, preload, and 1,460 renderer modules |
+| Desktop typecheck, architecture firewall, full unit/integration suite | Pass | Final `npm run verify`: 185 files / 2,633 tests; 0 architecture errors (37 existing orphan warnings) |
+| Desktop production build | Pass | Electron/Vite built main, preload, and 1,469 renderer modules |
 | Web production build | Pass | `npm run web:build`; Next compiled, typechecked, and generated 30 static pages |
 | Windows packaging | Pass | `npm run package -- --win`; installer, portable binary, blockmap, and `latest.yml` generated |
-| Packaged desktop smoke | Pass | `node scripts/smoke.mjs --packaged`; full workbench journey, 0 suspicious log lines |
+| Feature discovery and universal search | Pass | Developer and packaged journeys verified the activity icon below Earnings, View-menu route, explanatory search, What/Why/How help, safe setting dispatch, Features/Commands/Files/Symbols/Recent folders, focused search shortcuts, Escape/outside-click cleanup, and stable workbench sizing |
+| Visual and accessibility audit | Pass | `node scripts/smoke.mjs --visual-only`; inspected light/comfortable, Midnight/compact, approximately 208% zoom, keyboard result selection, dialog/combobox/listbox semantics, reduced-motion transform removal, and forced-colors 2px focus outline |
+| Packaged desktop smoke | Pass | `node scripts/smoke.mjs --packaged`; full workbench journey including a hard symbol-search success gate, 0 suspicious log lines |
 | Packaged ad smoke | Pass | `node scripts/smoke-ads.mjs --packaged`; serve, notification, receipt, balance, and queue journey, 0 suspicious log lines |
 | Worker deployment | Existing and healthy | Wrangler lists deployments through 2026-08-27; `https://adcode.bluethenics01.workers.dev/v1/health` returned `200 {"ok":true}` |
 | Required Worker secret names | Present | Supabase, Firebase, payout encryption, and Dodo secret names are registered in Cloudflare; values were not read or exposed |
@@ -36,10 +40,10 @@ C:\Users\user\AppData\Local\adcode\release\ADCode-Portable-x64.exe
 C:\Users\user\AppData\Local\adcode\release\latest.yml
 ```
 
-At audit time the installer was 115,150,172 bytes with SHA-256
-`3C4F906920985BD076C59A474D6A043741EF34CFBE34D90CFDD86B42B268043C`.
-The portable build was 114,920,694 bytes with SHA-256
-`21C3CB5B8CB54742E41904DC9FBCCF64719567E82B29733098EDED57156315C1`.
+At audit time the installer was 115,161,794 bytes with SHA-256
+`16E8F48745323BE10CB87C8AFD268B1416D91097E4CA69F1010EDD8ECB359539`.
+The portable build was 114,932,307 bytes with SHA-256
+`561A48E483B2C7D31AC59DEBBBC4EAD84C5309BBF83E8336C30AAA3C0CD6FB3D`.
 Repackaging changes those hashes, so calculate them again for the actual published files.
 
 ## Public-release blockers

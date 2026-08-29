@@ -21,7 +21,7 @@ describe("desktop universal result mapping", () => {
       helpId: "adcode.ai.scheduledMessages",
       action: { kind: "feature", featureId: "adcode.ai.scheduledMessages" },
     });
-    expect(mapped.some((item) => item.kind === "setting")).toBe(false);
+    expect(mapped.every((item) => item.kind === "feature")).toBe(true);
     expect(featureFor(mapped[0]!.helpId!)).toBeDefined();
   });
 
@@ -61,8 +61,14 @@ describe("desktop universal result mapping", () => {
   it("reuses one declaration parser for focused and universal symbol search", () => {
     const found = findWorkspaceSymbols(
       [
-        { path: "src/main.ts", line: 4, column: 9, text: "export function openFile() {}" },
-        { path: "src/main.ts", line: 8, column: 3, text: "openFile();" },
+        {
+          path: "src/main.ts",
+          line: 4,
+          column: 9,
+          matchLength: 8,
+          text: "export function openFile() {}",
+        },
+        { path: "src/main.ts", line: 8, column: 3, matchLength: 8, text: "openFile();" },
       ],
       "open",
       () => "typescript",

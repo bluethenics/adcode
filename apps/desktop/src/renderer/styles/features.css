@@ -2,8 +2,8 @@
 .feature-library {
   position: fixed;
   z-index: 125;
-  width: min(440px, calc(100vw - 16px));
-  max-height: calc(100vh - 16px);
+  width: min(440px, calc(100vw - 20px));
+  max-height: calc(100vh - 20px);
   display: grid;
   grid-template-rows: auto auto auto auto minmax(0, 1fr);
   overflow: hidden;
