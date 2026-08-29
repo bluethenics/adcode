@@ -2132,7 +2132,11 @@ const reportDialog = createReportDialog(document.body, async (input) => {
 el<HTMLButtonElement>("report-toggle").addEventListener("click", () => reportDialog.open());
 
 /* The account button beside it, and the panel it opens. */
-createAccountMenu(el<HTMLButtonElement>("account-toggle"), document.body, confirmDialog);
+const accountMenu = createAccountMenu(
+  el<HTMLButtonElement>("account-toggle"),
+  document.body,
+  confirmDialog,
+);
 
 /*
  * The welcome, on a machine that has not had one.
@@ -3445,6 +3449,14 @@ function showShortcuts(): void {
 }
 
 /** Everything the menu bar, the keyboard, and the palette can ask for. */
+/*
+ * The discovery surfaces are built after the registry they invoke. These honest fallbacks
+ * keep the commands useful during construction, then Tasks 3 and 5 replace the callbacks
+ * with their complete surfaces without re-registering ids.
+ */
+let openFeatureLibrary: () => void = () => helpGuide.open();
+let openUniversalSearch: () => void = () => palette.open();
+
 function registerCommands(): void {
   const add = (id: string, title: string, run: (arg?: string) => void | Promise<void>): void =>
     commands.register({ id, title, run });
@@ -3546,6 +3558,7 @@ function registerCommands(): void {
     for (const tab of [...tabs]) closeTab(tab.path);
   });
   add("settings.open", "Preferences", () => settingsView.toggle());
+  add("account.open", "Open Account", () => accountMenu.open());
 
   /* Edit - Monaco owns these, so they are triggered rather than reimplemented (§2). */
   commands.registerEditorAction("edit.undo", "Undo", "undo");
@@ -3582,6 +3595,8 @@ function registerCommands(): void {
 
   /* View */
   add("palette.open", "Command Palette", () => palette.toggle());
+  add("features.open", "All Features", () => openFeatureLibrary());
+  add("search.universal", "Search All of ADCode", () => openUniversalSearch());
   add("view.fullScreen", "Toggle Full Screen", () => window.adcode.window.toggleFullScreen());
   add("view.toggleSidebar", "Toggle Side Bar", () => {
     const sidebar = el("sidebar");
@@ -3619,6 +3634,8 @@ function registerCommands(): void {
   add("ai.toggle", "Assistant", () => chat.toggle());
   add("ai.connect", "Connect a Model", () => connectView.open());
   add("ai.complete", "Suggest Code with AI", () => editorHost.triggerInlineCompletion());
+  add("ai.team", "Set Up AI Team", () => chat.openTeamSetup());
+  add("ai.schedule", "Schedule an AI Message", () => chat.openScheduleComposer());
   add("view.toggleWordWrap", "Toggle Word Wrap", () => editorHost.toggleWordWrap());
 
   /* Go */
@@ -3730,7 +3747,7 @@ function registerCommands(): void {
   add("go.peek", "Peek Definition", () => void editorHost.peekDefinition());
 
   /* Help */
-  add("help.guide", "ADCode Guide", () => helpGuide.open());
+  add("help.guide", "Feature Guide", () => helpGuide.open());
   add("help.whatsNew", "What’s New", () => {
     void window.adcode.releases.list().then((announcement) => whatsNewSheet.open(announcement));
   });

@@ -24,6 +24,7 @@ import type {
   ChatSessionView,
   ProposedEditView,
 } from "../../shared/api.ts";
+import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
 import {
   aiWorkspaceActions,
   formatAiWorkspaceUsage,
@@ -84,6 +85,10 @@ function savePosition(workspace: string | null, position: Position): void {
 export interface ChatWidget {
   toggle(): void;
   open(): void;
+  /** Bring chat forward and open the existing, confirmed Team setup flow. */
+  openTeamSetup(): void;
+  /** Bring chat forward and open the existing local schedule composer. */
+  openScheduleComposer(): void;
   close(): void;
   isOpen(): boolean;
   /**
@@ -861,14 +866,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     paintAutomations(await window.adcode.aiAutomation.list().catch(() => []));
   }
 
-  scheduleMessage.addEventListener("click", () => {
+  function showScheduleComposer(): void {
     automationPanel.hidden = false;
     refreshAutomationTargets();
     if (automationDue.value.length === 0) {
       automationDue.value = localDateTimeValue(Date.now() + 15 * 60_000);
     }
     void refreshAutomations();
-  });
+  }
+
+  scheduleMessage.addEventListener("click", () => api.openScheduleComposer());
 
   automationClose.addEventListener("click", () => {
     automationPanel.hidden = true;
@@ -1321,9 +1328,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     paintTeamSuggestion(result, prompt);
   }
 
-  manualTeam.addEventListener("click", () => {
-    void suggestForComposer(true);
-  });
+  manualTeam.addEventListener("click", () => api.openTeamSetup());
 
   input.addEventListener("input", () => {
     if (suggestionTimer !== null) window.clearTimeout(suggestionTimer);
@@ -1502,6 +1507,22 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       if (!automationPanel.hidden) void refreshAutomations();
 
       document.addEventListener("keydown", onKeydown);
+    },
+
+    openTeamSetup(): void {
+      runChatWidgetIntent("team", {
+        open: () => api.open(),
+        showTeam: () => void suggestForComposer(true),
+        showSchedule: showScheduleComposer,
+      });
+    },
+
+    openScheduleComposer(): void {
+      runChatWidgetIntent("schedule", {
+        open: () => api.open(),
+        showTeam: () => void suggestForComposer(true),
+        showSchedule: showScheduleComposer,
+      });
     },
 
     close(): void {

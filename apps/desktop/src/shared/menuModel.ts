@@ -290,6 +290,7 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
       label: "&View",
       items: [
         { label: "Command &Palette…", command: "palette.open", accelerator: "CmdOrCtrl+Shift+P" },
+        { label: "All &Features…", command: "features.open" },
         separator,
         {
           kind: "submenu",
@@ -320,6 +321,9 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         { label: "Explain This Pro&ject", command: "view.projectMap" },
         { label: "Source &Control", command: "view.scm", accelerator: "CmdOrCtrl+Shift+G" },
         { label: "Pr&oblems", command: "view.problems", accelerator: "CmdOrCtrl+Shift+M" },
+        { label: "Output Lo&g", command: "view.output" },
+        { label: "&Debug Console", command: "view.debugConsole" },
+        { label: "Ports Ta&b", command: "view.ports" },
         { label: "&Terminal", command: "terminal.toggle", accelerator: "CmdOrCtrl+`" },
         separator,
         {
@@ -334,6 +338,7 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
             { label: "&Reload Preview", command: "preview.reload" },
             { label: "&Undock Into a Floating Window", command: "preview.undock" },
             { label: "&Switch Between Project and Files", command: "preview.switchMode" },
+            { label: "Check Another &Device Size", command: "preview.device" },
           ],
         },
         separator,
@@ -343,7 +348,17 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         { label: "Leave Live Sess&ion", command: "collab.leave" },
         { label: "Ea&rnings", command: "view.earnings" },
         separator,
-        { label: "Assista&nt", command: "ai.toggle", accelerator: "CmdOrCtrl+I" },
+        {
+          kind: "submenu",
+          label: "AI Tas&ks",
+          items: [
+            { label: "&Assistant", command: "ai.toggle", accelerator: "CmdOrCtrl+I" },
+            { label: "&Connect a Model…", command: "ai.connect" },
+            { label: "&Suggest Code with AI", command: "ai.complete", accelerator: "Alt+\\" },
+            { label: "Set Up &Team…", command: "ai.team" },
+            { label: "Schedule a &Message…", command: "ai.schedule" },
+          ],
+        },
         { label: "&Word Wrap", command: "view.toggleWordWrap", accelerator: "Alt+Z" },
       ],
     },
@@ -458,7 +473,7 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         // First, and above the separator, because it is the item somebody opening this menu
         // for the first time is actually looking for. Shortcuts are for people who already
         // know what the features are called.
-        { label: "ADCode &Guide", command: "help.guide" },
+        { label: "Feature &Guide", command: "help.guide" },
         { label: "&What’s New", command: "help.whatsNew" },
         { label: "&Keyboard Shortcuts", command: "help.shortcuts" },
         {

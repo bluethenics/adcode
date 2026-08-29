@@ -15,6 +15,7 @@ import type { AccountState, LinkOutcome } from "../../shared/api.ts";
 
 export interface AccountMenu {
   isOpen(): boolean;
+  open(): void;
   close(): void;
 }
 
@@ -346,6 +347,7 @@ export function createAccountMenu(
 
   return {
     isOpen: () => open,
+    open: () => setOpen(true),
     close: () => setOpen(false),
   };
 }

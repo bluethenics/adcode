@@ -238,12 +238,22 @@ describe("the bar as a whole", () => {
     for (const top of bar) walk(top.items);
 
     for (const command of [
+      "features.open",
+      "view.output",
+      "view.debugConsole",
+      "view.ports",
       "view.earnings",
       "collab.panel",
       "collab.leave",
       "preview.reload",
       "preview.undock",
       "preview.switchMode",
+      "preview.device",
+      "ai.toggle",
+      "ai.connect",
+      "ai.complete",
+      "ai.team",
+      "ai.schedule",
       "git.commit",
       "git.push",
       "git.pull",
@@ -253,6 +263,25 @@ describe("the bar as a whole", () => {
     ]) {
       expect(commands, `${command} is in no menu`).toContain(command);
     }
+  });
+
+  it("names the complete guides plainly", () => {
+    const view = panels(bar).find((panel) => panel.name === "View");
+    const help = panels(bar).find((panel) => panel.name === "Help");
+
+    expect(
+      rowsOf(view?.entries ?? []).some(
+        (entry) => "command" in entry && entry.command === "features.open",
+      ),
+    ).toBe(true);
+    expect(
+      rowsOf(help?.entries ?? []).some(
+        (entry) =>
+          "command" in entry &&
+          entry.command === "help.guide" &&
+          stripMnemonic(entry.label) === "Feature Guide",
+      ),
+    ).toBe(true);
   });
 });
 
