@@ -10,7 +10,7 @@ see it before moving on — that is the whole point of the sentence.
 all used inside their free tiers, and none of them asks for a card. The only steps that ever
 cost money are optional and clearly marked: code signing (step 16) and a lawyer (step 18).
 
-**No coding.** The code is finished and tested — 2694 tests, all green. Everything below
+**No coding.** The code is finished and tested — 2695 tests, all green. Everything below
 needs your account or your decision, which is exactly why it is not already done.
 
 ---
