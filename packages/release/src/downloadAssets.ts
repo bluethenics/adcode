@@ -11,36 +11,62 @@
  * every download button returns 404, and the first person to notice is a user.
  *
  * Pure - no filesystem, no process. `scripts/check-release-assets.mjs` reads the directory
- * and the route file and hands the strings here, the same arrangement
+ * and `apps/web/src/lib/downloads.ts` and hands the strings here, the same arrangement
  * `releaseDirectory.ts` already has with `scripts/release-directory.mjs`.
  */
 
+/** One download the site offers, as parsed out of `apps/web/src/lib/downloads.ts`. */
+export interface ParsedTarget {
+  readonly id: string;
+  readonly asset: string;
+  readonly available: boolean;
+}
+
 /**
- * The asset each platform id resolves to, read from the route's own `PLATFORMS` literal.
+ * Every download the site declares, read from its own `DOWNLOADS` literal.
  *
  * A regex over TypeScript, for the same reason `scripts/docs-seed.mjs` uses one: the
- * alternative is transpiling a Next route inside a release script, and the shape being
+ * alternative is transpiling a Next module inside a release script, and the shape being
  * read is one this repository controls and this package's test pins.
  *
- * Throws rather than returning an empty map when it matches nothing. Parsing nothing and
+ * Throws rather than returning an empty list when it matches nothing. Parsing nothing and
  * reporting success is exactly how a check like this quietly stops checking.
  */
-export function expectedAssets(source: string): ReadonlyMap<string, string> {
-  const block = /const PLATFORMS = \{([\s\S]*?)\n\} as const;/.exec(source);
-  if (block === null) {
-    throw new Error("could not find the PLATFORMS literal - the route's shape has changed");
+export function parseDownloads(source: string): readonly ParsedTarget[] {
+  const found: ParsedTarget[] = [];
+
+  const entry =
+    /id:\s*"([^"]+)"[\s\S]*?asset:\s*"([^"]+)"[\s\S]*?available:\s*(true|false)/g;
+
+  for (const match of source.matchAll(entry)) {
+    found.push({
+      id: match[1] as string,
+      asset: match[2] as string,
+      available: match[3] === "true",
+    });
   }
 
-  const found = new Map<string, string>();
-  for (const line of (block[1] ?? "").matchAll(/"?([a-z-]+)"?:\s*\{\s*asset:\s*"([^"]+)"/g)) {
-    found.set(line[1] as string, line[2] as string);
-  }
-
-  if (found.size === 0) {
-    throw new Error("PLATFORMS parsed as empty - the route's shape has changed");
+  if (found.length === 0) {
+    throw new Error("no downloads parsed - the shape of DOWNLOADS has changed");
   }
 
   return found;
+}
+
+/**
+ * The assets a release actually has to carry.
+ *
+ * A platform marked unavailable is one the site advertises as coming soon and does not
+ * link, so requiring its installer would block every release on a build nobody is being
+ * offered. Pass an id to narrow to one platform, for a per-runner check.
+ */
+export function requiredAssets(
+  targets: readonly ParsedTarget[],
+  only?: string,
+): readonly string[] {
+  return targets
+    .filter((target) => target.available && (only === undefined || target.id === only))
+    .map((target) => target.asset);
 }
 
 /**

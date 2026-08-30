@@ -1,3 +1,4 @@
+import { downloadFor } from "@/lib/downloads";
 import { GITHUB_REPO } from "@/lib/site";
 
 /**
@@ -18,17 +19,15 @@ import { GITHUB_REPO } from "@/lib/site";
  * address it records is the one it ends up at.
  */
 
-const PLATFORMS = {
-  windows: { asset: "ADCode-Setup-x64.exe", type: "application/vnd.microsoft.portable-executable" },
-  macos: { asset: "ADCode-arm64.dmg", type: "application/x-apple-diskimage" },
-  "macos-intel": { asset: "ADCode-x64.dmg", type: "application/x-apple-diskimage" },
-  linux: { asset: "ADCode-x86_64.AppImage", type: "application/x-executable" },
-  "linux-deb": { asset: "ADCode-amd64.deb", type: "application/vnd.debian.binary-package" },
-} as const;
+/*
+ * The platform list lives in `@/lib/downloads` now.
+ *
+ * It was duplicated here and in the download cards, with the asset filenames written out
+ * twice - which is two places to update and one place to forget, on the strings that
+ * decide whether a download 404s.
+ */
+export type Platform = string;
 
-export type Platform = keyof typeof PLATFORMS;
-
-export const PLATFORM_IDS = Object.keys(PLATFORMS) as Platform[];
 
 /**
  * Streamed rather than cached at the edge.
@@ -44,10 +43,24 @@ export async function GET(
   { params }: { params: Promise<{ platform: string }> },
 ): Promise<Response> {
   const { platform } = await params;
-  const target = PLATFORMS[platform as Platform];
+  const target = downloadFor(platform);
 
   if (target === undefined) {
     return new Response("Unknown platform.", { status: 404 });
+  }
+
+  /*
+   * A platform we list but cannot ship yet.
+   *
+   * 503 rather than 404: the URL is right and will work later, which is what a "Retry-After
+   * unknown" service-unavailable says and what a "no such thing" does not. A crawler that
+   * saw a 404 here would drop the URL.
+   */
+  if (!target.available) {
+    return new Response(
+      `ADCode for ${target.platform} (${target.detail}) is not published yet. See /versions.`,
+      { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } },
+    );
   }
 
   const upstream = `https://github.com/${GITHUB_REPO}/releases/latest/download/${target.asset}`;

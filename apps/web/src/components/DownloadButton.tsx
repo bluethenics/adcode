@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { downloadFor } from "@/lib/downloads";
 
 type Platform = "windows" | "macos" | "macos-intel" | "linux" | "unknown";
 
@@ -11,6 +12,12 @@ const LABEL: Record<Platform, string> = {
   "macos-intel": "Download for macOS",
   linux: "Download for Linux",
   unknown: "Get ADCode",
+};
+
+/** What to say to somebody whose platform is listed but not shipping yet. */
+const SOON: Record<string, string> = {
+  macos: "ADCode for macOS - coming soon",
+  "macos-intel": "ADCode for macOS - coming soon",
 };
 
 /**
@@ -53,10 +60,20 @@ export function DownloadButton({
 
   useEffect(() => setPlatform(detect()), []);
 
-  if (platform === "unknown") {
+  /*
+   * A visitor whose platform cannot ship yet goes to the download page, not to a route
+   * that will refuse them.
+   *
+   * `/dl/macos` answers 503 while macOS is unpublished, and pointing the one prominent
+   * button on the homepage at it would turn "coming soon" into what looks like a broken
+   * site. `/versions` says which builds exist and offers the terminal install.
+   */
+  const target = downloadFor(platform);
+
+  if (platform === "unknown" || target === undefined || !target.available) {
     return (
       <Link href="/versions" className={className}>
-        {children ?? LABEL.unknown}
+        {children ?? SOON[platform] ?? LABEL[platform]}
       </Link>
     );
   }

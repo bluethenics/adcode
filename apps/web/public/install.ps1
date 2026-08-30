@@ -95,14 +95,45 @@ if ($checksumAsset) {
 }
 
 Write-Host ""
-Write-Host "  Windows will warn that the publisher is unrecognised." -ForegroundColor Yellow
-Write-Host "  Builds aren't code-signed yet. Choose More info, then Run anyway."
-Write-Host ""
 Write-Host "  Starting the installer..."
 
+# No SmartScreen prompt is expected here, and that is not luck.
+#
+# The "Windows protected your PC" dialog fires on files carrying the Mark of the Web - the
+# zone tag a browser attaches to a download. Invoke-WebRequest does not set it, and the
+# installer is per-user, so it needs no elevation either. This is why the terminal install
+# is the recommended path while builds are not yet code-signed: it is not a workaround for
+# a warning, it is the route that does not produce one.
+#
+# If Windows does interpose anyway - some managed machines tighten this - choose More info,
+# then Run anyway.
 Start-Process -FilePath $target -Wait
 
 Write-Host ""
-Write-Host "  Done. ADCode is in your Start menu." -ForegroundColor Green
-Write-Host "  It keeps itself up to date; turn that off in Settings if you'd rather not."
+Write-Host "  Installed." -ForegroundColor Green
+
+# Everything somebody installing from a terminal needs next, printed in the terminal.
+#
+# A person who installs this way may never open the website, so the four things they will
+# actually need - how to launch it, how it updates, how to remove it, and where to get
+# help - are stated here rather than linked to. The ads line is here for the same reason:
+# it is the one thing about this editor nobody should discover by surprise.
+Write-Host ""
+Write-Host "  Next" -ForegroundColor White
+Write-Host "    Launch            the Start menu, or: adcode"
+Write-Host "    Open a folder     adcode open ."
+Write-Host "    Every command     adcode help"
+Write-Host ""
+Write-Host "  Looking after it" -ForegroundColor White
+Write-Host "    Updates           automatic; turn off in Settings, Updates"
+Write-Host "    Reinstall         run this same command again"
+Write-Host "    Uninstall         Settings, Apps, Installed apps, ADCode"
+Write-Host ""
+Write-Host "  Help" -ForegroundColor White
+Write-Host "    In the editor     Help menu, Feature Guide - every feature, explained"
+Write-Host "    Documentation     $Site/docs"
+Write-Host "    Something wrong   $Site/support"
+Write-Host ""
+Write-Host "  ADCode shows an occasional sponsored card and credits you half of what it pays." -ForegroundColor DarkGray
+Write-Host "  Turn ads off entirely in Settings, Ads and Earnings. The editor stays complete." -ForegroundColor DarkGray
 Write-Host ""

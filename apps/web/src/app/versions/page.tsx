@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DOWNLOADS } from "@/lib/downloads";
+import { DOWNLOADS, downloadHref } from "@/lib/downloads";
 import { allReleases } from "@/lib/releases";
 import { GITHUB_REPO, url } from "@/lib/site";
 
@@ -23,14 +23,52 @@ export default async function VersionsPage() {
           {latest !== null && <small>Latest release · {latest.version} · <time dateTime={latest.published}>{latest.published}</time></small>}
         </header>
 
+        {/*
+          A platform we cannot ship yet is listed and labelled, not hidden and not linked.
+          Hiding it answers "does this run on my Mac?" with silence; linking it hands
+          somebody an app Gatekeeper will refuse to open.
+        */}
         <div className="download-grid" aria-label="Desktop downloads">
-          {DOWNLOADS.map((download) => (
-            <a className="download-card glass-card" href={download.href} key={download.href}>
-              <span><strong>{download.platform}</strong><small>{download.detail}</small></span>
-              <b aria-hidden="true">↓</b>
-            </a>
-          ))}
+          {DOWNLOADS.map((download) =>
+            download.available ? (
+              <a className="download-card glass-card" href={downloadHref(download)} key={download.id}>
+                <span><strong>{download.platform}</strong><small>{download.detail}</small></span>
+                <b aria-hidden="true">↓</b>
+              </a>
+            ) : (
+              <div className="download-card glass-card is-soon" key={download.id} aria-disabled="true">
+                <span><strong>{download.platform}</strong><small>{download.detail}</small></span>
+                <em>Coming soon</em>
+              </div>
+            ),
+          )}
         </div>
+
+        {/*
+          The terminal install, given equal billing rather than buried.
+
+          It is not a convenience here, it is the path that works: a file fetched by
+          Invoke-WebRequest or curl carries no Mark of the Web, so Windows SmartScreen does
+          not interpose the "Windows protected your PC" dialog that an unsigned installer
+          otherwise earns. Combined with a per-user NSIS install, which needs no elevation,
+          this is a clean install today on builds that are not code-signed.
+        */}
+        <section className="install-terminal glass-card" aria-label="Install from a terminal">
+          <div>
+            <strong>Or install from a terminal</strong>
+            <p>Fetches the same release, checks it against the checksum published with it, and skips the browser download warning.</p>
+          </div>
+          <dl>
+            <div>
+              <dt>Windows</dt>
+              <dd><code>irm https://adcode.bluethenics.com/install.ps1 | iex</code></dd>
+            </div>
+            <div>
+              <dt>Linux</dt>
+              <dd><code>curl -fsSL https://adcode.bluethenics.com/install.sh | sh</code></dd>
+            </div>
+          </dl>
+        </section>
 
         <section className="release-history">
           <div className="release-history-head"><span className="glass-kicker">Release history</span><a href={`https://github.com/${GITHUB_REPO}/releases`} rel="noreferrer">View source releases ↗</a></div>

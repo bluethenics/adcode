@@ -78,6 +78,11 @@ jobs:
             # `--x64` there would be no Intel .dmg for the /dl/macos-intel route.
             args: "--mac --arm64 --x64"
             serves: "macos macos-intel"
+            # macOS is advertised as coming soon and its installers are not required, so a
+            # failure here must not stop Windows and Linux shipping. Still attempted on
+            # every run: the runner is free, and it is the only way to find out whether a
+            # .dmg builds at all from a project developed on Windows.
+            optional: true
           - os: ubuntu-latest
             platform: linux
             args: "--linux"
@@ -85,6 +90,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     name: build (${{ matrix.platform }})
+    continue-on-error: ${{ matrix.optional == true }}
 
     steps:
       - uses: actions/checkout@v4
@@ -162,7 +168,8 @@ jobs:
         with:
           name: installers-${{ matrix.platform }}
           path: dist/
-          if-no-files-found: error
+          # An optional platform that produced nothing is a fact to record, not a failure.
+          if-no-files-found: ${{ matrix.optional == true && 'warn' || 'error' }}
           retention-days: 14
 
   release:

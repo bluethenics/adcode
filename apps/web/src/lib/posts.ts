@@ -50,6 +50,99 @@ const REVALIDATE_SECONDS = 60;
 
 const SOURCES: readonly PostSource[] = [
   {
+    slug: "installing-adcode",
+    title: "Installing ADCode from a terminal",
+    description:
+      "One command on Linux or Windows: what it verifies before it runs, where things land, and how to update or remove the editor afterwards.",
+    published: "2026-08-30",
+    surface: "docs",
+    section: "Start here",
+    order: 0,
+    related: ["getting-started-with-adcode"],
+    body: `
+ADCode installs from one command. This page is the whole of it: what the command does, where things land, and how to look after the editor afterwards.
+
+## The command
+
+**Linux**
+
+    curl -fsSL https://adcode.bluethenics.com/install.sh | sh
+
+**Windows**, in PowerShell
+
+    irm https://adcode.bluethenics.com/install.ps1 | iex
+
+**macOS is not published yet.** Signing and notarising a macOS build needs a paid Apple Developer membership, and an un-notarised app is not merely warned about - macOS refuses to open it. Rather than hand you a file your machine will reject, the installer says so and stops.
+
+## Why the terminal is the better route today
+
+ADCode's installers are not code-signed yet, and on Windows that would normally mean the "Windows protected your PC" dialog, which hides the Run button behind More info.
+
+That dialog fires on the Mark of the Web - a zone tag Windows attaches to files a *browser* downloaded. A file fetched by \`Invoke-WebRequest\` does not carry it, and ADCode installs per-user, so it asks for no administrator prompt either. The terminal install is not a way around a warning; it is the route that does not produce one.
+
+## What the script actually does
+
+Worth knowing, because you are piping it into a shell:
+
+1. Asks GitHub for the latest release.
+2. Picks the artifact for your platform - a \`.deb\` where \`dpkg\` exists, an AppImage otherwise.
+3. Downloads it into a private temporary directory.
+4. Verifies it against the checksum published with the release. A tampered mirror or a truncated download is caught before anything runs.
+5. Installs it, and prints what to do next.
+
+If the checksum does not match, nothing is installed and the file is deleted.
+
+## Where it lands
+
+- **Debian and Ubuntu** - an ordinary package, with \`adcode\` on your PATH.
+- **Other Linux** - the AppImage goes to \`~/.local/bin/adcode\`. If that is not on your PATH the script says so, and how to add it.
+- **Windows** - a per-user install, in the Start menu and on your PATH as \`adcode\`.
+
+## Using it
+
+- \`adcode\` opens the editor.
+- \`adcode open .\` opens it on the current folder.
+- \`adcode help\` lists every command.
+
+The editor's Help menu has a Feature Guide listing every feature with what it is for and how to reach it. That is the fastest way to find something you suspect exists.
+
+## Updating
+
+ADCode updates itself. New versions download quietly and apply the next time you start it - it will not restart itself and will not interrupt you to ask.
+
+To update by hand, run the install command again. To stop automatic updates, turn them off in Settings, Updates.
+
+## Removing it
+
+- **Debian and Ubuntu** - \`sudo apt remove adcode\`
+- **AppImage** - \`rm ~/.local/bin/adcode\`
+- **Windows** - Settings, Apps, Installed apps, ADCode
+
+## Options the scripts honour
+
+Set these before running if you need to point the installer elsewhere:
+
+- \`ADCODE_SITE\` - the site the script names in its messages.
+- \`ADCODE_GH_OWNER\` and \`ADCODE_GH_REPO\` - the repository releases are fetched from.
+
+## If something goes wrong
+
+**"is not on your PATH"** - the AppImage installed correctly and your shell cannot find it. Add \`~/.local/bin\` to your PATH, or run it by full path.
+
+**dpkg reports missing dependencies** - the script already runs \`apt-get install -f\` to resolve them. If it still fails, use the AppImage from the [downloads page](/versions) instead.
+
+**The checksum did not match** - nothing was installed, and this is worth telling us about at [support](/support). It means the file you received was not the file that was published.
+
+**No release for your platform** - check [what is published](/versions). Linux arm64 has no build yet.
+
+## One thing to know about ads
+
+ADCode shows an occasional sponsored card while you work, and credits you half of what it pays. That is how a complete IDE is free.
+
+You can turn ads off entirely in Settings, Ads and Earnings, and the editor stays complete - nothing is withheld behind them.
+`,
+  },
+  {
     slug: "why-the-ledger-is-append-only",
     title: "Why the ledger is append-only",
     description:
@@ -104,13 +197,15 @@ Open the earnings view in the editor, or the dashboard on the web. The rows you 
 
 We think an ad-supported editor is defensible, but only if it commits to a few things and then actually enforces them. Here is what ADCode commits to.
 
-## 1. Ads never interrupt work
+## 1. Ads stay in the corner, and stay out of the way
 
-A sponsored card appears in the corner of the window. It does not appear while you are typing, during a debug session, while a terminal command is running, or when the window is not focused.
+A sponsored card appears in the corner of the window while you work. It never takes focus, never covers the editor, and never blocks a keystroke — you can ignore it completely and it will leave on its own.
 
-That last one matters more than it sounds: an ad shown to an unfocused window is one nobody saw, so paying for it would be fraud against the advertiser and showing it would be noise for you. It is simply not served.
+It does not appear during a debug session, when the window is not focused, in the first minute after launch, or twice in a row without a gap.
 
-These rules are evaluated in a fixed order in the editor's scheduler. They are not preferences we hope to honour.
+That focus rule matters more than it sounds: an ad shown to an unfocused window is one nobody saw, so paying for it would be fraud against the advertiser and showing it would be noise for you. It is simply not served.
+
+An earlier version of this page said cards also wait for you to stop typing. They do not, and they never did — the scheduler has no typing rule in it. We have corrected the claim rather than quietly leave it standing: a card that only ever arrived once you had stopped working would be a card shown to somebody who had already left, and that is not a promise worth keeping even if we had built it. These rules are the ones actually evaluated, in a fixed order, in the editor's scheduler.
 
 ## 2. Your code stays on your machine
 
@@ -183,7 +278,7 @@ That protects the advertiser from paying for fabricated views, and it protects y
     published: "2026-08-20",
     surface: "docs",
     section: "Start here",
-    order: 0,
+    order: 1,
     body: `
 ADCode is a full desktop IDE - Monaco editing, real terminals, git, debugging, four ways to connect AI - that funds itself with an occasional sponsored card and pays you half of every advertising dollar. This guide takes you from download to working code, and tells you where everything lives.
 
@@ -387,7 +482,7 @@ Choose VS Code for the ecosystem, Cursor for a managed AI experience you pay mon
     published: "2026-08-24",
     surface: "docs",
     section: "Start here",
-    order: 1,
+    order: 2,
     body: `
 ADCode documents every switch it has - seventy-plus pages in [the docs](/docs), each with steps, benefits, and a comparison. This tour walks the twelve groups in the order the settings do, so you know what exists before you need it.
 

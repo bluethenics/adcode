@@ -1,11 +1,12 @@
 #!/bin/sh
 #
-# ADCode installer for macOS and Linux.
+# ADCode installer for Linux, and macOS once macOS builds ship.
 #
 #   curl -fsSL https://adcode.bluethenics.com/install.sh | sh
 #
 # Picks the right artifact for the platform, verifies it against the checksum published
-# with the release, and installs it.
+# with the release, installs it, and then tells you everything you need to look after it
+# without opening a browser.
 #
 # POSIX sh, not bash: macOS ships bash 3.2 and some minimal Linux images have no bash at
 # all. Nothing here needs more than sh provides.
@@ -15,11 +16,6 @@ set -eu
 OWNER="${ADCODE_GH_OWNER:-bluethenics}"
 REPO="${ADCODE_GH_REPO:-adcode}"
 API="https://api.github.com/repos/${OWNER}/${REPO}/releases/latest"
-
-# Where to send someone when this script cannot finish. The workers.dev hostname on
-# purpose, for the same reason `apps/desktop/src/main/backend.ts` uses it: the custom
-# domain has no DNS record until SETUP.md step 13 is done, and a failure message that
-# points at a hostname which does not resolve turns a recoverable problem into a dead end.
 SITE="${ADCODE_SITE:-https://adcode.bluethenics.com}"
 
 BOLD=''
@@ -50,18 +46,28 @@ OS="$(uname -s)"
 ARCH="$(uname -m)"
 
 case "$OS" in
-  Darwin) PATTERN='\.dmg"' ;;
   Linux)
     # .deb where dpkg exists, AppImage otherwise - AppImage runs anywhere and needs no
     # package manager, but a .deb is what a Debian user expects to be able to remove.
     if command -v dpkg >/dev/null 2>&1; then PATTERN='\.deb"'; else PATTERN='\.AppImage"'; fi
     ;;
-  *) fail "ADCode supports macOS and Linux from this script, and Windows via install.ps1." ;;
+  Darwin)
+    # Signing and notarising a macOS build needs a paid Apple Developer membership, and
+    # an un-notarised app is not warned about but refused outright by Gatekeeper. Saying
+    # so plainly is better than downloading something that will not open.
+    printf '  %sADCode for macOS is not published yet.%s\n\n' "$YELLOW" "$RESET"
+    printf '  Builds need Apple notarisation before they will open at all, and that is\n'
+    printf '  not in place. Windows and Linux are available today.\n\n'
+    printf '  Follow along at %s/versions\n\n' "$SITE"
+    exit 0
+    ;;
+  *) fail "This script installs ADCode on Linux. On Windows use install.ps1; see ${SITE}/versions" ;;
 esac
 
 case "$ARCH" in
-  x86_64|amd64|arm64|aarch64) : ;;
-  *) fail "No ADCode build for $ARCH yet." ;;
+  x86_64|amd64) : ;;
+  arm64|aarch64) fail "ADCode has no arm64 Linux build yet. See ${SITE}/versions" ;;
+  *) fail "No ADCode build for $ARCH yet. See ${SITE}/versions" ;;
 esac
 
 say "Finding the latest release..."
@@ -75,7 +81,7 @@ URL="$(printf '%s' "$RELEASE" \
   | grep -E "$(printf '%s' "$PATTERN" | sed 's/"$//')$" \
   | head -n 1)"
 
-[ -n "$URL" ] || fail "That release has no build for your platform. See ${SITE}/download"
+[ -n "$URL" ] || fail "That release has no build for your platform. See ${SITE}/versions"
 
 VERSION="$(printf '%s' "$RELEASE" | grep -o '"tag_name": *"[^"]*"' | sed 's/.*: *"//; s/"$//')"
 FILE="$(basename "$URL")"
@@ -90,18 +96,13 @@ trap cleanup EXIT INT TERM
 
 say "Downloading $FILE..."
 curl -fsSL --progress-bar "$URL" -o "$WORKDIR/$FILE" \
-  || fail "Download failed. Try again, or grab it from ${SITE}/download"
+  || fail "Download failed. Try again, or grab it from ${SITE}/versions"
 
-# electron-builder publishes latest-mac.yml / latest-linux.yml with a SHA-512 per artifact.
-case "$OS" in
-  Darwin) META="latest-mac.yml" ;;
-  *)      META="latest-linux.yml" ;;
-esac
-
+# electron-builder publishes latest-linux.yml with a SHA-512 per artifact.
 META_URL="$(printf '%s' "$RELEASE" \
   | grep -o '"browser_download_url": *"[^"]*"' \
   | sed 's/.*"browser_download_url": *"//; s/"$//' \
-  | grep "/${META}$" | head -n 1)"
+  | grep '/latest-linux.yml$' | head -n 1)"
 
 if [ -n "$META_URL" ] && command -v shasum >/dev/null 2>&1; then
   EXPECTED="$(curl -fsSL "$META_URL" 2>/dev/null | grep -m1 -o 'sha512: *[A-Za-z0-9+/=]*' | sed 's/sha512: *//')"
@@ -116,37 +117,52 @@ else
   printf '  %sChecksum not published for this release; the download is unverified.%s\n' "$YELLOW" "$RESET"
 fi
 
-case "$OS" in
-  Darwin)
-    say "Opening the disk image..."
-    printf '  %smacOS will say the app is from an unidentified developer.%s\n' "$YELLOW" "$RESET"
-    printf '  %sBuilds are not notarised yet. Right-click the app and choose Open.%s\n' "$DIM" "$RESET"
-    open "$WORKDIR/$FILE"
-    # The image is mounted by the user, so the temp dir has to survive this script.
-    trap - EXIT
-    printf '\n  %sDrag ADCode to Applications to finish.%s\n\n' "$GREEN" "$RESET"
+# Everything somebody installing from a terminal needs next, printed in the terminal.
+#
+# A person who installs this way may never open the website, so the four things they will
+# actually need - how to launch it, how it updates, how to remove it, and where to get
+# help - are stated here rather than linked to. The ads sentence is here for the same
+# reason: it is the one thing about this editor somebody should not discover by surprise.
+guidance() {
+  printf '\n  %sNext%s\n' "$BOLD" "$RESET"
+  printf '    Launch            %s\n' "$1"
+  printf '    Open a folder     adcode open .\n'
+  printf '    Every command     adcode help\n'
+  printf '\n  %sLooking after it%s\n' "$BOLD" "$RESET"
+  printf '    Updates           automatic; turn off in Settings, Updates\n'
+  printf '    Reinstall         run this same command again\n'
+  printf '    Uninstall         %s\n' "$2"
+  printf '\n  %sHelp%s\n' "$BOLD" "$RESET"
+  printf '    In the editor     Help menu, Feature Guide - every feature, explained\n'
+  printf '    Documentation     %s/docs\n' "$SITE"
+  printf '    Something wrong   %s/support\n' "$SITE"
+  printf '\n  %sADCode shows an occasional sponsored card and credits you half of what it pays.%s\n' "$DIM" "$RESET"
+  printf '  %sTurn ads off entirely in Settings, Ads and Earnings. The editor stays complete.%s\n\n' "$DIM" "$RESET"
+}
+
+case "$FILE" in
+  *.deb)
+    say "Installing with dpkg (you'll be asked for your password)..."
+    sudo dpkg -i "$WORKDIR/$FILE" || sudo apt-get install -f -y
+    printf '\n  %sInstalled.%s\n' "$GREEN" "$RESET"
+    guidance "adcode" "sudo apt remove adcode"
     ;;
-  Linux)
-    case "$FILE" in
-      *.deb)
-        say "Installing with dpkg (you'll be asked for your password)..."
-        sudo dpkg -i "$WORKDIR/$FILE" || sudo apt-get install -f -y
-        printf '\n  %sDone. Run it with: adcode%s\n\n' "$GREEN" "$RESET"
+  *.AppImage)
+    DEST="${HOME}/.local/bin"
+    mkdir -p "$DEST"
+    mv "$WORKDIR/$FILE" "$DEST/adcode"
+    chmod +x "$DEST/adcode"
+    printf '\n  %sInstalled to %s/adcode%s\n' "$GREEN" "$DEST" "$RESET"
+
+    case ":$PATH:" in
+      *":$DEST:"*)
+        guidance "adcode" "rm ${DEST}/adcode"
         ;;
-      *.AppImage)
-        DEST="${HOME}/.local/bin"
-        mkdir -p "$DEST"
-        mv "$WORKDIR/$FILE" "$DEST/adcode"
-        chmod +x "$DEST/adcode"
-        printf '\n  %sInstalled to %s/adcode%s\n' "$GREEN" "$DEST" "$RESET"
-        case ":$PATH:" in
-          *":$DEST:"*) printf '  Run it with: adcode\n\n' ;;
-          *) printf '  %s%s is not on your PATH. Add it, or run %s/adcode%s\n\n' "$YELLOW" "$DEST" "$DEST" "$RESET" ;;
-        esac
+      *)
+        printf '  %s%s is not on your PATH.%s\n' "$YELLOW" "$DEST" "$RESET"
+        printf '  %sAdd it with: echo '"'"'export PATH="$HOME/.local/bin:$PATH"'"'"' >> ~/.profile%s\n' "$DIM" "$RESET"
+        guidance "${DEST}/adcode" "rm ${DEST}/adcode"
         ;;
     esac
     ;;
 esac
-
-say "ADCode keeps itself up to date; turn that off in Settings if you'd rather not."
-printf '\n'

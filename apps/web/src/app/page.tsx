@@ -53,7 +53,19 @@ export default function Home() {
               <DownloadButton className="marketplace-primary">Download ADCode <span aria-hidden="true">↓</span></DownloadButton>
               <a href="#advertise" className="marketplace-secondary">Advertise to developers <span aria-hidden="true">↘</span></a>
             </div>
-            <small>Windows · macOS · Linux · free to use</small>
+            {/*
+              The terminal install, in the hero.
+
+              Not a power-user footnote: it is the path that works best today. A file
+              fetched by curl or Invoke-WebRequest carries no Mark of the Web, so Windows
+              does not interpose the SmartScreen dialog an unsigned installer otherwise
+              earns - and the audience for a code editor is already in a terminal.
+            */}
+            <div className="marketplace-hero-install">
+              <code>curl -fsSL https://adcode.bluethenics.com/install.sh | sh</code>
+              <small>Linux · macOS soon. On Windows: <code>irm https://adcode.bluethenics.com/install.ps1 | iex</code></small>
+            </div>
+            <small>Windows · Linux · free to use · macOS coming soon</small>
           </div>
           <MarketDemand />
         </div>

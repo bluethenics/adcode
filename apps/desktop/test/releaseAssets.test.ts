@@ -1,29 +1,66 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { expectedAssets, missingFrom } from "@adcode/release/downloadAssets";
+import {
+  missingFrom,
+  parseDownloads,
+  requiredAssets,
+} from "@adcode/release/downloadAssets";
 
 const ROOT = join(import.meta.dirname, "..", "..", "..");
-const ROUTE = join(ROOT, "apps", "web", "src", "app", "dl", "[platform]", "route.ts");
+const SOURCE = join(ROOT, "apps", "web", "src", "lib", "downloads.ts");
 const BUILDER = join(ROOT, "electron-builder.yml");
 
-const route = readFileSync(ROUTE, "utf8");
+const downloads = readFileSync(SOURCE, "utf8");
 const builder = readFileSync(BUILDER, "utf8");
 
 describe("the names the website will ask for", () => {
-  it("reads one asset for every platform the download route serves", () => {
-    const assets = expectedAssets(route);
+  it("reads every download the site declares, with whether it can ship", () => {
+    const targets = parseDownloads(downloads);
 
-    expect([...assets.keys()].sort()).toEqual([
+    expect(targets.map((target) => target.id).sort()).toEqual([
       "linux",
       "linux-deb",
       "macos",
       "macos-intel",
       "windows",
     ]);
-    expect(assets.get("windows")).toBe("ADCode-Setup-x64.exe");
-    expect(assets.get("macos")).toBe("ADCode-arm64.dmg");
-    expect(assets.get("linux")).toBe("ADCode-x86_64.AppImage");
+    expect(targets.find((target) => target.id === "windows")?.asset).toBe(
+      "ADCode-Setup-x64.exe",
+    );
+    expect(targets.find((target) => target.id === "linux")?.asset).toBe(
+      "ADCode-x86_64.AppImage",
+    );
+  });
+
+  /*
+   * macOS is listed and not shippable.
+   *
+   * Signing and notarisation need a paid Apple membership, and an un-notarised app is not
+   * warned about but refused. Requiring the .dmg would block every release on a build
+   * nobody is being offered, so "coming soon" has to mean something to the release check
+   * and not only to the page.
+   */
+  it("does not require an installer for a platform it advertises as coming soon", () => {
+    const targets = parseDownloads(downloads);
+    const required = requiredAssets(targets);
+
+    expect(required).not.toContain("ADCode-arm64.dmg");
+    expect(required).not.toContain("ADCode-x64.dmg");
+    expect(required).toEqual([
+      "ADCode-Setup-x64.exe",
+      "ADCode-x86_64.AppImage",
+      "ADCode-amd64.deb",
+    ]);
+  });
+
+  it("narrows to one platform for a per-runner check", () => {
+    const targets = parseDownloads(downloads);
+
+    expect(requiredAssets(targets, "windows")).toEqual(["ADCode-Setup-x64.exe"]);
+    // Asking about a platform that cannot ship is not an error; there is simply nothing
+    // for that runner to prove.
+    expect(requiredAssets(targets, "macos")).toEqual([]);
   });
 
   /*
@@ -43,17 +80,18 @@ describe("the names the website will ask for", () => {
 
   it("names every missing asset rather than only the first", () => {
     const present = ["ADCode-Setup-x64.exe", "latest.yml"];
-    const wanted = ["ADCode-Setup-x64.exe", "ADCode-arm64.dmg", "ADCode-amd64.deb"];
+    const wanted = ["ADCode-Setup-x64.exe", "ADCode-x86_64.AppImage", "ADCode-amd64.deb"];
 
-    // Every one, in the order they were wanted: a release three files short should say so
-    // once, not over three build attempts.
-    expect(missingFrom(present, wanted)).toEqual(["ADCode-arm64.dmg", "ADCode-amd64.deb"]);
+    expect(missingFrom(present, wanted)).toEqual([
+      "ADCode-x86_64.AppImage",
+      "ADCode-amd64.deb",
+    ]);
     expect(missingFrom(present, ["latest.yml"])).toEqual([]);
   });
 
-  it("refuses to pass when the route's shape has changed under it", () => {
+  it("refuses to pass when the shape it parses has changed under it", () => {
     // Parsing nothing and reporting success is how this check would quietly stop working.
-    expect(() => expectedAssets("const PLATFORMS = {} as const;")).toThrow();
-    expect(() => expectedAssets("nothing like the route at all")).toThrow();
+    expect(() => parseDownloads("export const DOWNLOADS = [];")).toThrow();
+    expect(() => parseDownloads("nothing like the file at all")).toThrow();
   });
 });

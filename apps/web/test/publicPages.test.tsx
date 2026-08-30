@@ -1,19 +1,43 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { PortalActions } from "../src/components/PortalActions";
-import { DOWNLOADS } from "../src/lib/downloads";
+import { DOWNLOADS, downloadHref } from "../src/lib/downloads";
 import { buildSupportRequest } from "../src/lib/support";
 
 describe("public download destinations", () => {
   it("offers each supported desktop build through an ADCode download route", () => {
-    expect(DOWNLOADS.map((download) => download.href)).toEqual([
+    expect(DOWNLOADS.map(downloadHref)).toEqual([
       "/dl/windows",
-      "/dl/macos",
-      "/dl/macos-intel",
       "/dl/linux",
       "/dl/linux-deb",
+      "/dl/macos",
+      "/dl/macos-intel",
     ]);
-    expect(DOWNLOADS.every((download) => download.href.startsWith("/dl/"))).toBe(true);
+    expect(DOWNLOADS.every((download) => downloadHref(download).startsWith("/dl/"))).toBe(true);
+  });
+
+  /*
+   * macOS is listed and cannot ship.
+   *
+   * Signing and notarisation need a paid Apple membership, and an un-notarised app is
+   * refused by Gatekeeper rather than merely warned about - so a download button for it
+   * would hand somebody a file their machine will not open. The platform stays on the
+   * page, labelled, because "does this run on my Mac?" deserves an answer either way.
+   */
+  it("ships what it can and says so about what it cannot", () => {
+    const shipping = DOWNLOADS.filter((download) => download.available).map((d) => d.id);
+    const soon = DOWNLOADS.filter((download) => !download.available).map((d) => d.id);
+
+    expect(shipping).toEqual(["windows", "linux", "linux-deb"]);
+    expect(soon).toEqual(["macos", "macos-intel"]);
+  });
+
+  it("names an installer for every platform, shipping or not", () => {
+    // The name has to exist before the platform can be switched on, and it is what
+    // scripts/check-release-assets.mjs compares the build output against.
+    for (const download of DOWNLOADS) {
+      expect(download.asset, download.id).toMatch(/^ADCode-.+\.(exe|dmg|AppImage|deb)$/);
+    }
   });
 });
 

@@ -359,6 +359,44 @@ a {
   background: rgba(255, 255, 255, 0.09);
   padding: 2px 6px;
   border-radius: 6px;
+  /*
+   * A shell command is one long unbreakable token, and the install guides are full of
+   * them. Without this, `curl -fsSL https://.../install.sh | sh` sets the width of the
+   * whole document on a phone and every paragraph beside it scrolls sideways.
+   */
+  overflow-wrap: anywhere;
+}
+
+/*
+ * A fenced block scrolls itself rather than widening the page.
+ *
+ * The markdown renderer produces no `<pre>` today, but an admin-authored docs page can
+ * contain one, and a code block is the single most likely thing to break a narrow layout.
+ */
+.prose pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.35);
+  line-height: 1.55;
+}
+
+.prose pre code {
+  padding: 0;
+  background: none;
+  /* Inside a scrolling block, breaking a command mid-token is worse than scrolling it. */
+  overflow-wrap: normal;
+  white-space: pre;
+}
+
+/* A wide table scrolls in its own box for the same reason. */
+.prose .table-scroll,
+.prose table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .prose table {
@@ -937,7 +975,17 @@ body { background: #000; }
 .reading-progress span { position:absolute; inset:0; background:#fff; transform-origin:0 50%; transform:scaleX(var(--progress,0)); }
 /* Avoid repaint-heavy backdrop blur while scrolling the long home page. */
 .nav-scrolled { background:#101214; box-shadow:0 10px 26px rgba(0,0,0,.3); backdrop-filter:none; -webkit-backdrop-filter:none; }.home-hero::after { filter:none; }
-@media(max-width:760px){.docs-layout{display:block}.docs-sidebar{position:static;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:35px}.docs-sidebar h2{font-size:10px}.docs-sidebar a{font-size:13px;padding:4px 0;margin:0;background:none!important}.docs-sub{display:none}.crumbs{font-size:11px}}
+/*
+ * Below 760 the sidebar stops being a column beside the text and becomes a block above it.
+ *
+ * `auto-fit` rather than a fixed three columns: three 1fr tracks on a 360px screen leaves
+ * about 100px each, which wraps every link title onto two or three lines and turns the
+ * navigation into a wall. Letting the tracks reflow gives three columns on a tablet and
+ * one on a small phone, without a second breakpoint to maintain.
+ */
+@media(max-width:760px){.docs-layout{display:block}.docs-sidebar{position:static;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 20px;margin-bottom:35px}.docs-sidebar h2{font-size:10px}.docs-sidebar a{font-size:13px;padding:4px 0;margin:0;background:none!important}.docs-sub{display:none}.crumbs{font-size:11px}}
+/* Phone-width: the display heading and the reading measure both need to come down. */
+@media(max-width:480px){.docs-header h1{font-size:clamp(28px,8vw,38px)}.docs-page .prose{font-size:15px}.docs-list-link{padding:20px 14px;margin-inline:-14px}.docs-sidebar{gap:12px 16px}}
 .docs-wrap { max-width:920px; }.docs-header { max-width:700px; margin-bottom:42px; }.docs-header h1 { font-size:clamp(38px,5vw,62px); }.docs-header .lede { color:#9ca6a8; }.docs-header .eyebrow { color:#7f8a8c; }.docs-list { border-top:1px solid rgba(255,255,255,.12); }.docs-list li { border-bottom:1px solid rgba(255,255,255,.1); }.docs-list-link { display:block; padding:25px 18px; margin-inline:-18px; border-radius:14px; transition:background 180ms var(--ease),transform 260ms var(--ease); }.docs-list-link:hover { background:rgba(255,255,255,.055); transform:translateX(4px); }.docs-list-link h3 { color:#eef1f1; }.docs-list-link p { color:#929c9e!important; }.docs-list-link .mono { color:#737e80!important; }.docs-back { display:inline-flex; color:#aeb8ba; font-size:14px; padding:8px 12px; margin-left:-12px; border-radius:9px; transition:color 160ms var(--ease),background 160ms var(--ease); }.docs-back:hover { color:#fff; background:rgba(255,255,255,.07); }.docs-page .prose { max-width:740px; }.docs-page .prose h2,.docs-page .prose h3,.docs-page .prose strong { color:#f1f3f3; }.docs-page .prose p,.docs-page .prose li { color:#adb6b8; }.docs-page .prose code { color:#e7ebeb; background:rgba(255,255,255,.09); }.docs-page .prose a { color:#dce5e6; }.docs-page .lede { color:#a7b0b2; }
 /* Index rows: the same list as a hoverable surface, sliding a step toward the click. */
 .docs-index-link { transition:background 180ms var(--ease),transform 240ms var(--ease); }.docs-index-link:hover { background:rgba(255,255,255,.055); transform:translateX(4px); }.docs-index-link:hover span:first-child { color:#fff; }
@@ -3576,6 +3624,13 @@ body { background: #000; }
 .bid-auth { margin-top: 16px; }.bid-auth .auth-card { border-color: #d9ddd8; color: #1b211f; background: #fff; }.bid-auth .field-hint { color: #68716d; }
 
 .marketplace-principles { border-top: 1px solid rgba(255,255,255,.08); background: #05090a; }.marketplace-principles .marketplace-wrap { display: grid; grid-template-columns: repeat(3,1fr); }.marketplace-principles p { min-height: 128px; padding: 30px; display: grid; grid-template-columns: auto 1fr; align-content: center; column-gap: 14px; border-right: 1px solid rgba(255,255,255,.08); }.marketplace-principles p:last-child { border-right: 0; }.marketplace-principles p > span { grid-row: 1/3; color: #56615e; font-family: var(--font-mono); font-size: 10px; }.marketplace-principles strong { font-size: 14px; }.marketplace-principles small { color: #737e7b; font-size: 11px; }
+/* The install command in the hero. Selectable, wrapping, and quiet beside the buttons. */
+.marketplace-hero-install { margin-top: 22px; display: grid; gap: 8px; max-width: 560px; }
+.marketplace-hero-install > code { padding: 12px 14px; display: block; overflow-x: auto; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; background: rgba(255,255,255,.05); color: #e8efeb; font: 13px/1.5 var(--font-mono); white-space: pre; user-select: all; }
+.marketplace-hero-install > small { color: #8b948f; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.marketplace-hero-install > small code { padding: 2px 5px; border-radius: 5px; background: rgba(255,255,255,.07); color: #cfd8d3; font: 11px var(--font-mono); user-select: all; }
+@media (max-width: 640px) { .marketplace-hero-install > code { font-size: 11.5px; white-space: pre-wrap; overflow-wrap: anywhere; } }
+
 /* The FAQ: dark like the principles strip above it, so the page ends on one ground. */
 .marketplace-faq { padding: 104px 0; border-top: 1px solid rgba(255,255,255,.08); background: #05090a; }
 .marketplace-faq .marketplace-wrap { display: grid; grid-template-columns: minmax(240px,.62fr) minmax(0,1.38fr); align-items: start; gap: clamp(40px,7vw,96px); }
@@ -3833,6 +3888,21 @@ body { color-scheme: dark; }
 .download-grid { margin-top: 58px; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
 .download-card { min-height: 112px; padding: 22px; display: flex; align-items: center; justify-content: space-between; gap: 18px; transition: transform 320ms var(--ease-sheet),border-color 220ms var(--ease),background 220ms var(--ease); }
 .download-card:hover { transform: translateY(-4px) scale(1.01); border-color: rgba(255,255,255,.3); background: rgba(255,255,255,.09); }
+/* A platform that is listed and not yet shippable. Dimmed, not hidden, and not hoverable. */
+.download-card.is-soon { opacity: .58; cursor: default; }
+.download-card.is-soon:hover { transform: none; border-color: var(--hairline); background: rgba(255,255,255,.04); }
+.download-card.is-soon em { font-style: normal; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+
+/* The terminal install, given the same weight as the cards above it. */
+.install-terminal { margin-top: 18px; padding: 24px; display: grid; gap: 20px; }
+.install-terminal strong { font-size: 15px; font-weight: 600; }
+.install-terminal > div > p { margin-top: 6px; max-width: 62ch; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.install-terminal dl { margin: 0; display: grid; gap: 12px; }
+.install-terminal dl > div { display: grid; gap: 6px; }
+.install-terminal dt { color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.install-terminal dd { margin: 0; min-width: 0; }
+.install-terminal code { display: block; padding: 12px 14px; overflow-x: auto; border: 1px solid var(--hairline); border-radius: var(--radius-sm); background: rgba(0,0,0,.35); color: var(--text); font: 13px/1.5 var(--font-mono); white-space: pre; }
+
 .download-card > span { display: grid; gap: 4px; }.download-card strong { font-size: 17px; }.download-card small { color: #85858b; font-size: 12px; }.download-card b { font: 400 24px var(--font-mono); }
 .release-history { margin-top: 90px; }
 .release-history-head { margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; gap: 24px; }

@@ -20,13 +20,20 @@ needs a Linux filesystem, and this project is developed on Windows.
 
 ## The five names, and why they matter
 
-| Route | Asset | Built by |
-|---|---|---|
-| `/dl/windows` | `ADCode-Setup-x64.exe` | `windows-latest` |
-| `/dl/macos` | `ADCode-arm64.dmg` | `macos-latest` |
-| `/dl/macos-intel` | `ADCode-x64.dmg` | `macos-latest` (`--x64`) |
-| `/dl/linux` | `ADCode-x86_64.AppImage` | `ubuntu-latest` |
-| `/dl/linux-deb` | `ADCode-amd64.deb` | `ubuntu-latest` |
+| Route | Asset | Built by | Shipping? |
+|---|---|---|---|
+| `/dl/windows` | `ADCode-Setup-x64.exe` | `windows-latest` | yes |
+| `/dl/linux` | `ADCode-x86_64.AppImage` | `ubuntu-latest` | yes |
+| `/dl/linux-deb` | `ADCode-amd64.deb` | `ubuntu-latest` | yes |
+| `/dl/macos` | `ADCode-arm64.dmg` | `macos-latest` | no - coming soon |
+| `/dl/macos-intel` | `ADCode-x64.dmg` | `macos-latest` (`--x64`) | no - coming soon |
+
+`available` in `apps/web/src/lib/downloads.ts` is the single switch. False means the card
+reads "Coming soon" and is not a link, `/dl/<id>` answers 503 rather than 404 - the URL is
+right and will work later - and the release check does not require the installer, so a
+release is not blocked on a platform nobody is being offered. The macOS runner still builds
+on every run, marked `optional`, because it is free and it is the only way to find out
+whether a .dmg builds at all from a project developed on Windows.
 
 `electron-builder.yml` produces these through `artifactName` templates whose `${arch}`
 token resolves differently per target — `x64` for the `.exe`, `x86_64` for the AppImage,
@@ -34,9 +41,10 @@ token resolves differently per target — `x64` for the `.exe`, `x86_64` for the
 quiet kind of failure: the build succeeds, the release publishes, every download returns
 404, and the first person to notice is a user.
 
-`scripts/check-release-assets.mjs` reads the expected names out of the route itself and
-fails the workflow if the built output cannot answer it. It runs twice — once per platform
-after packaging, and once over all five together before a release is drafted.
+`scripts/check-release-assets.mjs` reads the expected names out of `downloads.ts` — the
+file the site itself reads — and fails the workflow if the built output cannot answer it.
+It runs twice: once per platform after packaging, and once over every shipping platform
+together before a release is drafted. Platforms marked `available: false` are skipped.
 
 ## Cutting a release
 
@@ -59,20 +67,25 @@ latest. So nothing is downloadable until a person publishes it deliberately. Pus
 cannot ship binaries to users by itself — which matters most while those binaries are
 unsigned.
 
-## Signing — the gate between "built" and "shippable"
+## Signing, and why the terminal install ships without it
 
 The workflow signs when the secrets are present and builds unsigned when they are not,
-saying which in the run summary. Unsigned is not a small cosmetic issue:
+saying which in the run summary. What unsigned costs differs sharply by platform, and the
+difference is why ADCode ships Windows and Linux today and not macOS.
 
-- **Windows.** SmartScreen shows "Windows protected your PC" and hides the Run button
-  behind *More info*. Most people stop there. Needs an OV or EV code-signing certificate
-  (roughly $200–400/year; EV clears SmartScreen reputation immediately, OV builds it over
-  time and downloads).
-- **macOS.** Worse than a warning. An unsigned, un-notarised app downloaded from a browser
-  is refused outright — Gatekeeper reports it as damaged and offers no override that an
-  ordinary user will find. **A macOS download is not usable until it is signed and
-  notarised.** Needs the Apple Developer Program ($99/year).
-- **Linux.** No signing requirement. AppImage and `.deb` work as built.
+- **Linux.** No signing requirement at all. AppImage and `.deb` work exactly as built.
+- **Windows.** A *browser* download of an unsigned installer earns the "Windows protected
+  your PC" dialog, which hides the Run button behind *More info*, and most people stop
+  there. But that dialog fires on the **Mark of the Web** — a zone tag Windows attaches to
+  files a browser downloaded. `Invoke-WebRequest` does not set it, and `nsis.perMachine` is
+  `false` so the install needs no elevation either. **The terminal install therefore
+  produces no warning and no prompt**, which is why it leads on the homepage and the
+  download page. A certificate (OV or EV, roughly $200–400/year) is still worth buying for
+  the browser download path, but it is not what stands between you and shipping.
+- **macOS.** Not a warning, a refusal. An un-notarised app is rejected by Gatekeeper rather
+  than merely flagged, and no terminal trick makes an unsigned app acceptable on Apple
+  silicon. **macOS genuinely needs the Apple Developer Program ($99/year)** and is marked
+  coming soon until it has it.
 
 ### Secrets the workflow reads
 
@@ -103,7 +116,8 @@ repository check an update feed nobody publishes to.
 
 Open gates, from `docs/RELEASE-READINESS-2026-08-30-PM.md`:
 
-1. **Signing.** See above. macOS is a hard blocker; Windows is a conversion problem.
+1. **Signing.** macOS is a hard blocker and stays "coming soon" until the Apple membership
+   exists. Windows and Linux ship without it, terminal install first.
 2. **Refunds and disputes have never run against live Dodo.** Dodo is in live mode and the
    repaired branches have only been exercised by unit tests.
 3. **Six moderate advisories** in the `firebase-admin` dependency chain.
