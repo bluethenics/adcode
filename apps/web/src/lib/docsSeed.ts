@@ -26,8 +26,12 @@ export interface DocSeed {
   readonly related: readonly string[];
 }
 
-/** The sidebar order. Editing first, settings-shaped groups last. */
+/** The sidebar order. The authored writing first, then the generated reference. */
 export const DOC_SECTIONS: readonly string[] = [
+  "Start here",
+  "How ADCode works",
+  "Earning and advertising",
+  "Comparisons",
   "Editing",
   "Finding your way",
   "Formatting",

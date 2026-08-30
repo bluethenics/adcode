@@ -3,7 +3,7 @@ import { allReleases } from "@/lib/releases";
 import { SITE, url } from "@/lib/site";
 
 /**
- * `/feed.xml` - RSS for the blog and the changelog.
+ * `/feed.xml` - RSS for the written guides and the releases.
  *
  * Both in one feed rather than two. Somebody subscribing to a developer tool wants to know
  * when it changed and when something was written about it; splitting that into two URLs
@@ -26,9 +26,9 @@ const escape = (raw: string): string =>
 const rfc822 = (iso: string): string => new Date(`${iso}T00:00:00Z`).toUTCString();
 
 export async function GET(): Promise<Response> {
-  const posts = (await allPosts({ surface: "blog" })).map((post) => ({
+  const posts = (await allPosts({ surface: "docs" })).map((post) => ({
     title: post.title,
-    link: url(`/blog/${post.slug}`),
+    link: url(`/docs/${post.slug}`),
     description: post.description,
     date: post.published,
     category: "Article",
@@ -36,7 +36,7 @@ export async function GET(): Promise<Response> {
 
   const releases = (await allReleases()).map((release) => ({
     title: `${release.version} — ${release.title}`,
-    link: url(`/changelog#v${release.version}`),
+    link: url(`/versions#v${release.version}`),
     description:
       release.highlights.length > 0 ? release.highlights.join(". ") : release.title,
     date: release.published,

@@ -25,7 +25,7 @@ const rule = "\n\n---\n\n";
 
 export async function GET(): Promise<Response> {
   const sections = await docsBySection();
-  const posts = await allPosts({ surface: "blog" });
+  const posts = await allPosts({ surface: "docs" });
   const releases = await allReleases();
 
   const docs = sections
@@ -50,7 +50,7 @@ export async function GET(): Promise<Response> {
       (post) =>
         `## ${post.title}\n\n` +
         `Published: ${post.published}\n` +
-        `URL: ${url(`/blog/${post.slug}`)}\n\n` +
+        `URL: ${url(`/docs/${post.slug}`)}\n\n` +
         `${post.description}\n\n` +
         post.body.trim(),
     )
@@ -61,7 +61,7 @@ export async function GET(): Promise<Response> {
       (release) =>
         `## ${release.version} - ${release.title}\n\n` +
         `Published: ${release.published}\n` +
-        `URL: ${url(`/changelog#v${release.version}`)}\n\n` +
+        `URL: ${url(`/versions#v${release.version}`)}\n\n` +
         (release.highlights.length > 0
           ? `${release.highlights.map((one) => `- ${one}`).join("\n")}\n\n`
           : "") +

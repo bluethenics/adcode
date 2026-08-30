@@ -3,6 +3,9 @@ import { DownloadButton } from "@/components/DownloadButton";
 import { LandingBidBuilder } from "@/components/LandingBidBuilder";
 import { MarketDemand } from "@/components/MarketDemand";
 import { HeroCircuit } from "@/components/HeroCircuit";
+import { HomeFaq } from "@/components/HomeFaq";
+import { JsonLd } from "@/components/JsonLd";
+import { FAQ, faqPage } from "@/lib/schema";
 import { SITE, url } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -14,6 +17,12 @@ export const metadata: Metadata = {
 export default function Home() {
   return (
     <div className="marketplace-home">
+      {/*
+        The answers were already written and only a text file read them. Emitting the
+        schema beside the section that prints them is what lets a search engine quote
+        "ADCode is free" instead of guessing it from marketing copy.
+      */}
+      <JsonLd data={faqPage(FAQ)} />
       <a className="skip-link" href="#marketplace-main">Skip to content</a>
       <section className="marketplace-hero" id="earn">
         <HeroCircuit />
@@ -47,6 +56,8 @@ export default function Home() {
       <section className="marketplace-principles" aria-label="How ADCode works">
         <div className="marketplace-wrap"><p><span>01</span><strong>Verified attention</strong><small>Only a real, eligible view can bill.</small></p><p><span>02</span><strong>Second-price auction</strong><small>Win at your maximum; often pay less.</small></p><p><span>03</span><strong>Human review</strong><small>Every creative is checked before delivery.</small></p></div>
       </section>
+
+      <HomeFaq />
     </div>
   );
 }

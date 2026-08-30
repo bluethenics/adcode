@@ -8,8 +8,8 @@ interface Props {
    * see exactly where they landed.
    */
   currentDoc?: string;
-  /** Which reading surface is open - marks Blog or Changelog in the sidebar. */
-  reading?: "blog" | "changelog";
+  /** Which reading surface is open - marks Releases in the sidebar. */
+  reading?: "changelog";
 }
 
 /**
@@ -62,21 +62,26 @@ export async function DocsSidebar({ currentDoc, reading }: Props) {
         })}
       </section>
 
+      {/*
+        Straight to the destination, not through a redirect.
+
+        /blog, /changelog, /download and /advertise are redirect stubs left by the
+        single-page restructure. Linking a reader - or a crawler - at a 307 costs a
+        round trip and splits the link equity between two URLs for one page. The essays
+        the Blog row used to point at are now sections in this very sidebar.
+      */}
       <section>
         <h2>Reading</h2>
-        <Link href="/blog" aria-current={reading === "blog" ? "page" : undefined}>
-          Blog
-        </Link>
-        <Link href="/changelog" aria-current={reading === "changelog" ? "page" : undefined}>
-          Changelog
+        <Link href="/versions" aria-current={reading === "changelog" ? "page" : undefined}>
+          Releases
         </Link>
         <Link href="/feed.xml">RSS</Link>
       </section>
 
       <section>
         <h2>The product</h2>
-        <Link href="/download">Download</Link>
-        <Link href="/advertise">Advertise</Link>
+        <Link href="/versions">Download</Link>
+        <Link href="/#advertise">Advertise</Link>
         <Link href="/privacy">Privacy</Link>
         <Link href="/terms">Terms</Link>
       </section>

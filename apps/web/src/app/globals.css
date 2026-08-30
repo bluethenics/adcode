@@ -3576,15 +3576,39 @@ body { background: #000; }
 .bid-auth { margin-top: 16px; }.bid-auth .auth-card { border-color: #d9ddd8; color: #1b211f; background: #fff; }.bid-auth .field-hint { color: #68716d; }
 
 .marketplace-principles { border-top: 1px solid rgba(255,255,255,.08); background: #05090a; }.marketplace-principles .marketplace-wrap { display: grid; grid-template-columns: repeat(3,1fr); }.marketplace-principles p { min-height: 128px; padding: 30px; display: grid; grid-template-columns: auto 1fr; align-content: center; column-gap: 14px; border-right: 1px solid rgba(255,255,255,.08); }.marketplace-principles p:last-child { border-right: 0; }.marketplace-principles p > span { grid-row: 1/3; color: #56615e; font-family: var(--font-mono); font-size: 10px; }.marketplace-principles strong { font-size: 14px; }.marketplace-principles small { color: #737e7b; font-size: 11px; }
+/* The FAQ: dark like the principles strip above it, so the page ends on one ground. */
+.marketplace-faq { padding: 104px 0; border-top: 1px solid rgba(255,255,255,.08); background: #05090a; }
+.marketplace-faq .marketplace-wrap { display: grid; grid-template-columns: minmax(240px,.62fr) minmax(0,1.38fr); align-items: start; gap: clamp(40px,7vw,96px); }
+.marketplace-faq-intro { position: sticky; top: 110px; }
+.marketplace-faq-intro .marketplace-eyebrow { color: #68716d; }
+.marketplace-faq-intro h2 { margin-top: 20px; font-size: clamp(38px,4.4vw,58px); font-weight: 580; letter-spacing: -.06em; line-height: 1.02; }
+.marketplace-faq-list { display: grid; }
+.marketplace-faq-list details { border-top: 1px solid rgba(255,255,255,.1); }
+.marketplace-faq-list details:last-child { border-bottom: 1px solid rgba(255,255,255,.1); }
+.marketplace-faq-list summary { padding: 26px 0; display: flex; align-items: center; justify-content: space-between; gap: 24px; cursor: pointer; list-style: none; }
+.marketplace-faq-list summary::-webkit-details-marker { display: none; }
+.marketplace-faq-list summary:focus-visible { outline: 2px solid var(--market-green); outline-offset: 3px; }
+.marketplace-faq-list h3 { margin: 0; color: #e8efeb; font-size: clamp(16px,1.6vw,19px); font-weight: 560; letter-spacing: -.02em; }
+/* A plus that becomes a minus, drawn in CSS so the section ships no icon and no script. */
+.marketplace-faq-list summary > span { position: relative; width: 15px; height: 15px; flex: 0 0 auto; }
+.marketplace-faq-list summary > span::before,.marketplace-faq-list summary > span::after { content: ""; position: absolute; inset: 50% 0 auto; height: 1px; background: #6d7a75; transition: transform .2s, background-color .2s; }
+.marketplace-faq-list summary > span::after { transform: rotate(90deg); }
+.marketplace-faq-list details[open] summary > span::after { transform: rotate(0deg); }
+.marketplace-faq-list details[open] summary > span::before,.marketplace-faq-list details[open] summary > span::after { background: var(--market-green); }
+.marketplace-faq-list details[open] h3 { color: #fff; }
+.marketplace-faq-list p { margin: 0; padding: 0 56px 28px 0; max-width: 68ch; color: #8b948f; font-size: 14px; line-height: 1.7; }
+
 .marketplace-footer { color: #78817f; border-top: 1px solid rgba(255,255,255,.08); background: #030708; }.marketplace-footer .marketplace-wrap { min-height: 74px; display: flex; align-items: center; justify-content: space-between; gap: 24px; font-size: 11px; }.marketplace-footer nav { display: flex; gap: 22px; }.marketplace-footer a:hover { color: #fff; }
 
 @media (max-width: 900px) {
   .marketplace-hero { min-height: auto; padding-top: 74px; }.marketplace-hero h1 { font-size: clamp(58px,16vw,92px); }.market-chart-svg { height: 210px; }
   .marketplace-bid-grid { grid-template-columns: 1fr; }.marketplace-section-intro { position: static; max-width: 650px; }.marketplace-section-intro dl { max-width: 520px; }
+  .marketplace-faq .marketplace-wrap { grid-template-columns: 1fr; }.marketplace-faq-intro { position: static; }
 }
 @media (max-width: 640px) {
   .marketplace-wrap { width: min(100% - 28px,1180px); }.marketplace-nav { height: 62px; }.marketplace-brand span { display: none; }.marketplace-nav-link,.marketplace-nav-earn { min-height: 40px; padding: 9px 13px; }
   .marketplace-hero { padding: 62px 0 58px; }.marketplace-hero .marketplace-wrap { gap: 44px; }.marketplace-hero h1 { font-size: clamp(54px,18vw,78px); }.marketplace-hero-copy > p:not(.marketplace-eyebrow) { font-size: 16px; }.marketplace-hero-actions { flex-direction: column; }.marketplace-primary,.marketplace-secondary { width: 100%; }.market-chart { padding: 21px 17px 12px; }.market-chart-heading { align-items: center; }.market-chart-heading h2 { font-size: 16px; }.market-current strong { font-size: 32px; }.market-chart-svg { height: 180px; }.market-meta { grid-template-columns: 1fr; }.market-meta > span { padding: 12px 17px; border-right: 0; border-top: 1px solid rgba(255,255,255,.06); }
+  .marketplace-faq { padding: 70px 0; }.marketplace-faq-intro h2 { font-size: 38px; }.marketplace-faq-list p { padding-right: 0; }
   .marketplace-bid { padding: 78px 0; }.marketplace-section-intro h2 { font-size: 45px; }.marketplace-section-intro dl { gap: 10px; }.landing-bid-form { padding: 20px 16px; border-radius: 16px; }.bid-form-head { align-items: flex-start; flex-direction: column; }.bid-form-head > p { text-align: left; }.bid-fields,.bid-price-grid { grid-template-columns: 1fr; }.bid-field-wide { grid-column: auto; }.bid-audience { grid-template-columns: 1fr; }.bid-total { align-items: flex-start; flex-direction: column; }.marketplace-principles .marketplace-wrap { grid-template-columns: 1fr; }.marketplace-principles p { min-height: 100px; border-right: 0; border-bottom: 1px solid rgba(255,255,255,.08); }.marketplace-footer .marketplace-wrap { padding: 20px 0; align-items: flex-start; flex-direction: column; gap: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -55,6 +55,9 @@ const SOURCES: readonly PostSource[] = [
     description:
       "An administrator who can edit a balance is an administrator who can steal from you. Here is how ADCode makes that structurally impossible rather than merely discouraged.",
     published: "2026-08-18",
+    surface: "docs",
+    section: "How ADCode works",
+    order: 1,
     body: `
 Most systems that owe you money store a number and update it. A credit arrives, the number goes up. A correction arrives, the number goes down. The number is the truth, and the history — if there is one — is a log written alongside it, for support staff to read when someone complains.
 
@@ -93,6 +96,9 @@ Open the earnings view in the editor, or the dashboard on the web. The rows you 
     description:
       "Four commitments ADCode makes about when ads appear, what leaves your machine, and what you get paid — and how each one is enforced rather than promised.",
     published: "2026-08-18",
+    surface: "docs",
+    section: "How ADCode works",
+    order: 0,
     body: `
 "Ad-supported" has earned its reputation. It usually means the product is worse on purpose, and that the thing being sold is you.
 
@@ -133,6 +139,9 @@ The server can make the limits *stricter* than your setting. It can never make t
     description:
       "Advertisers want to reach Rust developers. ADCode makes that possible with 45 tags and nothing else — no file contents, no paths, no project names.",
     published: "2026-08-18",
+    surface: "docs",
+    section: "How ADCode works",
+    order: 2,
     body: `
 An advertiser selling a Postgres product wants to reach people writing backend code, not people writing shaders. That is a reasonable thing to want, and serving it badly is how ad systems end up reading everything.
 
@@ -172,7 +181,7 @@ That protects the advertiser from paying for fabricated views, and it protects y
     description:
       "From download to a running program: installing ADCode, opening a project, and finding every switch you will actually use. The long version of what the editor shows on first launch.",
     published: "2026-08-20",
-    surface: "both",
+    surface: "docs",
     section: "Start here",
     order: 0,
     body: `
@@ -224,6 +233,9 @@ Every feature has its own page in [the documentation](/docs), each with steps, b
     description:
       "The complete journey of one advertising dollar: serve, view, receipt, ledger row, balance - with the exact numbers at every step.",
     published: "2026-08-21",
+    surface: "docs",
+    section: "Earning and advertising",
+    order: 0,
     body: `
 The earnings system sounds like marketing until you trace one real payment through it. Here is the whole path, with the arithmetic shown along the way.
 
@@ -273,6 +285,9 @@ ADCode is not a salary. It is a capable editor whose price is a few small cards 
     description:
       "Sign in, name the account, create the campaign, attach a creative, fund it, go live - the whole advertiser flow, with what each step costs and when.",
     published: "2026-08-22",
+    surface: "docs",
+    section: "Earning and advertising",
+    order: 1,
     body: `
 Advertising in ADCode buys verified attention from developers in their actual work environment - a small card in the corner of the editor, matched against what they currently have open. Here is the entire process, start to live.
 
@@ -321,6 +336,9 @@ Create the campaign (account included), target from 45 tags, pay per thousand re
     description:
       "Where ADCode matches the big editors, where it differs, and where it deliberately will not compete - written to be argued with.",
     published: "2026-08-23",
+    surface: "docs",
+    section: "Comparisons",
+    order: 0,
     body: `
 People choosing an editor are really choosing a bundle: editing core, language intelligence, AI, and ecosystem. Here is how ADCode stacks up against the two defaults, claimed plainly enough to be checked.
 
@@ -367,6 +385,9 @@ Choose VS Code for the ecosystem, Cursor for a managed AI experience you pay mon
     description:
       "All twelve feature areas in one walk-through - what each group does, why it exists, and where its documentation lives.",
     published: "2026-08-24",
+    surface: "docs",
+    section: "Start here",
+    order: 1,
     body: `
 ADCode documents every switch it has - seventy-plus pages in [the docs](/docs), each with steps, benefits, and a comparison. This tour walks the twelve groups in the order the settings do, so you know what exists before you need it.
 
@@ -492,7 +513,8 @@ const fileposts = (): Post[] =>
   SOURCES.map(hydrate).sort((a, b) => b.published.localeCompare(a.published));
 
 /**
- * Newest first. Falls back to the bundled posts when the API cannot be reached.
+ * Newest first. The bundled posts are always included; the API adds to them and wins
+ * on slug, so a page the admin has edited replaces the one shipped with the build.
  *
  * `surface` filters to one of the two places a page can appear. A page marked `both` is
  * returned by either, which is the point of the setting: one piece of writing, two homes,
@@ -512,17 +534,24 @@ export async function allPosts(options?: { surface?: "blog" | "docs" }): Promise
     const body = (await response.json()) as { posts?: ApiPost[] };
     const posts = Array.isArray(body.posts) ? body.posts.map(fromApi) : [];
 
-    const chosen = posts.filter(onSurface);
-
     /*
-     * An API that is up but has nothing for this surface still shows the bundled posts on
-     * the blog, so a fresh deployment never has an empty one. The docs surface has its own
-     * generated seed and needs no such fallback - returning blog posts there would file
-     * three essays under a reference section.
+     * The bundled writing is always present; the API adds to it and wins on slug.
+     *
+     * This used to be either/or, with the docs surface deliberately refusing the bundled
+     * fallback because the essays were blog-only and would have landed under a reference
+     * section. They are filed under real docs sections now - Start here, How ADCode works,
+     * Earning and advertising, Comparisons - and either/or meant a reachable API returning
+     * nothing for a surface silently withdrew eight published articles from the site.
+     *
+     * An admin editing a bundled slug still replaces it wholesale, which is what the admin
+     * panel is for.
      */
-    if (chosen.length === 0 && wanted !== "docs") return fileposts().filter(onSurface);
+    const merged = new Map(fileposts().map((post) => [post.slug, post]));
+    for (const post of posts) merged.set(post.slug, post);
 
-    return chosen.sort((a, b) => b.published.localeCompare(a.published));
+    return [...merged.values()]
+      .filter(onSurface)
+      .sort((a, b) => b.published.localeCompare(a.published));
   } catch {
     return fileposts().filter(onSurface);
   }

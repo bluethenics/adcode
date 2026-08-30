@@ -227,6 +227,19 @@ function render(entries, metadataById, booleanSettings) {
     })
     .join("\n");
 
+  /*
+   * The authored sections lead, then the generated reference.
+   *
+   * `docsBySection` puts any section it does not recognise after the ones it does, in
+   * alphabetical order - which filed the getting-started guide and the essays *below*
+   * fifty-odd generated feature pages. Somebody arriving from a search result wants the
+   * writing, so the writing goes first. These titles carry no seeded pages of their own;
+   * they are the homes the posts in `posts.ts` are filed under.
+   */
+  const authored = ["Start here", "How ADCode works", "Earning and advertising", "Comparisons"]
+    .map((title) => `  ${quote(title)},`)
+    .join("\n");
+
   const sections = ORDER.filter((group) => sorted.some((entry) => entry.group === group))
     .map((group) => `  ${quote(GROUP_TITLES[group])},`)
     .join("\n");
@@ -259,8 +272,9 @@ export interface DocSeed {
   readonly related: readonly string[];
 }
 
-/** The sidebar order. Editing first, settings-shaped groups last. */
+/** The sidebar order. The authored writing first, then the generated reference. */
 export const DOC_SECTIONS: readonly string[] = [
+${authored}
 ${sections}
 ];
 

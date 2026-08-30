@@ -18,7 +18,7 @@ export const dynamic = "force-static";
 
 export async function GET(): Promise<Response> {
   const posts = (await allPosts())
-    .map((post) => `- [${post.title}](${url(`/blog/${post.slug}`)}): ${post.description}`)
+    .map((post) => `- [${post.title}](${url(`/docs/${post.slug}`)}): ${post.description}`)
     .join("\n");
 
   const faq = FAQ.map((item) => `### ${item.q}\n\n${item.a}`).join("\n\n");
@@ -69,8 +69,8 @@ revenue to the developer using it.
 - [Download](${url("/download")}): one-line install for Windows, macOS, and Linux.
 - [Advertise](${url("/advertise")}): targeting, pricing, and verification for advertisers.
 - [Documentation](${url("/docs")}): every feature, what it does and how to use it.
-- [Blog](${url("/blog")}): explanations of how the system works.
-- [Changelog](${url("/changelog")}): what changed in each release.
+- [Documentation](${url("/docs")}): every feature, plus the explanations of how the system works.
+- [Releases](${url("/versions")}): what changed in each release.
 - [Full text for machines](${url("/llms-full.txt")}): the complete text of every page in one file.
 - [Privacy](${url("/privacy")}): what is collected and what is not.
 - [Terms](${url("/terms")}): the terms of use.
