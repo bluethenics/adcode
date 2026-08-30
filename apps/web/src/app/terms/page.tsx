@@ -200,7 +200,7 @@ We will not apply a change retroactively to earnings already credited.
 
 ## Contact
 
-support@bluethenics.com
+adcode.support@gmail.com
 `;
 
 export default function TermsPage() {

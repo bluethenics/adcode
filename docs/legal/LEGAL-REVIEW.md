@@ -1,6 +1,6 @@
 # What a lawyer should look at, and in what order
 
-**Status: not reviewed by a lawyer.** The public terms no longer say so — that sentence
+**Status: not reviewed by a lawyer. ADCode 1.0.0 is published and downloadable.** The public terms no longer say so — that sentence
 offered no protection while publicly inviting challenge to the document governing live money
 paths — but the fact is unchanged and it lives here instead.
 
@@ -60,22 +60,24 @@ verification is mandatory at what threshold, what must be reported, and whether 
 
 ### 5. Age 18 for earnings
 
-`## Who can use ADCode` sets 18 to earn or withdraw, and says plainly that this is a
-condition you meet rather than a check we run. Verified 2026-08-30: there is no
-date-of-birth field anywhere in `services/api` or the schema, and the only `age` in the
-withdrawal rules is `account-age` — how long the account has existed, not how old its holder
-is.
+`## Who can use ADCode` sets 18 to earn or withdraw. There is still no date-of-birth field
+anywhere in `services/api` or the schema — the check is an explicit confirmation recorded
+at the moment payout details are saved, not a verified age.
 
 The first draft of these terms claimed we do not show cards to under-18s and do not approve
 their payouts. Neither was true. Stating an intended control as an implemented one is worse
 than having no clause at all: it is a promise that can be shown false by reading the code.
 The wording now matches what the software does.
 
-**Recommended follow-up, and it is small.** Add a sixth rule beside the existing five in
-`services/api/src/withdrawals.ts` (`RuleId`, line 119): an explicit "I am 18 or older"
-confirmation, stored once on the payout profile and shown in the dashboard checklist like
-the other five. That turns a contractual condition into recorded evidence, which is what you
-would want to produce if it were ever questioned.
+**Done on 2026-08-30.** A sixth rule now sits beside the other five in
+`services/api/src/withdrawals.ts` (`RuleId` includes `adult`), backed by
+`payout_profiles.adult_confirmed_at` and a checkbox on the payout form. A timestamp
+rather than a boolean, because the question that would be asked is *when* they confirmed.
+Existing profiles are deliberately not backfilled: they were never shown the question, and
+writing a timestamp onto them would manufacture a confirmation that never happened.
+
+What a lawyer should still confirm is whether an unverified self-declaration is sufficient
+for cross-border payouts, or whether identity verification is required at some threshold.
 
 ## Tier 2 — review before public launch
 
@@ -111,9 +113,8 @@ These are wrong now, whatever a lawyer says.
 
 | What | Where | Problem |
 |---|---|---|
-| `support@adcode.bluethenics.com` | terms, `lib/api.ts:87` | `adcode.bluethenics.com` returns **NXDOMAIN** (Gate 3). The only contact address in the terms may not receive mail. Many jurisdictions require a working contact on published terms. Verify the mailbox or change the address. |
-| Age gate | terms vs code | 18+ is stated and not enforced. See item 5. |
 | Governing law venue | `## Law and disputes` | Names "the courts of India" with no city. Valid, but naming your city gives a stronger exclusive-venue clause. |
+| Entity | everywhere | The terms name no legal person. See item 1 - this is the largest single exposure and it is not fixable by editing a document. |
 
 ## Fixed on 2026-08-30
 

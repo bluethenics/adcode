@@ -94,7 +94,7 @@ We use Google Cloud and Firebase to run the service, Dodo Payments to take payme
 ## Your choices
 
 - **Turn ads off.** Settings has a cadence control with an off position. The editor is otherwise identical, with no reduced features and no prompts to turn it back on.
-- **Ask for your data or its deletion.** Write to privacy@adcode.bluethenics.com. Deleting your account removes your identifier and your ledger. Records we must keep for accounting are retained where the law requires.
+- **Ask for your data or its deletion.** Write to adcode.support@gmail.com. Deleting your account removes your identifier and your ledger. Records we must keep for accounting are retained where the law requires.
 
 ## Retention
 
@@ -102,11 +102,15 @@ Ledger rows are kept as long as the account exists, because they are the record 
 
 ## Children
 
-ADCode is not directed at children under 13, and we do not knowingly create accounts for them.
+ADCode is not directed at children under 13, and we do not knowingly create accounts for them. Earning or withdrawing money requires being 18 or older; see the [terms](/terms).
 
 ## Changes
 
 If this policy changes in a way that affects what is collected, the date at the top of this page changes and the change is announced in the [release notes](/versions) rather than made quietly.
+
+## Contact
+
+For anything about your data - a copy of it, a correction, or its deletion - write to adcode.support@gmail.com.
 `;
 
 export default function PrivacyPage() {

@@ -138,7 +138,7 @@ linux:
   #
   # Stated here rather than as an author email in package.json so the published address is
   # the support one people already have from the terms, not a personal mailbox.
-  maintainer: ADCode <support@bluethenics.com>
+  maintainer: ADCode <adcode.support@gmail.com>
   # AppImage runs anywhere without a package manager; .deb is what most people expect on
   # Debian and Ubuntu. Both are produced, and the install script picks between them.
   target:

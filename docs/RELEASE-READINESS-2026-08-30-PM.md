@@ -118,9 +118,10 @@ evidence until it reproduces.
 
 ## New, small, and worth doing before launch
 
-- `support@adcode.bluethenics.com` is the only contact address in the terms. The subdomain
-  now resolves, but whether that mailbox receives mail has not been verified. A published
-  terms document with a dead contact address is a problem in several jurisdictions.
+- **Fixed.** The contact address in the terms was `support@adcode.bluethenics.com`, and that
+  subdomain has no MX records at all, so the only address in a published legal document -
+  and the one the API gives a suspended user whose balance is frozen - could not receive
+  mail. It is now `adcode.support@gmail.com`, a mailbox that exists.
 - The 18+ confirmation ships with no backfill, by design. Existing payout profiles fail the
   new rule until their holder confirms once. That is correct, and it means anyone with a
   saved profile sees one new checklist item on their next visit.

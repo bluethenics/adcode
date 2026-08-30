@@ -1324,12 +1324,14 @@ Three pages promise an email address, and none of the three mailboxes exists yet
 
 | Page | Address | What it is promised for |
 |---|---|---|
-| `/terms` | `support@bluethenics.com` | why an account was suspended |
-| `/privacy` | `privacy@adcode.bluethenics.com` | asking for your data, or its deletion |
-| `/advertise` | `advertise@adcode.bluethenics.com` | advertisers getting in touch |
+| `/terms` | `adcode.support@gmail.com` | why an account was suspended |
+| `/privacy` | `adcode.support@gmail.com` | asking for your data, or its deletion |
 
-They are on `adcode.bluethenics.com`, which has no DNS record until step 13. A privacy page
-that publishes a deletion address nobody receives is worse than one that publishes none —
+**Resolved 2026-08-30.** Both were on `adcode.bluethenics.com`, which has no MX record even
+now that the subdomain resolves — a hostname answering HTTP says nothing about whether it
+receives mail, and these two never did. `/advertise` no longer exists as a page, so its
+address went with it. A privacy page that publishes a deletion address nobody receives is
+worse than one that publishes none —
 in several jurisdictions that promise is the thing being regulated, not the page.
 
 Two ways out, and either is fine:
