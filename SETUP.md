@@ -10,8 +10,165 @@ see it before moving on — that is the whole point of the sentence.
 all used inside their free tiers, and none of them asks for a card. The only steps that ever
 cost money are optional and clearly marked: code signing (step 16) and a lawyer (step 18).
 
-**No coding.** The code is finished and tested — 2119 tests, all green. Everything below
+**No coding.** The code is finished and tested — 2694 tests, all green. Everything below
 needs your account or your decision, which is exactly why it is not already done.
+
+---
+
+## Releasing 1.0.0 — where it stands (2026-08-30)
+
+The code side of 1.0.0 is done. Every branch is merged into `main`, the version is `1.0.0`
+in all three packages, `CHANGELOG.md` describes the release, and the tree verifies, builds,
+packages and passes both packaged smoke journeys.
+
+**Nothing is published.** The installers exist on this machine only. The seven steps below
+are the ones that need your account, your money or your decision — the same reason nothing
+else in this file is already done.
+
+Work down the list. R1 and R2 are the two that block a public download.
+
+### R1 · Finish the domain — you are one click away
+
+You already moved `bluethenics.com` to Cloudflare's nameservers; `maisie.ns.cloudflare.com`
+and `reese.ns.cloudflare.com` answer for it, and the apex resolves. What does not exist yet
+is the `adcode` subdomain — `adcode.bluethenics.com` returns **NXDOMAIN** right now, so
+every address printed on the site points at a hostname that is not there.
+
+That is step 13's item 5, and nothing else:
+
+1. Cloudflare dashboard → **Workers & Pages** → **adcode**.
+2. **Settings** → **Domains & Routes** → **Add** → **Custom domain**.
+3. Enter `adcode.bluethenics.com` and click **Add domain**.
+4. Wait a minute or two, then open `https://adcode.bluethenics.com/v1/health`.
+
+You should see `{"ok":true}`. Cloudflare creates the DNS record and the certificate itself —
+you do not add either by hand.
+
+The `.workers.dev` address keeps working after this, and stays the canonical origin for
+1.0.0. Do **not** switch the site over to the new hostname yet: the origin is written into
+`apps/web/.env.production`, `install.ps1`, `install.sh` and the CORS list, and the Dodo
+webhook is registered against the current one. Moving it is a deliberate follow-up, done in
+one commit, not a side effect of adding the domain.
+
+- [ ] `https://adcode.bluethenics.com/v1/health` returns `{"ok":true}`
+
+### R2 · Make the three promised addresses receive mail
+
+`/terms`, `/privacy` and `/advertise` publish `support@`, `privacy@` and
+`advertise@adcode.bluethenics.com`. None of the three exists. A privacy page that publishes
+a deletion address nobody reads is worse than one that publishes none — in several places
+that promise is the regulated thing, not the page.
+
+After R1:
+
+1. Cloudflare dashboard → **bluethenics.com** → **Email** → **Email Routing**.
+2. **Get started**, and let Cloudflare add the MX and TXT records it asks for.
+3. **Create address** three times — `support`, `privacy`, `advertise` — each forwarding to
+   the mailbox you actually read.
+4. Cloudflare emails that mailbox to confirm it. Click the link in each.
+5. Send a test message to all three from a different account.
+
+You should receive three test messages. If you would rather not do this yet, the honest
+alternative is to change the three addresses in `terms/page.tsx`, `privacy/page.tsx`,
+`advertise/page.tsx` and `apps/web/src/lib/api.ts` to a mailbox that already works, then
+redeploy.
+
+- [ ] All three addresses arrive somewhere you read
+
+### R3 · Dodo is in live mode — verify what that now means
+
+You have switched Dodo Payments to live. That changes three things from the moment it took
+effect:
+
+- a checkout on the site charges a real card;
+- the ledger those payments write is real money owed to real developers;
+- the terms that govern it are still the unreviewed template in R5.
+
+Before anyone can reach the checkout, confirm the deployment agrees with the account:
+
+1. Cloudflare dashboard → **Workers & Pages** → **adcode** → **Settings** → **Variables and
+   Secrets**. Check that `DODO_MODE` is the value you intend. Read the name; you do not need
+   to reveal the value to anyone else.
+2. In the Dodo dashboard, confirm the **webhook URL** points at
+   `https://adcode.bluethenics01.workers.dev/v1/payments/webhook` and that its signing secret
+   matches the one in Cloudflare.
+3. Fund an advertiser with the smallest amount Dodo will accept, from a card you own.
+4. Watch the credit appear in `/portal`, and the row appear in Supabase `credit_orders`.
+5. Refund that payment in the Dodo dashboard, and watch the order move to `reversed`.
+
+Step 5 is the one that matters. The refund and dispute branches are the code that was broken
+until 2026-08-29, and a live-mode refund is the only way to prove the repair against the real
+provider.
+
+- [ ] A real payment funded credits, and refunding it reversed the order
+
+### R4 · Sign the Windows build
+
+`Get-AuthenticodeSignature` reports `NotSigned` for both executables. Without a certificate,
+Windows shows a SmartScreen warning on first run, and the warning does not go away with
+downloads — it goes away with reputation the certificate accumulates.
+
+A code-signing certificate is a few hundred dollars a year, from any of the usual issuers.
+Once you have it:
+
+1. Put the `.pfx` where the build can read it and set `CSC_LINK` to its path and
+   `CSC_KEY_PASSWORD` to its password.
+2. `npm run package`.
+3. In PowerShell: `Get-AuthenticodeSignature .\release\ADCode-Setup-x64.exe`.
+
+You should see `Valid` and your own publisher name. This is optional while you have no
+users, and it is fine to ship unsigned first — but say so on the download page rather than
+letting people discover it at the warning.
+
+- [ ] Either signed and verified, or shipping unsigned deliberately and saying so
+
+### R5 · Have a lawyer read the terms
+
+Unchanged from step 18, but no longer theoretical: with Dodo live you are taking money and
+owing payouts under a document whose own second paragraph says *"These terms are a template
+and have not been reviewed by a lawyer."* Delete that sentence when it stops being true, and
+not before.
+
+- [ ] Terms, privacy, advertiser terms and the payout obligations reviewed
+
+### R6 · Create the release channel
+
+The app's updater reads GitHub releases from `bluethenics/adcode`. There are none, and the
+`gh` CLI is not installed here, so there is nothing for `latest.yml` to point at and no
+previous version to roll back to.
+
+1. Install GitHub CLI: `winget install --id GitHub.cli`, then close and reopen the terminal.
+2. `gh auth login` — choose GitHub.com, HTTPS, and authenticate in the browser.
+3. `gh release create v1.0.0 release/ADCode-Setup-x64.exe release/ADCode-Portable-x64.exe release/latest.yml --title "ADCode 1.0.0" --notes-file CHANGELOG.md`
+
+You should see the release URL printed. Attach `latest.yml` every time — it is what
+electron-updater reads, and a release without it silently stops updates.
+
+- [ ] The release exists, and the installer downloaded from it runs on a machine that has
+      never had ADCode on it
+
+### R7 · Decide about the six advisories
+
+`npm audit --omit=dev` reports 0 critical, 0 high and 6 moderate, all reached through
+`firebase-admin`, which the deployed Worker does not use at runtime — it cannot, because
+`firebase-admin` does not run on workerd, which is why `adapters/firebaseJwks.ts` exists.
+
+So either remove the dependency and its dead adapter path, or record that you accepted the
+risk and why. Both are defensible; leaving it undecided is not.
+
+- [ ] Removed, or accepted in writing
+
+### When R1–R7 are green
+
+```
+npm run verify
+npm run desktop:build && node scripts/smoke.mjs && node scripts/smoke-ads.mjs
+npm run package
+cd apps/web && npm run deploy
+```
+
+Then R6's `gh release create`. Publish the installers and `latest.yml` together — an
+installer without its metadata is an app that never updates again.
 
 ---
 
