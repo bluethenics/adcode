@@ -3,6 +3,42 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## Unreleased
+
+### Every feature answers
+
+Merge-conflict resolution worked from the first release and could not be found. It drew
+Keep yours, Keep theirs and Keep both over the markers in any conflicted file you opened,
+and nothing in the window could tell you whether such a file existed - so the only trace of
+the feature was a switch in Settings claiming it existed.
+
+That was the default behaviour of the feature catalogue, not one oversight: it built each
+feature's actions from an eighteen-entry table and auto-generated "Open X setting" for
+everything else, leaving sixty-eight of eighty-six features with one route into themselves.
+
+- Eleven checks can now be asked for, from a button or a menu, and each one answers when it
+  finds nothing: merge conflicts, blame, file timeline, local history, unsaved-work
+  recovery, updates, organize imports, TODOs and FIXMEs, spelling in comments, unused CSS
+  rules, and classes nothing defines.
+- **Check Conflicts** joins Pull, Push and Fetch in the Source Control panel. It lists the
+  files where both sides changed the same lines, and says "No merge conflicts" when there
+  are none.
+- Choosing a switch in the feature library now flips it where you found it and says which
+  way it went, instead of navigating to the Settings row.
+- Local file history and the update check were unreachable rather than merely hidden: their
+  main-process code, IPC channels and preload bindings were complete and no renderer line
+  called any of them.
+
+### The website
+
+- Eight written articles were reachable only through URLs that redirected to the homepage
+  after the single-page restructure. They are filed under the documentation - Start here,
+  How ADCode works, Earning and advertising, Comparisons - so each has a URL that resolves,
+  its own metadata and a sitemap entry.
+- `llms.txt`, `llms-full.txt` and `feed.xml` no longer advertise retired routes.
+- The homepage prints the questions it has always been able to answer, and publishes the
+  matching FAQ structured data from the same source.
+
 ## 1.0.0 — 2026-08-30
 
 The first release. Everything below is in the box on first launch — ADCode has no extension

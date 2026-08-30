@@ -230,6 +230,42 @@ await sleep(1200);
 checks.scmShowsBranch = await evaluate("document.querySelector('.scm-branch')?.textContent");
 checks.timelineRows = await evaluate("document.querySelectorAll('.timeline-row').length > 0");
 
+/*
+ * The merge-conflict check, which is the whole reason this feature was unfindable.
+ *
+ * The resolver always worked on a conflicted file; nothing could tell you whether you had
+ * one. This repository is not mid-merge, so the interesting assertion is the empty state:
+ * pressing the button has to leave a section that SAYS there are no conflicts, rather than
+ * leaving the panel exactly as it was.
+ */
+checks.conflictsButtonExists = await evaluate(
+  "[...document.querySelectorAll('.scm-actions .ghost-button')].some((b) => b.textContent === 'Check Conflicts')",
+);
+
+await evaluate(
+  "[...document.querySelectorAll('.scm-actions .ghost-button')].find((b) => b.textContent === 'Check Conflicts')?.click()",
+);
+await sleep(900);
+
+checks.conflictsAnswerShown = await evaluate(
+  "document.querySelector('.scm-conflicts')?.hidden === false",
+);
+checks.conflictsSaysNone = await evaluate(
+  "document.querySelector('.scm-conflicts .empty-hint')?.textContent",
+);
+checks.conflictsStatusLine = await evaluate(
+  "document.getElementById('status-dirty')?.textContent",
+);
+
+// The three features that had main-process code and no renderer caller at all.
+checks.localHistoryBridge = await evaluate(
+  "window.adcode.history.versions('package.json').then((v) => Array.isArray(v))",
+);
+checks.updateStatusBridge = await evaluate(
+  "window.adcode.updates.status().then((s) => typeof s.state === 'string')",
+);
+
+
 // Quick open, opened by keyboard rather than by calling into its module directly.
 await evaluate(
   "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, bubbles: true }))",
