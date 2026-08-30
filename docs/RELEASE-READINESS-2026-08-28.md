@@ -11,13 +11,15 @@ routes, a public generated feature guide, `adcode open [path]`, and repeatable
 accessibility/visual smoke coverage. The final review hardening closes filesystem-link escape,
 internal Team-task authorization, interrupted apply/rollback recovery, missed scheduled-target,
 Team resume/cleanup/quota, second-instance open, and durable redacted trace gaps.
-The existing Cloudflare Worker is healthy on its `workers.dev` address. Public release is
+The exact web candidate is deployed as an explicitly labeled limited preview on the existing
+Cloudflare Worker and is healthy on its `workers.dev` address. Public release is
 blocked by identity/signing, domain/support, legal, dependency-risk, production-mode, and
 release-channel gates that cannot be truthfully completed by source changes alone.
 
-No public deployment or GitHub release was created during this audit. Publishing while the
-gates below are red would make an unsigned binary and legally unreviewed real-money service
-available through an update channel with no verified rollback release.
+Limited-preview Worker version `3a149822-3c7a-4453-8b3a-6416bead8adc` was deployed on
+2026-08-30. No public production deployment or GitHub release was created. Publishing while
+the gates below are red would make an unsigned binary and legally unreviewed real-money
+service available through an update channel with no verified rollback release.
 
 ## Verified candidate evidence
 
@@ -32,7 +34,7 @@ available through an update channel with no verified rollback release.
 | Visual and accessibility audit | Pass | `node scripts/smoke.mjs --visual-only`; inspected light/comfortable, Midnight/compact, approximately 208% zoom, keyboard result selection, dialog/combobox/listbox semantics, reduced-motion transform removal, and forced-colors 2px focus outline |
 | Packaged desktop smoke | Pass | `node scripts/smoke.mjs --packaged`; full workbench journey including a hard symbol-search success gate, 0 suspicious log lines |
 | Packaged ad smoke | Pass | `node scripts/smoke-ads.mjs --packaged`; serve, notification, receipt, balance, and queue journey, 0 suspicious log lines |
-| Worker deployment | Existing and healthy | Wrangler lists deployments through 2026-08-27; `https://adcode.bluethenics01.workers.dev/v1/health` returned `200 {"ok":true}` |
+| Worker limited-preview deployment | Pass | Version `3a149822-3c7a-4453-8b3a-6416bead8adc` deployed 2026-08-30; live checks returned 200 for health, Docs, the All Features article, and sitemap discovery. Previous version `d53ff8e1-35c6-4aad-a21d-d6d1ca71a9df` remains the rollback candidate |
 | Required Worker secret names | Present | Supabase, Firebase, payout encryption, and Dodo secret names are registered in Cloudflare; values were not read or exposed |
 | Secret/path exposure in AI feature | Pass by design/tests | Main-process containment follows real paths and refuses link escapes; internal role tasks cannot enter generic review/apply IPC; traces persist bounded provider/tool outcomes without proposal or tool-result contents |
 | AI transaction recovery and Team lifecycle | Pass | Interrupted apply restores the selected pre-write state, interrupted rollback completes only from known checkpoint contents, unknown human edits become conflicts, paused Teams resume from validated children, and private Team sandboxes/bases are cleaned after cancel or applied combined review |
