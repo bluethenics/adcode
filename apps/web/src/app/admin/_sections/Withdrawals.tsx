@@ -5,9 +5,14 @@ import { useAuth } from "@/components/AuthProvider";
 import { CopyField } from "@/components/CopyField";
 import { money, moneyExact, when } from "@/components/money";
 import { countryName } from "@/lib/payoutOptions";
-import { apiFetch, MESSAGES, type AdminWithdrawalView } from "@/lib/api";
+import {
+  apiFetch,
+  MESSAGES,
+  type AdminWithdrawalView,
+  type PayoutDestinationView,
+} from "@/lib/api";
 
-type Filter = "requested" | "approved" | "paid" | "rejected" | "failed" | "all";
+type Filter = "requested" | "approved" | "paid" | "rejected" | "failed" | "returned" | "all";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "requested", label: "Needs review" },
@@ -15,6 +20,7 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "paid", label: "Paid" },
   { id: "rejected", label: "Rejected" },
   { id: "failed", label: "Failed" },
+  { id: "returned", label: "Returned" },
   { id: "all", label: "All" },
 ];
 
@@ -25,6 +31,7 @@ const STATUS_TONE: Record<AdminWithdrawalView["status"], string> = {
   rejected: "ended",
   failed: "ended",
   cancelled: "ended",
+  returned: "ended",
 };
 
 const STATUS_LABEL: Record<AdminWithdrawalView["status"], string> = {
@@ -34,6 +41,7 @@ const STATUS_LABEL: Record<AdminWithdrawalView["status"], string> = {
   rejected: "Rejected",
   failed: "Transfer failed",
   cancelled: "Cancelled by user",
+  returned: "Returned — funds released",
 };
 
 export function Withdrawals({ initialQuery = "" }: { initialQuery?: string }) {
@@ -66,7 +74,7 @@ export function Withdrawals({ initialQuery = "" }: { initialQuery?: string }) {
     const needle = query.trim().toLowerCase();
     if (needle === "") return rows;
     return rows.filter((row) =>
-      [row.withdrawalId, row.uid, row.email, row.displayName, row.destination.legalName]
+      [row.withdrawalId, row.uid, row.email, row.displayName, row.destination.accountHint]
         .filter((field): field is string => typeof field === "string")
         .some((field) => field.toLowerCase().includes(needle)),
     );
@@ -144,8 +152,10 @@ function WithdrawalRow({ row, expanded, onToggle, onDone, onError }: {
   const [providerRef, setProviderRef] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [destination, setDestination] = useState<PayoutDestinationView | null>(null);
+  const [loadingDestination, setLoadingDestination] = useState(false);
 
-  const decide = async (action: "approve" | "paid" | "reject" | "failed", body: unknown = {}) => {
+  const decide = async (action: "approve" | "paid" | "reject" | "failed" | "returned", body: unknown = {}) => {
     setBusy(true);
     const result = await apiFetch<unknown>({
       path: `/admin/withdrawals/${encodeURIComponent(row.withdrawalId)}/${action}`,
@@ -158,13 +168,37 @@ function WithdrawalRow({ row, expanded, onToggle, onDone, onError }: {
     else onError(MESSAGES[result.error]);
   };
 
-  const destination = row.destination;
-  const detailFields = Object.entries(destination.fields ?? {});
-  const block = [
+  /*
+   * The account is fetched here, not with the list.
+   *
+   * The queue carries a masked hint for every row; opening one row is what decrypts a
+   * destination, and that request writes its own audit line naming this withdrawal. So
+   * "who looked at this person's bank details, and when" has an answer, which it did not
+   * when every page load decrypted a hundred of them under one audit entry.
+   */
+  useEffect(() => {
+    if (!expanded || destination !== null || loadingDestination) return;
+    setLoadingDestination(true);
+    void (async () => {
+      const found = await apiFetch<PayoutDestinationView>({
+        path: `/admin/withdrawals/${encodeURIComponent(row.withdrawalId)}/destination`,
+        token: await token(),
+      });
+      setLoadingDestination(false);
+      if (found.ok) setDestination(found.value);
+      else onError(MESSAGES[found.error]);
+    })();
+  }, [expanded, destination, loadingDestination, onError, row.withdrawalId, token]);
+
+  const summary = row.destination;
+  const detailFields = Object.entries(destination?.fields ?? {});
+  const block = destination === null ? "" : [
     `Amount: ${moneyExact(row.amountMicros)} USD`,
-    `Recipient currency: ${destination.currency}`,
+    `Recipient currency: ${summary.currency}`,
+    `Method: ${destination.method === "wise-email" ? "Wise account (email)" : "Bank transfer"}`,
     `Legal name: ${destination.legalName}`,
-    `Country: ${countryName(destination.country)} (${destination.country})`,
+    `Country: ${countryName(summary.country)} (${summary.country})`,
+    ...(destination.email === null ? [] : [`Wise email: ${destination.email}`]),
     ...detailFields.map(([key, value]) => `${fieldLabel(key)}: ${value}`),
     `Reference: ${row.withdrawalId}`,
   ].join("\n");
@@ -185,9 +219,10 @@ function WithdrawalRow({ row, expanded, onToggle, onDone, onError }: {
       </div>
 
       <dl className="admin-facts">
-        <div><dt>Method</dt><dd>Bank transfer</dd></div>
-        <div><dt>Recipient currency</dt><dd>{destination.currency}</dd></div>
-        <div><dt>Country</dt><dd>{countryName(destination.country)}</dd></div>
+        <div><dt>Method</dt><dd>{summary.method === "wise-email" ? "Wise account" : "Bank transfer"}</dd></div>
+        <div><dt>Destination</dt><dd className="mono">{summary.accountHint}</dd></div>
+        <div><dt>Recipient currency</dt><dd>{summary.currency}</dd></div>
+        <div><dt>Country</dt><dd>{countryName(summary.country)}</dd></div>
         <div><dt>Available after hold</dt><dd className="money">{moneyExact(row.availableMicros)}</dd></div>
         <div><dt>Earned all time</dt><dd className="money">{moneyExact(row.lifetimeMicros)}</dd></div>
       </dl>
@@ -196,6 +231,33 @@ function WithdrawalRow({ row, expanded, onToggle, onDone, onError }: {
         <p className="field-hint">Sent {row.decidedAt === null ? "" : when(row.decidedAt)} · reference <span className="mono">{row.providerRef}</span></p>
       )}
       {row.note !== null && <p className="field-hint">Outcome note: {row.note}</p>}
+
+      {/*
+        * A sent transfer can still come back. `paid` used to be terminal, which meant a
+        * bounce or a recall had no route back into the product at all.
+        */}
+      {row.status === "paid" && (
+        <div className="admin-decide">
+          <div className="field">
+            <label htmlFor={`returned-${row.withdrawalId}`}>Transfer came back</label>
+            <input
+              id={`returned-${row.withdrawalId}`}
+              className="input"
+              value={note}
+              maxLength={400}
+              placeholder="Why it bounced. The user will see this."
+              onChange={(event) => setNote(event.target.value)}
+            />
+          </div>
+          <button
+            className="btn btn-outline btn-small"
+            disabled={busy || note.trim() === ""}
+            onClick={() => void decide("returned", { note: note.trim() })}
+          >
+            Return funds to the user
+          </button>
+        </div>
+      )}
 
       {canAct && (
         <>
@@ -210,13 +272,20 @@ function WithdrawalRow({ row, expanded, onToggle, onDone, onError }: {
               {row.status === "requested" ? (
                 <p className="field-hint">Verify the account, destination corridor, and bank details. Approval does not send money.</p>
               ) : (
-                <p className="field-hint">Open Wise and make this bank transfer manually. Return here only after Wise accepts or rejects it.</p>
+                <p className="field-hint">Open Wise and make this transfer manually. Return here only after Wise accepts or rejects it.</p>
               )}
 
-              <CopyField label="Legal name" value={destination.legalName} />
-              {detailFields.map(([key, value]) => <CopyField key={key} label={fieldLabel(key)} value={value} />)}
-              <CopyField label="Amount (USD)" value={moneyExact(row.amountMicros)} />
-              <CopyField label="Everything, for one paste" value={block} />
+              {destination === null ? (
+                <div className="skeleton skeleton-line" aria-label="Loading payout details" />
+              ) : (
+                <>
+                  <CopyField label="Legal name" value={destination.legalName} />
+                  {destination.email !== null && <CopyField label="Wise email" value={destination.email} />}
+                  {detailFields.map(([key, value]) => <CopyField key={key} label={fieldLabel(key)} value={value} />)}
+                  <CopyField label="Amount (USD)" value={moneyExact(row.amountMicros)} />
+                  <CopyField label="Everything, for one paste" value={block} />
+                </>
+              )}
 
               {row.status === "requested" && (
                 <button className="btn btn-primary btn-small" disabled={busy} onClick={() => void decide("approve")}>

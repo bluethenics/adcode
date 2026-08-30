@@ -1,5 +1,5 @@
 /**
- * Advertiser funding, through Dodo Payments.
+ * Verifying that a webhook really came from Dodo Payments.
  *
  * Dodo signs webhooks to the Standard Webhooks specification: three headers -
  * `webhook-id`, `webhook-timestamp`, `webhook-signature` - and an HMAC-SHA256 over
@@ -97,57 +97,4 @@ export function verifyWebhook(
 
   const matched = candidates.some((candidate) => constantTimeEquals(candidate, expected));
   return matched ? { ok: true } : { ok: false, reason: "bad-signature" };
-}
-
-/* ── Events ─────────────────────────────────────────────────────────────── */
-
-export interface FundingEvent {
-  /** Dodo's payment id, kept so a credit can be traced back to a payment. */
-  paymentId: string;
-  advertiserId: string;
-  /** The smallest currency unit Dodo reports, converted to micros. */
-  amountMicros: bigint;
-  currency: string;
-}
-
-const isRecord = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
-
-/**
- * A `payment.succeeded` event for one of our advertisers, or null.
- *
- * The advertiser is read from `metadata.advertiserId`, which we set when creating the
- * checkout. An event without it is not ours to act on - returning null rather than
- * throwing means an unrelated event type is a no-op rather than a 500 and a retry storm.
- *
- * Dodo reports amounts in the currency's smallest unit (cents for USD). Micros are a
- * millionth, so cents multiply by 10,000.
- */
-export function parseFundingEvent(raw: unknown): FundingEvent | null {
-  if (!isRecord(raw)) return null;
-  if (raw["type"] !== "payment.succeeded") return null;
-
-  const data = raw["data"];
-  if (!isRecord(data)) return null;
-
-  const paymentId = data["payment_id"];
-  if (typeof paymentId !== "string" || paymentId.length === 0) return null;
-
-  const metadata = data["metadata"];
-  if (!isRecord(metadata)) return null;
-
-  const advertiserId = metadata["advertiserId"];
-  if (typeof advertiserId !== "string" || advertiserId.length === 0) return null;
-
-  const total = data["total_amount"];
-  if (typeof total !== "number" || !Number.isInteger(total) || total <= 0) return null;
-
-  const currency = typeof data["currency"] === "string" ? data["currency"] : "USD";
-
-  return {
-    paymentId,
-    advertiserId,
-    amountMicros: BigInt(total) * 10_000n,
-    currency,
-  };
 }

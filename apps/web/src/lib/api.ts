@@ -236,7 +236,14 @@ export interface ActivityView {
 
 /* ── Payouts ────────────────────────────────────────────────────────────── */
 
-export type PayoutMethod = "bank";
+/**
+ * How the transfer is addressed.
+ *
+ * `bank` needs the coordinates the recipient's country uses, which is what a corridor
+ * describes. `wise-email` needs none of them - Wise resolves the recipient from the
+ * address on their account - so it works to any country and has no corridor.
+ */
+export type PayoutMethod = "bank" | "wise-email";
 
 export interface PayoutProfileView {
   method: PayoutMethod;
@@ -252,7 +259,15 @@ export interface PayoutProfileView {
 export interface WithdrawalView {
   withdrawalId: string;
   amountMicros: string;
-  status: "requested" | "approved" | "paid" | "rejected" | "failed" | "cancelled";
+  status:
+    | "requested"
+    | "approved"
+    | "paid"
+    | "rejected"
+    | "failed"
+    | "cancelled"
+    /** Sent, then bounced or recalled. The money went back to the user. */
+    | "returned";
   currency: string;
   createdAt: number;
   decidedAt: number | null;
@@ -285,19 +300,37 @@ export interface PayoutsView {
   withdrawals: WithdrawalView[];
 }
 
+/**
+ * Enough of a destination to recognise a row, and not enough to pay it.
+ *
+ * The queue used to carry a full decrypted destination for every row on the page. The
+ * account is now fetched one at a time, at the moment somebody is making that transfer,
+ * by `GET /admin/withdrawals/:id/destination`.
+ */
+export interface DestinationSummaryView {
+  method: PayoutMethod;
+  country: string;
+  currency: string;
+  /** "••••7890", or "••••@example.com" for a Wise address. */
+  accountHint: string;
+}
+
+/** The full destination, fetched for one transfer and never listed. */
+export interface PayoutDestinationView {
+  method: PayoutMethod;
+  legalName: string;
+  country: string;
+  currency: string;
+  email: string | null;
+  bankDetails: string | null;
+  fields?: Record<string, string>;
+}
+
 export interface AdminWithdrawalView extends WithdrawalView {
   uid: string;
   email: string | null;
   displayName: string | null;
-  destination: {
-    method: PayoutMethod;
-    legalName: string;
-    country: string;
-    currency: string;
-    email: string | null;
-    bankDetails: string | null;
-    fields?: Record<string, string>;
-  };
+  destination: DestinationSummaryView;
   availableMicros: string;
   lifetimeMicros: string;
 }

@@ -97,3 +97,141 @@ describe("advertiser credit event application", () => {
     expect((await store.getAdvertiser("adv-1"))?.fundedMicros).toBe(50_000_000n);
   });
 });
+
+/**
+ * The branches that run when money goes back.
+ *
+ * Every one of these would have passed before the fix if it had only asserted the
+ * advertiser's balance - which is all the existing tests did. The order's own status was
+ * being computed from the advertiser's whole balance compared against a single order's
+ * amount, so it is the status assertions below that carry the regression.
+ */
+describe("reversals are accounted per order", () => {
+  /** A second paid order, so the advertiser's balance is no longer one order's worth. */
+  async function secondOrder(): Promise<void> {
+    await store.createCreditOrder({
+      orderId: "ord-2",
+      advertiserId: "adv-1",
+      amountMicros: 50_000_000n,
+      currency: "USD",
+      billingCountry: "US",
+      customerEmail: "billing@acme.test",
+      status: "checkout_created",
+      providerSessionId: "chk_2",
+      checkoutUrl: "https://checkout.test/2",
+      providerPaymentId: null,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await store.applyCreditEvent({
+      type: "purchase",
+      webhookId: "evt_p2",
+      paymentId: "pay_2",
+      sessionId: "chk_2",
+      orderId: "ord-2",
+      amountMicros: 50_000_000n,
+      currency: "USD",
+    });
+  }
+
+  it("marks a fully refunded order reversed even when the advertiser still holds money", async () => {
+    await store.applyCreditEvent(purchase());
+    await secondOrder();
+    expect((await store.getAdvertiser("adv-1"))?.fundedMicros).toBe(100_000_000n);
+
+    await store.applyCreditEvent({
+      type: "refund",
+      webhookId: "evt_r1",
+      refundId: "ref_1",
+      paymentId: "pay_1",
+      amountMicros: 50_000_000n,
+    });
+
+    // The advertiser still has $50 from the other order, which is what used to make this
+    // read as `paid`: 50_000_000 < 50_000_000 is false.
+    expect((await store.getAdvertiser("adv-1"))?.fundedMicros).toBe(50_000_000n);
+    expect((await store.getCreditOrder("ord-1"))?.status).toBe("reversed");
+    expect((await store.getCreditOrder("ord-2"))?.status).toBe("paid");
+  });
+
+  it("marks a partly refunded order partially_reversed", async () => {
+    await store.applyCreditEvent(purchase());
+    await store.applyCreditEvent({
+      type: "refund",
+      webhookId: "evt_r1",
+      refundId: "ref_1",
+      paymentId: "pay_1",
+      amountMicros: 20_000_000n,
+    });
+    expect((await store.getAdvertiser("adv-1"))?.fundedMicros).toBe(30_000_000n);
+    expect((await store.getCreditOrder("ord-1"))?.status).toBe("partially_reversed");
+  });
+
+  it("never lets a refund take back more than the order was worth", async () => {
+    await store.applyCreditEvent(purchase());
+    await secondOrder();
+
+    // A $500 refund against a $50 order. The old ceiling was the advertiser's whole
+    // balance, so this emptied the account and took the other order's money with it.
+    await store.applyCreditEvent({
+      type: "refund",
+      webhookId: "evt_r1",
+      refundId: "ref_1",
+      paymentId: "pay_1",
+      amountMicros: 500_000_000n,
+    });
+
+    expect((await store.getAdvertiser("adv-1"))?.fundedMicros).toBe(50_000_000n);
+    expect((await store.getCreditOrder("ord-1"))?.status).toBe("reversed");
+    expect((await store.getCreditOrder("ord-2"))?.status).toBe("paid");
+  });
+
+  it("settles a lost chargeback as reversed, not as paid", async () => {
+    await store.applyCreditEvent(purchase());
+    await secondOrder();
+    await store.applyCreditEvent({
+      type: "dispute-opened",
+      webhookId: "evt_d1",
+      disputeId: "dis_1",
+      paymentId: "pay_1",
+      amountMicros: 50_000_000n,
+    });
+    expect((await store.getCreditOrder("ord-1"))?.status).toBe("disputed");
+
+    await store.applyCreditEvent({
+      type: "dispute-final",
+      webhookId: "evt_d2",
+      disputeId: "dis_1",
+      paymentId: "pay_1",
+      amountMicros: 50_000_000n,
+    });
+
+    // The money left when the dispute opened, so nothing moves here - but the order used
+    // to fall through to a recompute that landed on `paid` for the event that means the
+    // chargeback was lost.
+    expect((await store.getAdvertiser("adv-1"))?.fundedMicros).toBe(50_000_000n);
+    expect((await store.getCreditOrder("ord-1"))?.status).toBe("reversed");
+  });
+
+  it("gives the money back and restores the order when a dispute is won", async () => {
+    await store.applyCreditEvent(purchase());
+    await store.applyCreditEvent({
+      type: "dispute-opened",
+      webhookId: "evt_d1",
+      disputeId: "dis_1",
+      paymentId: "pay_1",
+      amountMicros: 50_000_000n,
+    });
+    expect((await store.getAdvertiser("adv-1"))?.fundedMicros).toBe(0n);
+
+    await store.applyCreditEvent({
+      type: "dispute-release",
+      webhookId: "evt_d3",
+      disputeId: "dis_1",
+      paymentId: "pay_1",
+      amountMicros: 50_000_000n,
+    });
+    expect((await store.getAdvertiser("adv-1"))?.fundedMicros).toBe(50_000_000n);
+    expect((await store.getCreditOrder("ord-1"))?.status).toBe("paid");
+  });
+});

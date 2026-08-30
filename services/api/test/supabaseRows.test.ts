@@ -28,7 +28,7 @@ import {
   BALANCE_COLS,
   CAMPAIGN_COLS,
   CONFIG_COLS,
-  FUNDING_COLS,
+  CREDIT_ORDER_COLS,
   LEDGER_COLS,
 } from "../adapters/supabaseRows.ts";
 
@@ -57,7 +57,7 @@ describe("money survives Postgres exactly", () => {
   it("selects every money column with an explicit text cast", () => {
     // The guard for the precision bug above: if someone adds a money column to a
     // selection without the cast, this fails rather than the balance quietly drifting.
-    for (const cols of [ADVERTISER_COLS, CAMPAIGN_COLS, LEDGER_COLS, BALANCE_COLS, FUNDING_COLS, CONFIG_COLS]) {
+    for (const cols of [ADVERTISER_COLS, CAMPAIGN_COLS, LEDGER_COLS, BALANCE_COLS, CREDIT_ORDER_COLS, CONFIG_COLS]) {
       for (const column of cols.split(",")) {
         if (/_micros$|^micros$|rev_share_percent$/.test(column.replace("::text", ""))) {
           expect(column).toMatch(/::text$/);

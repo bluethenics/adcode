@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { money, moneyExact, when } from "./money";
 import { Segmented } from "./ios/Segmented";
-import { CURRENCIES, countryOptions, dollarsToPayoutMicros, microsToDollarsInput } from "@/lib/payoutOptions";
+import { CURRENCIES, countryName, dollarsToPayoutMicros, microsToDollarsInput } from "@/lib/payoutOptions";
 import {
   apiFetch,
   MESSAGES,
   type PayoutCorridorView,
+  type PayoutMethod,
   type PayoutsView,
   type WithdrawalView,
 } from "@/lib/api";
@@ -34,6 +35,7 @@ const STATUS_TONE: Record<WithdrawalView["status"], string> = {
   rejected: "ended",
   failed: "ended",
   cancelled: "ended",
+  returned: "ended",
 };
 
 const STATUS_LABEL: Record<WithdrawalView["status"], string> = {
@@ -43,6 +45,7 @@ const STATUS_LABEL: Record<WithdrawalView["status"], string> = {
   rejected: "Declined",
   failed: "Transfer failed",
   cancelled: "Cancelled",
+  returned: "Returned to your balance",
 };
 
 export function PayoutPanel() {
@@ -180,6 +183,15 @@ const FIELD_LABELS: Record<string, string> = {
   phone: "Recipient phone", supplemental: "Additional recipient details",
 };
 
+/**
+ * Where the money goes.
+ *
+ * Two ways to answer, and the order matters: a Wise address is offered first because it is
+ * one field instead of four, and somebody who already has Wise should not have to find
+ * their IBAN to be paid. Bank details are for everyone else, and only for the country and
+ * currency combinations an administrator has enabled — Wise resolves an email recipient
+ * itself, so that route has no such restriction and works anywhere.
+ */
 function DetailsCard({ view, onSaved, onError }: {
   view: PayoutsView;
   onSaved: (next: PayoutsView, message: string) => void;
@@ -187,9 +199,12 @@ function DetailsCard({ view, onSaved, onError }: {
 }) {
   const { token } = useAuth();
   const profile = view.profile;
+  const [method, setMethod] = useState<PayoutMethod>(profile?.method ?? "wise-email");
   const [corridors, setCorridors] = useState<PayoutCorridorView[]>([]);
   const [selected, setSelected] = useState(profile === null ? "" : `${profile.country}:${profile.currency}`);
   const [legalName, setLegalName] = useState(profile?.legalName ?? "");
+  const [email, setEmail] = useState(profile?.email ?? "");
+  const [currency, setCurrency] = useState(profile?.currency ?? "USD");
   const [fields, setFields] = useState<Record<string, string>>(profile?.fields ?? {});
   const [busy, setBusy] = useState(false);
 
@@ -204,202 +219,100 @@ function DetailsCard({ view, onSaved, onError }: {
   }, [onError, selected, token]);
 
   const corridor = corridors.find((item) => `${item.country}:${item.currency}` === selected);
+
   const save = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    if (corridor === undefined) return;
     setBusy(true);
+
+    const body = method === "wise-email"
+      ? { method, legalName, country: profile?.country ?? "US", currency, email: email.trim(), bankDetails: null, fields: {} }
+      : corridor === undefined
+        ? null
+        : {
+            method, legalName, country: corridor.country, currency: corridor.currency,
+            email: null, bankDetails: null,
+            fields: Object.fromEntries(corridor.requiredFields.map((kind) => [kind, fields[kind]?.trim() ?? ""])),
+          };
+
+    if (body === null) { setBusy(false); return; }
+
     const result = await apiFetch<PayoutsView>({
-      path: "/payouts/profile", token: await token(), method: "POST",
-      body: {
-        method: "bank", legalName, country: corridor.country, currency: corridor.currency,
-        email: null, bankDetails: null,
-        fields: Object.fromEntries(corridor.requiredFields.map((kind) => [kind, fields[kind]?.trim() ?? ""])),
-      },
+      path: "/payouts/profile", token: await token(), method: "POST", body,
     });
     setBusy(false);
-    if (result.ok) onSaved(result.value, "Encrypted bank details saved.");
-    else onError(MESSAGES[result.error]);
+    if (result.ok) {
+      onSaved(
+        result.value,
+        method === "wise-email" ? "Wise address saved." : "Encrypted bank details saved.",
+      );
+    } else onError(MESSAGES[result.error]);
   };
 
   return <form className="ios-card" onSubmit={(event) => void save(event)}>
-    <header className="ios-card-head"><h2>Bank payout details</h2><p>Only destinations enabled for manual transfer are listed. Account details are encrypted at rest.</p></header>
-    {corridors.length === 0 ? <div className="notice" data-tone="warning">No payout country is enabled yet. An administrator must verify a Wise recipient route first.</div> : <>
-      <div className="field"><label htmlFor="payout-route">Destination country and currency</label><select id="payout-route" className="select" value={selected} onChange={(event) => { setSelected(event.target.value); setFields({}); }}>{corridors.map((item) => <option key={`${item.country}:${item.currency}`} value={`${item.country}:${item.currency}`}>{item.country} · {item.currency}</option>)}</select></div>
-      <div className="field"><label htmlFor="legal-name">Full legal name on the account</label><input id="legal-name" className="input" value={legalName} maxLength={120} required autoComplete="name" onChange={(event) => setLegalName(event.target.value)} /></div>
-      {corridor?.requiredFields.map((kind) => <div className="field" key={kind}><label htmlFor={`payout-${kind}`}>{FIELD_LABELS[kind] ?? kind}</label><input id={`payout-${kind}`} className="input" value={fields[kind] ?? ""} required autoComplete="off" onChange={(event) => setFields((current) => ({ ...current, [kind]: event.target.value }))} /></div>)}
-      <p className="field-hint">An administrator reviews and approves the request, sends it manually, then records the transfer reference.</p>
-      <div className="actions"><button className="btn btn-primary btn-small" disabled={busy} type="submit">{busy ? "Saving…" : profile === null ? "Save bank details" : "Update bank details"}</button></div>
+    <header className="ios-card-head">
+      <h2>Payout details</h2>
+      <p>Transfers are made by hand through Wise, so the name here has to match the receiving account exactly — a mismatch is what makes a transfer bounce. Everything you enter is encrypted at rest.</p>
+    </header>
+
+    <div className="field">
+      <label htmlFor="payout-method">How to pay you</label>
+      <Segmented
+        label="Payout method"
+        value={method}
+        onChange={setMethod}
+        options={[
+          { value: "wise-email" as const, label: "Wise account" },
+          { value: "bank" as const, label: "Bank account" },
+        ]}
+      />
+      <p className="field-hint" id="payout-method">
+        {method === "wise-email"
+          ? "We send to the email address on your Wise account. One field, and it works from anywhere."
+          : "We add you as a recipient in Wise and send to your bank. Use this if you don't have Wise."}
+      </p>
+    </div>
+
+    <div className="field">
+      <label htmlFor="legal-name">Full legal name on the account</label>
+      <input id="legal-name" className="input" value={legalName} maxLength={120} required autoComplete="name" onChange={(event) => setLegalName(event.target.value)} />
+    </div>
+
+    {method === "wise-email" ? <>
+      <div className="field">
+        <label htmlFor="payout-email">Email on your Wise account</label>
+        <input id="payout-email" className="input" type="email" value={email} maxLength={320} required autoComplete="email" onChange={(event) => setEmail(event.target.value)} />
+      </div>
+      <div className="field">
+        <label htmlFor="payout-currency">Currency to receive</label>
+        <select id="payout-currency" className="select" value={currency} onChange={(event) => setCurrency(event.target.value)}>
+          {CURRENCIES.map((code) => <option key={code} value={code}>{code}</option>)}
+        </select>
+        <p className="field-hint">Balances are held in USD. Wise converts at the rate on the day it sends.</p>
+      </div>
+    </> : corridors.length === 0 ? (
+      <div className="notice" data-tone="warning">No bank destination is enabled yet. Choose Wise account above, or ask an administrator to enable your country.</div>
+    ) : <>
+      <div className="field">
+        <label htmlFor="payout-route">Destination country and currency</label>
+        <select id="payout-route" className="select" value={selected} onChange={(event) => { setSelected(event.target.value); setFields({}); }}>
+          {corridors.map((item) => <option key={`${item.country}:${item.currency}`} value={`${item.country}:${item.currency}`}>{countryName(item.country)} · {item.currency}</option>)}
+        </select>
+      </div>
+      {corridor?.requiredFields.map((kind) => <div className="field" key={kind}>
+        <label htmlFor={`payout-${kind}`}>{FIELD_LABELS[kind] ?? kind}</label>
+        <input id={`payout-${kind}`} className="input" value={fields[kind] ?? ""} required autoComplete="off" onChange={(event) => setFields((current) => ({ ...current, [kind]: event.target.value }))} />
+      </div>)}
+      <p className="field-hint">Spacing and capitalisation don&apos;t matter — an IBAN copied straight off a statement is fine.</p>
     </>}
+
+    <p className="field-hint">An administrator reviews and approves the request, sends it manually, then records the transfer reference.</p>
+    <div className="actions">
+      <button className="btn btn-primary btn-small" disabled={busy} type="submit">
+        {busy ? "Saving…" : profile === null ? "Save payout details" : "Update payout details"}
+      </button>
+      {profile !== null && <span className="field-hint" style={{ alignSelf: "center" }}>Last changed {when(profile.updatedAt)}</span>}
+    </div>
   </form>;
-}
-
-function LegacyDetailsCard({
-  view,
-  onSaved,
-  onError,
-}: {
-  view: PayoutsView;
-  onSaved: (next: PayoutsView, message: string) => void;
-  onError: (message: string) => void;
-}) {
-  const { token } = useAuth();
-  const profile = view.profile;
-
-  const [method, setMethod] = useState<"wise-email" | "bank">(profile?.method ?? "bank");
-  const [legalName, setLegalName] = useState(profile?.legalName ?? "");
-  const [country, setCountry] = useState(profile?.country ?? "US");
-  const [currency, setCurrency] = useState(profile?.currency ?? "USD");
-  const [email, setEmail] = useState(profile?.email ?? "");
-  const [bankDetails, setBankDetails] = useState(profile?.bankDetails ?? "");
-  const [busy, setBusy] = useState(false);
-
-  const save = async (event: React.FormEvent): Promise<void> => {
-    event.preventDefault();
-    setBusy(true);
-
-    const result = await apiFetch<PayoutsView>({
-      path: "/payouts/profile",
-      token: await token(),
-      method: "POST",
-      body: {
-        method,
-        legalName,
-        country,
-        currency,
-        email: method === "wise-email" ? email : null,
-        bankDetails: method === "bank" ? bankDetails : null,
-      },
-    });
-
-    setBusy(false);
-    if (result.ok) onSaved(result.value, "Payout details saved.");
-    else onError(MESSAGES[result.error]);
-  };
-
-  return (
-    <form className="ios-card" onSubmit={(event) => void save(event)}>
-      <header className="ios-card-head">
-        <h2>Payout details</h2>
-        <p>
-          Where the money goes. Transfers are made through Wise, so the name here has to
-          match the account exactly — a mismatch is what makes a transfer bounce.
-        </p>
-      </header>
-
-      <div className="field">
-        <label htmlFor="payout-method">How to pay you</label>
-        <Segmented
-          label="Payout method"
-          value={method}
-          onChange={setMethod}
-          options={[
-            { value: "wise-email" as const, label: "Wise account" },
-            { value: "bank" as const, label: "Bank account" },
-          ]}
-        />
-        <p className="field-hint" id="payout-method">
-          {method === "wise-email"
-            ? "We send to the email address on your Wise account. Fastest, and no account numbers to type."
-            : "We create you as a recipient in Wise and send to your bank. Use this if you don't have Wise."}
-        </p>
-      </div>
-
-      <div className="field">
-        <label htmlFor="legal-name">Full name on the account</label>
-        <input
-          id="legal-name"
-          className="input"
-          value={legalName}
-          maxLength={120}
-          required
-          autoComplete="name"
-          onChange={(event) => setLegalName(event.target.value)}
-        />
-      </div>
-
-      <div className="payout-pair">
-        <div className="field">
-          <label htmlFor="payout-country">Country</label>
-          <select
-            id="payout-country"
-            className="select"
-            value={country}
-            onChange={(event) => setCountry(event.target.value)}
-          >
-            {countryOptions().map((option) => (
-              <option key={option.code} value={option.code}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="field">
-          <label htmlFor="payout-currency">Currency</label>
-          <select
-            id="payout-currency"
-            className="select"
-            value={currency}
-            onChange={(event) => setCurrency(event.target.value)}
-          >
-            {CURRENCIES.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-          <p className="field-hint">
-            Balances are held in USD. Wise converts at the rate on the day it sends.
-          </p>
-        </div>
-      </div>
-
-      {method === "wise-email" ? (
-        <div className="field">
-          <label htmlFor="payout-email">Email on your Wise account</label>
-          <input
-            id="payout-email"
-            className="input"
-            type="email"
-            value={email}
-            maxLength={320}
-            required
-            autoComplete="email"
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </div>
-      ) : (
-        <div className="field">
-          <label htmlFor="payout-bank">Account details</label>
-          <textarea
-            id="payout-bank"
-            className="textarea"
-            value={bankDetails}
-            maxLength={600}
-            required
-            rows={4}
-            placeholder={"IBAN, or account number and routing / sort code.\nInclude the bank name and, if your country needs it, your address."}
-            onChange={(event) => setBankDetails(event.target.value)}
-          />
-          <p className="field-hint">
-            Whatever your country uses. A person reads this and types it into Wise, so
-            anything they would need is worth including.
-          </p>
-        </div>
-      )}
-
-      <div className="actions">
-        <button className="btn btn-primary btn-small" disabled={busy} type="submit">
-          {busy ? "Saving…" : profile === null ? "Save details" : "Update details"}
-        </button>
-        {profile !== null && (
-          <span className="field-hint" style={{ alignSelf: "center" }}>
-            Last changed {when(profile.updatedAt)}
-          </span>
-        )}
-      </div>
-    </form>
-  );
 }
 
 /* ── How much? ─────────────────────────────────────────────────────────── */

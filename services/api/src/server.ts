@@ -52,14 +52,17 @@ import {
   handleSubmitReport,
 } from "./reports.ts";
 import {
+  adjustBalance,
   cancelWithdrawal,
   approveWithdrawal,
   listWithdrawals,
   markWithdrawalPaid,
   markWithdrawalFailed,
   readPayouts,
+  readWithdrawalDestination,
   rejectWithdrawal,
   requestWithdrawal,
+  returnWithdrawal,
   savePayoutProfile,
   type Outcome as PayoutOutcome,
   type PayoutError,
@@ -80,7 +83,13 @@ import {
   type Outcome,
 } from "./advertisers.ts";
 import { ACTIVITY_LIMITS, readActivity, recordActivity } from "./activity.ts";
-import { parseActivity, parseCampaign, parseCreateAdvertiser, parseCreative } from "./contract.ts";
+import {
+  parseActivity,
+  parseAdjustment,
+  parseCampaign,
+  parseCreateAdvertiser,
+  parseCreative,
+} from "./contract.ts";
 import { handleFundingWebhook } from "./funding.ts";
 import type { PaymentProvider } from "./payments.ts";
 import { createCreditCheckout } from "./creditOrders.ts";
@@ -173,6 +182,7 @@ const PAYOUT_STATUS: Record<PayoutError, number> = {
 };
 
 const ADMIN_LEDGER = /^\/v1\/admin\/users\/([^/]+)\/ledger$/;
+const ADMIN_ADJUST = /^\/v1\/admin\/users\/([^/]+)\/adjust$/;
 const REPORT_STATUSES: ReadonlySet<string> = new Set(["open", "triaged", "closed"]);
 const WITHDRAWAL_STATUSES: ReadonlySet<string> = new Set([
   "requested",
@@ -181,6 +191,7 @@ const WITHDRAWAL_STATUSES: ReadonlySet<string> = new Set([
   "rejected",
   "failed",
   "cancelled",
+  "returned",
 ]);
 
 /** Node gives a repeated header as an array; a signature header must be one value. */
@@ -567,7 +578,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         await listWithdrawals(
           payoutDeps,
           auth.uid,
-          status as "requested" | "approved" | "paid" | "rejected" | "failed" | "cancelled" | null,
+          status as import("./store.ts").WithdrawalStatus | null,
           pageFrom(url),
         ),
         cors,
@@ -660,6 +671,46 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
           auth.uid,
           decodeURIComponent(withdrawalPaid[1] ?? ""),
           providerRef,
+        ),
+      );
+      return;
+    }
+
+    /*
+     * The bank details for one request, read at the moment somebody makes the transfer.
+     *
+     * Deliberately not part of the queue. The list hands out masked summaries, so opening
+     * the admin screen no longer decrypts every account on the page - and this route's
+     * audit line names the withdrawal, which the list's never could.
+     */
+    const withdrawalDestination = /^\/v1\/admin\/withdrawals\/([^/]+)\/destination$/.exec(path);
+    if (withdrawalDestination !== null && req.method === "GET") {
+      settlePayout(
+        await readWithdrawalDestination(
+          payoutDeps,
+          auth.uid,
+          decodeURIComponent(withdrawalDestination[1] ?? ""),
+        ),
+      );
+      return;
+    }
+
+    /* The transfer bounced after it had been recorded as sent. */
+    const withdrawalReturned = /^\/v1\/admin\/withdrawals\/([^/]+)\/returned$/.exec(path);
+    if (withdrawalReturned !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const note = parseDecisionNote(raw);
+      if (note === null) {
+        send(res, 400, { error: "malformed note" }, cors);
+        return;
+      }
+      settlePayout(
+        await returnWithdrawal(
+          payoutDeps,
+          auth.uid,
+          decodeURIComponent(withdrawalReturned[1] ?? ""),
+          note,
         ),
       );
       return;
@@ -932,6 +983,34 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         return;
       }
       send(res, 200, await handleSavePost({ store, clock }, auth.uid, input), cors);
+      return;
+    }
+
+    /*
+     * Move a balance by hand, with a reason.
+     *
+     * The `adjustment` ledger kind existed from the first migration and nothing wrote one,
+     * so every correction that was not a withdrawal outcome meant editing the database
+     * directly - which is precisely what an append-only ledger exists to make unnecessary.
+     */
+    const adjust = ADMIN_ADJUST.exec(path);
+    if (adjust !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const body = parseAdjustment(raw);
+      if (body === null) {
+        send(res, 400, { error: "malformed adjustment" }, cors);
+        return;
+      }
+      settlePayout(
+        await adjustBalance(
+          payoutDeps,
+          auth.uid,
+          decodeURIComponent(adjust[1] ?? ""),
+          body.micros,
+          body.reason,
+        ),
+      );
       return;
     }
 

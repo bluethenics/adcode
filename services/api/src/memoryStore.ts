@@ -19,7 +19,6 @@ import type {
   CreativeRecord,
   EntryPage,
   Page,
-  FundingRecord,
   ReceiptRecord,
   NoticeRecord,
   PayoutProfileRecord,
@@ -82,11 +81,12 @@ export function createMemoryStore(): Store & { reset(): void } {
   let payoutProfiles = new Map<string, PayoutProfileRecord>();
   let payoutCorridors = new Map<string, PayoutCorridorRecord>();
   let withdrawals = new Map<string, WithdrawalRecord>();
-  let fundings = new Map<string, FundingRecord>();
   let creditOrders = new Map<string, CreditOrderRecord>();
   let providerWebhookIds = new Set<string>();
   let providerObjectIds = new Set<string>();
   let disputeDebits = new Map<string, bigint>();
+  /** What each order still counts for, as the SQL's fold over `advertiser_credit_entries`. */
+  let creditOrderNet = new Map<string, bigint>();
   let posts = new Map<string, PostRecord>();
   let releases = new Map<string, ReleaseRecord>();
   let notices = new Map<string, NoticeRecord>();
@@ -113,11 +113,11 @@ export function createMemoryStore(): Store & { reset(): void } {
       payoutProfiles = new Map();
       payoutCorridors = new Map();
       withdrawals = new Map();
-      fundings = new Map();
       creditOrders = new Map();
       providerWebhookIds = new Set();
       providerObjectIds = new Set();
       disputeDebits = new Map();
+      creditOrderNet = new Map();
       posts = new Map();
       releases = new Map();
       notices = new Map();
@@ -406,18 +406,6 @@ export function createMemoryStore(): Store & { reset(): void } {
       return next;
     },
 
-    async recordFundingIfAbsent(funding) {
-      if (fundings.has(funding.eventId)) return false;
-      fundings.set(funding.eventId, funding);
-      return true;
-    },
-
-    async listFunding(advertiserId) {
-      return [...fundings.values()]
-        .filter((f) => f.advertiserId === advertiserId)
-        .sort((a, b) => b.at - a.at);
-    },
-
     async createCreditOrder(order) {
       if (creditOrders.has(order.orderId)) throw new Error(`credit order ${order.orderId} exists`);
       creditOrders.set(order.orderId, order);
@@ -473,6 +461,7 @@ export function createMemoryStore(): Store & { reset(): void } {
           ...advertiser,
           fundedMicros: advertiser.fundedMicros + order.amountMicros,
         });
+        creditOrderNet.set(order.orderId, order.amountMicros);
         creditOrders.set(order.orderId, {
           ...order,
           status: "paid",
@@ -481,15 +470,26 @@ export function createMemoryStore(): Store & { reset(): void } {
         return { applied: true, reason: "applied", advertiserId: advertiser.advertiserId };
       }
 
+      // What this order still counts for. Two ceilings apply to a reversal and the order's
+      // is the one that used to be missing: a refund can never take back more than this
+      // order was worth, however much the event claims.
+      const net = creditOrderNet.get(order.orderId) ?? 0n;
+
       let delta = 0n;
       if (event.type === "refund" || event.type === "dispute-opened") {
-        const removable = advertiser.fundedMicros > 0n ? advertiser.fundedMicros : 0n;
-        const removed = event.amountMicros < removable ? event.amountMicros : removable;
+        const absorbable = net > 0n ? net : 0n;
+        const funded = advertiser.fundedMicros > 0n ? advertiser.fundedMicros : 0n;
+        const ceiling = absorbable < funded ? absorbable : funded;
+        const removed = event.amountMicros < ceiling ? event.amountMicros : ceiling;
         delta = -removed;
         if (event.type === "dispute-opened") disputeDebits.set(event.disputeId, removed);
       } else if (event.type === "dispute-release") {
         delta = disputeDebits.get(event.disputeId) ?? 0n;
       }
+      // `dispute-final` moves nothing: the money left when the dispute opened. It still
+      // settles the order below, which is the whole point - it used to fall through to a
+      // recompute that marked a lost chargeback as `paid`.
+      creditOrderNet.set(order.orderId, net + delta);
 
       const fundedMicros = advertiser.fundedMicros + delta;
       const underfunded = fundedMicros < advertiser.reservedMicros;
@@ -505,16 +505,21 @@ export function createMemoryStore(): Store & { reset(): void } {
           }
         }
       }
+
+      // Folded over this order's own entries, never over the advertiser's whole balance.
+      const orderNet = net + delta;
       creditOrders.set(order.orderId, {
         ...order,
         status:
           event.type === "dispute-opened"
             ? "disputed"
-            : fundedMicros === 0n
+            : event.type === "dispute-final"
               ? "reversed"
-              : fundedMicros < order.amountMicros
-                ? "partially_reversed"
-                : "paid",
+              : orderNet <= 0n
+                ? "reversed"
+                : orderNet < order.amountMicros
+                  ? "partially_reversed"
+                  : "paid",
       });
       return { applied: true, reason: "applied", advertiserId: advertiser.advertiserId };
     },

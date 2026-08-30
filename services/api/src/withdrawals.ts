@@ -18,7 +18,7 @@
  * `withdrawal_failed` - and the balance fold over them existed before this file did, and
  * are unit-tested in `ledger.ts`. This is the flow that finally raises them.
  */
-import { PAYOUT_LIMITS, type PayoutProfileBody } from "./contract.ts";
+import { PAYOUT_CURRENCIES, PAYOUT_LIMITS, type PayoutProfileBody } from "./contract.ts";
 import { formatMicros } from "./money.ts";
 import type { Balance } from "./ledger.ts";
 import type {
@@ -32,7 +32,11 @@ import type {
   WithdrawalRecord,
   WithdrawalStatus,
 } from "./store.ts";
-import { validateDestination } from "./payoutCorridors.ts";
+import { normalizeFields, validateDestination } from "./payoutCorridors.ts";
+import { maskDestination } from "./payoutCrypto.ts";
+
+/** Wise resolves an email recipient itself, so these need no corridor and no coordinates. */
+const PAYOUT_CURRENCY_SET: ReadonlySet<string> = new Set(PAYOUT_CURRENCIES);
 
 export interface PayoutDeps {
   store: Store;
@@ -76,12 +80,29 @@ export interface WithdrawalView {
   note: string | null;
 }
 
-/** The admin's row: the same request, plus who made it and where the money must go. */
+/**
+ * Enough of a destination to recognise a row, and not enough to pay it.
+ *
+ * The queue used to carry a full decrypted destination for every row on the page - up to a
+ * hundred at a time, every status including long-settled ones - reloaded on every filter
+ * change, covered by a single audit line. The bank details are only needed at the moment
+ * somebody is making one transfer, so that is when they are fetched, and that fetch names
+ * the withdrawal in the audit log.
+ */
+export interface DestinationSummary {
+  method: PayoutDestination["method"];
+  country: string;
+  currency: string;
+  /** "••••7890", or "••••@example.com" for a Wise address. */
+  accountHint: string;
+}
+
+/** The admin's row: the same request, plus who made it and roughly where it goes. */
 export interface AdminWithdrawalView extends WithdrawalView {
   uid: string;
   email: string | null;
   displayName: string | null;
-  destination: PayoutDestination;
+  destination: DestinationSummary;
   /** What is left on the account now, so a suspicious request is visible as one. */
   availableMicros: string;
   lifetimeMicros: string;
@@ -217,8 +238,12 @@ export function evaluateEligibility(input: EligibilityInput): {
         profile === null
           ? "Tell us where the money goes and the name on the account."
           : !corridorEligible
-            ? `${profile.country}/${profile.currency} is not currently enabled for manual payouts.`
-            : `Bank transfer to ${profile.legalName}, in ${profile.currency}.`,
+            ? profile.method === "wise-email"
+              ? `${profile.currency} is not a currency we can send to a Wise account.`
+              : `${profile.country}/${profile.currency} is not currently enabled for bank payouts.`
+            : profile.method === "wise-email"
+              ? `Wise transfer to ${profile.email ?? profile.legalName}, in ${profile.currency}.`
+              : `Bank transfer to ${profile.legalName}, in ${profile.currency}.`,
     },
     {
       id: "no-pending",
@@ -232,6 +257,30 @@ export function evaluateEligibility(input: EligibilityInput): {
   ];
 
   return { eligible: rules.every((rule) => rule.ok), rules };
+}
+
+/**
+ * Can this destination still be paid to?
+ *
+ * Two answers, because there are two kinds of destination. A bank transfer needs the
+ * coordinates its country uses, so it is only usable while that corridor is enabled and
+ * the stored fields still satisfy it - an admin who turns a corridor off must stop new
+ * requests to it. A Wise address needs no coordinates at all: Wise resolves the recipient
+ * itself, so the only question is whether we can send that currency.
+ *
+ * Re-checked on every read rather than stored, so disabling a corridor takes effect on the
+ * next page load rather than on the next profile save.
+ */
+async function destinationUsable(
+  deps: PayoutDeps,
+  profile: PayoutProfileRecord | null,
+): Promise<boolean> {
+  if (profile === null) return false;
+  if (profile.method === "wise-email") {
+    return profile.email !== null && PAYOUT_CURRENCY_SET.has(profile.currency);
+  }
+  const corridor = await deps.store.getPayoutCorridor(profile.country, profile.currency);
+  return corridor !== null && validateDestination(corridor, profile.fields ?? {}).ok;
 }
 
 /** The whole payouts screen in one read: nothing here is worth a second round trip. */
@@ -249,12 +298,7 @@ export async function readPayouts(deps: PayoutDeps, uid: string): Promise<Payout
   const known: UserRecord = user ?? { uid, status: "active", createdAt: deps.clock.now() };
   const pending = history.find((row) => row.status === "requested" || row.status === "approved") ?? null;
 
-  const corridor =
-    profile === null ? null : await deps.store.getPayoutCorridor(profile.country, profile.currency);
-  const corridorEligible =
-    profile !== null &&
-    corridor !== null &&
-    validateDestination(corridor, profile.fields ?? {}).ok;
+  const corridorEligible = await destinationUsable(deps, profile);
   const { eligible, rules } = evaluateEligibility({
     user: known,
     balance,
@@ -281,17 +325,40 @@ export async function savePayoutProfile(
   uid: string,
   body: PayoutProfileBody,
 ): Promise<PayoutsView | null> {
+  // A Wise address is checked against the currencies Wise can send, and nothing else -
+  // there are no bank coordinates to validate and no corridor to be enabled.
+  if (body.method === "wise-email") {
+    if (body.email === null || !PAYOUT_CURRENCY_SET.has(body.currency)) return null;
+    await deps.store.putPayoutProfile({
+      uid,
+      method: "wise-email",
+      legalName: body.legalName,
+      country: body.country,
+      currency: body.currency,
+      email: body.email,
+      bankDetails: null,
+      fields: {},
+      updatedAt: deps.clock.now(),
+    });
+    return readPayouts(deps, uid);
+  }
+
+  // Normalised before validation, not after: an IBAN is printed in groups of four and
+  // typed that way, and the validator accepts no spaces. Storing what the bank prints and
+  // refusing it as malformed is a form that looks broken to somebody holding the right
+  // answer.
+  const fields = normalizeFields(body.fields);
   const corridor = await deps.store.getPayoutCorridor(body.country, body.currency);
-  if (corridor === null || !validateDestination(corridor, body.fields).ok) return null;
+  if (corridor === null || !validateDestination(corridor, fields).ok) return null;
   await deps.store.putPayoutProfile({
     uid,
     method: body.method,
     legalName: body.legalName,
     country: body.country,
     currency: body.currency,
-    email: body.email,
-    bankDetails: body.bankDetails,
-    fields: body.fields,
+    email: null,
+    bankDetails: null,
+    fields,
     updatedAt: deps.clock.now(),
   });
 
@@ -333,10 +400,7 @@ export async function requestWithdrawal(
   const pending = history.find((row) => row.status === "requested" || row.status === "approved") ?? null;
   const now = deps.clock.now();
 
-  const corridor =
-    profile === null ? null : await deps.store.getPayoutCorridor(profile.country, profile.currency);
-  const corridorEligible =
-    profile !== null && corridor !== null && validateDestination(corridor, profile.fields ?? {}).ok;
+  const corridorEligible = await destinationUsable(deps, profile);
   const { eligible } = evaluateEligibility({
     user,
     balance,
@@ -474,7 +538,7 @@ export async function listWithdrawals(
         uid: record.uid,
         email: user?.email ?? null,
         displayName: user?.displayName ?? null,
-        destination: record.destination,
+        destination: { method: record.destination.method, ...maskDestination(record.destination) },
         availableMicros: formatMicros(balance.availableMicros),
         lifetimeMicros: formatMicros(balance.lifetimeMicros),
       };
@@ -482,6 +546,34 @@ export async function listWithdrawals(
   );
 
   return { rows, nextCursor: found.nextCursor };
+}
+
+/**
+ * The bank details for one request, at the moment somebody is about to make the transfer.
+ *
+ * Separate from the queue on purpose. Reading a list should not decrypt every account on
+ * the page, and the audit line for this names the withdrawal rather than saying somebody
+ * opened a screen - so "who looked at this person's account, and when" has an answer.
+ *
+ * Refused once the request is settled: the details were needed to send the money, and a
+ * paid or rejected row is history.
+ */
+export async function readWithdrawalDestination(
+  deps: PayoutDeps,
+  adminUid: string,
+  withdrawalId: string,
+): Promise<Outcome<PayoutDestination>> {
+  const record = await deps.store.getWithdrawal(withdrawalId);
+  if (record === null) return no("not-found");
+  if (record.status !== "requested" && record.status !== "approved") return no("invalid-state");
+
+  await deps.store.writeAudit({
+    adminUid,
+    action: `withdrawal:destination-read:${withdrawalId}`,
+    subjectUid: record.uid,
+    at: deps.clock.now(),
+  });
+  return ok(record.destination);
 }
 
 /**
@@ -627,4 +719,119 @@ export async function markWithdrawalFailed(
   if (record === null) return no("not-found");
   if (record.status !== "approved") return no("invalid-state");
   return release(deps, record, "failed", note, adminUid);
+}
+
+/**
+ * The transfer came back after it had been recorded as sent.
+ *
+ * `paid` used to be terminal, which meant a bounced, recalled or returned Wise transfer
+ * had no route back into the product - and no endpoint wrote an `adjustment` entry either,
+ * so the only correction was hand-written SQL against the money ledger. That is exactly
+ * what an append-only ledger exists to make unnecessary.
+ *
+ * The entry is an `adjustment`, not a `withdrawal_failed`, and the arithmetic is why. At
+ * `paid` the hold has already settled: available fell at request time and pending is back
+ * to zero. `withdrawal_failed` adds to available *and* subtracts from pending, which would
+ * leave the hold negative. An adjustment moves available alone, which is the only thing
+ * that needs to move - and "a correction an admin made, with a reason" is what the kind
+ * means. `lifetimeMicros` is untouched: they did earn it, and this is the payment failing,
+ * not the earning being revoked.
+ */
+export async function returnWithdrawal(
+  deps: PayoutDeps,
+  adminUid: string,
+  withdrawalId: string,
+  note: string,
+): Promise<Outcome<WithdrawalView>> {
+  const record = await deps.store.getWithdrawal(withdrawalId);
+  if (record === null) return no("not-found");
+  if (record.status !== "paid") return no("invalid-state");
+
+  const now = deps.clock.now();
+  const entry: import("./ledger.ts").LedgerEntry = {
+    entryId: `${withdrawalId}:returned`,
+    uid: record.uid,
+    kind: "adjustment",
+    micros: record.amountMicros,
+    refId: withdrawalId,
+    createdAt: now,
+    description: `Transfer returned (${dollars(record.amountMicros)})`,
+    reason: note,
+    adminUid,
+    currency: record.destination.currency,
+    ...(record.providerRef === null ? {} : { providerRef: record.providerRef }),
+  };
+
+  const changed = await deps.store.transitionWithdrawal({
+    withdrawalId,
+    expectedStatuses: ["paid"],
+    status: "returned",
+    decidedAt: now,
+    decidedBy: adminUid,
+    providerRef: record.providerRef,
+    note,
+    entry,
+  });
+  if (!changed) return no("invalid-state");
+
+  await deps.store.writeAudit({
+    adminUid,
+    action: `withdrawal:returned:${withdrawalId}`,
+    subjectUid: record.uid,
+    at: now,
+  });
+  return ok({ ...withdrawalView(record), status: "returned", decidedAt: now, note });
+}
+
+/* ── Corrections ────────────────────────────────────────────────────────── */
+
+/**
+ * Move a balance by hand, with a reason attached.
+ *
+ * The `adjustment` kind has existed in `ledger.ts` since the first migration and nothing
+ * ever wrote one, so every correction that was not a withdrawal outcome meant editing the
+ * database directly. This is the endpoint that makes that unnecessary: it appends, like
+ * everything else, and the entry carries who did it and why.
+ *
+ * It cannot push a balance negative. An admin who needs to claw back more than somebody
+ * has is describing a debt, and this system has no concept of one - inventing a negative
+ * balance here would silently break every `>=` in the eligibility rules.
+ */
+export async function adjustBalance(
+  deps: PayoutDeps,
+  adminUid: string,
+  uid: string,
+  micros: bigint,
+  reason: string,
+): Promise<Outcome<{ uid: string; micros: string; availableMicros: string }>> {
+  if (micros === 0n) return no("invalid-amount");
+
+  const [user, balance] = await Promise.all([deps.store.getUser(uid), deps.store.getBalance(uid)]);
+  if (user === null) return no("not-found");
+  if (balance.availableMicros + micros < 0n) return no("insufficient-funds");
+
+  const now = deps.clock.now();
+  await deps.store.appendEntryAndUpdateBalance({
+    entryId: deps.ids.next("adj"),
+    uid,
+    kind: "adjustment",
+    micros,
+    refId: null,
+    createdAt: now,
+    description: `${micros > 0n ? "Credit" : "Debit"} by an administrator (${dollars(micros)})`,
+    reason,
+    adminUid,
+  });
+  await deps.store.writeAudit({
+    adminUid,
+    action: `balance:adjusted:${formatMicros(micros)}`,
+    subjectUid: uid,
+    at: now,
+  });
+
+  return ok({
+    uid,
+    micros: formatMicros(micros),
+    availableMicros: formatMicros(balance.availableMicros + micros),
+  });
 }

@@ -26,7 +26,6 @@ import type {
   CampaignRecord,
   CreativeRecord,
   CreditOrderRecord,
-  FundingRecord,
   NoticeRecord,
   PayoutDestination,
   PayoutProfileRecord,
@@ -165,15 +164,6 @@ export interface BalanceRow {
   pending_withdrawal_micros: string;
 }
 
-export interface FundingRow {
-  event_id: string;
-  payment_id: string;
-  advertiser_id: string;
-  amount_micros: string;
-  currency: string;
-  at: number;
-}
-
 export interface CreditOrderRow {
   order_id: string;
   advertiser_id: string;
@@ -284,8 +274,6 @@ export const LEDGER_COLS =
   "entry_id,uid,kind,micros::text,ref_id,created_at,description,reason,admin_uid,provider_ref,currency";
 export const BALANCE_COLS =
   "uid,available_micros::text,lifetime_micros::text,pending_withdrawal_micros::text";
-export const FUNDING_COLS =
-  "event_id,payment_id,advertiser_id,amount_micros::text,currency,at";
 export const CREDIT_ORDER_COLS =
   "order_id,advertiser_id,amount_micros::text,currency,billing_country,customer_email,status,provider_session_id,checkout_url,provider_payment_id,created_at,updated_at";
 export const REPORT_COLS =
@@ -515,28 +503,6 @@ export function toEntry(row: LedgerRow): LedgerEntry {
     ...(row.admin_uid !== null ? { adminUid: row.admin_uid } : {}),
     ...(row.provider_ref !== null ? { providerRef: row.provider_ref } : {}),
     ...(row.currency !== null ? { currency: row.currency } : {}),
-  };
-}
-
-export function toFunding(row: FundingRow): FundingRecord {
-  return {
-    eventId: row.event_id,
-    paymentId: row.payment_id,
-    advertiserId: row.advertiser_id,
-    amountMicros: toMicros(row.amount_micros),
-    currency: row.currency,
-    at: row.at,
-  };
-}
-
-export function fromFunding(f: FundingRecord): FundingRow {
-  return {
-    event_id: f.eventId,
-    payment_id: f.paymentId,
-    advertiser_id: f.advertiserId,
-    amount_micros: fromMicros(f.amountMicros),
-    currency: f.currency,
-    at: f.at,
   };
 }
 
@@ -793,6 +759,7 @@ export interface PayoutProfileRow {
   destination_ciphertext?: string | null;
   destination_tag?: string | null;
   destination_mask?: string | null;
+  destination_key_id?: string | null;
   updated_at: number;
 }
 
@@ -812,6 +779,7 @@ export interface WithdrawalRow {
   destination_ciphertext?: string | null;
   destination_tag?: string | null;
   destination_mask?: string | null;
+  destination_key_id?: string | null;
   created_at: number;
   decided_at: number | null;
   decided_by: string | null;
@@ -820,10 +788,10 @@ export interface WithdrawalRow {
 }
 
 export const PAYOUT_PROFILE_COLS =
-  "uid,method,legal_name,country,currency,email,bank_details,destination_version,destination_nonce,destination_ciphertext,destination_tag,destination_mask,updated_at";
+  "uid,method,legal_name,country,currency,email,bank_details,destination_version,destination_nonce,destination_ciphertext,destination_tag,destination_mask,destination_key_id,updated_at";
 
 export const WITHDRAWAL_COLS =
-  "withdrawal_id,uid,amount_micros::text,status,method,legal_name,country,currency,email,bank_details,destination_version,destination_nonce,destination_ciphertext,destination_tag,destination_mask,created_at,decided_at,decided_by,provider_ref,note";
+  "withdrawal_id,uid,amount_micros::text,status,method,legal_name,country,currency,email,bank_details,destination_version,destination_nonce,destination_ciphertext,destination_tag,destination_mask,destination_key_id,created_at,decided_at,decided_by,provider_ref,note";
 
 /**
  * The destination, as stored on both a profile and a request.
@@ -879,6 +847,7 @@ export function fromPayoutProfile(profile: PayoutProfileRecord): PayoutProfileRo
     destination_ciphertext: null,
     destination_tag: null,
     destination_mask: null,
+    destination_key_id: null,
     updated_at: profile.updatedAt,
   };
 }

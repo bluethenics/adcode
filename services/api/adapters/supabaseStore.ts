@@ -39,7 +39,6 @@ import {
   CAMPAIGN_COLS,
   CONFIG_COLS,
   CREATIVE_COLS,
-  FUNDING_COLS,
   CREDIT_ORDER_COLS,
   LEDGER_COLS,
   NOTICE_COLS,
@@ -54,7 +53,6 @@ import {
   fromCampaign,
   fromConfig,
   fromCreative,
-  fromFunding,
   fromCreditOrder,
   fromMicros,
   fromNotice,
@@ -72,7 +70,6 @@ import {
   toConfig,
   toCreative,
   toEntry,
-  toFunding,
   toCreditOrder,
   toMicros,
   toNotice,
@@ -90,7 +87,6 @@ import {
   type CampaignRow,
   type ConfigRow,
   type CreativeRow,
-  type FundingRow,
   type CreditOrderRow,
   type LedgerRow,
   type NoticeRow,
@@ -161,6 +157,13 @@ export interface SupabaseStoreOptions {
   client?: SupabaseClient;
   /** Base64-encoded 32-byte AES key. Falls back to `PAYOUT_ENCRYPTION_KEY`. */
   payoutEncryptionKey?: string;
+  /**
+   * The key being rotated away from, still able to read.
+   *
+   * Falls back to `PAYOUT_ENCRYPTION_KEY_PREVIOUS`. Records sealed with it stay readable
+   * and re-wrap with the current key the next time they are saved.
+   */
+  payoutEncryptionKeyPrevious?: string;
 }
 
 function fail(context: string, error: { message: string }): never {
@@ -170,12 +173,15 @@ function fail(context: string, error: { message: string }): never {
 export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
   let client: SupabaseClient | undefined = options.client;
 
-  const payoutKey = (): string => {
+  /** Newest first: the head writes, the rest only read. */
+  const payoutKey = (): string[] => {
     const key = options.payoutEncryptionKey ?? process.env["PAYOUT_ENCRYPTION_KEY"];
     if (key === undefined || key === "") {
       throw new Error("PAYOUT_ENCRYPTION_KEY is required for payout data");
     }
-    return key;
+    const previous =
+      options.payoutEncryptionKeyPrevious ?? process.env["PAYOUT_ENCRYPTION_KEY_PREVIOUS"];
+    return previous === undefined || previous === "" ? [key] : [key, previous];
   };
 
   const encryptedFromRow = (row: {
@@ -183,6 +189,7 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
     destination_nonce?: string | null;
     destination_ciphertext?: string | null;
     destination_tag?: string | null;
+    destination_key_id?: string | null;
   }): PayoutDestination | null => {
     payoutKey();
     if (
@@ -196,6 +203,9 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       nonce: row.destination_nonce,
       ciphertext: row.destination_ciphertext,
       tag: row.destination_tag,
+      ...(typeof row.destination_key_id === "string" && row.destination_key_id.length > 0
+        ? { keyId: row.destination_key_id }
+        : {}),
     };
     return decryptDestination(payoutKey(), encrypted);
   };
@@ -203,7 +213,9 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
   const encryptedColumns = (destination: PayoutDestination): Record<string, unknown> => {
     const encrypted = encryptDestination(payoutKey(), destination);
     return {
-      method: "bank",
+      // The method is not a secret and makes a raw row legible; everything that identifies
+      // a person or an account stays inside the ciphertext.
+      method: destination.method,
       legal_name: "Encrypted payout destination",
       country: destination.country,
       currency: destination.currency,
@@ -213,6 +225,7 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       destination_nonce: encrypted.nonce,
       destination_ciphertext: encrypted.ciphertext,
       destination_tag: encrypted.tag,
+      destination_key_id: encrypted.keyId ?? null,
       destination_mask: JSON.stringify(maskDestination(destination)),
     };
   };
@@ -678,31 +691,6 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       return scalar<number>("bumpRequestCount", (db) =>
         db.rpc("bump_request_count", { p_uid: uid, p_window_start: windowStart }),
       );
-    },
-
-    async recordFundingIfAbsent(funding) {
-      const row = fromFunding(funding);
-      return scalar<boolean>("recordFundingIfAbsent", (db) =>
-        db.rpc("record_funding_if_absent", {
-          p_event_id: row.event_id,
-          p_payment_id: row.payment_id,
-          p_advertiser_id: row.advertiser_id,
-          p_amount_micros: row.amount_micros,
-          p_currency: row.currency,
-          p_at: row.at,
-        }),
-      );
-    },
-
-    async listFunding(advertiserId) {
-      const rows = await many<FundingRow>("listFunding", (db) =>
-        db
-          .from("fundings")
-          .select(FUNDING_COLS)
-          .eq("advertiser_id", advertiserId)
-          .order("at", { ascending: false }),
-      );
-      return rows.map(toFunding);
     },
 
     async createCreditOrder(order) {

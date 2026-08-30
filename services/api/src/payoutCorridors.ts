@@ -20,6 +20,40 @@ const validators: Record<PayoutFieldKind, RegExp> = {
 
 export const PAYOUT_FIELD_KINDS = Object.freeze(Object.keys(validators) as PayoutFieldKind[]);
 
+/**
+ * Kinds that are a code rather than prose, and are printed in groups on a statement.
+ *
+ * "GB29 NWBK 6016 1331 9268 19" is how a bank shows an IBAN and how a person types it, and
+ * the validator above accepts no spaces at all. Rejecting that as malformed teaches people
+ * that the form is broken; stripping the spaces is what every bank's own form does.
+ */
+const CODE_KINDS: ReadonlySet<string> = new Set<PayoutFieldKind>([
+  "iban",
+  "bic",
+  "ifsc",
+  "sortCode",
+  "bsb",
+  "bankCode",
+  "branchCode",
+  "routingNumber",
+  "clabe",
+  "accountNumber",
+]);
+
+/** One field, as it should be stored: what the human meant, not what they typed. */
+export function normalizeField(kind: string, value: string): string {
+  const trimmed = value.trim();
+  if (!CODE_KINDS.has(kind)) return trimmed.replace(/\s+/g, " ");
+  return trimmed.replace(/\s+/g, "").toUpperCase();
+}
+
+/** The same, across a whole destination. Unknown keys are passed through to be refused. */
+export function normalizeFields(fields: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(fields).map(([kind, value]) => [kind, normalizeField(kind, value)]),
+  );
+}
+
 export function validateDestination(
   corridor: PayoutCorridorRecord,
   fields: Record<string, string>,

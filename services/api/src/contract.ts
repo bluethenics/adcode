@@ -479,7 +479,15 @@ export function parseCreative(raw: unknown): CreativeBody | null {
  * put a correct, complete instruction in front of the person making it - and to refuse a
  * request that should never have reached them.
  */
-export type PayoutMethod = "bank";
+/**
+ * How the transfer is addressed.
+ *
+ * `bank` needs the coordinates that country uses, which is what a corridor describes.
+ * `wise-email` needs none of them: Wise resolves the recipient from the address on their
+ * account, so it works to any country and has no corridor at all. Somebody who already has
+ * Wise should not be made to find their IBAN to be paid.
+ */
+export type PayoutMethod = "bank" | "wise-email";
 
 export const PAYOUT_LIMITS = {
   /** Below this a transfer costs more in fees and attention than it moves. */
@@ -497,6 +505,14 @@ export const PAYOUT_LIMITS = {
   bankDetails: 600,
   note: 400,
   providerRef: 120,
+  /**
+   * The most one admin action may move a balance, in either direction.
+   *
+   * Not a security boundary - an admin who wants to move more can do it twice - but a
+   * typo boundary. Micros have six zeros on the end of every figure, and $10,000 is far
+   * above any correction this system will ever legitimately need to make.
+   */
+  maxAdjustmentMicros: 10_000_000_000n,
 } as const;
 
 export interface PayoutProfileBody {
@@ -513,7 +529,7 @@ export interface WithdrawalRequestBody {
   amountMicros: string;
 }
 
-const PAYOUT_METHODS: ReadonlySet<string> = new Set<PayoutMethod>(["bank"]);
+const PAYOUT_METHODS: ReadonlySet<string> = new Set<PayoutMethod>(["bank", "wise-email"]);
 
 /**
  * The currencies Wise can pay out in that this accepts.
@@ -556,6 +572,22 @@ export function parsePayoutProfile(raw: unknown): PayoutProfileBody | null {
   const currency = raw["currency"];
   if (typeof currency !== "string" || !CURRENCY_SET.has(currency)) return null;
 
+  // Paying to a Wise address needs the address and nothing else. Refusing bank fields here
+  // rather than ignoring them keeps the stored record honest about which half was used.
+  if (method === "wise-email") {
+    const email = boundedText(raw["email"], PAYOUT_LIMITS.email);
+    if (email === null || !EMAILISH.test(email)) return null;
+    return {
+      method: "wise-email",
+      legalName,
+      country,
+      currency,
+      email,
+      bankDetails: null,
+      fields: {},
+    };
+  }
+
   const rawFields = raw["fields"];
   if (!isRecord(rawFields)) return null;
   const fields: Record<string, string> = {};
@@ -595,4 +627,27 @@ export function parseProviderRef(raw: unknown): string | null {
 export function parseDecisionNote(raw: unknown): string | null {
   if (!isRecord(raw)) return null;
   return boundedText(raw["note"], PAYOUT_LIMITS.note);
+}
+
+/**
+ * A correction to somebody's balance, and the reason for it.
+ *
+ * Signed, because a correction runs both ways: crediting somebody the reversal job took
+ * too much from, and clawing back earnings a fraud check caught late. Whole cents for the
+ * same reason a withdrawal is - the ledger should never carry a figure a bank could not
+ * move. The reason is mandatory: an adjustment nobody explained is indistinguishable from
+ * an admin helping themselves, and this is the one kind that can raise a balance from
+ * nothing.
+ */
+export function parseAdjustment(raw: unknown): { micros: bigint; reason: string } | null {
+  if (!isRecord(raw)) return null;
+  const value = raw["micros"];
+  if (typeof value !== "string" || !/^-?[0-9]{1,19}$/.test(value)) return null;
+  const micros = BigInt(value);
+  if (micros === 0n || micros % 10_000n !== 0n) return null;
+  if (micros > PAYOUT_LIMITS.maxAdjustmentMicros || micros < -PAYOUT_LIMITS.maxAdjustmentMicros) {
+    return null;
+  }
+  const reason = boundedText(raw["reason"], PAYOUT_LIMITS.note);
+  return reason === null ? null : { micros, reason };
 }

@@ -27,8 +27,9 @@ file. The current product rules are:
 - the developer receives **50% of the clearing price**;
 - users can request a payout at **$50.00**; an admin approves it, sends it manually, and
   records the result;
-- there is no Wise API integration and no pay-by-email option. Payouts use structured bank
-  details for country/currency routes you have explicitly enabled.
+- there is no Wise API integration. Users choose between **a Wise email address**, which
+  works to any country because Wise resolves the recipient itself, and **structured bank
+  details** for a country/currency route you have enabled.
 
 ### A. Apply the new database migrations
 
@@ -41,9 +42,39 @@ contents of each file once:
 4. `supabase/migrations/20260826130000_withdrawal_lifecycle.sql`
 5. `supabase/migrations/20260826140000_atomic_withdrawals.sql`
 
-All example payout routes are inserted **disabled**. That is intentional: Wise availability
-depends on the sender profile, destination, currency, recipient type, and current compliance
-checks.
+**Then run these three, added 2026-08-29. Payouts do not work without the first one.**
+
+6. `supabase/migrations/20260829100000_payout_rpc_evidence_fix.sql`
+7. `supabase/migrations/20260829110000_credit_event_corrections.sql`
+8. `supabase/migrations/20260829120000_payout_corridors_wise.sql`
+
+File 6 is the one that matters most. Migrations 4 and 5 disagreed about the name of a
+column - 4 created `payment_evidence`, 5 wrote `evidence` - and because Postgres does not
+check column names inside a function until the function runs, both applied cleanly and
+every payout request threw at runtime:
+
+```
+ERROR:  42703: column "evidence" of relation "withdrawals" does not exist
+```
+
+Nobody could withdraw at all until file 6 is applied. After running it, check that it
+worked:
+
+```sql
+select count(*) from information_schema.columns
+where table_schema = 'public' and table_name = 'withdrawals'
+  and column_name = 'destination_key_id';
+```
+
+You should see `1`. If you see `0`, file 6 did not run.
+
+File 8 enables about seventy country/currency payout routes at once, which is the change
+from the older instruction below. The earlier four routes all shipped **disabled**, and
+because a disabled route makes the whole payout screen refuse a user, nobody could save
+payout details either. The routes are seeded from Wise's published recipient requirements
+and their `verified_at` is deliberately left empty - that column means *you* confirmed the
+exact route in Wise, and seeding a table is not that. Disable any individual route in
+`/admin/money?tab=corridors` the moment a transfer to it bounces.
 
 If the database already contains payout profiles or withdrawals, generate the encryption
 key first, then inspect and run the migration helper from the repository root:
@@ -69,6 +100,34 @@ npx wrangler secret put PAYOUT_ENCRYPTION_KEY
 
 Paste the generated value only into Wrangler's hidden prompt. The API fails closed on
 payout reads and writes when this secret is absent or invalid.
+
+**Rotating this key.** Every encrypted record now stores a short id naming the key that
+sealed it, so a rotation no longer makes all stored payout details unreadable at once. To
+rotate:
+
+1. Set the current key as the previous one, so existing records stay readable:
+
+   ```powershell
+   cd apps/web
+   npx wrangler secret put PAYOUT_ENCRYPTION_KEY_PREVIOUS
+   ```
+
+   Paste the **old** value at the prompt.
+
+2. Generate a new key and put it in `PAYOUT_ENCRYPTION_KEY`, the same way as above.
+
+3. Deploy. New and updated records are written with the new key; old ones are still read
+   with the previous one, and re-wrap the next time that user saves their details.
+
+4. Remove `PAYOUT_ENCRYPTION_KEY_PREVIOUS` only once nothing is still sealed with it:
+
+   ```sql
+   select destination_key_id, count(*) from public.payout_profiles group by 1;
+   select destination_key_id, count(*) from public.withdrawals group by 1;
+   ```
+
+Never delete a key that still appears in those results - the details sealed with it cannot
+be recovered without it.
 
 ### C. Configure Dodo Payments in test mode
 
@@ -124,20 +183,29 @@ is <https://docs.dodopayments.com/developer-resources/webhooks/intents/webhook-e
 Only after those checks should you replace all three Dodo values with their live-mode
 versions, set `DODO_MODE=live` as a Worker secret, and redeploy.
 
-### E. Verify payout countries one at a time
+### E. Payout routes
 
-Open `/admin/money?tab=corridors`. For each route:
+Migration 8 enables about seventy bank routes at once, and paying to a Wise email address
+needs no route at all. That is the current operating decision, and it replaces the earlier
+"enable them one at a time" instruction: a disabled route is indistinguishable to a user
+from a country you refuse to pay, and until this change *every* route was disabled, so
+nobody could save payout details at all.
 
-1. In your own Wise account, start a real recipient flow from India for that exact country,
-   currency, and recipient type.
-2. Record every bank field Wise requires in the admin route configuration.
-3. Put the date and what you verified in the verification note.
-4. Enable the route only if Wise allows you to continue with the correct, truthful transfer
-   purpose. Recheck periodically and disable it immediately if Wise stops accepting it.
+What that decision costs you is the verification step, so do it as the routes get used
+rather than before:
 
-Do **not** enable all countries from a generic country list. The public payout form shows
-only routes enabled in this admin screen, and eligibility is checked again when the user
-submits a request.
+1. Open `/admin/money?tab=corridors`. Every route shows `Not verified` until you say
+   otherwise - that flag means *you* confirmed the exact route in Wise, and seeding a
+   table is not that.
+2. The first time you actually pay to a route, start the recipient flow in Wise for that
+   exact country, currency, and recipient type. If Wise asks for a field the form did not
+   collect, add it to the route's required fields; if Wise will not let you continue,
+   **disable that route immediately** and reject the request with a reason.
+3. Put the date and what you confirmed in the verification note.
+
+Users see only enabled routes, and eligibility is checked again on the server when the
+request is submitted - a browser that lies to itself about being eligible reaches an
+endpoint that refuses it.
 
 ### F. Important Wise India restriction
 
@@ -152,24 +220,51 @@ lets you create a recipient. See:
 - <https://wise.com/help/articles/2932151/guide-to-inr-transfers>
 
 Before the first real payout, ask Wise support (and your accountant/legal adviser) whether
-your exact entity, source of funds, purpose, and destination are permitted. Until you have
-written confirmation or an appropriate business payout method, keep corridors disabled.
+your exact entity, source of funds, purpose, and destination are permitted. This is the one
+place where the seeded routes above do not help you: enabling a route in ADCode is a claim
+that the software can collect the right fields, not a claim that Wise will let you send.
 The software supports manual review; it cannot make a non-permitted personal transfer
-permitted.
+permitted. If the answer is no, use the kill switch that already exists - disable every
+route in `/admin/money?tab=corridors` - rather than paying anyway.
 
 ### G. Process a withdrawal
 
-1. A verified user with an account at least seven days old, an enabled payout route, no
+1. A verified user with an account at least seven days old, payout details on file, no
    in-flight request, and at least **$50.00 available** submits a request.
-2. In `/admin/money`, review it under **Needs review**. Check the account and bank fields,
-   then choose **Approve for manual transfer** or reject it with a useful reason.
-3. Approved requests move to **Ready to send**. Copy each structured field into Wise and
-   pay the transfer fee yourself; do not reduce the user's requested amount to cover it.
+2. In `/admin/money`, review it under **Needs review**. The list shows only a masked hint
+   like `••••7890`; opening a row is what decrypts that account, and that action is written
+   to the audit log against the withdrawal id. Then choose **Approve for manual transfer**
+   or reject it with a useful reason.
+3. Approved requests move to **Ready to send**. Copy each structured field into Wise - or
+   the Wise email address, if that is what they chose - and pay the transfer fee yourself;
+   do not reduce the user's requested amount to cover it.
 4. If Wise sends it, paste the Wise reference and mark it paid. If Wise rejects it, record
    the failure reason; the held money returns to the user's available balance.
+5. **If a transfer bounces or is recalled after you marked it paid**, open the row under
+   **Paid** and use **Return funds to the user** with the reason. This appends a correction
+   to the ledger and puts the money back in their available balance. Before this existed
+   there was no route out of `paid` at all, and the only fix was editing the database by
+   hand.
 
 Never mark a request paid before Wise confirms the transfer. Approval alone does not move
 money.
+
+### H. Check the books
+
+Two read-only queries worth running occasionally in the SQL Editor.
+
+Advertiser credits that do not match the payments behind them - rows here mean something
+moved `funded_micros` that was not a provider webhook:
+
+```sql
+select * from public.reconcile_advertiser_credits();
+```
+
+Checkout sessions nobody completed, which are cancelled automatically after seven days:
+
+```sql
+select status, count(*) from public.advertiser_credit_orders group by status;
+```
 
 ---
 

@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   verifyWebhook,
   sign,
-  parseFundingEvent,
   decodeSecret,
   WEBHOOK_TOLERANCE_SECONDS,
 } from "../src/billing.ts";
@@ -108,51 +107,5 @@ describe("verifyWebhook", () => {
       ok: false,
       reason: "bad-timestamp",
     });
-  });
-});
-
-describe("parseFundingEvent", () => {
-  const event = (over: Record<string, unknown> = {}) => ({
-    type: "payment.succeeded",
-    data: {
-      payload_type: "Payment",
-      payment_id: "pay_abc",
-      total_amount: 5000,
-      currency: "USD",
-      metadata: { advertiserId: "adv-1" },
-      ...over,
-    },
-  });
-
-  it("converts the smallest currency unit into micros", () => {
-    // $50.00 arrives as 5000 cents, which is 50_000_000 micros.
-    expect(parseFundingEvent(event())).toEqual({
-      paymentId: "pay_abc",
-      advertiserId: "adv-1",
-      amountMicros: 50_000_000n,
-      currency: "USD",
-    });
-  });
-
-  it("ignores an event type we do not fund on", () => {
-    expect(parseFundingEvent({ ...event(), type: "payment.failed" })).toBeNull();
-    expect(parseFundingEvent({ ...event(), type: "subscription.active" })).toBeNull();
-  });
-
-  it("ignores a payment with no advertiser attached", () => {
-    expect(parseFundingEvent(event({ metadata: {} }))).toBeNull();
-    expect(parseFundingEvent(event({ metadata: { advertiserId: "" } }))).toBeNull();
-  });
-
-  it("refuses a zero, negative, or fractional amount", () => {
-    expect(parseFundingEvent(event({ total_amount: 0 }))).toBeNull();
-    expect(parseFundingEvent(event({ total_amount: -100 }))).toBeNull();
-    expect(parseFundingEvent(event({ total_amount: 12.5 }))).toBeNull();
-  });
-
-  it("refuses junk", () => {
-    expect(parseFundingEvent(null)).toBeNull();
-    expect(parseFundingEvent("payment.succeeded")).toBeNull();
-    expect(parseFundingEvent({ type: "payment.succeeded" })).toBeNull();
   });
 });

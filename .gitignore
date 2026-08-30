@@ -38,3 +38,6 @@ skills-lock.json
 
 # Isolated implementation worktrees created by the development workflow.
 .worktrees/
+
+# Supabase CLI scratch
+supabase/.temp/

@@ -29,7 +29,6 @@ import type {
   CreativeRecord,
   CreditOrderRecord,
   EntryPage,
-  FundingRecord,
   Page,
   ReceiptRecord,
   NoticeRecord,
@@ -707,31 +706,6 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
       });
     },
 
-    async recordFundingIfAbsent(funding: FundingRecord) {
-      const ref = (await lazy()).collection("funding").doc(funding.eventId);
-      try {
-        // `create` fails if the doc exists; that failure IS the idempotency check, and it
-        // is atomic in a way a read-then-write is not.
-        await ref.create({ ...funding, amountMicros: fromMicros(funding.amountMicros) });
-        return true;
-      } catch {
-        return false;
-      }
-    },
-
-    async listFunding(advertiserId) {
-      const snap = await (await lazy())
-        .collection("funding")
-        .where("advertiserId", "==", advertiserId)
-        .orderBy("at", "desc")
-        .limit(200)
-        .get();
-      return snap.docs.map((d) => {
-        const raw = d.data();
-        return { ...(raw as Omit<FundingRecord, "amountMicros">), amountMicros: toMicros(raw["amountMicros"]) };
-      });
-    },
-
     async createCreditOrder(order) {
       await (await lazy())
         .collection("creditOrders")
@@ -803,6 +777,14 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
           ? database.collection("disputeDebits").doc(event.disputeId)
           : null;
 
+      // Live campaigns, so an advertiser pushed underwater can be paused inside the same
+      // transaction. Every read has to happen before the first write, so it is gathered
+      // here whether or not it turns out to be needed.
+      const activeCampaigns = database
+        .collection("campaigns")
+        .where("advertiserId", "==", order.advertiserId)
+        .where("status", "==", "active");
+
       return database.runTransaction(async (tx) => {
         const reads = await Promise.all([
           tx.get(eventRef),
@@ -811,6 +793,7 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
           tx.get(advertiserRef),
           ...(disputeRef === null ? [] : [tx.get(disputeRef)]),
         ]);
+        const campaignDocs = event.type === "purchase" ? [] : (await tx.get(activeCampaigns)).docs;
         if (reads[0]?.exists || reads[1]?.exists) return { applied: false, reason: "duplicate" };
         const rawAdvertiser = reads[3]?.data();
         if (rawAdvertiser === undefined) return { applied: false, reason: "ignored" };
@@ -837,16 +820,24 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
           });
           tx.update(orderRef, {
             status: "paid",
+            netMicros: fromMicros(order.amountMicros),
             providerPaymentId: event.paymentId,
             updatedAt: Date.now(),
           });
           return { applied: true, reason: "applied", advertiserId: advertiser.advertiserId };
         }
 
+        // What this order still counts for, tracked on the order itself. A reversal has two
+        // ceilings and the order's is the one that used to be missing: a refund can never
+        // take back more than this order was worth, however much the event claims.
+        const net = toMicros((reads[2]?.data() ?? {})["netMicros"] ?? order.amountMicros);
+
         let delta = 0n;
         if (event.type === "refund" || event.type === "dispute-opened") {
-          const removable = advertiser.fundedMicros > 0n ? advertiser.fundedMicros : 0n;
-          const removed = event.amountMicros < removable ? event.amountMicros : removable;
+          const absorbable = net > 0n ? net : 0n;
+          const funded = advertiser.fundedMicros > 0n ? advertiser.fundedMicros : 0n;
+          const ceiling = absorbable < funded ? absorbable : funded;
+          const removed = event.amountMicros < ceiling ? event.amountMicros : ceiling;
           delta = -removed;
           if (event.type === "dispute-opened" && disputeRef !== null) {
             tx.set(disputeRef, { micros: fromMicros(removed) });
@@ -854,20 +845,36 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
         } else if (event.type === "dispute-release") {
           delta = toMicros(reads[4]?.data()?.["micros"]);
         }
+        // `dispute-final` moves nothing - the money left when the dispute opened - but it
+        // still settles the order below. It used to fall through to a recompute that
+        // marked a lost chargeback as `paid`.
+        const orderNet = net + delta;
+
         const fundedMicros = advertiser.fundedMicros + delta;
+        const underfunded = fundedMicros < advertiser.reservedMicros;
         tx.update(advertiserRef, {
           fundedMicros: fromMicros(fundedMicros),
-          ...(fundedMicros < advertiser.reservedMicros ? { status: "suspended" } : {}),
+          ...(underfunded ? { status: "suspended" } : {}),
         });
+        // The SQL and memory stores both pause an underfunded advertiser's live campaigns;
+        // this one did not, which is the drift that comes of three implementations.
+        if (underfunded) {
+          for (const campaign of campaignDocs) {
+            tx.update(campaign.ref, { status: "paused" });
+          }
+        }
         tx.update(orderRef, {
+          netMicros: fromMicros(orderNet),
           status:
             event.type === "dispute-opened"
               ? "disputed"
-              : fundedMicros === 0n
+              : event.type === "dispute-final"
                 ? "reversed"
-                : fundedMicros < order.amountMicros
-                  ? "partially_reversed"
-                  : "paid",
+                : orderNet <= 0n
+                  ? "reversed"
+                  : orderNet < order.amountMicros
+                    ? "partially_reversed"
+                    : "paid",
           updatedAt: Date.now(),
         });
         return { applied: true, reason: "applied", advertiserId: advertiser.advertiserId };

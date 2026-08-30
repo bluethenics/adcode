@@ -6,7 +6,7 @@
  * and tested with no Firebase project in existence. The same trick makes this whole slice
  * buildable before a GCP account exists, and keeps CI free of cloud credentials forever.
  *
- * Implementations: `memoryStore.ts` for tests, `adapters/firestoreStore.ts` for production.
+ * Implementations: `memoryStore.ts` for tests, `adapters/supabaseStore.ts` for production.
  */
 import type { Balance, LedgerEntry } from "./ledger.ts";
 
@@ -220,15 +220,6 @@ export interface EntryPage {
  * Keyed by the provider's webhook event id, which is what makes crediting idempotent:
  * payment providers retry, and a retry that credits twice is money invented.
  */
-export interface FundingRecord {
-  eventId: string;
-  paymentId: string;
-  advertiserId: string;
-  amountMicros: bigint;
-  currency: string;
-  at: number;
-}
-
 export type CreditOrderStatus =
   | "pending"
   | "checkout_created"
@@ -460,7 +451,9 @@ export type WithdrawalStatus =
   | "paid"
   | "rejected"
   | "failed"
-  | "cancelled";
+  | "cancelled"
+  /** Sent, then bounced or recalled by the bank. The money goes back; see `returnWithdrawal`. */
+  | "returned";
 
 export interface PaidEvidence {
   provider: string;
@@ -568,10 +561,6 @@ export interface Store {
 
   /** Increments this UID's counter for the window and returns the new count. */
   bumpRequestCount(uid: string, windowStart: number): Promise<number>;
-
-  /** True when created, false when this event was already processed. The idempotency gate. */
-  recordFundingIfAbsent(funding: FundingRecord): Promise<boolean>;
-  listFunding(advertiserId: string): Promise<FundingRecord[]>;
 
   createCreditOrder(order: CreditOrderRecord): Promise<void>;
   getCreditOrder(orderId: string): Promise<CreditOrderRecord | null>;

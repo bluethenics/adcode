@@ -229,11 +229,13 @@ describe("the admin decisions", () => {
 
   it("lists what needs review", async () => {
     await request();
-    const body = await json<{ rows: { destination: { email: string } }[] }>(
+    const body = await json<{ rows: { destination: { accountHint: string } }[] }>(
       await get("/v1/admin/withdrawals?status=requested", admin),
     );
     expect(body.rows).toHaveLength(1);
-    expect(body.rows[0]?.destination.email).toBeNull();
+    // Masked, not decrypted: the queue no longer hands out an account per row.
+    expect(body.rows[0]?.destination.accountHint).toBe("••••5678");
+    expect(body.rows[0]?.destination).not.toHaveProperty("fields");
   });
 
   it("refuses to record a payment with no transfer reference", async () => {
@@ -383,5 +385,105 @@ describe("GET /v1/admin/overview", () => {
 
   it("is not readable by an ordinary account", async () => {
     expect((await get("/v1/admin/overview")).status).toBe(403);
+  });
+});
+
+/**
+ * The routes added when the payout path was repaired.
+ *
+ * Each of these moves money or hands out an account number, so the case that matters most
+ * for every one of them is the same: an ordinary signed-in account is refused.
+ */
+describe("the repaired admin surface", () => {
+  /** A request sitting at `requested`, made by the ordinary user. */
+  async function pendingRequest(): Promise<string> {
+    await fundedAccount();
+    await post("/v1/payouts/profile", profile);
+    const made = await json<WithdrawalBody>(await post("/v1/withdrawals", { amountMicros: "50000000" }));
+    return made.withdrawalId;
+  }
+
+  async function paidRequest(): Promise<string> {
+    const id = await pendingRequest();
+    await post(`/v1/admin/withdrawals/${id}/approve`, {}, admin);
+    await post(`/v1/admin/withdrawals/${id}/paid`, { providerRef: "wise-1" }, admin);
+    return id;
+  }
+
+  it("hands out one destination to an admin and nothing to anyone else", async () => {
+    const id = await pendingRequest();
+
+    const forbidden = await get(`/v1/admin/withdrawals/${id}/destination`, user);
+    expect(forbidden.status).toBe(403);
+
+    const allowed = await get(`/v1/admin/withdrawals/${id}/destination`, admin);
+    expect(allowed.status).toBe(200);
+    const found = await json<{ legalName: string; fields: Record<string, string> }>(allowed);
+    expect(found.legalName).toBe("Ada Lovelace");
+    expect(found.fields["accountNumber"]).toBe("12345678");
+  });
+
+  it("returns a bounced transfer to the user's balance", async () => {
+    const id = await paidRequest();
+
+    const refused = await post(`/v1/admin/withdrawals/${id}/returned`, { note: "Bounced" }, user);
+    expect(refused.status).toBe(403);
+
+    const done = await post(`/v1/admin/withdrawals/${id}/returned`, { note: "Account closed" }, admin);
+    expect(done.status).toBe(200);
+    expect((await json<WithdrawalBody>(done)).status).toBe("returned");
+
+    const balance = await store.getBalance("u-1");
+    expect(balance.availableMicros).toBe(75_000_000n);
+    expect(balance.pendingWithdrawalMicros).toBe(0n);
+  });
+
+  it("insists on a reason before returning a transfer", async () => {
+    const id = await paidRequest();
+    const empty = await post(`/v1/admin/withdrawals/${id}/returned`, { note: "  " }, admin);
+    expect(empty.status).toBe(400);
+    expect((await json<ErrorBody>(empty)).error).toBe("malformed note");
+  });
+
+  it("adjusts a balance, and refuses one that would go negative", async () => {
+    await fundedAccount();
+
+    const forbidden = await post("/v1/admin/users/u-1/adjust", { micros: "1000000", reason: "x" }, user);
+    expect(forbidden.status).toBe(403);
+
+    const credited = await post(
+      "/v1/admin/users/u-1/adjust",
+      { micros: "1000000", reason: "Reversal ran twice" },
+      admin,
+    );
+    expect(credited.status).toBe(200);
+    expect((await store.getBalance("u-1")).availableMicros).toBe(76_000_000n);
+
+    const tooMuch = await post(
+      "/v1/admin/users/u-1/adjust",
+      { micros: "-999000000", reason: "Everything" },
+      admin,
+    );
+    expect(tooMuch.status).toBe(402);
+    expect((await store.getBalance("u-1")).availableMicros).toBe(76_000_000n);
+  });
+
+  it("refuses an adjustment with no reason or a sub-cent figure", async () => {
+    await fundedAccount();
+    for (const body of [
+      { micros: "1000000", reason: "" },
+      { micros: "1234", reason: "typo" },
+      { micros: "0", reason: "nothing" },
+    ]) {
+      const response = await post("/v1/admin/users/u-1/adjust", body, admin);
+      expect(response.status).toBe(400);
+    }
+  });
+
+  it("lists corridors to a signed-in user without leaking whether they are verified", async () => {
+    const response = await get("/v1/payout-corridors");
+    expect(response.status).toBe(200);
+    const body = await json<{ corridors: { country: string; sourceNote?: string }[] }>(response);
+    expect(body.corridors.every((row) => row.sourceNote === undefined)).toBe(true);
   });
 });

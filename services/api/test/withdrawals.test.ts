@@ -1,18 +1,27 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
+  adjustBalance,
   cancelWithdrawal,
   approveWithdrawal,
   evaluateEligibility,
   listWithdrawals,
+  markWithdrawalFailed,
   markWithdrawalPaid,
   readPayouts,
+  readWithdrawalDestination,
   rejectWithdrawal,
   requestWithdrawal,
+  returnWithdrawal,
   savePayoutProfile,
 } from "../src/withdrawals.ts";
 import { createMemoryStore } from "../src/memoryStore.ts";
 import { EMPTY_BALANCE } from "../src/ledger.ts";
-import { PAYOUT_LIMITS, parsePayoutProfile, parseWithdrawalAmount } from "../src/contract.ts";
+import {
+  PAYOUT_LIMITS,
+  parseAdjustment,
+  parsePayoutProfile,
+  parseWithdrawalAmount,
+} from "../src/contract.ts";
 import type { PayoutProfileBody } from "../src/contract.ts";
 import type { UserRecord } from "../src/store.ts";
 
@@ -562,7 +571,9 @@ describe("the admin queue", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.uid).toBe("u1");
     expect(rows[0]?.email).toBe("ada@example.com");
-    expect(rows[0]?.destination.legalName).toBe("Ada Lovelace");
+    // The queue carries a masked summary, never the account itself - see F-05.
+    expect(rows[0]?.destination.accountHint).toBe("••••5678");
+    expect(rows[0]?.destination).not.toHaveProperty("legalName");
     expect(rows[0]?.availableMicros).toBe("25000000");
     expect(rows[0]?.lifetimeMicros).toBe("75000000");
   });
@@ -587,5 +598,242 @@ describe("the admin queue", () => {
     await listWithdrawals(deps(), "admin-1", "requested", { limit: 50, cursor: null });
     const audit = await store.listAudit();
     expect(audit.some((a) => a.action === "read-withdrawals")).toBe(true);
+  });
+});
+
+describe("paying to a Wise address", () => {
+  const wise: PayoutProfileBody = {
+    method: "wise-email",
+    legalName: "Ada Lovelace",
+    country: "GB",
+    currency: "GBP",
+    email: "ada@example.com",
+    bankDetails: null,
+    fields: {},
+  };
+
+  it("needs no corridor, because Wise resolves the recipient itself", async () => {
+    await readyUser();
+    await earn("u1", 120_000_000n);
+    // Every bank corridor off, which used to make the account permanently ineligible.
+    await store.putPayoutCorridor({
+      country: "GB",
+      currency: "GBP",
+      enabled: false,
+      requiredFields: ["accountNumber", "sortCode", "bankName"],
+      sourceNote: "test",
+      verifiedAt: null,
+      updatedAt: NOW,
+      updatedBy: "admin-1",
+    });
+
+    const view = await savePayoutProfile(deps(), "u1", wise);
+    expect(view?.eligible).toBe(true);
+    expect(view?.profile?.method).toBe("wise-email");
+    expect(view?.rules.find((rule) => rule.id === "payout-details")?.detail).toContain(
+      "ada@example.com",
+    );
+  });
+
+  it("refuses a currency Wise cannot send", async () => {
+    await readyUser();
+    expect(await savePayoutProfile(deps(), "u1", { ...wise, currency: "XYZ" })).toBeNull();
+  });
+
+  it("refuses an address that is not one", async () => {
+    expect(parsePayoutProfile({ ...wise, email: "not-an-address" })).toBeNull();
+    expect(parsePayoutProfile({ ...wise, email: null })).toBeNull();
+  });
+
+  it("snapshots the address onto the request", async () => {
+    await readyUser();
+    await earn("u1", 120_000_000n);
+    await savePayoutProfile(deps(), "u1", wise);
+    const asked = await requestWithdrawal(deps(), "u1", 50_000_000n);
+    if (!asked.ok) throw new Error("expected a request");
+
+    await savePayoutProfile(deps(), "u1", { ...wise, email: "somebody-else@example.com" });
+    const stored = await store.getWithdrawal(asked.value.withdrawalId);
+    expect(stored?.destination.email).toBe("ada@example.com");
+  });
+});
+
+describe("bank coordinates are normalised before they are checked", () => {
+  it("accepts an IBAN typed the way a bank prints it", async () => {
+    await readyUser();
+    await store.putPayoutCorridor({
+      country: "DE",
+      currency: "EUR",
+      enabled: true,
+      requiredFields: ["iban", "bankName"],
+      sourceNote: "test",
+      verifiedAt: NOW,
+      updatedAt: NOW,
+      updatedBy: "admin-1",
+    });
+
+    const saved = await savePayoutProfile(deps(), "u1", {
+      method: "bank",
+      legalName: "Ada Lovelace",
+      country: "DE",
+      currency: "EUR",
+      email: null,
+      bankDetails: null,
+      fields: { iban: "de89 3704 0044 0532 0130 00", bankName: "Example Bank" },
+    });
+
+    // The validator accepts no spaces and no lower case, so this used to be refused as
+    // malformed while the person held the right answer in front of them.
+    expect(saved).not.toBeNull();
+    expect(saved?.profile?.fields?.iban).toBe("DE89370400440532013000");
+  });
+});
+
+describe("a transfer that comes back", () => {
+  async function paidWithdrawal(): Promise<string> {
+    await readyUser();
+    await earn("u1", 120_000_000n);
+    await savePayoutProfile(deps(), "u1", profile);
+    const asked = await requestWithdrawal(deps(), "u1", 50_000_000n);
+    if (!asked.ok) throw new Error("expected a request");
+    await approveWithdrawal(deps(), "admin-1", asked.value.withdrawalId);
+    await markWithdrawalPaid(deps(), "admin-1", asked.value.withdrawalId, "wise-ref-1");
+    return asked.value.withdrawalId;
+  }
+
+  it("gives the money back without leaving a negative hold", async () => {
+    const id = await paidWithdrawal();
+    const before = await store.getBalance("u1");
+    expect(before.availableMicros).toBe(70_000_000n);
+    expect(before.pendingWithdrawalMicros).toBe(0n);
+
+    const returned = await returnWithdrawal(deps(), "admin-1", id, "Bounced: account closed");
+    expect(returned.ok).toBe(true);
+
+    const after = await store.getBalance("u1");
+    expect(after.availableMicros).toBe(120_000_000n);
+    // A `withdrawal_failed` entry would have driven this to -50_000_000: available already
+    // fell at request time and the hold settled at `paid`, so only available may move.
+    expect(after.pendingWithdrawalMicros).toBe(0n);
+    // They did earn it. The payment failed; the earning did not.
+    expect(after.lifetimeMicros).toBe(120_000_000n);
+    expect((await store.getWithdrawal(id))?.status).toBe("returned");
+  });
+
+  it("is the only route out of paid, and only once", async () => {
+    const id = await paidWithdrawal();
+    expect(await markWithdrawalFailed(deps(), "admin-1", id, "no")).toMatchObject({
+      ok: false,
+      error: "invalid-state",
+    });
+    expect((await returnWithdrawal(deps(), "admin-1", id, "Bounced")).ok).toBe(true);
+    expect(await returnWithdrawal(deps(), "admin-1", id, "Bounced")).toMatchObject({
+      ok: false,
+      error: "invalid-state",
+    });
+    expect((await store.getBalance("u1")).availableMicros).toBe(120_000_000n);
+  });
+
+  it("refuses to return a request that was never sent", async () => {
+    await readyUser();
+    await earn("u1", 120_000_000n);
+    await savePayoutProfile(deps(), "u1", profile);
+    const asked = await requestWithdrawal(deps(), "u1", 50_000_000n);
+    if (!asked.ok) throw new Error("expected a request");
+    expect(await returnWithdrawal(deps(), "admin-1", asked.value.withdrawalId, "x")).toMatchObject({
+      ok: false,
+      error: "invalid-state",
+    });
+  });
+});
+
+describe("admin balance corrections", () => {
+  it("appends an adjustment rather than editing a balance", async () => {
+    await readyUser();
+    await earn("u1", 60_000_000n);
+
+    const credited = await adjustBalance(deps(), "admin-1", "u1", 5_000_000n, "Reversal ran twice");
+    expect(credited).toMatchObject({ ok: true });
+
+    const balance = await store.getBalance("u1");
+    expect(balance.availableMicros).toBe(65_000_000n);
+    // An adjustment is a correction, not something they earned.
+    expect(balance.lifetimeMicros).toBe(60_000_000n);
+
+    const { rows } = await store.listEntries("u1", { limit: 10, cursor: null });
+    const entry = rows.find((row) => row.kind === "adjustment");
+    expect(entry?.reason).toBe("Reversal ran twice");
+    expect(entry?.adminUid).toBe("admin-1");
+  });
+
+  it("claws back, but never below zero", async () => {
+    await readyUser();
+    await earn("u1", 60_000_000n);
+    expect(await adjustBalance(deps(), "admin-1", "u1", -20_000_000n, "Fraudulent")).toMatchObject({
+      ok: true,
+    });
+    expect((await store.getBalance("u1")).availableMicros).toBe(40_000_000n);
+
+    // A debt is not a thing this system has a concept of, and a negative balance would
+    // silently break every comparison in the eligibility rules.
+    expect(await adjustBalance(deps(), "admin-1", "u1", -90_000_000n, "Too much")).toMatchObject({
+      ok: false,
+      error: "insufficient-funds",
+    });
+    expect((await store.getBalance("u1")).availableMicros).toBe(40_000_000n);
+  });
+
+  it("refuses a no-op, an unknown account, and a sub-cent figure", async () => {
+    await readyUser();
+    expect(await adjustBalance(deps(), "admin-1", "u1", 0n, "why")).toMatchObject({
+      ok: false,
+      error: "invalid-amount",
+    });
+    expect(await adjustBalance(deps(), "admin-1", "nobody", 10_000n, "why")).toMatchObject({
+      ok: false,
+      error: "not-found",
+    });
+    expect(parseAdjustment({ micros: "1234", reason: "why" })).toBeNull();
+    expect(parseAdjustment({ micros: "-1000000", reason: "" })).toBeNull();
+    expect(parseAdjustment({ micros: "-1000000", reason: "clawback" })).toEqual({
+      micros: -1_000_000n,
+      reason: "clawback",
+    });
+  });
+});
+
+describe("reading the bank details for one transfer", () => {
+  it("decrypts one destination and names it in the audit log", async () => {
+    await readyUser();
+    await earn("u1", 120_000_000n);
+    await savePayoutProfile(deps(), "u1", profile);
+    const asked = await requestWithdrawal(deps(), "u1", 50_000_000n);
+    if (!asked.ok) throw new Error("expected a request");
+
+    const found = await readWithdrawalDestination(deps(), "admin-1", asked.value.withdrawalId);
+    if (!found.ok) throw new Error("expected the destination");
+    expect(found.value.fields?.accountNumber).toBe("12345678");
+
+    const audit = await store.listAudit();
+    expect(audit.map((row) => row.action)).toContain(
+      "withdrawal:destination-read:" + asked.value.withdrawalId,
+    );
+  });
+
+  it("refuses once the request is settled, and for an id that is not one", async () => {
+    await readyUser();
+    await earn("u1", 120_000_000n);
+    await savePayoutProfile(deps(), "u1", profile);
+    const asked = await requestWithdrawal(deps(), "u1", 50_000_000n);
+    if (!asked.ok) throw new Error("expected a request");
+    await cancelWithdrawal(deps(), "u1", asked.value.withdrawalId);
+
+    expect(
+      await readWithdrawalDestination(deps(), "admin-1", asked.value.withdrawalId),
+    ).toMatchObject({ ok: false, error: "invalid-state" });
+    expect(await readWithdrawalDestination(deps(), "admin-1", "wd-nope")).toMatchObject({
+      ok: false,
+      error: "not-found",
+    });
   });
 });
