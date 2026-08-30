@@ -238,21 +238,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # NOT `artifacts/` - that directory is tracked in this repository and would
+      # already be on disk after checkout, so uploading the whole of it attached two
+      # research documents to the first draft release alongside the installers.
       - uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: release-assets
           merge-multiple: true
 
       - name: List what will be attached
         shell: bash
-        run: ls -la artifacts
+        run: ls -la release-assets
 
       # All five, together. The per-runner checks each saw one platform's output; this is
       # the first point at which "can the website serve every download it advertises?" can
       # actually be answered, and it is answered before a release exists rather than after.
       - name: Check every download the website advertises
         shell: bash
-        run: node scripts/check-release-assets.mjs artifacts
+        run: node scripts/check-release-assets.mjs release-assets
 
       # `gh` is pre-installed on GitHub runners. Used in preference to a third-party
       # release action: this repository pays real money to real people, and the release
@@ -265,6 +268,19 @@ jobs:
           HAS_CERT: ${{ secrets.CSC_LINK != '' }}
         run: |
           tag="v${VERSION}"
+
+          # Named extensions, not a directory glob. A release should carry installers and
+          # update manifests and nothing that happens to share a folder with them.
+          assets=$(find release-assets -maxdepth 1 -type f \
+            \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \
+               -o -name "*.blockmap" -o -name "latest*.yml" \) | sort | tr '\n' ' ')
+
+          if [ -z "$assets" ]; then
+            echo "::error::No installers found to attach."
+            exit 1
+          fi
+
+          echo "Attaching: $assets"
           signed_note="**These installers are not code-signed.** Windows SmartScreen will warn on download, and macOS Gatekeeper will refuse to open the app until it is signed and notarised."
           if [ "$HAS_CERT" = "true" ]; then
             signed_note="These installers are code-signed."
@@ -276,9 +292,9 @@ jobs:
 
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag exists; replacing its assets."
-            gh release upload "$tag" artifacts/* --clobber
+            gh release upload "$tag" $assets --clobber
           else
-            gh release create "$tag" artifacts/* \
+            gh release create "$tag" $assets \
               --draft \
               --title "ADCode ${VERSION}" \
               --notes "$notes"
