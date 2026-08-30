@@ -46,7 +46,6 @@ export default function Home() {
         <HeroCircuit />
         <div className="marketplace-wrap" id="marketplace-main">
           <div className="marketplace-hero-copy">
-            <p className="marketplace-eyebrow"><span /> Privacy-first developer network</p>
             <h1>Earn while you code</h1>
             <p>Use a professional code editor for free. An occasional sponsored card appears while you work - never mid-debug, never behind your back - and half of every verified payment goes to you.</p>
             {/*

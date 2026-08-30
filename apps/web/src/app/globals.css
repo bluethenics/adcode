@@ -3550,18 +3550,18 @@ body { background: #000; }
 .marketplace-nav-earn:hover { background: #57e58a; transform: translateY(-1px); }
 
 .marketplace-home { background: #030708; color: #f3f5f4; }
-.marketplace-hero { position: relative; overflow: hidden; min-height: 930px; padding: clamp(76px,9vw,126px) 0 90px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.marketplace-hero { position: relative; overflow: hidden; min-height: 620px; padding: clamp(52px,6vw,84px) 0 64px; border-bottom: 1px solid rgba(255,255,255,.08); }
 .marketplace-hero::before { content: ""; position: absolute; inset: 0; background: none; pointer-events: none; }
 .marketplace-atmosphere i { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #eaffef; box-shadow: 0 0 18px 4px rgba(66,216,120,.52); opacity: .65; animation: market-drift 8s ease-in-out infinite; }
 .marketplace-atmosphere i:nth-child(1){left:13%;top:42%}.marketplace-atmosphere i:nth-child(2){right:17%;top:28%;animation-delay:-3s}.marketplace-atmosphere i:nth-child(3){right:31%;top:57%;animation-delay:-6s}
 @keyframes market-drift { 50% { transform: translateY(-12px); opacity: 1; } }
-.marketplace-hero .marketplace-wrap { position: relative; z-index: 1; display: grid; gap: 66px; }
+.marketplace-hero .marketplace-wrap { position: relative; z-index: 1; display: grid; gap: 44px; }
 .marketplace-hero-copy { max-width: 850px; margin-inline: auto; text-align: center; }
 .marketplace-eyebrow,.market-kicker { display: inline-flex; align-items: center; gap: 9px; color: #a3aca9; font-family: var(--font-mono); font-size: 11px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
 .marketplace-eyebrow > span,.market-kicker > i { width: 7px; height: 7px; border-radius: 50%; background: var(--market-green); box-shadow: 0 0 0 5px rgba(66,216,120,.12); }
-.marketplace-hero h1 { margin-top: 22px; font-size: clamp(64px,10vw,126px); font-weight: 560; letter-spacing: -.072em; line-height: .89; }
-.marketplace-hero-copy > p:not(.marketplace-eyebrow) { max-width: 650px; margin: 29px auto 0; color: #9da7a5; font-size: clamp(17px,2vw,21px); line-height: 1.55; }
-.marketplace-hero-actions { margin-top: 34px; display: flex; justify-content: center; align-items: center; gap: 12px; }
+.marketplace-hero h1 { margin-top: 0; font-size: clamp(46px,7.4vw,88px); font-weight: 560; letter-spacing: -.062em; line-height: .93; }
+.marketplace-hero-copy > p:not(.marketplace-eyebrow) { max-width: 620px; margin: 20px auto 0; color: #9da7a5; font-size: clamp(15px,1.6vw,18px); line-height: 1.55; }
+.marketplace-hero-actions { margin-top: 26px; display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; }
 .marketplace-primary,.marketplace-secondary { min-height: 54px; padding: 15px 22px; border-radius: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 24px; font-size: 15px; font-weight: 700; }
 .marketplace-primary { border: 0; color: #061009; background: var(--market-green); box-shadow: 0 16px 50px rgba(36,181,89,.18); cursor: pointer; }
 .marketplace-primary:hover { background: #58e68b; transform: translateY(-2px); }
@@ -3625,12 +3625,12 @@ body { background: #000; }
 
 .marketplace-principles { border-top: 1px solid rgba(255,255,255,.08); background: #05090a; }.marketplace-principles .marketplace-wrap { display: grid; grid-template-columns: repeat(3,1fr); }.marketplace-principles p { min-height: 128px; padding: 30px; display: grid; grid-template-columns: auto 1fr; align-content: center; column-gap: 14px; border-right: 1px solid rgba(255,255,255,.08); }.marketplace-principles p:last-child { border-right: 0; }.marketplace-principles p > span { grid-row: 1/3; color: #56615e; font-family: var(--font-mono); font-size: 10px; }.marketplace-principles strong { font-size: 14px; }.marketplace-principles small { color: #737e7b; font-size: 11px; }
 /* The hero offer, which differs by platform. See components/HeroInstall.tsx. */
-.hero-install { margin-top: 26px; display: grid; gap: 14px; max-width: 620px; }
+.hero-install { margin: 24px auto 0; display: grid; justify-items: center; gap: 12px; max-width: 620px; text-align: center; }
 .hero-install .marketplace-hero-actions { margin-top: 0; }
 
 /* Windows: the command is the call to action, so it is the biggest thing here. */
 .hero-install-lead { color: #e8efeb; font-size: 15px; font-weight: 560; letter-spacing: -.01em; }
-.hero-install-command { display: flex; align-items: stretch; gap: 0; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; background: rgba(255,255,255,.06); overflow: hidden; }
+.hero-install-command { width: 100%; display: flex; align-items: stretch; gap: 0; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; background: rgba(255,255,255,.06); overflow: hidden; text-align: left; }
 .hero-install-command code { flex: 1; min-width: 0; padding: 15px 16px; overflow-x: auto; color: #f1f5f3; font: 14px/1.45 var(--font-mono); white-space: pre; user-select: all; }
 .hero-install-command button { flex: 0 0 auto; padding: 0 20px; border: 0; border-left: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.09); color: #eef3f0; font: 600 13px var(--font-body); letter-spacing: .01em; cursor: pointer; transition: background 160ms var(--ease), color 160ms var(--ease); }
 .hero-install-command button:hover { background: var(--market-green, #3ad07a); color: #06170d; }
@@ -3831,7 +3831,7 @@ body { color-scheme: dark; }
 @keyframes glass-sheet-in { from { opacity: 0; transform: translateY(-6px) scale(.96); } }
 
 .marketplace-home,.marketplace-bid,.marketplace-principles,.marketplace-footer { background: #000; color: #f5f5f7; }
-.marketplace-hero { min-height: 900px; padding-top: clamp(84px,9vw,128px); background: #000; }
+.marketplace-hero { min-height: 600px; padding-top: clamp(56px,6vw,86px); background: #000; }
 .marketplace-hero .marketplace-wrap { z-index: 1; }
 .marketplace-hero .hero-circuit { opacity: .62; }
 .hero-circuit__trace { stroke: rgba(255,255,255,.14); }
