@@ -35,6 +35,25 @@ describe("All Features renderer contract", () => {
     expect(MAIN).toContain("openFeatureLibrary = () => featureLibrary.toggle()");
   });
 
+  it("chooses a category from a menu, not a strip that scrolls out of reach", () => {
+    const css = readFileSync(CSS_PATH, "utf8");
+
+    /*
+     * The strip this replaced was `overflow-x: auto` with `scrollbar-width: none`. Arrow
+     * keys walked it, so it looked accessible, but once the catalogue outgrew the sheet's
+     * width a pointer had no scrollbar and no gesture that reached the categories past the
+     * edge. A vertical menu has no edge to fall off.
+     */
+    expect(css).not.toContain("scrollbar-width: none");
+    expect(css).toContain(".feature-library-filter-menu");
+
+    expect(LIBRARY).toContain('filterButton.setAttribute("aria-haspopup", "listbox")');
+    expect(LIBRARY).toContain('menu.setAttribute("role", "listbox")');
+    expect(LIBRARY).toContain('option.setAttribute("role", "option")');
+    // Escape closes the menu before the sheet, so one press is never two dismissals.
+    expect(LIBRARY).toContain("if (menuIsOpen()) closeMenu();");
+  });
+
   it("uses semantic materials and removes motion when requested", () => {
     const css = readFileSync(CSS_PATH, "utf8");
 

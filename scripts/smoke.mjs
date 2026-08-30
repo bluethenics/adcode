@@ -1075,7 +1075,7 @@ if (process.argv.includes("--visual-only")) {
   await evaluate(
     `(() => {
        document.querySelector('#open-features')?.click();
-       document.querySelector('.feature-library-category')?.focus();
+       document.querySelector('.feature-library-filter-button')?.focus();
        return true;
      })()`,
   );
@@ -2563,27 +2563,37 @@ try {
      *
      * Typing raced the overlay's own `open()`, which clears the field, and the palette's
      * `restoreFocus()`, which takes focus back - so a single attempt passed most runs and
-     * not all of them. Re-asserting the value until rows appear removes the race without
-     * weakening what is being checked: the rows still have to come from a real search.
+     * not all of them. Re-asserting the value when it goes missing removes that race
+     * without weakening what is being checked: the rows still have to come from a real
+     * search, name the real declaration, and cite the file that declares it.
+     *
+     * What it must *not* do is re-assert while a search is still running - see the note
+     * inside the loop. The wait is long because a project search is allowed to be slow;
+     * the check is that it answers, not that it answers quickly.
      */
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      await evaluate(
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const rows = await evaluate(
         `(() => {
            const input = document.querySelector('.quickopen-input[aria-label="Go to symbol in project"]');
-           if (!input) return false;
-           input.focus();
-           // Always re-dispatch, even when the value already matches: the handler is what
-           // starts a search, and skipping it meant later attempts waited without ever
-           // asking again.
-           input.value = 'createEditorHost';
-           input.dispatchEvent(new Event('input', { bubbles: true }));
-           return true;
+           if (!input) return -1;
+           // Re-assert the query only when the field has actually lost it.
+           //
+           // Dispatching unconditionally was worse than doing nothing: every 'input' event
+           // increments the overlay's \`generation\`, and \`run()\` drops its own result when
+           // the generation moved while it was awaiting the workspace search. On a project
+           // large enough for that search to outlast the retry interval, each retry killed
+           // the search that was about to answer, so the check could never pass - and it
+           // read the DOM immediately after the last dispatch, before that one landed too.
+           if (input.value !== 'createEditorHost') {
+             input.focus();
+             input.value = 'createEditorHost';
+             input.dispatchEvent(new Event('input', { bubbles: true }));
+           }
+           return document.querySelectorAll('.symbol-row').length;
          })()`,
       );
-
-      await sleep(1400);
-      const ready = await evaluate("document.querySelectorAll('.symbol-row').length > 0");
-      if (ready === true) break;
+      if (typeof rows === "number" && rows > 0) break;
+      await sleep(500);
     }
 
     const found = await evaluate(

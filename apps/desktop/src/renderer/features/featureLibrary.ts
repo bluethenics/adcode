@@ -5,6 +5,7 @@ import {
   type HelpGroupId,
 } from "@adcode/help";
 import { createHelpButton, createHelpPopover } from "../help/helpPopover.ts";
+import { ICON, createIcon } from "../workbench/icons.ts";
 import {
   featureActionPresentation,
   featureLibraryCategories,
@@ -87,10 +88,36 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
   search.setAttribute("aria-autocomplete", "list");
   search.setAttribute("aria-expanded", "true");
 
-  const chips = document.createElement("div");
-  chips.className = "feature-library-categories";
-  chips.setAttribute("role", "tablist");
-  chips.setAttribute("aria-label", "Feature categories");
+  /*
+   * Categories are chosen from a menu, not a row of chips.
+   *
+   * The chips were a horizontal strip with `overflow-x: auto` and no scrollbar, so once the
+   * catalogue grew past the sheet's width the categories past the edge could be reached by
+   * keyboard and by nothing else. A pointer had no affordance to scroll and no gesture that
+   * worked. A menu has no edge to fall off, and it states the current filter in words
+   * instead of asking the reader to spot which pill is tinted.
+   */
+  const filterRow = document.createElement("div");
+  filterRow.className = "feature-library-filter";
+
+  const filterButton = document.createElement("button");
+  filterButton.type = "button";
+  filterButton.className = "feature-library-filter-button";
+  filterButton.setAttribute("aria-haspopup", "listbox");
+  filterButton.setAttribute("aria-expanded", "false");
+  filterButton.append(createIcon(ICON.filter));
+
+  const filterLabel = document.createElement("span");
+  filterLabel.className = "feature-library-filter-label";
+  filterButton.append(filterLabel);
+
+  const menu = document.createElement("div");
+  menu.className = "feature-library-filter-menu";
+  menu.setAttribute("role", "listbox");
+  menu.setAttribute("aria-label", "Feature categories");
+  menu.hidden = true;
+
+  filterRow.append(filterButton, menu);
 
   const notice = document.createElement("p");
   notice.className = "feature-library-notice";
@@ -103,7 +130,7 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
   results.setAttribute("role", "listbox");
   results.setAttribute("aria-label", "ADCode features");
 
-  sheet.append(header, search, chips, notice, results);
+  sheet.append(header, search, filterRow, notice, results);
   deps.host.append(sheet);
 
   function available(action: FeatureAction): boolean {
@@ -164,35 +191,71 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
     return row;
   }
 
-  function renderChips(): void {
-    chips.replaceChildren();
+  function menuIsOpen(): boolean {
+    return !menu.hidden;
+  }
+
+  function closeMenu(restoreFocus = true): void {
+    if (menu.hidden) return;
+    menu.hidden = true;
+    filterButton.setAttribute("aria-expanded", "false");
+    if (restoreFocus) filterButton.focus();
+  }
+
+  function openMenu(): void {
+    if (!menu.hidden) return;
+    menu.hidden = false;
+    filterButton.setAttribute("aria-expanded", "true");
+    // Focus lands on the current category rather than the top of the list, so the menu
+    // opens where the reader already is.
+    const current = menu.querySelector<HTMLButtonElement>('[aria-selected="true"]');
+    (current ?? menu.querySelector<HTMLButtonElement>(".feature-library-filter-option"))?.focus();
+  }
+
+  function chooseCategory(value: FeatureLibraryCategory): void {
+    category = value;
+    query = "";
+    search.value = "";
+    selected = -1;
+    closeMenu();
+    render();
+  }
+
+  function renderFilter(): void {
+    const name = titleFor(category);
+    filterLabel.textContent = name;
+    // Title and aria-label carry the same sentence, for the same reason `iconButton` does:
+    // a tooltip that describes a different state than the screen reader announces is a bug
+    // nobody sees until it matters.
+    filterButton.title = `Filter by category — showing ${name}`;
+    filterButton.setAttribute("aria-label", filterButton.title);
+
+    menu.replaceChildren();
     for (const value of categories) {
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "feature-library-category";
-      chip.textContent = titleFor(value);
-      chip.dataset["category"] = value;
-      chip.setAttribute("role", "tab");
-      chip.setAttribute("aria-selected", String(value === category));
-      chip.tabIndex = value === category ? 0 : -1;
-      chip.addEventListener("click", () => {
-        category = value;
-        query = "";
-        search.value = "";
-        selected = -1;
-        render();
-      });
-      chip.addEventListener("keydown", (event) => {
-        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "feature-library-filter-option";
+      option.textContent = titleFor(value);
+      option.dataset["category"] = value;
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", String(value === category));
+      option.addEventListener("click", () => chooseCategory(value));
+      option.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          closeMenu();
+          return;
+        }
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
         event.preventDefault();
-        const at = categories.indexOf(value);
-        const direction = event.key === "ArrowRight" ? 1 : -1;
-        const nextAt = Math.max(0, Math.min(at + direction, categories.length - 1));
-        const next = chips.querySelectorAll<HTMLButtonElement>(".feature-library-category")[nextAt];
-        next?.focus();
-        next?.click();
+        const options = [...menu.querySelectorAll<HTMLButtonElement>(".feature-library-filter-option")];
+        const at = options.indexOf(option);
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        // Clamped rather than wrapped: the ends of a short list are a useful place to stop.
+        options[Math.max(0, Math.min(at + direction, options.length - 1))]?.focus();
       });
-      chips.append(chip);
+      menu.append(option);
     }
   }
 
@@ -229,9 +292,20 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
   }
 
   function render(): void {
-    renderChips();
+    renderFilter();
     renderResults();
   }
+
+  filterButton.addEventListener("click", () => {
+    if (menuIsOpen()) closeMenu();
+    else openMenu();
+  });
+
+  filterButton.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown") return;
+    event.preventDefault();
+    openMenu();
+  });
 
   search.addEventListener("input", () => {
     query = search.value;
@@ -287,6 +361,9 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
   const onPointerDown = (event: PointerEvent): void => {
     const target = event.target;
     if (!(target instanceof Node)) return;
+    // A press anywhere else in the sheet dismisses the category menu without also
+    // dismissing the sheet under it.
+    if (menuIsOpen() && !filterRow.contains(target)) closeMenu(false);
     if (sheet.contains(target) || deps.button.contains(target)) return;
     api.close();
   };
@@ -295,7 +372,9 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
     if (event.key !== "Escape" || !open || helpPopover.isOpen()) return;
     event.preventDefault();
     event.stopPropagation();
-    api.close();
+    // Escape closes one layer at a time: the menu first, the sheet only once it is shut.
+    if (menuIsOpen()) closeMenu();
+    else api.close();
   };
 
   const api: FeatureLibrary = {
@@ -323,6 +402,9 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
       if (!open) return;
       open = false;
       helpPopover.close();
+      // Without restoring focus: the sheet is going away, and the button it would return
+      // focus to is going with it.
+      closeMenu(false);
       delete sheet.dataset["state"];
       sheet.hidden = true;
       sizeObserver.unobserve(sheet);

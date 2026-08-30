@@ -139,7 +139,18 @@ previous version to roll back to.
 
 1. Install GitHub CLI: `winget install --id GitHub.cli`, then close and reopen the terminal.
 2. `gh auth login` — choose GitHub.com, HTTPS, and authenticate in the browser.
-3. `gh release create v1.0.0 release/ADCode-Setup-x64.exe release/ADCode-Portable-x64.exe release/latest.yml --title "ADCode 1.0.0" --notes-file CHANGELOG.md`
+3. Attach the installers **from where packaging actually wrote them**. This repo lives on
+   a FAT32 volume, so `scripts/package.mjs` redirects the output off it — it prints the
+   directory when it runs, and on this machine it is
+   `C:\Users\user\AppData\Local\adcode\release`:
+
+   ```
+   gh release create v1.0.0 \
+     "$LOCALAPPDATA/adcode/release/ADCode-Setup-x64.exe" \
+     "$LOCALAPPDATA/adcode/release/ADCode-Portable-x64.exe" \
+     "$LOCALAPPDATA/adcode/release/latest.yml" \
+     --title "ADCode 1.0.0" --notes-file CHANGELOG.md
+   ```
 
 You should see the release URL printed. Attach `latest.yml` every time — it is what
 electron-updater reads, and a release without it silently stops updates.

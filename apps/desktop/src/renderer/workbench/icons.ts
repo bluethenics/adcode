@@ -89,6 +89,17 @@ export const ICON = {
    * icon in that bar is drawn on a 24 grid rather than this file's 16.
    */
   earnings: "M10.5 6.1C10.5 5.1 9.4 4.5 8 4.5S5.5 5.1 5.5 6.1c0 1.2 1.2 1.6 2.5 1.9s2.5.7 2.5 1.9c0 1-1.1 1.6-2.5 1.6s-2.5-.6-2.5-1.6M8 3v10",
+
+  /* ── Filtering ──────────────────────────────────────────────────────────── */
+
+  /**
+   * A funnel: wide mouth, narrow stem, closed so the stroke reads as one outline.
+   *
+   * Symmetric about x = 8, and the stem is drawn as a tapered spout rather than a line so
+   * it still reads as a funnel at 14px, where a 1.5px stem and a 1.5px stroke are the same
+   * width and the shape collapses into an arrow.
+   */
+  filter: "M3 4h10l-4 4.5V13l-2-1.5V8.5z",
 } as const;
 
 export type IconName = keyof typeof ICON;
