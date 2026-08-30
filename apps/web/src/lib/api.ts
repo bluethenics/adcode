@@ -253,6 +253,8 @@ export interface PayoutProfileView {
   email: string | null;
   bankDetails: string | null;
   fields?: Record<string, string>;
+  /** When 18+ was confirmed, or null on a profile saved before it was asked for. */
+  adultConfirmedAt: number | null;
   updatedAt: number;
 }
 

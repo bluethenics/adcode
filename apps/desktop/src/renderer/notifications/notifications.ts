@@ -11,6 +11,7 @@
  * removed on completion so no compositor layer stays pinned for the session.
  */
 import type { SponsoredToast } from "../../shared/api.ts";
+import { reveal } from "../motion.ts";
 import { ICON, iconButton } from "../workbench/icons.ts";
 
 const ENTER_MS = 220;
@@ -34,27 +35,6 @@ export interface NotificationCentre {
   show(notification: Notification): void;
   showSponsored(toast: SponsoredToast): void;
   dismissAll(): void;
-}
-
-/**
- * Flush the start state, then hand the element to the transition.
- *
- * A forced reflow rather than the two-frame `requestAnimationFrame` dance this used to do,
- * and the difference is not stylistic. Chromium throttles `requestAnimationFrame` to
- * nothing while a window is occluded, minimised, or on another desktop - and a toast is
- * the one surface here that is *not* opened by the user. It arrives on a timer. So the
- * exact moment a sponsored toast is most likely to be created is a moment when neither
- * frame will ever run: the card then sits in the DOM at `opacity: 0`, translated fully
- * offscreen, for the rest of the session, and every callback waiting behind those frames -
- * including the paint report that is the only reason the impression counts - never fires.
- *
- * Reading `offsetHeight` flushes the pending style synchronously, which is all the frames
- * were ever for. `helpPopover.ts` and `releaseNotice.ts` already do exactly this, for
- * exactly this reason.
- */
-function reveal(element: HTMLElement, state: string): void {
-  void element.offsetHeight;
-  element.dataset["state"] = state;
 }
 
 /**

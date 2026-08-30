@@ -67,7 +67,22 @@ export function createHelpPopover(host: HTMLElement): HelpPopover {
     const above = target.top - GAP - MARGIN;
     const goAbove = self.height > below && above > below;
 
-    const top = goAbove ? target.top - self.height - GAP : target.bottom + GAP;
+    const wanted = goAbove ? target.top - self.height - GAP : target.bottom + GAP;
+
+    /*
+     * Pulled back inside the window vertically, exactly as `left` already was.
+     *
+     * `left` was clamped from the start and `top` never was, which held only for as long as
+     * every anchor was on screen. The settings body scrolls, and a row scrolled past either
+     * edge of it still has a perfectly real `getBoundingClientRect` - one that is above the
+     * viewport or below it. The popover was then placed at that rect, off the window, where
+     * it is not merely ugly: it is an open popover holding a focus trap and an Escape
+     * handler that the person who opened it cannot see or read.
+     *
+     * Clamping is the same answer the horizontal axis already gave - point at the button
+     * when that is possible, and land near it when it is not.
+     */
+    const top = Math.max(MARGIN, Math.min(wanted, window.innerHeight - self.height - MARGIN));
 
     // Centred on the anchor, then pulled back inside the window. Clamping after centring
     // rather than choosing a side keeps the popover pointing at its button in the common

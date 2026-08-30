@@ -760,6 +760,8 @@ export interface PayoutProfileRow {
   destination_tag?: string | null;
   destination_mask?: string | null;
   destination_key_id?: string | null;
+  /** Null on a profile saved before the 18+ confirmation existed. See `withdrawals.ts`. */
+  adult_confirmed_at?: number | null;
   updated_at: number;
 }
 
@@ -830,7 +832,12 @@ function toDestination(row: {
 }
 
 export function toPayoutProfile(row: PayoutProfileRow): PayoutProfileRecord {
-  return { uid: row.uid, ...toDestination(row), updatedAt: row.updated_at };
+  return {
+    uid: row.uid,
+    ...toDestination(row),
+    adultConfirmedAt: row.adult_confirmed_at ?? null,
+    updatedAt: row.updated_at,
+  };
 }
 
 export function fromPayoutProfile(profile: PayoutProfileRecord): PayoutProfileRow {
@@ -842,6 +849,7 @@ export function fromPayoutProfile(profile: PayoutProfileRecord): PayoutProfileRo
     currency: profile.currency,
     email: profile.email,
     bank_details: profile.fields === undefined ? profile.bankDetails : JSON.stringify(profile.fields),
+    adult_confirmed_at: profile.adultConfirmedAt,
     destination_version: null,
     destination_nonce: null,
     destination_ciphertext: null,

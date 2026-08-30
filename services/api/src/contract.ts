@@ -523,6 +523,14 @@ export interface PayoutProfileBody {
   email: string | null;
   bankDetails: string | null;
   fields: Record<string, string>;
+  /**
+   * The holder affirming they are 18 or older, which the terms require to be paid.
+   *
+   * Required rather than optional, and rejected when false: an omitted or false value is a
+   * form that was not completed, and accepting it would leave the profile in exactly the
+   * state this field exists to prevent.
+   */
+  adultConfirmed: true;
 }
 
 export interface WithdrawalRequestBody {
@@ -563,6 +571,10 @@ export function parsePayoutProfile(raw: unknown): PayoutProfileBody | null {
   const method = raw["method"];
   if (typeof method !== "string" || !PAYOUT_METHODS.has(method)) return null;
 
+  // Strictly `true`. "Truthy" would accept the string "false", which is what an HTML form
+  // sends for an unchecked box that was serialised carelessly.
+  if (raw["adultConfirmed"] !== true) return null;
+
   const legalName = boundedText(raw["legalName"], PAYOUT_LIMITS.legalName);
   if (legalName === null) return null;
 
@@ -585,6 +597,7 @@ export function parsePayoutProfile(raw: unknown): PayoutProfileBody | null {
       email,
       bankDetails: null,
       fields: {},
+      adultConfirmed: true,
     };
   }
 
@@ -597,7 +610,16 @@ export function parsePayoutProfile(raw: unknown): PayoutProfileBody | null {
     fields[key] = parsed;
   }
   if (Object.keys(fields).length === 0) return null;
-  return { method: "bank", legalName, country, currency, email: null, bankDetails: null, fields };
+  return {
+    method: "bank",
+    legalName,
+    country,
+    currency,
+    email: null,
+    bankDetails: null,
+    fields,
+    adultConfirmed: true,
+  };
 }
 
 /**

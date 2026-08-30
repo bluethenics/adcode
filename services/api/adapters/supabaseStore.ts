@@ -232,7 +232,12 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
 
   const payoutProfileFromRow = (row: PayoutProfileRow): PayoutProfileRecord => {
     const destination = encryptedFromRow(row) ?? toPayoutProfile(row);
-    return { uid: row.uid, ...destination, updatedAt: row.updated_at };
+    return {
+      uid: row.uid,
+      ...destination,
+      adultConfirmedAt: row.adult_confirmed_at ?? null,
+      updatedAt: row.updated_at,
+    };
   };
 
   const withdrawalFromRow = (row: WithdrawalRow): WithdrawalRecord => {

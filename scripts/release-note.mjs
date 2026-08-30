@@ -27,7 +27,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(import.meta.dirname, "..");
-const DEFAULT_ORIGIN = "https://adcode.bluethenics01.workers.dev";
+const DEFAULT_ORIGIN = "https://adcode.bluethenics.com";
 
 /**
  * Conventional-commit types, and what each is called in a note somebody reads.

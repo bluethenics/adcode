@@ -927,9 +927,12 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
         payoutKey();
         return raw as unknown as PayoutProfileRecord;
       }
+      const confirmed = raw["adultConfirmedAt"];
       return {
         uid,
         ...decryptDestination(payoutKey(), encrypted),
+        // Null on a profile written before the confirmation was asked for.
+        adultConfirmedAt: typeof confirmed === "number" ? confirmed : null,
         updatedAt: Number(raw["updatedAt"]),
       };
     },
@@ -939,6 +942,9 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
         uid: profile.uid,
         encryptedDestination: encryptDestination(payoutKey(), profile),
         destinationMask: maskDestination(profile),
+        // Outside the encrypted blob: it is not a bank coordinate, and the eligibility
+        // check reads it on every dashboard load without needing the payout key.
+        adultConfirmedAt: profile.adultConfirmedAt,
         updatedAt: profile.updatedAt,
       });
     },

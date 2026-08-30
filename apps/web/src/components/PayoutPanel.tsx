@@ -206,6 +206,13 @@ function DetailsCard({ view, onSaved, onError }: {
   const [email, setEmail] = useState(profile?.email ?? "");
   const [currency, setCurrency] = useState(profile?.currency ?? "USD");
   const [fields, setFields] = useState<Record<string, string>>(profile?.fields ?? {});
+  /*
+   * Seeded from the saved profile, so somebody updating their bank details is not asked
+   * to re-affirm something they already affirmed. A profile saved before this shipped was
+   * never shown the question and arrives unconfirmed, which is correct - it has to be
+   * answered once rather than assumed.
+   */
+  const [adult, setAdult] = useState(profile?.adultConfirmedAt != null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -225,13 +232,14 @@ function DetailsCard({ view, onSaved, onError }: {
     setBusy(true);
 
     const body = method === "wise-email"
-      ? { method, legalName, country: profile?.country ?? "US", currency, email: email.trim(), bankDetails: null, fields: {} }
+      ? { method, legalName, country: profile?.country ?? "US", currency, email: email.trim(), bankDetails: null, fields: {}, adultConfirmed: adult }
       : corridor === undefined
         ? null
         : {
             method, legalName, country: corridor.country, currency: corridor.currency,
             email: null, bankDetails: null,
             fields: Object.fromEntries(corridor.requiredFields.map((kind) => [kind, fields[kind]?.trim() ?? ""])),
+            adultConfirmed: adult,
           };
 
     if (body === null) { setBusy(false); return; }
@@ -304,6 +312,28 @@ function DetailsCard({ view, onSaved, onError }: {
       </div>)}
       <p className="field-hint">Spacing and capitalisation don&apos;t matter — an IBAN copied straight off a statement is fine.</p>
     </>}
+
+    {/*
+      The terms require 18+ to be paid, and this is where that stops being only prose.
+
+      `required` rather than a disabled button: an unchecked box explains itself when the
+      form is submitted, where a button that will not press explains nothing. The server
+      refuses the body outright if this is not exactly `true`, so the checkbox is the
+      prompt, not the enforcement.
+    */}
+    <div className="field field-check">
+      <label htmlFor="payout-adult">
+        <input
+          id="payout-adult"
+          type="checkbox"
+          checked={adult}
+          required
+          onChange={(event) => setAdult(event.target.checked)}
+        />
+        <span>I am 18 years of age or older.</span>
+      </label>
+      <p className="field-hint">Required by the <a href="/terms">terms</a>. We cannot pay a minor.</p>
+    </div>
 
     <p className="field-hint">An administrator reviews and approves the request, sends it manually, then records the transfer reference.</p>
     <div className="actions">

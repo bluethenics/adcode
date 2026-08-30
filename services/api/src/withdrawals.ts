@@ -66,6 +66,8 @@ export interface PayoutProfileView {
   email: string | null;
   bankDetails: string | null;
   fields: PayoutDestination["fields"];
+  /** When 18+ was confirmed, or null. The form seeds its checkbox from this. */
+  adultConfirmedAt: number | null;
   updatedAt: number;
 }
 
@@ -116,7 +118,14 @@ export interface AdminWithdrawalView extends WithdrawalView {
  * able to see exactly which line is the one stopping them, and how far off it is - "not
  * eligible" on its own is the message that generates the support email.
  */
-export type RuleId = "minimum" | "verified-email" | "account-age" | "payout-details" | "no-pending";
+export type RuleId =
+  | "minimum"
+  | "verified-email"
+  | "account-age"
+  /** The terms require 18+ to earn or withdraw; this is where that stops being only prose. */
+  | "adult"
+  | "payout-details"
+  | "no-pending";
 
 export interface EligibilityRule {
   id: RuleId;
@@ -145,6 +154,7 @@ function profileView(record: PayoutProfileRecord): PayoutProfileView {
     email: record.email,
     bankDetails: record.bankDetails,
     fields: record.fields,
+    adultConfirmedAt: record.adultConfirmedAt,
     updatedAt: record.updatedAt,
   };
 }
@@ -188,7 +198,7 @@ export interface EligibilityInput {
 }
 
 /**
- * The five rules, evaluated together.
+ * The six rules, evaluated together.
  *
  * Every rule is reported whether it passed or not, and `eligible` is simply the
  * conjunction. Returning at the first failure would be cheaper and would make the screen
@@ -229,6 +239,23 @@ export function evaluateEligibility(input: EligibilityInput): {
         age >= PAYOUT_LIMITS.minAccountAgeMs
           ? `Opened ${days(age)} ago.`
           : `Opened ${days(age)} ago. Ready in ${days(PAYOUT_LIMITS.minAccountAgeMs - age + 86_399_999)}.`,
+    },
+    {
+      /*
+       * Its own rule rather than a condition folded into `payout-details`.
+       *
+       * Somebody with no profile at all fails both, and should see both: merging them
+       * would tell them to add bank details when the thing being asked is a different
+       * question entirely, and would make the confirmation invisible to anyone reading
+       * the checklist to find out what is being asked of them.
+       */
+      id: "adult",
+      ok: profile?.adultConfirmedAt != null,
+      label: "Confirmed you are 18 or older",
+      detail:
+        profile?.adultConfirmedAt != null
+          ? "Confirmed when you saved your payout details."
+          : "You must be 18 or older to be paid. Paying a minor creates tax and banking obligations we cannot meet. Confirm this with your payout details.",
     },
     {
       id: "payout-details",
@@ -338,6 +365,8 @@ export async function savePayoutProfile(
       email: body.email,
       bankDetails: null,
       fields: {},
+      // The contract refuses a body without it, so reaching here means it was affirmed.
+      adultConfirmedAt: deps.clock.now(),
       updatedAt: deps.clock.now(),
     });
     return readPayouts(deps, uid);
@@ -359,6 +388,7 @@ export async function savePayoutProfile(
     email: null,
     bankDetails: null,
     fields,
+    adultConfirmedAt: deps.clock.now(),
     updatedAt: deps.clock.now(),
   });
 

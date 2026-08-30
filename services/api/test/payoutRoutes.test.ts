@@ -81,6 +81,7 @@ const profile = {
   email: null,
   bankDetails: null,
   fields: { accountNumber: "12345678", sortCode: "20-00-00", bankName: "Example Bank" },
+  adultConfirmed: true,
 };
 
 /** Age the account past the cooling-off window and give it something to withdraw. */
@@ -143,6 +144,7 @@ describe("GET /v1/payouts", () => {
       "minimum",
       "verified-email",
       "account-age",
+      "adult",
       "payout-details",
       "no-pending",
     ]);

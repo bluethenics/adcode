@@ -44,7 +44,15 @@
   },
 
   "vars": {
-    /* Public by design: it identifies the site, it does not authorise anything. */
-    "NEXT_PUBLIC_SITE_ORIGIN": "https://adcode.bluethenics01.workers.dev"
+    /*
+     * Public by design: it identifies the site, it does not authorise anything.
+     *
+     * The brand domain, not the `workers.dev` one the Worker also answers on. This is the
+     * host every canonical, the sitemap, the robots `Host` line and the install scripts
+     * name, and `src/middleware.ts` redirects the other origin here so a search engine is
+     * not offered the same site twice. `/v1` is deliberately exempt from that redirect -
+     * Dodo's webhook is registered against the `workers.dev` URL and must keep resolving.
+     */
+    "NEXT_PUBLIC_SITE_ORIGIN": "https://adcode.bluethenics.com"
   }
 }

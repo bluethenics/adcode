@@ -2,7 +2,7 @@
 #
 # ADCode installer for macOS and Linux.
 #
-#   curl -fsSL https://adcode.bluethenics01.workers.dev/install.sh | sh
+#   curl -fsSL https://adcode.bluethenics.com/install.sh | sh
 #
 # Picks the right artifact for the platform, verifies it against the checksum published
 # with the release, and installs it.
@@ -20,7 +20,7 @@ API="https://api.github.com/repos/${OWNER}/${REPO}/releases/latest"
 # purpose, for the same reason `apps/desktop/src/main/backend.ts` uses it: the custom
 # domain has no DNS record until SETUP.md step 13 is done, and a failure message that
 # points at a hostname which does not resolve turns a recoverable problem into a dead end.
-SITE="${ADCODE_SITE:-https://adcode.bluethenics01.workers.dev}"
+SITE="${ADCODE_SITE:-https://adcode.bluethenics.com}"
 
 BOLD=''
 DIM=''

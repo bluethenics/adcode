@@ -1,6 +1,6 @@
 # ADCode installer for Windows.
 #
-#   irm https://adcode.bluethenics01.workers.dev/install.ps1 | iex
+#   irm https://adcode.bluethenics.com/install.ps1 | iex
 #
 # Fetches the latest release from GitHub, downloads the installer, checks its SHA-256
 # against the checksum GitHub publishes alongside it, and runs it.
@@ -20,7 +20,7 @@ $Api   = "https://api.github.com/repos/$Owner/$Repo/releases/latest"
 # purpose, for the same reason `apps/desktop/src/main/backend.ts` uses it: the custom
 # domain has no DNS record until SETUP.md step 13 is done, and a failure message that
 # points at a hostname which does not resolve turns a recoverable problem into a dead end.
-$Site  = if ($env:ADCODE_SITE) { $env:ADCODE_SITE } else { 'https://adcode.bluethenics01.workers.dev' }
+$Site  = if ($env:ADCODE_SITE) { $env:ADCODE_SITE } else { 'https://adcode.bluethenics.com' }
 
 function Fail($message) {
     Write-Host ""

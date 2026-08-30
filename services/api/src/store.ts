@@ -437,6 +437,18 @@ export interface PayoutDestination {
 
 export interface PayoutProfileRecord extends PayoutDestination {
   uid: string;
+  /**
+   * When the holder confirmed they are 18 or older, or null if they never have.
+   *
+   * The terms require it to earn or withdraw, and until this field existed that
+   * requirement lived only on a web page: nothing in this service records a date of birth,
+   * and the `account-age` rule measures how long the account has existed, not how old its
+   * holder is.
+   *
+   * A timestamp rather than a boolean because the question that would actually be asked is
+   * "when did they confirm it", and a boolean cannot answer that.
+   */
+  adultConfirmedAt: number | null;
   updatedAt: number;
 }
 

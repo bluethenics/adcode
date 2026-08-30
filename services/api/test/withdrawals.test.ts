@@ -46,6 +46,7 @@ const profile: PayoutProfileBody = {
   email: null,
   bankDetails: null,
   fields: { accountNumber: "12345678", sortCode: "20-00-00", bankName: "Example Bank" },
+  adultConfirmed: true,
 };
 
 /** An account that passes every rule except the ones a test deliberately breaks. */
@@ -148,6 +149,70 @@ describe("parseWithdrawalAmount", () => {
   });
 });
 
+/*
+ * The age rule.
+ *
+ * The terms say you must be 18 or older to earn or withdraw. Until this existed that was a
+ * sentence on a web page and nothing else - there is no date of birth anywhere in this
+ * service, and the only "age" in these rules is how long the account has existed. A
+ * condition nobody is ever asked to affirm is not evidence of anything.
+ *
+ * A timestamp rather than a boolean, because the question that would actually be asked is
+ * "when did they confirm it", and a boolean cannot answer that.
+ */
+describe("the 18-or-older rule", () => {
+  const user: UserRecord = {
+    uid: "u1",
+    status: "active",
+    createdAt: LONG_AGO,
+    email: "ada@example.com",
+    emailVerified: true,
+  };
+
+  const base = {
+    user,
+    balance: { ...EMPTY_BALANCE, availableMicros: 75_000_000n },
+    profile: { uid: "u1", ...profile, adultConfirmedAt: LONG_AGO, updatedAt: LONG_AGO },
+    pending: null,
+    now: NOW,
+  };
+
+  it("passes once the account has confirmed it, and records when", () => {
+    const rule = evaluateEligibility(base).rules.find((r) => r.id === "adult");
+
+    expect(rule?.ok).toBe(true);
+    expect(rule?.label).toBe("Confirmed you are 18 or older");
+  });
+
+  it("blocks a payout from a profile that never confirmed it", () => {
+    const { eligible, rules } = evaluateEligibility({
+      ...base,
+      profile: { uid: "u1", ...profile, adultConfirmedAt: null, updatedAt: LONG_AGO },
+    });
+
+    expect(eligible).toBe(false);
+    expect(rules.find((r) => r.id === "adult")?.ok).toBe(false);
+  });
+
+  it("asks for the confirmation even before payout details exist", () => {
+    // Two separate failures, not one. Somebody with no profile at all should see both
+    // lines rather than discover the second after fixing the first.
+    const { rules } = evaluateEligibility({ ...base, profile: null });
+
+    expect(rules.find((r) => r.id === "adult")?.ok).toBe(false);
+    expect(rules.find((r) => r.id === "payout-details")?.ok).toBe(false);
+  });
+
+  it("says plainly why it is being asked", () => {
+    const rule = evaluateEligibility({
+      ...base,
+      profile: null,
+    }).rules.find((r) => r.id === "adult");
+
+    expect(rule?.detail).toContain("18");
+  });
+});
+
 describe("evaluateEligibility", () => {
   const user: UserRecord = {
     uid: "u1",
@@ -163,6 +228,7 @@ describe("evaluateEligibility", () => {
     profile: {
       uid: "u1",
       ...profile,
+      adultConfirmedAt: LONG_AGO,
       updatedAt: LONG_AGO,
     },
     pending: null,
@@ -185,11 +251,12 @@ describe("evaluateEligibility", () => {
       profile: null,
     });
 
-    expect(rules).toHaveLength(5);
+    expect(rules).toHaveLength(6);
     expect(rules.filter((r) => !r.ok).map((r) => r.id)).toEqual([
       "minimum",
       "verified-email",
       "account-age",
+      "adult",
       "payout-details",
     ]);
   });
@@ -526,7 +593,7 @@ describe("the payouts screen", () => {
     expect(view.minMicros).toBe("50000000");
     expect(view.availableMicros).toBe("75000000");
     expect(view.profile?.fields?.accountNumber).toBe("12345678");
-    expect(view.rules).toHaveLength(5);
+    expect(view.rules).toHaveLength(6);
     expect(view.withdrawals).toEqual([]);
   });
 
@@ -545,6 +612,7 @@ describe("the payouts screen", () => {
       "minimum",
       "verified-email",
       "account-age",
+      "adult",
       "payout-details",
     ]);
   });
@@ -610,6 +678,7 @@ describe("paying to a Wise address", () => {
     email: "ada@example.com",
     bankDetails: null,
     fields: {},
+    adultConfirmed: true,
   };
 
   it("needs no corridor, because Wise resolves the recipient itself", async () => {
@@ -680,6 +749,7 @@ describe("bank coordinates are normalised before they are checked", () => {
       email: null,
       bankDetails: null,
       fields: { iban: "de89 3704 0044 0532 0130 00", bankName: "Example Bank" },
+      adultConfirmed: true,
     });
 
     // The validator accepts no spaces and no lower case, so this used to be refused as
