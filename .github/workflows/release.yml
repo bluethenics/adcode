@@ -144,7 +144,42 @@ jobs:
           # Three runners racing to create the same release is how a release ends up with
           # two of its three platforms attached.
           ADCODE_RELEASE_DIR: ${{ github.workspace }}/release
-        run: npm run package -- ${{ matrix.args }} --publish never
+        run: |
+          set -o pipefail
+          npm run package -- ${{ matrix.args }} --publish never 2>&1 | tee build.log
+
+      # Put the reason a build failed somewhere it can be read without credentials.
+      #
+      # A failed job annotates only "Process completed with exit code 1"; everything useful
+      # sits in the log archive, and that needs a token with actions:read. So anyone looking
+      # at the run without being signed in - which included the first two diagnoses of this
+      # very workflow - gets an exit code and nothing else, and guesses.
+      #
+      # Annotations ARE readable from the public REST API, so the lines that matter go
+      # there. GitHub shows at most ten error annotations per step, hence the tail.
+      - name: Explain a failed build
+        if: failure()
+        shell: bash
+        run: |
+          echo "::group::Full build output"
+          cat build.log || echo "(no build.log; the step failed before writing one)"
+          echo "::endgroup::"
+
+          test -f build.log || exit 0
+
+          # electron-builder puts its real complaint on a line carrying one of these.
+          grep -iE "error|cannot|failed|not found|ENOENT|EACCES|missing|required" build.log > matched.txt || true
+
+          tail -8 matched.txt | while IFS= read -r line; do
+            # Control characters and percent signs both truncate an annotation.
+            clean=$(printf '%s' "$line" | tr -cd '[:print:]' | tr '%' ' ' | cut -c1-400)
+            # An `if`, not `test … && echo`: GitHub runs bash with `-e`, and a failing
+            # `test` as the last command in a loop body would abort the very step whose
+            # job is to explain why something aborted.
+            if [ -n "$clean" ]; then
+              echo "::error::$clean"
+            fi
+          done
 
       # Installers, update manifests and blockmaps. The `latest*.yml` files are what the
       # auto-updater reads; a release without them installs fine and never updates again.
