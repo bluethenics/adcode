@@ -123,6 +123,11 @@ mac:
 
 linux:
   icon: build/icon.png
+  # Without this the binary is named from the app package's `name`, which is
+  # `@adcode/desktop` - and electron-builder sanitises that to `@adcodedesktop`, which it
+  # then refuses because `@` cannot appear in a Linux file path. Windows never hit it
+  # because `win.executableName` below is set explicitly; Linux had no equivalent.
+  executableName: ADCode
   # Required, and only on Linux.
   #
   # .deb and AppImage both carry a Debian maintainer field, and electron-builder refuses to

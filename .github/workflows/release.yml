@@ -76,12 +76,12 @@ jobs:
             platform: macos
             # arm64 only, for now.
             #
-            # Asking an Apple-silicon runner for --x64 as well means cross-compiling
-            # node-pty, our one native dependency, against Electron for a foreign
-            # architecture - a common way for this step to fail, and the likeliest reason
-            # the first CI run failed macOS while Windows succeeded. Neither macOS build
-            # ships yet (both are available: false), so there is nothing to lose by
-            # narrowing it until there is an Apple membership and a reason to care.
+            # This was originally narrowed on a guess that cross-compiling node-pty for
+            # x64 on an Apple-silicon runner was what failed the macOS build. It was not -
+            # the real cause was an empty CSC_LINK, fixed in the build step below. It stays
+            # narrowed anyway: neither macOS build ships (both are available: false), and
+            # building one architecture is a shorter run until there is an Apple membership
+            # and a reason to care about Intel.
             args: "--mac --arm64"
             serves: "macos macos-intel"
             # macOS is advertised as coming soon and its installers are not required, so a
@@ -130,8 +130,12 @@ jobs:
       - name: Build and package
         shell: bash
         env:
-          # electron-builder reads all of these itself. Absent secrets are empty strings,
-          # which it treats as "not configured" rather than as a bad value.
+          # An absent secret interpolates to an empty string, and GitHub still puts the
+          # variable in the environment. electron-builder does NOT read that as "not
+          # configured" - it reads CSC_LINK as a certificate path, resolves the empty
+          # string against the project directory, and dies with
+          # "/Users/runner/work/adcode/adcode not a file". That is what failed every macOS
+          # build. The run script below unsets the empty ones before invoking it.
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -146,6 +150,17 @@ jobs:
           ADCODE_RELEASE_DIR: ${{ github.workspace }}/release
         run: |
           set -o pipefail
+
+          # "Set but empty" and "not set" are different things to electron-builder, and
+          # only the second one means unsigned. Drop the empties so an unconfigured secret
+          # cannot be mistaken for a certificate at a path that does not exist.
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            eval "value=\${$name:-}"
+            if [ -z "$value" ]; then
+              unset "$name"
+            fi
+          done
+
           npm run package -- ${{ matrix.args }} --publish never 2>&1 | tee build.log
 
       # Put the reason a build failed somewhere it can be read without credentials.
