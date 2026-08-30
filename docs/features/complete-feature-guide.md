@@ -88,7 +88,7 @@ Why use it: It is what makes suggestions fast. It is also the thing that annoys 
 
 How to use it: On by default. Turn it off and Enter always starts a new line; Tab still takes the suggestion.
 
-Access: `All Features → Accept suggestion with Enter`; `Settings → adcode.editing.acceptOnEnter`.
+Access: `All Features → Accept suggestion with Enter`; `Turn on or off (setting:adcode.editing.acceptOnEnter)`; `Settings → adcode.editing.acceptOnEnter`.
 
 <!-- feature:adcode.editing.autoRenamePairedTag -->
 ### Auto-rename paired tag
@@ -99,7 +99,7 @@ Why use it: Renaming one and not the other breaks the page, and you usually find
 
 How to use it: On by default. Edit the name inside an opening tag; the closing tag follows as you type, and one press of Ctrl+Z undoes both together.
 
-Access: `All Features → Auto-rename paired tag`; `Settings → adcode.editing.autoRenamePairedTag`.
+Access: `All Features → Auto-rename paired tag`; `Turn on or off (setting:adcode.editing.autoRenamePairedTag)`; `Settings → adcode.editing.autoRenamePairedTag`.
 
 <!-- feature:adcode.editing.bracketPairColorization -->
 ### Bracket pair colorization
@@ -110,7 +110,7 @@ Why use it: When code is nested several layers deep, finding the bracket that cl
 
 How to use it: Nothing to do - it is on. Turn it off if you find the colours noisy.
 
-Access: `All Features → Bracket pair colorization`; `Settings → adcode.editing.bracketPairColorization`.
+Access: `All Features → Bracket pair colorization`; `Turn on or off (setting:adcode.editing.bracketPairColorization)`; `Settings → adcode.editing.bracketPairColorization`.
 
 <!-- feature:adcode.editing.spellCheck -->
 ### Check spelling in comments
@@ -119,9 +119,9 @@ Misspelled words in comments get a wavy underline, and the fix is one click away
 
 Why use it: A typo in a comment is the one kind nothing else catches - the compiler does not read comments, the linter does not read them, and reviewers skim them. So it sits there forever.
 
-How to use it: Off by default. It only flags words it can name a correction for, so a library, a product, or somebody's name is left alone instead of underlined - which is why it never becomes the noise you switch off. Code is never checked: an identifier is named, not spelled.
+How to use it: Off by default. Edit → Check Spelling in Comments runs it over every open file and reports into the Problems panel, including when it finds nothing. It only flags words it can name a correction for, so a library, a product, or somebody's name is left alone instead of underlined - which is why it never becomes the noise you switch off. Code is never checked: an identifier is named, not spelled.
 
-Access: `All Features → Check spelling in comments`; `Settings → adcode.editing.spellCheck`.
+Access: `All Features → Check spelling in comments`; `Check now (command:edit.spelling)`; `Turn on or off (setting:adcode.editing.spellCheck)`; `Settings → adcode.editing.spellCheck`.
 
 <!-- feature:adcode.editing.autoCloseTags -->
 ### Close tags automatically
@@ -132,7 +132,7 @@ Why use it: Forgetting to close a tag is the most common way HTML breaks, and th
 
 How to use it: On by default in HTML, XML, JSX, and templates. Type >, and the closing tag is written for you with the cursor left between them.
 
-Access: `All Features → Close tags automatically`; `Settings → adcode.editing.autoCloseTags`.
+Access: `All Features → Close tags automatically`; `Turn on or off (setting:adcode.editing.autoCloseTags)`; `Settings → adcode.editing.autoCloseTags`.
 
 <!-- feature:adcode.editing.codeFolding -->
 ### Code folding
@@ -143,7 +143,7 @@ Why use it: A file is easier to read when the parts you are not working on are o
 
 How to use it: On by default. Click the small arrow in the margin beside a line, or press Ctrl+Shift+[ to fold and Ctrl+Shift+] to unfold.
 
-Access: `All Features → Code folding`; `Settings → adcode.editing.codeFolding`.
+Access: `All Features → Code folding`; `Turn on or off (setting:adcode.editing.codeFolding)`; `Settings → adcode.editing.codeFolding`.
 
 <!-- feature:adcode.editing.commentTones -->
 ### Colour comments by intent
@@ -154,7 +154,7 @@ Why use it: A warning, an open question, and a line of dead code are three diffe
 
 How to use it: Off by default. Line comments only - a /** block */ begins with * by convention, and colouring those would mark every documented function in a project.
 
-Access: `All Features → Colour comments by intent`; `Settings → adcode.editing.commentTones`.
+Access: `All Features → Colour comments by intent`; `Turn on or off (setting:adcode.editing.commentTones)`; `Settings → adcode.editing.commentTones`.
 
 <!-- feature:adcode.editing.columnSelection -->
 ### Column selection mode
@@ -165,7 +165,7 @@ Why use it: Useful for lining up columns of data or stripping the same prefix of
 
 How to use it: Off by default, because it is a mode: while it is on, every mouse drag makes a box instead of selecting text, and that is not something to switch on by accident. Turn it on when you need it and off again after.
 
-Access: `All Features → Column selection mode`; `Settings → adcode.editing.columnSelection`.
+Access: `All Features → Column selection mode`; `Turn on or off (setting:adcode.editing.columnSelection)`; `Settings → adcode.editing.columnSelection`.
 
 <!-- feature:adcode.editing.plainEnglishErrors -->
 ### Explain errors in plain English
@@ -176,7 +176,7 @@ Why use it: Compiler messages are written for people who already know the compil
 
 How to use it: On by default. The rewritten sentence is shown first and the compiler's original wording is always kept underneath, because sometimes the exact words are what you need to search for.
 
-Access: `All Features → Explain errors in plain English`; `Settings → adcode.editing.plainEnglishErrors`.
+Access: `All Features → Explain errors in plain English`; `Turn on or off (setting:adcode.editing.plainEnglishErrors)`; `Settings → adcode.editing.plainEnglishErrors`.
 
 <!-- feature:adcode.editing.indentGuides -->
 ### Indent guides
@@ -187,7 +187,7 @@ Why use it: In languages where indentation decides what belongs to what - Python
 
 How to use it: On by default. The guide for the block your cursor is in is brighter than the rest.
 
-Access: `All Features → Indent guides`; `Settings → adcode.editing.indentGuides`.
+Access: `All Features → Indent guides`; `Turn on or off (setting:adcode.editing.indentGuides)`; `Settings → adcode.editing.indentGuides`.
 
 <!-- feature:adcode.editing.inlineErrorLens -->
 ### Inline error and warning lens
@@ -198,7 +198,7 @@ Why use it: Otherwise the message lives in a panel at the bottom, or inside a to
 
 How to use it: On by default. The message is dimmed and shortened so it never covers your code, and it hides itself on the line your cursor is on while you type.
 
-Access: `All Features → Inline error and warning lens`; `Settings → adcode.editing.inlineErrorLens`.
+Access: `All Features → Inline error and warning lens`; `Turn on or off (setting:adcode.editing.inlineErrorLens)`; `Settings → adcode.editing.inlineErrorLens`.
 
 <!-- feature:adcode.editing.inlineGitBlame -->
 ### Inline git blame
@@ -209,7 +209,7 @@ Why use it: Reading somebody else's code, the useful question is often not what 
 
 How to use it: Off by default, because it puts text beside your cursor all day. Turn it on and click a line; the note appears at the end of it.
 
-Access: `All Features → Inline git blame`; `Settings → adcode.editing.inlineGitBlame`.
+Access: `All Features → Inline git blame`; `Turn on or off (setting:adcode.editing.inlineGitBlame)`; `Settings → adcode.editing.inlineGitBlame`.
 
 <!-- feature:adcode.editing.minimap -->
 ### Minimap
@@ -220,7 +220,7 @@ Why use it: You often remember roughly where something was - near the top, in th
 
 How to use it: On by default. Drag the highlighted box to scroll, or click anywhere on it to jump there.
 
-Access: `All Features → Minimap`; `Settings → adcode.editing.minimap`.
+Access: `All Features → Minimap`; `Turn on or off (setting:adcode.editing.minimap)`; `Settings → adcode.editing.minimap`.
 
 <!-- feature:adcode.editing.multiCursor -->
 ### Multi-cursor
@@ -231,7 +231,7 @@ Why use it: Changing the same word in six places is six edits done one at a time
 
 How to use it: Ctrl+click to add a cursor anywhere. Ctrl+D adds one at the next copy of the word you have selected. Ctrl+Alt+Up or Down adds one on the line above or below. Escape drops back to one.
 
-Access: `All Features → Multi-cursor`; `Settings → adcode.editing.multiCursor`; `Keyboard → CmdOrCtrl+D`.
+Access: `All Features → Multi-cursor`; `Add next occurrence (command:selection.addNextOccurrence)`; `Select all occurrences (command:selection.selectAllOccurrences)`; `Select all (command:selection.all)`; `Expand selection (command:selection.expand)`; `Shrink selection (command:selection.shrink)`; `Copy line up (command:selection.copyLineUp)`; `Copy line down (command:selection.copyLineDown)`; `Move line up (command:selection.moveLineUp)`; `Move line down (command:selection.moveLineDown)`; `Duplicate selection (command:selection.duplicate)`; `Add cursor above (command:selection.cursorAbove)`; `Add cursor below (command:selection.cursorBelow)`; `Turn on or off (setting:adcode.editing.multiCursor)`; `Settings → adcode.editing.multiCursor`; `Keyboard → CmdOrCtrl+D`.
 
 <!-- feature:adcode.editing.pathAutocomplete -->
 ### Path autocomplete
@@ -242,7 +242,7 @@ Why use it: A mistyped path is a broken import, and the error it causes names th
 
 How to use it: On by default. Start typing a path inside quotes or an import and the list appears. Type / to go into a folder.
 
-Access: `All Features → Path autocomplete`; `Settings → adcode.editing.pathAutocomplete`.
+Access: `All Features → Path autocomplete`; `Turn on or off (setting:adcode.editing.pathAutocomplete)`; `Settings → adcode.editing.pathAutocomplete`.
 
 <!-- feature:adcode.editing.trailingWhitespace -->
 ### Render trailing whitespace
@@ -253,7 +253,7 @@ Why use it: They are invisible by definition, they show up as changes in every r
 
 How to use it: Off by default, since dots at the end of lines are a distraction if you are not hunting them. Turn it on and they appear as faint marks.
 
-Access: `All Features → Render trailing whitespace`; `Settings → adcode.editing.trailingWhitespace`.
+Access: `All Features → Render trailing whitespace`; `Turn on or off (setting:adcode.editing.trailingWhitespace)`; `Settings → adcode.editing.trailingWhitespace`.
 
 <!-- feature:adcode.editing.fileTemplates -->
 ### Start new files from a template
@@ -264,7 +264,7 @@ Why use it: Nobody remembers the exact opening lines of every language, and look
 
 How to use it: On by default. Make a new file with a known extension and the boilerplate is there. Press Ctrl+Z once if you would rather start empty.
 
-Access: `All Features → Start new files from a template`; `Settings → adcode.editing.fileTemplates`.
+Access: `All Features → Start new files from a template`; `Turn on or off (setting:adcode.editing.fileTemplates)`; `Settings → adcode.editing.fileTemplates`.
 
 <!-- feature:adcode.editing.stickyScroll -->
 ### Sticky scroll
@@ -275,7 +275,7 @@ Why use it: Two hundred lines into a file, the thing you most want to know is wh
 
 How to use it: On by default. Click a stuck line at the top to jump back to it.
 
-Access: `All Features → Sticky scroll`; `Settings → adcode.editing.stickyScroll`.
+Access: `All Features → Sticky scroll`; `Turn on or off (setting:adcode.editing.stickyScroll)`; `Settings → adcode.editing.stickyScroll`.
 
 <!-- feature:adcode.editing.wordSuggestions -->
 ### Suggest words already in the file
@@ -286,7 +286,7 @@ Why use it: This is the fallback for languages with no language server. A dumb s
 
 How to use it: On by default. It only ever offers words from the file you are in.
 
-Access: `All Features → Suggest words already in the file`; `Settings → adcode.editing.wordSuggestions`.
+Access: `All Features → Suggest words already in the file`; `Turn on or off (setting:adcode.editing.wordSuggestions)`; `Settings → adcode.editing.wordSuggestions`.
 
 <!-- feature:adcode.editing.suggestions -->
 ### Suggestions as you type
@@ -297,7 +297,7 @@ Why use it: It saves typing, and more importantly it saves remembering exact nam
 
 How to use it: On by default. Keep typing to narrow the list, press Tab or Enter to take the highlighted one, Escape to dismiss it.
 
-Access: `All Features → Suggestions as you type`; `Settings → adcode.editing.suggestions`.
+Access: `All Features → Suggestions as you type`; `Undo (command:edit.undo)`; `Redo (command:edit.redo)`; `Find (command:edit.find)`; `Replace (command:edit.replace)`; `Toggle line comment (command:edit.toggleLineComment)`; `Toggle block comment (command:edit.toggleBlockComment)`; `Cut (command:edit.cut)`; `Copy (command:edit.copy)`; `Paste (command:edit.paste)`; `Toggle word wrap (command:view.toggleWordWrap)`; `Turn on or off (setting:adcode.editing.suggestions)`; `Settings → adcode.editing.suggestions`.
 
 <!-- feature:adcode.editing.todoHighlighting -->
 ### TODO and FIXME highlighting
@@ -306,9 +306,9 @@ Notes you leave yourself in comments - TODO, FIXME, HACK - get a colour so they 
 
 Why use it: A note you cannot find is a note you did not leave. These are the comments you actually want to trip over later.
 
-How to use it: On by default, and only inside real comments - the word TODO in a piece of text or a string is left alone.
+How to use it: On by default, and only inside real comments - the word TODO in a piece of text or a string is left alone. Edit → List TODOs and FIXMEs collects them from every open file into the Problems panel, and says when there are none.
 
-Access: `All Features → TODO and FIXME highlighting`; `Settings → adcode.editing.todoHighlighting`.
+Access: `All Features → TODO and FIXME highlighting`; `List them (command:edit.todos)`; `Turn on or off (setting:adcode.editing.todoHighlighting)`; `Settings → adcode.editing.todoHighlighting`.
 
 ## Finding your way
 
@@ -321,7 +321,7 @@ Why use it: It answers 'where am I' at a glance, and every part of the trail is 
 
 How to use it: On by default. Click a workspace or folder to browse inside it and across sibling folders. Click the file for sibling and recent files, Quick Open, copy, reveal, rename, and comparison/history actions. Click a symbol to search the file outline. With a crumb focused, use Left and Right to move through levels, Down or Enter to open one, then type to filter and press Enter to switch.
 
-Access: `All Features → Breadcrumbs`; `Settings → adcode.navigation.breadcrumbs`.
+Access: `All Features → Breadcrumbs`; `Turn on or off (setting:adcode.navigation.breadcrumbs)`; `Settings → adcode.navigation.breadcrumbs`.
 
 <!-- feature:adcode.navigation.fuzzyFileOpen -->
 ### Fuzzy file open
@@ -332,7 +332,7 @@ Why use it: Clicking through folders to find a file you already know the name of
 
 How to use it: Press Ctrl+P and start typing. 'ushnd' will find 'useHandler.ts'. Enter opens the highlighted one.
 
-Access: `All Features → Fuzzy file open`; `Settings → adcode.navigation.fuzzyFileOpen`; `Keyboard → CmdOrCtrl+P`.
+Access: `All Features → Fuzzy file open`; `Go to a file (command:go.file)`; `Turn on or off (setting:adcode.navigation.fuzzyFileOpen)`; `Settings → adcode.navigation.fuzzyFileOpen`; `Keyboard → CmdOrCtrl+P`.
 
 <!-- feature:adcode.navigation.globalSearch -->
 ### Global search and replace
@@ -343,7 +343,7 @@ Why use it: Renaming something, or finding every place a mistake was copied to.
 
 How to use it: Press Ctrl+Shift+F. You can search for a pattern rather than exact text, restrict it to certain files, and see every change before you make it.
 
-Access: `All Features → Global search and replace`; `Settings → adcode.navigation.globalSearch`; `Keyboard → CmdOrCtrl+Shift+F`.
+Access: `All Features → Global search and replace`; `Search the project (command:view.search)`; `Turn on or off (setting:adcode.navigation.globalSearch)`; `Settings → adcode.navigation.globalSearch`; `Keyboard → CmdOrCtrl+Shift+F`.
 
 <!-- feature:adcode.navigation.goToDefinition -->
 ### Go to definition and references
@@ -354,7 +354,7 @@ Why use it: It is the difference between reading code and searching it. Followin
 
 How to use it: Click a name for the preview, click the preview's title or Ctrl+click the name to go there properly, and Escape to close. ADCode tells you how it found the answer: 'resolved' means a language server worked it out for certain, and 'matched by name' means ADCode found things with the same name - which is usually right and is not a promise.
 
-Access: `All Features → Go to definition and references`; `Settings → adcode.navigation.goToDefinition`.
+Access: `All Features → Go to definition and references`; `Go to definition (command:go.definition)`; `Peek definition (command:go.peek)`; `Turn on or off (setting:adcode.navigation.goToDefinition)`; `Settings → adcode.navigation.goToDefinition`.
 
 <!-- feature:adcode.navigation.outline -->
 ### Outline
@@ -365,7 +365,7 @@ Why use it: It is the table of contents for a file, and the fastest way to jump 
 
 How to use it: On by default. Open the Structure popup to see it drawn as a tree, with lines connecting each thing to what it belongs to. Click any entry to jump to it.
 
-Access: `All Features → Outline`; `Settings → adcode.navigation.outline`.
+Access: `All Features → Outline`; `Go to a line (command:go.line)`; `Next editor (command:go.nextEditor)`; `Previous editor (command:go.previousEditor)`; `Next change (command:go.nextChange)`; `Previous change (command:go.previousChange)`; `Turn on or off (setting:adcode.navigation.outline)`; `Settings → adcode.navigation.outline`.
 
 <!-- feature:adcode.navigation.symbolSearch -->
 ### Symbol search
@@ -376,7 +376,7 @@ Why use it: You almost always remember what a thing is called and almost never r
 
 How to use it: Press Ctrl+T and type the name. The list shows what kind of thing each result is and which file it is in.
 
-Access: `All Features → Symbol search`; `Settings → adcode.navigation.symbolSearch`; `Keyboard → CmdOrCtrl+T`.
+Access: `All Features → Symbol search`; `Go to a symbol (command:go.symbol)`; `Turn on or off (setting:adcode.navigation.symbolSearch)`; `Settings → adcode.navigation.symbolSearch`; `Keyboard → CmdOrCtrl+T`.
 
 ## Formatting
 
@@ -389,7 +389,7 @@ Why use it: Arguing about where the spaces go is the least valuable thing a pers
 
 How to use it: On by default, and there is nothing to install. Press Shift+Alt+F to tidy the open file. If a language server is running for that language, ADCode asks it first, because it knows the language better than we do; otherwise ADCode's own formatter does it.
 
-Access: `All Features → Built-in formatter`; `Settings → adcode.formatting.formatter`; `Keyboard → Shift+Alt+F`.
+Access: `All Features → Built-in formatter`; `Format this file (command:edit.format)`; `Turn on or off (setting:adcode.formatting.formatter)`; `Settings → adcode.formatting.formatter`; `Keyboard → Shift+Alt+F`.
 
 <!-- feature:adcode.formatting.formatOnSave -->
 ### Format on save
@@ -400,7 +400,7 @@ Why use it: So you never think about it again. Code that is formatted on every s
 
 How to use it: On by default. Save as usual with Ctrl+S. If the formatter cannot handle that language, the file is saved exactly as you wrote it rather than mangled.
 
-Access: `All Features → Format on save`; `Settings → adcode.formatting.formatOnSave`; `Keyboard → CmdOrCtrl+S`.
+Access: `All Features → Format on save`; `Turn on or off (setting:adcode.formatting.formatOnSave)`; `Settings → adcode.formatting.formatOnSave`; `Keyboard → CmdOrCtrl+S`.
 
 <!-- feature:adcode.formatting.lintDiagnostics -->
 ### Lint diagnostics
@@ -411,7 +411,7 @@ Why use it: Finding a mistake as you make it costs a second. Finding it when the
 
 How to use it: On by default. Red means it is broken, yellow means it is suspicious. All of them are collected in the Problems panel, and hovering one shows the detail.
 
-Access: `All Features → Lint diagnostics`; `Settings → adcode.formatting.lintDiagnostics`.
+Access: `All Features → Lint diagnostics`; `Turn on or off (setting:adcode.formatting.lintDiagnostics)`; `Settings → adcode.formatting.lintDiagnostics`.
 
 <!-- feature:adcode.formatting.organizeImportsOnSave -->
 ### Organize imports on save
@@ -420,9 +420,9 @@ When you save, the list of other files your file uses gets sorted, and any it no
 
 Why use it: Import lists grow messy on their own and nobody ever tidies them on purpose.
 
-How to use it: Off by default, because deleting a line you did not ask to delete deserves to be a choice. Turn it on and it happens on every save.
+How to use it: Off by default, because deleting a line you did not ask to delete deserves to be a choice. Edit → Organize Imports does it once, on demand, and tells you when the imports were already tidy. Turn the setting on and it happens on every save instead.
 
-Access: `All Features → Organize imports on save`; `Settings → adcode.formatting.organizeImportsOnSave`.
+Access: `All Features → Organize imports on save`; `Organize now (command:edit.organizeImports)`; `Turn on or off (setting:adcode.formatting.organizeImportsOnSave)`; `Settings → adcode.formatting.organizeImportsOnSave`.
 
 ## Understanding a project
 
@@ -435,7 +435,7 @@ Why use it: Without them you have to judge nesting by how far a row is pushed ac
 
 How to use it: On by default. Turn it off to get plain indentation instead.
 
-Access: `All Features → Draw trees with connecting lines`; `Settings → adcode.structure.projectTreeLines`.
+Access: `All Features → Draw trees with connecting lines`; `Turn on or off (setting:adcode.structure.projectTreeLines)`; `Settings → adcode.structure.projectTreeLines`.
 
 <!-- feature:adcode.structure.missingClasses -->
 ### Point out classes nothing defines
@@ -444,9 +444,9 @@ Tells you when you have used a class name that no stylesheet actually defines.
 
 Why use it: It is almost always a typo, and a mistyped class is completely silent - the element just renders unstyled, usually on a page nobody has open.
 
-How to use it: On by default. Findings appear in the Problems panel beside everything else.
+How to use it: On by default. Findings appear in the Problems panel beside everything else. View → Find Classes Nothing Defines checks the markup or component file you have open right now, and says so when every class is accounted for.
 
-Access: `All Features → Point out classes nothing defines`; `Settings → adcode.structure.missingClasses`.
+Access: `All Features → Point out classes nothing defines`; `Find them (command:structure.missingClasses)`; `Turn on or off (setting:adcode.structure.missingClasses)`; `Settings → adcode.structure.missingClasses`.
 
 <!-- feature:adcode.structure.unusedSelectors -->
 ### Point out rules that style nothing
@@ -455,9 +455,9 @@ Tells you when a style rule does not match anything in your project any more.
 
 Why use it: A rule left behind by a deleted component is invisible, and stylesheets only ever grow.
 
-How to use it: Off by default, deliberately. It compares names, so it cannot see a class built at runtime or one generated by a CSS module - on projects that use those it is wrong more often than right. Turn it on and the findings appear in the Problems panel.
+How to use it: Off by default, deliberately. View → Find Unused CSS Rules runs it on the stylesheet you have open whatever the setting says, and answers "every rule matches something" when nothing is unused. It compares names, so it cannot see a class built at runtime or one generated by a CSS module - on projects that use those it is wrong more often than right. Turn the setting on and the findings appear as you work.
 
-Access: `All Features → Point out rules that style nothing`; `Settings → adcode.structure.unusedSelectors`.
+Access: `All Features → Point out rules that style nothing`; `Find them (command:structure.unusedCss)`; `Turn on or off (setting:adcode.structure.unusedSelectors)`; `Settings → adcode.structure.unusedSelectors`.
 
 <!-- feature:adcode.structure.selectorToElements -->
 ### Show the elements a rule styles
@@ -468,7 +468,7 @@ Why use it: It turns a class name nobody can trace into a list of elements you c
 
 How to use it: On by default. Open the Structure popup with a stylesheet in front of you.
 
-Access: `All Features → Show the elements a rule styles`; `Settings → adcode.structure.selectorToElements`.
+Access: `All Features → Show the elements a rule styles`; `Turn on or off (setting:adcode.structure.selectorToElements)`; `Settings → adcode.structure.selectorToElements`.
 
 <!-- feature:adcode.structure.elementToRules -->
 ### Show the rules that style an element
@@ -479,7 +479,7 @@ Why use it: A class is written in one file and used in another, and nothing norm
 
 How to use it: On by default. Works in HTML, and in React, Vue, Angular and Handlebars templates.
 
-Access: `All Features → Show the rules that style an element`; `Settings → adcode.structure.elementToRules`.
+Access: `All Features → Show the rules that style an element`; `Turn on or off (setting:adcode.structure.elementToRules)`; `Settings → adcode.structure.elementToRules`.
 
 ## Languages
 
@@ -503,7 +503,7 @@ Why use it: Adding print statements to work out what a program is doing is guess
 
 How to use it: On by default for JavaScript, TypeScript, and Python. Click in the margin left of a line number to set a stop point - a red dot - then press F5 to run. When it stops, the panel shows every value in scope; F10 goes to the next line, F11 steps inside a function, and F5 carries on. A language ADCode has no debugger for will say so rather than offering a button that does nothing.
 
-Access: `All Features → Debug adapter client`; `Settings → adcode.language.dapClient`; `Keyboard → F5`.
+Access: `All Features → Debug adapter client`; `Start debugging (command:debug.start)`; `Stop debugging (command:debug.stop)`; `Step over (command:debug.stepOver)`; `Step into (command:debug.stepInto)`; `Step out (command:debug.stepOut)`; `Debug console (command:view.debugConsole)`; `Turn on or off (setting:adcode.language.dapClient)`; `Settings → adcode.language.dapClient`; `Keyboard → F5`.
 
 <!-- feature:adcode.language.lspClient -->
 ### Language server intelligence
@@ -514,7 +514,7 @@ Why use it: Without one, an editor is guessing from the shape of the words. With
 
 How to use it: On by default. It uses language servers already installed on your machine - ADCode does not bundle them. If one is running for the file you are in, you will see richer suggestions and more precise errors.
 
-Access: `All Features → Language server intelligence`; `Settings → adcode.language.lspClient`.
+Access: `All Features → Language server intelligence`; `Turn on or off (setting:adcode.language.lspClient)`; `Settings → adcode.language.lspClient`.
 
 <!-- feature:adcode.language.treeSitterHighlighting -->
 ### Tree-sitter highlighting
@@ -525,7 +525,7 @@ Why use it: Simple colouring gets confused by things like a keyword inside a str
 
 How to use it: On by default. It loads the grammar for a language the first time you open a file in it. If a grammar cannot be loaded, colouring quietly falls back to the simpler method rather than turning off.
 
-Access: `All Features → Tree-sitter highlighting`; `Settings → adcode.language.treeSitterHighlighting`.
+Access: `All Features → Tree-sitter highlighting`; `Turn on or off (setting:adcode.language.treeSitterHighlighting)`; `Settings → adcode.language.treeSitterHighlighting`.
 
 ## The assistant
 
@@ -582,7 +582,7 @@ Why use it: Asking in the editor beats copying code into a browser, because the 
 
 How to use it: On by default. Press the shortcut to summon it, drag its title bar to move it, and press Escape to dismiss it without losing the conversation. Past conversations are kept in the history list beside it.
 
-Access: `All Features → Chat widget`; `Settings → adcode.ai.chatWidget`.
+Access: `All Features → Chat widget`; `Turn on or off (setting:adcode.ai.chatWidget)`; `Settings → adcode.ai.chatWidget`.
 
 <!-- feature:ai.connect -->
 ### Connect a model
@@ -604,7 +604,7 @@ Why use it: Long-running terminal tasks should not need you to watch the clock a
 
 How to use it: Off by default. When enabled, ADCode reads only the terminal output already visible in its own terminal. A clear usage-limit message with an explicit retry delay schedules one continuation. Unknown reset times and changed or ambiguous terminal state stop safely. A repeated limit may schedule the next attempt up to your retry cap. Closing ADCode or turning this setting off cancels every pending continuation.
 
-Access: `All Features → Continue terminal AI after limits`; `Settings → adcode.ai.autoContinue`; `Settings → adcode.ai.autoContinueRetries`.
+Access: `All Features → Continue terminal AI after limits`; `Turn on or off (setting:adcode.ai.autoContinue)`; `Settings → adcode.ai.autoContinue`; `Settings → adcode.ai.autoContinueRetries`.
 
 <!-- feature:adcode.ai.customBaseUrl -->
 ### Custom endpoint
@@ -626,7 +626,7 @@ Why use it: For the lines that are boring and predictable, which is more of them
 
 How to use it: On by default. ADCode asks the selected model after you pause, without delaying a keystroke, and cancels the request as soon as the buffer changes. Press Tab to accept grey ghost text, keep typing to ignore it, or press Alt+\ to request a suggestion yourself. Local keyword and language-server suggestions continue to work separately.
 
-Access: `All Features → Inline completion`; `Suggest now (command:ai.complete)`; `Settings → adcode.ai.inlineCompletion`; `Keyboard → Alt+\`.
+Access: `All Features → Inline completion`; `Suggest now (command:ai.complete)`; `Turn on or off (setting:adcode.ai.inlineCompletion)`; `Settings → adcode.ai.inlineCompletion`; `Keyboard → Alt+\`.
 
 <!-- feature:adcode.ai.isolatedWorkspaces -->
 ### Isolated AI edits
@@ -637,7 +637,7 @@ Why use it: A model can make a useful mistake very quickly. Isolation lets it re
 
 How to use it: On by default. The assistant shows the task state, changed files, and Review button. Accept individual hunks, discard the sandbox, or roll an applied task back. Turning this off keeps chat available but disables the built-in file tools.
 
-Access: `All Features → Isolated AI edits`; `Settings → adcode.ai.isolatedWorkspaces`.
+Access: `All Features → Isolated AI edits`; `Turn on or off (setting:adcode.ai.isolatedWorkspaces)`; `Settings → adcode.ai.isolatedWorkspaces`.
 
 <!-- feature:adcode.ai.mcpServer -->
 ### MCP server
@@ -648,7 +648,7 @@ Why use it: One set of notes shared by every assistant you use, rather than each
 
 How to use it: On by default. Settings shows the exact command to run once, from your project folder, with a Copy button. That is the whole setup.
 
-Access: `All Features → MCP server`; `Settings → adcode.ai.mcpServer`.
+Access: `All Features → MCP server`; `Turn on or off (setting:adcode.ai.mcpServer)`; `Settings → adcode.ai.mcpServer`.
 
 <!-- feature:adcode.ai.memoryCapture -->
 ### Memory capture
@@ -659,7 +659,7 @@ Why use it: Explaining the same thing at the start of every conversation is the 
 
 How to use it: On by default. Memories are plain markdown files in your project folder - you can read them, edit them, and delete them like any other file. Settings shows you where they are.
 
-Access: `All Features → Memory capture`; `Settings → adcode.ai.memoryCapture`.
+Access: `All Features → Memory capture`; `Turn on or off (setting:adcode.ai.memoryCapture)`; `Settings → adcode.ai.memoryCapture`.
 
 <!-- feature:adcode.ai.model -->
 ### Model
@@ -692,7 +692,7 @@ Why use it: A reminder that can actually reach the assistant is useful for follo
 
 How to use it: Choose Schedule beside the chat composer, select an available adapter and local time, then confirm. Built-in chat is always supported. For a detected terminal AI, first choose Allow next schedule while its prompt is visibly waiting; any later terminal activity removes that one-time permission. Compatible internal adapters use the same registration contract. If ADCode, the project, or scheduled messages are unavailable at delivery time, the one-time message is marked missed and does nothing until you choose Run now.
 
-Access: `All Features → Scheduled AI messages`; `Schedule (command:ai.schedule)`; `Settings → adcode.ai.scheduledMessages`.
+Access: `All Features → Scheduled AI messages`; `Schedule (command:ai.schedule)`; `Turn on or off (setting:adcode.ai.scheduledMessages)`; `Settings → adcode.ai.scheduledMessages`.
 
 <!-- feature:adcode.ai.taskTokenBudget -->
 ### Task token budget
@@ -714,7 +714,7 @@ Why use it: So the assistant in your terminal and the one in your editor are wor
 
 How to use it: On by default. When an agent is recognised, a strip appears above the terminal with the one command that connects it. Nothing is shared unless you press it.
 
-Access: `All Features → Terminal agent detection`; `Settings → adcode.ai.terminalAgentDetection`.
+Access: `All Features → Terminal agent detection`; `Turn on or off (setting:adcode.ai.terminalAgentDetection)`; `Settings → adcode.ai.terminalAgentDetection`.
 
 ## Git
 
@@ -725,9 +725,9 @@ Shows who last changed each line, and which save it came from.
 
 Why use it: The name is unfriendly and the feature is not: it is how you find the person or the note that explains why a line is the way it is.
 
-How to use it: Off by default. Turn it on and each line gets a faint note; click one to open the full description of that change.
+How to use it: Off by default. Git → Blame This Line names the author, the commit and its message for the line the cursor is on, and says so plainly when the line is not committed yet. Turn the setting on and every line gets a faint note instead; click one to open the full description of that change.
 
-Access: `All Features → Blame`; `Settings → adcode.git.blame`.
+Access: `All Features → Blame`; `Blame this line (command:git.blame)`; `Turn on or off (setting:adcode.git.blame)`; `Settings → adcode.git.blame`.
 
 <!-- feature:adcode.git.branchSwitcher -->
 ### Branch switcher
@@ -736,9 +736,9 @@ Work on a separate copy of the project, so you can try something without disturb
 
 Why use it: It is the safe way to attempt anything risky. If it goes badly you throw the copy away and nothing else was touched.
 
-How to use it: On by default. The current branch name is at the bottom-left of the window; click it to switch to another or to start a new one.
+How to use it: On by default. The current branch name is at the bottom-left of the window; click it to switch to another or to start a new one. Git → Checkout Branch and Git → Create Branch do the same from the menu.
 
-Access: `All Features → Branch switcher`; `Settings → adcode.git.branchSwitcher`.
+Access: `All Features → Branch switcher`; `Switch branch (command:git.checkout)`; `Create a branch (command:git.createBranch)`; `Turn on or off (setting:adcode.git.branchSwitcher)`; `Settings → adcode.git.branchSwitcher`.
 
 <!-- feature:adcode.git.fileTimeline -->
 ### File timeline
@@ -747,9 +747,9 @@ Every past version of the file you are looking at, newest first, in a list you c
 
 Why use it: It answers 'when did this break' and 'what did this look like last week' without leaving the editor.
 
-How to use it: On by default. Open the Timeline view for the current file and click any entry to see that version, and what changed in it.
+How to use it: On by default. Git → File Timeline lists every commit that touched the file you are looking at, and says when none has yet. The Source Control panel shows the same list under Timeline; click any entry to see that version, and what changed in it.
 
-Access: `All Features → File timeline`; `Settings → adcode.git.fileTimeline`.
+Access: `All Features → File timeline`; `Show the timeline (command:git.timeline)`; `Turn on or off (setting:adcode.git.fileTimeline)`; `Settings → adcode.git.fileTimeline`.
 
 <!-- feature:adcode.git.gutterDiff -->
 ### Gutter diff decorations
@@ -760,7 +760,7 @@ Why use it: It answers 'what have I actually touched here' without opening anyth
 
 How to use it: On by default. Green means you added the line, blue means you changed it, and a small triangle means you deleted something there. Click a mark to see what was there before, and to undo just that change.
 
-Access: `All Features → Gutter diff decorations`; `Settings → adcode.git.gutterDiff`.
+Access: `All Features → Gutter diff decorations`; `Turn on or off (setting:adcode.git.gutterDiff)`; `Settings → adcode.git.gutterDiff`.
 
 <!-- feature:adcode.git.mergeConflict -->
 ### Merge conflict resolution
@@ -769,9 +769,9 @@ When two people changed the same line, this shows you both versions side by side
 
 Why use it: A conflict is the one moment source control cannot decide for you, and the raw markers it leaves in the file are genuinely hard to read.
 
-How to use it: On by default. A conflicted file opens with both versions marked; press Keep yours, Keep theirs, or Keep both above each conflict, or edit the result by hand.
+How to use it: On by default. Press Check Conflicts in the Source Control panel, or Git → Check Merge Conflicts, to list every file where both sides changed the same lines - it answers "No merge conflicts" when there are none, so you never have to guess. Open one of those files and each conflict gets Keep yours, Keep theirs, and Keep both above it; you can also edit the result by hand. Save the file to keep what you chose.
 
-Access: `All Features → Merge conflict resolution`; `Settings → adcode.git.mergeConflict`.
+Access: `All Features → Merge conflict resolution`; `Check for conflicts (command:git.conflicts)`; `Turn on or off (setting:adcode.git.mergeConflict)`; `Settings → adcode.git.mergeConflict`.
 
 <!-- feature:adcode.git.stageCommitUi -->
 ### Stage, unstage, and commit
@@ -782,7 +782,7 @@ Why use it: This is the point of source control: your work gets saved in labelle
 
 How to use it: On by default. Open the Source Control panel in the activity bar. Tick the changes you want in this set - that is 'staging' - write a short note saying what you did, and press Commit.
 
-Access: `All Features → Stage, unstage, and commit`; `Settings → adcode.git.stageCommitUi`.
+Access: `All Features → Stage, unstage, and commit`; `Commit (command:git.commit)`; `Stage all (command:git.stageAll)`; `Unstage all (command:git.unstageAll)`; `Push (command:git.push)`; `Pull (command:git.pull)`; `Fetch (command:git.fetch)`; `Initialise a repository (command:git.init)`; `Clone a repository (command:workspace.clone)`; `Open Source Control (command:view.scm)`; `Turn on or off (setting:adcode.git.stageCommitUi)`; `Settings → adcode.git.stageCommitUi`.
 
 ## Your session
 
@@ -795,7 +795,7 @@ Why use it: So losing work stops being possible, and so you stop pressing Ctrl+S
 
 How to use it: On by default. It waits until you pause, so it never saves a half-typed word. You can still save whenever you like with Ctrl+S.
 
-Access: `All Features → Auto-save after delay`; `Settings → adcode.session.autoSave`; `Keyboard → CmdOrCtrl+S`.
+Access: `All Features → Auto-save after delay`; `Turn on or off (setting:adcode.session.autoSave)`; `Settings → adcode.session.autoSave`; `Keyboard → CmdOrCtrl+S`.
 
 <!-- feature:adcode.session.crashRecovery -->
 ### Crash recovery
@@ -804,9 +804,9 @@ If ADCode closes unexpectedly, your unsaved typing is still there when it opens 
 
 Why use it: Crashes and power cuts happen, and losing an hour to one is miserable.
 
-How to use it: On by default, and there is nothing to do. Reopen ADCode and it offers your unsaved work back.
+How to use it: On by default, and there is usually nothing to do: reopen ADCode and it offers your unsaved work back. File → Recover Unsaved Files asks again at any time, and answers "nothing to recover" when every file is already saved.
 
-Access: `All Features → Crash recovery`; `Settings → adcode.session.crashRecovery`.
+Access: `All Features → Crash recovery`; `Recover unsaved files (command:session.recover)`; `Turn on or off (setting:adcode.session.crashRecovery)`; `Settings → adcode.session.crashRecovery`.
 
 <!-- feature:adcode.session.localFileHistory -->
 ### Local file history
@@ -815,9 +815,9 @@ ADCode quietly keeps its own copies of files as you edit them, separate from you
 
 Why use it: For the moment you delete something you needed and had not saved into your project's history yet. It is the undo that survives closing the file.
 
-How to use it: On by default. Open the Timeline for a file to see the local copies alongside the committed ones, and open or restore any of them.
+How to use it: On by default. File → Local History lists every copy ADCode has kept of the file you are looking at, newest first, and tells you when there are none yet. Choose one and it opens read-only beside your working copy, so you can copy what you need back without overwriting anything.
 
-Access: `All Features → Local file history`; `Settings → adcode.session.localFileHistory`.
+Access: `All Features → Local file history`; `Open local history (command:file.localHistory)`; `Turn on or off (setting:adcode.session.localFileHistory)`; `Settings → adcode.session.localFileHistory`.
 
 <!-- feature:adcode.session.workspaceRestore -->
 ### Restore workspace
@@ -828,7 +828,7 @@ Why use it: Setting your work back up every morning is a small tax you should no
 
 How to use it: On by default. Just close the window; next time you open it, your files are back.
 
-Access: `All Features → Restore workspace`; `Settings → adcode.session.workspaceRestore`.
+Access: `All Features → Restore workspace`; `Turn on or off (setting:adcode.session.workspaceRestore)`; `Settings → adcode.session.workspaceRestore`.
 
 ## The workbench
 
@@ -841,7 +841,7 @@ Why use it: You should not need to know a command's name, shortcut, or menu befo
 
 How to use it: Choose the four-cell All Features button below Earnings, or open View and choose All Features. Search by a feature name or describe what you want to do. Choose Open to use it and ? to understand it.
 
-Access: `All Features → All Features`; `Open (command:features.open)`.
+Access: `All Features → All Features`; `Open (command:features.open)`; `Preferences (command:settings.open)`; `Full screen (command:view.fullScreen)`; `Toggle side bar (command:view.toggleSidebar)`; `Toggle panel (command:view.togglePanel)`; `Zoom in (command:view.zoomIn)`; `Zoom out (command:view.zoomOut)`; `Reset zoom (command:view.zoomReset)`; `Problems (command:view.problems)`; `Output (command:view.output)`; `Ports (command:view.ports)`; `Feature guide (command:help.guide)`; `Developer tools (command:help.devTools)`; `About ADCode (command:help.about)`.
 
 <!-- feature:workbench.terminal -->
 ### Built-in terminal
@@ -852,7 +852,7 @@ Why use it: Most work needs both an editor and a terminal, and switching windows
 
 How to use it: Open it from the panel at the bottom. You can have several at once, and each remembers what it was doing.
 
-Access: `All Features → Built-in terminal`; `Open (command:terminal.toggle)`.
+Access: `All Features → Built-in terminal`; `Open (command:terminal.toggle)`; `New terminal (command:terminal.new)`; `New terminal with profile (command:terminal.newWithProfile)`; `Split (command:terminal.split)`; `Next terminal (command:terminal.next)`; `Previous terminal (command:terminal.previous)`; `Copy (command:terminal.copy)`; `Paste (command:terminal.paste)`; `Clear (command:terminal.clear)`; `Kill (command:terminal.kill)`; `Kill all (command:terminal.killAll)`; `Run this file in the terminal (command:terminal.runActiveFile)`.
 
 <!-- feature:workbench.commandPalette -->
 ### Command palette
@@ -885,7 +885,7 @@ Why use it: For fixing something together without one of you reading the other's
 
 How to use it: Start a session and share the invitation. It works over your local network - the code does not travel through anybody else's server.
 
-Access: `All Features → Live collaboration`; `Open (command:collab.panel)`.
+Access: `All Features → Live collaboration`; `Open (command:collab.panel)`; `Leave session (command:collab.leave)`.
 
 <!-- feature:workbench.preview -->
 ### Live preview
@@ -896,7 +896,7 @@ Why use it: Saving, switching to a browser, and refreshing is three steps too ma
 
 How to use it: Open a HTML file and start the preview. It reloads itself when you save.
 
-Access: `All Features → Live preview`; `Open (command:preview.toggle)`.
+Access: `All Features → Live preview`; `Open (command:preview.toggle)`; `Reload (command:preview.reload)`; `Undock into a window (command:preview.undock)`; `Switch project or files (command:preview.switchMode)`; `Another screen size (command:preview.device)`.
 
 <!-- feature:workbench.run -->
 ### Run
@@ -1001,7 +1001,7 @@ Why use it: Leaving the editor to use a file manager for something this ordinary
 
 How to use it: Right-click any file for the full list. Drag to move, hold Ctrl while dragging to copy, and F2 to rename. Deleting sends to the recycle bin, not to nowhere.
 
-Access: `All Features → Selecting and moving files`; `Open Explorer (command:view.explorer)`; `Keyboard → F2`.
+Access: `All Features → Selecting and moving files`; `Open Explorer (command:view.explorer)`; `New file (command:file.new)`; `Open file (command:file.open)`; `Save (command:file.save)`; `Save as (command:file.saveAs)`; `Save all (command:file.saveAll)`; `Revert file (command:file.revert)`; `Close editor (command:editor.close)`; `Close all editors (command:editor.closeAll)`; `Insert file template (command:editor.insertTemplate)`; `Open folder (command:workspace.open)`; `Open recent (command:workspace.openRecent)`; `Open a recent folder (command:workspace.openRecentAt)`; `Clear recent folders (command:workspace.clearRecents)`; `Close folder (command:workspace.close)`; `Keyboard → F2`.
 
 ## Ads and earnings
 
@@ -1025,7 +1025,7 @@ Why use it: It is how ADCode is free. If you would rather not, turning this off 
 
 How to use it: On by default. This switch is the final say on this machine: with it off, nothing is shown and nothing is earned, whatever the server says. Cards never appear while you are typing, while a command is running, while you are debugging, or when the window is not in front.
 
-Access: `All Features → Sponsored messages`; `Settings → adcode.ads.enabled`.
+Access: `All Features → Sponsored messages`; `Turn on or off (setting:adcode.ads.enabled)`; `Settings → adcode.ads.enabled`.
 
 ## Updates
 
@@ -1036,9 +1036,9 @@ New versions download quietly in the background and are in place the next time y
 
 Why use it: So you are never out of date, and never stopped mid-thought by a box asking to restart.
 
-How to use it: On by default. ADCode will not restart itself and will not interrupt you to ask - you close the editor when you are ready, and the new version is what opens next time. Turn this off to update by hand instead.
+How to use it: On by default. ADCode will not restart itself and will not interrupt you to ask - you close the editor when you are ready, and the new version is what opens next time. Help → Check for Updates asks now and tells you where you stand, including when you are already on the latest version. Turn this off to update by hand instead.
 
-Access: `All Features → Install updates automatically`; `Settings → adcode.updates.auto`.
+Access: `All Features → Install updates automatically`; `Check now (command:updates.check)`; `Turn on or off (setting:adcode.updates.auto)`; `Settings → adcode.updates.auto`.
 
 <!-- feature:updates.whatsNew -->
 ### Tell me what changed
@@ -1049,4 +1049,4 @@ Why use it: A feature nobody is told about may as well not exist. This is the on
 
 How to use it: Four rules keep it quiet: you see a given version's note once on this machine and never again, it waits for a moment when you are not typing, not running a command, and not debugging, it only appears for releases worth reading - small fixes install silently - and it never appears on a brand new install. Dismiss it and it is gone for good. Turn this off and nothing ever pops up; Help > What's New still has every note. A security fix is the one thing that will not wait for a quiet moment, though even that respects the switch being off.
 
-Access: `All Features → Tell me what changed`; `Settings → adcode.updates.announce`.
+Access: `All Features → Tell me what changed`; `Read it (command:help.whatsNew)`; `Turn on or off (setting:adcode.updates.announce)`; `Settings → adcode.updates.announce`.

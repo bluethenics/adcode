@@ -14,7 +14,7 @@ export const UPDATES_ENTRIES: readonly HelpEntry[] = [
     plain:
       "New versions download quietly in the background and are in place the next time you open ADCode.",
     why: "So you are never out of date, and never stopped mid-thought by a box asking to restart.",
-    how: "On by default. ADCode will not restart itself and will not interrupt you to ask - you close the editor when you are ready, and the new version is what opens next time. Turn this off to update by hand instead.",
+    how: "On by default. ADCode will not restart itself and will not interrupt you to ask - you close the editor when you are ready, and the new version is what opens next time. Help → Check for Updates asks now and tells you where you stand, including when you are already on the latest version. Turn this off to update by hand instead.",
     group: "updates",
     settingIds: ["adcode.updates.auto"],
     related: ["updates.whatsNew"],

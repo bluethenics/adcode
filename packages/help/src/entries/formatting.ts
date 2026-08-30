@@ -43,7 +43,7 @@ export const FORMATTING_ENTRIES: readonly HelpEntry[] = [
     plain:
       "When you save, the list of other files your file uses gets sorted, and any it no longer uses are removed.",
     why: "Import lists grow messy on their own and nobody ever tidies them on purpose.",
-    how: "Off by default, because deleting a line you did not ask to delete deserves to be a choice. Turn it on and it happens on every save.",
+    how: "Off by default, because deleting a line you did not ask to delete deserves to be a choice. Edit → Organize Imports does it once, on demand, and tells you when the imports were already tidy. Turn the setting on and it happens on every save instead.",
     group: "formatting",
     settingIds: ["adcode.formatting.organizeImportsOnSave"],
     related: ["adcode.formatting.formatOnSave"],

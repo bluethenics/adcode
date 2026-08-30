@@ -18,6 +18,7 @@ export type {
   FeatureCommandAction,
   FeatureRecord,
   FeatureSettingAction,
+  FeatureToggleAction,
   HelpEntry,
   HelpGroupId,
 } from "./types.ts";

@@ -79,11 +79,70 @@ describe("feature catalogue", () => {
         .filter((action) => action.kind === "command")
         .map((action) => action.command),
     );
-    const child = Object.values(FEATURE_COMMANDS.children).flat();
-    const classified = [...direct, ...child, ...FEATURE_COMMANDS.plumbing];
+    const classified = [...direct, ...FEATURE_COMMANDS.plumbing];
 
     expect(new Set(classified).size).toBe(classified.length);
     expect(FEATURE_COMMANDS.children["workbench.preview"]).toContain("preview.reload");
     expect(FEATURE_COMMANDS.children["adcode.git.stageCommitUi"]).toContain("git.commit");
+  });
+
+  /*
+   * The regression this whole change exists for.
+   *
+   * `git.commit` and ten more were declared in `FEATURE_COMMANDS.children` and read by
+   * nothing but a coverage test, so "Stage, unstage, and commit" offered one route: open
+   * the settings row. Folding the children in is what turns a catalogue of switches back
+   * into a catalogue of things you can do.
+   */
+  it("offers a feature's own commands rather than only its settings row", () => {
+    const commit = featureFor("adcode.git.stageCommitUi");
+
+    expect(commit?.actions[0]).toEqual({
+      kind: "command",
+      command: "git.commit",
+      label: "Commit",
+    });
+    expect(
+      commit?.actions.filter((action) => action.kind === "command").map((one) => one.command),
+    ).toContain("git.push");
+  });
+
+  it("lets a switch be flipped where it is found, not only in Settings", () => {
+    const minimap = featureFor("adcode.editing.minimap");
+
+    expect(minimap?.actions[0]).toEqual({
+      kind: "toggle",
+      settingId: "adcode.editing.minimap",
+      label: "Turn on or off",
+    });
+  });
+
+  it("never leaves a settings deep-link as the only way into a feature that acts", () => {
+    const settingsOnly = featureRecords()
+      .filter((feature) => feature.actions.every((action) => action.kind === "setting"))
+      .map((feature) => feature.entry.id)
+      .sort();
+
+    // Enum settings are the honest exception: picking "compact" or "cosy" is a choice from
+    // a list, and a catalogue row cannot make it for you. Sorted, so reordering the
+    // catalogue does not fail a test about what is in it.
+    expect(settingsOnly).toEqual([
+      "adcode.ads.frequency",
+      "adcode.ai.customBaseUrl",
+      "adcode.ai.editPolicy",
+      "adcode.ai.model",
+      "adcode.ai.provider",
+      "adcode.ai.taskTokenBudget",
+      "adcode.appearance.density",
+      "adcode.appearance.theme",
+      "adcode.language.customServers",
+      "ai.workspaceStorage",
+    ]);
+  });
+
+  it("keeps a toggle behind a command, and the settings row behind both", () => {
+    const kinds = featureFor("adcode.git.mergeConflict")?.actions.map((action) => action.kind);
+
+    expect(kinds).toEqual(["command", "toggle", "setting"]);
   });
 });

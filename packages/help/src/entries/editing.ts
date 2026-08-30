@@ -65,7 +65,7 @@ export const EDITING_ENTRIES: readonly HelpEntry[] = [
     plain:
       "Notes you leave yourself in comments - TODO, FIXME, HACK - get a colour so they stand out.",
     why: "A note you cannot find is a note you did not leave. These are the comments you actually want to trip over later.",
-    how: "On by default, and only inside real comments - the word TODO in a piece of text or a string is left alone.",
+    how: "On by default, and only inside real comments - the word TODO in a piece of text or a string is left alone. Edit → List TODOs and FIXMEs collects them from every open file into the Problems panel, and says when there are none.",
     group: "editing",
     settingIds: ["adcode.editing.todoHighlighting"],
     related: ["adcode.editing.inlineErrorLens"],
@@ -76,7 +76,7 @@ export const EDITING_ENTRIES: readonly HelpEntry[] = [
     plain:
       "Misspelled words in comments get a wavy underline, and the fix is one click away on the lightbulb.",
     why: "A typo in a comment is the one kind nothing else catches - the compiler does not read comments, the linter does not read them, and reviewers skim them. So it sits there forever.",
-    how: "Off by default. It only flags words it can name a correction for, so a library, a product, or somebody's name is left alone instead of underlined - which is why it never becomes the noise you switch off. Code is never checked: an identifier is named, not spelled.",
+    how: "Off by default. Edit → Check Spelling in Comments runs it over every open file and reports into the Problems panel, including when it finds nothing. It only flags words it can name a correction for, so a library, a product, or somebody's name is left alone instead of underlined - which is why it never becomes the noise you switch off. Code is never checked: an identifier is named, not spelled.",
     group: "editing",
     settingIds: ["adcode.editing.spellCheck"],
     related: ["adcode.editing.todoHighlighting"],

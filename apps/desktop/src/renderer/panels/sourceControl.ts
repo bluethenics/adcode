@@ -9,6 +9,13 @@ import type { GitOutcome, GitStatusView } from "../../shared/api.ts";
 import type { GitResult } from "../dialogs/resultDialog.ts";
 import { createCommitBrowser, type CommitBrowserDeps } from "./commitBrowser.ts";
 import { ICON, createIcon } from "../workbench/icons.ts";
+import {
+  CHECKS,
+  conflictFindings,
+  outcomeFor,
+  type CheckFinding,
+  type CheckOutcome,
+} from "../checks/checkReport.ts";
 
 export interface SourceControlPanel {
   readonly element: HTMLElement;
@@ -39,6 +46,15 @@ export interface SourceControlPanel {
   switchBranch(): Promise<void>;
   createBranch(): Promise<void>;
   initRepository(): Promise<void>;
+  /**
+   * Answer "do I have merge conflicts?" out loud.
+   *
+   * The resolver has always worked; it drew Keep yours / Keep theirs over the markers in
+   * any conflicted file you happened to open. Nothing in the window could tell you whether
+   * such a file existed, so the feature was findable only by accident. Returns the outcome
+   * so the caller can put its sentence - including "none" - in the status line.
+   */
+  checkConflicts(): Promise<CheckOutcome>;
 }
 
 export interface SourceControlDeps {
@@ -207,6 +223,27 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
    * Hidden rather than disabled once one exists: a permanently greyed-out button is a question
    * the user keeps re-asking, and the answer here is simply that the job is done.
    */
+  /*
+   * Not an `actionButton`: those run a git command that either succeeds or fails, and
+   * report through the result dialog. This asks a question, and the answer - including
+   * "none" - belongs in the panel where the files would have been listed.
+   */
+  const conflictsButton = document.createElement("button");
+  conflictsButton.className = "ghost-button";
+  conflictsButton.textContent = "Check Conflicts";
+  conflictsButton.title = "List the files where both sides changed the same lines";
+  conflictsButton.addEventListener("click", () => {
+    conflictsButton.disabled = true;
+    conflictsButton.textContent = "Checking…";
+
+    void checkConflicts()
+      .then((outcome) => deps.notify(outcome.message))
+      .finally(() => {
+        conflictsButton.disabled = false;
+        conflictsButton.textContent = "Check Conflicts";
+      });
+  });
+
   const connectButton = document.createElement("button");
   connectButton.className = "ghost-button";
   connectButton.textContent = "Connect to GitHub";
@@ -240,6 +277,53 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
     }
   }
 
+  /**
+   * Draw the conflicted files, or say there are none.
+   *
+   * The empty state is the reason the button exists. A reader who presses "Check conflicts"
+   * and sees the section stay hidden has learned nothing about their repository and
+   * something unflattering about the editor.
+   */
+  function renderConflicts(findings: readonly CheckFinding[]): void {
+    conflictsList.replaceChildren();
+    conflicts.hidden = false;
+
+    if (findings.length === 0) {
+      const none = document.createElement("p");
+      none.className = "empty-hint";
+      none.textContent = "No merge conflicts.";
+      conflictsList.append(none);
+      return;
+    }
+
+    for (const finding of findings) {
+      const row = document.createElement("button");
+      row.className = "scm-row scm-conflict-row";
+      row.type = "button";
+      row.title = finding.message;
+
+      const status = document.createElement("span");
+      status.className = "scm-status";
+      status.textContent = "!";
+
+      const name = document.createElement("span");
+      name.className = "scm-path";
+      name.textContent = finding.path;
+
+      row.append(status, name);
+      row.addEventListener("click", () => deps.openFile(finding.path));
+      conflictsList.append(row);
+    }
+  }
+
+  /** Re-read status and report. Shared by the button and the Git menu. */
+  async function checkConflicts(): Promise<CheckOutcome> {
+    await api.refresh();
+    const findings = conflictFindings(lastStatus?.entries ?? []);
+    renderConflicts(findings);
+    return outcomeFor(CHECKS.conflicts, findings);
+  }
+
 
   actions.append(
     actionButton("Pull", "Fetch and fast-forward", "Pulling…", () => window.adcode.git.pull(), (before) => [
@@ -251,6 +335,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       ["Commits ahead", String(before?.ahead ?? 0)],
     ]),
     actionButton("Fetch", "Fetch all remotes", "Fetching…", () => window.adcode.git.fetch(), branchDetails),
+    conflictsButton,
     connectButton,
   );
 
@@ -340,6 +425,25 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   const empty = document.createElement("p");
   empty.className = "empty-hint";
 
+  /*
+   * §4: merge-conflict resolution, made askable.
+   *
+   * Above the change list rather than below it, because a conflicted tree is not a normal
+   * one: nothing else in the panel is worth reading until the conflict is dealt with. The
+   * section is hidden until a check has run, so a clean repository is not permanently
+   * carrying a heading about conflicts it does not have.
+   */
+  const conflicts = document.createElement("div");
+  conflicts.className = "scm-section scm-conflicts";
+  conflicts.hidden = true;
+
+  const conflictsTitle = document.createElement("div");
+  conflictsTitle.className = "scm-section-title";
+  conflictsTitle.textContent = "Merge conflicts";
+
+  const conflictsList = document.createElement("div");
+  conflicts.append(conflictsTitle, conflictsList);
+
   /* §4: file timeline. The history of whatever is open, not of the whole repository -
      "what happened to this file" is the question people actually ask. */
   const timeline = document.createElement("div");
@@ -359,7 +463,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
     notify: deps.notify,
   });
 
-  element.append(header, actions, commitBox, list, empty, timeline, history.element);
+  element.append(header, actions, commitBox, conflicts, list, empty, timeline, history.element);
 
   let activeFile: string | null = null;
   let timelineEnabled = true;
@@ -568,6 +672,8 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
     ]),
 
     fetch: () => runAction("Fetch", () => window.adcode.git.fetch(), branchDetails),
+
+    checkConflicts,
 
     /*
      * Acts on the status last rendered, so a refresh has to come first - from the menu

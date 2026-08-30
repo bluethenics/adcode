@@ -47,7 +47,51 @@ describe("feature library model", () => {
       command: "ai.schedule",
       label: "Schedule",
     });
-    expect(presentation.secondary.map((item) => item.action.kind)).toEqual(["setting"]);
+    expect(presentation.secondary.map((item) => item.action.kind)).toEqual([
+      "toggle",
+      "setting",
+    ]);
+    expect(presentation.disabledReason).toBeNull();
+  });
+
+  /*
+   * The complaint that started this: choosing "Merge conflict resolution" offered one
+   * route, and it was the switch. The command has to come first, or the catalogue is a
+   * settings screen with extra steps.
+   */
+  it("offers the command before the switch for a feature that acts", () => {
+    const conflicts = featureFor("adcode.git.mergeConflict")!;
+    const presentation = featureActionPresentation(conflicts, () => true);
+
+    expect(presentation.primary?.action).toEqual({
+      kind: "command",
+      command: "git.conflicts",
+      label: "Check for conflicts",
+    });
+  });
+
+  it("says which way a switch will go, when it knows where the switch is", () => {
+    const minimap = featureFor("adcode.editing.minimap")!;
+
+    expect(featureActionPresentation(minimap, () => true, () => true).primary?.label).toBe(
+      "Turn off",
+    );
+    expect(featureActionPresentation(minimap, () => true, () => false).primary?.label).toBe(
+      "Turn on",
+    );
+  });
+
+  it("keeps the catalogue's own wording when no value is to hand", () => {
+    const minimap = featureFor("adcode.editing.minimap")!;
+
+    expect(featureActionPresentation(minimap, () => true).primary?.label).toBe("Turn on or off");
+  });
+
+  it("falls back to the switch when the command is not available in this window", () => {
+    const conflicts = featureFor("adcode.git.mergeConflict")!;
+    const presentation = featureActionPresentation(conflicts, () => false);
+
+    expect(presentation.primary?.action.kind).toBe("toggle");
     expect(presentation.disabledReason).toBeNull();
   });
 

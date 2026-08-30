@@ -31,7 +31,7 @@ export const SESSION_ENTRIES: readonly HelpEntry[] = [
     plain:
       "ADCode quietly keeps its own copies of files as you edit them, separate from your project's history.",
     why: "For the moment you delete something you needed and had not saved into your project's history yet. It is the undo that survives closing the file.",
-    how: "On by default. Open the Timeline for a file to see the local copies alongside the committed ones, and open or restore any of them.",
+    how: "On by default. File → Local History lists every copy ADCode has kept of the file you are looking at, newest first, and tells you when there are none yet. Choose one and it opens read-only beside your working copy, so you can copy what you need back without overwriting anything.",
     group: "session",
     settingIds: ["adcode.session.localFileHistory"],
     related: ["adcode.git.fileTimeline", "adcode.session.crashRecovery"],
@@ -41,7 +41,7 @@ export const SESSION_ENTRIES: readonly HelpEntry[] = [
     title: "Crash recovery",
     plain: "If ADCode closes unexpectedly, your unsaved typing is still there when it opens again.",
     why: "Crashes and power cuts happen, and losing an hour to one is miserable.",
-    how: "On by default, and there is nothing to do. Reopen ADCode and it offers your unsaved work back.",
+    how: "On by default, and there is usually nothing to do: reopen ADCode and it offers your unsaved work back. File → Recover Unsaved Files asks again at any time, and answers \"nothing to recover\" when every file is already saved.",
     group: "session",
     settingIds: ["adcode.session.crashRecovery"],
     related: ["adcode.session.autoSave", "adcode.session.workspaceRestore"],

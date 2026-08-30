@@ -12,6 +12,7 @@ import {
   filterFeatureLibrary,
   moveFeatureSelection,
   type FeatureLibraryCategory,
+  type PresentedFeatureAction,
 } from "./featureLibraryModel.ts";
 
 export interface FeatureLibrary {
@@ -25,6 +26,8 @@ export interface FeatureLibraryDeps {
   readonly host: HTMLElement;
   readonly button: HTMLButtonElement;
   readonly hasCommand: (command: string) => boolean;
+  /** The live value of a boolean setting, so a toggle can say which way it will go. */
+  readonly settingValue: (settingId: string) => boolean | undefined;
   readonly runAction: (action: FeatureAction) => void;
 }
 
@@ -134,7 +137,7 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
   deps.host.append(sheet);
 
   function available(action: FeatureAction): boolean {
-    return action.kind === "setting" || deps.hasCommand(action.command);
+    return action.kind !== "command" || deps.hasCommand(action.command);
   }
 
   function run(action: FeatureAction): void {
@@ -146,17 +149,26 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
     deps.runAction(action);
   }
 
+  /*
+   * The button says what pressing it does.
+   *
+   * The primary button used to say "Open" for every feature in the catalogue, which was
+   * accurate for the eighteen that opened something and misleading for the rest: "Open"
+   * on Merge conflict resolution opened the Settings row. Now it carries the action's own
+   * words - "Check for conflicts", "Turn off", "Open Minimap setting" - so the row states
+   * its offer before you press it.
+   */
   function actionButton(
-    action: FeatureAction,
+    presented: PresentedFeatureAction,
     primary: boolean,
   ): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button";
     button.className = primary ? "feature-library-open" : "feature-library-secondary";
-    button.textContent = primary ? "Open" : action.label;
-    button.disabled = !available(action);
+    button.textContent = presented.label;
+    button.disabled = !presented.enabled;
     if (button.disabled) button.title = "This feature is not available in this window.";
-    button.addEventListener("click", () => run(action));
+    button.addEventListener("click", () => run(presented.action));
     return button;
   }
 
@@ -179,12 +191,16 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
 
     const actions = document.createElement("div");
     actions.className = "feature-library-actions";
-    const presentation = featureActionPresentation(feature, deps.hasCommand);
+    const presentation = featureActionPresentation(
+      feature,
+      deps.hasCommand,
+      deps.settingValue,
+    );
     if (presentation.primary !== null) {
-      actions.append(actionButton(presentation.primary.action, true));
+      actions.append(actionButton(presentation.primary, true));
     }
     for (const secondary of presentation.secondary.slice(0, 2)) {
-      actions.append(actionButton(secondary.action, false));
+      actions.append(actionButton(secondary, false));
     }
     actions.append(createHelpButton(feature.entry, helpPopover));
     row.append(copy, actions);
@@ -325,7 +341,7 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
       const feature = visible[selected];
       const primary = feature === undefined
         ? null
-        : featureActionPresentation(feature, deps.hasCommand).primary;
+        : featureActionPresentation(feature, deps.hasCommand, deps.settingValue).primary;
       if (primary?.enabled === true) {
         event.preventDefault();
         run(primary.action);

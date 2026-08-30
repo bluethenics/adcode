@@ -66,6 +66,14 @@ import { createRunButton } from "./run/runButton.ts";
 import { createDiagnosticsHost } from "./diagnostics/diagnosticsHost.ts";
 import { createLanguageBridge } from "./diagnostics/languageBridge.ts";
 import { badgeFor, countBySeverity, summarise } from "@adcode/diagnostics";
+import type { Diagnostic } from "@adcode/diagnostics";
+import { misspellingsIn } from "@adcode/spell";
+import { getSetting } from "@adcode/settings";
+import {
+  CHECKS,
+  messageFor,
+  type CheckSpec,
+} from "./checks/checkReport.ts";
 import { createChatWidget } from "./ai/chatWidget.ts";
 import { createConnectView } from "./ai/connectView.ts";
 import { ICON, createIcon, iconButton } from "./workbench/icons.ts";
@@ -91,7 +99,7 @@ import { formatAccelerator } from "../shared/menuModel.ts";
 import { commandWordOf } from "../shared/runtimes.ts";
 import { applyOverrides, matchesChord, parseChord, resolveBindings } from "../shared/keybindings.ts";
 import type { BindingOverrides } from "../shared/keybindings.ts";
-import { scaffoldFor } from "@adcode/structure";
+import { scaffoldFor, todoMarksIn } from "@adcode/structure";
 import { createAccountMenu } from "./workbench/accountMenu.ts";
 import { createOnboardingSheet } from "./onboarding/onboardingSheet.ts";
 import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "./workbench/contextMenu.ts";
@@ -104,6 +112,7 @@ import type {
   OpenedWorkspace,
   TerminalProfile,
   ThemeChoice,
+  UpdateStatus,
 } from "../shared/api.ts";
 
 declare global {
@@ -2041,9 +2050,11 @@ function scheduleAutoSave(path: string): void {
  * Nothing is written without asking. A draft that matches what is on disk is dropped
  * silently - it was saved before the exit, and prompting about it would be noise.
  */
-async function offerRecovery(): Promise<void> {
+async function offerRecovery(): Promise<number> {
   const drafts = await window.adcode.history.drafts();
-  if (drafts.length === 0) return;
+  if (drafts.length === 0) return 0;
+
+  let offered = 0;
 
   for (const draft of drafts) {
     let onDisk: string | null = null;
@@ -2057,6 +2068,8 @@ async function offerRecovery(): Promise<void> {
       window.adcode.history.clearDraft(draft.path);
       continue;
     }
+
+    offered += 1;
 
     notifications.show({
       title: "Unsaved work recovered",
@@ -2078,6 +2091,122 @@ async function offerRecovery(): Promise<void> {
       ],
     });
   }
+
+  return offered;
+}
+
+/* ── The checks (§4, made askable) ────────────────────────────────────── */
+
+/**
+ * Run a text check over every editor that is open, not the whole workspace.
+ *
+ * The passive versions of these - `todoHighlight`, `spellCheck` - decorate the buffer you
+ * are looking at, and matching that scope keeps the command honest about what it examined.
+ * A project-wide sweep needs a main-process walk with cancellation and progress, and
+ * pretending a five-file scan is one would be worse than not offering it.
+ */
+function scanOpenEditors(
+  collect: (path: string, languageId: string, text: string) => readonly Diagnostic[],
+): readonly Diagnostic[] {
+  const found: Diagnostic[] = [];
+
+  for (const tab of tabs) {
+    const text = editorHost.text(tab.path);
+    if (text === null) continue;
+
+    found.push(...collect(tab.path, languageForFilename(basename(tab.path)), text));
+  }
+
+  return found;
+}
+
+/**
+ * Publish a check's findings and say what they came to.
+ *
+ * `setExternal` rather than a panel of its own: findings belong beside the compiler's, they
+ * survive the next diagnostics pass because the host merges by source, and running a check
+ * that now finds nothing clears the rows the last one left behind.
+ */
+function reportCheck(source: string, spec: CheckSpec, found: readonly Diagnostic[]): void {
+  diagnosticsHost.setExternal(`check:${source}`, found);
+  if (found.length > 0) bottomPanel.show("problems");
+  setStatus(messageFor(spec, found.length), 5000);
+}
+
+/** The two style checks, which read the whole project and so have to be awaited. */
+async function runStyleCheck(
+  which: "unused" | "missing",
+  spec: CheckSpec,
+  wrongFile: string,
+): Promise<void> {
+  if (activePath === null) {
+    setStatus(wrongFile, 3000);
+    return;
+  }
+
+  const name = basename(activePath);
+  const languageId = languageForFilename(name);
+  const applies =
+    which === "unused"
+      ? languageId === "css" || languageId === "scss" || languageId === "less"
+      : /^(html|xml|handlebars|razor|vue|svelte|astro|javascript|typescript|javascriptreact|typescriptreact)$/.test(
+          languageId,
+        );
+
+  // Saying "nothing found" about a file the check cannot look at would be true and
+  // useless. Say which file it wants instead.
+  if (!applies) {
+    setStatus(wrongFile, 4000);
+    return;
+  }
+
+  setStatus(`Checking ${name}…`, 2000);
+  const found = await styleHints.check(which, activePath, languageId, editorHost.text(activePath) ?? "");
+  if (found.length > 0) bottomPanel.show("problems");
+  setStatus(messageFor(spec, found.length), 5000);
+}
+
+/** What "Check for Updates" says, given what the updater knows. */
+function updateMessage(status: UpdateStatus | null, version: string | null): string {
+  const current = version === null ? "the latest version" : `the latest version (${version})`;
+
+  if (status === null) return "Could not reach the update service. Try again shortly.";
+
+  switch (status.state) {
+    case "ready":
+      return `Version ${status.version} is downloaded. Restart ADCode to apply it.`;
+    case "downloading":
+      return status.percent === undefined
+        ? "Downloading an update…"
+        : `Downloading an update - ${Math.round(status.percent)}%.`;
+    case "checking":
+      return "Checking for updates…";
+    case "failed":
+      return "The update check failed. Your copy of ADCode is unaffected.";
+    case "unsupported":
+      return "This build updates through however you installed it, not from inside ADCode.";
+    default:
+      return `You are on ${current}.`;
+  }
+}
+
+/** One line of a buffer, trimmed, for a Problems row that has to fit on one. */
+function lineAt(text: string, line: number): string {
+  const found = (text.split(/\r?\n/)[line - 1] ?? "").trim();
+  return found.length > 120 ? `${found.slice(0, 117)}…` : found;
+}
+
+/** A saved-at stamp, as a person reads it. */
+function localVersionLabel(savedAt: string): string {
+  const when = new Date(savedAt);
+  if (Number.isNaN(when.getTime())) return savedAt;
+
+  return when.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 /* ── Session (§4) ─────────────────────────────────────────────────────── */
@@ -2270,13 +2399,33 @@ function runFeatureAction(action: FeatureAction): void {
     commands.run(action.command);
     return;
   }
+
+  /*
+   * A switch flips where it was found.
+   *
+   * Sending somebody to the Settings screen to tick a box they were already looking at is
+   * the behaviour that made the catalogue feel like a table of contents for a settings
+   * screen. The confirmation matters as much as the flip: it is how a reader knows which
+   * way it went without hunting for the row.
+   */
+  if (action.kind === "toggle") {
+    const setting = getSetting(action.settingId);
+    const next = settingsValues[action.settingId] !== true;
+
+    void window.adcode.settings.write(action.settingId, next).then((values) => {
+      applySettings(values);
+      setStatus(`${setting?.label ?? action.settingId} turned ${next ? "on" : "off"}.`, 3000);
+    });
+    return;
+  }
+
   settingsView.openAt(action.settingId);
 }
 
 function openFeature(entryId: string): void {
   const feature = featureFor(entryId);
   const action = feature?.actions.find(
-    (candidate) => candidate.kind === "setting" || commands.has(candidate.command),
+    (candidate) => candidate.kind !== "command" || commands.has(candidate.command),
   );
   if (action === undefined) {
     setStatus("This feature is not available in this window.", 3000);
@@ -3740,6 +3889,183 @@ function registerCommands(): void {
   add("git.createBranch", "Git: Create Branch", withScm(() => sourceControl.createBranch()));
   add("git.init", "Git: Initialise Repository", withScm(() => sourceControl.initRepository()));
 
+  /*
+   * The checks: eleven features that worked and could not be asked.
+   *
+   * Each says what it found, and each says so when it found nothing. That second sentence
+   * is the whole point - a merge-conflict resolver nobody can interrogate is indist-
+   * inguishable from one that is broken, and until now the only evidence ADCode could
+   * resolve a conflict was a switch in Settings claiming it could.
+   */
+  add("git.conflicts", "Git: Check Merge Conflicts", withScm(async () => {
+    const outcome = await sourceControl.checkConflicts();
+    setStatus(outcome.message, 5000);
+  }));
+
+  add("git.blame", "Git: Blame This Line", async () => {
+    if (activePath === null) {
+      setStatus("Open a file to see who last changed a line.", 3000);
+      return;
+    }
+
+    const relative = relativePath(activePath);
+    if (relative === null) {
+      setStatus("Blame only works on files inside the open folder.", 3000);
+      return;
+    }
+
+    const line = editorHost.cursorLine();
+    const blame = await window.adcode.git.blame(relative).catch(() => []);
+    const found = blame.find((entry) => entry.line === line);
+
+    // Uncommitted lines have no author yet, which is a real answer rather than a failure.
+    setStatus(
+      found === undefined
+        ? "This line is not committed yet - nothing to blame."
+        : `${found.author} · ${found.hash.slice(0, 7)} · ${found.summary}`,
+      6000,
+    );
+  });
+
+  add("git.timeline", "Git: File Timeline", withScm(async () => {
+    if (activePath === null) {
+      setStatus("Open a file to see its timeline.", 3000);
+      return;
+    }
+
+    const relative = relativePath(activePath);
+    if (relative === null) {
+      setStatus("The timeline only covers files inside the open folder.", 3000);
+      return;
+    }
+
+    const commits = await window.adcode.git.fileHistory(relative).catch(() => []);
+    // The panel's own timeline section is already showing these; the status line is what
+    // answers a menu item that would otherwise appear to do nothing on a fresh file.
+    sourceControl.setActiveFile(relative);
+    setStatus(messageFor(CHECKS.timeline, commits.length), 5000);
+  }));
+
+  /*
+   * Local file history, given a door.
+   *
+   * `openLocalVersion` and the `history.versions` channel behind it have both existed and
+   * worked since §4 was built. Nothing in the renderer called either, so every version
+   * ADCode kept of every file was unreachable.
+   */
+  add("file.localHistory", "Local History for This File", async () => {
+    if (activePath === null) {
+      setStatus("Open a file to see its local history.", 3000);
+      return;
+    }
+
+    const versions = await window.adcode.history.versions(activePath).catch(() => []);
+    const message = messageFor(CHECKS.localHistory, versions.length);
+
+    if (versions.length === 0) {
+      setStatus(message, 4000);
+      return;
+    }
+
+    const labels = versions.map(
+      (version) => `${localVersionLabel(version.savedAt)} · ${version.bytes} bytes`,
+    );
+
+    const picked = await promptDialog.ask({
+      title: "Local History",
+      body: `${message} Pick one to open it read-only beside your working copy.`,
+      value: labels[0] ?? "",
+      suggestions: labels,
+      confirmLabel: "Open",
+    });
+    if (picked === null) return;
+
+    const at = labels.indexOf(picked);
+    const version = versions[at === -1 ? 0 : at];
+    if (version !== undefined) await openLocalVersion(activePath, version.id, version.savedAt);
+  });
+
+  /*
+   * Crash recovery, on demand.
+   *
+   * `offerRecovery` has always run once at startup and returned in silence when there was
+   * nothing to offer - correct for a launch, useless as an answer. It now reports how many
+   * drafts it raised, so choosing this from a menu says either what was recovered or that
+   * nothing needed to be.
+   */
+  add("session.recover", "Recover Unsaved Files", async () => {
+    setStatus(messageFor(CHECKS.recover, await offerRecovery()), 5000);
+  });
+
+  add("updates.check", "Check for Updates", async () => {
+    const status = await window.adcode.updates.status().catch(() => null);
+    const info = await window.adcode.app.info().catch(() => null);
+    setStatus(updateMessage(status, info?.version ?? null), 6000);
+  });
+
+  add("edit.organizeImports", "Organize Imports", () => {
+    if (activePath === null) {
+      setStatus("Open a file to organize its imports.", 3000);
+      return;
+    }
+
+    setStatus(
+      editorHost.organizeImports(activePath)
+        ? "Imports organized."
+        : "Imports are already tidy.",
+      3000,
+    );
+  });
+
+  add("edit.todos", "List TODOs and FIXMEs", () => {
+    const found = scanOpenEditors((path, languageId, text) =>
+      todoMarksIn(text, languageId).map((mark) => ({
+        file: relativePath(path) ?? path,
+        line: mark.line,
+        column: mark.startColumn,
+        endLine: mark.line,
+        endColumn: mark.endColumn,
+        severity: "info" as const,
+        source: "todo",
+        code: mark.keyword.toLowerCase(),
+        // The line itself, not the keyword: "TODO" alone in a list of forty is not a note.
+        message: `${mark.keyword} · ${lineAt(text, mark.line)}`,
+      })),
+    );
+
+    reportCheck("todo", CHECKS.todos, found);
+  });
+
+  add("edit.spelling", "Check Spelling in Comments", () => {
+    const found = scanOpenEditors((path, languageId, text) =>
+      misspellingsIn(text, languageId).map((word) => ({
+        file: relativePath(path) ?? path,
+        line: word.line,
+        column: word.startColumn,
+        endLine: word.line,
+        endColumn: word.endColumn,
+        severity: "info" as const,
+        source: "spell",
+        code: "misspelling",
+        message: `"${word.word}" looks like a misspelling of "${word.suggestion}".`,
+      })),
+    );
+
+    reportCheck("spell", CHECKS.spelling, found);
+  });
+
+  add("structure.unusedCss", "Find Unused CSS Rules", async () => {
+    await runStyleCheck("unused", CHECKS.unusedCss, "Open a stylesheet to check its rules.");
+  });
+
+  add("structure.missingClasses", "Find Classes Nothing Defines", async () => {
+    await runStyleCheck(
+      "missing",
+      CHECKS.missingClasses,
+      "Open a markup or component file to check its classes.",
+    );
+  });
+
   /* Terminal */
   add("terminal.toggle", "Toggle Terminal", () => toggleTerminal());
   add("terminal.new", "New Terminal", () => terminalPanel().create());
@@ -3826,6 +4152,10 @@ const featureLibrary = createFeatureLibrary({
   host: document.body,
   button: el<HTMLButtonElement>("open-features"),
   hasCommand: (command) => commands.has(command),
+  settingValue: (settingId) => {
+    const value = settingsValues[settingId];
+    return typeof value === "boolean" ? value : undefined;
+  },
   runAction: (action) => runFeatureAction(action),
 });
 openFeatureLibrary = () => featureLibrary.toggle();

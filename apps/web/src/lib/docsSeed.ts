@@ -53,7 +53,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "It is what makes suggestions fast. It is also the thing that annoys people who wanted a new line, which is why it is its own switch rather than part of suggestions.",
     how: "On by default. Turn it off and Enter always starts a new line; Tab still takes the suggestion.",
     keywords: ["Accept suggestion with Enter", "Editing"],
-    access: ["All Features → Accept suggestion with Enter", "Settings → adcode.editing.acceptOnEnter"],
+    access: ["All Features → Accept suggestion with Enter", "Turn on or off (setting:adcode.editing.acceptOnEnter)", "Settings → adcode.editing.acceptOnEnter"],
     related: ["editing-suggestions"],
   },
   {
@@ -64,7 +64,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Renaming one and not the other breaks the page, and you usually find out somewhere else entirely.",
     how: "On by default. Edit the name inside an opening tag; the closing tag follows as you type, and one press of Ctrl+Z undoes both together.",
     keywords: ["Auto-rename paired tag", "Editing"],
-    access: ["All Features → Auto-rename paired tag", "Settings → adcode.editing.autoRenamePairedTag"],
+    access: ["All Features → Auto-rename paired tag", "Turn on or off (setting:adcode.editing.autoRenamePairedTag)", "Settings → adcode.editing.autoRenamePairedTag"],
     related: ["editing-auto-close-tags"],
   },
   {
@@ -75,7 +75,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "When code is nested several layers deep, finding the bracket that closes the one you are looking at means counting. Colour turns counting into looking.",
     how: "Nothing to do - it is on. Turn it off if you find the colours noisy.",
     keywords: ["Bracket pair colorization", "Editing"],
-    access: ["All Features → Bracket pair colorization", "Settings → adcode.editing.bracketPairColorization"],
+    access: ["All Features → Bracket pair colorization", "Turn on or off (setting:adcode.editing.bracketPairColorization)", "Settings → adcode.editing.bracketPairColorization"],
     related: ["editing-indent-guides", "editing-code-folding"],
   },
   {
@@ -84,9 +84,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Editing",
     description: "Misspelled words in comments get a wavy underline, and the fix is one click away on the lightbulb.",
     why: "A typo in a comment is the one kind nothing else catches - the compiler does not read comments, the linter does not read them, and reviewers skim them. So it sits there forever.",
-    how: "Off by default. It only flags words it can name a correction for, so a library, a product, or somebody's name is left alone instead of underlined - which is why it never becomes the noise you switch off. Code is never checked: an identifier is named, not spelled.",
-    keywords: ["Check spelling in comments", "Editing"],
-    access: ["All Features → Check spelling in comments", "Settings → adcode.editing.spellCheck"],
+    how: "Off by default. Edit → Check Spelling in Comments runs it over every open file and reports into the Problems panel, including when it finds nothing. It only flags words it can name a correction for, so a library, a product, or somebody's name is left alone instead of underlined - which is why it never becomes the noise you switch off. Code is never checked: an identifier is named, not spelled.",
+    keywords: ["Check spelling in comments", "Editing", "spelling", "typo", "misspelled", "dictionary"],
+    access: ["All Features → Check spelling in comments", "Check now (command:edit.spelling)", "Turn on or off (setting:adcode.editing.spellCheck)", "Settings → adcode.editing.spellCheck"],
     related: ["editing-todo-highlighting"],
   },
   {
@@ -97,7 +97,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Forgetting to close a tag is the most common way HTML breaks, and the error it produces rarely points at the tag you forgot.",
     how: "On by default in HTML, XML, JSX, and templates. Type >, and the closing tag is written for you with the cursor left between them.",
     keywords: ["Close tags automatically", "Editing"],
-    access: ["All Features → Close tags automatically", "Settings → adcode.editing.autoCloseTags"],
+    access: ["All Features → Close tags automatically", "Turn on or off (setting:adcode.editing.autoCloseTags)", "Settings → adcode.editing.autoCloseTags"],
     related: ["editing-auto-rename-paired-tag"],
   },
   {
@@ -108,7 +108,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "A file is easier to read when the parts you are not working on are out of the way.",
     how: "On by default. Click the small arrow in the margin beside a line, or press Ctrl+Shift+[ to fold and Ctrl+Shift+] to unfold.",
     keywords: ["Code folding", "Editing"],
-    access: ["All Features → Code folding", "Settings → adcode.editing.codeFolding"],
+    access: ["All Features → Code folding", "Turn on or off (setting:adcode.editing.codeFolding)", "Settings → adcode.editing.codeFolding"],
     related: ["navigation-outline", "editing-sticky-scroll"],
   },
   {
@@ -119,7 +119,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "A warning, an open question, and a line of dead code are three different kinds of writing that all render the same grey. One character tells them apart.",
     how: "Off by default. Line comments only - a /** block */ begins with * by convention, and colouring those would mark every documented function in a project.",
     keywords: ["Colour comments by intent", "Editing"],
-    access: ["All Features → Colour comments by intent", "Settings → adcode.editing.commentTones"],
+    access: ["All Features → Colour comments by intent", "Turn on or off (setting:adcode.editing.commentTones)", "Settings → adcode.editing.commentTones"],
     related: ["editing-todo-highlighting"],
   },
   {
@@ -130,7 +130,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Useful for lining up columns of data or stripping the same prefix off twenty lines.",
     how: "Off by default, because it is a mode: while it is on, every mouse drag makes a box instead of selecting text, and that is not something to switch on by accident. Turn it on when you need it and off again after.",
     keywords: ["Column selection mode", "Editing"],
-    access: ["All Features → Column selection mode", "Settings → adcode.editing.columnSelection"],
+    access: ["All Features → Column selection mode", "Turn on or off (setting:adcode.editing.columnSelection)", "Settings → adcode.editing.columnSelection"],
     related: ["editing-multi-cursor"],
   },
   {
@@ -141,7 +141,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Compiler messages are written for people who already know the compiler. Most of the time the real meaning is simple and the wording is not.",
     how: "On by default. The rewritten sentence is shown first and the compiler's original wording is always kept underneath, because sometimes the exact words are what you need to search for.",
     keywords: ["Explain errors in plain English", "Editing"],
-    access: ["All Features → Explain errors in plain English", "Settings → adcode.editing.plainEnglishErrors"],
+    access: ["All Features → Explain errors in plain English", "Turn on or off (setting:adcode.editing.plainEnglishErrors)", "Settings → adcode.editing.plainEnglishErrors"],
     related: ["editing-inline-error-lens", "formatting-lint-diagnostics"],
   },
   {
@@ -152,7 +152,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "In languages where indentation decides what belongs to what - Python especially - the lines are the difference between reading the structure and guessing it.",
     how: "On by default. The guide for the block your cursor is in is brighter than the rest.",
     keywords: ["Indent guides", "Editing"],
-    access: ["All Features → Indent guides", "Settings → adcode.editing.indentGuides"],
+    access: ["All Features → Indent guides", "Turn on or off (setting:adcode.editing.indentGuides)", "Settings → adcode.editing.indentGuides"],
     related: ["editing-bracket-pair-colorization"],
   },
   {
@@ -163,7 +163,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Otherwise the message lives in a panel at the bottom, or inside a tooltip you have to hover to see. Both mean looking away from the line you are fixing.",
     how: "On by default. The message is dimmed and shortened so it never covers your code, and it hides itself on the line your cursor is on while you type.",
     keywords: ["Inline error and warning lens", "Editing"],
-    access: ["All Features → Inline error and warning lens", "Settings → adcode.editing.inlineErrorLens"],
+    access: ["All Features → Inline error and warning lens", "Turn on or off (setting:adcode.editing.inlineErrorLens)", "Settings → adcode.editing.inlineErrorLens"],
     related: ["editing-plain-english-errors", "formatting-lint-diagnostics"],
   },
   {
@@ -174,7 +174,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Reading somebody else's code, the useful question is often not what a line does but why it was written. The commit that added it usually says.",
     how: "Off by default, because it puts text beside your cursor all day. Turn it on and click a line; the note appears at the end of it.",
     keywords: ["Inline git blame", "Editing"],
-    access: ["All Features → Inline git blame", "Settings → adcode.editing.inlineGitBlame"],
+    access: ["All Features → Inline git blame", "Turn on or off (setting:adcode.editing.inlineGitBlame)", "Settings → adcode.editing.inlineGitBlame"],
     related: ["git-blame", "git-file-timeline"],
   },
   {
@@ -185,7 +185,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "You often remember roughly where something was - near the top, in that dense block - without remembering its name. The shape of the file is a real way to navigate.",
     how: "On by default. Drag the highlighted box to scroll, or click anywhere on it to jump there.",
     keywords: ["Minimap", "Editing"],
-    access: ["All Features → Minimap", "Settings → adcode.editing.minimap"],
+    access: ["All Features → Minimap", "Turn on or off (setting:adcode.editing.minimap)", "Settings → adcode.editing.minimap"],
     related: ["navigation-outline"],
   },
   {
@@ -197,7 +197,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     how: "Ctrl+click to add a cursor anywhere. Ctrl+D adds one at the next copy of the word you have selected. Ctrl+Alt+Up or Down adds one on the line above or below. Escape drops back to one.",
     shortcut: "CmdOrCtrl+D",
     keywords: ["Multi-cursor", "Editing"],
-    access: ["All Features → Multi-cursor", "Settings → adcode.editing.multiCursor", "Keyboard → CmdOrCtrl+D"],
+    access: ["All Features → Multi-cursor", "Add next occurrence (command:selection.addNextOccurrence)", "Select all occurrences (command:selection.selectAllOccurrences)", "Select all (command:selection.all)", "Expand selection (command:selection.expand)", "Shrink selection (command:selection.shrink)", "Copy line up (command:selection.copyLineUp)", "Copy line down (command:selection.copyLineDown)", "Move line up (command:selection.moveLineUp)", "Move line down (command:selection.moveLineDown)", "Duplicate selection (command:selection.duplicate)", "Add cursor above (command:selection.cursorAbove)", "Add cursor below (command:selection.cursorBelow)", "Turn on or off (setting:adcode.editing.multiCursor)", "Settings → adcode.editing.multiCursor", "Keyboard → CmdOrCtrl+D"],
     related: ["editing-column-selection", "navigation-global-search"],
   },
   {
@@ -208,7 +208,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "A mistyped path is a broken import, and the error it causes names the wrong thing surprisingly often. Being offered only files that exist makes the mistake impossible.",
     how: "On by default. Start typing a path inside quotes or an import and the list appears. Type / to go into a folder.",
     keywords: ["Path autocomplete", "Editing"],
-    access: ["All Features → Path autocomplete", "Settings → adcode.editing.pathAutocomplete"],
+    access: ["All Features → Path autocomplete", "Turn on or off (setting:adcode.editing.pathAutocomplete)", "Settings → adcode.editing.pathAutocomplete"],
     related: ["editing-suggestions", "navigation-fuzzy-file-open"],
   },
   {
@@ -219,7 +219,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "They are invisible by definition, they show up as changes in every review, and some languages care about them.",
     how: "Off by default, since dots at the end of lines are a distraction if you are not hunting them. Turn it on and they appear as faint marks.",
     keywords: ["Render trailing whitespace", "Editing"],
-    access: ["All Features → Render trailing whitespace", "Settings → adcode.editing.trailingWhitespace"],
+    access: ["All Features → Render trailing whitespace", "Turn on or off (setting:adcode.editing.trailingWhitespace)", "Settings → adcode.editing.trailingWhitespace"],
     related: ["formatting-format-on-save"],
   },
   {
@@ -230,7 +230,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Nobody remembers the exact opening lines of every language, and looking them up is the least interesting part of starting something.",
     how: "On by default. Make a new file with a known extension and the boilerplate is there. Press Ctrl+Z once if you would rather start empty.",
     keywords: ["Start new files from a template", "Editing"],
-    access: ["All Features → Start new files from a template", "Settings → adcode.editing.fileTemplates"],
+    access: ["All Features → Start new files from a template", "Turn on or off (setting:adcode.editing.fileTemplates)", "Settings → adcode.editing.fileTemplates"],
     related: ["navigation-fuzzy-file-open"],
   },
   {
@@ -241,7 +241,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Two hundred lines into a file, the thing you most want to know is which function you are inside. Scrolling back up to check is how you lose your place.",
     how: "On by default. Click a stuck line at the top to jump back to it.",
     keywords: ["Sticky scroll", "Editing"],
-    access: ["All Features → Sticky scroll", "Settings → adcode.editing.stickyScroll"],
+    access: ["All Features → Sticky scroll", "Turn on or off (setting:adcode.editing.stickyScroll)", "Settings → adcode.editing.stickyScroll"],
     related: ["navigation-breadcrumbs", "navigation-outline"],
   },
   {
@@ -252,7 +252,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "This is the fallback for languages with no language server. A dumb suggestion of a word you definitely typed is still better than typing it again.",
     how: "On by default. It only ever offers words from the file you are in.",
     keywords: ["Suggest words already in the file", "Editing"],
-    access: ["All Features → Suggest words already in the file", "Settings → adcode.editing.wordSuggestions"],
+    access: ["All Features → Suggest words already in the file", "Turn on or off (setting:adcode.editing.wordSuggestions)", "Settings → adcode.editing.wordSuggestions"],
     related: ["editing-suggestions", "language-lsp-client"],
   },
   {
@@ -263,7 +263,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "It saves typing, and more importantly it saves remembering exact names.",
     how: "On by default. Keep typing to narrow the list, press Tab or Enter to take the highlighted one, Escape to dismiss it.",
     keywords: ["Suggestions as you type", "Editing"],
-    access: ["All Features → Suggestions as you type", "Settings → adcode.editing.suggestions"],
+    access: ["All Features → Suggestions as you type", "Undo (command:edit.undo)", "Redo (command:edit.redo)", "Find (command:edit.find)", "Replace (command:edit.replace)", "Toggle line comment (command:edit.toggleLineComment)", "Toggle block comment (command:edit.toggleBlockComment)", "Cut (command:edit.cut)", "Copy (command:edit.copy)", "Paste (command:edit.paste)", "Toggle word wrap (command:view.toggleWordWrap)", "Turn on or off (setting:adcode.editing.suggestions)", "Settings → adcode.editing.suggestions"],
     related: ["editing-word-suggestions", "ai-inline-completion"],
   },
   {
@@ -272,9 +272,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Editing",
     description: "Notes you leave yourself in comments - TODO, FIXME, HACK - get a colour so they stand out.",
     why: "A note you cannot find is a note you did not leave. These are the comments you actually want to trip over later.",
-    how: "On by default, and only inside real comments - the word TODO in a piece of text or a string is left alone.",
-    keywords: ["TODO and FIXME highlighting", "Editing"],
-    access: ["All Features → TODO and FIXME highlighting", "Settings → adcode.editing.todoHighlighting"],
+    how: "On by default, and only inside real comments - the word TODO in a piece of text or a string is left alone. Edit → List TODOs and FIXMEs collects them from every open file into the Problems panel, and says when there are none.",
+    keywords: ["TODO and FIXME highlighting", "Editing", "todo", "fixme", "hack", "xxx", "note", "left to do", "unfinished"],
+    access: ["All Features → TODO and FIXME highlighting", "List them (command:edit.todos)", "Turn on or off (setting:adcode.editing.todoHighlighting)", "Settings → adcode.editing.todoHighlighting"],
     related: ["editing-inline-error-lens"],
   },
   {
@@ -285,7 +285,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "It answers 'where am I' at a glance, and every part of the trail is a button.",
     how: "On by default. Click a workspace or folder to browse inside it and across sibling folders. Click the file for sibling and recent files, Quick Open, copy, reveal, rename, and comparison/history actions. Click a symbol to search the file outline. With a crumb focused, use Left and Right to move through levels, Down or Enter to open one, then type to filter and press Enter to switch.",
     keywords: ["Breadcrumbs", "Finding your way"],
-    access: ["All Features → Breadcrumbs", "Settings → adcode.navigation.breadcrumbs"],
+    access: ["All Features → Breadcrumbs", "Turn on or off (setting:adcode.navigation.breadcrumbs)", "Settings → adcode.navigation.breadcrumbs"],
     related: ["editing-sticky-scroll", "navigation-outline"],
   },
   {
@@ -297,7 +297,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     how: "Press Ctrl+P and start typing. 'ushnd' will find 'useHandler.ts'. Enter opens the highlighted one.",
     shortcut: "CmdOrCtrl+P",
     keywords: ["Fuzzy file open", "Finding your way"],
-    access: ["All Features → Fuzzy file open", "Settings → adcode.navigation.fuzzyFileOpen", "Keyboard → CmdOrCtrl+P"],
+    access: ["All Features → Fuzzy file open", "Go to a file (command:go.file)", "Turn on or off (setting:adcode.navigation.fuzzyFileOpen)", "Settings → adcode.navigation.fuzzyFileOpen", "Keyboard → CmdOrCtrl+P"],
     related: ["navigation-symbol-search", "navigation-global-search"],
   },
   {
@@ -309,7 +309,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     how: "Press Ctrl+Shift+F. You can search for a pattern rather than exact text, restrict it to certain files, and see every change before you make it.",
     shortcut: "CmdOrCtrl+Shift+F",
     keywords: ["Global search and replace", "Finding your way"],
-    access: ["All Features → Global search and replace", "Settings → adcode.navigation.globalSearch", "Keyboard → CmdOrCtrl+Shift+F"],
+    access: ["All Features → Global search and replace", "Search the project (command:view.search)", "Turn on or off (setting:adcode.navigation.globalSearch)", "Settings → adcode.navigation.globalSearch", "Keyboard → CmdOrCtrl+Shift+F"],
     related: ["navigation-fuzzy-file-open", "editing-multi-cursor"],
   },
   {
@@ -320,7 +320,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "It is the difference between reading code and searching it. Following a function to its body is the single most common thing anybody does in an unfamiliar project.",
     how: "Click a name for the preview, click the preview's title or Ctrl+click the name to go there properly, and Escape to close. ADCode tells you how it found the answer: 'resolved' means a language server worked it out for certain, and 'matched by name' means ADCode found things with the same name - which is usually right and is not a promise.",
     keywords: ["Go to definition and references", "Finding your way"],
-    access: ["All Features → Go to definition and references", "Settings → adcode.navigation.goToDefinition"],
+    access: ["All Features → Go to definition and references", "Go to definition (command:go.definition)", "Peek definition (command:go.peek)", "Turn on or off (setting:adcode.navigation.goToDefinition)", "Settings → adcode.navigation.goToDefinition"],
     related: ["language-lsp-client", "navigation-symbol-search", "structure-popup"],
   },
   {
@@ -331,7 +331,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "It is the table of contents for a file, and the fastest way to jump around inside a long one.",
     how: "On by default. Open the Structure popup to see it drawn as a tree, with lines connecting each thing to what it belongs to. Click any entry to jump to it.",
     keywords: ["Outline", "Finding your way"],
-    access: ["All Features → Outline", "Settings → adcode.navigation.outline"],
+    access: ["All Features → Outline", "Go to a line (command:go.line)", "Next editor (command:go.nextEditor)", "Previous editor (command:go.previousEditor)", "Next change (command:go.nextChange)", "Previous change (command:go.previousChange)", "Turn on or off (setting:adcode.navigation.outline)", "Settings → adcode.navigation.outline"],
     related: ["structure-popup", "editing-code-folding", "navigation-breadcrumbs"],
   },
   {
@@ -343,7 +343,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     how: "Press Ctrl+T and type the name. The list shows what kind of thing each result is and which file it is in.",
     shortcut: "CmdOrCtrl+T",
     keywords: ["Symbol search", "Finding your way"],
-    access: ["All Features → Symbol search", "Settings → adcode.navigation.symbolSearch", "Keyboard → CmdOrCtrl+T"],
+    access: ["All Features → Symbol search", "Go to a symbol (command:go.symbol)", "Turn on or off (setting:adcode.navigation.symbolSearch)", "Settings → adcode.navigation.symbolSearch", "Keyboard → CmdOrCtrl+T"],
     related: ["navigation-go-to-definition", "navigation-outline"],
   },
   {
@@ -355,7 +355,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     how: "On by default, and there is nothing to install. Press Shift+Alt+F to tidy the open file. If a language server is running for that language, ADCode asks it first, because it knows the language better than we do; otherwise ADCode's own formatter does it.",
     shortcut: "Shift+Alt+F",
     keywords: ["Built-in formatter", "Formatting"],
-    access: ["All Features → Built-in formatter", "Settings → adcode.formatting.formatter", "Keyboard → Shift+Alt+F"],
+    access: ["All Features → Built-in formatter", "Format this file (command:edit.format)", "Turn on or off (setting:adcode.formatting.formatter)", "Settings → adcode.formatting.formatter", "Keyboard → Shift+Alt+F"],
     related: ["formatting-format-on-save", "language-lsp-client"],
   },
   {
@@ -367,7 +367,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     how: "On by default. Save as usual with Ctrl+S. If the formatter cannot handle that language, the file is saved exactly as you wrote it rather than mangled.",
     shortcut: "CmdOrCtrl+S",
     keywords: ["Format on save", "Formatting"],
-    access: ["All Features → Format on save", "Settings → adcode.formatting.formatOnSave", "Keyboard → CmdOrCtrl+S"],
+    access: ["All Features → Format on save", "Turn on or off (setting:adcode.formatting.formatOnSave)", "Settings → adcode.formatting.formatOnSave", "Keyboard → CmdOrCtrl+S"],
     related: ["formatting-formatter", "session-auto-save"],
   },
   {
@@ -378,7 +378,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Finding a mistake as you make it costs a second. Finding it when the program runs costs a lot more.",
     how: "On by default. Red means it is broken, yellow means it is suspicious. All of them are collected in the Problems panel, and hovering one shows the detail.",
     keywords: ["Lint diagnostics", "Formatting"],
-    access: ["All Features → Lint diagnostics", "Settings → adcode.formatting.lintDiagnostics"],
+    access: ["All Features → Lint diagnostics", "Turn on or off (setting:adcode.formatting.lintDiagnostics)", "Settings → adcode.formatting.lintDiagnostics"],
     related: ["editing-inline-error-lens", "editing-plain-english-errors"],
   },
   {
@@ -387,9 +387,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Formatting",
     description: "When you save, the list of other files your file uses gets sorted, and any it no longer uses are removed.",
     why: "Import lists grow messy on their own and nobody ever tidies them on purpose.",
-    how: "Off by default, because deleting a line you did not ask to delete deserves to be a choice. Turn it on and it happens on every save.",
-    keywords: ["Organize imports on save", "Formatting"],
-    access: ["All Features → Organize imports on save", "Settings → adcode.formatting.organizeImportsOnSave"],
+    how: "Off by default, because deleting a line you did not ask to delete deserves to be a choice. Edit → Organize Imports does it once, on demand, and tells you when the imports were already tidy. Turn the setting on and it happens on every save instead.",
+    keywords: ["Organize imports on save", "Formatting", "sort imports", "unused import", "tidy imports"],
+    access: ["All Features → Organize imports on save", "Organize now (command:edit.organizeImports)", "Turn on or off (setting:adcode.formatting.organizeImportsOnSave)", "Settings → adcode.formatting.organizeImportsOnSave"],
     related: ["formatting-format-on-save"],
   },
   {
@@ -400,7 +400,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Without them you have to judge nesting by how far a row is pushed across, which means counting pixels.",
     how: "On by default. Turn it off to get plain indentation instead.",
     keywords: ["Draw trees with connecting lines", "Understanding a project"],
-    access: ["All Features → Draw trees with connecting lines", "Settings → adcode.structure.projectTreeLines"],
+    access: ["All Features → Draw trees with connecting lines", "Turn on or off (setting:adcode.structure.projectTreeLines)", "Settings → adcode.structure.projectTreeLines"],
     related: ["structure-popup", "navigation-outline"],
   },
   {
@@ -409,9 +409,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Understanding a project",
     description: "Tells you when you have used a class name that no stylesheet actually defines.",
     why: "It is almost always a typo, and a mistyped class is completely silent - the element just renders unstyled, usually on a page nobody has open.",
-    how: "On by default. Findings appear in the Problems panel beside everything else.",
-    keywords: ["Point out classes nothing defines", "Understanding a project"],
-    access: ["All Features → Point out classes nothing defines", "Settings → adcode.structure.missingClasses"],
+    how: "On by default. Findings appear in the Problems panel beside everything else. View → Find Classes Nothing Defines checks the markup or component file you have open right now, and says so when every class is accounted for.",
+    keywords: ["Point out classes nothing defines", "Understanding a project", "undefined class", "typo in class name", "class nothing styles"],
+    access: ["All Features → Point out classes nothing defines", "Find them (command:structure.missingClasses)", "Turn on or off (setting:adcode.structure.missingClasses)", "Settings → adcode.structure.missingClasses"],
     related: ["structure-unused-selectors", "formatting-lint-diagnostics"],
   },
   {
@@ -420,9 +420,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Understanding a project",
     description: "Tells you when a style rule does not match anything in your project any more.",
     why: "A rule left behind by a deleted component is invisible, and stylesheets only ever grow.",
-    how: "Off by default, deliberately. It compares names, so it cannot see a class built at runtime or one generated by a CSS module - on projects that use those it is wrong more often than right. Turn it on and the findings appear in the Problems panel.",
-    keywords: ["Point out rules that style nothing", "Understanding a project"],
-    access: ["All Features → Point out rules that style nothing", "Settings → adcode.structure.unusedSelectors"],
+    how: "Off by default, deliberately. View → Find Unused CSS Rules runs it on the stylesheet you have open whatever the setting says, and answers \"every rule matches something\" when nothing is unused. It compares names, so it cannot see a class built at runtime or one generated by a CSS module - on projects that use those it is wrong more often than right. Turn the setting on and the findings appear as you work.",
+    keywords: ["Point out rules that style nothing", "Understanding a project", "dead css", "unused rules", "stylesheet cleanup", "selector matches nothing"],
+    access: ["All Features → Point out rules that style nothing", "Find them (command:structure.unusedCss)", "Turn on or off (setting:adcode.structure.unusedSelectors)", "Settings → adcode.structure.unusedSelectors"],
     related: ["structure-missing-classes", "formatting-lint-diagnostics"],
   },
   {
@@ -433,7 +433,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "It turns a class name nobody can trace into a list of elements you can click.",
     how: "On by default. Open the Structure popup with a stylesheet in front of you.",
     keywords: ["Show the elements a rule styles", "Understanding a project"],
-    access: ["All Features → Show the elements a rule styles", "Settings → adcode.structure.selectorToElements"],
+    access: ["All Features → Show the elements a rule styles", "Turn on or off (setting:adcode.structure.selectorToElements)", "Settings → adcode.structure.selectorToElements"],
     related: ["structure-element-to-rules", "structure-css-links"],
   },
   {
@@ -444,7 +444,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "A class is written in one file and used in another, and nothing normally connects the two.",
     how: "On by default. Works in HTML, and in React, Vue, Angular and Handlebars templates.",
     keywords: ["Show the rules that style an element", "Understanding a project"],
-    access: ["All Features → Show the rules that style an element", "Settings → adcode.structure.elementToRules"],
+    access: ["All Features → Show the rules that style an element", "Turn on or off (setting:adcode.structure.elementToRules)", "Settings → adcode.structure.elementToRules"],
     related: ["structure-selector-to-elements", "structure-css-links"],
   },
   {
@@ -467,7 +467,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     how: "On by default for JavaScript, TypeScript, and Python. Click in the margin left of a line number to set a stop point - a red dot - then press F5 to run. When it stops, the panel shows every value in scope; F10 goes to the next line, F11 steps inside a function, and F5 carries on. A language ADCode has no debugger for will say so rather than offering a button that does nothing.",
     shortcut: "F5",
     keywords: ["Debug adapter client", "Languages"],
-    access: ["All Features → Debug adapter client", "Settings → adcode.language.dapClient", "Keyboard → F5"],
+    access: ["All Features → Debug adapter client", "Start debugging (command:debug.start)", "Stop debugging (command:debug.stop)", "Step over (command:debug.stepOver)", "Step into (command:debug.stepInto)", "Step out (command:debug.stepOut)", "Debug console (command:view.debugConsole)", "Turn on or off (setting:adcode.language.dapClient)", "Settings → adcode.language.dapClient", "Keyboard → F5"],
     related: ["language-lsp-client", "editing-inline-error-lens"],
   },
   {
@@ -478,7 +478,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Without one, an editor is guessing from the shape of the words. With one, it knows.",
     how: "On by default. It uses language servers already installed on your machine - ADCode does not bundle them. If one is running for the file you are in, you will see richer suggestions and more precise errors.",
     keywords: ["Language server intelligence", "Languages"],
-    access: ["All Features → Language server intelligence", "Settings → adcode.language.lspClient"],
+    access: ["All Features → Language server intelligence", "Turn on or off (setting:adcode.language.lspClient)", "Settings → adcode.language.lspClient"],
     related: ["language-custom-servers", "navigation-go-to-definition"],
   },
   {
@@ -489,7 +489,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Simple colouring gets confused by things like a keyword inside a string, or nested templates. Real parsing does not get confused.",
     how: "On by default. It loads the grammar for a language the first time you open a file in it. If a grammar cannot be loaded, colouring quietly falls back to the simpler method rather than turning off.",
     keywords: ["Tree-sitter highlighting", "Languages"],
-    access: ["All Features → Tree-sitter highlighting", "Settings → adcode.language.treeSitterHighlighting"],
+    access: ["All Features → Tree-sitter highlighting", "Turn on or off (setting:adcode.language.treeSitterHighlighting)", "Settings → adcode.language.treeSitterHighlighting"],
     related: ["editing-bracket-pair-colorization", "navigation-outline"],
   },
   {
@@ -544,7 +544,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Asking in the editor beats copying code into a browser, because the assistant can already see the project.",
     how: "On by default. Press the shortcut to summon it, drag its title bar to move it, and press Escape to dismiss it without losing the conversation. Past conversations are kept in the history list beside it.",
     keywords: ["Chat widget", "The assistant"],
-    access: ["All Features → Chat widget", "Settings → adcode.ai.chatWidget"],
+    access: ["All Features → Chat widget", "Turn on or off (setting:adcode.ai.chatWidget)", "Settings → adcode.ai.chatWidget"],
     related: ["ai-sessions", "ai-inline-completion", "ai-memory-capture"],
   },
   {
@@ -566,7 +566,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Long-running terminal tasks should not need you to watch the clock and return only to type one word.",
     how: "Off by default. When enabled, ADCode reads only the terminal output already visible in its own terminal. A clear usage-limit message with an explicit retry delay schedules one continuation. Unknown reset times and changed or ambiguous terminal state stop safely. A repeated limit may schedule the next attempt up to your retry cap. Closing ADCode or turning this setting off cancels every pending continuation.",
     keywords: ["Continue terminal AI after limits", "The assistant"],
-    access: ["All Features → Continue terminal AI after limits", "Settings → adcode.ai.autoContinue", "Settings → adcode.ai.autoContinueRetries"],
+    access: ["All Features → Continue terminal AI after limits", "Turn on or off (setting:adcode.ai.autoContinue)", "Settings → adcode.ai.autoContinue", "Settings → adcode.ai.autoContinueRetries"],
     related: ["ai-terminal-agent-detection", "ai-mcp-server"],
   },
   {
@@ -589,7 +589,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     how: "On by default. ADCode asks the selected model after you pause, without delaying a keystroke, and cancels the request as soon as the buffer changes. Press Tab to accept grey ghost text, keep typing to ignore it, or press Alt+\\ to request a suggestion yourself. Local keyword and language-server suggestions continue to work separately.",
     shortcut: "Alt+\\",
     keywords: ["Inline completion", "The assistant", "autosuggest", "auto suggest", "ghost text", "tab completion"],
-    access: ["All Features → Inline completion", "Suggest now (command:ai.complete)", "Settings → adcode.ai.inlineCompletion", "Keyboard → Alt+\\"],
+    access: ["All Features → Inline completion", "Suggest now (command:ai.complete)", "Turn on or off (setting:adcode.ai.inlineCompletion)", "Settings → adcode.ai.inlineCompletion", "Keyboard → Alt+\\"],
     related: ["editing-suggestions", "ai-provider"],
   },
   {
@@ -600,7 +600,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "A model can make a useful mistake very quickly. Isolation lets it read its own edits and keep working without putting unfinished or conflicting changes into the project you are using.",
     how: "On by default. The assistant shows the task state, changed files, and Review button. Accept individual hunks, discard the sandbox, or roll an applied task back. Turning this off keeps chat available but disables the built-in file tools.",
     keywords: ["Isolated AI edits", "The assistant"],
-    access: ["All Features → Isolated AI edits", "Settings → adcode.ai.isolatedWorkspaces"],
+    access: ["All Features → Isolated AI edits", "Turn on or off (setting:adcode.ai.isolatedWorkspaces)", "Settings → adcode.ai.isolatedWorkspaces"],
     related: ["ai-chat-widget", "ai-task-token-budget"],
   },
   {
@@ -611,7 +611,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "One set of notes shared by every assistant you use, rather than each one starting from nothing.",
     how: "On by default. Settings shows the exact command to run once, from your project folder, with a Copy button. That is the whole setup.",
     keywords: ["MCP server", "The assistant"],
-    access: ["All Features → MCP server", "Settings → adcode.ai.mcpServer"],
+    access: ["All Features → MCP server", "Turn on or off (setting:adcode.ai.mcpServer)", "Settings → adcode.ai.mcpServer"],
     related: ["ai-memory-capture", "ai-terminal-agent-detection"],
   },
   {
@@ -622,7 +622,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Explaining the same thing at the start of every conversation is the main reason AI assistants feel forgetful.",
     how: "On by default. Memories are plain markdown files in your project folder - you can read them, edit them, and delete them like any other file. Settings shows you where they are.",
     keywords: ["Memory capture", "The assistant"],
-    access: ["All Features → Memory capture", "Settings → adcode.ai.memoryCapture"],
+    access: ["All Features → Memory capture", "Turn on or off (setting:adcode.ai.memoryCapture)", "Settings → adcode.ai.memoryCapture"],
     related: ["ai-mcp-server", "ai-sessions"],
   },
   {
@@ -655,7 +655,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "A reminder that can actually reach the assistant is useful for follow-up reviews, delayed provider windows, and work you want to queue without leaving an agent running.",
     how: "Choose Schedule beside the chat composer, select an available adapter and local time, then confirm. Built-in chat is always supported. For a detected terminal AI, first choose Allow next schedule while its prompt is visibly waiting; any later terminal activity removes that one-time permission. Compatible internal adapters use the same registration contract. If ADCode, the project, or scheduled messages are unavailable at delivery time, the one-time message is marked missed and does nothing until you choose Run now.",
     keywords: ["Scheduled AI messages", "The assistant", "send something to ai later", "delayed prompt", "reminder", "queue"],
-    access: ["All Features → Scheduled AI messages", "Schedule (command:ai.schedule)", "Settings → adcode.ai.scheduledMessages"],
+    access: ["All Features → Scheduled AI messages", "Schedule (command:ai.schedule)", "Turn on or off (setting:adcode.ai.scheduledMessages)", "Settings → adcode.ai.scheduledMessages"],
     related: ["ai-auto-continue", "ai-chat-widget"],
   },
   {
@@ -677,7 +677,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "So the assistant in your terminal and the one in your editor are working from the same notes instead of two different ideas of the project.",
     how: "On by default. When an agent is recognised, a strip appears above the terminal with the one command that connects it. Nothing is shared unless you press it.",
     keywords: ["Terminal agent detection", "The assistant"],
-    access: ["All Features → Terminal agent detection", "Settings → adcode.ai.terminalAgentDetection"],
+    access: ["All Features → Terminal agent detection", "Turn on or off (setting:adcode.ai.terminalAgentDetection)", "Settings → adcode.ai.terminalAgentDetection"],
     related: ["ai-mcp-server", "ai-memory-capture"],
   },
   {
@@ -686,9 +686,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Git",
     description: "Shows who last changed each line, and which save it came from.",
     why: "The name is unfriendly and the feature is not: it is how you find the person or the note that explains why a line is the way it is.",
-    how: "Off by default. Turn it on and each line gets a faint note; click one to open the full description of that change.",
-    keywords: ["Blame", "Git"],
-    access: ["All Features → Blame", "Settings → adcode.git.blame"],
+    how: "Off by default. Git → Blame This Line names the author, the commit and its message for the line the cursor is on, and says so plainly when the line is not committed yet. Turn the setting on and every line gets a faint note instead; click one to open the full description of that change.",
+    keywords: ["Blame", "Git", "who wrote this", "last author", "why is this line here"],
+    access: ["All Features → Blame", "Blame this line (command:git.blame)", "Turn on or off (setting:adcode.git.blame)", "Settings → adcode.git.blame"],
     related: ["editing-inline-git-blame", "git-file-timeline"],
   },
   {
@@ -697,9 +697,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Git",
     description: "Work on a separate copy of the project, so you can try something without disturbing the version that works.",
     why: "It is the safe way to attempt anything risky. If it goes badly you throw the copy away and nothing else was touched.",
-    how: "On by default. The current branch name is at the bottom-left of the window; click it to switch to another or to start a new one.",
-    keywords: ["Branch switcher", "Git"],
-    access: ["All Features → Branch switcher", "Settings → adcode.git.branchSwitcher"],
+    how: "On by default. The current branch name is at the bottom-left of the window; click it to switch to another or to start a new one. Git → Checkout Branch and Git → Create Branch do the same from the menu.",
+    keywords: ["Branch switcher", "Git", "branch", "switch", "new branch", "checkout"],
+    access: ["All Features → Branch switcher", "Switch branch (command:git.checkout)", "Create a branch (command:git.createBranch)", "Turn on or off (setting:adcode.git.branchSwitcher)", "Settings → adcode.git.branchSwitcher"],
     related: ["git-stage-commit-ui", "git-merge-conflict"],
   },
   {
@@ -708,9 +708,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Git",
     description: "Every past version of the file you are looking at, newest first, in a list you can open.",
     why: "It answers 'when did this break' and 'what did this look like last week' without leaving the editor.",
-    how: "On by default. Open the Timeline view for the current file and click any entry to see that version, and what changed in it.",
-    keywords: ["File timeline", "Git"],
-    access: ["All Features → File timeline", "Settings → adcode.git.fileTimeline"],
+    how: "On by default. Git → File Timeline lists every commit that touched the file you are looking at, and says when none has yet. The Source Control panel shows the same list under Timeline; click any entry to see that version, and what changed in it.",
+    keywords: ["File timeline", "Git", "file history", "past versions", "when did this change"],
+    access: ["All Features → File timeline", "Show the timeline (command:git.timeline)", "Turn on or off (setting:adcode.git.fileTimeline)", "Settings → adcode.git.fileTimeline"],
     related: ["session-local-file-history", "git-blame"],
   },
   {
@@ -721,7 +721,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "It answers 'what have I actually touched here' without opening anything or comparing anything.",
     how: "On by default. Green means you added the line, blue means you changed it, and a small triangle means you deleted something there. Click a mark to see what was there before, and to undo just that change.",
     keywords: ["Gutter diff decorations", "Git"],
-    access: ["All Features → Gutter diff decorations", "Settings → adcode.git.gutterDiff"],
+    access: ["All Features → Gutter diff decorations", "Turn on or off (setting:adcode.git.gutterDiff)", "Settings → adcode.git.gutterDiff"],
     related: ["git-stage-commit-ui", "git-file-timeline"],
   },
   {
@@ -730,9 +730,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Git",
     description: "When two people changed the same line, this shows you both versions side by side and lets you pick.",
     why: "A conflict is the one moment source control cannot decide for you, and the raw markers it leaves in the file are genuinely hard to read.",
-    how: "On by default. A conflicted file opens with both versions marked; press Keep yours, Keep theirs, or Keep both above each conflict, or edit the result by hand.",
-    keywords: ["Merge conflict resolution", "Git"],
-    access: ["All Features → Merge conflict resolution", "Settings → adcode.git.mergeConflict"],
+    how: "On by default. Press Check Conflicts in the Source Control panel, or Git → Check Merge Conflicts, to list every file where both sides changed the same lines - it answers \"No merge conflicts\" when there are none, so you never have to guess. Open one of those files and each conflict gets Keep yours, Keep theirs, and Keep both above it; you can also edit the result by hand. Save the file to keep what you chose.",
+    keywords: ["Merge conflict resolution", "Git", "merge conflict", "conflicts", "accept", "reject", "keep yours", "keep theirs", "both changed the same line"],
+    access: ["All Features → Merge conflict resolution", "Check for conflicts (command:git.conflicts)", "Turn on or off (setting:adcode.git.mergeConflict)", "Settings → adcode.git.mergeConflict"],
     related: ["git-branch-switcher"],
   },
   {
@@ -743,7 +743,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "This is the point of source control: your work gets saved in labelled steps you can go back to, rather than as one big pile of edits.",
     how: "On by default. Open the Source Control panel in the activity bar. Tick the changes you want in this set - that is 'staging' - write a short note saying what you did, and press Commit.",
     keywords: ["Stage, unstage, and commit", "Git"],
-    access: ["All Features → Stage, unstage, and commit", "Settings → adcode.git.stageCommitUi"],
+    access: ["All Features → Stage, unstage, and commit", "Commit (command:git.commit)", "Stage all (command:git.stageAll)", "Unstage all (command:git.unstageAll)", "Push (command:git.push)", "Pull (command:git.pull)", "Fetch (command:git.fetch)", "Initialise a repository (command:git.init)", "Clone a repository (command:workspace.clone)", "Open Source Control (command:view.scm)", "Turn on or off (setting:adcode.git.stageCommitUi)", "Settings → adcode.git.stageCommitUi"],
     related: ["git-gutter-diff", "git-branch-switcher"],
   },
   {
@@ -755,7 +755,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     how: "On by default. It waits until you pause, so it never saves a half-typed word. You can still save whenever you like with Ctrl+S.",
     shortcut: "CmdOrCtrl+S",
     keywords: ["Auto-save after delay", "Your session"],
-    access: ["All Features → Auto-save after delay", "Settings → adcode.session.autoSave", "Keyboard → CmdOrCtrl+S"],
+    access: ["All Features → Auto-save after delay", "Turn on or off (setting:adcode.session.autoSave)", "Settings → adcode.session.autoSave", "Keyboard → CmdOrCtrl+S"],
     related: ["formatting-format-on-save", "session-local-file-history"],
   },
   {
@@ -764,9 +764,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Your session",
     description: "If ADCode closes unexpectedly, your unsaved typing is still there when it opens again.",
     why: "Crashes and power cuts happen, and losing an hour to one is miserable.",
-    how: "On by default, and there is nothing to do. Reopen ADCode and it offers your unsaved work back.",
-    keywords: ["Crash recovery", "Your session"],
-    access: ["All Features → Crash recovery", "Settings → adcode.session.crashRecovery"],
+    how: "On by default, and there is usually nothing to do: reopen ADCode and it offers your unsaved work back. File → Recover Unsaved Files asks again at any time, and answers \"nothing to recover\" when every file is already saved.",
+    keywords: ["Crash recovery", "Your session", "crash", "lost work", "unsaved", "recover"],
+    access: ["All Features → Crash recovery", "Recover unsaved files (command:session.recover)", "Turn on or off (setting:adcode.session.crashRecovery)", "Settings → adcode.session.crashRecovery"],
     related: ["session-auto-save", "session-workspace-restore"],
   },
   {
@@ -775,9 +775,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Your session",
     description: "ADCode quietly keeps its own copies of files as you edit them, separate from your project's history.",
     why: "For the moment you delete something you needed and had not saved into your project's history yet. It is the undo that survives closing the file.",
-    how: "On by default. Open the Timeline for a file to see the local copies alongside the committed ones, and open or restore any of them.",
-    keywords: ["Local file history", "Your session"],
-    access: ["All Features → Local file history", "Settings → adcode.session.localFileHistory"],
+    how: "On by default. File → Local History lists every copy ADCode has kept of the file you are looking at, newest first, and tells you when there are none yet. Choose one and it opens read-only beside your working copy, so you can copy what you need back without overwriting anything.",
+    keywords: ["Local file history", "Your session", "undo history", "previous versions", "before i saved", "restore a version"],
+    access: ["All Features → Local file history", "Open local history (command:file.localHistory)", "Turn on or off (setting:adcode.session.localFileHistory)", "Settings → adcode.session.localFileHistory"],
     related: ["git-file-timeline", "session-crash-recovery"],
   },
   {
@@ -788,7 +788,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Setting your work back up every morning is a small tax you should not have to pay.",
     how: "On by default. Just close the window; next time you open it, your files are back.",
     keywords: ["Restore workspace", "Your session"],
-    access: ["All Features → Restore workspace", "Settings → adcode.session.workspaceRestore"],
+    access: ["All Features → Restore workspace", "Turn on or off (setting:adcode.session.workspaceRestore)", "Settings → adcode.session.workspaceRestore"],
     related: ["session-crash-recovery"],
   },
   {
@@ -799,7 +799,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "You should not need to know a command's name, shortcut, or menu before you can discover it.",
     how: "Choose the four-cell All Features button below Earnings, or open View and choose All Features. Search by a feature name or describe what you want to do. Choose Open to use it and ? to understand it.",
     keywords: ["All Features", "The workbench", "everything adcode can do", "feature library", "feature guide", "discover"],
-    access: ["All Features → All Features", "Open (command:features.open)"],
+    access: ["All Features → All Features", "Open (command:features.open)", "Preferences (command:settings.open)", "Full screen (command:view.fullScreen)", "Toggle side bar (command:view.toggleSidebar)", "Toggle panel (command:view.togglePanel)", "Zoom in (command:view.zoomIn)", "Zoom out (command:view.zoomOut)", "Reset zoom (command:view.zoomReset)", "Problems (command:view.problems)", "Output (command:view.output)", "Ports (command:view.ports)", "Feature guide (command:help.guide)", "Developer tools (command:help.devTools)", "About ADCode (command:help.about)"],
     related: ["workbench-universal-search", "workbench-command-palette"],
   },
   {
@@ -810,7 +810,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Most work needs both an editor and a terminal, and switching windows between them adds up.",
     how: "Open it from the panel at the bottom. You can have several at once, and each remembers what it was doing.",
     keywords: ["Built-in terminal", "The workbench", "shell", "command line", "console"],
-    access: ["All Features → Built-in terminal", "Open (command:terminal.toggle)"],
+    access: ["All Features → Built-in terminal", "Open (command:terminal.toggle)", "New terminal (command:terminal.new)", "New terminal with profile (command:terminal.newWithProfile)", "Split (command:terminal.split)", "Next terminal (command:terminal.next)", "Previous terminal (command:terminal.previous)", "Copy (command:terminal.copy)", "Paste (command:terminal.paste)", "Clear (command:terminal.clear)", "Kill (command:terminal.kill)", "Kill all (command:terminal.killAll)", "Run this file in the terminal (command:terminal.runActiveFile)"],
     related: ["ai-terminal-agent-detection", "workbench-run"],
   },
   {
@@ -844,7 +844,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "For fixing something together without one of you reading the other's screen over a call.",
     how: "Start a session and share the invitation. It works over your local network - the code does not travel through anybody else's server.",
     keywords: ["Live collaboration", "The workbench", "share", "join", "pair", "live session"],
-    access: ["All Features → Live collaboration", "Open (command:collab.panel)"],
+    access: ["All Features → Live collaboration", "Open (command:collab.panel)", "Leave session (command:collab.leave)"],
     related: ["workbench-terminal"],
   },
   {
@@ -855,7 +855,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "Saving, switching to a browser, and refreshing is three steps too many when you are adjusting a layout.",
     how: "Open a HTML file and start the preview. It reloads itself when you save.",
     keywords: ["Live preview", "The workbench", "browser", "website", "screen size", "responsive"],
-    access: ["All Features → Live preview", "Open (command:preview.toggle)"],
+    access: ["All Features → Live preview", "Open (command:preview.toggle)", "Reload (command:preview.reload)", "Undock into a window (command:preview.undock)", "Switch project or files (command:preview.switchMode)", "Another screen size (command:preview.device)"],
     related: ["workbench-run"],
   },
   {
@@ -955,7 +955,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     how: "Right-click any file for the full list. Drag to move, hold Ctrl while dragging to copy, and F2 to rename. Deleting sends to the recycle bin, not to nowhere.",
     shortcut: "F2",
     keywords: ["Selecting and moving files", "Files and gestures", "files", "rename", "move", "copy", "delete"],
-    access: ["All Features → Selecting and moving files", "Open Explorer (command:view.explorer)", "Keyboard → F2"],
+    access: ["All Features → Selecting and moving files", "Open Explorer (command:view.explorer)", "New file (command:file.new)", "Open file (command:file.open)", "Save (command:file.save)", "Save as (command:file.saveAs)", "Save all (command:file.saveAll)", "Revert file (command:file.revert)", "Close editor (command:editor.close)", "Close all editors (command:editor.closeAll)", "Insert file template (command:editor.insertTemplate)", "Open folder (command:workspace.open)", "Open recent (command:workspace.openRecent)", "Open a recent folder (command:workspace.openRecentAt)", "Clear recent folders (command:workspace.clearRecents)", "Close folder (command:workspace.close)", "Keyboard → F2"],
     related: ["navigation-fuzzy-file-open"],
   },
   {
@@ -977,7 +977,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "It is how ADCode is free. If you would rather not, turning this off costs you nothing else - no nag screens, no locked features.",
     how: "On by default. This switch is the final say on this machine: with it off, nothing is shown and nothing is earned, whatever the server says. Cards never appear while you are typing, while a command is running, while you are debugging, or when the window is not in front.",
     keywords: ["Sponsored messages", "Ads and earnings"],
-    access: ["All Features → Sponsored messages", "Settings → adcode.ads.enabled"],
+    access: ["All Features → Sponsored messages", "Turn on or off (setting:adcode.ads.enabled)", "Settings → adcode.ads.enabled"],
     related: ["ads-frequency", "account-earnings"],
   },
   {
@@ -986,9 +986,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "Updates",
     description: "New versions download quietly in the background and are in place the next time you open ADCode.",
     why: "So you are never out of date, and never stopped mid-thought by a box asking to restart.",
-    how: "On by default. ADCode will not restart itself and will not interrupt you to ask - you close the editor when you are ready, and the new version is what opens next time. Turn this off to update by hand instead.",
-    keywords: ["Install updates automatically", "Updates"],
-    access: ["All Features → Install updates automatically", "Settings → adcode.updates.auto"],
+    how: "On by default. ADCode will not restart itself and will not interrupt you to ask - you close the editor when you are ready, and the new version is what opens next time. Help → Check for Updates asks now and tells you where you stand, including when you are already on the latest version. Turn this off to update by hand instead.",
+    keywords: ["Install updates automatically", "Updates", "update", "new version", "upgrade", "latest"],
+    access: ["All Features → Install updates automatically", "Check now (command:updates.check)", "Turn on or off (setting:adcode.updates.auto)", "Settings → adcode.updates.auto"],
     related: ["updates-whats-new"],
   },
   {
@@ -999,7 +999,7 @@ export const DOC_SEED: readonly DocSeed[] = [
     why: "A feature nobody is told about may as well not exist. This is the one interruption ADCode allows itself, so it is kept rare.",
     how: "Four rules keep it quiet: you see a given version's note once on this machine and never again, it waits for a moment when you are not typing, not running a command, and not debugging, it only appears for releases worth reading - small fixes install silently - and it never appears on a brand new install. Dismiss it and it is gone for good. Turn this off and nothing ever pops up; Help > What's New still has every note. A security fix is the one thing that will not wait for a quiet moment, though even that respects the switch being off.",
     keywords: ["Tell me what changed", "Updates"],
-    access: ["All Features → Tell me what changed", "Settings → adcode.updates.announce"],
+    access: ["All Features → Tell me what changed", "Read it (command:help.whatsNew)", "Turn on or off (setting:adcode.updates.announce)", "Settings → adcode.updates.announce"],
     related: ["updates-auto"],
   },
 ];

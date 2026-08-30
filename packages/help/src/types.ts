@@ -62,6 +62,20 @@ export interface FeatureCommandAction {
   readonly label: string;
 }
 
+/**
+ * A catalogue action that flips one boolean setting where the reader found it.
+ *
+ * The label is static - "Turn on or off" - because this catalogue is also read by
+ * `scripts/docs-seed.mjs`, which parses the source and has no running app to ask what the
+ * setting currently is. A surface with live values refines the wording to "Turn on" or
+ * "Turn off" at render time; a surface without them still says something true.
+ */
+export interface FeatureToggleAction {
+  readonly kind: "toggle";
+  readonly settingId: string;
+  readonly label: string;
+}
+
 /** A catalogue action that deep-links to one exact Settings row. */
 export interface FeatureSettingAction {
   readonly kind: "setting";
@@ -69,7 +83,7 @@ export interface FeatureSettingAction {
   readonly label: string;
 }
 
-export type FeatureAction = FeatureCommandAction | FeatureSettingAction;
+export type FeatureAction = FeatureCommandAction | FeatureToggleAction | FeatureSettingAction;
 
 /** One user-recognisable capability, its explanation, and the safe ways into it. */
 export interface FeatureRecord {

@@ -128,6 +128,25 @@ function readMetadata() {
   return result;
 }
 
+/**
+ * Which settings are a plain on/off switch.
+ *
+ * `features.ts` turns every boolean setting into a "Turn on or off" action so a reader can
+ * flip it where they found it. That route belongs in the docs too, and the only way to tell
+ * a boolean from an enum here is to read the schema the same way everything else in this
+ * file reads source - by regex, over a shape this repository controls and a test pins.
+ */
+function readBooleanSettings() {
+  const source = read(join(ROOT, "packages", "settings", "src", "index.ts"));
+  const ids = new Set([...source.matchAll(/(?:^|[^a-zA-Z])bool\(\s*"([^"]+)"/g)].map((match) => match[1]));
+
+  if (ids.size === 0) {
+    throw new Error("no boolean settings found in packages/settings - the source shape has changed");
+  }
+
+  return ids;
+}
+
 /** What each group is called on the website, and the order the sidebar shows them in. */
 const GROUP_TITLES = {
   editing: "Editing",
@@ -164,16 +183,19 @@ const quote = (text) => JSON.stringify(text);
 
 const unique = (items) => [...new Set(items)];
 
-function accessFor(entry, metadata) {
+function accessFor(entry, metadata, booleanSettings) {
   return unique([
     `All Features → ${entry.title}`,
     ...metadata.actions.map((action) => `${action.label} (command:${action.command})`),
+    ...entry.settingIds
+      .filter((settingId) => booleanSettings.has(settingId))
+      .map((settingId) => `Turn on or off (setting:${settingId})`),
     ...entry.settingIds.map((settingId) => `Settings → ${settingId}`),
     ...(entry.shortcut === null ? [] : [`Keyboard → ${entry.shortcut}`]),
   ]);
 }
 
-function render(entries, metadataById) {
+function render(entries, metadataById, booleanSettings) {
   const known = entries.filter((entry) => ORDER.includes(entry.group));
   const bySlug = new Map(known.map((entry) => [entry.id, slugFor(entry.id)]));
 
@@ -189,7 +211,7 @@ function render(entries, metadataById) {
         .map((id) => bySlug.get(id))
         .filter((slug) => slug !== undefined);
       const keywords = unique([entry.title, GROUP_TITLES[entry.group], ...metadata.keywords]);
-      const access = accessFor(entry, metadata);
+      const access = accessFor(entry, metadata, booleanSettings);
 
       return `  {
     slug: ${quote(slugFor(entry.id))},
@@ -252,7 +274,7 @@ function guideShortcut(shortcut) {
   return shortcut.replaceAll("CmdOrCtrl", "Ctrl/Cmd");
 }
 
-function renderGuide(entries, metadataById) {
+function renderGuide(entries, metadataById, booleanSettings) {
   const sorted = [...entries].sort((a, b) => {
     const group = ORDER.indexOf(a.group) - ORDER.indexOf(b.group);
     return group !== 0 ? group : a.title.localeCompare(b.title);
@@ -264,7 +286,7 @@ function renderGuide(entries, metadataById) {
         .filter((entry) => entry.group === group)
         .map((entry) => {
           const metadata = metadataById.get(entry.id) ?? { actions: [], keywords: [] };
-          const routes = accessFor(entry, metadata);
+          const routes = accessFor(entry, metadata, booleanSettings);
           return `<!-- feature:${entry.id} -->
 ### ${entry.title}
 
@@ -361,8 +383,9 @@ ${inventory}`;
 
 const entries = readEntries();
 const metadata = readMetadata();
-const rendered = render(entries, metadata);
-const renderedGuide = renderGuide(entries, metadata);
+const booleanSettings = readBooleanSettings();
+const rendered = render(entries, metadata, booleanSettings);
+const renderedGuide = renderGuide(entries, metadata, booleanSettings);
 
 if (process.argv.includes("--check")) {
   let existing = "";

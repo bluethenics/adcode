@@ -202,6 +202,9 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         { label: "Save A&ll", command: "file.saveAll", accelerator: "CmdOrCtrl+Alt+S" },
         separator,
         { label: "Re&vert File", command: "file.revert" },
+        // Beside Revert, because all three answer "put this back how it was".
+        { label: "Local &History…", command: "file.localHistory" },
+        { label: "Recover &Unsaved Files", command: "session.recover" },
         { label: "Close &Editor", command: "editor.close", accelerator: "CmdOrCtrl+W" },
         {
           label: "Close All Edi&tors",
@@ -244,7 +247,13 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         },
         separator,
         { label: "Format &Document", command: "edit.format", accelerator: "Shift+Alt+F" },
+        { label: "&Organize Imports", command: "edit.organizeImports" },
         { label: "Suggest Code with &AI", command: "ai.complete", accelerator: "Alt+\\" },
+        separator,
+        // Both were decorations you could only notice, never ask for. Asking is what makes
+        // "no TODOs here" a thing the editor can say.
+        { label: "List TODOs and FIX&MEs", command: "edit.todos" },
+        { label: "Check Spellin&g in Comments", command: "edit.spelling" },
       ],
     },
     {
@@ -319,6 +328,8 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         // "what are all these folders" is asked once, on the first morning, by somebody
         // who does not yet know this editor has an answer.
         { label: "Explain This Pro&ject", command: "view.projectMap" },
+        { label: "Find U&nused CSS Rules", command: "structure.unusedCss" },
+        { label: "Find Classes Not&hing Defines", command: "structure.missingClasses" },
         { label: "Source &Control", command: "view.scm", accelerator: "CmdOrCtrl+Shift+G" },
         { label: "Pr&oblems", command: "view.problems", accelerator: "CmdOrCtrl+Shift+M" },
         { label: "Output Lo&g", command: "view.output" },
@@ -418,6 +429,18 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         { label: "Chec&kout Branch…", command: "git.checkout" },
         { label: "Create &Branch…", command: "git.createBranch" },
         separator,
+        /*
+         * The three questions this menu could not answer.
+         *
+         * Merge-conflict resolution, blame and the file timeline were all built, all
+         * working, and all reachable only by already being in the right place - a
+         * conflicted file open, a setting ticked, a file selected in the panel. A menu row
+         * is what turns a capability into something a person can look for.
+         */
+        { label: "Check &Merge Conflicts", command: "git.conflicts" },
+        { label: "Bl&ame This Line", command: "git.blame" },
+        { label: "File &Timeline", command: "git.timeline" },
+        separator,
         { label: "&Initialise Repository", command: "git.init" },
         { label: "Clone &Repository…", command: "workspace.clone" },
         separator,
@@ -476,6 +499,7 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         { label: "Feature &Guide", command: "help.guide" },
         { label: "&What’s New", command: "help.whatsNew" },
         { label: "&Keyboard Shortcuts", command: "help.shortcuts" },
+        { label: "Check for &Updates", command: "updates.check" },
         {
           label: "Toggle &Developer Tools",
           command: "help.devTools",

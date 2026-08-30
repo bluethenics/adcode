@@ -21,6 +21,23 @@ import type { Diagnostic } from "@adcode/diagnostics";
 export interface StyleHints {
   /** Recompute for the file that is open. Cheap to call; it does its own debouncing. */
   refresh(path: string | null, languageId: string, text: string): void;
+  /**
+   * Run one of the two checks now and say what it found.
+   *
+   * `refresh` waits 700ms for typing to stop, publishes, and tells nobody how many. That
+   * is right for a hint that appears while you work and wrong for a command somebody just
+   * chose from a menu: they are owed an answer, including "nothing", and they are owed it
+   * without a pause that reads as the menu item having done nothing.
+   *
+   * The check runs whether or not its setting is on. Choosing "Find unused CSS rules" from
+   * a menu is a clearer statement of intent than a switch someone set once.
+   */
+  check(
+    which: "unused" | "missing",
+    path: string | null,
+    languageId: string,
+    text: string,
+  ): Promise<readonly Diagnostic[]>;
   setUnusedEnabled(enabled: boolean): void;
   setMissingEnabled(enabled: boolean): void;
   dispose(): void;
@@ -64,14 +81,12 @@ export function createStyleHints(deps: StyleHintsDeps): StyleHints {
     return texts;
   }
 
-  async function compute(path: string, languageId: string, text: string): Promise<void> {
-    const mine = generation;
-    const file = deps.displayPath(path);
-    const found: Diagnostic[] = [];
-
-    if (STYLE.has(languageId) && unusedEnabled) {
+  async function collectUnused(
+    file: string,
+    text: string,
+  ): Promise<Diagnostic[]> {
+      const found: Diagnostic[] = [];
       const markup = await readAll("**/*.{html,htm,vue,svelte,astro,jsx,tsx,hbs}");
-      if (mine !== generation) return;
 
       for (const rule of unusedSelectors(text, markup)) {
         found.push({
@@ -87,11 +102,16 @@ export function createStyleHints(deps: StyleHintsDeps): StyleHints {
           message: `Nothing in this project's markup matches ${rule.selector}. Names assembled at runtime, CSS modules and utility classes are not visible to this check.`,
         });
       }
-    }
 
-    if ((MARKUP.has(languageId) || SCRIPT_MARKUP.has(languageId)) && missingEnabled) {
+      return found;
+  }
+
+  async function collectMissing(
+    file: string,
+    text: string,
+  ): Promise<Diagnostic[]> {
+      const found: Diagnostic[] = [];
       const stylesheets = await readAll("**/*.{css,scss,less}");
-      if (mine !== generation) return;
 
       for (const missing of missingClasses(text, stylesheets)) {
         found.push({
@@ -106,9 +126,25 @@ export function createStyleHints(deps: StyleHintsDeps): StyleHints {
           message: `No stylesheet in this project defines .${missing.name}.`,
         });
       }
+
+      return found;
+  }
+
+  async function compute(path: string, languageId: string, text: string): Promise<void> {
+    const mine = generation;
+    const file = deps.displayPath(path);
+    const found: Diagnostic[] = [];
+
+    if (STYLE.has(languageId) && unusedEnabled) {
+      found.push(...(await collectUnused(file, text)));
+      if (mine !== generation) return;
     }
 
-    if (mine !== generation) return;
+    if ((MARKUP.has(languageId) || SCRIPT_MARKUP.has(languageId)) && missingEnabled) {
+      found.push(...(await collectMissing(file, text)));
+      if (mine !== generation) return;
+    }
+
     deps.report(found);
   }
 
@@ -128,6 +164,29 @@ export function createStyleHints(deps: StyleHintsDeps): StyleHints {
         timer = null;
         void compute(path, languageId, text);
       }, DEBOUNCE_MS);
+    },
+
+    async check(which, path, languageId, text): Promise<readonly Diagnostic[]> {
+      if (path === null) return [];
+
+      const file = deps.displayPath(path);
+      const applies =
+        which === "unused"
+          ? STYLE.has(languageId)
+          : MARKUP.has(languageId) || SCRIPT_MARKUP.has(languageId);
+
+      // Not an error, and not silence either: the caller turns this into "open a
+      // stylesheet first" rather than reporting nothing found in a file that was never
+      // eligible to have anything found in it.
+      if (!applies) return [];
+
+      const found =
+        which === "unused" ? await collectUnused(file, text) : await collectMissing(file, text);
+
+      // Published as well as returned, so the rows are in the Problems panel the status
+      // line is pointing at.
+      deps.report(found);
+      return found;
     },
 
     setUnusedEnabled(enabled): void {

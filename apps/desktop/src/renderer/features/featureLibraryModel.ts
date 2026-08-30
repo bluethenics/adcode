@@ -15,6 +15,14 @@ export interface FeatureLibraryFilter {
 export interface PresentedFeatureAction {
   readonly action: FeatureAction;
   readonly enabled: boolean;
+  /**
+   * What the button says.
+   *
+   * Usually the action's own label. A toggle is the exception: the catalogue has to state
+   * something true without a running app - "Turn on or off" - and a window that knows the
+   * current value can say which way the switch is about to go.
+   */
+  readonly label: string;
 }
 
 export interface FeatureActionPresentation {
@@ -46,14 +54,37 @@ export function filterFeatureLibrary(
   return records.filter((record) => record.entry.group === filter.category);
 }
 
+/**
+ * The routes into one feature, ranked for this window.
+ *
+ * `valueOf` is optional because two callers want different things from it: the feature
+ * library has live settings values and can promise "Turn off", while a test or a surface
+ * built before the values load has none and gets the catalogue's own neutral wording.
+ * Actions arrive already ordered command-first from `@adcode/help`; this only drops the
+ * ones this window cannot run.
+ */
 export function featureActionPresentation(
   feature: FeatureRecord,
   hasCommand: (command: string) => boolean,
+  valueOf?: (settingId: string) => boolean | undefined,
 ): FeatureActionPresentation {
-  const presented = feature.actions.map((action): PresentedFeatureAction => ({
-    action,
-    enabled: action.kind === "setting" || hasCommand(action.command),
-  }));
+  const presented = feature.actions.map((action): PresentedFeatureAction => {
+    if (action.kind === "command") {
+      return { action, enabled: hasCommand(action.command), label: action.label };
+    }
+
+    if (action.kind === "toggle") {
+      const current = valueOf?.(action.settingId);
+      return {
+        action,
+        enabled: true,
+        label: current === undefined ? action.label : current ? "Turn off" : "Turn on",
+      };
+    }
+
+    return { action, enabled: true, label: action.label };
+  });
+
   const availableAt = presented.findIndex((item) => item.enabled);
   const primaryAt = availableAt === -1 ? 0 : availableAt;
   const primary = presented[primaryAt] ?? null;
