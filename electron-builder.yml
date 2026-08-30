@@ -123,6 +123,17 @@ mac:
 
 linux:
   icon: build/icon.png
+  # Required, and only on Linux.
+  #
+  # .deb and AppImage both carry a Debian maintainer field, and electron-builder refuses to
+  # package without one: "Please specify author email in the application package.json". The
+  # root package.json has `author: ADCode` as a bare string with no address, which is fine
+  # for Windows and macOS and fatal here - which is exactly why the first CI run built
+  # Windows and failed Linux.
+  #
+  # Stated here rather than as an author email in package.json so the published address is
+  # the support one people already have from the terms, not a personal mailbox.
+  maintainer: ADCode <support@adcode.bluethenics.com>
   # AppImage runs anywhere without a package manager; .deb is what most people expect on
   # Debian and Ubuntu. Both are produced, and the install script picks between them.
   target:

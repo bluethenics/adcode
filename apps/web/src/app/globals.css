@@ -3624,12 +3624,33 @@ body { background: #000; }
 .bid-auth { margin-top: 16px; }.bid-auth .auth-card { border-color: #d9ddd8; color: #1b211f; background: #fff; }.bid-auth .field-hint { color: #68716d; }
 
 .marketplace-principles { border-top: 1px solid rgba(255,255,255,.08); background: #05090a; }.marketplace-principles .marketplace-wrap { display: grid; grid-template-columns: repeat(3,1fr); }.marketplace-principles p { min-height: 128px; padding: 30px; display: grid; grid-template-columns: auto 1fr; align-content: center; column-gap: 14px; border-right: 1px solid rgba(255,255,255,.08); }.marketplace-principles p:last-child { border-right: 0; }.marketplace-principles p > span { grid-row: 1/3; color: #56615e; font-family: var(--font-mono); font-size: 10px; }.marketplace-principles strong { font-size: 14px; }.marketplace-principles small { color: #737e7b; font-size: 11px; }
-/* The install command in the hero. Selectable, wrapping, and quiet beside the buttons. */
-.marketplace-hero-install { margin-top: 22px; display: grid; gap: 8px; max-width: 560px; }
-.marketplace-hero-install > code { padding: 12px 14px; display: block; overflow-x: auto; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; background: rgba(255,255,255,.05); color: #e8efeb; font: 13px/1.5 var(--font-mono); white-space: pre; user-select: all; }
-.marketplace-hero-install > small { color: #8b948f; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
-.marketplace-hero-install > small code { padding: 2px 5px; border-radius: 5px; background: rgba(255,255,255,.07); color: #cfd8d3; font: 11px var(--font-mono); user-select: all; }
-@media (max-width: 640px) { .marketplace-hero-install > code { font-size: 11.5px; white-space: pre-wrap; overflow-wrap: anywhere; } }
+/* The hero offer, which differs by platform. See components/HeroInstall.tsx. */
+.hero-install { margin-top: 26px; display: grid; gap: 14px; max-width: 620px; }
+.hero-install .marketplace-hero-actions { margin-top: 0; }
+
+/* Windows: the command is the call to action, so it is the biggest thing here. */
+.hero-install-lead { color: #e8efeb; font-size: 15px; font-weight: 560; letter-spacing: -.01em; }
+.hero-install-command { display: flex; align-items: stretch; gap: 0; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; background: rgba(255,255,255,.06); overflow: hidden; }
+.hero-install-command code { flex: 1; min-width: 0; padding: 15px 16px; overflow-x: auto; color: #f1f5f3; font: 14px/1.45 var(--font-mono); white-space: pre; user-select: all; }
+.hero-install-command button { flex: 0 0 auto; padding: 0 20px; border: 0; border-left: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.09); color: #eef3f0; font: 600 13px var(--font-body); letter-spacing: .01em; cursor: pointer; transition: background 160ms var(--ease), color 160ms var(--ease); }
+.hero-install-command button:hover { background: var(--market-green, #3ad07a); color: #06170d; }
+.hero-install-command button:focus-visible { outline: 2px solid var(--market-green, #3ad07a); outline-offset: -3px; }
+
+.hero-install-note { color: #8b948f; font-size: 12.5px; line-height: 1.65; }
+.hero-install-note strong { color: #b9c3be; font-weight: 600; }
+.hero-install-note a { color: #cfd8d3; text-decoration: underline; text-underline-offset: 2px; }
+.hero-install-note a:hover { color: #fff; }
+.hero-install-note code { padding: 2px 6px; border-radius: 5px; background: rgba(255,255,255,.08); color: #cfd8d3; font: 11.5px var(--font-mono); overflow-wrap: anywhere; user-select: all; }
+
+/* macOS: present, clearly not pressable for a download. */
+.marketplace-primary.is-soon { opacity: .62; cursor: default; }
+.marketplace-primary.is-soon:hover { transform: none; }
+
+@media (max-width: 640px) {
+  .hero-install-command { flex-direction: column; }
+  .hero-install-command code { font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .hero-install-command button { padding: 12px 16px; border-left: 0; border-top: 1px solid rgba(255,255,255,.16); }
+}
 
 /* The FAQ: dark like the principles strip above it, so the page ends on one ground. */
 .marketplace-faq { padding: 104px 0; border-top: 1px solid rgba(255,255,255,.08); background: #05090a; }

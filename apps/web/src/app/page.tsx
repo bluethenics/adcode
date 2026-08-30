@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DownloadButton } from "@/components/DownloadButton";
+import { HeroInstall } from "@/components/HeroInstall";
 import { LandingBidBuilder } from "@/components/LandingBidBuilder";
 import { MarketDemand } from "@/components/MarketDemand";
 import { HeroCircuit } from "@/components/HeroCircuit";
@@ -48,23 +48,15 @@ export default function Home() {
           <div className="marketplace-hero-copy">
             <p className="marketplace-eyebrow"><span /> Privacy-first developer network</p>
             <h1>Earn while you code</h1>
-            <p>Use a professional code editor for free. Respectful ads wait for a pause, and half of every verified payment goes to you.</p>
-            <div className="marketplace-hero-actions">
-              <DownloadButton className="marketplace-primary">Download ADCode <span aria-hidden="true">↓</span></DownloadButton>
-              <a href="#advertise" className="marketplace-secondary">Advertise to developers <span aria-hidden="true">↘</span></a>
-            </div>
+            <p>Use a professional code editor for free. An occasional sponsored card appears while you work - never mid-debug, never behind your back - and half of every verified payment goes to you.</p>
             {/*
-              The terminal install, in the hero.
+              One offer, chosen for the machine the visitor is on.
 
-              Not a power-user footnote: it is the path that works best today. A file
-              fetched by curl or Invoke-WebRequest carries no Mark of the Web, so Windows
-              does not interpose the SmartScreen dialog an unsigned installer otherwise
-              earns - and the audience for a code editor is already in a terminal.
+              Windows gets the command rather than a button - an unsigned installer fetched
+              by a browser earns the SmartScreen dialog, and one fetched by the terminal
+              does not. Linux gets the button. macOS gets the truth. See HeroInstall.
             */}
-            <div className="marketplace-hero-install">
-              <code>curl -fsSL https://adcode.bluethenics.com/install.sh | sh</code>
-              <small>Linux · macOS soon. On Windows: <code>irm https://adcode.bluethenics.com/install.ps1 | iex</code></small>
-            </div>
+            <HeroInstall />
             <small>Windows · Linux · free to use · macOS coming soon</small>
           </div>
           <MarketDemand />

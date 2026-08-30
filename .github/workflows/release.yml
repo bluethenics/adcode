@@ -74,9 +74,15 @@ jobs:
             serves: "windows"
           - os: macos-latest
             platform: macos
-            # Both architectures explicitly: the runner is Apple silicon, and without
-            # `--x64` there would be no Intel .dmg for the /dl/macos-intel route.
-            args: "--mac --arm64 --x64"
+            # arm64 only, for now.
+            #
+            # Asking an Apple-silicon runner for --x64 as well means cross-compiling
+            # node-pty, our one native dependency, against Electron for a foreign
+            # architecture - a common way for this step to fail, and the likeliest reason
+            # the first CI run failed macOS while Windows succeeded. Neither macOS build
+            # ships yet (both are available: false), so there is nothing to lose by
+            # narrowing it until there is an Apple membership and a reason to care.
+            args: "--mac --arm64"
             serves: "macos macos-intel"
             # macOS is advertised as coming soon and its installers are not required, so a
             # failure here must not stop Windows and Linux shipping. Still attempted on
