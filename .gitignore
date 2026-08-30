@@ -41,3 +41,7 @@ skills-lock.json
 
 # Supabase CLI scratch
 supabase/.temp/
+
+# scripts/smoke.mjs types this file into the editor to prove the Problems panel
+# reports a real diagnostic. It is a product of the run, not a fixture.
+smoke-broken.ts
