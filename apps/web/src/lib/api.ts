@@ -84,7 +84,7 @@ export const MESSAGES: Record<ApiError, string> = {
   unauthenticated: "Your session expired. Sign in again.",
   "no-advertiser": "You don't have an advertiser account yet.",
   "already-advertiser": "You already have an advertiser account.",
-  suspended: "This account is suspended. Email support@adcode.bluethenics.com.",
+  suspended: "This account is suspended. Email support@bluethenics.com.",
   "not-found": "That doesn't exist, or it isn't yours.",
   "insufficient-funds": "Not enough funded balance to cover this budget. Add funds first.",
   "no-approved-creative": "Add a creative and wait for it to be approved before going live.",

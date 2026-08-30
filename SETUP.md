@@ -1324,7 +1324,7 @@ Three pages promise an email address, and none of the three mailboxes exists yet
 
 | Page | Address | What it is promised for |
 |---|---|---|
-| `/terms` | `support@adcode.bluethenics.com` | why an account was suspended |
+| `/terms` | `support@bluethenics.com` | why an account was suspended |
 | `/privacy` | `privacy@adcode.bluethenics.com` | asking for your data, or its deletion |
 | `/advertise` | `advertise@adcode.bluethenics.com` | advertisers getting in touch |
 

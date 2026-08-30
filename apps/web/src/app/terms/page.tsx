@@ -110,7 +110,7 @@ Also, obviously: do not use ADCode to break the law, and do not attack the servi
 
 ## Withdrawals
 
-You can request a payout of your available balance once it reaches **$50.00**. Five conditions apply, and your dashboard shows each of them with whether you meet it: the minimum balance, a confirmed email address, an account at least seven days old, payout details for a currently enabled country and currency, and no request already in progress.
+You can request a payout of your available balance once it reaches **$50.00**. Six conditions apply, and your dashboard shows each of them with whether you meet it: the minimum balance, a confirmed email address, an account at least seven days old, your confirmation that you are 18 or older, payout details for a currently enabled country and currency, and no request already in progress.
 
 Requesting moves the amount out of your available balance and holds it while we review. A person must approve each request before a transfer is made. Country and currency availability can change, and a route may be disabled when the transfer provider or the law does not permit it. Balances are held in US dollars; conversion and timing depend on the transfer actually offered at payout time.
 
@@ -200,7 +200,7 @@ We will not apply a change retroactively to earnings already credited.
 
 ## Contact
 
-support@adcode.bluethenics.com
+support@bluethenics.com
 `;
 
 export default function TermsPage() {
