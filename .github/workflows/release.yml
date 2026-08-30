@@ -1,0 +1,243 @@
+# Build ADCode for Windows, macOS and Linux, and attach the installers to a release.
+#
+# Three platforms, three runners. macOS and Linux installers cannot be produced on the
+# Windows machine this project is developed on - a .dmg needs macOS tooling and an
+# AppImage needs a Linux filesystem - so until this existed the site offered five downloads
+# and only two of them had ever been built.
+#
+# The release is created as a **draft**, always. `apps/web/src/app/dl/[platform]/route.ts`
+# streams from `releases/latest/download/...`, and GitHub does not count a draft as latest,
+# so nothing is downloadable until a person opens the release and presses Publish. That is
+# deliberate: at the time of writing the binaries are unsigned, and unsigned binaries
+# reaching users is a decision somebody should make on purpose rather than by pushing a tag.
+#
+# Signing is wired but optional. Set the secrets and the same workflow signs; leave them
+# unset and it builds unsigned and says so in the run summary rather than failing quietly.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Attach the installers to a draft release (off = build and keep as workflow artifacts only)"
+        type: boolean
+        default: false
+
+# The release job creates a release; nothing here needs any other scope.
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "24"
+
+jobs:
+  # A tag that disagrees with package.json produces installers whose auto-updater compares
+  # against a version that was never released. Cheaper to catch here than in the field.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: read
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "package.json says $version"
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            if [ "$tag" != "$version" ]; then
+              echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version $version."
+              exit 1
+            fi
+            echo "Tag ${GITHUB_REF_NAME} matches."
+          fi
+
+  build:
+    needs: version
+    strategy:
+      # One platform failing should not hide whether the other two work.
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            # nsis and portable, both x64, as electron-builder.yml declares.
+            args: "--win"
+            # Which /dl route ids this runner is responsible for. macOS and Linux each
+            # answer two, so a single id per runner would leave half of them unchecked.
+            serves: "windows"
+          - os: macos-latest
+            platform: macos
+            # Both architectures explicitly: the runner is Apple silicon, and without
+            # `--x64` there would be no Intel .dmg for the /dl/macos-intel route.
+            args: "--mac --arm64 --x64"
+            serves: "macos macos-intel"
+          - os: ubuntu-latest
+            platform: linux
+            args: "--linux"
+            serves: "linux linux-deb"
+
+    runs-on: ${{ matrix.os }}
+    name: build (${{ matrix.platform }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # Everything installs at the root: this repository deliberately does not use npm
+      # workspaces (see the "//workspaces" note in package.json), and `node-pty` - the one
+      # native dependency - is a root dependency that electron-builder rebuilds against
+      # Electron's ABI as part of packaging.
+      - run: npm ci
+
+      # Read through `env`, never interpolated into the script body. `${{ secrets.X }}`
+      # written inline becomes part of the command GitHub echoes, and masking is a
+      # best-effort filter on output rather than a guarantee about what was executed.
+      - name: Say whether this build is signed
+        shell: bash
+        env:
+          HAS_CERT: ${{ secrets.CSC_LINK != '' }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          if [ "$HAS_CERT" = "true" ]; then
+            echo "Signing certificate present."
+          else
+            echo "::warning::No signing certificate for ${PLATFORM}. Building unsigned."
+          fi
+
+      - name: Build and package
+        shell: bash
+        env:
+          # electron-builder reads all of these itself. Absent secrets are empty strings,
+          # which it treats as "not configured" rather than as a bad value.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Without a certificate, stop electron-builder searching the keychain for one.
+          # On macOS that search is what turns "unsigned build" into a failed build.
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
+          # Publishing happens in one place, after all three platforms have succeeded.
+          # Three runners racing to create the same release is how a release ends up with
+          # two of its three platforms attached.
+          ADCODE_RELEASE_DIR: ${{ github.workspace }}/release
+        run: npm run package -- ${{ matrix.args }} --publish never
+
+      # Installers, update manifests and blockmaps. The `latest*.yml` files are what the
+      # auto-updater reads; a release without them installs fine and never updates again.
+      - name: Collect the installers
+        shell: bash
+        run: |
+          mkdir -p dist
+          find release -maxdepth 1 -type f \
+            \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \
+               -o -name "*.blockmap" -o -name "latest*.yml" \) \
+            -exec cp {} dist/ \;
+          echo "Collected:"
+          ls -la dist
+
+      # The website asks for five exact filenames. electron-builder produces them through
+      # `${arch}` templates that resolve differently per target, so the two agree only by
+      # having been reasoned about - and when they stop agreeing, the build succeeds, the
+      # release publishes, and every download button returns 404.
+      - name: Check the names the website will ask for
+        shell: bash
+        run: |
+          for id in ${{ matrix.serves }}; do
+            node scripts/check-release-assets.mjs --platform "$id" dist
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.platform }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    needs: [version, build]
+    # A tag always drafts a release. A manual run only does so when asked, so the workflow
+    # can be exercised without leaving half-finished drafts behind.
+    if: github.ref_type == 'tag' || inputs.publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List what will be attached
+        shell: bash
+        run: ls -la artifacts
+
+      # All five, together. The per-runner checks each saw one platform's output; this is
+      # the first point at which "can the website serve every download it advertises?" can
+      # actually be answered, and it is answered before a release exists rather than after.
+      - name: Check every download the website advertises
+        shell: bash
+        run: node scripts/check-release-assets.mjs artifacts
+
+      # `gh` is pre-installed on GitHub runners. Used in preference to a third-party
+      # release action: this repository pays real money to real people, and the release
+      # step is the last place to take on a supply-chain dependency for convenience.
+      - name: Draft the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+          HAS_CERT: ${{ secrets.CSC_LINK != '' }}
+        run: |
+          tag="v${VERSION}"
+          signed_note="**These installers are not code-signed.** Windows SmartScreen will warn on download, and macOS Gatekeeper will refuse to open the app until it is signed and notarised."
+          if [ "$HAS_CERT" = "true" ]; then
+            signed_note="These installers are code-signed."
+          fi
+
+          notes=$(printf '%s\n\n%s\n' \
+            "ADCode ${VERSION}. See CHANGELOG.md for what changed." \
+            "${signed_note}")
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag exists; replacing its assets."
+            gh release upload "$tag" artifacts/* --clobber
+          else
+            gh release create "$tag" artifacts/* \
+              --draft \
+              --title "ADCode ${VERSION}" \
+              --notes "$notes"
+          fi
+
+      - name: Say what happens next
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          HAS_CERT: ${{ secrets.CSC_LINK != '' }}
+        run: |
+          {
+            echo "## ADCode ${VERSION} drafted"
+            echo
+            echo "The release is a **draft**. Nothing is downloadable yet:"
+            echo "\`/dl/windows\` and the rest stream from \`releases/latest/download\`,"
+            echo "and GitHub does not treat a draft as latest."
+            echo
+            if [ "$HAS_CERT" != "true" ]; then
+              echo "> **Unsigned.** Windows warns via SmartScreen; macOS refuses to open the app at all."
+              echo "> Publishing this draft ships that experience to every downloader."
+            fi
+            echo
+            echo "Publish it from the Releases page when you mean to."
+          } >> "$GITHUB_STEP_SUMMARY"

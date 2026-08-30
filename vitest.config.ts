@@ -21,6 +21,7 @@ const alias = {
   "@adcode/search/fuzzy": resolve(import.meta.dirname, "packages/search/src/fuzzy.ts"),
   "@adcode/search": resolve(import.meta.dirname, "packages/search/src/index.ts"),
   "@adcode/collab": resolve(import.meta.dirname, "packages/collab/src/index.ts"),
+  "@adcode/release/downloadAssets": resolve(import.meta.dirname, "packages/release/src/downloadAssets.ts"),
   "@adcode/release": resolve(import.meta.dirname, "packages/release/src/index.ts"),
   "@adcode/structure": resolve(import.meta.dirname, "packages/structure/src/index.ts"),
   "@adcode/spell": resolve(import.meta.dirname, "packages/spell/src/index.ts"),

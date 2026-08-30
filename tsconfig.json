@@ -43,6 +43,7 @@
       "@adcode/search/universal": ["./packages/search/src/universal.ts"],
       "@adcode/search": ["./packages/search/src/index.ts"],
       "@adcode/collab": ["./packages/collab/src/index.ts"],
+      "@adcode/release/downloadAssets": ["./packages/release/src/downloadAssets.ts"],
       "@adcode/release": ["./packages/release/src/index.ts"],
       "@adcode/structure": ["./packages/structure/src/index.ts"],
       "@adcode/spell": ["./packages/spell/src/index.ts"],
