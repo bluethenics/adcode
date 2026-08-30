@@ -76,13 +76,35 @@
   background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
   box-shadow: var(--shadow-floating);
   backdrop-filter: saturate(180%) blur(20px);
-  animation: breadcrumb-popover-in 160ms cubic-bezier(.32, .72, 0, 1) both;
+  /*
+   * Grown from the crumb it belongs to, not from its own middle.
+   *
+   * `positionMenu` left-aligns this to the anchor button and opens it 6px underneath, so
+   * the top-left corner is the one point the popover and its trigger share. Scaling about
+   * the centre - the default, and what this did - makes a 440px-tall menu appear to swell
+   * out of a spot that has nothing to do with what was clicked. The origin is the whole
+   * difference between a menu that came *from* the crumb and one that merely landed near
+   * it. Matches `.feature-library`, which is anchored the same way.
+   */
+  transform-origin: left top;
+  animation: breadcrumb-popover-in 160ms var(--ease-sheet) both;
+}
+
+/* Flipped above the crumb when there is no room below - so is the origin. */
+.breadcrumb-popover[data-side="above"] {
+  transform-origin: left bottom;
+  animation-name: breadcrumb-popover-in-above;
 }
 
 .breadcrumb-popover[hidden] { display: none; }
 
 @keyframes breadcrumb-popover-in {
   from { opacity: 0; transform: translateY(-4px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes breadcrumb-popover-in-above {
+  from { opacity: 0; transform: translateY(4px) scale(.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
@@ -197,8 +219,14 @@
 
 html[data-density="compact"] .breadcrumb-menu-row { min-height: 28px; }
 
+/*
+ * Reduce-motion keeps the fade and drops the travel - gentler, not absent. Both the
+ * default and the flipped rule are listed: `[data-side="above"]` outranks a bare class
+ * selector, so naming only the class here would leave a flipped popover still sliding.
+ */
 @media (prefers-reduced-motion: reduce) {
-  .breadcrumb-popover {
+  .breadcrumb-popover,
+  .breadcrumb-popover[data-side="above"] {
     animation-duration: 100ms;
     animation-name: breadcrumb-popover-fade;
   }
@@ -207,6 +235,12 @@ html[data-density="compact"] .breadcrumb-menu-row { min-height: 28px; }
     from { opacity: 0; }
     to { opacity: 1; }
   }
+}
+
+:root[data-reduced-motion="true"] .breadcrumb-popover,
+:root[data-reduced-motion="true"] .breadcrumb-popover[data-side="above"] {
+  animation-duration: 100ms;
+  animation-name: breadcrumb-popover-fade;
 }
 
 /* ── Peek ─────────────────────────────────────────────────────────────── */

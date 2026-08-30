@@ -36,6 +36,54 @@ export interface NotificationCentre {
   dismissAll(): void;
 }
 
+/**
+ * Flush the start state, then hand the element to the transition.
+ *
+ * A forced reflow rather than the two-frame `requestAnimationFrame` dance this used to do,
+ * and the difference is not stylistic. Chromium throttles `requestAnimationFrame` to
+ * nothing while a window is occluded, minimised, or on another desktop - and a toast is
+ * the one surface here that is *not* opened by the user. It arrives on a timer. So the
+ * exact moment a sponsored toast is most likely to be created is a moment when neither
+ * frame will ever run: the card then sits in the DOM at `opacity: 0`, translated fully
+ * offscreen, for the rest of the session, and every callback waiting behind those frames -
+ * including the paint report that is the only reason the impression counts - never fires.
+ *
+ * Reading `offsetHeight` flushes the pending style synchronously, which is all the frames
+ * were ever for. `helpPopover.ts` and `releaseNotice.ts` already do exactly this, for
+ * exactly this reason.
+ */
+function reveal(element: HTMLElement, state: string): void {
+  void element.offsetHeight;
+  element.dataset["state"] = state;
+}
+
+/**
+ * Remove the node when its exit transition actually finishes, not when a constant says it
+ * should have.
+ *
+ * `EXIT_MS` mirrors `--duration-exit`, and the two drift the moment either side is edited.
+ * They already disagree: under `prefers-reduced-motion` tokens.css clamps every transition
+ * to 100ms, so a fixed 160ms wait leaves a finished, invisible toast in the layer for 60ms
+ * of dead time. `transitionend` is the honest signal.
+ *
+ * The timeout stays as a floor, not a schedule: `transitionend` never fires if the element
+ * is display-none by then, or if the exit resolves to no change at all.
+ */
+function removeAfterExit(element: HTMLElement): void {
+  let done = false;
+  const finish = (): void => {
+    if (done) return;
+    done = true;
+    element.remove();
+  };
+
+  // Child transitions bubble to here; only the card's own exit should retire the card.
+  element.addEventListener("transitionend", (event) => {
+    if (event.target === element) finish();
+  });
+  window.setTimeout(finish, EXIT_MS + 60);
+}
+
 export function createNotificationCentre(host: HTMLElement): NotificationCentre {
   // `clearTimer` is a closure rather than a timer id: hovering pauses the auto-dismiss
   // and un-hovering re-arms it with a fresh id, so a stored id goes stale the first time
@@ -51,10 +99,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
 
     element.style.willChange = "transform, opacity";
     element.dataset["state"] = "exiting";
-
-    window.setTimeout(() => {
-      element.remove();
-    }, EXIT_MS);
+    removeAfterExit(element);
 
     if (notify) window.adcode.ads.dismissed(creativeId);
   }
@@ -67,7 +112,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
 
     card.style.willChange = "transform, opacity";
     card.dataset["state"] = "exiting";
-    window.setTimeout(() => card.remove(), EXIT_MS);
+    removeAfterExit(card);
   }
 
   return {
@@ -120,15 +165,11 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       host.append(card);
       plain.add(card);
 
-      // Same two-frame dance as the sponsored kind, and for the same reason.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          card.dataset["state"] = "entered";
-          window.setTimeout(() => {
-            card.style.willChange = "auto";
-          }, ENTER_MS);
-        });
-      });
+      // Same synchronous flush as the sponsored kind, and for the same reason.
+      reveal(card, "entered");
+      window.setTimeout(() => {
+        card.style.willChange = "auto";
+      }, ENTER_MS);
 
       if (notification.autoDismissMs !== undefined) {
         window.setTimeout(() => dismissPlain(card), notification.autoDismissMs);
@@ -219,22 +260,18 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
 
       host.append(card);
 
-      // Two frames: one for the element to be laid out at its offscreen start position,
-      // one for the transition to have something to animate from. Without this the
-      // browser coalesces both states and the toast simply appears.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          card.dataset["state"] = "entered";
+      // Lay the card out at its offscreen start position, then give the transition
+      // something to animate from. Without the flush the browser coalesces both states
+      // and the toast simply appears. See `reveal` for why this is not a rAF.
+      reveal(card, "entered");
 
-          window.setTimeout(() => {
-            card.style.willChange = "auto";
-            // Reporting paint is what lets the ad client count the impression at all -
-            // it is one of the three conditions §1 requires, and the renderer is the
-            // only place that knows it.
-            window.adcode.ads.painted(toast.creativeId);
-          }, ENTER_MS);
-        });
-      });
+      window.setTimeout(() => {
+        card.style.willChange = "auto";
+        // Reporting paint is what lets the ad client count the impression at all -
+        // it is one of the three conditions §1 requires, and the renderer is the
+        // only place that knows it.
+        window.adcode.ads.painted(toast.creativeId);
+      }, ENTER_MS);
 
       arm();
       live = { element: card, creativeId: toast.creativeId, clearTimer };

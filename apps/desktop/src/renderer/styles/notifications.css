@@ -40,7 +40,7 @@
   /* Existing toasts reflow with a 180ms transform transition (§8.3). */
   transition:
     transform 180ms var(--ease-toast),
-    opacity var(--duration-exit) ease-in;
+    opacity var(--duration-exit) var(--ease-toast);
 }
 
 .toast[data-state="entering"] {
@@ -56,12 +56,22 @@
     opacity 220ms var(--ease-toast);
 }
 
+/*
+ * The exit leaves on the same curve it arrived on.
+ *
+ * This was `ease-in`, which is the one easing that is always wrong on a control surface:
+ * it starts slow, so it spends its first frames - the frames the eye is actually on, since
+ * the user just clicked dismiss - barely moving, and only commits once nobody is watching.
+ * `--ease-toast` front-loads the travel instead, and the dismissal reads as instant at the
+ * same 160ms. A toast that slides in from the right leaves through the right, on the same
+ * curve: symmetry is what makes the gesture legible.
+ */
 .toast[data-state="exiting"] {
   transform: translateX(calc(100% + 12px));
   opacity: 0;
   transition:
-    transform var(--duration-exit) ease-in,
-    opacity var(--duration-exit) ease-in;
+    transform var(--duration-exit) var(--ease-toast),
+    opacity var(--duration-exit) var(--ease-toast);
 }
 
 /* §1: reduce-motion becomes a 100ms opacity fade with no translation. */

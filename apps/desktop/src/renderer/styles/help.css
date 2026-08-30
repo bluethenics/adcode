@@ -126,6 +126,15 @@
   color: var(--text-secondary);
 }
 
+/*
+ * Asymmetric on purpose: the highlight arrives fast and leaves slowly.
+ *
+ * Both directions used to run at 400ms. That is the wrong half to spend time on - this
+ * wash is the answer to "where did the guide just jump me to", so the 400ms was spent
+ * making the reader wait for the confirmation, then again taking it away while they were
+ * still looking for it. 160ms in lands with the scroll; the 400ms fade-out below is the
+ * part that should linger, because by then it has already been read.
+ */
 .help-card {
   padding: 14px 16px 15px;
   border-bottom: 1px solid var(--border-hairline);
@@ -139,6 +148,21 @@
 .help-card[data-highlight="true"],
 .settings-row[data-highlight="true"] {
   background: var(--bg-selected);
+}
+
+/*
+ * The fast half. `.settings-row` carries the same `data-highlight` from the same "jump to
+ * this setting" path (settingsView.ts), but had no transition at all, so the wash snapped
+ * on and snapped off - the one surface where the guide's answer arrived with no fade to
+ * follow. Both highlight surfaces now share one behaviour.
+ */
+.settings-row {
+  transition: background-color 400ms var(--ease-toast);
+}
+
+.help-card[data-highlight="true"],
+.settings-row[data-highlight="true"] {
+  transition-duration: var(--duration-exit);
 }
 
 .help-card-title {

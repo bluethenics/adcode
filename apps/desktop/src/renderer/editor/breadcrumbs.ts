@@ -122,11 +122,20 @@ export function createBreadcrumbs(deps: BreadcrumbsDeps): Breadcrumbs {
     menu.style.left = `${String(Math.max(MENU_MARGIN, Math.min(box.left, window.innerWidth - width - MENU_MARGIN)))}px`;
     const height = menu.getBoundingClientRect().height;
     const below = box.bottom + 6;
-    menu.style.top = `${String(
-      below + height <= window.innerHeight - MENU_MARGIN
-        ? below
-        : Math.max(MENU_MARGIN, box.top - height - 6),
-    )}px`;
+    const fitsBelow = below + height <= window.innerHeight - MENU_MARGIN;
+    menu.style.top = `${String(fitsBelow ? below : Math.max(MENU_MARGIN, box.top - height - 6))}px`;
+
+    /*
+     * Which way it opened is also which corner it should grow from, and only this function
+     * knows. The stylesheet flips `transform-origin` and the travel direction off this.
+     *
+     * Written only when it actually changes. This runs again every time the menu is
+     * repositioned - after the directory listing lands, after navigating a level - and
+     * `data-side` selects a different `animation-name`, so an unconditional write would
+     * restart the 160ms entrance on each of those, mid-flight, for no reason.
+     */
+    const side = fitsBelow ? "below" : "above";
+    if (menu.dataset["side"] !== side) menu.dataset["side"] = side;
   }
 
   function renderMenu(): void {

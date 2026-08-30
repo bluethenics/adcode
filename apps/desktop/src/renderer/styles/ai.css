@@ -39,10 +39,21 @@
   box-shadow: var(--shadow-floating);
   overflow: hidden;
 
+  /*
+   * `transform` is this card's *position*, not its entrance - `place()` in chatWidget.ts
+   * writes a fresh translate on every `pointermove` while the header is being dragged. So
+   * it must never be transitioned: a 220ms curve on it means each move event retargets an
+   * eased animation instead of landing, and the card trails the cursor the whole way down
+   * and then keeps gliding after the pointer stops. Direct manipulation has to be 1:1.
+   *
+   * It also bought nothing on the way in. `place()` runs before the open state is set, so
+   * the only thing the transform transition ever animated was an unasked-for drift from
+   * the bottom-right anchor to the saved position, every single time the card was opened.
+   *
+   * Presence is opacity's job here, and opacity alone.
+   */
   opacity: 0;
-  transition:
-    opacity var(--duration-enter) var(--ease-sheet),
-    transform var(--duration-enter) var(--ease-sheet);
+  transition: opacity var(--duration-enter) var(--ease-sheet);
 }
 
 .chat-card[data-state="open"] {

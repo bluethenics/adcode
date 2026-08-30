@@ -12,6 +12,14 @@ export const metadata: Metadata = {
 };
 
 const UPDATED = "2026-08-28";
+/*
+ * Written out rather than formatted, and kept beside the machine-readable date.
+ *
+ * These two had drifted: `dateTime` said the 28th while the words said "18 August". On a
+ * document whose whole job is to record what was true and when, the date is the one field
+ * that must not be able to disagree with itself.
+ */
+const UPDATED_LABEL = "28 August 2026";
 
 /*
  * Written against what the code does, not against a template.
@@ -98,7 +106,7 @@ ADCode is not directed at children under 13, and we do not knowingly create acco
 
 ## Changes
 
-If this policy changes in a way that affects what is collected, the date below changes and the change is described in the blog rather than made quietly.
+If this policy changes in a way that affects what is collected, the date at the top of this page changes and the change is announced in the [release notes](/versions) rather than made quietly.
 `;
 
 export default function PrivacyPage() {
@@ -117,7 +125,7 @@ export default function PrivacyPage() {
             <p className="eyebrow">Privacy</p>
             <h1 style={{ fontSize: "clamp(30px, 4.2vw, 46px)" }}>What we collect, and what we never do.</h1>
             <p className="mono" style={{ marginTop: 16, fontSize: 13, color: "var(--faint)" }}>
-              Last updated <time dateTime={UPDATED}>18 August 2026</time>
+              Last updated <time dateTime={UPDATED}>{UPDATED_LABEL}</time>
             </p>
           </header>
 
