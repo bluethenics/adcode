@@ -6,7 +6,7 @@
  * the facts stated as data rather than inferred from prose, which is why the economics
  * here come from `site.ts` rather than being typed twice.
  */
-import { SITE, url, formatMicros, ECONOMICS } from "./site";
+import { APP_VERSION, GITHUB_REPO, SITE, url, formatMicros, ECONOMICS } from "./site";
 
 type Node = Record<string, unknown>;
 
@@ -18,6 +18,39 @@ export function organisation(): Node {
     name: SITE.name,
     url: url("/"),
     description: SITE.description,
+    /*
+     * A logo and a profile that corroborates it.
+     *
+     * These are the two properties a knowledge panel is assembled from: without a logo
+     * there is no mark to show beside the name, and without `sameAs` there is nothing
+     * independent tying this name to the thing it claims to be. The repository is the
+     * honest one to cite - it is public, it is ours, and it is checkable.
+     */
+    logo: url("/icon.svg"),
+    sameAs: [`https://github.com/${GITHUB_REPO}`],
+  };
+}
+
+/**
+ * The site as an entity, distinct from the organisation that publishes it.
+ *
+ * What this buys is the site name in a result - Google reads `WebSite.name` to label the
+ * breadcrumb line rather than guessing from the domain, which matters more than usual
+ * while the domain is a shared `.workers.dev` subdomain that says nothing about the brand.
+ *
+ * Deliberately no `potentialAction`. A SearchAction has to point at a URL that performs a
+ * search, and there is no such page here; declaring one is a claim a crawler can check.
+ */
+export function webSite(): Node {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": url("/#website"),
+    name: SITE.name,
+    url: url("/"),
+    description: SITE.description,
+    inLanguage: "en",
+    publisher: { "@id": url("/#organization") },
   };
 }
 
@@ -32,6 +65,21 @@ export function softwareApplication(): Node {
     description: SITE.description,
     // Free to the developer is the entire proposition, so it is stated as data.
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    /*
+     * The properties that make this an application rather than a page about one.
+     *
+     * A version and a download URL are what let a result carry "1.0.0" and a direct
+     * install route; `softwareRequirements` answers the question every download page is
+     * really asked. There is deliberately no `aggregateRating`: there is no review corpus
+     * to average, and inventing one is how a software page earns a manual action.
+     */
+    softwareVersion: APP_VERSION,
+    downloadUrl: url("/versions"),
+    installUrl: url("/versions"),
+    screenshot: url("/opengraph-image.png"),
+    softwareRequirements: "Windows 10 or later, macOS 11 or later, or a 64-bit Linux desktop",
+    publisher: { "@id": url("/#organization") },
+    isAccessibleForFree: true,
     featureList: [
       "Monaco editing surface",
       "Multiple integrated terminals",

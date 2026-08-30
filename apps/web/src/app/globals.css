@@ -3598,6 +3598,17 @@ body { background: #000; }
 .marketplace-faq-list details[open] h3 { color: #fff; }
 .marketplace-faq-list p { margin: 0; padding: 0 56px 28px 0; max-width: 68ch; color: #8b948f; font-size: 14px; line-height: 1.7; }
 
+/* The 404. Quiet, and mostly a set of doors. */
+.notfound-wrap { max-width: 640px; }
+.notfound-code { font-family: var(--font-mono); font-size: 13px; letter-spacing: .12em; color: var(--muted); }
+.notfound h1 { margin-top: 14px; font-size: clamp(34px,5vw,52px); letter-spacing: -.03em; }
+.notfound-lead { margin-top: 16px; max-width: 52ch; color: var(--muted); font-size: 16px; line-height: 1.65; }
+.notfound-links { margin-top: 40px; display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 12px; }
+.notfound-links a { padding: 18px 20px; display: grid; gap: 5px; border: 1px solid var(--hairline); border-radius: var(--radius-md); transition: border-color .18s, background-color .18s; }
+.notfound-links a:hover { border-color: rgba(255,255,255,.24); background: var(--card); }
+.notfound-links strong { color: var(--text); font-size: 15px; font-weight: 600; }
+.notfound-links span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+
 .marketplace-footer { color: #78817f; border-top: 1px solid rgba(255,255,255,.08); background: #030708; }.marketplace-footer .marketplace-wrap { min-height: 74px; display: flex; align-items: center; justify-content: space-between; gap: 24px; font-size: 11px; }.marketplace-footer nav { display: flex; gap: 22px; }.marketplace-footer a:hover { color: #fff; }
 
 @media (max-width: 900px) {

@@ -5,7 +5,7 @@ import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { JsonLd } from "@/components/JsonLd";
 import { AuthProvider } from "@/components/AuthProvider";
-import { organisation, softwareApplication } from "@/lib/schema";
+import { organisation, softwareApplication, webSite } from "@/lib/schema";
 import "./globals.css";
 
 /*
@@ -93,6 +93,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
       <body>
         <JsonLd data={organisation()} />
+        <JsonLd data={webSite()} />
         <JsonLd data={softwareApplication()} />
         <AuthProvider>
           <Nav />

@@ -4,7 +4,7 @@ import { allReleases } from "@/lib/releases";
 import { GITHUB_REPO, url } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Versions and downloads",
+  title: "Download for Windows, macOS and Linux",
   description: "Download ADCode for Windows, macOS, or Linux and review release history.",
   alternates: { canonical: url("/versions") },
 };

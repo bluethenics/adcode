@@ -6,6 +6,8 @@
  * disagree, search engines index one host and users install from another.
  */
 
+import packageJson from "../../package.json";
+
 /** Swap this, or set NEXT_PUBLIC_SITE_ORIGIN, when the real domain is registered. */
 export const SITE_ORIGIN = process.env["NEXT_PUBLIC_SITE_ORIGIN"] ?? "https://adcode.bluethenics.com";
 
@@ -35,6 +37,15 @@ export const API_ORIGIN =
 
 /** Owner/repo that release artifacts are published to. */
 export const GITHUB_REPO = process.env["NEXT_PUBLIC_GITHUB_REPO"] ?? "bluethenics/adcode";
+
+/**
+ * The version this build documents.
+ *
+ * Read from the package rather than typed here, so `npm version` moves it and the
+ * SoftwareApplication data cannot claim a release that was never cut. It is the app the
+ * site is about, and this workspace is versioned in lockstep with the desktop one.
+ */
+export const APP_VERSION: string = packageJson.version;
 
 export const SITE = {
   name: "ADCode",

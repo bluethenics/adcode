@@ -8,10 +8,28 @@ import { JsonLd } from "@/components/JsonLd";
 import { FAQ, faqPage } from "@/lib/schema";
 import { SITE, url } from "@/lib/site";
 
+/*
+ * The title leads with what the page is, not only with what it promises.
+ *
+ * "Earn while you code" is the brand line and it stays - it is on the hero, and it is what
+ * makes this different. But a title is also the query it has to match, and nobody searches
+ * for a slogan. "Free AI code editor" is what somebody types when they are looking for
+ * exactly this and do not yet know it exists; the promise then earns the click.
+ *
+ * `absolute` because the layout template appends " - ADCode", which would push a
+ * title that already names the product past the length a result will show.
+ */
 export const metadata: Metadata = {
-  title: SITE.tagline,
-  description: "A privacy-first code editor funded by respectful advertising. Developers receive half of verified ad spend.",
+  title: { absolute: `${SITE.name} - a free AI code editor that pays you to use it` },
+  description:
+    "A full IDE - Monaco editing, real terminals, git and four AI providers - free forever. An occasional sponsored card funds it, and half of that revenue is credited to you.",
   alternates: { canonical: url("/") },
+  openGraph: {
+    type: "website",
+    title: `${SITE.name} - ${SITE.tagline}`,
+    description: SITE.description,
+    url: url("/"),
+  },
 };
 
 export default function Home() {
