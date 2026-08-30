@@ -69,6 +69,7 @@ import { currentSettings } from "./settings.ts";
 import { currentWorkspace } from "./workspace.ts";
 import { clearSessions, deleteSession, readSessions, writeSession } from "./aiSessions.ts";
 import { createAiWorkspaceService, type AiWorkspaceService } from "./aiWorkspaceService.ts";
+import { agentEventTrace } from "./aiEventTrace.ts";
 import { normalizeForCompare } from "./pathSafety.ts";
 import { recoverableDrafts } from "./history.ts";
 import { workspaceHasUnsavedDraft } from "./aiWorkspaceDrafts.ts";
@@ -81,6 +82,7 @@ import {
 import {
   createAiTeamCoordinator,
   createBudgetedTeamProvider,
+  roleHandoffChangedPaths,
   type AiTeamCoordinator,
   type AiTeamNodeRunner,
 } from "./aiTeamCoordinator.ts";
@@ -243,6 +245,12 @@ export async function aiAutomationComplete(id: string): Promise<AiAutomationView
   );
 }
 
+export async function aiAutomationMiss(id: string, reason: string): Promise<AiAutomationView> {
+  return announceAutomation(
+    await (await readyAiAutomationService()).miss(automationWorkspaceRoot(), id, reason),
+  );
+}
+
 export async function aiAutomationRetry(
   id: string,
   reason: string,
@@ -283,7 +291,7 @@ function belongsToCurrentWorkspace(task: AiWorkspaceTask): boolean {
 
 async function currentWorkspaceTask(taskId: string): Promise<AiWorkspaceTask | null> {
   const task = await (await readyAiWorkspaceService()).read(taskId);
-  return task !== null && belongsToCurrentWorkspace(task) ? task : null;
+  return task !== null && task.reviewable && belongsToCurrentWorkspace(task) ? task : null;
 }
 
 const REUSABLE_TASK_STATES = new Set(["ready", "running", "paused", "review", "conflict"]);
@@ -715,9 +723,24 @@ export async function aiSend(text: string): Promise<boolean> {
 
     let answer = "";
     let turnSucceeded = true;
+    let modelTraceRecorded = false;
 
     for await (const event of agent.send(text)) {
       broadcast(CHANNELS.aiEvent, event);
+      if (activeTaskId !== null) {
+        const workspaceService = await readyAiWorkspaceService();
+        if (!modelTraceRecorded) {
+          await workspaceService.recordTrace(activeTaskId, {
+            kind: "state",
+            summary: `Started ${providerId}/${model} assistant turn`,
+            detail: "",
+            outcome: "pending",
+          });
+          modelTraceRecorded = true;
+        }
+        const eventTrace = agentEventTrace(event);
+        if (eventTrace !== null) await workspaceService.recordTrace(activeTaskId, eventTrace);
+      }
       if (event.kind === "text") answer += event.text;
       if (event.kind === "error" || event.kind === "refusal" || event.kind === "cancelled") {
         turnSucceeded = false;
@@ -771,6 +794,14 @@ export async function aiSend(text: string): Promise<boolean> {
     return turnSucceeded;
   } catch (error) {
     // §9: a failure here costs an answer, never the editor.
+    if (activeTaskId !== null) {
+      await (await readyAiWorkspaceService()).recordTrace(activeTaskId, {
+        kind: "error",
+        summary: "Assistant turn failed before completion",
+        detail: "",
+        outcome: "failed",
+      });
+    }
     broadcast(CHANNELS.aiEvent, {
       kind: "error",
       detail: error instanceof Error ? error.message : "the assistant failed",
@@ -860,7 +891,6 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
     const service = await readyAiWorkspaceService();
     const task = await service.read(input.childTaskId);
     if (task === null || task.sandbox === null) throw new Error("Team role workspace is unavailable");
-    const before = new Map(task.changes.map((change) => [change.path, change.proposed]));
     const fixedWorkspace = {
       taskId: task.id,
       sandboxRoot: join(app.getPath("userData"), "ai-workspaces", "sandboxes", task.id),
@@ -914,9 +944,7 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
 
     const after = await service.read(task.id);
     if (after === null) throw new Error("Team role workspace disappeared");
-    const changedPaths = after.changes
-      .filter((change) => before.get(change.path) !== change.proposed)
-      .map((change) => change.path);
+    const changedPaths = roleHandoffChangedPaths(after.changes);
     const summary = answer.trim().slice(0, 2_000) || `${input.node.title} completed.`;
     return createTeamHandoff({
       nodeId: input.node.id,
@@ -1020,7 +1048,9 @@ export async function aiTeamStart(id: string): Promise<AiTeamView> {
   if (workspaceHasUnsavedDraft(team.workspaceRoot, await recoverableDrafts())) {
     throw new Error("Save open file changes before starting the Team's immutable workspace");
   }
-  const started = await (await readyAiTeamCoordinator()).startConfirmed(id);
+  const coordinator = await readyAiTeamCoordinator();
+  const started =
+    team.state === "paused" ? await coordinator.resume(id) : await coordinator.startConfirmed(id);
   return toAiTeamView(started);
 }
 
@@ -1170,9 +1200,24 @@ export async function aiWorkspaceApply(
   taskId: string,
   selections: readonly AiWorkspaceApplySelectionView[],
 ): Promise<AiWorkspaceActionView> {
-  if ((await currentWorkspaceTask(taskId)) === null) throw new Error("Task is not in the open workspace");
+  const current = await currentWorkspaceTask(taskId);
+  if (current === null) throw new Error("Task is not in the open workspace");
+  if (current.parentTeamId !== null) {
+    const team = await (await readyAiTeamService()).read(current.parentTeamId);
+    if (team?.state !== "review") {
+      throw new Error("This Team review is no longer accepting additional changes");
+    }
+  }
   const result = await (await readyAiWorkspaceService()).apply(taskId, selections);
   announceWorkspaceTask(result.task);
+  if (result.ok && result.task.state === "applied" && current.parentTeamId !== null) {
+    // The human files and their rollback checkpoint are already authoritative. A transient
+    // Team-record cleanup failure must not turn that successful apply into a renderer error;
+    // startup recovery finalizes an applied combined review idempotently.
+    await (await readyAiTeamService())
+      .completeReview(current.parentTeamId, taskId)
+      .catch(() => undefined);
+  }
   return toAiWorkspaceActionView(result);
 }
 

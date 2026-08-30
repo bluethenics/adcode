@@ -13,10 +13,10 @@
  * exists for.
  */
 import { readFile, readdir, stat } from "node:fs/promises";
-import { isAbsolute, join, relative, sep } from "node:path";
+import { join, relative, sep } from "node:path";
 import { computeHunks, type AiFileChange, type ToolCallBlock, type ToolRunner } from "@adcode/ai";
 import type { NodeMemory } from "@adcode/memory";
-import { isInsideWorkspace } from "./pathSafety.ts";
+import { resolveSandboxPath } from "./aiSandbox.ts";
 
 const MAX_READ_BYTES = 400_000;
 const MAX_SEARCH_HITS = 60;
@@ -52,13 +52,14 @@ export interface AiToolDeps {
 const ok = (content: string) => ({ content, isError: false });
 const fail = (content: string) => ({ content, isError: true });
 
-/** Resolve a workspace-relative path, refusing anything that escapes the workspace. */
-function resolveInWorkspace(root: string | null, input: unknown): string | null {
+/** Resolve a workspace-relative path, refusing lexical and real-filesystem escapes. */
+async function resolveInWorkspace(root: string | null, input: unknown): Promise<string | null> {
   if (root === null || typeof input !== "string") return null;
-  if (isAbsolute(input)) return null;
-
-  const candidate = join(root, input);
-  return isInsideWorkspace(root, candidate) ? candidate : null;
+  try {
+    return await resolveSandboxPath(root, input);
+  } catch {
+    return null;
+  }
 }
 
 export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
@@ -76,7 +77,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
     }
 
     for (const entry of entries) {
-      if (SKIP.has(entry.name)) continue;
+      if (SKIP.has(entry.name) || entry.isSymbolicLink()) continue;
       const full = join(directory, entry.name);
 
       if (entry.isDirectory()) await walk(full, root, hits);
@@ -93,7 +94,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           const workspace = await deps.workspace();
           if (workspace === null) return unavailable();
           const root = workspace.sandboxRoot;
-          const path = resolveInWorkspace(root, input["path"]);
+          const path = await resolveInWorkspace(root, input["path"]);
           if (path === null) return fail("That path is outside the open workspace.");
 
           try {
@@ -119,7 +120,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           const workspace = await deps.workspace();
           if (workspace === null) return unavailable();
           const root = workspace.sandboxRoot;
-          const target = input["path"] === undefined ? root : resolveInWorkspace(root, input["path"]);
+          const target = input["path"] === undefined ? root : await resolveInWorkspace(root, input["path"]);
           if (target === null) return fail("That path is outside the open workspace.");
 
           try {
@@ -148,7 +149,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
             return fail("That pattern is not a valid regular expression.");
           }
 
-          const base = input["path"] === undefined ? root : resolveInWorkspace(root, input["path"]);
+          const base = input["path"] === undefined ? root : await resolveInWorkspace(root, input["path"]);
           if (base === null) return fail("That path is outside the open workspace.");
 
           const files: string[] = [];
@@ -180,7 +181,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           const workspace = await deps.workspace();
           if (workspace === null) return unavailable();
           const root = workspace.sandboxRoot;
-          const path = resolveInWorkspace(root, input["path"]);
+          const path = await resolveInWorkspace(root, input["path"]);
           if (path === null) return fail("That path is outside the open workspace.");
           if (typeof input["contents"] !== "string") return fail("propose_edit needs contents.");
 

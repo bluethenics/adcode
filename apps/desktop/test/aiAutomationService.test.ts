@@ -115,4 +115,25 @@ describe("AI automation service", () => {
     expect(retried).toMatchObject({ state: "pending", dueAt: 3_000 });
     expect((await api.cancel("C:/project", item.id)).state).toBe("cancelled");
   });
+
+  it("marks an unavailable claimed target missed until the user confirms Run now", async () => {
+    const api = service();
+    const item = await api.create("C:/project", {
+      message: "Deliver once",
+      targetId: "adapter:extension",
+      targetLabel: "Connected extension",
+      dueAt: 1_000,
+    });
+    await api.claimDue("C:/project");
+
+    const missed = await api.miss("C:/project", item.id, "Target is not connected");
+    expect(missed).toMatchObject({
+      state: "missed",
+      attempts: 1,
+      lastError: "Target is not connected",
+    });
+    clock = 2_000;
+    expect(await api.claimDue("C:/project")).toBeNull();
+    expect((await api.confirmMissed("C:/project", item.id)).state).toBe("pending");
+  });
 });

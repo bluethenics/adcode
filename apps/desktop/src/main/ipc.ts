@@ -105,6 +105,7 @@ import {
   aiAutomationList,
   aiAutomationClaimDue,
   aiAutomationComplete,
+  aiAutomationMiss,
   aiAutomationRetry,
   aiAutomationCancel,
   aiAutomationConfirmMissed,
@@ -988,6 +989,12 @@ export function registerIpc(): void {
   ipcMain.handle(CHANNELS.aiAutomationComplete, (_event, id: unknown) => {
     if (!validAiAutomationId(id)) throw new Error("expected an automation id");
     return aiAutomationComplete(id);
+  });
+  ipcMain.handle(CHANNELS.aiAutomationMiss, (_event, id: unknown, reason: unknown) => {
+    if (!validAiAutomationId(id) || !isString(reason)) {
+      throw new Error("expected an automation id and reason");
+    }
+    return aiAutomationMiss(id, reason);
   });
   ipcMain.handle(
     CHANNELS.aiAutomationRetry,

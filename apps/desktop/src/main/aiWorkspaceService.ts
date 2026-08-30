@@ -48,6 +48,11 @@ export interface AiWorkspaceBudgetResult {
   readonly reason: "token-limit" | "cost-limit" | null;
 }
 
+export type AiWorkspaceTraceInput = Pick<
+  OperationalTrace,
+  "kind" | "summary" | "detail" | "outcome"
+>;
+
 interface CheckpointEntry {
   readonly path: string;
   readonly original: string | null;
@@ -78,6 +83,7 @@ export interface AiWorkspaceStoragePolicy {
 
 export interface AiWorkspaceMaintenanceResult {
   readonly ok: boolean;
+  /** Compatibility name: includes task sandboxes and retained immutable Team bases. */
   readonly totalSandboxBytes: number;
   readonly removedTaskIds: readonly string[];
 }
@@ -89,6 +95,9 @@ export interface StartAiWorkspaceInput {
   readonly reviewPolicy?: AiReviewPolicy;
   readonly tokenLimit?: number;
   readonly costMicrosLimit?: number;
+  /** Main-process-only Team ownership. Role tasks set reviewable false; combined reviews true. */
+  readonly parentTeamId?: string;
+  readonly reviewable?: boolean;
   /** Main-process-only immutable Team base. Never accepted from renderer IPC. */
   readonly sandboxSource?: AiSandboxSource;
   /** Bytes held by the immutable Team base that count against the same sandbox quota. */
@@ -114,6 +123,7 @@ export interface AiWorkspaceService {
   discard(taskId: string): Promise<AiWorkspaceTask | null>;
   rollback(taskId: string): Promise<AiWorkspaceActionResult>;
   traces(taskId: string): Promise<OperationalTrace[]>;
+  recordTrace(taskId: string, input: AiWorkspaceTraceInput): Promise<void>;
   recoverActive(): Promise<AiWorkspaceTask[]>;
   maintainStorage(policy: AiWorkspaceStoragePolicy): Promise<AiWorkspaceMaintenanceResult>;
 }
@@ -212,6 +222,101 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
     return parsed as CheckpointManifest;
   }
 
+  async function recoveryConflict(task: AiWorkspaceTask, detail: string): Promise<AiWorkspaceTask> {
+    const conflicted = transitionTask(task, "conflict", Math.max(now(), task.updatedAt));
+    await store.save(conflicted);
+    await trace(task.id, "checkpoint", "Interrupted file transaction needs review", "blocked", detail);
+    return conflicted;
+  }
+
+  async function recoverTransaction(task: AiWorkspaceTask): Promise<AiWorkspaceTask> {
+    let manifest: CheckpointManifest;
+    try {
+      manifest = await readManifest(task);
+    } catch (error) {
+      return recoveryConflict(
+        task,
+        error instanceof Error ? error.message : "rollback checkpoint is unavailable",
+      );
+    }
+    if (manifest.taskId !== task.id || manifest.workspaceRoot !== task.workspaceRoot) {
+      return recoveryConflict(task, "rollback checkpoint does not belong to this task");
+    }
+
+    const resolved = await Promise.all(
+      manifest.entries.map(async (entry) => ({
+        entry,
+        humanPath: await resolveSandboxPath(task.workspaceRoot, entry.path),
+        current: await readMaybe(await resolveSandboxPath(task.workspaceRoot, entry.path)),
+      })),
+    );
+    const known = resolved.every(
+      ({ entry, current }) => current === entry.original || current === entry.applied,
+    );
+    if (!known) {
+      return recoveryConflict(task, "workspace contains changes newer than the interrupted transaction");
+    }
+
+    if (task.state === "applying") {
+      const pendingPaths = new Set(task.changes.map((change) => change.path));
+      const selected = resolved.filter(({ entry }) => pendingPaths.has(entry.path));
+      const prior = resolved.filter(({ entry }) => !pendingPaths.has(entry.path));
+      if (prior.some(({ entry, current }) => current !== entry.applied)) {
+        return recoveryConflict(task, "an earlier accepted file no longer matches its checkpoint");
+      }
+      try {
+        for (const { entry, humanPath } of selected) {
+          if (entry.original === null) await rm(humanPath, { force: true });
+          else await writeAtomic(humanPath, entry.original);
+        }
+      } catch (error) {
+        return recoveryConflict(
+          task,
+          error instanceof Error ? error.message : "could not restore interrupted apply",
+        );
+      }
+
+      const checkpoint =
+        prior.length === 0
+          ? null
+          : {
+              id: manifest.id,
+              createdAt: manifest.createdAt,
+              appliedAt: null,
+              paths: prior.map(({ entry }) => entry.path),
+            } satisfies AiCheckpointSummary;
+      if (checkpoint === null) {
+        await rm(dirname(checkpointPath(task.id, manifest.id)), { recursive: true, force: true });
+      } else {
+        await writeManifest({ ...manifest, entries: prior.map(({ entry }) => entry) });
+      }
+      const recovered = transitionTask(
+        { ...task, checkpoint },
+        "review",
+        Math.max(now(), task.updatedAt),
+      );
+      await store.save(recovered);
+      await trace(task.id, "checkpoint", "Restored interrupted apply for review", "ok");
+      return recovered;
+    }
+
+    try {
+      for (const { entry, humanPath } of resolved) {
+        if (entry.original === null) await rm(humanPath, { force: true });
+        else await writeAtomic(humanPath, entry.original);
+      }
+    } catch (error) {
+      return recoveryConflict(
+        task,
+        error instanceof Error ? error.message : "could not finish interrupted rollback",
+      );
+    }
+    const recovered = transitionTask(task, "rolled-back", Math.max(now(), task.updatedAt));
+    await store.save(recovered);
+    await trace(task.id, "checkpoint", "Finished interrupted rollback", "ok");
+    return recovered;
+  }
+
   async function removeTaskSandbox(task: AiWorkspaceTask): Promise<void> {
     if (task.sandbox === null) return;
     const cleanup = runtimeCleanups.get(task.id);
@@ -244,7 +349,33 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
     }
   }
 
-  async function maintainStorage(policy: AiWorkspaceStoragePolicy): Promise<AiWorkspaceMaintenanceResult> {
+  /** Team records and traces are history; only retained immutable `base` folders use quota. */
+  async function teamBaseStorageBytes(): Promise<number> {
+    const teamsRoot = join(options.userDataDirectory, "ai-teams");
+    try {
+      const teams = await readdir(teamsRoot, { withFileTypes: true });
+      let bytes = 0;
+      for (const team of teams) {
+        if (!team.isDirectory() || team.isSymbolicLink()) continue;
+        const base = join(teamsRoot, team.name, "base");
+        try {
+          const info = await lstat(base);
+          if (!info.isDirectory() || info.isSymbolicLink()) continue;
+          bytes += await directorySize(base);
+        } catch {
+          // Most completed Teams have no retained base.
+        }
+      }
+      return bytes;
+    } catch {
+      return 0;
+    }
+  }
+
+  async function maintainStorage(
+    policy: AiWorkspaceStoragePolicy,
+    minimumTeamBaseBytes = 0,
+  ): Promise<AiWorkspaceMaintenanceResult> {
     if (
       !Number.isSafeInteger(policy.quotaBytes) ||
       policy.quotaBytes <= 0 ||
@@ -293,7 +424,14 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
     }
 
     const sandboxes = join(options.userDataDirectory, "ai-workspaces", "sandboxes");
-    let totalSandboxBytes = await directorySize(sandboxes);
+    const storageBytes = async (): Promise<number> => {
+      const [sandboxBytes, retainedTeamBytes] = await Promise.all([
+        directorySize(sandboxes),
+        teamBaseStorageBytes(),
+      ]);
+      return sandboxBytes + Math.max(retainedTeamBytes, minimumTeamBaseBytes);
+    };
+    let totalSandboxBytes = await storageBytes();
     if (totalSandboxBytes > policy.quotaBytes) {
       const refreshed = (await store.listAll())
         .filter((task) => task.sandbox !== null && terminal.has(task.state))
@@ -304,7 +442,7 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
           await removeTaskSandbox(task);
           await store.save({ ...task, sandbox: null, updatedAt: now() });
           if (!removedTaskIds.includes(task.id)) removedTaskIds.push(task.id);
-          totalSandboxBytes = await directorySize(sandboxes);
+          totalSandboxBytes = await storageBytes();
         } catch {
           // Try the next eligible task; active work and checkpoints remain untouched.
         }
@@ -353,9 +491,7 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
       if (policy !== undefined && reservedStorageBytes >= policy.quotaBytes) {
         throw new Error("The Team base uses the entire AI workspace storage quota.");
       }
-      const sandboxPolicy =
-        policy === undefined ? undefined : { ...policy, quotaBytes: policy.quotaBytes - reservedStorageBytes };
-      if (sandboxPolicy !== undefined && !(await maintainStorage(sandboxPolicy)).ok) {
+      if (policy !== undefined && !(await maintainStorage(policy, reservedStorageBytes)).ok) {
         throw new Error("AI workspace storage quota is full. Increase it in Settings or discard a task.");
       }
       const root = await import("node:fs/promises").then(({ realpath }) => realpath(input.workspaceRoot));
@@ -366,6 +502,8 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
         workspaceRoot: root,
         prompt: input.prompt,
         now: createdAt,
+        ...(input.parentTeamId === undefined ? {} : { parentTeamId: input.parentTeamId }),
+        ...(input.reviewable === undefined ? {} : { reviewable: input.reviewable }),
         ...(input.reviewPolicy === undefined ? {} : { reviewPolicy: input.reviewPolicy }),
         ...(input.tokenLimit === undefined ? {} : { tokenLimit: input.tokenLimit }),
         ...(input.costMicrosLimit === undefined ? {} : { costMicrosLimit: input.costMicrosLimit }),
@@ -381,11 +519,15 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
           ...(input.sandboxSource === undefined ? {} : { source: input.sandboxSource }),
         });
         runtimeCleanups.set(task.id, sandbox.cleanup);
-        if (sandboxPolicy !== undefined) {
-          const bytes = await directorySize(
-            join(options.userDataDirectory, "ai-workspaces", "sandboxes"),
-          );
-          if (bytes > sandboxPolicy.quotaBytes) {
+        if (policy !== undefined) {
+          const [sandboxBytes, retainedTeamBytes] = await Promise.all([
+            directorySize(join(options.userDataDirectory, "ai-workspaces", "sandboxes")),
+            teamBaseStorageBytes(),
+          ]);
+          if (
+            sandboxBytes + Math.max(retainedTeamBytes, reservedStorageBytes) >
+            policy.quotaBytes
+          ) {
             await sandbox.cleanup();
             runtimeCleanups.delete(task.id);
             throw new Error("This project is larger than the AI workspace storage quota.");
@@ -407,7 +549,7 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
 
     async list(workspaceRoot): Promise<AiWorkspaceTask[]> {
       const root = await import("node:fs/promises").then(({ realpath }) => realpath(workspaceRoot));
-      return store.list(workspaceIdentity(root));
+      return (await store.list(workspaceIdentity(root))).filter((task) => task.reviewable);
     },
 
     write: (taskId, path, contents) => writeProposal(taskId, path, contents, "human"),
@@ -661,10 +803,16 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
     async discard(taskId): Promise<AiWorkspaceTask | null> {
       let task = await store.read(taskId);
       if (task === null) return null;
-      if (task.state === "discarded") return task;
-      task = transitionTask(task, "discarded", now());
-      await store.save(task);
+      if (task.checkpoint !== null) {
+        throw new Error("Task has a rollback checkpoint; roll it back before discarding.");
+      }
+      if (task.state !== "discarded") {
+        task = transitionTask(task, "discarded", now());
+        await store.save(task);
+      }
       await removeTaskSandbox(task);
+      task = { ...task, sandbox: null, updatedAt: Math.max(now(), task.updatedAt) };
+      await store.save(task);
       await trace(task.id, "state", "Discarded task workspace", "ok");
       return task;
     },
@@ -677,7 +825,12 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
         conflicts,
         message,
       });
-      if (task.state !== "applied") return refuse(`Task is ${task.state}, not applied.`);
+      if (
+        task.state !== "applied" &&
+        !(task.state === "review" && task.checkpoint !== null)
+      ) {
+        return refuse(`Task is ${task.state}, not applied.`);
+      }
 
       const manifest = await readManifest(task);
       task = transitionTask(task, "rolling-back", now());
@@ -726,14 +879,26 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
         return { ok: false, task, conflicts: [], message: "Rollback could not be completed." };
       }
 
-      task = transitionTask(task, "rolled-back", now());
+      task = transitionTask({ ...task, changes: [] }, "rolled-back", now());
       await store.save(task);
       await trace(task.id, "rollback", `Rolled back ${resolved.length} file(s)`, "ok");
       return { ok: true, task, conflicts: [], message: "AI changes rolled back." };
     },
 
     traces: (taskId) => store.traces(taskId),
-    recoverActive: () => store.recoverActive(now()),
+    async recordTrace(taskId, input): Promise<void> {
+      if ((await store.read(taskId)) === null) throw new Error("AI workspace task was not found");
+      await trace(taskId, input.kind, input.summary, input.outcome, input.detail);
+    },
+    async recoverActive(): Promise<AiWorkspaceTask[]> {
+      const recovered: AiWorkspaceTask[] = [];
+      for (const task of await store.listAll()) {
+        if (task.state !== "applying" && task.state !== "rolling-back") continue;
+        recovered.push(await recoverTransaction(task));
+      }
+      recovered.push(...(await store.recoverActive(now())));
+      return recovered;
+    },
     maintainStorage,
   };
   return api;

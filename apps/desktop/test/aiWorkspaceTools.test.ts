@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -127,5 +127,39 @@ describe("sandboxed built-in AI tools", () => {
     expect(traversal.isError).toBe(true);
     expect(absolute.isError).toBe(true);
     expect(writeSandboxFile).not.toHaveBeenCalled();
+  });
+
+  it("refuses read, list, and search paths redirected outside the sandbox", async () => {
+    await symlink(
+      join(human, "src"),
+      join(sandbox, "src", "escape"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, null, contents),
+      onProposedEdit: () => undefined,
+    });
+
+    const read = await runner.run(
+      call("read_file", { path: "src/escape/file.ts" }),
+      new AbortController().signal,
+    );
+    const list = await runner.run(
+      call("list_files", { path: "src/escape" }),
+      new AbortController().signal,
+    );
+    const search = await runner.run(
+      call("search", { path: "src/escape", pattern: "human" }),
+      new AbortController().signal,
+    );
+
+    expect(read).toMatchObject({ isError: true });
+    expect(list).toMatchObject({ isError: true });
+    expect(search).toMatchObject({ isError: true });
+    expect(read.content).not.toContain("human version");
+    expect(list.content).not.toContain("file.ts");
+    expect(search.content).not.toContain("human version");
   });
 });

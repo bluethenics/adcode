@@ -25,6 +25,7 @@ export interface AiAutomationService {
   list(workspaceRoot: string): Promise<AiAutomation[]>;
   claimDue(workspaceRoot: string): Promise<AiAutomation | null>;
   complete(workspaceRoot: string, id: string): Promise<AiAutomation>;
+  miss(workspaceRoot: string, id: string, reason: string): Promise<AiAutomation>;
   retry(workspaceRoot: string, id: string, reason: string, dueAt: number): Promise<AiAutomation>;
   cancel(workspaceRoot: string, id: string): Promise<AiAutomation>;
   confirmMissed(workspaceRoot: string, id: string): Promise<AiAutomation>;
@@ -179,6 +180,18 @@ export function createAiAutomationService(options: AiAutomationServiceOptions): 
         const completed = completeAiAutomation(item, now());
         await save(items.map((candidate) => (candidate.id === id ? completed : candidate)));
         return completed;
+      });
+    },
+
+    miss(workspaceRoot, id, reason) {
+      return mutate(async () => {
+        const items = await load();
+        const item = await owned(items, workspaceRoot, id);
+        const message = reason.trim().slice(0, 500);
+        if (message.length === 0) throw new Error("Missed-delivery reason is required");
+        const missed = { ...missAiAutomation(item, now()), lastError: message };
+        await save(items.map((candidate) => (candidate.id === id ? missed : candidate)));
+        return missed;
       });
     },
 

@@ -37,3 +37,13 @@ export function shortenPath(path: string, max = 44): string {
 
   return `…${tail === "" ? path.slice(-(max - 1)) : tail}`;
 }
+
+/** Compare workspace roots without making POSIX paths case-insensitive. */
+export function sameWorkspacePath(first: string | null, second: string | null): boolean {
+  if (first === null || second === null) return first === second;
+  const normalize = (value: string): string => value.replace(/\\/g, "/").replace(/\/+$/, "");
+  const left = normalize(first);
+  const right = normalize(second);
+  const windowsLike = /^[a-z]:\//i.test(left) || /^[a-z]:\//i.test(right);
+  return windowsLike ? left.toLocaleLowerCase() === right.toLocaleLowerCase() : left === right;
+}

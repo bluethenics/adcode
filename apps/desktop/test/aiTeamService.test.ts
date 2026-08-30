@@ -178,6 +178,62 @@ describe("AI Team child workspace allocation", () => {
     await expect(service.startConfirmed("team-alpha")).rejects.toThrow(/cannot start|confirmed/i);
   });
 
+  it("resumes paused role nodes from the same validated child workspaces", async () => {
+    const real = workspaceService();
+    const service = createAiTeamService({ userDataDirectory: userData, workspaceService: real });
+    await configure(service);
+    const started = await service.startConfirmed("team-alpha");
+    await service.startNode("team-alpha", "desktop-change");
+    const paused = await service.pause("team-alpha", "provider limit");
+
+    expect(paused.graph.nodes.find((node) => node.id === "desktop-change")?.state).toBe("paused");
+    const resumed = await service.resume("team-alpha");
+    expect(resumed.state).toBe("running");
+    expect(resumed.graph.nodes.find((node) => node.id === "desktop-change")?.state).toBe("pending");
+    expect(resumed.childTaskIds).toEqual(started.childTaskIds);
+  });
+
+  it("discards private role sandboxes and removes the shadow base on cancellation", async () => {
+    const real = workspaceService();
+    const service = createAiTeamService({ userDataDirectory: userData, workspaceService: real });
+    await configure(service);
+    const started = await service.startConfirmed("team-alpha");
+
+    const cancelled = await service.cancel("team-alpha");
+
+    expect(cancelled).toMatchObject({ state: "cancelled", base: null });
+    for (const taskId of Object.values(started.childTaskIds)) {
+      expect((await real.read(taskId))?.state).toBe("discarded");
+    }
+    await expect(
+      readFile(join(userData, "ai-teams", "team-alpha", "base", "shared.txt"), "utf8"),
+    ).rejects.toThrow();
+  });
+
+  it("retries private child cleanup when a cancelled Team is cleaned again", async () => {
+    const real = workspaceService();
+    let failDiscards = true;
+    const allocator = {
+      ...real,
+      async discard(taskId: string) {
+        if (failDiscards) throw new Error("sandbox is temporarily locked");
+        return real.discard(taskId);
+      },
+    };
+    const service = createAiTeamService({ userDataDirectory: userData, workspaceService: allocator });
+    await configure(service);
+    const started = await service.startConfirmed("team-alpha");
+
+    expect((await service.cancel("team-alpha")).state).toBe("cancelled");
+    expect((await real.read(Object.values(started.childTaskIds)[0]!))?.state).toBe("ready");
+    failDiscards = false;
+    await service.cancel("team-alpha");
+    for (const taskId of Object.values(started.childTaskIds)) {
+      expect((await real.read(taskId))?.state).toBe("discarded");
+      expect((await real.read(taskId))?.sandbox).toBeNull();
+    }
+  });
+
   it("does not reserve provider spend for a role before its node is running", async () => {
     const service = createAiTeamService({ userDataDirectory: userData, workspaceService: workspaceService() });
     await configure(service);
@@ -290,6 +346,104 @@ describe("AI Team child workspace allocation", () => {
       },
     ]);
     expect(await readFile(join(project, "shared.txt"), "utf8")).toBe("one\ntwo\nthree\n");
+  });
+
+  it("cleans private Team storage after the combined review is applied", async () => {
+    const real = workspaceService();
+    const service = createAiTeamService({ userDataDirectory: userData, workspaceService: real });
+    let team = await configure(service);
+    team = await service.startConfirmed(team.id);
+    await service.startNode(team.id, "desktop-change");
+    await real.writeFromSandboxBase(team.childTaskIds["desktop"]!, "shared.txt", "combined\n");
+    await service.completeNode(team.id, {
+      nodeId: "desktop-change",
+      summary: "Desktop complete",
+      findings: [],
+      decisions: [],
+      changedPaths: ["shared.txt"],
+      tests: [],
+      blockers: [],
+      deadEnds: [],
+      completedAt: Date.now(),
+    });
+    await service.startNode(team.id, "web-change");
+    await service.completeNode(team.id, {
+      nodeId: "web-change",
+      summary: "Web complete",
+      findings: [],
+      decisions: [],
+      changedPaths: [],
+      tests: [],
+      blockers: [],
+      deadEnds: [],
+      completedAt: Date.now(),
+    });
+    const review = await service.buildCombinedReview(team.id);
+    const combinedId = review.merge.combinedTaskId!;
+    expect(
+      (await real.apply(combinedId, [{ path: "shared.txt", contents: "combined\n" }])).ok,
+    ).toBe(true);
+
+    const restarted = createAiTeamService({ userDataDirectory: userData, workspaceService: real });
+    await restarted.recoverActive();
+    const completed = await restarted.read(team.id);
+
+    expect(completed).toMatchObject({ state: "completed", base: null });
+    expect((await real.read(combinedId))?.state).toBe("applied");
+    for (const taskId of Object.values(team.childTaskIds)) {
+      expect((await real.read(taskId))?.state).toBe("discarded");
+    }
+  });
+
+  it("keeps a partially applied combined review rollback-safe when the Team is cancelled", async () => {
+    await writeFile(join(project, "second.txt"), "second captured\n", "utf8");
+    const real = workspaceService();
+    const service = createAiTeamService({ userDataDirectory: userData, workspaceService: real });
+    let team = await configure(service);
+    team = await service.startConfirmed(team.id);
+    await service.startNode(team.id, "desktop-change");
+    await real.writeFromSandboxBase(team.childTaskIds["desktop"]!, "shared.txt", "combined\n");
+    await real.writeFromSandboxBase(
+      team.childTaskIds["desktop"]!,
+      "second.txt",
+      "second combined\n",
+    );
+    await service.completeNode(team.id, {
+      nodeId: "desktop-change",
+      summary: "Desktop complete",
+      findings: [],
+      decisions: [],
+      changedPaths: ["shared.txt", "second.txt"],
+      tests: [],
+      blockers: [],
+      deadEnds: [],
+      completedAt: Date.now(),
+    });
+    await service.startNode(team.id, "web-change");
+    await service.completeNode(team.id, {
+      nodeId: "web-change",
+      summary: "Web complete",
+      findings: [],
+      decisions: [],
+      changedPaths: [],
+      tests: [],
+      blockers: [],
+      deadEnds: [],
+      completedAt: Date.now(),
+    });
+    const review = await service.buildCombinedReview(team.id);
+    const combinedId = review.merge.combinedTaskId!;
+    const partial = await real.apply(combinedId, [
+      { path: "shared.txt", contents: "combined\n" },
+    ]);
+    expect(partial.task).toMatchObject({ state: "review" });
+
+    await service.cancel(team.id);
+
+    expect(await real.read(combinedId)).toMatchObject({ state: "review" });
+    expect((await real.read(combinedId))?.checkpoint?.paths).toEqual(["shared.txt"]);
+    expect((await real.rollback(combinedId)).ok).toBe(true);
+    expect(await readFile(join(project, "shared.txt"), "utf8")).toBe("captured\n");
   });
 
   it("discards a partial combined task when any imported proposal fails", async () => {

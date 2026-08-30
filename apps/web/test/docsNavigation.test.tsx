@@ -9,6 +9,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import DocsIndex from "../src/app/docs/page";
+import sitemap from "../src/app/sitemap";
 import { Nav } from "../src/components/Nav";
 
 describe("public documentation navigation", () => {
@@ -35,5 +36,14 @@ describe("public documentation navigation", () => {
     expect(markup).toContain('href="/docs/workbench-all-features"');
     expect(markup).toContain("All Features");
     expect(markup).toContain("adcode open");
+  });
+
+  it("publishes the docs index and feature guides in the sitemap", async () => {
+    const locations = (await sitemap()).map((entry) => entry.url);
+
+    expect(locations).toContainEqual(expect.stringMatching(/\/docs$/));
+    expect(locations).toContainEqual(
+      expect.stringMatching(/\/docs\/workbench-all-features$/),
+    );
   });
 });

@@ -19,8 +19,6 @@ const ACTIVE_STATES = new Set<AiTaskState>([
   "preparing",
   "ready",
   "running",
-  "applying",
-  "rolling-back",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -78,6 +76,9 @@ export function createAiWorkspaceStore(userDataDirectory: string): AiWorkspaceSt
       // conservative policy. Corrupt or invented policy values never become trusted.
       return {
         ...parsed,
+        mode: parsed.parentTeamId === null || parsed.parentTeamId === undefined ? "single" : "team",
+        parentTeamId: typeof parsed.parentTeamId === "string" ? parsed.parentTeamId : null,
+        reviewable: parsed.reviewable !== false,
         reviewPolicy: parsed.reviewPolicy === "trusted" ? "trusted" : "review",
       };
     } catch {

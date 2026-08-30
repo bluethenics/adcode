@@ -13,6 +13,7 @@ import {
 import {
   createBudgetedTeamProvider,
   createAiTeamCoordinator,
+  roleHandoffChangedPaths,
   type AiTeamNodeRunInput,
   type AiTeamNodeRunner,
 } from "../src/main/aiTeamCoordinator.ts";
@@ -74,6 +75,18 @@ const planInput = (): TeamPlanInput => ({
       fileHints: ["apps/alpha"],
     },
   ],
+});
+
+describe("durable Team role handoff paths", () => {
+  it("includes proposals that already existed when a crash-resumed node started", () => {
+    expect(
+      roleHandoffChangedPaths([
+        { path: "before-crash.ts" },
+        { path: "after-resume.ts" },
+        { path: "before-crash.ts" },
+      ]),
+    ).toEqual(["after-resume.ts", "before-crash.ts"]);
+  });
 });
 
 function services(tokenLimit = 20_000) {
@@ -313,5 +326,28 @@ describe("confirmed AI Team coordination", () => {
     const final = await coordinator.wait("team-coordinator");
     expect(final.state).toBe("cancelled");
     expect(final.graph.nodes.filter((node) => node.state === "failed")).toEqual([]);
+  });
+
+  it("resumes a recovered paused Team without allocating a second set of role workspaces", async () => {
+    const { teams, configure } = services();
+    await configure();
+    const allocated = await teams.startConfirmed("team-coordinator");
+    await teams.startNode("team-coordinator", "alpha-change");
+    await teams.pause("team-coordinator", "simulated restart");
+    const starts: string[] = [];
+    const coordinator = createAiTeamCoordinator({
+      teamService: teams,
+      resolveRoute: async (_team, node) => route(node.id),
+      runNode: async (input) => {
+        starts.push(input.node.id);
+        return handoff(input);
+      },
+    });
+
+    const resumed = await coordinator.resume("team-coordinator");
+    expect(resumed.childTaskIds).toEqual(allocated.childTaskIds);
+    const final = await coordinator.wait("team-coordinator");
+    expect(starts).toContain("alpha-change");
+    expect(final.state).toBe("paused");
   });
 });

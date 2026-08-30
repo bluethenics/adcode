@@ -41,7 +41,7 @@ export function aiTeamActions(team: AiTeamView): {
   readonly conflict: boolean;
 } {
   return {
-    start: team.state === "configured",
+    start: team.state === "configured" || team.state === "paused",
     cancel: ["configured", "preparing", "running", "paused", "merging", "review", "conflict", "failed"].includes(
       team.state,
     ),

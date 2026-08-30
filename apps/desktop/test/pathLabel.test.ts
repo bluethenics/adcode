@@ -8,7 +8,7 @@
  * exact ambiguity the second line was added to remove.
  */
 import { describe, expect, it } from "vitest";
-import { shortenPath } from "../src/renderer/workbench/pathLabel.ts";
+import { sameWorkspacePath, shortenPath } from "../src/renderer/workbench/pathLabel.ts";
 
 describe("shortenPath", () => {
   it("leaves a path that already fits", () => {
@@ -50,5 +50,16 @@ describe("shortenPath", () => {
 
   it("keeps the last segment even when it only just fits", () => {
     expect(shortenPath("E:/work/site/packages/git", 12)).toBe("…/git");
+  });
+});
+
+describe("sameWorkspacePath", () => {
+  it("matches Windows roots across separator, case, and trailing-slash differences", () => {
+    expect(sameWorkspacePath("E:\\Work\\Project", "e:/work/project/")).toBe(true);
+  });
+
+  it("keeps distinct POSIX paths distinct", () => {
+    expect(sameWorkspacePath("/work/Project", "/work/project")).toBe(false);
+    expect(sameWorkspacePath("/work/project", "/work/project-two")).toBe(false);
   });
 });

@@ -615,6 +615,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     teamPanel.dataset["mode"] = "team";
     teamPanel.dataset["state"] = team.state;
     teamState.textContent = aiTeamStateLabel(team.state);
+    teamStart.textContent = team.state === "paused" ? "Resume Team" : "Start Team";
     teamUsage.textContent = formatAiTeamUsage(team);
     teamRoles.replaceChildren();
     for (const role of team.roles) {
@@ -725,7 +726,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const team = activeTeam;
     if (team === null) return;
     teamStart.disabled = true;
-    teamNotice.textContent = "Capturing the immutable project base…";
+    if (team.state === "paused") {
+      teamNotice.textContent = "Revalidating the Team budget and isolated role workspaces...";
+    } else {
+      teamNotice.textContent = "Capturing the immutable project base...";
+    }
     void window.adcode.aiTeam
       .start(team.id)
       .then((started) => paintTeam(started))

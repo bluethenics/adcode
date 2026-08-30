@@ -55,6 +55,7 @@ describe("AI Team presentation", () => {
         merge: { state: "review", combinedTaskId: "task-combined", conflicts: [] },
       }).review,
     ).toBe(true);
+    expect(aiTeamActions(team("paused")).start).toBe(true);
   });
 
   it("extracts bounded portable hints and makes manual Team setup available", () => {

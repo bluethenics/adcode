@@ -35,6 +35,13 @@ export interface AiTeamNodeRunInput {
 
 export type AiTeamNodeRunner = (input: AiTeamNodeRunInput) => Promise<TeamHandoff>;
 
+/** Include every durable role proposal so a crash before handoff cannot hide prior edits. */
+export function roleHandoffChangedPaths(
+  changes: readonly { readonly path: string }[],
+): string[] {
+  return [...new Set(changes.map((change) => change.path))].sort();
+}
+
 /** Wrap one provider lane so every network round-trip is durably budgeted first. */
 export function createBudgetedTeamProvider(
   provider: Provider,
@@ -75,6 +82,8 @@ export interface AiTeamCoordinatorOptions {
 export interface AiTeamCoordinator {
   /** Confirms, allocates, and only then schedules role agents in the background. */
   startConfirmed(id: string): Promise<AiTeamRecord>;
+  /** Revalidates and schedules a safely paused or crash-recovered Team. */
+  resume(id: string): Promise<AiTeamRecord>;
   /** Wait until the current confirmed run reaches review, pause, failure, or cancellation. */
   wait(id: string): Promise<AiTeamRecord>;
   cancel(id: string): Promise<AiTeamRecord>;
@@ -320,6 +329,17 @@ export function createAiTeamCoordinator(options: AiTeamCoordinatorOptions): AiTe
     async startConfirmed(id): Promise<AiTeamRecord> {
       if (runs.has(id)) throw new Error("AI Team is already scheduled");
       const team = await locked(id, () => options.teamService.startConfirmed(id));
+      if (team.state === "running") runs.set(id, runSafely(id));
+      return team;
+    },
+
+    async resume(id): Promise<AiTeamRecord> {
+      const previous = runs.get(id);
+      if (previous !== undefined) {
+        await previous;
+        runs.delete(id);
+      }
+      const team = await locked(id, () => options.teamService.resume(id));
       if (team.state === "running") runs.set(id, runSafely(id));
       return team;
     },

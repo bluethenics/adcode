@@ -66,6 +66,9 @@ export interface AiWorkspaceTask {
   readonly workspaceRoot: string;
   readonly prompt: string;
   readonly mode: AiTaskMode;
+  /** Team-owned role tasks stay internal; only combined Team reviews are user-reviewable. */
+  readonly parentTeamId: string | null;
+  readonly reviewable: boolean;
   readonly reviewPolicy: AiReviewPolicy;
   readonly state: AiTaskState;
   readonly permissions: AiPermissionProfile;
@@ -83,6 +86,8 @@ export interface CreateAiWorkspaceTaskInput {
   readonly workspaceRoot: string;
   readonly prompt: string;
   readonly now: number;
+  readonly parentTeamId?: string;
+  readonly reviewable?: boolean;
   /** Defaults to review. Trusted must always be an explicit caller decision. */
   readonly reviewPolicy?: AiReviewPolicy;
   readonly tokenLimit?: number;
@@ -118,6 +123,12 @@ export function createAiWorkspaceTask(input: CreateAiWorkspaceTaskInput): AiWork
   if (input.reviewPolicy !== undefined && !["review", "trusted"].includes(input.reviewPolicy)) {
     throw new Error("Invalid review policy");
   }
+  if (input.parentTeamId !== undefined && !TASK_ID.test(input.parentTeamId)) {
+    throw new Error("Invalid parent Team id");
+  }
+  if (input.reviewable === false && input.parentTeamId === undefined) {
+    throw new Error("Only Team-owned tasks may be hidden from review");
+  }
 
   const prompt = input.prompt.trim();
   if (prompt.length === 0) throw new Error("Task prompt is required");
@@ -127,7 +138,9 @@ export function createAiWorkspaceTask(input: CreateAiWorkspaceTaskInput): AiWork
     workspaceId: input.workspaceId,
     workspaceRoot: input.workspaceRoot,
     prompt,
-    mode: "single",
+    mode: input.parentTeamId === undefined ? "single" : "team",
+    parentTeamId: input.parentTeamId ?? null,
+    reviewable: input.reviewable ?? true,
     reviewPolicy: input.reviewPolicy ?? "review",
     state: "preparing",
     permissions: { ...DEFAULT_AI_PERMISSIONS },
@@ -153,7 +166,7 @@ const TRANSITIONS: Readonly<Record<AiTaskState, readonly AiTaskState[]>> = {
   ready: ["running", "paused", "discarded", "failed"],
   running: ["paused", "review", "failed"],
   paused: ["ready", "running", "review", "discarded", "failed"],
-  review: ["applying", "applied", "paused", "discarded", "conflict", "failed"],
+  review: ["applying", "applied", "paused", "discarded", "conflict", "failed", "rolling-back"],
   applying: ["review", "applied", "paused", "conflict", "failed"],
   applied: ["rolling-back"],
   conflict: ["review", "discarded", "failed"],

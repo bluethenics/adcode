@@ -11,6 +11,7 @@ import { readdir, stat } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { createRequire } from "node:module";
 import process from "node:process";
+import { validateOpenTarget } from "./openTarget.mjs";
 
 const REPO = process.cwd();
 const require = createRequire(join(REPO, "package.json"));
@@ -25,7 +26,10 @@ const SOURCE_ROOTS = [
 const SOURCE_FILES = [
   join(REPO, "apps", "desktop", "electron.vite.config.ts"),
   join(REPO, "apps", "desktop", "package.json"),
+  join(REPO, "apps", "desktop", "tsconfig.json"),
+  join(REPO, "package-lock.json"),
   join(REPO, "package.json"),
+  join(REPO, "tsconfig.json"),
 ];
 
 // electron-vite writes beside the app, not at the repo root - `main` in the desktop
@@ -106,6 +110,13 @@ function run(command, args, options = {}) {
   });
 }
 
+const requested = process.argv.slice(2).filter((argument) => argument !== "--force");
+const openTarget = await validateOpenTarget(requested, REPO);
+if (!openTarget.ok) {
+  process.stderr.write(`${openTarget.message}\n`);
+  process.exit(2);
+}
+
 if (await needsBuild()) {
   process.stdout.write("Building ADCode (first run, or sources changed)…\n");
 
@@ -133,6 +144,5 @@ if (await needsBuild()) {
 const electronPath = require("electron");
 process.stdout.write("Starting ADCode…\n");
 
-const requested = process.argv.slice(2).filter((argument) => argument !== "--force");
-const launchArguments = requested.length === 0 ? [] : ["--adcode-open", requested[0]];
+const launchArguments = openTarget.target === null ? [] : ["--adcode-open", openTarget.target];
 process.exit(await run(electronPath, [join(REPO, "apps", "desktop"), ...launchArguments]));

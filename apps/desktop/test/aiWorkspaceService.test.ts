@@ -1,9 +1,11 @@
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { computeHunks } from "@adcode/ai";
+import { computeHunks, transitionTask } from "@adcode/ai";
 import { createAiWorkspaceService } from "../src/main/aiWorkspaceService.ts";
+import { createAiWorkspaceStore } from "../src/main/aiWorkspaceStore.ts";
 
 let project: string;
 let userData: string;
@@ -185,6 +187,23 @@ describe("safe AI workspace service", () => {
     expect(await readFile(join(project, "two.txt"), "utf8")).toBe("two before\n");
   });
 
+  it("preserves and rolls back a checkpoint instead of discarding a partially applied task", async () => {
+    const api = service();
+    const task = await api.start({ workspaceRoot: project, prompt: "Apply one then cancel" });
+    await api.write(task.id, "one.txt", "one proposed\n");
+    await api.write(task.id, "two.txt", "two proposed\n");
+    const partial = await api.apply(task.id, [
+      { path: "one.txt", contents: "one proposed\n" },
+    ]);
+
+    expect(partial.task).toMatchObject({ state: "review" });
+    expect(partial.task.checkpoint?.paths).toEqual(["one.txt"]);
+    await expect(api.discard(task.id)).rejects.toThrow(/rollback checkpoint/i);
+    expect((await api.rollback(task.id)).ok).toBe(true);
+    expect(await readFile(join(project, "one.txt"), "utf8")).toBe("one before\n");
+    expect((await api.read(task.id))?.changes).toEqual([]);
+  });
+
   it("rejects one sandbox proposal without discarding other reviewed work", async () => {
     const api = service();
     const task = await api.start({ workspaceRoot: project, prompt: "Review separately" });
@@ -269,6 +288,100 @@ describe("safe AI workspace service", () => {
     expect(await readFile(join(project, "one.txt"), "utf8")).toBe("human after apply\n");
   });
 
+  it("recovers an interrupted multi-file apply back to its reviewable pre-write state", async () => {
+    const api = service();
+    const created = await api.start({ workspaceRoot: project, prompt: "Crash during apply" });
+    let review = await api.write(created.id, "one.txt", "one proposed\n");
+    review = await api.write(created.id, "two.txt", "two proposed\n");
+    const checkpoint = {
+      id: "checkpoint-crash-apply",
+      createdAt: 20_000,
+      appliedAt: null,
+      paths: ["one.txt", "two.txt"],
+    } as const;
+    await createAiWorkspaceStore(userData).save(
+      transitionTask({ ...review, checkpoint }, "applying", 20_001),
+    );
+    const manifest = join(
+      userData,
+      "ai-workspaces",
+      "tasks",
+      created.id,
+      "checkpoints",
+      checkpoint.id,
+      "manifest.json",
+    );
+    await mkdir(join(manifest, ".."), { recursive: true });
+    await writeFile(
+      manifest,
+      JSON.stringify({
+        id: checkpoint.id,
+        taskId: created.id,
+        workspaceRoot: project,
+        createdAt: checkpoint.createdAt,
+        entries: [
+          {
+            path: "one.txt",
+            original: "one before\n",
+            applied: "one proposed\n",
+            appliedHash: createHash("sha256").update("one proposed\n").digest("hex"),
+          },
+          {
+            path: "two.txt",
+            original: "two before\n",
+            applied: "two proposed\n",
+            appliedHash: createHash("sha256").update("two proposed\n").digest("hex"),
+          },
+        ],
+      }),
+      "utf8",
+    );
+    await writeFile(join(project, "one.txt"), "one proposed\n", "utf8");
+
+    const recovered = await service().recoverActive();
+    const task = await service().read(created.id);
+
+    expect(recovered.map((item) => item.id)).toContain(created.id);
+    expect(task).toMatchObject({ state: "review", checkpoint: null });
+    expect(task?.changes.map((change) => change.path)).toEqual(["one.txt", "two.txt"]);
+    expect(await readFile(join(project, "one.txt"), "utf8")).toBe("one before\n");
+    expect(await readFile(join(project, "two.txt"), "utf8")).toBe("two before\n");
+  });
+
+  it("finishes an interrupted rollback without overwriting an unknown human change", async () => {
+    const api = service();
+    const created = await api.start({ workspaceRoot: project, prompt: "Crash during rollback" });
+    await api.write(created.id, "one.txt", "one proposed\n");
+    await api.write(created.id, "two.txt", "two proposed\n");
+    const applied = (
+      await api.apply(created.id, [
+        { path: "one.txt", contents: "one proposed\n" },
+        { path: "two.txt", contents: "two proposed\n" },
+      ])
+    ).task;
+    await createAiWorkspaceStore(userData).save(transitionTask(applied, "rolling-back", 30_000));
+    await writeFile(join(project, "one.txt"), "one before\n", "utf8");
+
+    await service().recoverActive();
+    expect((await service().read(created.id))?.state).toBe("rolled-back");
+    expect(await readFile(join(project, "one.txt"), "utf8")).toBe("one before\n");
+    expect(await readFile(join(project, "two.txt"), "utf8")).toBe("two before\n");
+
+    const second = await service().start({ workspaceRoot: project, prompt: "Unknown overlap" });
+    await service().write(second.id, "one.txt", "agent again\n");
+    const secondApplied = (
+      await service().apply(second.id, [{ path: "one.txt", contents: "agent again\n" }])
+    ).task;
+    await createAiWorkspaceStore(userData).save(
+      transitionTask(secondApplied, "rolling-back", 40_000),
+    );
+    await writeFile(join(project, "one.txt"), "human after crash\n", "utf8");
+
+    await service().recoverActive();
+    expect((await service().read(second.id))?.state).toBe("conflict");
+    expect(await readFile(join(project, "one.txt"), "utf8")).toBe("human after crash\n");
+  });
+
   it("reopens persisted tasks and traces from a new service instance", async () => {
     const first = service();
     const task = await first.start({ workspaceRoot: project, prompt: "Persist me" });
@@ -278,6 +391,27 @@ describe("safe AI workspace service", () => {
     expect((await second.list(project)).map((item) => item.id)).toContain(task.id);
     expect(await second.readSandboxFile(task.id, "one.txt")).toBe("persisted proposal\n");
     expect((await second.traces(task.id)).some((event) => event.kind === "file-change")).toBe(true);
+  });
+
+  it("keeps internal Team role workspaces out of the user-review task list", async () => {
+    const api = service();
+    const standalone = await api.start({ workspaceRoot: project, prompt: "Standalone" });
+    const role = await api.start({
+      workspaceRoot: project,
+      prompt: "Internal role",
+      parentTeamId: "team-alpha",
+      reviewable: false,
+    });
+    const combined = await api.start({
+      workspaceRoot: project,
+      prompt: "Combined review",
+      parentTeamId: "team-alpha",
+      reviewable: true,
+    });
+
+    expect(role).toMatchObject({ mode: "team", parentTeamId: "team-alpha", reviewable: false });
+    expect(combined).toMatchObject({ mode: "team", parentTeamId: "team-alpha", reviewable: true });
+    expect((await api.list(project)).map((task) => task.id)).toEqual([combined.id, standalone.id]);
   });
 
   it("removes terminal sandboxes but keeps an applied task's only rollback checkpoint", async () => {
@@ -317,5 +451,45 @@ describe("safe AI workspace service", () => {
       /storage quota/i,
     );
     expect(await readFile(join(project, "one.txt"), "utf8")).toBe("one before\n");
+  });
+
+  it("counts retained Team bases when a standalone task checks the shared quota", async () => {
+    const retainedBase = join(userData, "ai-teams", "team-retained", "base");
+    await mkdir(retainedBase, { recursive: true });
+    await writeFile(join(retainedBase, "base.txt"), "x".repeat(40), "utf8");
+    const bounded = createAiWorkspaceService({
+      userDataDirectory: userData,
+      now: () => 30_000 + sequence,
+      id: (prefix) => `${prefix}-${String(++sequence).padStart(4, "0")}`,
+      storagePolicy: () => ({
+        quotaBytes: 50,
+        sandboxRetentionMs: 7 * 86_400_000,
+        checkpointRetentionMs: 30 * 86_400_000,
+      }),
+    });
+
+    await expect(bounded.start({ workspaceRoot: project, prompt: "Respect Team storage" }))
+      .rejects.toThrow(/storage quota|project is larger/i);
+  });
+
+  it("does not charge durable Team metadata and traces against sandbox storage", async () => {
+    const teamDirectory = join(userData, "ai-teams", "team-history");
+    await mkdir(join(teamDirectory, "base"), { recursive: true });
+    await writeFile(join(teamDirectory, "base", "base.txt"), "x", "utf8");
+    await writeFile(join(teamDirectory, "record.json"), "m".repeat(2_000), "utf8");
+    await writeFile(join(teamDirectory, "traces.jsonl"), "t".repeat(2_000), "utf8");
+    const bounded = createAiWorkspaceService({
+      userDataDirectory: userData,
+      now: () => 40_000 + sequence,
+      id: (prefix) => `${prefix}-${String(++sequence).padStart(4, "0")}`,
+      storagePolicy: () => ({
+        quotaBytes: 50,
+        sandboxRetentionMs: 7 * 86_400_000,
+        checkpointRetentionMs: 30 * 86_400_000,
+      }),
+    });
+
+    await expect(bounded.start({ workspaceRoot: project, prompt: "Ignore history bytes" }))
+      .resolves.toMatchObject({ state: "ready" });
   });
 });

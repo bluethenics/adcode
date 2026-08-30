@@ -504,6 +504,7 @@ export const CHANNELS = {
   aiAutomationList: "ai-automation:list",
   aiAutomationClaim: "ai-automation:claim",
   aiAutomationComplete: "ai-automation:complete",
+  aiAutomationMiss: "ai-automation:miss",
   aiAutomationRetry: "ai-automation:retry",
   aiAutomationCancel: "ai-automation:cancel",
   aiAutomationConfirmMissed: "ai-automation:confirm-missed",
@@ -538,6 +539,7 @@ export const CHANNELS = {
   searchReplace: "search:replace",
   sessionRestore: "session:restore",
   sessionSave: "session:save",
+  sessionOpenIntent: "session:open-intent",
   historyVersions: "history:versions",
   historyRead: "history:read",
   historyDraft: "history:draft",
@@ -1458,6 +1460,7 @@ export interface AdcodeApi {
     list(): Promise<readonly AiAutomationView[]>;
     claimDue(): Promise<AiAutomationView | null>;
     complete(id: string): Promise<AiAutomationView>;
+    miss(id: string, reason: string): Promise<AiAutomationView>;
     retry(id: string, reason: string, dueAt: number): Promise<AiAutomationView>;
     cancel(id: string): Promise<AiAutomationView>;
     confirmMissed(id: string): Promise<AiAutomationView>;
@@ -1580,6 +1583,7 @@ export interface AdcodeApi {
   readonly session: {
     restore(): Promise<SessionStateView>;
     save(state: SessionStateView): void;
+    onOpenIntent(listener: (state: SessionStateView) => void): () => void;
   };
   readonly window: {
     /**

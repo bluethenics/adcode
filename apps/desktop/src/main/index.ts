@@ -31,6 +31,8 @@ import { getAdRuntime } from "./adRuntime.ts";
 import { currentSettings, loadSettings } from "./settings.ts";
 import { windowIconPath } from "./windowIcon.ts";
 import { CHANNELS } from "../shared/api.ts";
+import { launchSessionFromArguments } from "./launchIntent.ts";
+import type { SessionState } from "./sessionStore.ts";
 
 /**
  * Whether to load from Vite's dev server.
@@ -43,8 +45,34 @@ const devUrl = process.env["ELECTRON_RENDERER_URL"];
 const useDevServer = !app.isPackaged && devUrl !== undefined;
 
 /** A single instance keeps one workspace lock and one set of pty children. */
-if (!app.requestSingleInstanceLock()) {
+const hasInstanceLock = app.requestSingleInstanceLock();
+if (!hasInstanceLock) {
   app.quit();
+}
+
+let pendingOpenIntent: SessionState | null = null;
+
+async function handleSecondInstance(commandLine: string[], workingDirectory: string): Promise<void> {
+  const window = BrowserWindow.getAllWindows()[0];
+  if (window !== undefined && !window.isDestroyed()) {
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
+  }
+
+  const intent = await launchSessionFromArguments(commandLine, workingDirectory);
+  if (intent === null) return;
+  if (window === undefined || window.isDestroyed() || window.webContents.isLoading()) {
+    pendingOpenIntent = intent;
+    return;
+  }
+  window.webContents.send(CHANNELS.sessionOpenIntent, intent);
+}
+
+if (hasInstanceLock) {
+  app.on("second-instance", (_event, commandLine, workingDirectory) => {
+    void handleSecondInstance(commandLine, workingDirectory);
+  });
 }
 
 /*
@@ -138,6 +166,12 @@ function createWindow(): BrowserWindow {
   });
 
   hardenWebContents(window.webContents);
+
+  window.webContents.on("did-finish-load", () => {
+    if (pendingOpenIntent === null) return;
+    window.webContents.send(CHANNELS.sessionOpenIntent, pendingOpenIntent);
+    pendingOpenIntent = null;
+  });
 
   window.once("ready-to-show", () => window.show());
 

@@ -178,6 +178,7 @@ const api: AdcodeApi = {
     list: () => ipcRenderer.invoke(CHANNELS.aiAutomationList),
     claimDue: () => ipcRenderer.invoke(CHANNELS.aiAutomationClaim),
     complete: (id) => ipcRenderer.invoke(CHANNELS.aiAutomationComplete, id),
+    miss: (id, reason) => ipcRenderer.invoke(CHANNELS.aiAutomationMiss, id, reason),
     retry: (id, reason, dueAt) => ipcRenderer.invoke(CHANNELS.aiAutomationRetry, id, reason, dueAt),
     cancel: (id) => ipcRenderer.invoke(CHANNELS.aiAutomationCancel, id),
     confirmMissed: (id) => ipcRenderer.invoke(CHANNELS.aiAutomationConfirmMissed, id),
@@ -246,6 +247,7 @@ const api: AdcodeApi = {
     // Fire-and-forget: the renderer saves this on every tab change, and waiting on a
     // disk write to close a tab would be felt.
     save: (state) => ipcRenderer.send(CHANNELS.sessionSave, state),
+    onOpenIntent: (listener) => subscribe(CHANNELS.sessionOpenIntent, listener),
   },
   settings: {
     read: () => ipcRenderer.invoke(CHANNELS.settingsRead),

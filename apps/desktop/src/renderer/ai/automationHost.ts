@@ -35,7 +35,8 @@ export function refreshAiAutomationTargets(): void {
 
 /**
  * Internal extension point shared by terminal, built-in chat, and future extension hosts.
- * Stable adapter ids let a schedule survive UI re-renders; unavailable adapters are retried.
+ * Stable adapter ids let a schedule survive UI re-renders; unavailable delivery becomes
+ * missed so the user deliberately chooses whether to run it later.
  */
 export function registerAiAutomationAdapter(adapter: AiAutomationAdapter): () => void {
   const id = adapter.snapshot().id;
@@ -81,10 +82,9 @@ async function tick(): Promise<void> {
     if (item === null) return;
     const adapter = adapters.get(item.targetId);
     if (adapter === undefined || !canAdapterReceiveSchedule(adapter.snapshot())) {
-      await window.adcode.aiAutomation.retry(
+      await window.adcode.aiAutomation.miss(
         item.id,
         "Target is not connected while ADCode is open",
-        Date.now() + 30_000,
       );
       return;
     }
@@ -92,10 +92,9 @@ async function tick(): Promise<void> {
       await adapter.deliver(item.message);
       await window.adcode.aiAutomation.complete(item.id);
     } catch (error) {
-      await window.adcode.aiAutomation.retry(
+      await window.adcode.aiAutomation.miss(
         item.id,
         error instanceof Error ? error.message : "Target delivery failed",
-        Date.now() + 30_000,
       );
     }
   } catch {

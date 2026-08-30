@@ -27,7 +27,7 @@ import { createDebugView } from "./debug/debugView.ts";
 import { createStyleHints } from "./panels/styleHints.ts";
 import { createCommandRegistry } from "./workbench/commands.ts";
 import { createMenuBar } from "./workbench/menuBar.ts";
-import { shortenPath } from "./workbench/pathLabel.ts";
+import { sameWorkspacePath, shortenPath } from "./workbench/pathLabel.ts";
 import { createAltMenuActivation } from "./workbench/altMenuActivation.ts";
 import { createCommandCentre } from "./workbench/commandCentre.ts";
 import { createUniversalSearch } from "./workbench/universalSearch.ts";
@@ -1567,6 +1567,17 @@ async function openFolderAt(root: string): Promise<void> {
 
   await adoptWorkspace(opened);
 }
+
+window.adcode.session.onOpenIntent((state) => {
+  void (async () => {
+    if (state.root === null) return;
+    if (!sameWorkspacePath(workspaceRoot, state.root)) await openFolderAt(state.root);
+    for (const file of state.openFiles) await openFile(file);
+    if (state.activeFile !== null && tabs.some((tab) => tab.path === state.activeFile)) {
+      activateTab(state.activeFile);
+    }
+  })();
+});
 
 /* ── Terminal ─────────────────────────────────────────────────────────── */
 

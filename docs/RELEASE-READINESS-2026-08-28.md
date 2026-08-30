@@ -1,4 +1,4 @@
-# ADCode release readiness — 2026-08-28 (updated 2026-08-29)
+# ADCode release readiness — 2026-08-28 (updated 2026-08-30)
 
 ## Decision
 
@@ -6,9 +6,11 @@
 production release.**
 
 The desktop feature candidate builds, packages, and passes both packaged smoke journeys.
-The 2026-08-29 candidate also includes the complete feature library, universal search, menu
+The 2026-08-30 candidate also includes the complete feature library, universal search, menu
 routes, a public generated feature guide, `adcode open [path]`, and repeatable
-accessibility/visual smoke coverage.
+accessibility/visual smoke coverage. The final review hardening closes filesystem-link escape,
+internal Team-task authorization, interrupted apply/rollback recovery, missed scheduled-target,
+Team resume/cleanup/quota, second-instance open, and durable redacted trace gaps.
 The existing Cloudflare Worker is healthy on its `workers.dev` address. Public release is
 blocked by identity/signing, domain/support, legal, dependency-risk, production-mode, and
 release-channel gates that cannot be truthfully completed by source changes alone.
@@ -21,10 +23,10 @@ available through an update channel with no verified rollback release.
 
 | Gate | Result | Evidence |
 |---|---|---|
-| Desktop typecheck, architecture firewall, full unit/integration suite | Pass | Final `npm run verify`: 187 files / 2,638 tests; 0 architecture errors (35 existing orphan warnings) |
+| Desktop typecheck, architecture firewall, full unit/integration suite | Pass | Final `npm run verify`: 189 files / 2,664 tests; 0 architecture errors (35 existing orphan warnings) |
 | Desktop production build | Pass | Electron/Vite built main, preload, and 1,469 renderer modules |
 | Web production build | Pass | `npm run web:build`; Next compiled, typechecked, and generated 117 pages, including the docs index and 88 feature articles |
-| Docs and terminal launch | Pass | The shared desktop/mobile header exposes Docs with active-state semantics; `adcode open [folder-or-file]` enters the ordinary full-service desktop session, with focused route and launch-intent tests |
+| Docs and terminal launch | Pass | The shared desktop/mobile header exposes Docs with active-state semantics; the sitemap includes the index and all feature articles; `adcode open [folder-or-file]` validates its target and enters the ordinary full-service desktop session, including subsequent opens routed into the live instance |
 | Windows packaging | Pass | `npm run package -- --win`; installer, portable binary, blockmap, and `latest.yml` generated |
 | Feature discovery and universal search | Pass | Developer and packaged journeys verified the activity icon below Earnings, View-menu route, explanatory search, What/Why/How help, safe setting dispatch, Features/Commands/Files/Symbols/Recent folders, focused search shortcuts, Escape/outside-click cleanup, and stable workbench sizing |
 | Visual and accessibility audit | Pass | `node scripts/smoke.mjs --visual-only`; inspected light/comfortable, Midnight/compact, approximately 208% zoom, keyboard result selection, dialog/combobox/listbox semantics, reduced-motion transform removal, and forced-colors 2px focus outline |
@@ -32,7 +34,8 @@ available through an update channel with no verified rollback release.
 | Packaged ad smoke | Pass | `node scripts/smoke-ads.mjs --packaged`; serve, notification, receipt, balance, and queue journey, 0 suspicious log lines |
 | Worker deployment | Existing and healthy | Wrangler lists deployments through 2026-08-27; `https://adcode.bluethenics01.workers.dev/v1/health` returned `200 {"ok":true}` |
 | Required Worker secret names | Present | Supabase, Firebase, payout encryption, and Dodo secret names are registered in Cloudflare; values were not read or exposed |
-| Secret/path exposure in AI feature | Pass by design/tests | Main-process containment, bounded IPC, path-free completion, credential-file completion skips, local redacted operational traces |
+| Secret/path exposure in AI feature | Pass by design/tests | Main-process containment follows real paths and refuses link escapes; internal role tasks cannot enter generic review/apply IPC; traces persist bounded provider/tool outcomes without proposal or tool-result contents |
+| AI transaction recovery and Team lifecycle | Pass | Interrupted apply restores the selected pre-write state, interrupted rollback completes only from known checkpoint contents, unknown human edits become conflicts, paused Teams resume from validated children, and private Team sandboxes/bases are cleaned after cancel or applied combined review |
 
 Windows preview artifacts are in:
 

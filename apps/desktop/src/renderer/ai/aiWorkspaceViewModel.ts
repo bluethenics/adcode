@@ -33,10 +33,12 @@ export interface AiWorkspaceActions {
 }
 
 export function aiWorkspaceActions(task: AiWorkspaceTaskView): AiWorkspaceActions {
+  const hasCheckpoint = task.checkpointPaths.length > 0;
   return {
     review: (task.state === "review" || task.state === "conflict") && task.changedPaths.length > 0,
-    discard: ["ready", "paused", "review", "conflict", "failed"].includes(task.state),
-    rollback: task.state === "applied",
+    discard:
+      !hasCheckpoint && ["ready", "paused", "review", "conflict", "failed"].includes(task.state),
+    rollback: hasCheckpoint && (task.state === "review" || task.state === "applied"),
   };
 }
 

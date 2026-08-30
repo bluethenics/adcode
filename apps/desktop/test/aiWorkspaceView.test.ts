@@ -58,6 +58,12 @@ describe("AI workspace task presentation", () => {
       discard: false,
       rollback: false,
     });
+    expect(
+      aiWorkspaceActions({
+        ...task("review", ["remaining.ts"]),
+        checkpointPaths: ["already-applied.ts"],
+      }),
+    ).toEqual({ review: true, discard: false, rollback: true });
   });
 
   it("formats usage compactly while distinguishing budget from cost", () => {

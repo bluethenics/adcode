@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -37,5 +37,24 @@ describe("adcode open launch intent", () => {
         process.cwd(),
       ),
     ).resolves.toBeNull();
+  });
+
+  it("forwards a second-instance open intent to the live renderer", async () => {
+    const main = await readFile(join(import.meta.dirname, "../src/main/index.ts"), "utf8");
+    const renderer = await readFile(join(import.meta.dirname, "../src/renderer/main.ts"), "utf8");
+
+    expect(main).toContain('app.on("second-instance"');
+    expect(main).toContain("launchSessionFromArguments");
+    expect(main).toContain("CHANNELS.sessionOpenIntent");
+    expect(renderer).toContain("window.adcode.session.onOpenIntent");
+    expect(renderer).toContain("sameWorkspacePath(workspaceRoot, state.root)");
+  });
+
+  it("rebuilds after dependency and TypeScript configuration changes", async () => {
+    const start = await readFile(join(import.meta.dirname, "../../../scripts/start.mjs"), "utf8");
+
+    expect(start).toContain('join(REPO, "package-lock.json")');
+    expect(start).toContain('join(REPO, "tsconfig.json")');
+    expect(start).toContain('join(REPO, "apps", "desktop", "tsconfig.json")');
   });
 });
