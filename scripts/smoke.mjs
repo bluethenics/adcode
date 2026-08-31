@@ -59,7 +59,16 @@ await writeFile(
 
 // Codex and some CI launchers use Electron's executable as a Node runtime. That inherited
 // switch would make the child run this package as a script and no renderer could exist.
-const childEnv = { ...process.env, ELECTRON_ENABLE_LOGGING: "1" };
+/*
+ * `ADCODE_PIN_PROMPT` is what lets `pinPromptAsksToPin` below see a card at all.
+ *
+ * This run drives an unpackaged build, and `pinEligibility` refuses to ask there on every
+ * platform - a development run installs no Start Menu shortcut, so Windows resolves the
+ * AppUserModelID to nothing and hides "Pin to taskbar" from the jump list, and a card
+ * pointing at a menu entry that is not there is worse than no card. Forcing it here is the
+ * only way to exercise the card without packaging and installing first.
+ */
+const childEnv = { ...process.env, ELECTRON_ENABLE_LOGGING: "1", ADCODE_PIN_PROMPT: "1" };
 delete childEnv.ELECTRON_RUN_AS_NODE;
 
 const child = spawn(

@@ -30,8 +30,10 @@ import {
   decidePinPrompt,
   formatFavorites,
   parseFavorites,
+  pinEligibility,
   pinPromptContent,
   withFavorite,
+  type PinEnvironment,
   type PinPromptState,
 } from "./pinPromptPolicy.ts";
 
@@ -143,6 +145,29 @@ async function desktopEntryId(): Promise<string | null> {
   return null;
 }
 
+/**
+ * The Start Menu shortcut the NSIS installer writes, named by `nsis.shortcutName`.
+ *
+ * Its existence is the precondition for pinning on Windows, because the shell resolves the
+ * running window's AppUserModelID against the shortcuts it finds here - see
+ * `pinPromptPolicy.ts`. Both roots are checked: the install is `perMachine: false` and so
+ * normally lands in the per-user Start Menu, but an all-users install puts it in
+ * ProgramData and would otherwise read as "not installed".
+ */
+async function startMenuShortcutExists(): Promise<boolean> {
+  for (const root of [process.env["APPDATA"], process.env["ProgramData"]]) {
+    if (root === undefined || root.length === 0) continue;
+    try {
+      await access(join(root, "Microsoft", "Windows", "Start Menu", "Programs", "ADCode.lnk"));
+      return true;
+    } catch {
+      // Not in this Start Menu. Try the other.
+    }
+  }
+
+  return false;
+}
+
 function isGnomeSession(): boolean {
   const session = (process.env["XDG_CURRENT_DESKTOP"] ?? "").toLowerCase();
   return GNOME_DESKTOPS.some((name) => session.includes(name));
@@ -196,6 +221,29 @@ async function pinToGnomeDock(): Promise<PinResult> {
   }
 }
 
+/**
+ * Everything the eligibility rule needs to know about this machine.
+ *
+ * Gathered in one place so the rule itself stays a pure function of facts rather than a
+ * pile of `process.platform` branches, and so the two expensive lookups - a Start Menu
+ * shortcut and a desktop entry - each happen on the platform that cares about them.
+ */
+async function environment(): Promise<PinEnvironment> {
+  const platform = process.platform;
+
+  return {
+    platform,
+    packaged: app.isPackaged,
+    // Set by electron-builder's portable target, which unpacks to a temp directory on
+    // every launch and installs no shortcut anywhere.
+    portable: process.env["PORTABLE_EXECUTABLE_DIR"] !== undefined,
+    shortcutInstalled: platform === "win32" ? await startMenuShortcutExists() : false,
+    dockEditable:
+      platform === "linux" ? isGnomeSession() && (await desktopEntryId()) !== null : false,
+    forced: process.env["ADCODE_PIN_PROMPT"] === "1",
+  };
+}
+
 /* ── IPC ──────────────────────────────────────────────────────────────── */
 
 export function registerPinPromptIpc(): void {
@@ -206,15 +254,17 @@ export function registerPinPromptIpc(): void {
 
     const content = pinPromptContent(process.platform);
     if (content === null) return { ask: false };
+
+    const where = await environment();
+    if (!pinEligibility(where).eligible) return { ask: false };
     if (!decidePinPrompt(stateForPolicy()).show) return { ask: false };
 
     /*
-     * The button that really pins is offered only where it can really pin. Checking for
-     * the desktop entry here rather than after the click means Linux users without one
-     * are shown the same honest card Windows gets, instead of a button that apologises.
+     * The button that really pins is offered only where it can really pin. Deciding it
+     * here rather than after the click means a Linux user with no desktop entry gets the
+     * same honest card Windows gets, instead of a button that apologises.
      */
-    const canPin =
-      content.pinLabel !== null && isGnomeSession() && (await desktopEntryId()) !== null;
+    const canPin = content.pinLabel !== null && where.dockEditable;
 
     return {
       ask: true,

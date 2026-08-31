@@ -56,6 +56,68 @@ export function decidePinPrompt(state: PinPromptState): PinPromptDecision {
   return { show: true };
 }
 
+/* ── Whether there is anything to ask ─────────────────────────────────── */
+
+export interface PinEnvironment {
+  readonly platform: NodeJS.Platform;
+  /** False under `electron-vite dev` and under `scripts/smoke.mjs`. */
+  readonly packaged: boolean;
+  /** electron-builder's portable target, which runs from a temp directory. */
+  readonly portable: boolean;
+  /** Windows: a Start Menu shortcut carrying this app's AppUserModelID exists. */
+  readonly shortcutInstalled: boolean;
+  /** Linux: a GNOME-derived session, with a desktop entry installed to pin. */
+  readonly dockEditable: boolean;
+  /** `ADCODE_PIN_PROMPT=1`. The smoke run's only way to see the card. */
+  readonly forced: boolean;
+}
+
+export type PinEligibility =
+  | { readonly eligible: true }
+  | {
+      readonly eligible: false;
+      readonly reason: "unsupported" | "unpackaged" | "portable" | "no-shortcut" | "no-dock";
+    };
+
+/**
+ * Whether pinning can actually succeed here. Asking otherwise is worse than not asking.
+ *
+ * **Windows hides "Pin to taskbar" unless the AppUserModelID resolves to a shortcut.** The
+ * shell looks the running window's ID up among the Start Menu shortcuts, and drops the pin
+ * entry from the jump list when it finds nothing - so `app.setAppUserModelId` in
+ * `index.ts`, which runs in development too, is precisely what removes the option during a
+ * dev run. The NSIS installer stamps the same ID onto both shortcuts it writes, which is
+ * what makes an installed build work; the portable build writes no shortcut at all, so it
+ * never will. A card that says "right-click it and choose Pin to taskbar" in either of
+ * those is instructing somebody to find a menu entry that is not there.
+ *
+ * macOS needs no shortcut - the Dock offers Keep in Dock for any running application - but
+ * still wants a packaged build, or the card offers to keep `node_modules`' stock Electron
+ * binary in somebody's Dock forever.
+ */
+export function pinEligibility(environment: PinEnvironment): PinEligibility {
+  if (pinPromptContent(environment.platform) === null) {
+    return { eligible: false, reason: "unsupported" };
+  }
+
+  // Deliberately after the platform check and before every other one: forcing exists to
+  // let the smoke run drive an unpackaged build, not to invent a dock that is not there.
+  if (environment.forced) return { eligible: true };
+
+  if (!environment.packaged) return { eligible: false, reason: "unpackaged" };
+
+  if (environment.platform === "win32") {
+    if (environment.portable) return { eligible: false, reason: "portable" };
+    if (!environment.shortcutInstalled) return { eligible: false, reason: "no-shortcut" };
+  }
+
+  if (environment.platform === "linux" && !environment.dockEditable) {
+    return { eligible: false, reason: "no-dock" };
+  }
+
+  return { eligible: true };
+}
+
 export interface PinPromptContent {
   readonly title: string;
   readonly body: string;

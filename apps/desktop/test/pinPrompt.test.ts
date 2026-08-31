@@ -4,9 +4,20 @@ import {
   decidePinPrompt,
   formatFavorites,
   parseFavorites,
+  pinEligibility,
   pinPromptContent,
   withFavorite,
+  type PinEnvironment,
 } from "../src/main/pinPromptPolicy.ts";
+
+const installed: PinEnvironment = {
+  platform: "win32",
+  packaged: true,
+  portable: false,
+  shortcutInstalled: true,
+  dockEditable: false,
+  forced: false,
+};
 
 const fresh = { launches: 1, settled: false, shownAt: [] as readonly number[] };
 
@@ -90,6 +101,78 @@ describe("pinPromptContent", () => {
     const win = pinPromptContent("win32");
     const mac = pinPromptContent("darwin");
     expect(win?.steps).not.toEqual(mac?.steps);
+  });
+});
+
+/*
+ * The check that was missing, and that a real Windows install found for us: asking is only
+ * honest where the answer is available. Windows hides "Pin to taskbar" entirely unless the
+ * running app's AppUserModelID resolves to a Start Menu shortcut carrying the same ID, so
+ * a development run and a portable build - neither of which installs one - are asked to
+ * pin something the shell will not offer.
+ */
+describe("pinEligibility", () => {
+  it("asks on an installed Windows build", () => {
+    expect(pinEligibility(installed)).toEqual({ eligible: true });
+  });
+
+  it("never asks in development, on any platform", () => {
+    for (const platform of ["win32", "darwin", "linux"] as NodeJS.Platform[]) {
+      expect(pinEligibility({ ...installed, platform, packaged: false })).toEqual({
+        eligible: false,
+        reason: "unpackaged",
+      });
+    }
+  });
+
+  it("never asks from a portable build, which installs no shortcut to pin", () => {
+    expect(pinEligibility({ ...installed, portable: true })).toEqual({
+      eligible: false,
+      reason: "portable",
+    });
+  });
+
+  it("never asks on Windows without the Start Menu shortcut", () => {
+    // Without it the AppUserModelID resolves to nothing and the shell drops the entry.
+    expect(pinEligibility({ ...installed, shortcutInstalled: false })).toEqual({
+      eligible: false,
+      reason: "no-shortcut",
+    });
+  });
+
+  it("asks on a packaged macOS build, which needs no shortcut", () => {
+    expect(
+      pinEligibility({ ...installed, platform: "darwin", shortcutInstalled: false }),
+    ).toEqual({ eligible: true });
+  });
+
+  it("asks on Linux only where the dock can actually be edited", () => {
+    const linux = { ...installed, platform: "linux" as NodeJS.Platform, shortcutInstalled: false };
+    expect(pinEligibility({ ...linux, dockEditable: true })).toEqual({ eligible: true });
+    expect(pinEligibility({ ...linux, dockEditable: false })).toEqual({
+      eligible: false,
+      reason: "no-dock",
+    });
+  });
+
+  it("says nothing on a platform with no dock to speak of", () => {
+    expect(pinEligibility({ ...installed, platform: "freebsd" as NodeJS.Platform })).toEqual({
+      eligible: false,
+      reason: "unsupported",
+    });
+  });
+
+  it("can be forced, which is the only way the smoke run sees the card", () => {
+    // `scripts/smoke.mjs` drives the unpackaged app, where every check above says no.
+    expect(pinEligibility({ ...installed, packaged: false, forced: true })).toEqual({
+      eligible: true,
+    });
+  });
+
+  it("is not forced past a platform that has nothing to pin to", () => {
+    expect(
+      pinEligibility({ ...installed, platform: "freebsd" as NodeJS.Platform, forced: true }),
+    ).toEqual({ eligible: false, reason: "unsupported" });
   });
 });
 
