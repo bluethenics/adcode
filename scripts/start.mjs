@@ -7,11 +7,12 @@
  * away. `npm start -- --force` rebuilds regardless.
  */
 import { spawn } from "node:child_process";
-import { readdir, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { createRequire } from "node:module";
 import process from "node:process";
 import { validateOpenTarget } from "./openTarget.mjs";
+import { createBuildProgress, quipAt, renderFrame, renderSummary } from "./buildProgress.mjs";
 
 const REPO = process.cwd();
 const require = createRequire(join(REPO, "package.json"));
@@ -110,7 +111,174 @@ function run(command, args, options = {}) {
   });
 }
 
-const requested = process.argv.slice(2).filter((argument) => argument !== "--force");
+/* ── The build, with something to look at ─────────────────────────────── */
+
+/**
+ * What the last build cost, so the next one can draw an honest bar.
+ *
+ * In `.adcode-cache`, which is already ignored, and treated as a hint throughout: a
+ * missing or corrupt file costs a less accurate first bar and nothing else.
+ */
+const PROGRESS_CACHE = join(REPO, ".adcode-cache", "build-progress.json");
+
+async function readLearned() {
+  try {
+    const parsed = JSON.parse(await readFile(PROGRESS_CACHE, "utf8"));
+    if (typeof parsed !== "object" || parsed === null) return {};
+    return {
+      durations: typeof parsed.durations === "object" ? (parsed.durations ?? {}) : {},
+      modules: typeof parsed.modules === "object" ? (parsed.modules ?? {}) : {},
+    };
+  } catch {
+    // No cache on a first run, which is exactly the build that has to guess.
+    return {};
+  }
+}
+
+async function writeLearned(learned) {
+  try {
+    await mkdir(dirname(PROGRESS_CACHE), { recursive: true });
+    await writeFile(PROGRESS_CACHE, JSON.stringify(learned), "utf8");
+  } catch {
+    // Unwritable cache, less accurate bar next time. Never a reason not to launch.
+  }
+}
+
+const CURSOR_HIDE = "\u001b[?25l";
+const CURSOR_SHOW = "\u001b[?25h";
+
+/**
+ * Run the build, showing a progress bar instead of forty lines of Vite.
+ *
+ * The child is piped rather than inherited, which is what makes the bar possible and also
+ * what costs us Vite's own `transforming` counter - it only prints that to a TTY. Every
+ * line is kept, and printed in full if the build fails: a bar is a nicer way to wait, but
+ * it is never a reason to be shown less when something breaks.
+ */
+function buildWithProgress(electronVite, known) {
+  return new Promise((resolve, reject) => {
+    const animated = process.stdout.isTTY === true;
+    const colour = animated && process.env["NO_COLOR"] === undefined;
+
+    const progress = createBuildProgress(known);
+    const raw = [];
+    let pending = "";
+    let drawn = 0;
+    let announced = "";
+
+    function erase() {
+      if (drawn === 0) return;
+      // Up N lines, then clear everything below the cursor - one escape rather than a
+      // clear per line, so a resize mid-build cannot leave half a frame behind.
+      process.stdout.write(`\u001b[${drawn}A\u001b[0J`);
+      drawn = 0;
+    }
+
+    function draw() {
+      const state = progress.snapshot();
+
+      if (!animated) {
+        // No cursor to move, so say each phase once and stay quiet in between. This is
+        // what CI and `npm start > log` see.
+        if (state.label !== announced) {
+          announced = state.label;
+          process.stdout.write(`  Building ${state.label}…\n`);
+        }
+        return;
+      }
+
+      const lines = renderFrame({
+        fraction: state.fraction,
+        label: state.label,
+        quip: quipAt(state.elapsedMs),
+        elapsedMs: state.elapsedMs,
+        columns: process.stdout.columns ?? 80,
+        colour,
+      });
+
+      erase();
+      process.stdout.write(`${lines.join("\n")}\n`);
+      drawn = lines.length;
+    }
+
+    // Split on either ending: Vite rewrites its progress line with a bare carriage return,
+    // so splitting on newlines alone would swallow it into an ever-growing buffer.
+    function feed(chunk) {
+      const text = chunk.toString();
+      raw.push(text);
+      pending += text;
+
+      const lines = pending.split(/\r\n|\n|\r/);
+      pending = lines.pop() ?? "";
+      for (const line of lines) progress.push(line);
+    }
+
+    const child = spawn(process.execPath, [electronVite, "build"], {
+      cwd: join(REPO, "apps", "desktop"),
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    if (animated) process.stdout.write(CURSOR_HIDE);
+    const timer = setInterval(draw, 90);
+    draw();
+
+    function restore() {
+      clearInterval(timer);
+      erase();
+      if (animated) process.stdout.write(CURSOR_SHOW);
+    }
+
+    // A cursor left hidden outlives this process and ruins the shell it was run from.
+    const onInterrupt = () => {
+      restore();
+      child.kill();
+      process.exit(130);
+    };
+    process.once("SIGINT", onInterrupt);
+
+    child.stdout.on("data", feed);
+    child.stderr.on("data", feed);
+
+    child.once("error", (error) => {
+      restore();
+      process.removeListener("SIGINT", onInterrupt);
+      reject(error);
+    });
+
+    child.once("exit", (code) => {
+      if (pending.length > 0) progress.push(pending);
+      const state = progress.snapshot();
+      restore();
+      process.removeListener("SIGINT", onInterrupt);
+
+      if (code !== 0) {
+        // Everything, exactly as Vite wrote it. This is the moment the bar was hiding
+        // output for, and the moment it must stop.
+        process.stderr.write(raw.join(""));
+        resolve({ code: code ?? 1, learned: null });
+        return;
+      }
+
+      process.stdout.write(`${renderSummary(state, colour)}\n`);
+      if (state.warnings > 0) {
+        const dim = colour ? "\u001b[2m" : "";
+        const off = colour ? "\u001b[0m" : "";
+        const plural = state.warnings === 1 ? "note" : "notes";
+        process.stdout.write(
+          `  ${dim}${state.warnings} bundler ${plural} hidden - npm start -- --verbose to read them${off}\n`,
+        );
+      }
+
+      resolve({ code: 0, learned: progress.learned() });
+    });
+  });
+}
+
+/** Launcher flags, which are ours rather than something to open. */
+const FLAGS = new Set(["--force", "--verbose"]);
+
+const verbose = process.argv.includes("--verbose");
+const requested = process.argv.slice(2).filter((argument) => !FLAGS.has(argument));
 const openTarget = await validateOpenTarget(requested, REPO);
 if (!openTarget.ok) {
   process.stderr.write(`${openTarget.message}\n`);
@@ -118,8 +286,6 @@ if (!openTarget.ok) {
 }
 
 if (await needsBuild()) {
-  process.stdout.write("Building ADCode (first run, or sources changed)…\n");
-
   // Through the electron-vite entry script directly rather than `npm run`, so there is
   // one less shell between here and the build - `.cmd` shims and `spawn` disagree on
   // Windows. The bin is not in the package's `exports` map, so it is resolved by walking
@@ -129,13 +295,28 @@ if (await needsBuild()) {
     "bin",
     "electron-vite.js",
   );
-  const code = await run(process.execPath, [electronVite, "build"], {
-    cwd: join(REPO, "apps", "desktop"),
-  });
 
-  if (code !== 0) {
-    process.stderr.write("\nBuild failed - not launching.\n");
-    process.exit(code);
+  if (verbose) {
+    // Every line, unparsed and uninterrupted - the escape hatch for anyone debugging the
+    // build itself rather than waiting for it.
+    process.stdout.write("Building ADCode (first run, or sources changed)…\n");
+    const code = await run(process.execPath, [electronVite, "build"], {
+      cwd: join(REPO, "apps", "desktop"),
+    });
+
+    if (code !== 0) {
+      process.stderr.write("\nBuild failed - not launching.\n");
+      process.exit(code);
+    }
+  } else {
+    const result = await buildWithProgress(electronVite, await readLearned());
+
+    if (result.code !== 0) {
+      process.stderr.write("\nBuild failed - not launching.\n");
+      process.exit(result.code);
+    }
+
+    await writeLearned(result.learned);
   }
 }
 
