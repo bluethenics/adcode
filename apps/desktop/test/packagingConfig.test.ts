@@ -25,4 +25,28 @@ describe("desktop packaging dependency boundary", () => {
     expect(manifest.author).toBe("ADCode");
     expect(manifest.license).toBe("UNLICENSED");
   });
+
+  /*
+   * One name for the window, the desktop entry and the dock.
+   *
+   * GNOME links a running window to its `.desktop` entry by matching the window's `app_id`
+   * against `StartupWMClass`. Electron takes `app_id` from `desktopName` in the app's
+   * package.json at startup - before `main/index.ts` calls `app.setName` - while
+   * electron-builder names the installed file from `linux.executableName` and writes
+   * `StartupWMClass` from `desktopName` only when `syncDesktopName` is on.
+   *
+   * Left to the defaults those disagree: `@adcode/desktop` against `ADCode`. The symptom
+   * is a dock holding two icons for one editor, and it is worth a test because
+   * `main/pinPrompt.ts` offers to put the first of them there.
+   */
+  it("gives Linux one name for the window, the desktop entry and the dock", () => {
+    const config = readFileSync(resolve(repo, "electron-builder.yml"), "utf8");
+    const manifest = JSON.parse(
+      readFileSync(resolve(repo, "apps/desktop/package.json"), "utf8"),
+    ) as { desktopName?: string };
+
+    expect(manifest.desktopName).toBe("ADCode.desktop");
+    expect(config).toMatch(/^\s*syncDesktopName:\s*true\s*$/m);
+    expect(config).toMatch(/^\s*executableName:\s*ADCode\s*$/m);
+  });
 });

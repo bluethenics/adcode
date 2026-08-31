@@ -224,6 +224,62 @@ checks.onboardingIsSkippable = await (async () => {
   };
 })();
 
+/*
+ * The pin card, which is the only thing allowed to appear once the tour is gone.
+ *
+ * Two reasons it is checked here rather than at the end. The first is that this is when it
+ * happens: it is offered on the tour closing, and a check further down would be looking
+ * for a card that had already been dismissed by some other click. The second is the lesson
+ * directly above - it is `position: fixed` over the bottom-right corner, which is where the
+ * status bar, the assistant button and the earnings readout all live, so leaving it up
+ * would aim every pointer-driven check below it at a card instead of at the editor.
+ *
+ * Windows and macOS get instructions rather than a button that pins, because neither OS
+ * lets an application pin itself; `main/pinPromptPolicy.ts` has the citations. So the
+ * assertion is that the steps exist and stay hidden until somebody asks for them.
+ */
+checks.pinPromptAsksToPin = await (async () => {
+  // Offered `PIN_PROMPT_DELAY_MS` after the tour closes, then one IPC round trip to
+  // decide. Waited out rather than polled: if it is late, it is broken.
+  await sleep(2400);
+
+  const drawn = await evaluate(
+    `(() => {
+       const card = document.querySelector('.pin-card');
+       if (card === null) return 'no pin card after the tour closed';
+       return {
+         state: card.dataset.state ?? null,
+         title: card.querySelector('.pin-card-title')?.textContent ?? null,
+         stepsHiddenUntilAsked: card.querySelector('.pin-card-steps')?.hidden === true,
+         primary: card.querySelector('.pin-card-primary')?.textContent ?? null,
+         offersNever: card.querySelector('.pin-card-never') !== null,
+       };
+     })()`,
+  );
+  if (typeof drawn === "string") return drawn;
+
+  await evaluate("document.querySelector('.pin-card-primary')?.click(); true");
+  await sleep(250);
+  const steps = await evaluate(
+    `(() => {
+       const list = document.querySelector('.pin-card-steps');
+       if (list === null || list.hidden) return 0;
+       return list.querySelectorAll('li').length;
+     })()`,
+  );
+
+  // "Not now", which must close the card WITHOUT settling the question - the second ask
+  // on a later launch depends on this being a dismissal rather than an answer.
+  await evaluate("document.querySelector('.pin-card-later')?.click(); true");
+  await sleep(400);
+
+  return {
+    ...drawn,
+    stepsShownOnRequest: steps,
+    dismissed: (await evaluate("document.querySelector('.pin-card') === null")) === true,
+  };
+})();
+
 // Drive the source-control view the way a click would.
 await evaluate("document.querySelector('.activity[data-view=\"scm\"]').click()");
 await sleep(1200);

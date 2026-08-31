@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "The ADCode workbench: Electron shell, Monaco editing surface, xterm terminal.",
+  "//desktopName": "Linux window association. Electron reads this at startup to set app_id and WM_CLASS - before main/index.ts calls app.setName - so without it the window identifies as `@adcode/desktop` while the installed entry says `ADCode`, and GNOME shows a pinned ADCode next to a second unlabelled icon for the window actually open. Paired with linux.syncDesktopName in electron-builder.yml, which makes the installed filename and StartupWMClass agree with it. Guarded by apps/desktop/test/packagingConfig.test.ts.",
+  "desktopName": "ADCode.desktop",
   "author": "ADCode",
   "license": "UNLICENSED",
   "main": "./out/main/index.js",

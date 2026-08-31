@@ -102,6 +102,7 @@ import type { BindingOverrides } from "../shared/keybindings.ts";
 import { scaffoldFor, todoMarksIn } from "@adcode/structure";
 import { createAccountMenu } from "./workbench/accountMenu.ts";
 import { createOnboardingSheet } from "./onboarding/onboardingSheet.ts";
+import { createPinPromptCard } from "./onboarding/pinPromptCard.ts";
 import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "./workbench/contextMenu.ts";
 import { createInlineEditor } from "./workbench/inlineEdit.ts";
 import type {
@@ -2302,16 +2303,39 @@ const accountMenu = createAccountMenu(
  * Every step is skippable and the sheet is dismissible. First launch is promised to have
  * no account and no wall (§8.4), and a tour you must finish before the editor works would
  * be exactly that wall.
+ *
+ * The pin card below is the one thing allowed to follow it. Its delay is long enough that
+ * the card reads as a separate thought rather than the tail of the tour's closing
+ * animation, and short enough that it is still obviously about the app that just opened -
+ * the same reasoning behind the 900ms the sheet itself waits for.
  */
+const PIN_PROMPT_DELAY_MS = 1_200;
+
+const pinPromptCard = createPinPromptCard(document.body);
+
 const onboarding = createOnboardingSheet({
   read: () => window.adcode.settings.read(),
   write: (id, value) => window.adcode.settings.write(id, value),
   openAccount: () => el<HTMLButtonElement>("account-toggle").click(),
-  complete: () => void window.adcode.onboarding.complete(),
+  complete: () => {
+    void window.adcode.onboarding.complete();
+    /*
+     * Every way out of the tour ends here - Skip, Escape, and Start coding - so this is
+     * the one place that knows the modal is gone and the taskbar is visible again. It
+     * fires twice on the Skip path, which is why `offer` is idempotent.
+     */
+    window.setTimeout(() => pinPromptCard.offer(), PIN_PROMPT_DELAY_MS);
+  },
 });
 
 void window.adcode.onboarding.completed().then((seen) => {
-  if (seen) return;
+  if (seen) {
+    // Already welcomed, so nothing is about to cover the corner. This is the path the
+    // second ask arrives on; main decides whether this launch is one of the two.
+    window.setTimeout(() => pinPromptCard.offer(), PIN_PROMPT_DELAY_MS);
+    return;
+  }
+
   // A beat after first paint. Opening a modal in the same frame as the window appearing
   // reads as a stutter rather than as a welcome.
   window.setTimeout(() => onboarding.open(), 900);

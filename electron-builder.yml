@@ -128,6 +128,17 @@ linux:
   # then refuses because `@` cannot appear in a Linux file path. Windows never hit it
   # because `win.executableName` below is set explicitly; Linux had no equivalent.
   executableName: ADCode
+  # Name the installed .desktop file from `desktopName` in apps/desktop/package.json, and
+  # write `StartupWMClass` from the same string.
+  #
+  # This is what makes a pinned ADCode and a running ADCode the same application to GNOME.
+  # Three names have to agree: Electron's `app_id`, taken from `desktopName` at startup;
+  # the filename in /usr/share/applications, taken from `executableName` by default; and
+  # `StartupWMClass` inside that file. Left to the defaults they do not - the first is
+  # `@adcode/desktop` and the others are `ADCode` - so the dock shows the pin and the open
+  # window as two unrelated icons. `main/pinPrompt.ts` offers to create that pin, which is
+  # why this is set here rather than left for a later Linux bug report.
+  syncDesktopName: true
   # Required, and only on Linux.
   #
   # .deb and AppImage both carry a Debian maintainer field, and electron-builder refuses to

@@ -227,6 +227,31 @@ export interface PlatformInfo {
   readonly isPackaged: boolean;
 }
 
+/** What the pin card says, once the main process has decided it should say anything. */
+export interface PinPromptContentView {
+  readonly title: string;
+  readonly body: string;
+  /** The manual route, in order. Always present: it is the answer on two of three platforms. */
+  readonly steps: readonly string[];
+  /**
+   * The label on a button that really pins, or null where the operating system forbids
+   * one - which is Windows and macOS always, and Linux outside a GNOME session or without
+   * an installed desktop entry. See `main/pinPromptPolicy.ts` for why.
+   */
+  readonly pinLabel: string | null;
+  readonly howLabel: string;
+}
+
+export type PinPromptOffer =
+  | { readonly ask: false }
+  | { readonly ask: true; readonly content: PinPromptContentView };
+
+/** The outcome of a pin attempt. Always an outcome, never a throw, like `FileOpResult`. */
+export interface PinResult {
+  readonly ok: boolean;
+  readonly message: string;
+}
+
 /**
  * A sponsored creative, resolved for display.
  *
@@ -613,6 +638,10 @@ export const CHANNELS = {
   activityReport: "activity:report",
   onboardingState: "onboarding:state",
   onboardingComplete: "onboarding:complete",
+  pinPromptOffer: "pin:offer",
+  pinPromptShown: "pin:shown",
+  pinPromptSettle: "pin:settle",
+  pinPromptPin: "pin:pin",
   updateStatus: "update:status",
   serviceNotice: "notice:show",
   releaseAnnouncement: "release:announcement",
@@ -1662,6 +1691,20 @@ export interface AdcodeApi {
     completed(): Promise<boolean>;
     /** Records that it has. Never rejects - a failed write costs one repeat, not a crash. */
     complete(): Promise<void>;
+  };
+  readonly pinPrompt: {
+    /**
+     * Whether to ask about pinning right now, and what to say. `{ ask: false }` on every
+     * launch but the first and third, once the question is settled, and on any platform
+     * with no dock worth naming.
+     */
+    offer(): Promise<PinPromptOffer>;
+    /** The card is on screen. Recorded on display, so quitting with it up still counts. */
+    shown(): void;
+    /** They pinned it or asked not to be asked again. Either way, never ask again. */
+    settle(): Promise<void>;
+    /** Do it for real, where the desktop allows. Never rejects; reports why it could not. */
+    pin(): Promise<PinResult>;
   };
   readonly activity: {
     /**

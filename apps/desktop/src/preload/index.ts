@@ -284,6 +284,14 @@ const api: AdcodeApi = {
     completed: () => ipcRenderer.invoke(CHANNELS.onboardingState),
     complete: () => ipcRenderer.invoke(CHANNELS.onboardingComplete),
   },
+  pinPrompt: {
+    offer: () => ipcRenderer.invoke(CHANNELS.pinPromptOffer),
+    // `send`, not `invoke`: recording that a card was drawn is bookkeeping, and the card
+    // has nothing to wait for.
+    shown: () => ipcRenderer.send(CHANNELS.pinPromptShown),
+    settle: () => ipcRenderer.invoke(CHANNELS.pinPromptSettle),
+    pin: () => ipcRenderer.invoke(CHANNELS.pinPromptPin),
+  },
   activity: {
     // `send`, not `invoke`: the renderer has nothing to wait for, and a counter flush
     // must never be able to hold up a keystroke.
