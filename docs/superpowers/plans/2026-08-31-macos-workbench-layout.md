@@ -373,26 +373,40 @@ git commit -m "feat(workbench): add responsive sidebar shell"
 - Modify: `apps/desktop/src/renderer/styles/panels.css`
 - Modify: `apps/desktop/src/renderer/styles/features.css`
 - Modify: `apps/desktop/src/renderer/styles/settings.css`
-- Test: `apps/desktop/test/featureLibraryMarkup.test.ts`
+- Modify: `scripts/smoke.mjs`
 - Test: `apps/desktop/test/featureLibraryModel.test.ts`
 
 **Interfaces:**
 - Consumes: sidebar content hosts and `showSidebarView()` from Task 2.
 - Produces: passive, embeddable Structure, Earnings, Features, and Settings view roots whose `open()`/`close()` methods change content state without creating modal layers.
 
-- [ ] **Step 1: Strengthen markup tests for non-modal feature content**
+- [ ] **Step 1: Add failing smoke behavior for docked, non-modal side tools**
 
-Update the feature-library markup test to require an embeddable region and reject fixed modal semantics:
+Add raw-CDP checks that operate the real activity buttons and observe the real rendered surfaces:
 
-```ts
-expect(source).toContain('sheet.setAttribute("role", "region")');
-expect(source).not.toContain('sheet.setAttribute("role", "dialog")');
-expect(source).not.toContain("positionFeatureLibrary");
+```js
+for (const [buttonId, viewId] of [
+  ['open-structure', 'view-structure'],
+  ['open-earnings', 'view-earnings'],
+  ['open-features', 'view-features'],
+  ['open-settings', 'view-settings'],
+]) {
+  await evaluate(`document.getElementById('${buttonId}')?.click(); true`);
+  await sleep(220);
+  checks[`docked_${viewId}`] = await evaluate(
+    `(() => {
+       const workbench = document.getElementById('workbench');
+       const view = document.getElementById('${viewId}');
+       const modal = view?.querySelector('[aria-modal="true"], dialog[open]');
+       return workbench?.dataset.sidebarOpen === 'true' && view?.hidden === false && modal === null;
+     })()`,
+  );
+}
 ```
 
-Run: `npm test -- apps/desktop/test/featureLibraryMarkup.test.ts`
+Run: `npm run smoke`
 
-Expected: FAIL against the current dialog implementation.
+Expected: FAIL because the new sidebar view hosts and state attributes do not exist yet.
 
 - [ ] **Step 2: Make Structure an embeddable two-tab view**
 
@@ -427,9 +441,11 @@ When a project-map row opens a file, close only an overlay sidebar; leave a dock
 
 Remove fixed positioning, floating shadows, modal backdrops, and outer glass from the four docked roots. Keep content surfaces opaque, headers compact, actions beside their targets, and inner list radii from existing tokens. Add narrow Structure relation stacking and wrapping Feature actions. Preserve reduced-transparency rules for any remaining help/filter popovers.
 
-- [ ] **Step 8: Run feature tests and type checking**
+- [ ] **Step 8: Run feature tests, smoke behavior, and type checking**
 
-Run: `npm test -- apps/desktop/test/featureLibraryMarkup.test.ts apps/desktop/test/featureLibraryModel.test.ts apps/desktop/test/workbenchLayout.test.ts`
+Run: `npm test -- apps/desktop/test/featureLibraryModel.test.ts apps/desktop/test/workbenchLayout.test.ts`
+
+Run: `npm run smoke`
 
 Run: `npm run typecheck`
 
@@ -438,7 +454,7 @@ Expected: all commands PASS.
 - [ ] **Step 9: Commit the docked views**
 
 ```bash
-git add apps/desktop/src/renderer/panels/structurePopup.ts apps/desktop/src/renderer/panels/earningsPopover.ts apps/desktop/src/renderer/features/featureLibrary.ts apps/desktop/src/renderer/settings/settingsView.ts apps/desktop/src/renderer/main.ts apps/desktop/src/renderer/styles/popups.css apps/desktop/src/renderer/styles/panels.css apps/desktop/src/renderer/styles/features.css apps/desktop/src/renderer/styles/settings.css apps/desktop/test/featureLibraryMarkup.test.ts
+git add apps/desktop/src/renderer/panels/structurePopup.ts apps/desktop/src/renderer/panels/earningsPopover.ts apps/desktop/src/renderer/features/featureLibrary.ts apps/desktop/src/renderer/settings/settingsView.ts apps/desktop/src/renderer/main.ts apps/desktop/src/renderer/styles/popups.css apps/desktop/src/renderer/styles/panels.css apps/desktop/src/renderer/styles/features.css apps/desktop/src/renderer/styles/settings.css scripts/smoke.mjs
 git commit -m "feat(workbench): dock activity tool views"
 ```
 
@@ -563,12 +579,6 @@ git commit -m "feat(terminal): add responsive panel maximize"
 Extend the existing raw-CDP `checks` object and `evaluate()` flow with:
 
 ```js
-await evaluate("document.getElementById('open-structure')?.click(); true");
-await sleep(250);
-checks.structureUsesSidebar = await evaluate(
-  "document.getElementById('workbench')?.dataset.sidebarOpen === 'true' && document.getElementById('view-structure')?.hidden === false",
-);
-
 await evaluate("document.getElementById('panel-maximize')?.click(); true");
 await sleep(250);
 checks.panelMaximizes = await evaluate(
@@ -586,7 +596,7 @@ checks.panelRestores = await evaluate(
 
 Run: `npm run smoke`
 
-Expected before finishing: the three new booleans are `true`; a `false` value is fixed before proceeding.
+Expected before finishing: both new booleans are `true`; a `false` value is fixed before proceeding.
 
 - [ ] **Step 3: Finish the visual hierarchy**
 
