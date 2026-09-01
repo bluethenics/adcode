@@ -202,7 +202,7 @@ select {
 .workbench {
   position: relative;
   display: grid;
-  grid-template-columns: 48px var(--sidebar-width, 240px) 4px 1fr;
+  grid-template-columns: 48px calc(var(--sidebar-width, 240px) + 12px) 4px 1fr;
   min-height: 0;
   overflow: hidden;
 }
@@ -327,12 +327,16 @@ select {
   display: grid;
   grid-template-rows: 50px minmax(0, 1fr);
   grid-template-columns: minmax(0, 1fr);
+  margin: 8px 4px 8px 8px;
   min-height: 0;
   min-width: 0;
   background: var(--bg-chrome);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border-right: 1px solid var(--border-hairline);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--shadow-surface);
+  overflow: hidden;
 }
 
 .sidebar-header {
@@ -468,6 +472,23 @@ select {
   opacity: 1;
 }
 
+#popup-primary-host,
+#popup-dependent-host {
+  position: fixed;
+  inset: 36px 0 24px;
+  z-index: 80;
+  pointer-events: none;
+}
+
+#popup-dependent-host {
+  z-index: 90;
+}
+
+#popup-primary-host > *,
+#popup-dependent-host > * {
+  pointer-events: auto;
+}
+
 @media (max-width: 819px) {
   .workbench,
   .workbench[data-sidebar-open="false"] {
@@ -476,11 +497,10 @@ select {
 
   .sidebar {
     position: absolute;
-    inset: 0 auto 0 48px;
+    inset: 10px auto 10px 58px;
     z-index: 30;
-    width: min(var(--sidebar-width, 300px), calc(100% - 64px));
-    border-right: 1px solid var(--border-hairline);
-    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    width: min(var(--sidebar-width, 300px), calc(100% - 68px));
+    margin: 0;
     box-shadow: var(--shadow-floating);
     opacity: 0;
     pointer-events: none;
@@ -1179,8 +1199,12 @@ kbd {
   display: grid;
   grid-template-rows: 32px 1fr;
   height: var(--panel-height, 260px);
-  border-top: 1px solid var(--border-hairline);
+  margin: 0 8px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
   background: var(--bg-app);
+  box-shadow: var(--shadow-surface);
+  overflow: hidden;
 }
 
 .main[data-panel-maximized="true"] {
@@ -1192,9 +1216,10 @@ kbd {
 }
 
 .main[data-panel-maximized="true"] > .panel {
+  margin: 8px;
   height: 100%;
   min-height: 0;
-  border-top: 0;
+  border-radius: 14px;
 }
 
 .panel[hidden] {

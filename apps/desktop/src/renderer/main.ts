@@ -1711,6 +1711,23 @@ let sidebarWidth = DEFAULT_SIDEBAR_WIDTH;
 let panelHeight = DEFAULT_PANEL_HEIGHT;
 let layoutState = initialWorkbenchLayout(window.innerWidth);
 
+function createPopupMount(id: string, host: HTMLElement): HTMLDivElement {
+  const mount = document.createElement("div");
+  mount.id = id;
+  mount.hidden = true;
+  host.append(mount);
+  return mount;
+}
+
+const popupPrimaryHost = el("popup-primary-host");
+const popupMounts = {
+  structure: createPopupMount("view-structure", popupPrimaryHost),
+  scm: createPopupMount("view-scm", popupPrimaryHost),
+  earnings: createPopupMount("view-earnings", popupPrimaryHost),
+  features: createPopupMount("view-features", popupPrimaryHost),
+  settings: createPopupMount("view-settings", popupPrimaryHost),
+};
+
 function layoutWorkbenchSurfaces(): void {
   // Grid transitions settle on the next frame. Measuring there avoids fitting xterm to the
   // old column count while the panel is already visibly at its new size.
@@ -1814,7 +1831,6 @@ createSplitter({
 
 window.addEventListener("resize", () => {
   layoutState = reduceWorkbenchLayout(layoutState, { type: "viewport", width: window.innerWidth });
-  if (!layoutState.sidebarOpen) deactivateSidebarViews(null);
   renderWorkbenchLayout("keyboard");
   applyLayout();
 });
@@ -1907,7 +1923,9 @@ el("terminal-split").addEventListener("click", () => void terminalPanel().split(
 el("terminal-kill").addEventListener("click", () => terminalPanel().killActive());
 el("ports-refresh").addEventListener("click", () => void portsPanel.refresh());
 
-for (const activity of document.querySelectorAll<HTMLElement>(".activity")) {
+const structuralViews = new Set(["explorer", "search"]);
+
+for (const activity of document.querySelectorAll<HTMLButtonElement>(".activity")) {
   // Problems moved to the bottom panel, where VS Code puts it and where the rest of the
   // output now lives. The activity button stays because it carries the error badge, which
   // is how most people notice there is anything to look at - it just opens a tab now.
@@ -1916,12 +1934,12 @@ for (const activity of document.querySelectorAll<HTMLElement>(".activity")) {
     continue;
   }
 
-  const view = activity.dataset["sidebarView"];
-  if (view === undefined) continue;
-
-  activity.addEventListener("click", () =>
-    toggleSidebarView(view, "pointer", activity),
-  );
+  const sidebarView = activity.dataset["sidebarView"];
+  if (sidebarView !== undefined && structuralViews.has(sidebarView)) {
+    activity.addEventListener("click", () =>
+      toggleSidebarView(sidebarView, "pointer", activity),
+    );
+  }
 }
 
 /* Shortcuts and the menu bar are registered together, near the foot of this file. */
@@ -1929,7 +1947,7 @@ for (const activity of document.querySelectorAll<HTMLElement>(".activity")) {
 /* ── Sponsored notifications ──────────────────────────────────────────── */
 
 const settingsView = createSettingsView({
-  host: el("view-settings"),
+  host: popupMounts.settings,
   overlayHost: document.body,
   requestClose: () => closeSidebar("pointer"),
   read: () => window.adcode.settings.read(),
@@ -3072,7 +3090,7 @@ const projectMap = createProjectMap({
   },
 });
 
-const structurePopup = createStructurePopup(el("view-structure"), {
+const structurePopup = createStructurePopup(popupMounts.structure, {
   filePanel: structurePanel,
   projectMap,
   requestClose: () => closeSidebar("pointer"),
@@ -3177,7 +3195,7 @@ const previewPane = createPreviewPane({
   },
 });
 
-el("view-scm").append(sourceControl.element);
+popupMounts.scm.append(sourceControl.element);
 el("view-search").append(searchPanel.element);
 
 /* ── The bottom panel's tabs ──────────────────────────────────────────── */
@@ -3281,24 +3299,11 @@ el("panel-tabs").addEventListener("keydown", (event) => {
   }
 });
 
-const SIDEBAR_VIEWS = new Set<SidebarViewId>([
-  "explorer",
-  "search",
-  "structure",
-  "scm",
-  "earnings",
-  "features",
-  "settings",
-]);
+const SIDEBAR_VIEWS = new Set<SidebarViewId>(["explorer", "search"]);
 
 const SIDEBAR_COPY: Readonly<Record<SidebarViewId, { title: string; subtitle: string }>> = {
   explorer: { title: "Explorer", subtitle: "No folder opened" },
   search: { title: "Search", subtitle: "Find across this project" },
-  structure: { title: "Structure", subtitle: "File outline and project map" },
-  scm: { title: "Source Control", subtitle: "Changes and history" },
-  earnings: { title: "Earnings", subtitle: "Balance and ad settings" },
-  features: { title: "Features", subtitle: "Everything ADCode can do" },
-  settings: { title: "Settings", subtitle: "Customize ADCode" },
 };
 
 let sidebarTrigger: HTMLElement | null = null;
@@ -3325,6 +3330,8 @@ function renderWorkbenchLayout(input: "pointer" | "keyboard" = "keyboard"): void
   for (const activity of document.querySelectorAll<HTMLButtonElement>(
     ".activity[data-sidebar-view]",
   )) {
+    if (!isSidebarView(activity.dataset["sidebarView"] ?? "")) continue;
+
     const selected = layoutState.sidebarOpen && activity.dataset["sidebarView"] === active;
     activity.ariaSelected = String(selected);
     activity.setAttribute("aria-pressed", String(selected));
@@ -3343,30 +3350,14 @@ function renderWorkbenchLayout(input: "pointer" | "keyboard" = "keyboard"): void
   terminal?.fit();
 }
 
-function activateSidebarView(view: SidebarViewId): void {
-  if (view === "structure") structurePopup.open("file");
-  else if (view === "earnings") earningsPopover.open();
-  else if (view === "features") featureLibrary.open();
-  else if (view === "settings") settingsView.open();
-}
-
-function deactivateSidebarViews(next: SidebarViewId | null): void {
-  if (next !== "earnings") earningsPopover.close();
-  if (next !== "features") featureLibrary.close(false);
-  if (next !== "settings") settingsView.close(false);
-}
-
 /** Open one known sidebar view. Commands use this rather than toggling it shut. */
 function showView(view: string, input: "pointer" | "keyboard" = "keyboard"): void {
   if (!isSidebarView(view)) return;
 
   layoutState = reduceWorkbenchLayout(layoutState, { type: "show-sidebar", view });
-  deactivateSidebarViews(view);
   renderWorkbenchLayout(input);
 
-  if (view === "scm") void sourceControl.refresh();
   if (view === "search") searchPanel.focus();
-  activateSidebarView(view);
   rememberSession();
 }
 
@@ -3380,19 +3371,15 @@ function toggleSidebarView(
 
   if (trigger !== undefined) sidebarTrigger = trigger;
   layoutState = reduceWorkbenchLayout(layoutState, { type: "toggle-sidebar", view });
-  deactivateSidebarViews(layoutState.sidebarOpen ? layoutState.activeSidebarView : null);
   renderWorkbenchLayout(input);
 
-  if (layoutState.sidebarOpen && view === "scm") void sourceControl.refresh();
   if (layoutState.sidebarOpen && view === "search") searchPanel.focus();
-  if (layoutState.sidebarOpen) activateSidebarView(view);
   rememberSession();
 }
 
 function closeSidebar(input: "pointer" | "keyboard" = "pointer"): void {
   const wasOverlay = layoutState.sidebarMode === "overlay";
   layoutState = reduceWorkbenchLayout(layoutState, { type: "close-sidebar" });
-  deactivateSidebarViews(null);
   renderWorkbenchLayout(input);
 
   if (wasOverlay) sidebarTrigger?.focus();
@@ -3665,7 +3652,7 @@ window.adcode.collab.onCommitRequest((request) => {
 });
 
 const earningsPopover = createEarningsPopover({
-  host: el("view-earnings"),
+  host: popupMounts.earnings,
   requestClose: () => closeSidebar("pointer"),
   openSettings: () => showView("settings", "pointer"),
 });
@@ -3739,13 +3726,12 @@ async function boot(): Promise<void> {
   if (restored.layout !== undefined) {
     sidebarWidth = restored.layout.sidebarWidth;
     panelHeight = restored.layout.panelHeight;
-    if (restored.layout.sidebarView !== undefined) {
+    if (restored.layout.sidebarView !== undefined && isSidebarView(restored.layout.sidebarView)) {
       layoutState = reduceWorkbenchLayout(layoutState, {
         type: "restore-sidebar-view",
         view: restored.layout.sidebarView,
       });
       renderWorkbenchLayout("keyboard");
-      if (layoutState.sidebarOpen) activateSidebarView(restored.layout.sidebarView);
     }
     applyLayout();
   }
@@ -4365,7 +4351,7 @@ const palette = createPalette({
 });
 
 const featureLibrary = createFeatureLibrary({
-  host: el("view-features"),
+  host: popupMounts.features,
   overlayHost: document.body,
   requestClose: () => closeSidebar("pointer"),
   hasCommand: (command) => commands.has(command),

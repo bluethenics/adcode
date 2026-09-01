@@ -11,11 +11,15 @@ const LIBRARY = readFileSync(
 const CSS_PATH = join(import.meta.dirname, "../src/renderer/styles/features.css");
 
 describe("All Features renderer contract", () => {
-  it("places a four-cell docked-view button below Earnings and above Settings", () => {
+  it("keeps All Features as a popup launcher and moves its host out of the structural sidebar", () => {
     const earningsAt = HTML.indexOf('id="open-earnings"');
     const featuresAt = HTML.indexOf('id="open-features"');
     const settingsAt = HTML.indexOf('id="open-settings"');
     const button = HTML.slice(featuresAt, HTML.indexOf("</button>", featuresAt));
+    const sidebarContent = HTML.slice(
+      HTML.indexOf('class="sidebar-content"'),
+      HTML.indexOf("</aside>", HTML.indexOf('class="sidebar-content"')),
+    );
 
     expect(earningsAt).toBeGreaterThan(-1);
     expect(featuresAt).toBeGreaterThan(earningsAt);
@@ -23,9 +27,11 @@ describe("All Features renderer contract", () => {
     expect(button).toContain('data-sidebar-view="features"');
     expect(button).toContain('aria-pressed="false"');
     expect(button).toContain('aria-expanded="false"');
+    expect(button).toContain('aria-haspopup="dialog"');
     expect(button).toContain('aria-label="All Features"');
-    expect(button).not.toContain('aria-haspopup="dialog"');
-    expect(HTML).toContain('class="sidebar-view" id="view-features" data-sidebar-view="features"');
+    expect(sidebarContent).not.toContain('id="view-features"');
+    expect(HTML).toContain('<div id="popup-primary-host"></div>');
+    expect(HTML).toContain('<div id="popup-dependent-host"></div>');
     expect(button.match(/<rect /g)).toHaveLength(4);
   });
 

@@ -1,13 +1,6 @@
 export const SIDEBAR_OVERLAY_BREAKPOINT = 820;
 
-export type SidebarViewId =
-  | "explorer"
-  | "search"
-  | "structure"
-  | "scm"
-  | "earnings"
-  | "features"
-  | "settings";
+export type SidebarViewId = "explorer" | "search";
 
 export type SidebarMode = "docked" | "overlay";
 
