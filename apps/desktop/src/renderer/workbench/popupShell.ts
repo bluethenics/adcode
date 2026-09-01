@@ -55,6 +55,12 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
     event.preventDefault();
     options.onRequestClose();
   });
+  dialog.addEventListener("keydown", (event) => {
+    if (!options.modal && event.key === "Escape") {
+      event.preventDefault();
+      options.onRequestClose();
+    }
+  });
   dialog.addEventListener("click", (event) => {
     if (options.closeOnBackdrop !== false && !surface.contains(event.target as Node)) {
       options.onRequestClose();
@@ -86,6 +92,8 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
 
 function positionAnchored(dialog: HTMLDialogElement, anchor: HTMLElement): void {
   const box = anchor.getBoundingClientRect();
-  dialog.style.setProperty("--popup-anchor-x", `${String(box.right + 10)}px`);
+  const width = Math.min(420, window.innerWidth - 72);
+  const x = Math.max(12, Math.min(box.right + 10, window.innerWidth - width - 12));
+  dialog.style.setProperty("--popup-anchor-x", `${String(x)}px`);
   dialog.style.setProperty("--popup-anchor-y", `${String(box.top)}px`);
 }

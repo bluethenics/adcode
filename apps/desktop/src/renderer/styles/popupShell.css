@@ -58,4 +58,5 @@
 
 @media (prefers-reduced-transparency: reduce) {
   .popup-shell-surface { background: var(--bg-elevated); backdrop-filter: none; }
+  .popup-shell::backdrop { backdrop-filter: none; }
 }
