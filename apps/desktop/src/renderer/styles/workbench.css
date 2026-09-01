@@ -1217,7 +1217,7 @@ kbd {
 
 .main[data-panel-maximized="true"] > .panel {
   margin: 8px;
-  height: 100%;
+  height: auto;
   min-height: 0;
   border-radius: 14px;
 }

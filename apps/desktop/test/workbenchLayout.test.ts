@@ -6,6 +6,11 @@ import {
   reduceWorkbenchLayout,
 } from "../src/renderer/workbench/workbenchLayout.ts";
 
+const WORKBENCH_CSS = readFileSync(
+  resolve(process.cwd(), "apps/desktop/src/renderer/styles/workbench.css"),
+  "utf8",
+);
+
 describe("workbench layout", () => {
   it("collapses an already-selected docked sidebar view", () => {
     const state = initialWorkbenchLayout(1200, "explorer");
@@ -83,6 +88,17 @@ describe("workbench layout", () => {
     expect(maximized.panelMaximized).toBe(true);
     expect(reduceWorkbenchLayout(maximized, { type: "viewport", width: 800 }).panelMaximized)
       .toBe(true);
+  });
+
+  it("keeps the maximized panel margin box inside the workbench", () => {
+    const rule = WORKBENCH_CSS.match(
+      /\.main\[data-panel-maximized="true"\] > \.panel\s*\{(?<body>[^}]*)\}/,
+    )?.groups?.["body"];
+
+    expect(rule).toBeDefined();
+    expect(rule).toContain("margin: 8px;");
+    expect(rule).toContain("height: auto;");
+    expect(rule).not.toContain("height: 100%;");
   });
 
   it("restores a maximized panel idempotently", () => {
