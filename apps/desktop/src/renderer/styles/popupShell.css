@@ -1,0 +1,61 @@
+.popup-shell {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.popup-shell::backdrop {
+  background: color-mix(in srgb, var(--bg-workbench) 42%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.popup-shell-surface {
+  position: fixed;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 0.28), 0 2px 8px rgb(0 0 0 / 0.16);
+  backdrop-filter: blur(28px) saturate(155%);
+}
+
+.popup-shell[data-popup-size="workspace"] .popup-shell-surface {
+  inset: max(16px, 3vh) max(20px, 2.5vw);
+  max-width: 1480px;
+  margin-inline: auto;
+}
+
+.popup-shell[data-popup-size="large"] .popup-shell-surface {
+  width: min(1120px, calc(100vw - 40px));
+  height: min(780px, calc(100vh - 56px));
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+}
+
+.popup-shell[data-popup-size="medium"] .popup-shell-surface {
+  width: min(760px, calc(100vw - 32px));
+  height: min(680px, calc(100vh - 48px));
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+}
+
+.popup-shell[data-popup-size="anchored"] .popup-shell-surface {
+  width: min(420px, calc(100vw - 72px));
+  max-height: calc(100vh - 32px);
+  left: var(--popup-anchor-x);
+  top: clamp(12px, var(--popup-anchor-y), calc(100vh - 120px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popup-shell-surface { transition-duration: 100ms; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .popup-shell-surface { background: var(--bg-elevated); backdrop-filter: none; }
+}

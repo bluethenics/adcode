@@ -11,6 +11,7 @@ import "./styles/ai.css";
 import "./styles/panels.css";
 import "./styles/structure.css";
 import "./styles/popups.css";
+import "./styles/popupShell.css";
 import "./styles/menubar.css";
 import "./styles/dialogs.css";
 import "./styles/help.css";
