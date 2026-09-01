@@ -1,10 +1,9 @@
 /**
  * The earnings report: what the ad side has actually paid, and what it would pay.
  *
- * A popover anchored to its activity-bar button rather than a sidebar view, because the
- * question it answers - "how much have I made?" - is asked in passing and answered in a
- * glance. A view would take the explorer's place to show four numbers, and the user would
- * have to navigate back to the thing they were doing.
+ * A glanceable summary inside the shared sidebar. It uses the same navigation model as the
+ * other activity icons, so it is easy to find, close, and revisit without managing a floating
+ * card over the editor.
  *
  * **The rule this panel is built around: never show a number the server did not send.**
  *
@@ -33,10 +32,10 @@ import type { AccountState, EarningsSnapshot } from "../../shared/api.ts";
 import { ICON, iconButton } from "../workbench/icons.ts";
 
 export interface EarningsPopoverDeps {
-  /** Where the card mounts. Positioned against `anchor`, so this is usually `document.body`. */
+  /** The shared sidebar view that owns the card. */
   readonly host: HTMLElement;
-  /** The activity-bar button. Drives placement and its own `aria-expanded`. */
-  readonly anchor: HTMLElement;
+  /** Ask the workbench shell to close the shared sidebar. */
+  readonly requestClose: () => void;
   /** Opens Settings at the ads group, for the one action this panel offers. */
   readonly openSettings: () => void;
 }
@@ -135,9 +134,8 @@ function accountIdRow(uid: string): HTMLElement {
 export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopover {
   const card = document.createElement("section");
   card.className = "earnings-card";
-  card.setAttribute("role", "dialog");
+  card.setAttribute("role", "region");
   card.setAttribute("aria-label", "Earnings");
-  card.hidden = true;
 
   /* ── Header ─────────────────────────────────────────────────────────────── */
 
@@ -185,7 +183,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   });
 
   const closeButton = iconButton("Close earnings", ICON.close, "earnings-close");
-  closeButton.addEventListener("click", () => api.close());
+  closeButton.addEventListener("click", () => deps.requestClose());
 
   header.append(title, refreshButton, closeButton);
 
@@ -373,27 +371,6 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   /** Guards against a second request while one is in flight, which would race the render. */
   let refreshing = false;
 
-  /**
-   * Place the card beside its button.
-   *
-   * `position: fixed` against the anchor's own rectangle, then pulled back inside the
-   * viewport - the activity bar runs the full height of the window, so a button near the
-   * bottom would otherwise open a card that runs off the end of the screen.
-   */
-  function place(): void {
-    const anchor = deps.anchor.getBoundingClientRect();
-    const height = card.offsetHeight;
-    const margin = 8;
-
-    const top = Math.min(
-      Math.max(margin, anchor.top - 4),
-      Math.max(margin, window.innerHeight - height - margin),
-    );
-
-    card.style.left = `${anchor.right + margin}px`;
-    card.style.top = `${top}px`;
-  }
-
   function render(): void {
     const snapshot = latest;
 
@@ -464,62 +441,22 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
       ? "Payout history and statements need the advertiser backend, which is not built yet."
       : "Balances appear once the ad server answers. Nothing is estimated on this machine.";
 
-    if (open) place();
   }
 
   /* ── Dismissal ──────────────────────────────────────────────────────────── */
 
-  const onPointerDown = (event: PointerEvent): void => {
-    if (!open) return;
-
-    const target = event.target as Node;
-    // The anchor is excluded so its own click can toggle rather than close-then-reopen.
-    if (card.contains(target) || deps.anchor.contains(target)) return;
-
-    api.close();
-  };
-
-  const onKeydown = (event: KeyboardEvent): void => {
-    if (event.key === "Escape" && open) {
-      event.preventDefault();
-      api.close();
-      // Focus goes back to the button that opened it, or it lands on the body and the next
-      // Tab starts from the top of the window.
-      deps.anchor.focus();
-    }
-  };
-
-  const onResize = (): void => {
-    if (open) place();
-  };
 
   const api: EarningsPopover = {
     open(): void {
       if (open) return;
 
       open = true;
-      card.hidden = false;
-      deps.anchor.setAttribute("aria-expanded", "true");
-
-      // Measured after unhiding: `offsetHeight` on a hidden element is zero, so placing
-      // before this point pins the card to the top of the window every time.
-      place();
-
-      document.addEventListener("pointerdown", onPointerDown, true);
-      document.addEventListener("keydown", onKeydown);
-      window.addEventListener("resize", onResize);
     },
 
     close(): void {
       if (!open) return;
 
       open = false;
-      card.hidden = true;
-      deps.anchor.setAttribute("aria-expanded", "false");
-
-      document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("keydown", onKeydown);
-      window.removeEventListener("resize", onResize);
     },
 
     toggle(): void {
@@ -527,7 +464,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
       else api.open();
     },
 
-    isOpen: () => open,
+    isOpen: () => open && !deps.host.hidden,
 
     update(snapshot: EarningsSnapshot): void {
       latest = snapshot;

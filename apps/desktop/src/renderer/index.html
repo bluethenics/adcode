@@ -38,10 +38,10 @@
 
     <div id="workbench" class="workbench">
       <aside class="activitybar" id="activitybar">
-        <button class="activity" data-view="explorer" title="Explorer" aria-label="Explorer">
+        <button class="activity" data-view="explorer" data-sidebar-view="explorer" title="Explorer" aria-label="Explorer" aria-pressed="false" aria-expanded="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h3.4c.5 0 1 .2 1.4.6l1.1 1.1c.2.2.4.3.7.3h6.4A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/></svg>
         </button>
-        <button class="activity" data-view="search" title="Search (Ctrl+Shift+F)" aria-label="Search">
+        <button class="activity" data-view="search" data-sidebar-view="search" title="Search (Ctrl+Shift+F)" aria-label="Search" aria-pressed="false" aria-expanded="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
         </button>
         <!--
@@ -57,10 +57,10 @@
           than down with earnings. The icon is a bracket tree: three rows each joined to the
           spine on their left, which is what the popup itself draws.
         -->
-        <button class="activity" id="open-structure" title="Structure (Ctrl+Shift+U)" aria-label="Structure" aria-haspopup="dialog" aria-expanded="false">
+        <button class="activity" id="open-structure" data-sidebar-view="structure" title="Structure (Ctrl+Shift+U)" aria-label="Structure" aria-pressed="false" aria-expanded="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v14.5M5 8h5M5 13h5M5 18h5"/><circle cx="12.5" cy="8" r="1.6"/><circle cx="12.5" cy="13" r="1.6"/><circle cx="12.5" cy="18" r="1.6"/><path d="M15 8h4M15 13h4M15 18h4"/></svg>
         </button>
-        <button class="activity" data-view="scm" title="Source control (Ctrl+Shift+G)" aria-label="Source control">
+        <button class="activity" data-view="scm" data-sidebar-view="scm" title="Source control (Ctrl+Shift+G)" aria-label="Source control" aria-pressed="false" aria-expanded="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="6" r="2.5"/><circle cx="7" cy="18" r="2.5"/><circle cx="17" cy="12" r="2.5"/><path d="M7 8.5v7M9.5 6h3a2 2 0 0 1 2 2v2"/></svg>
         </button>
         <!--
@@ -68,7 +68,7 @@
           the user knowing what the icon means, and it is the only thing in the activity
           bar that ever changes on its own.
         -->
-        <button class="activity" data-view="problems" title="Problems (Ctrl+Shift+M)" aria-label="Problems">
+        <button class="activity" data-view="problems" title="Problems (Ctrl+Shift+M)" aria-label="Problems" aria-pressed="false" aria-expanded="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5l8 14.5H4z"/><path d="M12 10v4M12 16.6v.4"/></svg>
           <span class="activity-badge" id="problems-badge" hidden></span>
         </button>
@@ -82,7 +82,7 @@
           that also marked itself as the selected view would leave the explorer looking
           unselected while the explorer was still on screen.
         -->
-        <button class="activity" id="open-earnings" title="Earnings" aria-label="Earnings" aria-haspopup="dialog" aria-expanded="false">
+        <button class="activity" id="open-earnings" data-sidebar-view="earnings" title="Earnings" aria-label="Earnings" aria-pressed="false" aria-expanded="false">
           <!--
             A dollar sign, drawn rather than typed.
 
@@ -99,7 +99,7 @@
           `data-view`: the Explorer or other selected sidebar stays exactly where it was.
           Four drawn cells read as a library of capabilities without depending on a font.
         -->
-        <button class="activity" id="open-features" type="button" title="All Features" aria-label="All Features" aria-haspopup="dialog" aria-expanded="false">
+        <button class="activity" id="open-features" data-sidebar-view="features" type="button" title="All Features" aria-label="All Features" aria-pressed="false" aria-expanded="false">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <rect x="4.5" y="4.5" width="6" height="6" rx="1.2"/>
             <rect x="13.5" y="4.5" width="6" height="6" rx="1.2"/>
@@ -107,14 +107,18 @@
             <rect x="13.5" y="13.5" width="6" height="6" rx="1.2"/>
           </svg>
         </button>
-        <button class="activity activity-bottom" id="open-settings" data-view="settings" title="Settings (Ctrl+,)" aria-label="Settings">
+        <button class="activity activity-bottom" id="open-settings" data-sidebar-view="settings" title="Settings (Ctrl+,)" aria-label="Settings" aria-pressed="false" aria-expanded="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.34 5.3L10.67 2.8L13.33 2.8L13.66 5.3A6.9 6.9 0 0 1 16.2 6.53L18.37 5.22L20.03 7.3L18.27 9.12A6.9 6.9 0 0 1 18.9 11.88L21.27 12.75L20.68 15.35L18.16 15.1A6.9 6.9 0 0 1 16.4 17.32L17.19 19.72L14.79 20.87L13.41 18.75A6.9 6.9 0 0 1 10.59 18.75L9.21 20.87L6.81 19.72L7.6 17.32A6.9 6.9 0 0 1 5.84 15.1L3.32 15.35L2.73 12.75L5.1 11.88A6.9 6.9 0 0 1 5.73 9.12L3.97 7.3L5.63 5.22L7.8 6.53A6.9 6.9 0 0 1 10.34 5.3Z"/><circle cx="12" cy="12" r="3.1"/></svg>
         </button>
       </aside>
 
-      <aside class="sidebar" id="sidebar">
+      <aside class="sidebar" id="sidebar" aria-labelledby="sidebar-title">
         <header class="sidebar-header">
-          <span class="sidebar-title" id="sidebar-title">No Folder Opened</span>
+          <span class="sidebar-focus-ribbon" aria-hidden="true"></span>
+          <div class="sidebar-heading">
+            <span class="sidebar-title" id="sidebar-title">Explorer</span>
+            <span class="sidebar-subtitle" id="sidebar-subtitle">No folder opened</span>
+          </div>
           <!--
             The folder's name on the left, everything that acts on it grouped on the right.
 
@@ -130,7 +134,7 @@
             first. These act on the folder named beside them, and are disabled with none
             open, because there is nowhere to put a file.
           -->
-          <div class="sidebar-actions">
+          <div class="sidebar-actions" id="sidebar-actions-explorer">
             <button class="tree-action" id="new-root-file" type="button" title="New File" aria-label="New File" disabled>
               <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9 1.75H4.5a1.25 1.25 0 0 0-1.25 1.25v10a1.25 1.25 0 0 0 1.25 1.25h7a1.25 1.25 0 0 0 1.25-1.25V5.5z"/><path d="M9 1.75V5.5h3.75"/><path d="M8 8v3.5M6.25 9.75h3.5"/></svg>
             </button>
@@ -139,12 +143,21 @@
             </button>
             <button class="ghost-button" id="open-folder">Open</button>
           </div>
+          <button class="icon-button sidebar-close" id="sidebar-close" type="button" title="Close side bar" aria-label="Close side bar">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          </button>
         </header>
-        <nav class="filetree" id="filetree" aria-label="Files">
-          <p class="empty-hint">Open a folder to get started.</p>
-        </nav>
-        <div class="sidebar-view" id="view-search" hidden></div>
-        <div class="sidebar-view" id="view-scm" hidden></div>
+        <div class="sidebar-content" id="sidebar-content">
+          <nav class="filetree sidebar-view" id="filetree" data-sidebar-view="explorer" aria-label="Files">
+            <p class="empty-hint">Open a folder to get started.</p>
+          </nav>
+          <div class="sidebar-view" id="view-search" data-sidebar-view="search" hidden></div>
+          <div class="sidebar-view" id="view-structure" data-sidebar-view="structure" hidden></div>
+          <div class="sidebar-view" id="view-scm" data-sidebar-view="scm" hidden></div>
+          <div class="sidebar-view" id="view-earnings" data-sidebar-view="earnings" hidden></div>
+          <div class="sidebar-view" id="view-features" data-sidebar-view="features" hidden></div>
+          <div class="sidebar-view" id="view-settings" data-sidebar-view="settings" hidden></div>
+        </div>
       </aside>
 
       <div class="splitter" id="splitter-sidebar"></div>
@@ -204,6 +217,10 @@
               <button class="ghost-button" id="ports-refresh">Refresh</button>
             </div>
 
+            <button class="icon-button panel-maximize" id="panel-maximize" title="Maximize panel" aria-label="Maximize panel" aria-pressed="false">
+              <svg class="panel-maximize-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6V3.5H6M10 3.5h2.5V6M12.5 10v2.5H10M6 12.5H3.5V10"/></svg>
+              <svg class="panel-restore-icon" viewBox="0 0 16 16" aria-hidden="true" hidden><path d="M6 3.5v2.25H3.75M10 3.5v2.25h2.25M6 12.5v-2.25H3.75M10 12.5v-2.25h2.25"/></svg>
+            </button>
             <button class="icon-button" id="panel-close" title="Close panel (Ctrl+J)" aria-label="Close panel">
               <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
             </button>
@@ -235,6 +252,8 @@
           </div>
         </section>
       </main>
+
+      <button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="Close side bar" tabindex="-1" hidden></button>
     </div>
 
     <footer class="statusbar" id="statusbar">

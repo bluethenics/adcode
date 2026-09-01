@@ -289,8 +289,142 @@ checks.pinPromptAsksToPin = await (async () => {
   };
 })();
 
+/*
+ * The activity rail and sidebar are one navigation system.
+ *
+ * A selected icon closes its own view; choosing another icon opens the shared sidebar on
+ * that view. These are observable shell behaviors, not source-shape assertions, and they
+ * also prove the sidebar never unmounts the editor underneath it.
+ */
+checks.sidebarShellEvidence = await (async () => {
+  const initial = await evaluate(
+    `(() => {
+       const workbench = document.getElementById('workbench');
+       const explorer = document.querySelector('.activity[data-sidebar-view="explorer"]');
+       return {
+         hasState: workbench?.dataset.sidebarOpen === 'true',
+         explorerPressed: explorer?.getAttribute('aria-pressed') === 'true',
+       };
+     })()`,
+  );
+
+  await evaluate(
+    `document.querySelector('.activity[data-sidebar-view="explorer"]')?.click(); true`,
+  );
+  await sleep(220);
+  const collapsed = await evaluate(
+    `document.getElementById('workbench')?.dataset.sidebarOpen === 'false'`,
+  );
+
+  await evaluate(
+    `document.querySelector('.activity[data-sidebar-view="search"]')?.click(); true`,
+  );
+  await sleep(220);
+  const switched = await evaluate(
+    `(() => {
+       const workbench = document.getElementById('workbench');
+       const search = document.getElementById('view-search');
+       return (
+         workbench?.dataset.sidebarOpen === 'true' &&
+         search?.hidden === false &&
+         document.querySelector('.activity[data-sidebar-view="search"]')?.getAttribute('aria-pressed') === 'true'
+       );
+     })()`,
+  );
+
+  return { ...initial, collapsed, switched };
+})();
+checks.sidebarShell =
+  checks.sidebarShellEvidence?.hasState === true &&
+  checks.sidebarShellEvidence?.explorerPressed === true &&
+  checks.sidebarShellEvidence?.collapsed === true &&
+  checks.sidebarShellEvidence?.switched === true;
+
+checks.dockedSideToolsEvidence = {};
+for (const [buttonId, viewId, rootSelector] of [
+  ["open-structure", "view-structure", ".structure-popup"],
+  ["open-earnings", "view-earnings", ".earnings-card"],
+  ["open-features", "view-features", ".feature-library"],
+  ["open-settings", "view-settings", ".settings-sheet"],
+]) {
+  await evaluate(`document.getElementById('${buttonId}')?.click(); true`);
+  await sleep(220);
+  checks.dockedSideToolsEvidence[viewId] = await evaluate(
+    `(() => {
+       const workbench = document.getElementById('workbench');
+       const view = document.getElementById('${viewId}');
+       const root = view?.querySelector('${rootSelector}');
+       const modal = root?.matches('[aria-modal="true"], dialog[open]') === true;
+       return (
+         workbench?.dataset.sidebarOpen === 'true' &&
+         view?.hidden === false &&
+         root !== null &&
+         modal === false &&
+         getComputedStyle(root).position !== 'fixed'
+       );
+     })()`,
+  );
+  await evaluate(
+    `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true`,
+  );
+  await sleep(120);
+}
+checks.dockedSideTools = Object.values(checks.dockedSideToolsEvidence).every(
+  (value) => value === true,
+);
+
+checks.panelMaximizeEvidence = await (async () => {
+  await evaluate("document.getElementById('terminal-new')?.click(); true");
+  await sleep(500);
+  const before = await evaluate("document.getElementById('panel')?.getBoundingClientRect().height ?? 0");
+  await evaluate("document.getElementById('panel-maximize')?.click(); true");
+  await sleep(320);
+  const maximized = await evaluate(
+    `(() => ({
+      state: document.querySelector('.main')?.dataset.panelMaximized === 'true',
+      pressed: document.getElementById('panel-maximize')?.getAttribute('aria-pressed') === 'true',
+      editorHidden: getComputedStyle(document.getElementById('editor-area')).display === 'none',
+      height: document.getElementById('panel')?.getBoundingClientRect().height ?? 0,
+    }))()`,
+  );
+  await evaluate("document.getElementById('panel-close')?.click(); true");
+  await sleep(180);
+  const closed = await evaluate(
+    `document.querySelector('.main')?.dataset.panelMaximized === 'false' && getComputedStyle(document.getElementById('editor-area')).display !== 'none'`,
+  );
+  await evaluate("document.getElementById('terminal-new')?.click(); true");
+  await sleep(320);
+  const reopened = await evaluate(
+    `document.querySelector('.main')?.dataset.panelMaximized === 'true' && document.getElementById('panel-maximize')?.getAttribute('aria-pressed') === 'true'`,
+  );
+  await evaluate("document.getElementById('panel-maximize')?.click(); true");
+  await sleep(320);
+  const restored = await evaluate(
+    `document.querySelector('.main')?.dataset.panelMaximized === 'false' && getComputedStyle(document.getElementById('editor-area')).display !== 'none'`,
+  );
+  return { before, ...maximized, closed, reopened, restored };
+})();
+checks.panelMaximize =
+  checks.panelMaximizeEvidence?.state === true &&
+  checks.panelMaximizeEvidence?.pressed === true &&
+  checks.panelMaximizeEvidence?.editorHidden === true &&
+  checks.panelMaximizeEvidence?.height > checks.panelMaximizeEvidence?.before &&
+  checks.panelMaximizeEvidence?.closed === true &&
+  checks.panelMaximizeEvidence?.reopened === true &&
+  checks.panelMaximizeEvidence?.restored === true;
+
+if (process.env.ADCODE_SMOKE_WORKBENCH_PROBE === "1") {
+  process.stdout.write(`  sidebarShell: ${JSON.stringify(checks.sidebarShellEvidence)}\n`);
+  process.stdout.write(`  dockedSideTools: ${JSON.stringify(checks.dockedSideToolsEvidence)}\n`);
+  process.stdout.write(`  panelMaximize: ${JSON.stringify(checks.panelMaximizeEvidence)}\n`);
+  socket.close();
+  child.kill();
+  await sleep(500);
+  process.exit(checks.sidebarShell && checks.dockedSideTools && checks.panelMaximize ? 0 : 1);
+}
+
 // Drive the source-control view the way a click would.
-await evaluate("document.querySelector('.activity[data-view=\"scm\"]').click()");
+await evaluate("document.querySelector('.activity[data-sidebar-view=\"scm\"]').click()");
 await sleep(1200);
 checks.scmShowsBranch = await evaluate("document.querySelector('.scm-branch')?.textContent");
 checks.timelineRows = await evaluate("document.querySelectorAll('.timeline-row').length > 0");
@@ -530,9 +664,11 @@ async function pressKey(key) {
   await sleep(120);
 }
 
-/** Open the Structure popup on a tab, whatever state it was in. */
+/** Open the docked Structure view on a tab, whatever state it was in. */
 async function openStructure(tab) {
-  const alreadyOpen = await evaluate(`document.querySelector('.structure-popup')?.open === true`);
+  const alreadyOpen = await evaluate(
+    `document.getElementById('view-structure')?.hidden === false && document.querySelector('.workbench')?.dataset.sidebarOpen === 'true'`,
+  );
   if (alreadyOpen !== true) {
     await pressChord("u", { shift: true });
     await sleep(700);
@@ -552,9 +688,20 @@ async function openStructure(tab) {
 }
 
 async function closeStructure() {
-  const open = await evaluate(`document.querySelector('.structure-popup')?.open === true`);
-  if (open === true) await pressEscape();
+  const open = await evaluate(`document.getElementById('view-structure')?.hidden === false`);
+  if (open === true) await evaluate(`document.getElementById('sidebar-close')?.click(); true`);
   await sleep(300);
+}
+
+/** Select a docked sidebar view without toggling it closed when it is already selected. */
+async function openSidebar(view) {
+  const visible = await evaluate(
+    `document.querySelector('.workbench')?.dataset.sidebarOpen === 'true' && document.querySelector('.activity[data-sidebar-view="${view}"]')?.getAttribute('aria-pressed') === 'true'`,
+  );
+  if (visible !== true) {
+    await evaluate(`document.querySelector('.activity[data-sidebar-view="${view}"]')?.click(); true`);
+    await sleep(300);
+  }
 }
 
 /** Choose a row from the drawn menu bar, the way a person would. */
@@ -819,7 +966,8 @@ if (featureLauncherPoint === null) {
     `(() => {
        const button = document.querySelector('#open-features');
        const sheet = document.querySelector('.feature-library');
-       if (!button || !sheet || sheet.hidden) return false;
+       const host = document.getElementById('view-features');
+       if (!button || !sheet || host?.hidden !== false) return false;
        const anchor = button.getBoundingClientRect();
        const box = sheet.getBoundingClientRect();
        const overlaps =
@@ -829,7 +977,8 @@ if (featureLauncherPoint === null) {
          belowEarnings: button.previousElementSibling?.id === 'open-earnings',
          expanded: button.getAttribute('aria-expanded') === 'true',
          open: sheet.dataset.state === 'open',
-         margin: box.left >= 8 && box.top >= 8 && box.right <= window.innerWidth - 8 && box.bottom <= window.innerHeight - 8,
+         docked: host.contains(sheet) && getComputedStyle(sheet).position !== 'fixed',
+         margin: box.left >= 48 && box.top >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight,
          box: { left: box.left, top: box.top, right: box.right, bottom: box.bottom },
          viewport: { width: window.innerWidth, height: window.innerHeight },
          launcherClear: !overlaps,
@@ -840,7 +989,7 @@ if (featureLauncherPoint === null) {
   );
   checks.featureLibraryPlacement =
     typeof checks.featureLibraryPlacementEvidence === "object" &&
-    ["belowEarnings", "expanded", "open", "margin", "launcherClear", "sidebarStable", "panelStable"]
+    ["belowEarnings", "expanded", "open", "docked", "margin", "launcherClear", "sidebarStable", "panelStable"]
       .every((key) => checks.featureLibraryPlacementEvidence[key] === true);
 
   checks.featureLibrarySearch = await evaluate(
@@ -908,8 +1057,8 @@ if (featureLauncherPoint === null) {
          const settings = document.querySelector('.settings-sheet:not(.help-sheet)');
          const row = document.querySelector('[data-setting-id="adcode.ai.editPolicy"]');
          return {
-           libraryClosed: library?.hidden === true,
-           settingsVisible: settings?.hidden === false,
+           libraryClosed: document.getElementById('view-features')?.hidden === true,
+           settingsVisible: document.getElementById('view-settings')?.hidden === false,
            settingsAnimatedOpen: settings?.dataset.state === 'open',
            rowExists: row !== null,
            rowMarked: row?.dataset.highlight === 'true',
@@ -927,7 +1076,7 @@ if (featureLauncherPoint === null) {
 
 for (let attempt = 0; attempt < 10; attempt += 1) {
   const settingsVisible = await evaluate(
-    `document.querySelector('.settings-sheet:not(.help-sheet)')?.hidden === false`,
+    `document.getElementById('view-settings')?.hidden === false`,
   );
   if (settingsVisible !== true) break;
   await pressEscape();
@@ -938,7 +1087,7 @@ checks.featureLibraryMenuEvidence = await evaluate(
   `(() => {
      const library = document.querySelector('.feature-library');
      return {
-       visible: library?.hidden === false,
+       visible: document.getElementById('view-features')?.hidden === false,
        state: library?.dataset.state ?? null,
        expanded: document.querySelector('#open-features')?.getAttribute('aria-expanded'),
      };
@@ -1016,7 +1165,7 @@ const editorFocusPoint = await evaluate(
 if (editorFocusPoint !== null) await clickAt(editorFocusPoint.x, editorFocusPoint.y);
 checks.discoveryCloseRestoresEditor = await evaluate(
   `document.querySelector('.universal-search-overlay')?.hidden === true &&
-   document.querySelector('.feature-library')?.hidden === true &&
+   document.getElementById('view-features')?.hidden === true &&
    document.activeElement?.closest('.monaco-editor') !== null`,
 );
 
@@ -1049,7 +1198,7 @@ focusedSearchEvidence.content = await evaluate(
   );
 checks.focusedSearchEvidence = focusedSearchEvidence;
 checks.focusedSearchShortcuts = Object.values(focusedSearchEvidence).every((value) => value === true);
-await evaluate(`document.querySelector('.activity[data-view="explorer"]')?.click(); true`);
+await openSidebar("explorer");
 await sleep(300);
 
 if (process.argv.includes("--visual-only")) {
@@ -1659,7 +1808,7 @@ try {
   // The search and source-control checks above left the sidebar on another view, which
   // hides the tree entirely - so every coordinate below would be measured against a box
   // of zero size.
-  await evaluate(`document.querySelector('.activity[data-view="explorer"]').click(); true`);
+  await openSidebar("explorer");
   await sleep(500);
 
   /*
@@ -2012,7 +2161,7 @@ try {
      })()`,
   );
 
-  await evaluate(`document.querySelector('.activity[data-view="explorer"]').click(); true`);
+  await openSidebar("explorer");
   await sleep(400);
 
   // Delete, through however many confirmations this volume needs. A drive with no
@@ -2117,6 +2266,13 @@ try {
 
   await evaluate(`document.querySelector('.activity[data-view="problems"]').click(); true`);
   await sleep(600);
+
+  checks.problemsActivityState = await evaluate(
+    `(() => {
+       const button = document.querySelector('.activity[data-view="problems"]');
+       return button?.getAttribute('aria-pressed') === 'true' && button?.getAttribute('aria-expanded') === 'true';
+     })()`,
+  );
 
   checks.problemsPanelExplains = await evaluate(
     `(() => {
@@ -2838,7 +2994,7 @@ try {
   // Back to the explorer before measuring anything in it. The problems checks above left
   // the sidebar on another view, and a hidden tree measures as a zero-sized box - so the
   // coordinate lands on the title bar and the failure reads as "no context menu is open".
-  await evaluate(`document.querySelector('.activity[data-view="explorer"]').click(); true`);
+  await openSidebar("explorer");
   await sleep(400);
 
   const pageSpace = await emptyTreeSpace();
@@ -2975,28 +3131,30 @@ try {
        await new Promise((r) => setTimeout(r, 400));
 
        const popup = document.querySelector('.structure-popup');
-       const opened = popup !== null && popup.open;
+       const opened = popup !== null && document.getElementById('view-structure')?.hidden === false;
        const announced = button.getAttribute('aria-expanded');
 
        // A second press closes it again, which is what a toggle has to do or the button
        // feels broken the moment anybody presses it twice.
        button.click();
        await new Promise((r) => setTimeout(r, 400));
-       const closed = !(document.querySelector('.structure-popup')?.open ?? false);
+       const closed = document.querySelector('.workbench')?.dataset.sidebarOpen === 'false';
 
        return {
          inTheActivityBar: button.closest('#activitybar') !== null,
          topmost,
          opened,
          closesOnSecondPress: closed,
-         // It must not join the sidebar's selection model, or the explorer would look
-         // unselected while the explorer is still on screen.
-         staysOutOfTheSidebarSelection: button.dataset.view === undefined,
+         participatesInSidebarSelection: button.dataset.sidebarView === 'structure',
          announcesState: before === 'false' && announced === 'true'
            && button.getAttribute('aria-expanded') === 'false',
        };
-     })()`,
+    })()`,
   );
+
+  // The second Structure press intentionally collapses the selected sidebar. Re-open the
+  // Explorer explicitly before asking for coordinates inside its tree.
+  await openSidebar("explorer");
 
   /*
    * The Structure view, on a file with real nesting.
@@ -3046,7 +3204,7 @@ try {
   checks.structureReadsTheOpenFile = await evaluate(
     `(() => {
        const popup = document.querySelector('.structure-popup');
-       if (popup === null || !popup.open) return 'the structure popup did not open';
+       if (popup === null || document.getElementById('view-structure')?.hidden !== false) return 'the structure view did not open';
 
        const rows = [...popup.querySelectorAll('.structure-row')];
        if (rows.length === 0) return 'no rows: ' + (view.textContent ?? '').slice(0, 120);
@@ -3147,6 +3305,7 @@ try {
   // tree with it open surfaces as "no context menu is open" three lines later, naming the
   // wrong thing entirely.
   await closeStructure();
+  await openSidebar("explorer");
 
   const styleSpace = await emptyTreeSpace();
   await rightClickAt(styleSpace.x, styleSpace.y);
@@ -3224,7 +3383,7 @@ try {
   checks.projectMapExplainsTheFolders = await evaluate(
     `(() => {
        const popup = document.querySelector('.structure-popup');
-       if (popup === null || !popup.open) return 'the popup did not open';
+       if (popup === null || document.getElementById('view-structure')?.hidden !== false) return 'the structure view did not open';
 
        const map = popup.querySelector('.projectmap');
        if (map === null || map.hidden) return 'the project tab did not show';
@@ -3364,7 +3523,7 @@ try {
      })()`,
   );
 
-  await evaluate(`document.querySelector('.activity[data-view="explorer"]').click(); true`);
+  await openSidebar("explorer");
   await sleep(300);
 
   const pythonSpace = await emptyTreeSpace();
@@ -3415,7 +3574,7 @@ try {
      })()`,
   );
 
-  await evaluate(`document.querySelector('.activity[data-view="explorer"]').click(); true`);
+  await openSidebar("explorer");
   await sleep(300);
 
   // The renderer is hostile by assumption, so the guards are asserted through the bridge
@@ -3591,6 +3750,7 @@ const sidebarWidthNow = () =>
   evaluate("Math.round(document.getElementById('sidebar').getBoundingClientRect().width)");
 
 checks.sidebarResizes = await (async () => {
+  await openSidebar("explorer");
   const before = await sidebarWidthNow();
   if (!(await dragBy("splitter-sidebar", 120, 0))) return "no sidebar handle";
   const after = await sidebarWidthNow();
@@ -4068,7 +4228,7 @@ checks.earningsPopoverOpens = await evaluate(
      await new Promise((r) => setTimeout(r, 300));
 
      const card = document.querySelector('.earnings-card');
-     if (!card || card.hidden) return 'popover did not open';
+     if (!card || document.getElementById('view-earnings')?.hidden !== false) return 'earnings view did not open';
 
      const box = card.getBoundingClientRect();
      const centre = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
@@ -4099,15 +4259,14 @@ checks.earningsPopoverOpens = await evaluate(
        })(),
        // Four presets, from the server's own table.
        presetRows: card.querySelectorAll('.earnings-preset').length,
-       // The sidebar must not have changed: this is a popover, not a view.
-       explorerStillSelected:
-         document.querySelector('.activity[data-view="explorer"]')?.ariaSelected === 'true',
+       earningsSelected:
+         document.querySelector('.activity[data-sidebar-view="earnings"]')?.ariaSelected === 'true',
      };
 
-     // Escape closes it, and the check leaves the window as it found it.
-     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+     // The shared close control dismisses the docked view and restores the editor width.
+     document.getElementById('sidebar-close')?.click();
      await new Promise((r) => setTimeout(r, 250));
-     result.escapeCloses = document.querySelector('.earnings-card')?.hidden === true;
+     result.sharedCloseWorks = document.querySelector('.workbench')?.dataset.sidebarOpen === 'false';
 
      return result;
    })()`,
@@ -4126,14 +4285,14 @@ checks.earningsPopoverOpens = await evaluate(
  */
 checks.earningsSettingsButtonWorks = await evaluate(
   `(async () => {
-     document.querySelector('.activity[data-view="explorer"]')?.click();
+     document.querySelector('.activity[data-sidebar-view="explorer"]')?.click();
      await new Promise((r) => setTimeout(r, 250));
 
      document.getElementById('open-earnings')?.click();
      await new Promise((r) => setTimeout(r, 300));
 
      const card = document.querySelector('.earnings-card');
-     if (!card || card.hidden) return 'the popover did not open';
+     if (!card || document.getElementById('view-earnings')?.hidden !== false) return 'the earnings view did not open';
 
      const button = [...card.querySelectorAll('button')].find(
        (b) => (b.textContent ?? '').trim() === 'Ad settings',
@@ -4146,15 +4305,13 @@ checks.earningsSettingsButtonWorks = await evaluate(
      const settings = document.querySelector('.settings-sheet');
      const settingsVisible =
        settings instanceof HTMLElement &&
-       settings.hidden !== true &&
+       document.getElementById('view-settings')?.hidden === false &&
        settings.getBoundingClientRect().height > 100;
 
      const result = {
        settingsOpened: settingsVisible,
-       // The sidebar must not have been blanked on the way there.
-       explorerStillShown: document.getElementById('filetree')?.hidden === false,
-       explorerStillSelected:
-         document.querySelector('.activity[data-view="explorer"]')?.ariaSelected === 'true',
+       settingsSelected:
+         document.querySelector('.activity[data-sidebar-view="settings"]')?.ariaSelected === 'true',
      };
 
      // Put the window back.
@@ -4523,7 +4680,7 @@ checks.helpGuideJumpsToSetting = await (async () => {
 async function openSettingsSheet() {
   const isOpen = async () =>
     (await evaluate(
-      `(document.querySelector('.settings-sheet:not(.help-sheet)')?.dataset.state === 'open')`,
+      `(document.querySelector('.settings-sheet:not(.help-sheet)')?.dataset.state === 'open' && document.getElementById('view-settings')?.hidden === false)`,
     )) === true;
 
   /*

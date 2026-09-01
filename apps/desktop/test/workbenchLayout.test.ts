@@ -56,6 +56,20 @@ describe("workbench layout", () => {
       .toBe(true);
   });
 
+  it("restores the selected view without opening a narrow drawer", () => {
+    const overlay = initialWorkbenchLayout(760, "explorer");
+    const restored = reduceWorkbenchLayout(overlay, {
+      type: "restore-sidebar-view",
+      view: "settings",
+    });
+
+    expect(restored).toMatchObject({
+      sidebarMode: "overlay",
+      sidebarOpen: false,
+      activeSidebarView: "settings",
+    });
+  });
+
   it("keeps panel maximization through unrelated layout changes", () => {
     const maximized = reduceWorkbenchLayout(initialWorkbenchLayout(1200), {
       type: "toggle-panel-maximized",

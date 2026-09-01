@@ -115,6 +115,14 @@
   padding: 4px 2px;
 }
 
+/*
+ * The git rows settle rather than flicker.
+ *
+ * A file list is scanned with the pointer moving across it, and an instant background flip
+ * on every row it crosses reads as the list twitching under the cursor. A short colour
+ * transition is the difference between "the row noticed me" and strobing; it is the one
+ * place `ease` is the right curve, because a hover is not an entrance.
+ */
 .scm-row {
   display: flex;
   align-items: center;
@@ -122,6 +130,7 @@
   height: var(--density-row);
   padding: 0 4px;
   border-radius: 6px;
+  transition: background-color 120ms ease;
 }
 
 .scm-row:hover {
@@ -167,6 +176,16 @@
 }
 
 /* Grid-centred and drawn as paths. See `workbench/icons.ts`. */
+/*
+ * Stage and unstage are the two most-pressed buttons in the git panel, and they had no
+ * press state at all - the only confirmation you had pressed one was the row rearranging
+ * itself a moment later, which is feedback from the *result*, not from the press.
+ *
+ * The scale lands on pointer-down, so the button answers before the commit does. 0.88 is
+ * tighter than the 0.97 used on large buttons on purpose: on an 18px target a 3% squeeze is
+ * a sub-pixel change nobody can see, and the feedback has to be legible at the size it
+ * actually ships at.
+ */
 .scm-stage {
   display: grid;
   place-items: center;
@@ -178,6 +197,14 @@
   height: 18px;
   cursor: pointer;
   flex: none;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    transform var(--duration-exit) var(--ease-sheet);
+}
+
+.scm-stage:active {
+  transform: scale(0.88);
 }
 
 .scm-stage svg {
@@ -379,6 +406,11 @@
 
 /* ── File timeline ────────────────────────────────────────────────────── */
 
+/*
+ * A commit row is a button that opens a commit, so it presses like one. Barely - 0.99 on a
+ * full-width row is a couple of pixels at the edges, which is all it takes to say the press
+ * landed on *this* commit while the file list is still being fetched.
+ */
 .timeline-row {
   display: flex;
   flex-direction: column;
@@ -390,10 +422,17 @@
   padding: 5px 6px;
   border-radius: 6px;
   cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    transform var(--duration-exit) var(--ease-sheet);
 }
 
 .timeline-row:hover {
   background: var(--bg-hover);
+}
+
+.timeline-row:active {
+  transform: scale(0.99);
 }
 
 .timeline-subject {
@@ -957,21 +996,17 @@
  * never render the same way, which is the distinction the whole panel is built to keep.
  */
 .earnings-card {
-  position: fixed;
-  z-index: 80;
-  width: 320px;
-  max-height: calc(100vh - 16px);
+  width: 100%;
+  height: 100%;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 14px 16px 16px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-floating);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .earnings-header {
@@ -1903,6 +1938,64 @@
 /* The spacer does the pushing now, so the title must not also claim the free space. */
 .panel-tab-actions .panel-title {
   margin-right: 0;
+}
+
+@container (max-width: 620px) {
+  .panel-header {
+    gap: 5px;
+    padding-inline: 6px;
+  }
+
+  .panel-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .panel-tab {
+    padding-inline: 6px;
+  }
+
+  .panel-tab-actions {
+    gap: 4px;
+  }
+
+  .panel-tab-actions .panel-title {
+    display: none;
+  }
+}
+
+@container (max-width: 520px) {
+  .panel-body-terminal {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .panel-body-terminal .terminal-tabs {
+    grid-column: 1;
+    grid-row: 3;
+    flex-direction: row;
+    width: auto;
+    max-width: none;
+    border-top: 1px solid var(--border-hairline);
+    border-left: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .panel-body-terminal .terminal-tab {
+    min-width: 120px;
+  }
+
+  .terminal-tab-body {
+    flex-direction: column;
+  }
+
+  .terminal-tab-body[data-panes]:not([data-panes="1"]) .terminal-pane + .terminal-pane {
+    border-top: 1px solid var(--border-hairline);
+    border-left: 0;
+    padding-top: 6px;
+    padding-left: 0;
+  }
 }
 
 /* ── Ports ────────────────────────────────────────────────────────────── */

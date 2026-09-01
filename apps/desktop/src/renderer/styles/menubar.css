@@ -364,6 +364,33 @@
   padding-left: 8px;
 }
 
+@container (max-width: 520px) {
+  .terminal-tabs {
+    flex-direction: row;
+    width: auto;
+    max-width: none;
+    border-top: 1px solid var(--border-hairline);
+    border-left: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .terminal-tab {
+    min-width: 120px;
+  }
+
+  .terminal-tab-body {
+    flex-direction: column;
+  }
+
+  .terminal-tab-body[data-panes]:not([data-panes="1"]) .terminal-pane + .terminal-pane {
+    border-top: 1px solid var(--border-hairline);
+    border-left: 0;
+    padding-top: 6px;
+    padding-left: 0;
+  }
+}
+
 /* ── File icons ───────────────────────────────────────────────────────── */
 
 .file-icon {

@@ -243,6 +243,14 @@ html[data-density="compact"] .breadcrumb-menu-row { min-height: 28px; }
   animation-name: breadcrumb-popover-fade;
 }
 
+/* The popover mixes its own translucency, so losing the blur alone would leave it
+   see-through. See the reduced-transparency block in tokens.css. */
+@media (prefers-reduced-transparency: reduce) {
+  .breadcrumb-popover {
+    background: var(--bg-elevated);
+  }
+}
+
 /* ── Peek ─────────────────────────────────────────────────────────────── */
 
 .peek {

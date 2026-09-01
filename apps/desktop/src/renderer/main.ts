@@ -49,6 +49,12 @@ import {
   clampPanelHeight,
   clampSidebarWidth,
 } from "./workbench/layoutSizes.ts";
+import {
+  initialWorkbenchLayout,
+  reduceWorkbenchLayout,
+  type SidebarViewId,
+} from "./workbench/workbenchLayout.ts";
+import { animateLayoutFlip, type LayoutInput } from "./workbench/motion.ts";
 import { createQuickOpen, createSearchPanel } from "./panels/searchPanel.ts";
 import { createProblemsPanel } from "./panels/problemsPanel.ts";
 import { createBottomPanel, type PanelTabId } from "./panels/bottomPanel.ts";
@@ -1543,7 +1549,7 @@ async function adoptWorkspace(opened: OpenedWorkspace): Promise<void> {
   workspaceRoot = opened.root;
   void refreshRootFiles();
   setRendererWorkspace(opened.root);
-  el("sidebar-title").textContent = opened.name;
+  el("sidebar-subtitle").textContent = opened.name;
   setStatusWorkspace(opened.root);
   commandCentre.setWorkspace(opened.name);
 
@@ -1621,9 +1627,19 @@ const bottomPanel = createBottomPanel({
   panel: el("panel"),
   tabStrip: el("panel-tabs"),
   splitter: el("splitter-panel"),
-  onLayoutChange: () => editorHost.layout(),
+  onLayoutChange: () => renderPanelLayout(),
+  onStateChange: (active) => {
+    const activity = document.querySelector<HTMLButtonElement>('.activity[data-view="problems"]');
+    if (activity === null) return;
+    const selected = active === "problems";
+    activity.setAttribute("aria-pressed", String(selected));
+    activity.setAttribute("aria-expanded", String(selected));
+  },
   // Focus must not be left inside an element that just became `hidden`.
-  onClosed: () => editorHost.focus(),
+  onClosed: () => {
+    renderPanelLayout();
+    editorHost.focus();
+  },
 });
 
 function terminalPanel(): TerminalPanel {
@@ -1692,6 +1708,57 @@ async function togglePanel(): Promise<void> {
 
 let sidebarWidth = DEFAULT_SIDEBAR_WIDTH;
 let panelHeight = DEFAULT_PANEL_HEIGHT;
+let layoutState = initialWorkbenchLayout(window.innerWidth);
+
+function layoutWorkbenchSurfaces(): void {
+  // Grid transitions settle on the next frame. Measuring there avoids fitting xterm to the
+  // old column count while the panel is already visibly at its new size.
+  requestAnimationFrame(() => {
+    const terminalTabs = el("terminal-tabs");
+    terminalTabs.setAttribute(
+      "aria-orientation",
+      el("panel").getBoundingClientRect().width <= 520 ? "horizontal" : "vertical",
+    );
+    editorHost.layout();
+    terminal?.fit();
+  });
+}
+
+function renderPanelLayout(previous?: DOMRectReadOnly, input: LayoutInput = "keyboard"): void {
+  const main = document.querySelector<HTMLElement>(".main");
+  if (main === null) return;
+
+  // Closing only hides the maximized panel; it does not discard the user's preference.
+  // While closed, the effective state is false so the editor remains usable. Reopening
+  // applies the remembered state again.
+  main.dataset["panelMaximized"] = String(
+    layoutState.panelMaximized && bottomPanel.isOpen(),
+  );
+
+  const button = el<HTMLButtonElement>("panel-maximize");
+  button.setAttribute("aria-pressed", String(layoutState.panelMaximized));
+  button.title = layoutState.panelMaximized ? "Restore panel size" : "Maximize panel";
+  button.setAttribute("aria-label", button.title);
+  button
+    .querySelector<SVGSVGElement>(".panel-maximize-icon")!
+    .toggleAttribute("hidden", layoutState.panelMaximized);
+  button
+    .querySelector<SVGSVGElement>(".panel-restore-icon")!
+    .toggleAttribute("hidden", !layoutState.panelMaximized);
+
+  layoutWorkbenchSurfaces();
+  if (previous !== undefined) {
+    requestAnimationFrame(() => animateLayoutFlip(el("panel"), previous, input));
+  }
+}
+
+function togglePanelMaximized(input: LayoutInput = "pointer"): void {
+  if (!bottomPanel.isOpen()) return;
+
+  const previous = el("panel").getBoundingClientRect();
+  layoutState = reduceWorkbenchLayout(layoutState, { type: "toggle-panel-maximized" });
+  renderPanelLayout(previous, input);
+}
 
 /**
  * Push both sizes into CSS, re-clamped against the window as it is now.
@@ -1701,11 +1768,11 @@ let panelHeight = DEFAULT_PANEL_HEIGHT;
  * edge and no way to drag it back.
  */
 function applyLayout(): void {
-  sidebarWidth = clampSidebarWidth(sidebarWidth, window.innerWidth);
+  const renderedSidebarWidth = clampSidebarWidth(sidebarWidth, window.innerWidth);
   panelHeight = clampPanelHeight(panelHeight, window.innerHeight);
 
   const workbench = el("workbench");
-  workbench.style.setProperty("--sidebar-width", `${sidebarWidth}px`);
+  workbench.style.setProperty("--sidebar-width", `${renderedSidebarWidth}px`);
   workbench.style.setProperty("--panel-height", `${panelHeight}px`);
 
   // Monaco and xterm both measure their own container; neither notices a CSS variable.
@@ -1744,7 +1811,12 @@ createSplitter({
   commit: () => rememberSession(),
 });
 
-window.addEventListener("resize", () => applyLayout());
+window.addEventListener("resize", () => {
+  layoutState = reduceWorkbenchLayout(layoutState, { type: "viewport", width: window.innerWidth });
+  if (!layoutState.sidebarOpen) deactivateSidebarViews(null);
+  renderWorkbenchLayout("keyboard");
+  applyLayout();
+});
 
 /* ── Status ───────────────────────────────────────────────────────────── */
 
@@ -1790,8 +1862,28 @@ editorHost.onDirtyChange((path, dirty) => {
 editorHost.onSaveRequested(() => void saveActive());
 
 el("open-folder").addEventListener("click", () => void openFolder());
-el("open-settings").addEventListener("click", () => settingsView.toggle());
+el("sidebar-close").addEventListener("click", () => closeSidebar("pointer"));
+el("sidebar-scrim").addEventListener("click", () => closeSidebar("pointer"));
+document.addEventListener("keydown", (event) => {
+  if (
+    event.key !== "Escape" ||
+    event.defaultPrevented ||
+    layoutState.sidebarMode !== "overlay" ||
+    !layoutState.sidebarOpen ||
+    document.querySelector("dialog[open]") !== null
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  closeSidebar("keyboard");
+});
 el("panel-close").addEventListener("click", () => bottomPanel.close());
+el("panel-maximize").addEventListener("click", () => togglePanelMaximized("pointer"));
+document.querySelector<HTMLElement>(".panel-header")?.addEventListener("dblclick", (event) => {
+  if ((event.target as Element).closest("button, input, select") !== null) return;
+  togglePanelMaximized();
+});
 el("terminal-new").addEventListener("click", () => void terminalPanel().create());
 /*
  * Opened on pointerdown, with the event kept off `document`.
@@ -1815,34 +1907,41 @@ el("terminal-kill").addEventListener("click", () => terminalPanel().killActive()
 el("ports-refresh").addEventListener("click", () => void portsPanel.refresh());
 
 for (const activity of document.querySelectorAll<HTMLElement>(".activity")) {
-  const view = activity.dataset["view"];
-  if (view === undefined) continue;
-
   // Problems moved to the bottom panel, where VS Code puts it and where the rest of the
   // output now lives. The activity button stays because it carries the error badge, which
   // is how most people notice there is anything to look at - it just opens a tab now.
-  if (view === "problems") {
+  if (activity.dataset["view"] === "problems") {
     activity.addEventListener("click", () => bottomPanel.show("problems"));
     continue;
   }
 
-  activity.addEventListener("click", () => showView(view));
-}
+  const view = activity.dataset["sidebarView"];
+  if (view === undefined) continue;
 
-showView("explorer");
+  activity.addEventListener("click", () =>
+    toggleSidebarView(view, "pointer", activity),
+  );
+}
 
 /* Shortcuts and the menu bar are registered together, near the foot of this file. */
 
 /* ── Sponsored notifications ──────────────────────────────────────────── */
 
 const settingsView = createSettingsView({
-  host: document.body,
+  host: el("view-settings"),
+  overlayHost: document.body,
+  requestClose: () => closeSidebar("pointer"),
   read: () => window.adcode.settings.read(),
   write: (id, value) => window.adcode.settings.write(id, value),
   reset: () => window.adcode.settings.reset(),
   projections: () => serverProjections,
   mcpConnection: () => window.adcode.memory.connection(),
 });
+
+function openSetting(settingId: string): void {
+  showView("settings", "keyboard");
+  settingsView.openAt(settingId);
+}
 
 /* ── Breadcrumbs and symbol search (§4 Navigation) ────────────────────── */
 
@@ -1852,7 +1951,10 @@ const breadcrumbs = createBreadcrumbs({
   recentFiles: () => tabs.map((tab) => tab.path).reverse(),
   openFile: (path) => void openFile(path),
   openQuick: (seed) => quickOpen.open(seed),
-  showStructure: () => structurePopup.open("file"),
+  showStructure: () => {
+    showView("structure", "keyboard");
+    structurePopup.open("file");
+  },
   goToLine: (line) => editorHost.revealLine(line),
   copyPath: (path) => void copyText(path, "Path copied"),
   revealPath: (path) => void revealInExplorer(path),
@@ -2224,7 +2326,7 @@ function rememberSession(): void {
     // tab whose content came from a commit the user has probably forgotten opening.
     openFiles: tabs.filter((tab) => !editorHost.isReadOnly(tab.path)).map((tab) => tab.path),
     activeFile: activePath !== null && !editorHost.isReadOnly(activePath) ? activePath : null,
-    layout: { sidebarWidth, panelHeight },
+    layout: { sidebarWidth, panelHeight, sidebarView: layoutState.activeSidebarView },
   });
 }
 
@@ -2443,7 +2545,7 @@ function runFeatureAction(action: FeatureAction): void {
     return;
   }
 
-  settingsView.openAt(action.settingId);
+  openSetting(action.settingId);
 }
 
 function openFeature(entryId: string): void {
@@ -2467,7 +2569,7 @@ function openFeature(entryId: string): void {
  */
 const helpGuide = createHelpGuide({
   host: document.body,
-  openSetting: (settingId) => settingsView.openAt(settingId),
+  openSetting,
   openFeature,
   formatShortcut: (accelerator) => formatAccelerator(accelerator, platform),
 });
@@ -2969,16 +3071,11 @@ const projectMap = createProjectMap({
   },
 });
 
-const structurePopup = createStructurePopup(document.body, {
+const structurePopup = createStructurePopup(el("view-structure"), {
   filePanel: structurePanel,
   projectMap,
-  restoreFocus: () => editorHost.focus(),
-  anchor: el("open-structure"),
+  requestClose: () => closeSidebar("pointer"),
 });
-
-// The activity-bar button, which is how most people will find this at all - a popup with no
-// icon is a feature only the person who wrote the shortcut knows about.
-el("open-structure").addEventListener("click", () => structurePopup.toggle("file"));
 
 /**
  * The names of the files at the workspace root.
@@ -3183,36 +3280,129 @@ el("panel-tabs").addEventListener("keydown", (event) => {
   }
 });
 
-/** Switch which sidebar view is showing. */
-function showView(view: string): void {
-  const views: Record<string, HTMLElement> = {
-    explorer: el("filetree"),
-    search: el("view-search"),
-    scm: el("view-scm"),
-  };
+const SIDEBAR_VIEWS = new Set<SidebarViewId>([
+  "explorer",
+  "search",
+  "structure",
+  "scm",
+  "earnings",
+  "features",
+  "settings",
+]);
 
-  /*
-   * An unknown name changes nothing, rather than hiding everything.
-   *
-   * Without this, `showView("settings")` - which is a reasonable-looking thing to write, and
-   * was written - matched no entry, so the loop below hid all four views and the loop after it
-   * deselected every activity button. The result was an empty sidebar with nothing highlighted
-   * and no error anywhere, which reads to a user as the window having broken. Settings is an
-   * overlay and has its own `open()`.
-   */
-  if (views[view] === undefined) return;
+const SIDEBAR_COPY: Readonly<Record<SidebarViewId, { title: string; subtitle: string }>> = {
+  explorer: { title: "Explorer", subtitle: "No folder opened" },
+  search: { title: "Search", subtitle: "Find across this project" },
+  structure: { title: "Structure", subtitle: "File outline and project map" },
+  scm: { title: "Source Control", subtitle: "Changes and history" },
+  earnings: { title: "Earnings", subtitle: "Balance and ad settings" },
+  features: { title: "Features", subtitle: "Everything ADCode can do" },
+  settings: { title: "Settings", subtitle: "Customize ADCode" },
+};
 
-  for (const [name, node] of Object.entries(views)) node.hidden = name !== view;
+let sidebarTrigger: HTMLElement | null = null;
 
-  for (const activity of document.querySelectorAll<HTMLElement>(".activity")) {
-    if (activity.dataset["view"] !== undefined) {
-      activity.ariaSelected = String(activity.dataset["view"] === view);
-    }
+const isSidebarView = (view: string): view is SidebarViewId =>
+  SIDEBAR_VIEWS.has(view as SidebarViewId);
+
+function renderWorkbenchLayout(input: "pointer" | "keyboard" = "keyboard"): void {
+  const workbench = el("workbench");
+  const sidebar = el("sidebar");
+  const active = layoutState.activeSidebarView;
+
+  workbench.dataset["sidebarOpen"] = String(layoutState.sidebarOpen);
+  workbench.dataset["sidebarMode"] = layoutState.sidebarMode;
+  workbench.dataset["layoutInput"] = input;
+
+  sidebar.inert = !layoutState.sidebarOpen;
+  sidebar.setAttribute("aria-hidden", String(!layoutState.sidebarOpen));
+
+  for (const view of document.querySelectorAll<HTMLElement>(".sidebar-view[data-sidebar-view]")) {
+    view.hidden = !layoutState.sidebarOpen || view.dataset["sidebarView"] !== active;
   }
+
+  for (const activity of document.querySelectorAll<HTMLButtonElement>(
+    ".activity[data-sidebar-view]",
+  )) {
+    const selected = layoutState.sidebarOpen && activity.dataset["sidebarView"] === active;
+    activity.ariaSelected = String(selected);
+    activity.setAttribute("aria-pressed", String(selected));
+    activity.setAttribute("aria-expanded", String(selected));
+  }
+
+  const copy = SIDEBAR_COPY[active];
+  el("sidebar-title").textContent = copy.title;
+  if (active !== "explorer") el("sidebar-subtitle").textContent = copy.subtitle;
+  el("sidebar-actions-explorer").hidden = !layoutState.sidebarOpen || active !== "explorer";
+
+  const overlayOpen = layoutState.sidebarMode === "overlay" && layoutState.sidebarOpen;
+  el<HTMLButtonElement>("sidebar-scrim").hidden = !overlayOpen;
+
+  editorHost.layout();
+  terminal?.fit();
+}
+
+function activateSidebarView(view: SidebarViewId): void {
+  if (view === "structure") structurePopup.open("file");
+  else if (view === "earnings") earningsPopover.open();
+  else if (view === "features") featureLibrary.open();
+  else if (view === "settings") settingsView.open();
+}
+
+function deactivateSidebarViews(next: SidebarViewId | null): void {
+  if (next !== "earnings") earningsPopover.close();
+  if (next !== "features") featureLibrary.close(false);
+  if (next !== "settings") settingsView.close(false);
+}
+
+/** Open one known sidebar view. Commands use this rather than toggling it shut. */
+function showView(view: string, input: "pointer" | "keyboard" = "keyboard"): void {
+  if (!isSidebarView(view)) return;
+
+  layoutState = reduceWorkbenchLayout(layoutState, { type: "show-sidebar", view });
+  deactivateSidebarViews(view);
+  renderWorkbenchLayout(input);
 
   if (view === "scm") void sourceControl.refresh();
   if (view === "search") searchPanel.focus();
+  activateSidebarView(view);
+  rememberSession();
 }
+
+/** Activity buttons toggle their selected view, matching VS Code's rail behavior. */
+function toggleSidebarView(
+  view: string,
+  input: "pointer" | "keyboard" = "pointer",
+  trigger?: HTMLElement,
+): void {
+  if (!isSidebarView(view)) return;
+
+  if (trigger !== undefined) sidebarTrigger = trigger;
+  layoutState = reduceWorkbenchLayout(layoutState, { type: "toggle-sidebar", view });
+  deactivateSidebarViews(layoutState.sidebarOpen ? layoutState.activeSidebarView : null);
+  renderWorkbenchLayout(input);
+
+  if (layoutState.sidebarOpen && view === "scm") void sourceControl.refresh();
+  if (layoutState.sidebarOpen && view === "search") searchPanel.focus();
+  if (layoutState.sidebarOpen) activateSidebarView(view);
+  rememberSession();
+}
+
+function closeSidebar(input: "pointer" | "keyboard" = "pointer"): void {
+  const wasOverlay = layoutState.sidebarMode === "overlay";
+  layoutState = reduceWorkbenchLayout(layoutState, { type: "close-sidebar" });
+  deactivateSidebarViews(null);
+  renderWorkbenchLayout(input);
+
+  if (wasOverlay) sidebarTrigger?.focus();
+  else editorHost.focus();
+}
+
+// The constants used by `showView` are initialized here. Calling this beside the activity
+// wiring above would enter `showView` while `SIDEBAR_VIEWS` was still in its temporal dead
+// zone and stop the renderer halfway through startup.
+renderWorkbenchLayout("keyboard");
+renderPanelLayout();
 
 /**
  * Redraw the git layer for whatever is open.
@@ -3474,21 +3664,10 @@ window.adcode.collab.onCommitRequest((request) => {
 });
 
 const earningsPopover = createEarningsPopover({
-  host: document.body,
-  anchor: el("open-earnings"),
-  /*
-   * `settingsView.open()`, not `showView("settings")`.
-   *
-   * Settings is an overlay, not a sidebar view - the gear in the activity bar calls
-   * `settingsView.toggle()`. `showView` knows only explorer, search, scm and problems, so
-   * asking it for "settings" did not merely fail to open anything: it hid all four views and
-   * deselected every activity button, leaving an empty sidebar with nothing highlighted and no
-   * settings on screen.
-   */
-  openSettings: () => settingsView.open(),
+  host: el("view-earnings"),
+  requestClose: () => closeSidebar("pointer"),
+  openSettings: () => showView("settings", "pointer"),
 });
-
-el("open-earnings").addEventListener("click", () => earningsPopover.toggle());
 
 window.adcode.ads.onEarnings((earnings) => {
   // A cached mirror of a server value (§1). The renderer never computes money.
@@ -3559,6 +3738,14 @@ async function boot(): Promise<void> {
   if (restored.layout !== undefined) {
     sidebarWidth = restored.layout.sidebarWidth;
     panelHeight = restored.layout.panelHeight;
+    if (restored.layout.sidebarView !== undefined) {
+      layoutState = reduceWorkbenchLayout(layoutState, {
+        type: "restore-sidebar-view",
+        view: restored.layout.sidebarView,
+      });
+      renderWorkbenchLayout("keyboard");
+      if (layoutState.sidebarOpen) activateSidebarView(restored.layout.sidebarView);
+    }
     applyLayout();
   }
 
@@ -3567,7 +3754,7 @@ async function boot(): Promise<void> {
     workspaceRoot = existing.root;
     void refreshRootFiles();
     setRendererWorkspace(existing.root);
-    el("sidebar-title").textContent = existing.name;
+    el("sidebar-subtitle").textContent = existing.name;
     setStatusWorkspace(existing.root);
     commandCentre.setWorkspace(existing.name);
     await renderTree(existing.root);
@@ -3755,7 +3942,7 @@ function registerCommands(): void {
     workspaceRoot = null;
     void refreshRootFiles();
     setRendererWorkspace(null);
-    el("sidebar-title").textContent = "No Folder Opened";
+    el("sidebar-subtitle").textContent = "No folder opened";
     setStatusWorkspace(null);
     commandCentre.setWorkspace(null);
     el("filetree").replaceChildren(hint("Open a folder to get started."));
@@ -3782,7 +3969,7 @@ function registerCommands(): void {
   add("editor.closeAll", "Close All Editors", () => {
     for (const tab of [...tabs]) closeTab(tab.path);
   });
-  add("settings.open", "Preferences", () => settingsView.toggle());
+  add("settings.open", "Preferences", () => showView("settings", "keyboard"));
   add("account.open", "Open Account", () => accountMenu.open());
 
   /* Edit - Monaco owns these, so they are triggered rather than reimplemented (§2). */
@@ -3824,10 +4011,8 @@ function registerCommands(): void {
   add("search.universal", "Search All of ADCode", () => openUniversalSearch());
   add("view.fullScreen", "Toggle Full Screen", () => window.adcode.window.toggleFullScreen());
   add("view.toggleSidebar", "Toggle Side Bar", () => {
-    const sidebar = el("sidebar");
-    sidebar.hidden = !sidebar.hidden;
-    el("workbench").dataset["sidebar"] = sidebar.hidden ? "hidden" : "shown";
-    editorHost.layout();
+    if (layoutState.sidebarOpen) closeSidebar("keyboard");
+    else showView(layoutState.activeSidebarView, "keyboard");
   });
   add("view.togglePanel", "Toggle Panel", () => void togglePanel());
   add("view.zoomIn", "Zoom In", () => window.adcode.window.zoom(1));
@@ -3835,15 +4020,21 @@ function registerCommands(): void {
   add("view.zoomReset", "Reset Zoom", () => window.adcode.window.zoom(0));
   add("view.explorer", "Explorer", () => showView("explorer"));
   add("view.search", "Find in Files", () => showView("search"));
-  add("view.structure", "Structure", () => structurePopup.toggle("file"));
-  add("view.projectMap", "Explain This Project", () => structurePopup.toggle("project"));
+  add("view.structure", "Structure", () => {
+    showView("structure", "keyboard");
+    structurePopup.open("file");
+  });
+  add("view.projectMap", "Explain This Project", () => {
+    showView("structure", "keyboard");
+    structurePopup.open("project");
+  });
   add("editor.insertTemplate", "Insert File Template", () => insertTemplate());
   add("view.scm", "Source Control", () => showView("scm"));
   add("view.problems", "Problems", () => bottomPanel.show("problems"));
   add("view.output", "Output", () => bottomPanel.show("output"));
   add("view.debugConsole", "Debug Console", () => bottomPanel.show("debug"));
   add("view.ports", "Ports", () => bottomPanel.show("ports"));
-  add("view.earnings", "Earnings", () => earningsPopover.toggle());
+  add("view.earnings", "Earnings", () => showView("earnings", "keyboard"));
   add("collab.panel", "Live Session: Share or Join", () => collabPanel.toggle());
   add("collab.leave", "Live Session: Leave", () => void window.adcode.collab.leave());
   add("preview.toggle", "Toggle Live Preview", () => void previewPane.toggle());
@@ -4173,8 +4364,9 @@ const palette = createPalette({
 });
 
 const featureLibrary = createFeatureLibrary({
-  host: document.body,
-  button: el<HTMLButtonElement>("open-features"),
+  host: el("view-features"),
+  overlayHost: document.body,
+  requestClose: () => closeSidebar("pointer"),
   hasCommand: (command) => commands.has(command),
   settingValue: (settingId) => {
     const value = settingsValues[settingId];
@@ -4182,7 +4374,10 @@ const featureLibrary = createFeatureLibrary({
   },
   runAction: (action) => runFeatureAction(action),
 });
-openFeatureLibrary = () => featureLibrary.toggle();
+openFeatureLibrary = () => {
+  showView("features", "keyboard");
+  featureLibrary.open();
+};
 
 /* The menu bar owns the title bar's left edge on Windows and Linux; macOS uses the
    system menu the main process installs instead. */

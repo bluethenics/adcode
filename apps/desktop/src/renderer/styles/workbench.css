@@ -200,10 +200,19 @@ select {
  * working by overriding the column, without having to know the current width.
  */
 .workbench {
+  position: relative;
   display: grid;
   grid-template-columns: 48px var(--sidebar-width, 240px) 4px 1fr;
   min-height: 0;
   overflow: hidden;
+}
+
+.workbench[data-sidebar-open="false"] {
+  grid-template-columns: 48px 0 0 minmax(0, 1fr);
+}
+
+.workbench[data-sidebar-open="false"] #splitter-sidebar {
+  pointer-events: none;
 }
 
 .activitybar {
@@ -246,9 +255,15 @@ select {
   margin-bottom: 8px;
 }
 
-.activity[aria-selected="true"] {
+.activity[aria-selected="true"],
+.activity[aria-pressed="true"] {
   background: var(--bg-active);
   color: var(--accent);
+}
+
+.activity:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /*
@@ -310,7 +325,7 @@ select {
  */
 .sidebar {
   display: grid;
-  grid-template-rows: 38px 1fr;
+  grid-template-rows: 50px minmax(0, 1fr);
   grid-template-columns: minmax(0, 1fr);
   min-height: 0;
   min-width: 0;
@@ -321,11 +336,28 @@ select {
 }
 
 .sidebar-header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 8px 0 12px;
   border-bottom: 1px solid var(--border-hairline);
+}
+
+.sidebar-focus-ribbon {
+  position: absolute;
+  inset: 9px auto 9px 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+.sidebar-heading {
+  display: grid;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
 }
 
 /*
@@ -337,7 +369,6 @@ select {
  * never got the chance to do anything.
  */
 .sidebar-title {
-  flex: 1;
   min-width: 0;
   font-size: var(--text-xs);
   font-weight: 620;
@@ -347,6 +378,20 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sidebar-subtitle {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-close {
+  flex: none;
 }
 
 /*
@@ -392,9 +437,19 @@ select {
   padding: 6px 6px 12px;
 }
 
-/* Search and source control share the sidebar's content row with the file tree. */
-.sidebar-view {
+.sidebar-content {
+  display: grid;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Every tool occupies the same sidebar cell and stays mounted while another is visible. */
+.sidebar-view {
+  grid-area: 1 / 1;
+  container-type: inline-size;
+  min-height: 0;
+  min-width: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -402,6 +457,66 @@ select {
 
 .sidebar-view[hidden] {
   display: none;
+}
+
+.sidebar-scrim {
+  position: absolute;
+  inset: 0 0 0 48px;
+  z-index: 20;
+  border: 0;
+  background: rgba(0, 0, 0, 0.18);
+  opacity: 1;
+}
+
+@media (max-width: 819px) {
+  .workbench,
+  .workbench[data-sidebar-open="false"] {
+    grid-template-columns: 48px 0 0 minmax(0, 1fr);
+  }
+
+  .sidebar {
+    position: absolute;
+    inset: 0 auto 0 48px;
+    z-index: 30;
+    width: min(var(--sidebar-width, 300px), calc(100% - 64px));
+    border-right: 1px solid var(--border-hairline);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    box-shadow: var(--shadow-floating);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-100%);
+    transition:
+      opacity var(--duration-enter) var(--ease-sheet),
+      transform var(--duration-enter) var(--ease-sheet);
+  }
+
+  .workbench[data-sidebar-open="true"] .sidebar {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  /* Keyboard navigation is already instantaneous feedback; spatial motion is reserved for
+     pointer-driven disclosure where it explains where the sidebar came from. */
+  .workbench[data-layout-input="keyboard"] .sidebar {
+    transition: none;
+  }
+
+  #splitter-sidebar {
+    pointer-events: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transform: none !important;
+    transition-property: opacity;
+  }
+}
+
+:root[data-reduced-motion="true"] .sidebar {
+  transform: none !important;
+  transition-property: opacity;
 }
 
 .empty-hint {
@@ -765,6 +880,16 @@ select {
   border-bottom: 1px solid var(--border-hairline);
 }
 
+/*
+ * The dev server's status line, and the colour settles rather than snapping.
+ *
+ * This one string carries three states - starting, live, failed - and it changes without
+ * anything else on the bar moving, so a hard colour cut is easy to miss entirely if you
+ * happened to be looking at the page instead of the bar. 160ms of travel is enough to catch
+ * peripheral vision, which is the whole job of a status colour. The font-family swap in the
+ * tone rules stays discrete; there is no honest way to interpolate a typeface, and trying
+ * would only produce a reflow mid-transition.
+ */
 .preview-url {
   flex: 1;
   min-width: 0;
@@ -774,6 +899,7 @@ select {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-secondary);
+  transition: color var(--duration-exit) ease;
 }
 
 .preview-url[data-tone="error"] {
@@ -844,6 +970,11 @@ select {
   display: none;
 }
 
+/*
+ * Native `select` and `input` elements, so they get a settling border rather than a press
+ * scale: a select opens an OS menu on press and an input is clicked to place a caret, and
+ * squeezing either one fights what the control actually does.
+ */
 .device-preset,
 .device-zoom {
   padding: 2px 6px;
@@ -854,6 +985,12 @@ select {
   font-family: inherit;
   font-size: var(--text-xs);
   min-width: 0;
+  transition: border-color 120ms ease;
+}
+
+.device-preset:hover,
+.device-zoom:hover {
+  border-color: var(--text-tertiary);
 }
 
 .device-preset {
@@ -870,7 +1007,15 @@ select {
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+  /* Tabular figures: this field is typed into and dragged to, and proportional digits make
+     the number jitter sideways on every pixel of a resize. */
+  font-variant-numeric: tabular-nums;
   text-align: center;
+  transition: border-color 120ms ease;
+}
+
+.device-size:hover {
+  border-color: var(--text-tertiary);
 }
 
 .device-action {
@@ -947,7 +1092,8 @@ select {
   transition: opacity var(--duration-exit) var(--ease-sheet);
 }
 
-.device-handle:hover::after {
+.device-handle:hover::after,
+.device-handle[data-dragging="true"]::after {
   opacity: 0.9;
 }
 
@@ -1029,11 +1175,26 @@ kbd {
 /* ── Panel ────────────────────────────────────────────────────────────── */
 
 .panel {
+  container-type: inline-size;
   display: grid;
   grid-template-rows: 32px 1fr;
   height: var(--panel-height, 260px);
   border-top: 1px solid var(--border-hairline);
   background: var(--bg-app);
+}
+
+.main[data-panel-maximized="true"] {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.main[data-panel-maximized="true"] > :not(.panel) {
+  display: none;
+}
+
+.main[data-panel-maximized="true"] > .panel {
+  height: 100%;
+  min-height: 0;
+  border-top: 0;
 }
 
 .panel[hidden] {
@@ -1046,6 +1207,16 @@ kbd {
   gap: 10px;
   padding: 0 10px;
   border-bottom: 1px solid var(--border-hairline);
+  user-select: none;
+}
+
+.panel-maximize[aria-pressed="true"] {
+  color: var(--text-primary);
+  background: var(--bg-active);
+}
+
+.panel-maximize svg[hidden] {
+  display: none;
 }
 
 .panel-title {

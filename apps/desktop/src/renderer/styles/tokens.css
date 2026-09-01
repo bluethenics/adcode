@@ -216,3 +216,48 @@ button {
   transition-duration: 100ms !important;
   animation-duration: 0.01ms !important;
 }
+
+/*
+ * Reduced transparency - the setting this app had sixteen translucent surfaces and no
+ * answer for.
+ *
+ * `prefers-reduced-transparency` is a real accessibility preference, not a theme: people
+ * turn it on because blurred chrome with content moving underneath is genuinely hard to
+ * read, and every `backdrop-filter` here made a bar whose contrast depends on whatever
+ * happens to be scrolling behind it. Apple's own rule is that the material gets frostier
+ * and more opaque rather than disappearing, so the layer still reads as a layer.
+ *
+ * Two moves cover almost everything. `--bg-chrome` is a token, so making it opaque fixes
+ * the title bar, the activity rail, the sidebar and the preview bar at once; and dropping
+ * `backdrop-filter` everywhere removes the blur that the opacity was hiding behind. The
+ * handful of surfaces that mix their own translucency with `color-mix(…, transparent)`
+ * declare their own opaque fallback next to their own rule, where it can be read.
+ */
+@media (prefers-reduced-transparency: reduce) {
+  /* Light is the base, exactly as above - the dark value is not applied unconditionally,
+     or a light window would take dark chrome the moment the setting was switched on. */
+  :root {
+    --bg-chrome: #f6f6f8;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg-chrome: #1c1c1e;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg-chrome: #1c1c1e;
+  }
+
+  :root[data-theme="midnight"] {
+    --bg-chrome: #060809;
+  }
+
+  *,
+  *::before,
+  *::after {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}

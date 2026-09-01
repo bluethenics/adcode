@@ -24,7 +24,8 @@ export interface FeatureLibrary {
 
 export interface FeatureLibraryDeps {
   readonly host: HTMLElement;
-  readonly button: HTMLButtonElement;
+  readonly overlayHost?: HTMLElement;
+  readonly requestClose: () => void;
   readonly hasCommand: (command: string) => boolean;
   /** The live value of a boolean setting, so a toggle can say which way it will go. */
   readonly settingValue: (settingId: string) => boolean | undefined;
@@ -54,7 +55,7 @@ const titleFor = (group: FeatureLibraryCategory): string => GROUP_TITLES[group] 
 export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
   const records = featureRecords();
   const categories = featureLibraryCategories(records);
-  const helpPopover = createHelpPopover(deps.host);
+  const helpPopover = createHelpPopover(deps.overlayHost ?? deps.host);
   let open = false;
   let category: FeatureLibraryCategory = "all";
   let query = "";
@@ -63,8 +64,7 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
 
   const sheet = document.createElement("section");
   sheet.className = "feature-library";
-  sheet.hidden = true;
-  sheet.setAttribute("role", "dialog");
+  sheet.setAttribute("role", "region");
   sheet.setAttribute("aria-label", "All Features");
 
   const header = document.createElement("header");
@@ -145,7 +145,7 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
       notice.textContent = "This feature is not available in this window.";
       return;
     }
-    api.close(false);
+    api.close();
     deps.runAction(action);
   }
 
@@ -349,43 +349,8 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
     }
   });
 
-  function place(): void {
-    const anchor = deps.button.getBoundingClientRect();
-    // Placement must use the final layout size, not the opening transform's scaled visual
-    // box. Measuring `getBoundingClientRect()` here underestimates both dimensions by 1.5%.
-    const width = sheet.offsetWidth;
-    const height = sheet.offsetHeight;
-    // Keep two physical pixels of rounding headroom beyond the promised 8px gutter.
-    // Chromium can report a nominal 8px edge as 7.998px at non-integer page zooms.
-    const margin = 10;
-    const gap = 8;
-    const right = anchor.right + gap;
-    const left = right + width <= window.innerWidth - margin
-      ? right
-      : Math.max(margin, anchor.left - gap - width);
-    const top = Math.max(margin, Math.min(anchor.top, window.innerHeight - height - margin));
-    sheet.style.left = `${String(Math.round(left))}px`;
-    sheet.style.top = `${String(Math.round(top))}px`;
-  }
-
-  // The first measurement can precede the UI font settling. Re-clamp when the sheet's
-  // real content size changes so a late three-pixel growth cannot escape the 8px margin.
-  const sizeObserver = new ResizeObserver(() => {
-    if (open) place();
-  });
-
-  const onPointerDown = (event: PointerEvent): void => {
-    const target = event.target;
-    if (!(target instanceof Node)) return;
-    // A press anywhere else in the sheet dismisses the category menu without also
-    // dismissing the sheet under it.
-    if (menuIsOpen() && !filterRow.contains(target)) closeMenu(false);
-    if (sheet.contains(target) || deps.button.contains(target)) return;
-    api.close();
-  };
-
   const onKeydown = (event: KeyboardEvent): void => {
-    if (event.key !== "Escape" || !open || helpPopover.isOpen()) return;
+    if (event.key !== "Escape" || !open || deps.host.hidden || helpPopover.isOpen()) return;
     event.preventDefault();
     event.stopPropagation();
     // Escape closes one layer at a time: the menu first, the sheet only once it is shut.
@@ -402,16 +367,9 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
       selected = -1;
       search.value = "";
       render();
-      sheet.hidden = false;
-      sizeObserver.observe(sheet);
-      place();
-      void sheet.offsetHeight;
       sheet.dataset["state"] = "open";
-      deps.button.setAttribute("aria-expanded", "true");
-      document.addEventListener("pointerdown", onPointerDown, true);
       document.addEventListener("keydown", onKeydown, true);
-      window.addEventListener("resize", place);
-      search.focus();
+      search.focus({ preventScroll: true });
     },
 
     close(restoreFocus = true): void {
@@ -422,13 +380,8 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
       // focus to is going with it.
       closeMenu(false);
       delete sheet.dataset["state"];
-      sheet.hidden = true;
-      sizeObserver.unobserve(sheet);
-      deps.button.setAttribute("aria-expanded", "false");
-      document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("keydown", onKeydown, true);
-      window.removeEventListener("resize", place);
-      if (restoreFocus) deps.button.focus();
+      if (restoreFocus) deps.requestClose();
     },
 
     toggle(): void {
@@ -436,9 +389,8 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
       else api.open();
     },
 
-    isOpen: () => open,
+    isOpen: () => open && !deps.host.hidden,
   };
 
-  deps.button.addEventListener("click", () => api.toggle());
   return api;
 }

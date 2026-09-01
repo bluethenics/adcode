@@ -1,11 +1,9 @@
 /**
- * Structure, as a popup rather than a sidebar view.
+ * Structure, embedded in the shared workbench sidebar.
  *
- * It started in the sidebar and does not belong there. A sidebar view costs you the
- * explorer for as long as it is open, it is 240 pixels wide when the thing it is showing is
- * a *tree with a second column of relations*, and it is the wrong shape for the two-column
- * reading this is: name on the left, what it does on the right. A popup can be six hundred
- * pixels wide, can be dismissed with Escape, and takes nothing away while it is up.
+ * It shares the same predictable frame as Explorer and Search, while keeping both of its
+ * internal questions available as tabs. The workbench owns disclosure and responsive overlay
+ * behavior; this module owns only the Structure content and its local keyboard navigation.
  *
  * Two tabs, because there are two questions and they arrive at different moments:
  *
@@ -13,7 +11,7 @@
  * - **This project** - what are all these folders. Asked once, on the first morning, and
  *   never answered by any editor.
  *
- * The popup owns the frame, the tabs and the keyboard; the two panels own their contents.
+ * The view owns the tabs and their keyboard behavior; the two panels own their contents.
  * It deliberately knows nothing about outlines or folders beyond which element to show.
  */
 import type { ProjectMap } from "./projectMap.ts";
@@ -25,22 +23,12 @@ export type StructureTab = "file" | "project";
 export interface StructurePopupDeps {
   readonly filePanel: StructurePanel;
   readonly projectMap: ProjectMap;
-  /** Focus goes back here on close - the editor, normally. */
-  readonly restoreFocus: () => void;
-  /**
-   * The activity-bar button that opens this, if there is one.
-   *
-   * Owned here rather than by whoever wires the click, because this module is the only
-   * thing that knows every way the popup can close - Escape, the backdrop, the close
-   * button, a second press of the shortcut. A button whose `aria-expanded` is set by the
-   * opener and never cleared tells a screen reader the popup is still up long after it
-   * has gone.
-   */
-  readonly anchor?: HTMLElement;
+  /** Ask the workbench shell to close the shared sidebar. */
+  readonly requestClose: () => void;
 }
 
 export interface StructurePopup {
-  /** Open on a tab, or toggle shut if it is already open on that tab. */
+  /** Open on a tab, or toggle the shared view if it is already on that tab. */
   toggle(tab?: StructureTab): void;
   open(tab?: StructureTab): void;
   close(): void;
@@ -55,8 +43,10 @@ export interface StructurePopup {
 }
 
 export function createStructurePopup(host: HTMLElement, deps: StructurePopupDeps): StructurePopup {
-  const dialog = document.createElement("dialog");
-  dialog.className = "structure-popup";
+  const dialog = document.createElement("section");
+  dialog.className = "structure-popup structure-sidebar-view";
+  dialog.setAttribute("role", "region");
+  dialog.setAttribute("aria-label", "Structure browser");
 
   const card = document.createElement("div");
   card.className = "structure-popup-card";
@@ -129,15 +119,6 @@ export function createStructurePopup(host: HTMLElement, deps: StructurePopupDeps
 
   close.addEventListener("click", () => api.close());
 
-  dialog.addEventListener("cancel", (event) => {
-    event.preventDefault();
-    api.close();
-  });
-
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) api.close();
-  });
-
   // Left and right walk the tabs, which is what a tablist is supposed to do and what
   // anybody who has used one will try.
   dialog.addEventListener("keydown", (event) => {
@@ -163,23 +144,19 @@ export function createStructurePopup(host: HTMLElement, deps: StructurePopupDeps
     },
 
     open(tab = "file"): void {
-      if (!dialog.open) dialog.showModal();
-      deps.anchor?.setAttribute("aria-expanded", "true");
       show(tab);
     },
 
     close(): void {
-      if (dialog.open) dialog.close();
-      deps.anchor?.setAttribute("aria-expanded", "false");
-      deps.restoreFocus();
+      deps.requestClose();
     },
 
-    isOpen: () => dialog.open,
+    isOpen: () => !host.hidden,
 
     toggle(tab = "file"): void {
       // Toggling to the tab you are already on closes it; toggling to the other one
       // switches. Anything else makes the shortcut feel like it did not work.
-      if (dialog.open && current === tab) {
+      if (!host.hidden && current === tab) {
         api.close();
         return;
       }

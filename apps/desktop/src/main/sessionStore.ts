@@ -15,9 +15,19 @@ import { join } from "node:path";
 const MAX_REMEMBERED_EDITORS = 100;
 
 /** Workbench sizes, in pixels. Absent in sessions written before they were adjustable. */
+export type SessionSidebarView =
+  | "explorer"
+  | "search"
+  | "structure"
+  | "scm"
+  | "earnings"
+  | "features"
+  | "settings";
+
 export interface SessionLayout {
   readonly sidebarWidth: number;
   readonly panelHeight: number;
+  readonly sidebarView?: SessionSidebarView;
 }
 
 export interface SessionState {
@@ -50,16 +60,38 @@ const asSize = (value: unknown): number | null =>
     ? Math.round(value)
     : null;
 
+const SIDEBAR_VIEWS = new Set<SessionSidebarView>([
+  "explorer",
+  "search",
+  "structure",
+  "scm",
+  "earnings",
+  "features",
+  "settings",
+]);
+
+const asSidebarView = (value: unknown): SessionSidebarView | undefined =>
+  typeof value === "string" && SIDEBAR_VIEWS.has(value as SessionSidebarView)
+    ? (value as SessionSidebarView)
+    : undefined;
+
 function asLayout(value: unknown): SessionLayout | undefined {
   if (typeof value !== "object" || value === null) return undefined;
 
-  const raw = value as { sidebarWidth?: unknown; panelHeight?: unknown };
+  const raw = value as { sidebarWidth?: unknown; panelHeight?: unknown; sidebarView?: unknown };
   const sidebarWidth = asSize(raw.sidebarWidth);
   const panelHeight = asSize(raw.panelHeight);
 
   // Both or neither: half a layout would leave one dimension silently defaulted while
   // the other was restored, which reads as the app forgetting at random.
-  return sidebarWidth === null || panelHeight === null ? undefined : { sidebarWidth, panelHeight };
+  if (sidebarWidth === null || panelHeight === null) return undefined;
+
+  const sidebarView = asSidebarView(raw.sidebarView);
+  return {
+    sidebarWidth,
+    panelHeight,
+    ...(sidebarView === undefined ? {} : { sidebarView }),
+  };
 }
 
 export function createSessionStore(directory: string): SessionStore {

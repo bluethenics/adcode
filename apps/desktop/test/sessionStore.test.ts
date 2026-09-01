@@ -183,4 +183,36 @@ describe("layout", () => {
 
     expect((await store.load()).layout).toEqual({ sidebarWidth: 321, panelHeight: 260 });
   });
+
+  it("round-trips the last valid sidebar view", async () => {
+    await store.save({
+      root: null,
+      openFiles: [],
+      activeFile: null,
+      layout: { sidebarWidth: 320, panelHeight: 400, sidebarView: "structure" },
+    });
+
+    expect((await store.load()).layout).toEqual({
+      sidebarWidth: 320,
+      panelHeight: 400,
+      sidebarView: "structure",
+    });
+  });
+
+  it("drops an unknown sidebar view but keeps valid sizes", async () => {
+    await writeFile(
+      join(dir, "session.json"),
+      JSON.stringify({
+        state: {
+          root: null,
+          openFiles: [],
+          activeFile: null,
+          layout: { sidebarWidth: 320, panelHeight: 400, sidebarView: "mystery" },
+        },
+      }),
+      "utf8",
+    );
+
+    expect((await store.load()).layout).toEqual({ sidebarWidth: 320, panelHeight: 400 });
+  });
 });

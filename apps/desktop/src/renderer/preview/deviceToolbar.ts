@@ -245,7 +245,21 @@ export function createDeviceToolbar(deps: DeviceToolbarDeps): DeviceToolbar {
         );
       };
 
+      /*
+       * The grab bar is drawn on `:hover`, and a resize leaves the handle almost at once -
+       * the pointer is captured, so the drag keeps working, but the hover does not survive
+       * it. The bar therefore vanished on the first pixel of every resize, which is the one
+       * moment it is meant to be visible: the feedback disappeared exactly while the user
+       * was doing the thing it was feedback for.
+       *
+       * The attribute holds it lit for the whole gesture, and it is cleared on cancel as
+       * well as on release, or a drag interrupted by the window losing focus leaves a
+       * handle glowing at nothing.
+       */
+      handle.dataset["dragging"] = "true";
+
       const onUp = (): void => {
+        delete handle.dataset["dragging"];
         handle.removeEventListener("pointermove", onMove);
         handle.removeEventListener("pointerup", onUp);
         handle.removeEventListener("pointercancel", onUp);

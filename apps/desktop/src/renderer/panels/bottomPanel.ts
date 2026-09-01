@@ -65,6 +65,8 @@ export interface BottomPanelDeps {
   readonly onLayoutChange: () => void;
   /** Called when the panel closes, so focus does not vanish into a hidden element. */
   readonly onClosed: () => void;
+  /** Keeps launchers outside the panel in the same selected/expanded state. */
+  readonly onStateChange?: (active: PanelTabId | null) => void;
 }
 
 interface Tab {
@@ -107,6 +109,7 @@ export function createBottomPanel(deps: BottomPanelDeps): BottomPanel {
     paint();
 
     deps.onLayoutChange();
+    deps.onStateChange?.(activeId);
     tab.spec.onShow?.();
   };
 
@@ -158,6 +161,7 @@ export function createBottomPanel(deps: BottomPanelDeps): BottomPanel {
       // The active tab is remembered rather than cleared, so reopening the panel returns
       // to what you were reading. `active()` reports null while closed regardless.
       deps.onLayoutChange();
+      deps.onStateChange?.(null);
       deps.onClosed();
     },
 

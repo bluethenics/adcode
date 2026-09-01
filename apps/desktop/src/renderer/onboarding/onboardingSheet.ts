@@ -35,9 +35,21 @@ export interface OnboardingDeps {
 }
 
 const TIPS: { title: string; body: string }[] = [
+  /*
+   * This tip used to promise "a sponsored card never appears while you are typing". It
+   * does, and always has: `decide` in packages/ads takes no typing or idle input, there is
+   * no such field on `SchedulerState`, and `doNotDisturb` is hard-coded `false` in
+   * `main/ads.ts`. Mid-work delivery is the intent - a card that only ever arrived once you
+   * had stopped working would be a card shown to somebody who has left.
+   *
+   * So the tip now describes the restraints that are real and enforced in `scheduler.ts`:
+   * debugging, an unfocused window, the settle period after launch, and the minimum gap.
+   * The old wording was the single most-read false claim in the product - every new user
+   * sees this screen - and it set up the exact complaint it was written to prevent.
+   */
   {
-    title: "Ads wait for a pause",
-    body: "A sponsored card never appears while you are typing, debugging, or running something. It waits for a gap, and half of what it pays goes to you.",
+    title: "Ads arrive while you work",
+    body: "A sponsored card appears in the corner while you are coding - that is the point, and half of what it pays goes to you. It never interrupts a debugging session, never arrives while the window is in the background, and always leaves a gap between cards.",
   },
   {
     title: "Your earnings are a ledger",

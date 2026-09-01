@@ -1,25 +1,17 @@
-/* All Features: an anchored, quiet glass library that never changes workbench sizing. */
+/* All Features: a searchable library inside the shared sidebar. */
 .feature-library {
-  position: fixed;
-  z-index: 125;
-  width: min(440px, calc(100vw - 20px));
-  max-height: calc(100vh - 20px);
+  width: 100%;
+  height: 100%;
   display: grid;
   grid-template-rows: auto auto auto auto minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--text-primary);
-  box-shadow: var(--shadow-floating);
-  backdrop-filter: saturate(180%) blur(24px);
-  -webkit-backdrop-filter: saturate(180%) blur(24px);
-  opacity: 0;
-  transform: translateX(-4px) scale(0.985);
-  transform-origin: left top;
-  transition:
-    opacity var(--duration-enter) var(--ease-toast),
-    transform var(--duration-enter) var(--ease-toast);
+  box-shadow: none;
+  opacity: 1;
+  transform: none;
 }
 
 .feature-library[data-state="open"] {
@@ -35,10 +27,18 @@
   padding: 14px 16px 8px;
 }
 
+/*
+ * Tracking follows size, and this heading was the one that missed it. Every other 17px
+ * title in the app - `.projectmap-heading`, `.shortcuts-title` - carries `-0.01em`, because
+ * letters read further apart as they grow and the default spacing that suits 13px body text
+ * looks loose at 17. The value is the house rule, not a new one: -0.01em at `--text-lg`,
+ * -0.02em at `--text-xl` and above.
+ */
 .feature-library-title {
   margin: 0;
   font-size: var(--text-lg);
   font-weight: 680;
+  letter-spacing: -0.01em;
 }
 
 .feature-library-search {
@@ -83,6 +83,14 @@
   color: var(--text-secondary);
   font: 570 var(--text-xs) var(--font-ui);
   cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    transform var(--duration-exit) var(--ease-sheet);
+}
+
+.feature-library-filter-button:active {
+  transform: scale(0.96);
 }
 
 .feature-library-filter-button svg {
@@ -130,6 +138,9 @@
   font: 570 var(--text-xs) var(--font-ui);
   text-align: left;
   cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
 }
 
 .feature-library-filter-option:hover {
@@ -174,10 +185,17 @@
   text-transform: uppercase;
 }
 
+/*
+ * Selection moves with the arrow keys as well as the pointer, and this is a list somebody
+ * holds a key down to travel. A colour transition is all that belongs here - the row must
+ * not scale or move, because a selected row that shifts while the selection is running down
+ * the list makes the list itself look unstable.
+ */
 .feature-library-row {
   padding: 11px 10px;
   border-bottom: 1px solid var(--border-hairline);
   border-radius: var(--radius-sm);
+  transition: background-color 120ms ease;
 }
 
 .feature-library-row[aria-selected="true"] {
@@ -210,6 +228,13 @@
   margin-top: 9px;
 }
 
+/*
+ * "Open" is the button that actually runs a feature, and it pressed like a label.
+ *
+ * The transform is listed with the colours rather than on its own so a press and a hover
+ * cannot fight over the property list: one `transition` declaration, three properties, and
+ * the `:active` scale can land while the background is still settling from the hover.
+ */
 .feature-library-open,
 .feature-library-secondary {
   min-height: 28px;
@@ -220,6 +245,15 @@
   color: var(--text-primary);
   font: 590 var(--text-xs) var(--font-ui);
   cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform var(--duration-exit) var(--ease-sheet);
+}
+
+.feature-library-open:active:not(:disabled),
+.feature-library-secondary:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .feature-library-open {
@@ -410,4 +444,22 @@
 :root[data-reduced-motion="true"] .universal-search,
 :root[data-reduced-motion="true"] .universal-search-overlay[data-state="open"] .universal-search {
   transform: none;
+}
+
+/*
+ * Both of this file's surfaces mix their own translucency into the background, so the
+ * global `backdrop-filter: none` in tokens.css is only half the fix - without these the
+ * blur would go and leave a panel you can still see the editor through, which is the worse
+ * of the two states. Opaque, and the scrim behind the search overlay goes heavier to keep
+ * the same separation the blur was providing.
+ */
+@media (prefers-reduced-transparency: reduce) {
+  .feature-library,
+  .universal-search {
+    background: var(--bg-elevated);
+  }
+
+  .universal-search-overlay {
+    background: rgba(0, 0, 0, 0.32);
+  }
 }

@@ -34,13 +34,17 @@ export interface SettingsView {
    * screen with fifty-five rows, "it is in Editing somewhere" is not good enough.
    */
   openAt(settingId: string): void;
-  close(): void;
+  close(requestShell?: boolean): void;
   isOpen(): boolean;
   toggle(): void;
 }
 
 export interface SettingsViewDeps {
   readonly host: HTMLElement;
+  /** Keep help popovers in the top layer even though settings itself is docked. */
+  readonly overlayHost?: HTMLElement;
+  /** Ask the workbench shell to close the shared sidebar. */
+  readonly requestClose: () => void;
   readonly read: () => Promise<Record<string, SettingValue>>;
   readonly write: (id: string, value: SettingValue) => Promise<Record<string, SettingValue>>;
   readonly reset: () => Promise<Record<string, SettingValue>>;
@@ -169,13 +173,11 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
   let open = false;
 
   // One popover for the whole screen, not one per row. See helpPopover.ts.
-  const popover = createHelpPopover(deps.host);
+  const popover = createHelpPopover(deps.overlayHost ?? deps.host);
 
   const sheet = document.createElement("div");
   sheet.className = "settings-sheet";
-  sheet.hidden = true;
-  sheet.setAttribute("role", "dialog");
-  sheet.setAttribute("aria-modal", "true");
+  sheet.setAttribute("role", "region");
   sheet.setAttribute("aria-label", "Settings");
 
   const panel = document.createElement("div");
@@ -252,10 +254,6 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
     }
   }
   sheet.append(panel);
-
-  sheet.addEventListener("click", (event) => {
-    if (event.target === sheet) api.close();
-  });
 
   function rowFor(setting: Setting): HTMLElement {
     const row = document.createElement("div");
@@ -430,7 +428,7 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
   }
 
   const onKeydown = (event: KeyboardEvent): void => {
-    if (event.key === "Escape" && open) {
+    if (event.key === "Escape" && open && !deps.host.hidden) {
       event.preventDefault();
       api.close();
     }
@@ -447,14 +445,8 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
         renderBody();
       });
 
-      sheet.hidden = false;
-      // Two frames so the sheet has a laid-out start state to transition from.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          sheet.dataset["state"] = "open";
-          search.focus();
-        });
-      });
+      sheet.dataset["state"] = "open";
+      search.focus({ preventScroll: true });
 
       document.addEventListener("keydown", onKeydown);
     },
@@ -474,7 +466,10 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
         const row = body.querySelector(`[data-setting-id="${CSS.escape(settingId)}"]`);
         if (!(row instanceof HTMLElement)) return;
 
-        row.scrollIntoView({ block: "center", behavior: "smooth" });
+        row.scrollIntoView({
+          block: "center",
+          behavior: document.documentElement.dataset["reducedMotion"] === "true" ? "auto" : "smooth",
+        });
         row.dataset["highlight"] = "true";
         window.setTimeout(() => delete row.dataset["highlight"], 1600);
       };
@@ -486,20 +481,17 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
       else window.setTimeout(reveal, 300);
     },
 
-    close(): void {
+    close(requestShell = true): void {
       if (!open) return;
       open = false;
 
       popover.close();
       delete sheet.dataset["state"];
       document.removeEventListener("keydown", onKeydown);
-
-      window.setTimeout(() => {
-        if (!open) sheet.hidden = true;
-      }, 220);
+      if (requestShell) deps.requestClose();
     },
 
-    isOpen: () => open,
+    isOpen: () => open && !deps.host.hidden,
 
     toggle(): void {
       if (open) api.close();

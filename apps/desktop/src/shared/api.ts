@@ -830,9 +830,19 @@ export interface RecoveredDraftView {
 
 /** What the shell reopens on launch (§4's "Restore workspace"). */
 /** Sizes the user dragged the workbench to. Pixels. */
+export type SidebarViewView =
+  | "explorer"
+  | "search"
+  | "structure"
+  | "scm"
+  | "earnings"
+  | "features"
+  | "settings";
+
 export interface LayoutView {
   readonly sidebarWidth: number;
   readonly panelHeight: number;
+  readonly sidebarView?: SidebarViewView;
 }
 
 export interface SessionStateView {

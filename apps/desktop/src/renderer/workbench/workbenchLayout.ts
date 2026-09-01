@@ -21,6 +21,7 @@ export interface WorkbenchLayoutState {
 
 export type WorkbenchLayoutEvent =
   | { readonly type: "show-sidebar"; readonly view: SidebarViewId }
+  | { readonly type: "restore-sidebar-view"; readonly view: SidebarViewId }
   | { readonly type: "toggle-sidebar"; readonly view: SidebarViewId }
   | { readonly type: "close-sidebar" }
   | { readonly type: "viewport"; readonly width: number }
@@ -50,6 +51,11 @@ export function reduceWorkbenchLayout(
   event: WorkbenchLayoutEvent,
 ): WorkbenchLayoutState {
   switch (event.type) {
+    case "restore-sidebar-view":
+      // Session restore chooses the view without changing disclosure. In particular, a
+      // narrow launch must not slide a drawer over the editor before the user asks for it.
+      return { ...state, activeSidebarView: event.view };
+
     case "show-sidebar":
       return {
         ...state,

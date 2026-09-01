@@ -11,7 +11,7 @@ const LIBRARY = readFileSync(
 const CSS_PATH = join(import.meta.dirname, "../src/renderer/styles/features.css");
 
 describe("All Features renderer contract", () => {
-  it("places a four-cell dialog button below Earnings and above Settings", () => {
+  it("places a four-cell docked-view button below Earnings and above Settings", () => {
     const earningsAt = HTML.indexOf('id="open-earnings"');
     const featuresAt = HTML.indexOf('id="open-features"');
     const settingsAt = HTML.indexOf('id="open-settings"');
@@ -20,10 +20,12 @@ describe("All Features renderer contract", () => {
     expect(earningsAt).toBeGreaterThan(-1);
     expect(featuresAt).toBeGreaterThan(earningsAt);
     expect(settingsAt).toBeGreaterThan(featuresAt);
-    expect(button).toContain('aria-haspopup="dialog"');
+    expect(button).toContain('data-sidebar-view="features"');
+    expect(button).toContain('aria-pressed="false"');
     expect(button).toContain('aria-expanded="false"');
     expect(button).toContain('aria-label="All Features"');
-    expect(button).not.toContain("data-view");
+    expect(button).not.toContain('aria-haspopup="dialog"');
+    expect(HTML).toContain('class="sidebar-view" id="view-features" data-sidebar-view="features"');
     expect(button.match(/<rect /g)).toHaveLength(4);
   });
 
@@ -31,8 +33,9 @@ describe("All Features renderer contract", () => {
     expect(MAIN).toContain("createFeatureLibrary");
     expect(LIBRARY).toContain("createHelpButton");
     expect(MAIN).toContain("commands.run(action.command)");
-    expect(MAIN).toContain("settingsView.openAt(action.settingId)");
-    expect(MAIN).toContain("openFeatureLibrary = () => featureLibrary.toggle()");
+    expect(MAIN).toContain("openSetting(action.settingId)");
+    expect(MAIN).toContain('showView("features", "keyboard")');
+    expect(MAIN).toContain("featureLibrary.open()");
   });
 
   it("chooses a category from a menu, not a strip that scrolls out of reach", () => {
