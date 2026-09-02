@@ -340,38 +340,77 @@ checks.sidebarShell =
   checks.sidebarShellEvidence?.collapsed === true &&
   checks.sidebarShellEvidence?.switched === true;
 
-checks.dockedSideToolsEvidence = {};
-for (const [buttonId, viewId, rootSelector] of [
-  ["open-structure", "view-structure", ".structure-popup"],
-  ["open-earnings", "view-earnings", ".earnings-card"],
-  ["open-features", "view-features", ".feature-library"],
-  ["open-settings", "view-settings", ".settings-sheet"],
-]) {
-  await evaluate(`document.getElementById('${buttonId}')?.click(); true`);
-  await sleep(220);
-  checks.dockedSideToolsEvidence[viewId] = await evaluate(
+checks.anchoredToolsEvidence = await (async () => {
+  const before = await evaluate(
     `(() => {
-       const workbench = document.getElementById('workbench');
-       const view = document.getElementById('${viewId}');
-       const root = view?.querySelector('${rootSelector}');
-       const modal = root?.matches('[aria-modal="true"], dialog[open]') === true;
-       return (
-         workbench?.dataset.sidebarOpen === 'true' &&
-         view?.hidden === false &&
-         root !== null &&
-         modal === false &&
-         getComputedStyle(root).position !== 'fixed'
-       );
+       const sidebar = document.getElementById('sidebar')?.getBoundingClientRect();
+       const editor = document.getElementById('editor-area')?.getBoundingClientRect();
+       return sidebar && editor
+         ? { sidebar: { width: sidebar.width }, editor: { width: editor.width } }
+         : null;
+     })()`,
+  );
+
+  await evaluate(`document.getElementById('open-structure')?.click(); true`);
+  await sleep(220);
+  const structure = await evaluate(
+    `(() => {
+       const popup = document.querySelector('[data-popup-id="structure"]');
+       const surface = popup?.querySelector('.popup-shell-surface');
+       const sidebar = document.getElementById('sidebar')?.getBoundingClientRect();
+       const editor = document.getElementById('editor-area')?.getBoundingClientRect();
+       return {
+         open: popup?.open === true,
+         sidebarWidth: sidebar?.width ?? -1,
+         editorWidth: editor?.width ?? -1,
+         rounded: surface ? parseFloat(getComputedStyle(surface).borderRadius) >= 12 : false,
+       };
      })()`,
   );
   await evaluate(
     `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true`,
   );
   await sleep(120);
-}
-checks.dockedSideTools = Object.values(checks.dockedSideToolsEvidence).every(
-  (value) => value === true,
-);
+
+  await evaluate(`document.getElementById('open-earnings')?.click(); true`);
+  await sleep(220);
+  const earnings = await evaluate(
+    `(() => {
+       const popup = document.querySelector('[data-popup-id="earnings"]');
+       const surface = popup?.querySelector('.popup-shell-surface');
+       const sidebar = document.getElementById('sidebar')?.getBoundingClientRect();
+       const editor = document.getElementById('editor-area')?.getBoundingClientRect();
+       return {
+         open: popup?.open === true,
+         sidebarWidth: sidebar?.width ?? -1,
+         editorWidth: editor?.width ?? -1,
+         rounded: surface ? parseFloat(getComputedStyle(surface).borderRadius) >= 12 : false,
+       };
+     })()`,
+  );
+  await evaluate(
+    `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true`,
+  );
+  await sleep(120);
+
+  return {
+    structureOpen: structure?.open === true,
+    earningsOpen: earnings?.open === true,
+    sidebarStable:
+      before?.sidebar.width === structure?.sidebarWidth &&
+      before?.sidebar.width === earnings?.sidebarWidth,
+    editorStable:
+      before?.editor.width === structure?.editorWidth &&
+      before?.editor.width === earnings?.editorWidth,
+    rounded: structure?.rounded === true && earnings?.rounded === true,
+  };
+})();
+checks.anchoredTools =
+  checks.anchoredToolsEvidence?.structureOpen === true &&
+  checks.anchoredToolsEvidence?.earningsOpen === true &&
+  checks.anchoredToolsEvidence?.sidebarStable === true &&
+  checks.anchoredToolsEvidence?.editorStable === true &&
+  checks.anchoredToolsEvidence?.rounded === true;
 
 checks.panelMaximizeEvidence = await (async () => {
   await evaluate("document.getElementById('terminal-new')?.click(); true");
@@ -415,12 +454,12 @@ checks.panelMaximize =
 
 if (process.env.ADCODE_SMOKE_WORKBENCH_PROBE === "1") {
   process.stdout.write(`  sidebarShell: ${JSON.stringify(checks.sidebarShellEvidence)}\n`);
-  process.stdout.write(`  dockedSideTools: ${JSON.stringify(checks.dockedSideToolsEvidence)}\n`);
+  process.stdout.write(`  anchoredTools: ${JSON.stringify(checks.anchoredToolsEvidence)}\n`);
   process.stdout.write(`  panelMaximize: ${JSON.stringify(checks.panelMaximizeEvidence)}\n`);
   socket.close();
   child.kill();
   await sleep(500);
-  process.exit(checks.sidebarShell && checks.dockedSideTools && checks.panelMaximize ? 0 : 1);
+  process.exit(checks.sidebarShell && checks.anchoredTools && checks.panelMaximize ? 0 : 1);
 }
 
 // Drive the source-control view the way a click would.
@@ -664,10 +703,10 @@ async function pressKey(key) {
   await sleep(120);
 }
 
-/** Open the docked Structure view on a tab, whatever state it was in. */
+/** Open the anchored Structure popup on a tab, whatever state it was in. */
 async function openStructure(tab) {
   const alreadyOpen = await evaluate(
-    `document.getElementById('view-structure')?.hidden === false && document.querySelector('.workbench')?.dataset.sidebarOpen === 'true'`,
+    `document.querySelector('[data-popup-id="structure"]')?.open === true`,
   );
   if (alreadyOpen !== true) {
     await pressChord("u", { shift: true });
@@ -688,8 +727,8 @@ async function openStructure(tab) {
 }
 
 async function closeStructure() {
-  const open = await evaluate(`document.getElementById('view-structure')?.hidden === false`);
-  if (open === true) await evaluate(`document.getElementById('sidebar-close')?.click(); true`);
+  const open = await evaluate(`document.querySelector('[data-popup-id="structure"]')?.open === true`);
+  if (open === true) await pressEscape();
   await sleep(300);
 }
 
@@ -3130,30 +3169,35 @@ try {
        button.click();
        await new Promise((r) => setTimeout(r, 400));
 
-       const popup = document.querySelector('.structure-popup');
-       const opened = popup !== null && document.getElementById('view-structure')?.hidden === false;
+       const popup = document.querySelector('[data-popup-id="structure"]');
+       const opened = popup?.open === true && popup.querySelector('.structure-popup') !== null;
        const announced = button.getAttribute('aria-expanded');
+       const sidebarBeforeClose = [...document.querySelectorAll('.activity[data-sidebar-view]')]
+         .find((activity) => ['explorer', 'search'].includes(activity.dataset.sidebarView)
+           && activity.getAttribute('aria-pressed') === 'true')?.dataset.sidebarView ?? null;
 
        // A second press closes it again, which is what a toggle has to do or the button
        // feels broken the moment anybody presses it twice.
        button.click();
        await new Promise((r) => setTimeout(r, 400));
-       const closed = document.querySelector('.workbench')?.dataset.sidebarOpen === 'false';
+       const closed = popup?.open === false;
 
        return {
          inTheActivityBar: button.closest('#activitybar') !== null,
          topmost,
          opened,
          closesOnSecondPress: closed,
-         participatesInSidebarSelection: button.dataset.sidebarView === 'structure',
+         leavesSidebarSelection: sidebarBeforeClose !== null &&
+           document.querySelector('.activity[data-sidebar-view="' + sidebarBeforeClose + '"]')
+             ?.getAttribute('aria-pressed') === 'true',
          announcesState: before === 'false' && announced === 'true'
            && button.getAttribute('aria-expanded') === 'false',
        };
     })()`,
   );
 
-  // The second Structure press intentionally collapses the selected sidebar. Re-open the
-  // Explorer explicitly before asking for coordinates inside its tree.
+  // Structure leaves the selected structural view alone. Select Explorer before asking for
+  // coordinates inside its tree.
   await openSidebar("explorer");
 
   /*
@@ -3204,7 +3248,7 @@ try {
   checks.structureReadsTheOpenFile = await evaluate(
     `(() => {
        const popup = document.querySelector('.structure-popup');
-       if (popup === null || document.getElementById('view-structure')?.hidden !== false) return 'the structure view did not open';
+       if (popup === null || popup.closest('[data-popup-id="structure"]')?.open !== true) return 'the structure view did not open';
 
        const rows = [...popup.querySelectorAll('.structure-row')];
        if (rows.length === 0) return 'no rows: ' + (view.textContent ?? '').slice(0, 120);
@@ -3383,7 +3427,7 @@ try {
   checks.projectMapExplainsTheFolders = await evaluate(
     `(() => {
        const popup = document.querySelector('.structure-popup');
-       if (popup === null || document.getElementById('view-structure')?.hidden !== false) return 'the structure view did not open';
+       if (popup === null || popup.closest('[data-popup-id="structure"]')?.open !== true) return 'the structure view did not open';
 
        const map = popup.querySelector('.projectmap');
        if (map === null || map.hidden) return 'the project tab did not show';
@@ -4228,7 +4272,7 @@ checks.earningsPopoverOpens = await evaluate(
      await new Promise((r) => setTimeout(r, 300));
 
      const card = document.querySelector('.earnings-card');
-     if (!card || document.getElementById('view-earnings')?.hidden !== false) return 'earnings view did not open';
+     if (!card || card.closest('[data-popup-id="earnings"]')?.open !== true) return 'earnings view did not open';
 
      const box = card.getBoundingClientRect();
      const centre = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
@@ -4260,13 +4304,13 @@ checks.earningsPopoverOpens = await evaluate(
        // Four presets, from the server's own table.
        presetRows: card.querySelectorAll('.earnings-preset').length,
        earningsSelected:
-         document.querySelector('.activity[data-sidebar-view="earnings"]')?.ariaSelected === 'true',
+         document.getElementById('open-earnings')?.getAttribute('aria-pressed') === 'true',
      };
 
-     // The shared close control dismisses the docked view and restores the editor width.
-     document.getElementById('sidebar-close')?.click();
+     // Reactivating the launcher dismisses the anchored popup and leaves the sidebar layout alone.
+     document.getElementById('open-earnings')?.click();
      await new Promise((r) => setTimeout(r, 250));
-     result.sharedCloseWorks = document.querySelector('.workbench')?.dataset.sidebarOpen === 'false';
+     result.launcherCloseWorks = document.querySelector('[data-popup-id="earnings"]')?.open === false;
 
      return result;
    })()`,
@@ -4292,7 +4336,7 @@ checks.earningsSettingsButtonWorks = await evaluate(
      await new Promise((r) => setTimeout(r, 300));
 
      const card = document.querySelector('.earnings-card');
-     if (!card || document.getElementById('view-earnings')?.hidden !== false) return 'the earnings view did not open';
+     if (!card || card.closest('[data-popup-id="earnings"]')?.open !== true) return 'the earnings view did not open';
 
      const button = [...card.querySelectorAll('button')].find(
        (b) => (b.textContent ?? '').trim() === 'Ad settings',

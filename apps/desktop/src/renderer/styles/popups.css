@@ -1,10 +1,8 @@
 /*
- * The Structure popup, the project map inside it, and the shortcuts dialog.
+ * The anchored Structure and Earnings content, the project map, and the shortcuts dialog.
  *
- * All three are `<dialog>` elements shown with `showModal`, which buys three behaviours
- * that would otherwise be hand-written and got wrong: the top layer (so nothing in the
- * workbench can paint over them - the bug the drawn menu bar taught this repository),
- * Escape, and a focus trap.
+ * Structure and Earnings are content-only sections inside the shared non-modal popup shell.
+ * The shortcuts dialog keeps its proven native modal lifecycle.
  *
  * They are sized in `min()` against the viewport rather than in fixed pixels. The window's
  * minimum is 680×420, and a 720px dialog in a 680px window is a dialog with its buttons off
@@ -13,7 +11,6 @@
 
 /* ── Shared frame ─────────────────────────────────────────────────────── */
 
-.structure-popup,
 .shortcuts-dialog {
   border: 0;
   padding: 0;
@@ -22,14 +19,12 @@
   margin: auto;
 }
 
-.structure-popup::backdrop,
 .shortcuts-dialog::backdrop {
   background: rgba(0, 0, 0, 0.32);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
 }
 
-.structure-popup-card,
 .shortcuts-card {
   display: flex;
   flex-direction: column;
@@ -45,21 +40,25 @@
   font-family: var(--font-ui);
 }
 
-/* Structure now lives inside the shared sidebar; only the shortcuts dialog keeps the
-   floating-card dimensions above. */
+/* The shell supplies the material, border, rounding and shadow. Structure supplies a
+   bounded flex layout whose body can scroll without moving the tabs or close button. */
 .structure-popup {
+  display: flex;
   width: 100%;
-  height: 100%;
-  margin: 0;
+  height: min(620px, calc(100vh - 32px));
+  max-height: inherit;
+  min-height: 0;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
 }
 
 .structure-popup-card {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ── Structure popup ──────────────────────────────────────────────────── */
@@ -113,6 +112,55 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+}
+
+/* Earnings keeps its data and refresh lifecycle, while the shell owns the floating card.
+   The header stays visible and the report body scrolls independently. */
+.earnings-card {
+  width: 100%;
+  height: min(620px, calc(100vh - 32px));
+  max-height: inherit;
+  min-height: 0;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  box-shadow: none;
+}
+
+.earnings-header {
+  flex: none;
+  padding: 12px 12px 11px 16px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.earnings-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px 16px;
+}
+
+@media (max-width: 619px) {
+  .popup-shell[data-popup-size="anchored"] .popup-shell-surface {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 12px;
+    width: auto;
+    max-height: min(72vh, 620px);
+    border-radius: 16px;
+  }
+
+  .structure-popup,
+  .earnings-card {
+    height: min(72vh, 620px);
+  }
 }
 
 /*

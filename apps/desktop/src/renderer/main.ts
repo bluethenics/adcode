@@ -10,8 +10,8 @@ import "./styles/settings.css";
 import "./styles/ai.css";
 import "./styles/panels.css";
 import "./styles/structure.css";
-import "./styles/popups.css";
 import "./styles/popupShell.css";
+import "./styles/popups.css";
 import "./styles/menubar.css";
 import "./styles/dialogs.css";
 import "./styles/help.css";
@@ -56,6 +56,12 @@ import {
   type SidebarViewId,
 } from "./workbench/workbenchLayout.ts";
 import { animateLayoutFlip, type LayoutInput } from "./workbench/motion.ts";
+import {
+  initialPopupLayer,
+  reducePopupLayer,
+  type PopupId,
+} from "./workbench/popupLayer.ts";
+import { createPopupShell, type PopupShell } from "./workbench/popupShell.ts";
 import { createQuickOpen, createSearchPanel } from "./panels/searchPanel.ts";
 import { createProblemsPanel } from "./panels/problemsPanel.ts";
 import { createBottomPanel, type PanelTabId } from "./panels/bottomPanel.ts";
@@ -1721,12 +1727,73 @@ function createPopupMount(id: string, host: HTMLElement): HTMLDivElement {
 
 const popupPrimaryHost = el("popup-primary-host");
 const popupMounts = {
-  structure: createPopupMount("view-structure", popupPrimaryHost),
   scm: createPopupMount("view-scm", popupPrimaryHost),
-  earnings: createPopupMount("view-earnings", popupPrimaryHost),
   features: createPopupMount("view-features", popupPrimaryHost),
   settings: createPopupMount("view-settings", popupPrimaryHost),
 };
+
+interface PopupContentLifecycle {
+  shown(): void;
+  hidden(): void;
+}
+
+interface RegisteredPrimaryPopup {
+  readonly shell: PopupShell;
+  readonly content: PopupContentLifecycle;
+}
+
+let popupLayerState = initialPopupLayer();
+const primaryPopups = new Map<PopupId, RegisteredPrimaryPopup>();
+
+function registerPrimaryPopup(
+  id: PopupId,
+  shell: PopupShell,
+  content: PopupContentLifecycle,
+): void {
+  primaryPopups.set(id, { shell, content });
+}
+
+function closePrimaryPopup(id: PopupId): void {
+  const popup = primaryPopups.get(id);
+  if (popup === undefined) return;
+
+  popup.shell.close();
+  popup.content.hidden();
+  popupLayerState = reducePopupLayer(popupLayerState, { type: "close", id });
+}
+
+function openPrimaryPopup(
+  id: PopupId,
+  shell: PopupShell,
+  trigger: HTMLElement,
+  input: LayoutInput,
+): void {
+  if (popupLayerState.primary === id && shell.isOpen()) {
+    shell.focus();
+    return;
+  }
+
+  if (popupLayerState.primary !== null) {
+    const previous = primaryPopups.get(popupLayerState.primary);
+    previous?.shell.close({ restoreFocus: false });
+    previous?.content.hidden();
+  }
+
+  popupLayerState = reducePopupLayer(popupLayerState, { type: "open-primary", id });
+  primaryPopups.get(id)?.content.shown();
+  shell.open({ trigger, anchor: trigger, input });
+}
+
+function togglePrimaryPopup(
+  id: PopupId,
+  shell: PopupShell,
+  trigger: HTMLElement,
+  input: LayoutInput,
+): void {
+  const next = reducePopupLayer(popupLayerState, { type: "toggle-primary", id });
+  if (next.primary === null) closePrimaryPopup(id);
+  else openPrimaryPopup(id, shell, trigger, input);
+}
 
 function layoutWorkbenchSurfaces(): void {
   // Grid transitions settle on the next frame. Measuring there avoids fitting xterm to the
@@ -1936,6 +2003,10 @@ for (const activity of document.querySelectorAll<HTMLButtonElement>(".activity")
 
   const sidebarView = activity.dataset["sidebarView"];
   if (sidebarView !== undefined && structuralViews.has(sidebarView)) {
+    // Structure and Earnings retain legacy sidebar metadata for markup/automation, but
+    // their dedicated listeners below open anchored shells. Routing them here as well
+    // would resize the sidebar before the popup opens (and make a click do two things).
+    if (activity.id === "open-structure" || activity.id === "open-earnings") continue;
     activity.addEventListener("click", () =>
       toggleSidebarView(sidebarView, "pointer", activity),
     );
@@ -1971,8 +2042,8 @@ const breadcrumbs = createBreadcrumbs({
   openFile: (path) => void openFile(path),
   openQuick: (seed) => quickOpen.open(seed),
   showStructure: () => {
-    showView("structure", "keyboard");
     structurePopup.open("file");
+    openPrimaryPopup("structure", structureShell, el("open-structure"), "keyboard");
   },
   goToLine: (line) => editorHost.revealLine(line),
   copyPath: (path) => void copyText(path, "Path copied"),
@@ -3086,15 +3157,31 @@ const projectMap = createProjectMap({
   list: (dirPath) => window.adcode.workspace.list(dirPath),
   open: (path) => {
     void openFile(path);
-    structurePopup.close();
+    closePrimaryPopup("structure");
   },
 });
 
-const structurePopup = createStructurePopup(popupMounts.structure, {
+const structurePopup = createStructurePopup({
   filePanel: structurePanel,
   projectMap,
-  requestClose: () => closeSidebar("pointer"),
+  onRequestClose: () => closePrimaryPopup("structure"),
 });
+
+const structureShell = createPopupShell({
+  id: "structure",
+  title: "Structure",
+  size: "anchored",
+  modal: false,
+  host: popupPrimaryHost,
+  content: structurePopup.element,
+  onRequestClose: () => closePrimaryPopup("structure"),
+});
+registerPrimaryPopup("structure", structureShell, structurePopup);
+
+const structureActivity = el<HTMLButtonElement>("open-structure");
+structureActivity.addEventListener("click", () =>
+  togglePrimaryPopup("structure", structureShell, structureActivity, "pointer"),
+);
 
 /**
  * The names of the files at the workspace root.
@@ -3652,10 +3739,25 @@ window.adcode.collab.onCommitRequest((request) => {
 });
 
 const earningsPopover = createEarningsPopover({
-  host: popupMounts.earnings,
-  requestClose: () => closeSidebar("pointer"),
+  onRequestClose: () => closePrimaryPopup("earnings"),
   openSettings: () => showView("settings", "pointer"),
 });
+
+const earningsShell = createPopupShell({
+  id: "earnings",
+  title: "Earnings",
+  size: "anchored",
+  modal: false,
+  host: popupPrimaryHost,
+  content: earningsPopover.element,
+  onRequestClose: () => closePrimaryPopup("earnings"),
+});
+registerPrimaryPopup("earnings", earningsShell, earningsPopover);
+
+const earningsActivity = el<HTMLButtonElement>("open-earnings");
+earningsActivity.addEventListener("click", () =>
+  togglePrimaryPopup("earnings", earningsShell, earningsActivity, "pointer"),
+);
 
 window.adcode.ads.onEarnings((earnings) => {
   // A cached mirror of a server value (§1). The renderer never computes money.
@@ -4008,12 +4110,12 @@ function registerCommands(): void {
   add("view.explorer", "Explorer", () => showView("explorer"));
   add("view.search", "Find in Files", () => showView("search"));
   add("view.structure", "Structure", () => {
-    showView("structure", "keyboard");
     structurePopup.open("file");
+    openPrimaryPopup("structure", structureShell, structureActivity, "keyboard");
   });
   add("view.projectMap", "Explain This Project", () => {
-    showView("structure", "keyboard");
     structurePopup.open("project");
+    openPrimaryPopup("structure", structureShell, structureActivity, "keyboard");
   });
   add("editor.insertTemplate", "Insert File Template", () => insertTemplate());
   add("view.scm", "Source Control", () => showView("scm"));
@@ -4021,7 +4123,9 @@ function registerCommands(): void {
   add("view.output", "Output", () => bottomPanel.show("output"));
   add("view.debugConsole", "Debug Console", () => bottomPanel.show("debug"));
   add("view.ports", "Ports", () => bottomPanel.show("ports"));
-  add("view.earnings", "Earnings", () => showView("earnings", "keyboard"));
+  add("view.earnings", "Earnings", () =>
+    openPrimaryPopup("earnings", earningsShell, earningsActivity, "keyboard"),
+  );
   add("collab.panel", "Live Session: Share or Join", () => collabPanel.toggle());
   add("collab.leave", "Live Session: Leave", () => void window.adcode.collab.leave());
   add("preview.toggle", "Toggle Live Preview", () => void previewPane.toggle());
