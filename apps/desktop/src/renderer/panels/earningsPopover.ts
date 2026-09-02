@@ -147,6 +147,9 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   title.className = "earnings-title";
   title.textContent = "Earnings";
 
+  const actions = document.createElement("div");
+  actions.className = "earnings-header-actions";
+
   /*
    * Refresh.
    *
@@ -156,7 +159,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
    * button reports what happened rather than silently returning: a refresh that changes nothing
    * looks identical to a refresh that never ran.
    */
-  const refreshButton = iconButton("Refresh earnings", ICON.reload, "earnings-close");
+  const refreshButton = iconButton("Refresh earnings", ICON.reload, "earnings-refresh");
   refreshButton.addEventListener("click", () => {
     void (async () => {
       if (refreshing) return;
@@ -186,7 +189,8 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   const closeButton = iconButton("Close earnings", ICON.close, "earnings-close");
   closeButton.addEventListener("click", deps.onRequestClose);
 
-  header.append(title, refreshButton, closeButton);
+  actions.append(refreshButton, closeButton);
+  header.append(title, actions);
 
   /* ── The hero figure ────────────────────────────────────────────────────── */
 

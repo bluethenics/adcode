@@ -4568,9 +4568,77 @@ checks.earningsPopoverOpens = await evaluate(
      await new Promise((r) => setTimeout(r, 250));
      result.launcherCloseWorks = document.querySelector('[data-popup-id="earnings"]')?.open === false;
 
-     return result;
+   return result;
+  })()`,
+);
+
+checks.earningsCloseButtonEvidence = await evaluate(
+  `(async () => {
+     document.getElementById('open-earnings')?.click();
+     await new Promise((r) => setTimeout(r, 300));
+
+     const card = document.querySelector('.earnings-card');
+     const popup = document.querySelector('[data-popup-id="earnings"]');
+     const surface = popup?.querySelector('.popup-shell-surface');
+     if (!card || popup?.open !== true) return 'earnings view did not open';
+
+     const close = card.querySelector('.earnings-close[aria-label="Close earnings"]');
+     const refresh = card.querySelector('.earnings-refresh[aria-label="Refresh earnings"]');
+     if (!(close instanceof HTMLElement)) return 'no dedicated earnings close button';
+     if (!(refresh instanceof HTMLElement)) return 'no separate earnings refresh button';
+
+     const cardBox = card.getBoundingClientRect();
+     const surfaceBox = surface?.getBoundingClientRect();
+     const closeBox = close.getBoundingClientRect();
+     close.focus();
+     const focused = document.activeElement === close;
+     close.click();
+     await new Promise((r) => setTimeout(r, 250));
+
+     return {
+       named: close.getAttribute('aria-label') === 'Close earnings',
+       separateClass: !close.classList.contains('earnings-refresh') &&
+         !refresh.classList.contains('earnings-close'),
+       nonzero: closeBox.width > 0 && closeBox.height > 0,
+       insideCard:
+         closeBox.left >= cardBox.left &&
+         closeBox.right <= cardBox.right &&
+         closeBox.top >= cardBox.top &&
+         closeBox.bottom <= cardBox.bottom,
+       insideSurface:
+         surfaceBox !== undefined &&
+         closeBox.left >= surfaceBox.left &&
+         closeBox.right <= surfaceBox.right &&
+         closeBox.top >= surfaceBox.top &&
+         closeBox.bottom <= surfaceBox.bottom,
+       insideViewport:
+         closeBox.left >= 0 &&
+         closeBox.top >= 0 &&
+         closeBox.right <= window.innerWidth &&
+         closeBox.bottom <= window.innerHeight,
+       focusable: focused,
+       dismissed: popup.open === false,
+       launcherFocused: document.activeElement?.id === 'open-earnings',
+       hitTarget: closeBox.width >= 24 && closeBox.height >= 24,
+       distinctTitles:
+         close.getAttribute('title') === 'Close earnings' &&
+         refresh.getAttribute('title') === 'Refresh earnings',
+     };
    })()`,
 );
+checks.earningsCloseButtonVisible =
+  typeof checks.earningsCloseButtonEvidence === "object" &&
+  checks.earningsCloseButtonEvidence.named === true &&
+  checks.earningsCloseButtonEvidence.separateClass === true &&
+  checks.earningsCloseButtonEvidence.nonzero === true &&
+  checks.earningsCloseButtonEvidence.insideCard === true &&
+  checks.earningsCloseButtonEvidence.insideSurface === true &&
+  checks.earningsCloseButtonEvidence.insideViewport === true &&
+  checks.earningsCloseButtonEvidence.focusable === true &&
+  checks.earningsCloseButtonEvidence.dismissed === true &&
+  checks.earningsCloseButtonEvidence.launcherFocused === true &&
+  checks.earningsCloseButtonEvidence.hitTarget === true &&
+  checks.earningsCloseButtonEvidence.distinctTitles === true;
 
 /*
  * The one button inside the earnings popover actually does something.
