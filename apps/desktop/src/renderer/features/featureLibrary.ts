@@ -84,6 +84,10 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
   const categoryRail = document.createElement("nav");
   categoryRail.className = "feature-library-categories";
   categoryRail.setAttribute("aria-label", "Feature categories");
+  const categoryButtons = new Map<
+    FeatureLibraryCategory,
+    HTMLButtonElement
+  >();
   const workspace = document.createElement("div");
   workspace.className = "feature-library-workspace";
   const workspaceHeader = document.createElement("div");
@@ -184,23 +188,26 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
   }
 
   function renderCategories(): void {
-    categoryRail.replaceChildren();
     for (const value of categories) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "feature-library-category";
-      button.dataset["category"] = value;
+      let button = categoryButtons.get(value);
+      if (button === undefined) {
+        button = document.createElement("button");
+        button.type = "button";
+        button.className = "feature-library-category";
+        button.dataset["category"] = value;
+        const label = document.createElement("span");
+        label.textContent = titleFor(value);
+        const count = document.createElement("span");
+        count.className = "feature-library-category-count";
+        count.textContent = String(
+          filterFeatureLibrary(records, { category: value, query: "" }).length,
+        );
+        button.append(label, count);
+        button.addEventListener("click", () => chooseCategory(value));
+        categoryButtons.set(value, button);
+        categoryRail.append(button);
+      }
       button.setAttribute("aria-pressed", String(value === category));
-      const label = document.createElement("span");
-      label.textContent = titleFor(value);
-      const count = document.createElement("span");
-      count.className = "feature-library-category-count";
-      count.textContent = String(
-        filterFeatureLibrary(records, { category: value, query: "" }).length,
-      );
-      button.append(label, count);
-      button.addEventListener("click", () => chooseCategory(value));
-      categoryRail.append(button);
     }
   }
 

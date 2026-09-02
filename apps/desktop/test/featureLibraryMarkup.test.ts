@@ -14,6 +14,10 @@ const LIBRARY = readFileSync(
   join(import.meta.dirname, "../src/renderer/features/featureLibrary.ts"),
   "utf8",
 );
+const SMOKE = readFileSync(
+  join(import.meta.dirname, "../../../scripts/smoke.mjs"),
+  "utf8",
+);
 const CSS_PATH = join(
   import.meta.dirname,
   "../src/renderer/styles/features.css",
@@ -76,6 +80,24 @@ describe("All Features renderer contract", () => {
     expect(LIBRARY).not.toContain("positionPopover");
     expect(LIBRARY).not.toContain('document.addEventListener("pointerdown"');
     expect(LIBRARY).not.toContain('document.addEventListener("keydown"');
+  });
+
+  it("keeps the activated category control in place while updating selection", () => {
+    // Replacing a focused category button makes keyboard activation drop focus to the page.
+    expect(LIBRARY).toContain("const categoryButtons = new Map");
+    expect(LIBRARY).not.toContain("categoryRail.replaceChildren()");
+  });
+
+  it("requires settings highlight and focus evidence before smoke passes", () => {
+    expect(SMOKE).toContain("rowFocused: document.activeElement === row");
+    expect(SMOKE).toContain(
+      "checks.featureLibraryActionEvidence.rowMarked === true",
+    );
+    expect(SMOKE).toContain(
+      "checks.featureLibraryActionEvidence.rowFocused === true",
+    );
+    expect(SMOKE).toContain("checks.helpGuideJumpEvidence.rowMarked === true");
+    expect(SMOKE).toContain("checks.helpGuideJumpEvidence.rowFocused === true");
   });
 
   it("uses semantic materials and removes motion when requested", () => {

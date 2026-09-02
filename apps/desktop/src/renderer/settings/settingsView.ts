@@ -187,6 +187,48 @@ function segmented(
   return group;
 }
 
+export interface SettingsTargetLifecycle {
+  shown(read: () => Promise<void>): void;
+  openAt(settingId: string): void;
+  hidden(): void;
+}
+
+export function createSettingsTargetLifecycle(deps: {
+  readonly render: () => void;
+  readonly reveal: (settingId: string) => void;
+}): SettingsTargetLifecycle {
+  let active = false;
+  let pendingTarget: string | null = null;
+  let readGeneration = 0;
+
+  const revealPendingTarget = (): void => {
+    if (pendingTarget !== null) deps.reveal(pendingTarget);
+  };
+
+  return {
+    shown(read): void {
+      active = true;
+      const generation = ++readGeneration;
+      deps.render();
+      void read().then(() => {
+        if (!active || generation !== readGeneration) return;
+        deps.render();
+        revealPendingTarget();
+      });
+    },
+    openAt(settingId): void {
+      pendingTarget = settingId;
+      deps.render();
+      revealPendingTarget();
+    },
+    hidden(): void {
+      active = false;
+      pendingTarget = null;
+      readGeneration += 1;
+    },
+  };
+}
+
 export function createSettingsView(deps: SettingsViewDeps): SettingsView {
   let values: Record<string, SettingValue> = {};
   let query = "";
@@ -469,6 +511,28 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
     }
   }
 
+  const targetLifecycle = createSettingsTargetLifecycle({
+    render: renderBody,
+    reveal(settingId): void {
+      const row = body.querySelector(
+        `[data-setting-id="${CSS.escape(settingId)}"]`,
+      );
+      if (!(row instanceof HTMLElement)) return;
+
+      row.scrollIntoView({
+        block: "center",
+        behavior:
+          document.documentElement.dataset["reducedMotion"] === "true"
+            ? "auto"
+            : "smooth",
+      });
+      row.dataset["highlight"] = "true";
+      row.tabIndex = -1;
+      row.focus({ preventScroll: true });
+      window.setTimeout(() => delete row.dataset["highlight"], 1600);
+    },
+  });
+
   const api: SettingsView = {
     element: sheet,
     shown(): void {
@@ -476,10 +540,8 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
       open = true;
 
       void showVersion();
-      renderBody();
-      void deps.read().then((next) => {
-        values = next;
-        renderBody();
+      targetLifecycle.shown(async () => {
+        values = await deps.read();
       });
 
       sheet.dataset["state"] = "open";
@@ -491,35 +553,12 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
       // jump that lands nowhere is worse than not offering one.
       query = "";
       search.value = "";
-
-      const reveal = (): void => {
-        renderBody();
-
-        const row = body.querySelector(
-          `[data-setting-id="${CSS.escape(settingId)}"]`,
-        );
-        if (!(row instanceof HTMLElement)) return;
-
-        row.scrollIntoView({
-          block: "center",
-          behavior:
-            document.documentElement.dataset["reducedMotion"] === "true"
-              ? "auto"
-              : "smooth",
-        });
-        row.dataset["highlight"] = "true";
-        row.tabIndex = -1;
-        row.focus({ preventScroll: true });
-        window.setTimeout(() => delete row.dataset["highlight"], 1600);
-      };
-
-      // The shell opens after `shown()` during a primary transition, so wait one task for the
-      // element to have a viewport before centring and focusing the highlighted row.
-      window.setTimeout(reveal, 0);
+      targetLifecycle.openAt(settingId);
     },
 
     hidden(): void {
       open = false;
+      targetLifecycle.hidden();
       popover.close();
       delete sheet.dataset["state"];
     },

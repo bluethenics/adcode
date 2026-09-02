@@ -1533,20 +1533,23 @@ if (featureLauncherPoint === null) {
          const library = document.querySelector('.feature-library');
          const settings = document.querySelector('.settings-sheet:not(.help-sheet)');
          const row = document.querySelector('[data-setting-id="adcode.ai.editPolicy"]');
-         return {
-           libraryClosed: library?.closest('dialog[data-popup-id="features"]')?.open === false,
-           settingsVisible: settings?.closest('dialog[data-popup-id="settings"]')?.open === true,
-           settingsAnimatedOpen: settings?.dataset.state === 'open',
-           rowExists: row !== null,
-           rowMarked: row?.dataset.highlight === 'true',
-         };
-       })()`,
+        return {
+          libraryClosed: library?.closest('dialog[data-popup-id="features"]')?.open === false,
+          settingsVisible: settings?.closest('dialog[data-popup-id="settings"]')?.open === true,
+          settingsAnimatedOpen: settings?.dataset.state === 'open',
+          rowExists: row !== null,
+          rowMarked: row?.dataset.highlight === 'true',
+          rowFocused: document.activeElement === row,
+        };
+      })()`,
     );
     checks.featureLibraryActionDispatch =
       typeof checks.featureLibraryActionEvidence === "object" &&
       checks.featureLibraryActionEvidence.libraryClosed === true &&
       checks.featureLibraryActionEvidence.settingsVisible === true &&
-      checks.featureLibraryActionEvidence.rowExists === true;
+      checks.featureLibraryActionEvidence.rowExists === true &&
+      checks.featureLibraryActionEvidence.rowMarked === true &&
+      checks.featureLibraryActionEvidence.rowFocused === true;
     await pressEscape();
   }
 }
@@ -5343,7 +5346,7 @@ checks.helpGuideJumpsToSetting = await (async () => {
   // delayed past the sheet transition, so this waits longer than a click normally would.
   await sleep(900);
 
-  return await evaluate(
+  checks.helpGuideJumpEvidence = await evaluate(
     `(() => {
        const guide = document.querySelector('.help-sheet');
        const settings = document.querySelector('.settings-sheet:not(.help-sheet)');
@@ -5353,8 +5356,18 @@ checks.helpGuideJumpsToSetting = await (async () => {
          settingsOpen: settings?.dataset.state === 'open',
          rowExists: row !== null,
          rowMarked: row?.dataset.highlight === 'true',
-       };
-     })()`,
+          rowFocused: document.activeElement === row,
+        };
+      })()`,
+  );
+
+  return (
+    typeof checks.helpGuideJumpEvidence === "object" &&
+    checks.helpGuideJumpEvidence.guideClosed === true &&
+    checks.helpGuideJumpEvidence.settingsOpen === true &&
+    checks.helpGuideJumpEvidence.rowExists === true &&
+    checks.helpGuideJumpEvidence.rowMarked === true &&
+    checks.helpGuideJumpEvidence.rowFocused === true
   );
 })();
 
