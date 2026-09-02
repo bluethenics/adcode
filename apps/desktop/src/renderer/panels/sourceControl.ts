@@ -137,15 +137,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   const syncLabel = document.createElement("span");
   syncLabel.className = "scm-sync";
 
-  const close = document.createElement("button");
-  close.type = "button";
-  close.className = "icon-button scm-close";
-  close.title = "Close (Esc)";
-  close.setAttribute("aria-label", "Close Source Control");
-  close.append(createIcon(ICON.close));
-  close.addEventListener("click", deps.onRequestClose);
-
-  header.append(branchButton, syncLabel, close);
+  header.append(branchButton, syncLabel);
 
   const actions = document.createElement("div");
   actions.className = "scm-actions";
@@ -512,6 +504,15 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   historyRegion.append(timeline, history.element);
   element.append(changesRegion, commitRegion, historyRegion);
 
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "icon-button scm-close";
+  close.title = "Close (Esc)";
+  close.setAttribute("aria-label", "Close Source Control");
+  close.append(createIcon(ICON.close));
+  close.addEventListener("click", deps.onRequestClose);
+  element.append(close);
+
   let activeFile: string | null = null;
   let timelineEnabled = true;
   let timelineGeneration = 0;
@@ -555,6 +556,12 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
     historyToggle.setAttribute("aria-expanded", String(historyExpanded));
     changesToggle.setAttribute("aria-pressed", String(changesExpanded));
     historyToggle.setAttribute("aria-pressed", String(historyExpanded));
+    const changesHidden = !changesExpanded || changesRegion.hidden;
+    const historyHidden = !historyExpanded || historyRegion.hidden;
+    changesRegion.inert = changesHidden;
+    historyRegion.inert = historyHidden;
+    changesRegion.setAttribute("aria-hidden", String(changesHidden));
+    historyRegion.setAttribute("aria-hidden", String(historyHidden));
   }
 
   changesToggle.addEventListener("click", () => {

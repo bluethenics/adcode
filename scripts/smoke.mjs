@@ -11,7 +11,7 @@
  * Run after `npm run build`:  node scripts/smoke.mjs
  */
 import { spawn } from "node:child_process";
-import { mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
+import { access, mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
@@ -40,9 +40,8 @@ const PORT = 9333;
 
 // A file that is committed, so the history and blame checks have something to find.
 const TRACKED_FILE = join(REPO, "package.json");
-const SCM_SMOKE_FILE = join(REPO, "adcode-smoke-scm.txt");
-
-await rm(SCM_SMOKE_FILE, { force: true }).catch(() => {});
+const SCM_SMOKE_NAME = `adcode-smoke-scm-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`;
+const SCM_SMOKE_FILE = join(REPO, SCM_SMOKE_NAME);
 
 // A throwaway userData directory, pre-seeded so §4's "Restore workspace" has something to
 // restore. That is also what gives the git checks a real repository to run against.
@@ -515,9 +514,13 @@ checks.scmShowsBranch = await evaluate("document.querySelector('.scm-branch')?.t
 checks.timelineRows = await evaluate("document.querySelectorAll('.timeline-row').length > 0");
 checks.scmRowsStillStageAndUnstage = await (async () => {
   try {
+  await access(SCM_SMOKE_FILE).then(
+    () => { throw new Error(`fixture unexpectedly exists: ${SCM_SMOKE_NAME}`); },
+    () => {},
+  );
   await evaluate(
     `(async () => {
-       await window.adcode.files.createFile(${JSON.stringify(REPO)}, 'adcode-smoke-scm.txt').catch(() => null);
+       await window.adcode.files.createFile(${JSON.stringify(REPO)}, ${JSON.stringify(SCM_SMOKE_NAME)});
        await window.adcode.files.write(${JSON.stringify(SCM_SMOKE_FILE)}, 'source control smoke\\n');
        return true;
      })()`,
@@ -528,7 +531,7 @@ checks.scmRowsStillStageAndUnstage = await (async () => {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const found = await evaluate(
       `(() => [...document.querySelectorAll('.scm-row')].some(
-        (entry) => entry.querySelector('.scm-path')?.textContent === 'adcode-smoke-scm.txt',
+        (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
       ))()`,
     );
     if (found === true) break;
@@ -538,17 +541,17 @@ checks.scmRowsStillStageAndUnstage = await (async () => {
   const before = await evaluate(
     `(() => {
        const row = [...document.querySelectorAll('.scm-row')].find(
-         (entry) => entry.querySelector('.scm-path')?.textContent === 'adcode-smoke-scm.txt',
+         (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
        );
        return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
      })()`,
   );
-  if (before !== "Stage adcode-smoke-scm.txt") return false;
+  if (before !== `Stage ${SCM_SMOKE_NAME}`) return false;
 
   await evaluate(
     `(() => {
        const row = [...document.querySelectorAll('.scm-row')].find(
-         (entry) => entry.querySelector('.scm-path')?.textContent === 'adcode-smoke-scm.txt',
+         (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
        );
        row?.querySelector('.scm-stage')?.click();
        return true;
@@ -564,12 +567,12 @@ checks.scmRowsStillStageAndUnstage = await (async () => {
        return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
      })()`,
   );
-  if (staged !== "Unstage adcode-smoke-scm.txt") return false;
+  if (staged !== `Unstage ${SCM_SMOKE_NAME}`) return false;
 
   await evaluate(
     `(() => {
        const row = [...document.querySelectorAll('.scm-row')].find(
-         (entry) => entry.querySelector('.scm-path')?.textContent === 'adcode-smoke-scm.txt',
+         (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
        );
        row?.querySelector('.scm-stage')?.click();
        return true;
@@ -580,17 +583,17 @@ checks.scmRowsStillStageAndUnstage = await (async () => {
   const unstaged = await evaluate(
     `(() => {
        const row = [...document.querySelectorAll('.scm-row')].find(
-         (entry) => entry.querySelector('.scm-path')?.textContent === 'adcode-smoke-scm.txt',
+         (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
        );
        return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
      })()`,
   );
 
-  return unstaged === "Stage adcode-smoke-scm.txt";
+  return unstaged === `Stage ${SCM_SMOKE_NAME}`;
   } finally {
     await evaluate(
       `(async () => {
-         await window.adcode.git.unstage(['adcode-smoke-scm.txt']).catch(() => null);
+         await window.adcode.git.unstage([${JSON.stringify(SCM_SMOKE_NAME)}]).catch(() => null);
          await window.adcode.files.delete(${JSON.stringify(SCM_SMOKE_FILE)}).catch(() => null);
          return true;
        })()`,
@@ -598,7 +601,7 @@ checks.scmRowsStillStageAndUnstage = await (async () => {
   }
 })();
 
-checks.commitFailureKeepsMessage = await (async () => {
+checks.messageLifecyclePersistence = await (async () => {
   const text = "Smoke keeps this message";
   await evaluate(
     `(() => {

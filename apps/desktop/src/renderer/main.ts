@@ -2867,7 +2867,10 @@ function openSourceControlWorkspace(
   openPrimaryPopup("source-control", sourceControlShell, sourceControlActivity, input);
 }
 
-sourceControlActivity.addEventListener("click", () => openSourceControlWorkspace("pointer"));
+sourceControlActivity.addEventListener("click", () => {
+  if (sourceControlShell.isOpen()) closePrimaryPopup("source-control");
+  else openSourceControlWorkspace("pointer");
+});
 
 /** Open a locally kept version of a file, read-only. §4's local file history. */
 async function openLocalVersion(path: string, id: string, savedAt: string): Promise<void> {

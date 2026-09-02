@@ -18,5 +18,7 @@ describe("Source Control workspace", () => {
     expect(source).toContain('close.className = "icon-button scm-close"');
     expect(source).toContain('close.setAttribute("aria-label", "Close Source Control")');
     expect(source).toContain("close.addEventListener(\"click\", deps.onRequestClose)");
+    expect(source).toContain("changesRegion.inert = changesHidden");
+    expect(source).toContain("historyRegion.inert = historyHidden");
   });
 });

@@ -63,7 +63,14 @@
 }
 
 .scm-close {
-  margin-inline-start: auto;
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 5;
+  width: 32px;
+  height: 32px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
 }
 
 .scm-close:focus-visible {
