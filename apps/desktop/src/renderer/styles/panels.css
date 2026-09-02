@@ -219,6 +219,11 @@
     display: inline-flex;
   }
 
+  /* Keep the History hit target clear of the dialog-level close control. */
+  .scm-drawer-actions {
+    padding-inline-end: 48px;
+  }
+
   .scm-panel[data-scm-state="repo"] .scm-history-region {
     position: absolute;
     inset: 12px 12px 12px auto;
@@ -253,6 +258,10 @@
 
   .scm-drawer-toggle:first-child {
     display: inline-flex;
+  }
+
+  .scm-drawer-actions {
+    padding-inline-end: 48px;
   }
 
   .scm-panel[data-scm-state="repo"] .scm-changes-region {

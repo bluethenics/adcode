@@ -523,6 +523,16 @@ checks.scmCloseButtonVisible = await evaluate(
        rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight;
    })()`,
 );
+checks.scmCloseAndDrawerControlsDoNotOverlap = await evaluate(
+  `(() => {
+     const popup = document.querySelector('[data-popup-id="source-control"]');
+     const close = popup?.querySelector('.scm-close')?.getBoundingClientRect();
+     const toggle = popup?.querySelector('.scm-drawer-toggle:not([hidden])')?.getBoundingClientRect();
+     if (close === undefined || toggle === undefined) return true;
+     return close.right <= toggle.left || toggle.right <= close.left ||
+       close.bottom <= toggle.top || toggle.bottom <= close.top;
+   })()`,
+);
 await evaluate(`document.querySelector('.activity[data-view="scm"]')?.click(); true`);
 for (let attempt = 0; attempt < 20; attempt += 1) {
   if (await evaluate(`document.querySelector('[data-popup-id="source-control"]')?.open === false`)) break;

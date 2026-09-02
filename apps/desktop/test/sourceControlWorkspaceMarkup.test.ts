@@ -5,6 +5,10 @@ const source = readFileSync(
   new URL("../src/renderer/panels/sourceControl.ts", import.meta.url),
   "utf8",
 );
+const styles = readFileSync(
+  new URL("../src/renderer/styles/panels.css", import.meta.url),
+  "utf8",
+);
 
 describe("Source Control workspace", () => {
   it("separates changes, commit, and history into stable regions", () => {
@@ -20,5 +24,7 @@ describe("Source Control workspace", () => {
     expect(source).toContain("close.addEventListener(\"click\", deps.onRequestClose)");
     expect(source).toContain("changesRegion.inert = changesHidden");
     expect(source).toContain("historyRegion.inert = historyHidden");
+    expect(source).toContain('if (outcome.ok) message.value = "";');
+    expect(styles).toMatch(/\.scm-drawer-actions\s*\{[\s\S]*padding-inline-end: 48px;/);
   });
 });
