@@ -40,6 +40,9 @@ const PORT = 9333;
 
 // A file that is committed, so the history and blame checks have something to find.
 const TRACKED_FILE = join(REPO, "package.json");
+const SCM_SMOKE_FILE = join(REPO, "adcode-smoke-scm.txt");
+
+await rm(SCM_SMOKE_FILE, { force: true }).catch(() => {});
 
 // A throwaway userData directory, pre-seeded so §4's "Restore workspace" has something to
 // restore. That is also what gives the git checks a real repository to run against.
@@ -488,14 +491,150 @@ if (process.env.ADCODE_SMOKE_WORKBENCH_PROBE === "1") {
   socket.close();
   child.kill();
   await sleep(500);
+  await rm(userData, { recursive: true, force: true }).catch(() => {});
   process.exit(checks.sidebarShell && checks.anchoredTools && checks.panelMaximize ? 0 : 1);
 }
 
-// Drive the source-control view the way a click would.
-await evaluate("document.querySelector('.activity[data-sidebar-view=\"scm\"]').click()");
-await sleep(1200);
+await openSourceControl();
+checks.scmWorkspaceShell = await evaluate(
+  `(() => {
+     const popup = document.querySelector('[data-popup-id="source-control"]');
+     return {
+       open: popup?.open === true,
+       titlebarVisible: (document.getElementById('titlebar')?.getBoundingClientRect().height ?? 0) > 20,
+       statusbarVisible: (document.getElementById('statusbar')?.getBoundingClientRect().height ?? 0) > 12,
+       launcherPressed: document.querySelector('.activity[data-view="scm"]')?.getAttribute('aria-pressed') === 'true',
+       regions:
+         popup?.querySelector('.scm-changes-region') !== null &&
+         popup?.querySelector('.scm-commit-region') !== null &&
+         popup?.querySelector('.scm-history-region') !== null,
+     };
+   })()`,
+);
 checks.scmShowsBranch = await evaluate("document.querySelector('.scm-branch')?.textContent");
 checks.timelineRows = await evaluate("document.querySelectorAll('.timeline-row').length > 0");
+checks.scmRowsStillStageAndUnstage = await (async () => {
+  await evaluate(
+    `(async () => {
+       await window.adcode.files.createFile(${JSON.stringify(REPO)}, 'adcode-smoke-scm.txt').catch(() => null);
+       await window.adcode.files.write(${JSON.stringify(SCM_SMOKE_FILE)}, 'source control smoke\\n');
+       return true;
+     })()`,
+  );
+  await pressEscape();
+  await openSourceControl();
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const found = await evaluate(
+      `(() => [...document.querySelectorAll('.scm-row')].some(
+        (entry) => entry.querySelector('.scm-path')?.textContent === 'adcode-smoke-scm.txt',
+      ))()`,
+    );
+    if (found === true) break;
+    await sleep(150);
+  }
+
+  const before = await evaluate(
+    `(() => {
+       const row = [...document.querySelectorAll('.scm-row')].find(
+         (entry) => entry.querySelector('.scm-path')?.textContent === 'adcode-smoke-scm.txt',
+       );
+       return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
+     })()`,
+  );
+  if (before !== "Stage adcode-smoke-scm.txt") return before;
+
+  await evaluate(
+    `(() => {
+       const row = [...document.querySelectorAll('.scm-row')].find(
+         (entry) => entry.querySelector('.scm-path')?.textContent === 'adcode-smoke-scm.txt',
+       );
+       row?.querySelector('.scm-stage')?.click();
+       return true;
+     })()`,
+  );
+  await sleep(900);
+
+  const staged = await evaluate(
+    `(() => {
+       const row = [...document.querySelectorAll('.scm-row')].find(
+         (entry) => entry.querySelector('.scm-path')?.textContent === 'adcode-smoke-scm.txt',
+       );
+       return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
+     })()`,
+  );
+  if (staged !== "Unstage adcode-smoke-scm.txt") return staged;
+
+  await evaluate(
+    `(() => {
+       const row = [...document.querySelectorAll('.scm-row')].find(
+         (entry) => entry.querySelector('.scm-path')?.textContent === 'adcode-smoke-scm.txt',
+       );
+       row?.querySelector('.scm-stage')?.click();
+       return true;
+     })()`,
+  );
+  await sleep(900);
+
+  const unstaged = await evaluate(
+    `(() => {
+       const row = [...document.querySelectorAll('.scm-row')].find(
+         (entry) => entry.querySelector('.scm-path')?.textContent === 'adcode-smoke-scm.txt',
+       );
+       return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
+     })()`,
+  );
+
+  return unstaged === "Stage adcode-smoke-scm.txt";
+})();
+
+checks.commitFailureKeepsMessage = await (async () => {
+  const text = "Smoke keeps this message";
+  await evaluate(
+    `(() => {
+       const field = document.querySelector('.scm-message');
+       if (!(field instanceof HTMLTextAreaElement)) return false;
+       field.value = ${JSON.stringify(text)};
+       field.dispatchEvent(new Event('input', { bubbles: true }));
+       return true;
+     })()`,
+  );
+
+  await evaluate(`document.querySelector('.scm-commit button[type="submit"]')?.click(); true`);
+  await sleep(700);
+
+  const kept = await evaluate(
+    `(() => {
+       const field = document.querySelector('.scm-message');
+       return field instanceof HTMLTextAreaElement ? field.value : null;
+     })()`,
+  );
+  await pressEscape();
+  return kept === text;
+})();
+
+checks.historyOpensInWorkspace = await (async () => {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const found = await evaluate(`document.querySelector('.history-head') !== null`);
+    if (found === true) break;
+    await sleep(150);
+  }
+  await evaluate(`document.querySelector('.history-head')?.click(); true`);
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const detail = await evaluate(
+      `document.querySelector('.scm-history-region .history-commit[data-open="true"] .history-detail') !== null`,
+    );
+    if (detail === true) return true;
+    await sleep(150);
+  }
+  return false;
+})();
+
+await pressEscape();
+checks.scmEscapeRestoresLauncher = await evaluate(
+  `document.querySelector('[data-popup-id="source-control"]')?.open === false &&
+    document.activeElement === document.querySelector('.activity[data-view="scm"]')`,
+);
 
 /*
  * The merge-conflict check, which is the whole reason this feature was unfindable.
@@ -512,7 +651,11 @@ checks.conflictsButtonExists = await evaluate(
 await evaluate(
   "[...document.querySelectorAll('.scm-actions .ghost-button')].find((b) => b.textContent === 'Check Conflicts')?.click()",
 );
-await sleep(900);
+for (let attempt = 0; attempt < 20; attempt += 1) {
+  const visible = await evaluate("document.querySelector('.scm-conflicts')?.hidden === false");
+  if (visible === true) break;
+  await sleep(150);
+}
 
 checks.conflictsAnswerShown = await evaluate(
   "document.querySelector('.scm-conflicts')?.hidden === false",
@@ -769,6 +912,24 @@ async function openSidebar(view) {
   if (visible !== true) {
     await evaluate(`document.querySelector('.activity[data-sidebar-view="${view}"]')?.click(); true`);
     await sleep(300);
+  }
+}
+
+async function openSourceControl() {
+  const open = await evaluate(`document.querySelector('[data-popup-id="source-control"]')?.open === true`);
+  if (open !== true) {
+    await evaluate(`document.querySelector('.activity[data-view="scm"]')?.click(); true`);
+  }
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const ready = await evaluate(
+      `(() => {
+         const popup = document.querySelector('[data-popup-id="source-control"]');
+         return popup?.open === true && (document.querySelector('.scm-branch')?.textContent ?? '').length > 0;
+       })()`,
+    );
+    if (ready === true) return;
+    await sleep(150);
   }
 }
 
@@ -5035,6 +5196,8 @@ await sleep(400);
 socket.close();
 child.kill();
 await sleep(500);
+await rm(SCM_SMOKE_FILE, { force: true }).catch(() => {});
+await rm(userData, { recursive: true, force: true }).catch(() => {});
 
 const bad = output
   .split(/\r?\n/)

@@ -1376,7 +1376,7 @@ async function commitFromTree(path: string, relative: string): Promise<void> {
     return;
   }
 
-  showView("scm");
+  openSourceControlWorkspace("keyboard", "editor");
   await sourceControl.refresh();
   sourceControl.focusCommitMessage();
   setStatus(`${baseName(path)} staged - write a message and commit`, 5000);
@@ -1727,7 +1727,6 @@ function createPopupMount(id: string, host: HTMLElement): HTMLDivElement {
 
 const popupPrimaryHost = el("popup-primary-host");
 const popupMounts = {
-  scm: createPopupMount("view-scm", popupPrimaryHost),
   features: createPopupMount("view-features", popupPrimaryHost),
   settings: createPopupMount("view-settings", popupPrimaryHost),
 };
@@ -2074,7 +2073,7 @@ const breadcrumbs = createBreadcrumbs({
   renamePath: (path) => void renameFromBreadcrumb(path),
   comparePath: (path) => {
     void openFile(path).then(() => {
-      showView("scm");
+      openSourceControlWorkspace("keyboard", "editor");
       sourceControl.setActiveFile(relativePath(path));
     });
   },
@@ -2835,6 +2834,40 @@ const sourceControl = createSourceControlPanel({
   absolutePath,
 });
 
+let sourceControlRestoreFocus: "launcher" | "editor" = "launcher";
+
+const sourceControlShell = createPopupShell({
+  id: "source-control",
+  title: "Source Control",
+  size: "workspace",
+  modal: true,
+  host: popupPrimaryHost,
+  content: sourceControl.element,
+  onRequestClose: () => closePrimaryPopup("source-control"),
+});
+
+registerPrimaryPopup("source-control", sourceControlShell, {
+  shown() {
+    void sourceControl.refresh();
+  },
+  hidden() {
+    if (sourceControlRestoreFocus === "editor") editorHost.focus();
+  },
+});
+
+const sourceControlActivity = document.querySelector<HTMLButtonElement>('.activity[data-view="scm"]');
+if (sourceControlActivity === null) throw new Error("missing element: source-control activity");
+
+function openSourceControlWorkspace(
+  input: LayoutInput,
+  restoreFocus: "launcher" | "editor" = input === "pointer" ? "launcher" : "editor",
+): void {
+  sourceControlRestoreFocus = restoreFocus;
+  openPrimaryPopup("source-control", sourceControlShell, sourceControlActivity, input);
+}
+
+sourceControlActivity.addEventListener("click", () => openSourceControlWorkspace("pointer"));
+
 /** Open a locally kept version of a file, read-only. §4's local file history. */
 async function openLocalVersion(path: string, id: string, savedAt: string): Promise<void> {
   const text = await window.adcode.history.read(path, id);
@@ -3305,7 +3338,6 @@ const previewPane = createPreviewPane({
   },
 });
 
-popupMounts.scm.append(sourceControl.element);
 el("view-search").append(searchPanel.element);
 
 /* ── The bottom panel's tabs ──────────────────────────────────────────── */
@@ -4141,7 +4173,7 @@ function registerCommands(): void {
     openPrimaryPopup("structure", structureShell, structureActivity, "keyboard");
   });
   add("editor.insertTemplate", "Insert File Template", () => insertTemplate());
-  add("view.scm", "Source Control", () => showView("scm"));
+  add("view.scm", "Source Control", () => openSourceControlWorkspace("keyboard"));
   add("view.problems", "Problems", () => bottomPanel.show("problems"));
   add("view.output", "Output", () => bottomPanel.show("output"));
   add("view.debugConsole", "Debug Console", () => bottomPanel.show("debug"));
@@ -4191,7 +4223,7 @@ function registerCommands(): void {
       return;
     }
 
-    showView("scm");
+    openSourceControlWorkspace("keyboard", "editor");
     await run();
   };
 
