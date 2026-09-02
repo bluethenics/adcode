@@ -1795,6 +1795,21 @@ function togglePrimaryPopup(
   else openPrimaryPopup(id, shell, trigger, input);
 }
 
+function isPrimaryLauncher(target: EventTarget | null): boolean {
+  return target instanceof Element &&
+    target.closest("#open-structure, #open-earnings") !== null;
+}
+
+// Anchored shell roots are pointer-transparent, so the coordinator owns outside dismissal
+// while the original pointer can continue to the launcher underneath. Launcher clicks are
+// deliberately excluded: their toggle handlers decide whether to close or replace the shell.
+document.addEventListener("pointerdown", (event) => {
+  if (popupLayerState.primary === null || isPrimaryLauncher(event.target)) return;
+  const active = primaryPopups.get(popupLayerState.primary);
+  if (active?.shell.surface.contains(event.target as Node)) return;
+  closePrimaryPopup(popupLayerState.primary);
+}, true);
+
 function layoutWorkbenchSurfaces(): void {
   // Grid transitions settle on the next frame. Measuring there avoids fitting xterm to the
   // old column count while the panel is already visibly at its new size.

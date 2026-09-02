@@ -361,20 +361,16 @@ checks.anchoredToolsEvidence = await (async () => {
        const editor = document.getElementById('editor-area')?.getBoundingClientRect();
        return {
          open: popup?.open === true,
+         structureOpen: document.querySelector('[data-popup-id="structure"]')?.open === true,
          sidebarWidth: sidebar?.width ?? -1,
          editorWidth: editor?.width ?? -1,
          rounded: surface ? parseFloat(getComputedStyle(surface).borderRadius) >= 12 : false,
        };
      })()`,
   );
-  await evaluate(
-    `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true`,
-  );
-  await sleep(120);
-
   await evaluate(`document.getElementById('open-earnings')?.click(); true`);
   await sleep(220);
-  const earnings = await evaluate(
+  const switchedToEarnings = await evaluate(
     `(() => {
        const popup = document.querySelector('[data-popup-id="earnings"]');
        const surface = popup?.querySelector('.popup-shell-surface');
@@ -382,27 +378,46 @@ checks.anchoredToolsEvidence = await (async () => {
        const editor = document.getElementById('editor-area')?.getBoundingClientRect();
        return {
          open: popup?.open === true,
+         structureOpen: document.querySelector('[data-popup-id="structure"]')?.open === true,
          sidebarWidth: sidebar?.width ?? -1,
          editorWidth: editor?.width ?? -1,
          rounded: surface ? parseFloat(getComputedStyle(surface).borderRadius) >= 12 : false,
        };
      })()`,
   );
+  await evaluate(`document.getElementById('open-structure')?.click(); true`);
+  await sleep(220);
+  const switchedToStructure = await evaluate(
+    `(() => ({
+       structureOpen: document.querySelector('[data-popup-id="structure"]')?.open === true,
+       earningsOpen: document.querySelector('[data-popup-id="earnings"]')?.open === true,
+     }))()`,
+  );
   await evaluate(
-    `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true`,
+    `document.getElementById('editor-area')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true`,
   );
   await sleep(120);
+  const outsideClosed = await evaluate(
+    `document.querySelector('[data-popup-id="structure"]')?.open === false &&
+      document.querySelector('[data-popup-id="earnings"]')?.open === false`,
+  );
 
   return {
     structureOpen: structure?.open === true,
-    earningsOpen: earnings?.open === true,
+    earningsOpen: switchedToEarnings?.open === true,
+    directSwitchToEarnings:
+      switchedToEarnings?.open === true &&
+      switchedToEarnings?.structureOpen === false,
+    directSwitchToStructure:
+      switchedToStructure?.structureOpen === true && switchedToStructure?.earningsOpen === false,
+    outsidePressCloses: outsideClosed === true,
     sidebarStable:
       before?.sidebar.width === structure?.sidebarWidth &&
-      before?.sidebar.width === earnings?.sidebarWidth,
+      before?.sidebar.width === switchedToEarnings?.sidebarWidth,
     editorStable:
       before?.editor.width === structure?.editorWidth &&
-      before?.editor.width === earnings?.editorWidth,
-    rounded: structure?.rounded === true && earnings?.rounded === true,
+      before?.editor.width === switchedToEarnings?.editorWidth,
+    rounded: structure?.rounded === true && switchedToEarnings?.rounded === true,
   };
 })();
 checks.anchoredTools =
@@ -410,7 +425,10 @@ checks.anchoredTools =
   checks.anchoredToolsEvidence?.earningsOpen === true &&
   checks.anchoredToolsEvidence?.sidebarStable === true &&
   checks.anchoredToolsEvidence?.editorStable === true &&
-  checks.anchoredToolsEvidence?.rounded === true;
+  checks.anchoredToolsEvidence?.rounded === true &&
+  checks.anchoredToolsEvidence?.directSwitchToEarnings === true &&
+  checks.anchoredToolsEvidence?.directSwitchToStructure === true &&
+  checks.anchoredToolsEvidence?.outsidePressCloses === true;
 
 checks.panelMaximizeEvidence = await (async () => {
   await evaluate("document.getElementById('terminal-new')?.click(); true");

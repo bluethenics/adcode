@@ -146,6 +146,16 @@
   padding: 14px 16px 16px;
 }
 
+/* Anchored shells are overlays, not viewport-sized hit targets. The coordinator handles
+   outside presses so clicks can still reach another launcher underneath the shell. */
+.popup-shell[data-popup-size="anchored"] {
+  pointer-events: none;
+}
+
+.popup-shell[data-popup-size="anchored"] .popup-shell-surface {
+  pointer-events: auto;
+}
+
 @media (max-width: 619px) {
   .popup-shell[data-popup-size="anchored"] .popup-shell-surface {
     left: 12px;
