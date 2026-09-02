@@ -70,12 +70,21 @@ await writeFile(
  * pointing at a menu entry that is not there is worse than no card. Forcing it here is the
  * only way to exercise the card without packaging and installing first.
  */
-const childEnv = { ...process.env, ELECTRON_ENABLE_LOGGING: "1", ADCODE_PIN_PROMPT: "1" };
+const childEnv = {
+  ...process.env,
+  ELECTRON_ENABLE_LOGGING: "1",
+  ADCODE_PIN_PROMPT: "1",
+};
 delete childEnv.ELECTRON_RUN_AS_NODE;
 
 const child = spawn(
   electronPath,
-  [...appArgs, "--enable-logging", `--remote-debugging-port=${PORT}`, `--user-data-dir=${userData}`],
+  [
+    ...appArgs,
+    "--enable-logging",
+    `--remote-debugging-port=${PORT}`,
+    `--user-data-dir=${userData}`,
+  ],
   {
     cwd: REPO,
     env: childEnv,
@@ -96,7 +105,9 @@ async function findTarget() {
     try {
       const response = await fetch(`http://127.0.0.1:${PORT}/json/list`);
       const targets = await response.json();
-      const page = targets.find((target) => target.type === "page" && target.webSocketDebuggerUrl);
+      const page = targets.find(
+        (target) => target.type === "page" && target.webSocketDebuggerUrl,
+      );
       if (page !== undefined) return page;
     } catch {
       // The port is not listening yet; that is the normal first second or two.
@@ -151,13 +162,21 @@ await sleep(4000);
 
 const checks = {
   title: await evaluate("document.title"),
-  activities: await evaluate("document.querySelectorAll('.activity[data-view]').length"),
-  monacoMounted: await evaluate("document.querySelectorAll('.monaco-editor').length > 0"),
+  activities: await evaluate(
+    "document.querySelectorAll('.activity[data-view]').length",
+  ),
+  monacoMounted: await evaluate(
+    "document.querySelectorAll('.monaco-editor').length > 0",
+  ),
 
   // §4 session restore: the folder and the editor came back without anyone clicking.
-  restoredWorkspace: await evaluate("document.getElementById('status-workspace').textContent"),
+  restoredWorkspace: await evaluate(
+    "document.getElementById('status-workspace').textContent",
+  ),
   restoredTab: await evaluate("document.querySelectorAll('.tab').length"),
-  treeHasRows: await evaluate("document.querySelectorAll('#filetree .tree-row').length > 5"),
+  treeHasRows: await evaluate(
+    "document.querySelectorAll('#filetree .tree-row').length > 5",
+  ),
 
   // §4 git: a real repository answers real questions.
   isRepo: await evaluate("window.adcode.git.status().then((s) => s.isRepo)"),
@@ -229,9 +248,13 @@ checks.onboardingIsSkippable = await (async () => {
 
   return {
     ...opened,
-    closes: (await evaluate("document.querySelector('dialog.onboarding')?.open === false")) === true,
+    closes:
+      (await evaluate(
+        "document.querySelector('dialog.onboarding')?.open === false",
+      )) === true,
     // Once dismissed it must stay dismissed, or every launch reopens it.
-    remembered: (await evaluate("window.adcode.onboarding.completed()")) === true,
+    remembered:
+      (await evaluate("window.adcode.onboarding.completed()")) === true,
   };
 })();
 
@@ -287,7 +310,8 @@ checks.pinPromptAsksToPin = await (async () => {
   return {
     ...drawn,
     stepsShownOnRequest: steps,
-    dismissed: (await evaluate("document.querySelector('.pin-card') === null")) === true,
+    dismissed:
+      (await evaluate("document.querySelector('.pin-card') === null")) === true,
   };
 })();
 
@@ -420,7 +444,8 @@ checks.anchoredToolsEvidence = await (async () => {
       switchedToEarnings?.open === true &&
       switchedToEarnings?.structureOpen === false,
     directSwitchToStructure:
-      switchedToStructure?.structureOpen === true && switchedToStructure?.earningsOpen === false,
+      switchedToStructure?.structureOpen === true &&
+      switchedToStructure?.earningsOpen === false,
     outsidePressCloses: outsideClosed === true,
     documentEscapeCloses: documentEscapeCloses === true,
     sidebarStable:
@@ -429,7 +454,8 @@ checks.anchoredToolsEvidence = await (async () => {
     editorStable:
       before?.editor.width === structure?.editorWidth &&
       before?.editor.width === switchedToEarnings?.editorWidth,
-    rounded: structure?.rounded === true && switchedToEarnings?.rounded === true,
+    rounded:
+      structure?.rounded === true && switchedToEarnings?.rounded === true,
   };
 })();
 checks.anchoredTools =
@@ -446,7 +472,9 @@ checks.anchoredTools =
 checks.panelMaximizeEvidence = await (async () => {
   await evaluate("document.getElementById('terminal-new')?.click(); true");
   await sleep(500);
-  const before = await evaluate("document.getElementById('panel')?.getBoundingClientRect().height ?? 0");
+  const before = await evaluate(
+    "document.getElementById('panel')?.getBoundingClientRect().height ?? 0",
+  );
   await evaluate("document.getElementById('panel-maximize')?.click(); true");
   await sleep(320);
   const maximized = await evaluate(
@@ -484,14 +512,22 @@ checks.panelMaximize =
   checks.panelMaximizeEvidence?.restored === true;
 
 if (process.env.ADCODE_SMOKE_WORKBENCH_PROBE === "1") {
-  process.stdout.write(`  sidebarShell: ${JSON.stringify(checks.sidebarShellEvidence)}\n`);
-  process.stdout.write(`  anchoredTools: ${JSON.stringify(checks.anchoredToolsEvidence)}\n`);
-  process.stdout.write(`  panelMaximize: ${JSON.stringify(checks.panelMaximizeEvidence)}\n`);
+  process.stdout.write(
+    `  sidebarShell: ${JSON.stringify(checks.sidebarShellEvidence)}\n`,
+  );
+  process.stdout.write(
+    `  anchoredTools: ${JSON.stringify(checks.anchoredToolsEvidence)}\n`,
+  );
+  process.stdout.write(
+    `  panelMaximize: ${JSON.stringify(checks.panelMaximizeEvidence)}\n`,
+  );
   socket.close();
   child.kill();
   await sleep(500);
   await rm(userData, { recursive: true, force: true }).catch(() => {});
-  process.exit(checks.sidebarShell && checks.anchoredTools && checks.panelMaximize ? 0 : 1);
+  process.exit(
+    checks.sidebarShell && checks.anchoredTools && checks.panelMaximize ? 0 : 1,
+  );
 }
 
 await openSourceControl();
@@ -533,109 +569,124 @@ checks.scmCloseAndDrawerControlsDoNotOverlap = await evaluate(
        close.bottom <= toggle.top || toggle.bottom <= close.top;
    })()`,
 );
-await evaluate(`document.querySelector('.activity[data-view="scm"]')?.click(); true`);
+await evaluate(
+  `document.querySelector('.activity[data-view="scm"]')?.click(); true`,
+);
 for (let attempt = 0; attempt < 20; attempt += 1) {
-  if (await evaluate(`document.querySelector('[data-popup-id="source-control"]')?.open === false`)) break;
+  if (
+    await evaluate(
+      `document.querySelector('[data-popup-id="source-control"]')?.open === false`,
+    )
+  )
+    break;
   await sleep(100);
 }
 checks.scmLauncherToggleCloses = await evaluate(
   `document.querySelector('[data-popup-id="source-control"]')?.open === false`,
 );
 await openSourceControl();
-checks.scmShowsBranch = await evaluate("document.querySelector('.scm-branch')?.textContent");
-checks.timelineRows = await evaluate("document.querySelectorAll('.timeline-row').length > 0");
+checks.scmShowsBranch = await evaluate(
+  "document.querySelector('.scm-branch')?.textContent",
+);
+checks.timelineRows = await evaluate(
+  "document.querySelectorAll('.timeline-row').length > 0",
+);
 checks.scmRowsStillStageAndUnstage = await (async () => {
   try {
-  await access(SCM_SMOKE_FILE).then(
-    () => { throw new Error(`fixture unexpectedly exists: ${SCM_SMOKE_NAME}`); },
-    () => {},
-  );
-  await evaluate(
-    `(async () => {
+    await access(SCM_SMOKE_FILE).then(
+      () => {
+        throw new Error(`fixture unexpectedly exists: ${SCM_SMOKE_NAME}`);
+      },
+      () => {},
+    );
+    await evaluate(
+      `(async () => {
        await window.adcode.files.createFile(${JSON.stringify(REPO)}, ${JSON.stringify(SCM_SMOKE_NAME)});
        await window.adcode.files.write(${JSON.stringify(SCM_SMOKE_FILE)}, 'source control smoke\\n');
        return true;
      })()`,
-  );
-  await pressEscape();
-  await openSourceControl();
+    );
+    await pressEscape();
+    await openSourceControl();
 
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const found = await evaluate(
-      `(() => [...document.querySelectorAll('.scm-row')].some(
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const found = await evaluate(
+        `(() => [...document.querySelectorAll('.scm-row')].some(
         (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
       ))()`,
-    );
-    if (found === true) break;
-    await sleep(150);
-  }
+      );
+      if (found === true) break;
+      await sleep(150);
+    }
 
-  const before = await evaluate(
-    `(() => {
+    const before = await evaluate(
+      `(() => {
        const row = [...document.querySelectorAll('.scm-row')].find(
          (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
        );
        return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
      })()`,
-  );
-  if (before !== `Stage ${SCM_SMOKE_NAME}`) return false;
+    );
+    if (before !== `Stage ${SCM_SMOKE_NAME}`) return false;
 
-  await evaluate(
-    `(() => {
+    await evaluate(
+      `(() => {
        const row = [...document.querySelectorAll('.scm-row')].find(
          (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
        );
        row?.querySelector('.scm-stage')?.click();
        return true;
      })()`,
-  );
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const ready = await evaluate(`(() => [...document.querySelectorAll('.scm-row')].some(
+    );
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const ready =
+        await evaluate(`(() => [...document.querySelectorAll('.scm-row')].some(
       (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)} &&
         entry.querySelector('.scm-stage')?.getAttribute('aria-label') === ${JSON.stringify(`Unstage ${SCM_SMOKE_NAME}`)},
     ))()`);
-    if (ready === true) break;
-    await sleep(150);
-  }
+      if (ready === true) break;
+      await sleep(150);
+    }
 
-  const staged = await evaluate(
-    `(() => {
+    const staged = await evaluate(
+      `(() => {
        const row = [...document.querySelectorAll('.scm-row')].find(
          (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
        );
        return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
      })()`,
-  );
-  if (staged !== `Unstage ${SCM_SMOKE_NAME}`) return false;
+    );
+    if (staged !== `Unstage ${SCM_SMOKE_NAME}`) return false;
 
-  await evaluate(
-    `(() => {
+    await evaluate(
+      `(() => {
        const row = [...document.querySelectorAll('.scm-row')].find(
          (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
        );
        row?.querySelector('.scm-stage')?.click();
        return true;
      })()`,
-  );
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const ready = await evaluate(`(() => [...document.querySelectorAll('.scm-row')].some(
+    );
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const ready =
+        await evaluate(`(() => [...document.querySelectorAll('.scm-row')].some(
       (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)} &&
         entry.querySelector('.scm-stage')?.getAttribute('aria-label') === ${JSON.stringify(`Stage ${SCM_SMOKE_NAME}`)},
     ))()`);
-    if (ready === true) break;
-    await sleep(150);
-  }
+      if (ready === true) break;
+      await sleep(150);
+    }
 
-  const unstaged = await evaluate(
-    `(() => {
+    const unstaged = await evaluate(
+      `(() => {
        const row = [...document.querySelectorAll('.scm-row')].find(
          (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
        );
        return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
      })()`,
-  );
+    );
 
-  return unstaged === `Stage ${SCM_SMOKE_NAME}`;
+    return unstaged === `Stage ${SCM_SMOKE_NAME}`;
   } finally {
     await evaluate(
       `(async () => {
@@ -677,11 +728,15 @@ checks.messageLifecyclePersistence = await (async () => {
 checks.historyOpensInWorkspace = await (async () => {
   await openSourceControl();
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const found = await evaluate(`document.querySelector('.scm-history-region .history-head') !== null`);
+    const found = await evaluate(
+      `document.querySelector('.scm-history-region .history-head') !== null`,
+    );
     if (found === true) break;
     await sleep(150);
   }
-  await evaluate(`document.querySelector('.scm-history-region .history-head')?.click(); true`);
+  await evaluate(
+    `document.querySelector('.scm-history-region .history-head')?.click(); true`,
+  );
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const detail = await evaluate(
       `document.querySelector('.scm-history-region .history-commit[data-open="true"] .history-detail') !== null`,
@@ -715,7 +770,9 @@ await evaluate(
   "[...document.querySelectorAll('.scm-actions .ghost-button')].find((b) => b.textContent === 'Check Conflicts')?.click()",
 );
 for (let attempt = 0; attempt < 20; attempt += 1) {
-  const visible = await evaluate("document.querySelector('.scm-conflicts')?.hidden === false");
+  const visible = await evaluate(
+    "document.querySelector('.scm-conflicts')?.hidden === false",
+  );
   if (visible === true) break;
   await sleep(150);
 }
@@ -738,7 +795,6 @@ checks.localHistoryBridge = await evaluate(
 checks.updateStatusBridge = await evaluate(
   "window.adcode.updates.status().then((s) => typeof s.state === 'string')",
 );
-
 
 // Quick open, opened by keyboard rather than by calling into its module directly.
 await evaluate(
@@ -799,7 +855,9 @@ checks.terminalStarts = await evaluate(
 
 // §3's workbench chrome: the menu bar, the palette, and the terminal panel are all ours,
 // so all three are driven here rather than assumed.
-checks.menuBarPresent = await evaluate("document.querySelectorAll('.menubar-item').length");
+checks.menuBarPresent = await evaluate(
+  "document.querySelectorAll('.menubar-item').length",
+);
 
 /**
  * A click at real page coordinates, routed through the renderer's own hit testing.
@@ -810,8 +868,22 @@ checks.menuBarPresent = await evaluate("document.querySelectorAll('.menubar-item
  * menu bar was completely dead to a mouse.
  */
 async function clickAt(x, y) {
-  await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1, buttons: 1 });
-  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1, buttons: 0 });
+  await send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x,
+    y,
+    button: "left",
+    clickCount: 1,
+    buttons: 1,
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x,
+    y,
+    button: "left",
+    clickCount: 1,
+    buttons: 0,
+  });
   await sleep(250);
 }
 
@@ -822,11 +894,30 @@ async function clickAt(x, y) {
  * repository. A fixed sleep passed on a warm run and failed on a cold one.
  */
 async function rightClickAt(x, y) {
-  await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "right", clickCount: 1, buttons: 2 });
-  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "right", clickCount: 1, buttons: 0 });
+  await send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x,
+    y,
+    button: "right",
+    clickCount: 1,
+    buttons: 2,
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x,
+    y,
+    button: "right",
+    clickCount: 1,
+    buttons: 0,
+  });
 
   for (let attempt = 0; attempt < 40; attempt++) {
-    if (await evaluate("document.querySelector('.menu-panel[data-context] .menu-item') !== null")) return true;
+    if (
+      await evaluate(
+        "document.querySelector('.menu-panel[data-context] .menu-item') !== null",
+      )
+    )
+      return true;
     await sleep(100);
   }
   return false;
@@ -865,13 +956,24 @@ async function typeText(text) {
     );
   }
 
-  for (const character of text) await send("Input.dispatchKeyEvent", { type: "char", text: character });
+  for (const character of text)
+    await send("Input.dispatchKeyEvent", { type: "char", text: character });
   await sleep(120);
 }
 
 async function pressEnter() {
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Enter",
+    code: "Enter",
+    windowsVirtualKeyCode: 13,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Enter",
+    code: "Enter",
+    windowsVirtualKeyCode: 13,
+  });
   await sleep(500);
 }
 
@@ -896,10 +998,14 @@ async function pressEnterInEditor() {
     text: "\r",
     unmodifiedText: "\r",
   });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Enter",
+    code: "Enter",
+    windowsVirtualKeyCode: 13,
+  });
   await sleep(350);
 }
-
 
 /**
  * A real modifier chord, through the same path a user's keyboard takes.
@@ -913,14 +1019,36 @@ async function pressChord(key, { shift = false, alt = false } = {}) {
   const code = `Key${key.toUpperCase()}`;
   const virtualKey = key.toUpperCase().charCodeAt(0);
 
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode: virtualKey, modifiers });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: virtualKey, modifiers });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key,
+    code,
+    windowsVirtualKeyCode: virtualKey,
+    modifiers,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key,
+    code,
+    windowsVirtualKeyCode: virtualKey,
+    modifiers,
+  });
   await sleep(400);
 }
 
 async function pressEscape() {
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+  });
   await sleep(350);
 }
 
@@ -930,12 +1058,29 @@ async function pressEscape() {
  * `pressChord` cannot do these: it holds Ctrl and builds a `KeyX` code, which is right for
  * `Ctrl+A` and meaningless for Home.
  */
-const PLAIN_KEYS = { Home: 36, End: 35, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40 };
+const PLAIN_KEYS = {
+  Home: 36,
+  End: 35,
+  ArrowLeft: 37,
+  ArrowUp: 38,
+  ArrowRight: 39,
+  ArrowDown: 40,
+};
 
 async function pressKey(key) {
   const virtualKey = PLAIN_KEYS[key];
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key, code: key, windowsVirtualKeyCode: virtualKey });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key, code: key, windowsVirtualKeyCode: virtualKey });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key,
+    code: key,
+    windowsVirtualKeyCode: virtualKey,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key,
+    code: key,
+    windowsVirtualKeyCode: virtualKey,
+  });
   await sleep(120);
 }
 
@@ -963,7 +1108,9 @@ async function openStructure(tab) {
 }
 
 async function closeStructure() {
-  const open = await evaluate(`document.querySelector('[data-popup-id="structure"]')?.open === true`);
+  const open = await evaluate(
+    `document.querySelector('[data-popup-id="structure"]')?.open === true`,
+  );
   if (open === true) await pressEscape();
   await sleep(300);
 }
@@ -974,15 +1121,21 @@ async function openSidebar(view) {
     `document.querySelector('.workbench')?.dataset.sidebarOpen === 'true' && document.querySelector('.activity[data-sidebar-view="${view}"]')?.getAttribute('aria-pressed') === 'true'`,
   );
   if (visible !== true) {
-    await evaluate(`document.querySelector('.activity[data-sidebar-view="${view}"]')?.click(); true`);
+    await evaluate(
+      `document.querySelector('.activity[data-sidebar-view="${view}"]')?.click(); true`,
+    );
     await sleep(300);
   }
 }
 
 async function openSourceControl() {
-  const open = await evaluate(`document.querySelector('[data-popup-id="source-control"]')?.open === true`);
+  const open = await evaluate(
+    `document.querySelector('[data-popup-id="source-control"]')?.open === true`,
+  );
   if (open !== true) {
-    await evaluate(`document.querySelector('.activity[data-view="scm"]')?.click(); true`);
+    await evaluate(
+      `document.querySelector('.activity[data-view="scm"]')?.click(); true`,
+    );
   }
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -1026,7 +1179,8 @@ async function chooseMenu(topLabel, itemLabel) {
      })()`,
   );
 
-  if (chosen !== true) throw new Error(`${topLabel} > ${itemLabel}: ${String(chosen)}`);
+  if (chosen !== true)
+    throw new Error(`${topLabel} > ${itemLabel}: ${String(chosen)}`);
 
   await sleep(500);
 }
@@ -1133,7 +1287,9 @@ if (filePoint === null) {
     );
   })();
 
-  await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
+  await evaluate(
+    "document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true",
+  );
 }
 
 /*
@@ -1144,13 +1300,23 @@ if (filePoint === null) {
  * and this listener has to run in the capture phase to be ahead of it.
  */
 checks.altLetterOpensMenu = await (async () => {
-  await evaluate("document.querySelector('.monaco-editor textarea')?.focus(); true");
+  await evaluate(
+    "document.querySelector('.monaco-editor textarea')?.focus(); true",
+  );
 
   await send("Input.dispatchKeyEvent", {
-    type: "rawKeyDown", key: "g", code: "KeyG", windowsVirtualKeyCode: 71, modifiers: 1,
+    type: "rawKeyDown",
+    key: "g",
+    code: "KeyG",
+    windowsVirtualKeyCode: 71,
+    modifiers: 1,
   });
   await send("Input.dispatchKeyEvent", {
-    type: "keyUp", key: "g", code: "KeyG", windowsVirtualKeyCode: 71, modifiers: 1,
+    type: "keyUp",
+    key: "g",
+    code: "KeyG",
+    windowsVirtualKeyCode: 71,
+    modifiers: 1,
   });
   await sleep(250);
 
@@ -1164,7 +1330,9 @@ checks.altLetterOpensMenu = await (async () => {
      })()`,
   );
 
-  await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
+  await evaluate(
+    "document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true",
+  );
   return opened;
 })();
 
@@ -1261,22 +1429,26 @@ if (featureLauncherPoint === null) {
     `(() => {
        const button = document.querySelector('#open-features');
        const sheet = document.querySelector('.feature-library');
-       const host = document.getElementById('view-features');
-       if (!button || !sheet || host?.hidden !== false) return false;
-       const anchor = button.getBoundingClientRect();
+       const dialog = sheet?.closest('dialog[data-popup-id="features"]');
+       const surface = dialog?.querySelector('.popup-shell-surface');
+       const close = sheet?.querySelector('.feature-library-close[aria-label="Close All Features"]');
+       if (!button || !sheet || !dialog?.open || !surface || !close) return false;
        const box = sheet.getBoundingClientRect();
-       const overlaps =
-         anchor.left < box.right && anchor.right > box.left &&
-         anchor.top < box.bottom && anchor.bottom > box.top;
+       const categories = sheet.querySelector('.feature-library-categories');
+       const results = sheet.querySelector('.feature-library-results');
+       const categoriesBox = categories?.getBoundingClientRect();
+       const resultsBox = results?.getBoundingClientRect();
+       const closeBox = close.getBoundingClientRect();
+       const surfaceBox = surface.getBoundingClientRect();
        return {
          belowEarnings: button.previousElementSibling?.id === 'open-earnings',
          expanded: button.getAttribute('aria-expanded') === 'true',
          open: sheet.dataset.state === 'open',
-         docked: host.contains(sheet) && getComputedStyle(sheet).position !== 'fixed',
+         shellOwned: dialog.contains(sheet),
          margin: box.left >= 48 && box.top >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight,
-         box: { left: box.left, top: box.top, right: box.right, bottom: box.bottom },
-         viewport: { width: window.innerWidth, height: window.innerHeight },
-         launcherClear: !overlaps,
+         twoPanes: categoriesBox && resultsBox && categoriesBox.width > 0 && resultsBox.width > 0 && categoriesBox.right <= resultsBox.left,
+         closeNamed: close.getAttribute('title') === 'Close All Features',
+         closeVisible: closeBox.width >= 24 && closeBox.height >= 24 && closeBox.left >= surfaceBox.left && closeBox.right <= surfaceBox.right && closeBox.top >= surfaceBox.top && closeBox.bottom <= surfaceBox.bottom && closeBox.right <= window.innerWidth && closeBox.bottom <= window.innerHeight,
          sidebarStable: Math.round(document.getElementById('sidebar').getBoundingClientRect().width) === ${String(featureLauncherPoint.sidebarWidth)},
          panelStable: Math.round(document.getElementById('panel').getBoundingClientRect().height) === ${String(featureLauncherPoint.panelHeight)},
        };
@@ -1284,8 +1456,18 @@ if (featureLauncherPoint === null) {
   );
   checks.featureLibraryPlacement =
     typeof checks.featureLibraryPlacementEvidence === "object" &&
-    ["belowEarnings", "expanded", "open", "docked", "margin", "launcherClear", "sidebarStable", "panelStable"]
-      .every((key) => checks.featureLibraryPlacementEvidence[key] === true);
+    [
+      "belowEarnings",
+      "expanded",
+      "open",
+      "shellOwned",
+      "margin",
+      "twoPanes",
+      "closeNamed",
+      "closeVisible",
+      "sidebarStable",
+      "panelStable",
+    ].every((key) => checks.featureLibraryPlacementEvidence[key] === true);
 
   checks.featureLibrarySearch = await evaluate(
     `(() => {
@@ -1352,8 +1534,8 @@ if (featureLauncherPoint === null) {
          const settings = document.querySelector('.settings-sheet:not(.help-sheet)');
          const row = document.querySelector('[data-setting-id="adcode.ai.editPolicy"]');
          return {
-           libraryClosed: document.getElementById('view-features')?.hidden === true,
-           settingsVisible: document.getElementById('view-settings')?.hidden === false,
+           libraryClosed: library?.closest('dialog[data-popup-id="features"]')?.open === false,
+           settingsVisible: settings?.closest('dialog[data-popup-id="settings"]')?.open === true,
            settingsAnimatedOpen: settings?.dataset.state === 'open',
            rowExists: row !== null,
            rowMarked: row?.dataset.highlight === 'true',
@@ -1371,7 +1553,7 @@ if (featureLauncherPoint === null) {
 
 for (let attempt = 0; attempt < 10; attempt += 1) {
   const settingsVisible = await evaluate(
-    `document.getElementById('view-settings')?.hidden === false`,
+    `document.querySelector('dialog[data-popup-id="settings"]')?.open === true`,
   );
   if (settingsVisible !== true) break;
   await pressEscape();
@@ -1382,7 +1564,7 @@ checks.featureLibraryMenuEvidence = await evaluate(
   `(() => {
      const library = document.querySelector('.feature-library');
      return {
-       visible: document.getElementById('view-features')?.hidden === false,
+       visible: library?.closest('dialog[data-popup-id="features"]')?.open === true,
        state: library?.dataset.state ?? null,
        expanded: document.querySelector('#open-features')?.getAttribute('aria-expanded'),
      };
@@ -1393,6 +1575,9 @@ checks.featureLibraryFromViewMenu =
   checks.featureLibraryMenuEvidence?.state === "open" &&
   checks.featureLibraryMenuEvidence?.expanded === "true";
 await pressEscape();
+checks.featureLibraryEscapeRestoresLauncher = await evaluate(
+  `document.querySelector('dialog[data-popup-id="features"]')?.open === false && document.activeElement === document.querySelector('#open-features')`,
+);
 
 const commandCentrePoint = await evaluate(
   `(() => {
@@ -1433,7 +1618,10 @@ if (commandCentrePoint !== null) {
   }
 }
 
-checks.universalSearchEvidence = { baseGroups: baseUniversalGroups, symbols: symbolUniversalGroup };
+checks.universalSearchEvidence = {
+  baseGroups: baseUniversalGroups,
+  symbols: symbolUniversalGroup,
+};
 checks.universalSearchSources =
   Array.isArray(baseUniversalGroups) &&
   ["Features", "Commands", "Files", "Recent folders"].every((name) =>
@@ -1457,42 +1645,45 @@ const editorFocusPoint = await evaluate(
      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
    })()`,
 );
-if (editorFocusPoint !== null) await clickAt(editorFocusPoint.x, editorFocusPoint.y);
+if (editorFocusPoint !== null)
+  await clickAt(editorFocusPoint.x, editorFocusPoint.y);
 checks.discoveryCloseRestoresEditor = await evaluate(
   `document.querySelector('.universal-search-overlay')?.hidden === true &&
-   document.getElementById('view-features')?.hidden === true &&
+   document.querySelector('dialog[data-popup-id="features"]')?.open === false &&
    document.activeElement?.closest('.monaco-editor') !== null`,
 );
 
 const focusedSearchEvidence = {};
 await pressChord("p");
 focusedSearchEvidence.quickOpen = await evaluate(
-    `document.querySelector('.quickopen-input[aria-label="Go to file"]')?.closest('.quickopen')?.hidden === false`,
-  );
+  `document.querySelector('.quickopen-input[aria-label="Go to file"]')?.closest('.quickopen')?.hidden === false`,
+);
 await pressEscape();
 
 await pressChord("p", { shift: true });
 focusedSearchEvidence.palette = await evaluate(
-    `document.querySelector('.quickopen-input[aria-label="Command palette"]')?.closest('.quickopen')?.hidden === false`,
-  );
+  `document.querySelector('.quickopen-input[aria-label="Command palette"]')?.closest('.quickopen')?.hidden === false`,
+);
 await pressEscape();
 
 await chooseMenu("Go", "Go to Symbol…");
 focusedSearchEvidence.symbols = await evaluate(
-    `document.querySelector('.quickopen-input[aria-label="Go to symbol in project"]')?.closest('.quickopen')?.hidden === false`,
-  );
+  `document.querySelector('.quickopen-input[aria-label="Go to symbol in project"]')?.closest('.quickopen')?.hidden === false`,
+);
 await pressEscape();
 
 await pressChord("f", { shift: true });
 focusedSearchEvidence.content = await evaluate(
-    `(() => {
+  `(() => {
        const input = document.querySelector('input[aria-label="Search the workspace"]');
        const view = document.getElementById('view-search');
        return input !== null && view?.hidden === false;
      })()`,
-  );
+);
 checks.focusedSearchEvidence = focusedSearchEvidence;
-checks.focusedSearchShortcuts = Object.values(focusedSearchEvidence).every((value) => value === true);
+checks.focusedSearchShortcuts = Object.values(focusedSearchEvidence).every(
+  (value) => value === true,
+);
 await openSidebar("explorer");
 await sleep(300);
 
@@ -1568,12 +1759,16 @@ if (process.argv.includes("--visual-only")) {
   );
   await pressEscape();
 
-  const viewportBeforeZoom = await evaluate(`({ width: innerWidth, height: innerHeight })`);
+  const viewportBeforeZoom = await evaluate(
+    `({ width: innerWidth, height: innerHeight })`,
+  );
   for (let step = 0; step < 8; step += 1) {
     await evaluate(`window.adcode.window.zoom(1); true`);
     await sleep(80);
   }
-  const viewportAtZoom = await evaluate(`({ width: innerWidth, height: innerHeight })`);
+  const viewportAtZoom = await evaluate(
+    `({ width: innerWidth, height: innerHeight })`,
+  );
   await evaluate(`document.querySelector('#open-features')?.click(); true`);
   await sleep(300);
   visual.zoom = await evaluate(
@@ -1651,7 +1846,9 @@ if (process.argv.includes("--visual-only")) {
   child.kill();
   await sleep(500);
   await rm(userData, { recursive: true, force: true }).catch(() => {});
-  process.stdout.write(`${JSON.stringify({ visual, screenshotPaths }, null, 2)}\n`);
+  process.stdout.write(
+    `${JSON.stringify({ visual, screenshotPaths }, null, 2)}\n`,
+  );
 
   const visualPassed =
     visual.lightComfortable?.theme === "light" &&
@@ -1686,7 +1883,9 @@ if (process.argv.includes("--discovery-only")) {
     ),
   );
   process.stdout.write(`${JSON.stringify(discovery, null, 2)}\n`);
-  const failedDiscovery = Object.entries(discovery).filter(([, value]) => value === false);
+  const failedDiscovery = Object.entries(discovery).filter(
+    ([, value]) => value === false,
+  );
   process.exit(failedDiscovery.length === 0 ? 0 : 1);
 }
 
@@ -1817,7 +2016,9 @@ checks.terminalProfileLauncher = await (async () => {
 
   if (shells === null || shells.length === 0) return "launcher did not open";
 
-  const before = await evaluate("document.querySelectorAll('.terminal-tab').length");
+  const before = await evaluate(
+    "document.querySelectorAll('.terminal-tab').length",
+  );
   const point = await contextItemPoint(shells[0]);
   await clickAt(point.x, point.y);
   await sleep(2500);
@@ -1831,12 +2032,17 @@ checks.terminalProfileLauncher = await (async () => {
   );
 
   const { count, titles } = JSON.parse(after);
-  if (count <= before) return `picking ${shells[0]} started nothing (${before} -> ${count})`;
+  if (count <= before)
+    return `picking ${shells[0]} started nothing (${before} -> ${count})`;
 
   // "Terminal 1" was the old numbered title; a tab still called that means the shell's
   // name never reached the strip.
-  const named = titles.some((t) => typeof t === "string" && t.includes(shells[0]));
-  return named ? true : `tabs are ${titles.join(', ')}, expected one saying ${shells[0]}`;
+  const named = titles.some(
+    (t) => typeof t === "string" && t.includes(shells[0]),
+  );
+  return named
+    ? true
+    : `tabs are ${titles.join(", ")}, expected one saying ${shells[0]}`;
 })();
 
 /*
@@ -1848,15 +2054,34 @@ checks.terminalProfileLauncher = await (async () => {
  * bug: nothing about it is visible from a single synthesised event.
  */
 checks.altChordLeavesMenuShut = await (async () => {
-  const altDown = { type: "rawKeyDown", key: "Alt", code: "AltLeft", windowsVirtualKeyCode: 18, modifiers: 1 };
-  const altUp = { type: "keyUp", key: "Alt", code: "AltLeft", windowsVirtualKeyCode: 18 };
+  const altDown = {
+    type: "rawKeyDown",
+    key: "Alt",
+    code: "AltLeft",
+    windowsVirtualKeyCode: 18,
+    modifiers: 1,
+  };
+  const altUp = {
+    type: "keyUp",
+    key: "Alt",
+    code: "AltLeft",
+    windowsVirtualKeyCode: 18,
+  };
 
   await send("Input.dispatchKeyEvent", altDown);
   await send("Input.dispatchKeyEvent", {
-    type: "rawKeyDown", key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38, modifiers: 1,
+    type: "rawKeyDown",
+    key: "ArrowUp",
+    code: "ArrowUp",
+    windowsVirtualKeyCode: 38,
+    modifiers: 1,
   });
   await send("Input.dispatchKeyEvent", {
-    type: "keyUp", key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38, modifiers: 1,
+    type: "keyUp",
+    key: "ArrowUp",
+    code: "ArrowUp",
+    windowsVirtualKeyCode: 38,
+    modifiers: 1,
   });
   await send("Input.dispatchKeyEvent", altUp);
   await sleep(250);
@@ -1888,7 +2113,9 @@ checks.altChordLeavesMenuShut = await (async () => {
      })()`,
   );
 
-  await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
+  await evaluate(
+    "document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true",
+  );
 
   return focused === true ? true : `a bare Alt: ${focused}`;
 })();
@@ -1910,11 +2137,16 @@ checks.titleBarControlsWork = await (async () => {
   if (ai === null) return "no assistant button";
 
   await clickAt(ai.x, ai.y);
-  const chatOpen = await evaluate("document.querySelector('.chat-card')?.hidden === false");
+  const chatOpen = await evaluate(
+    "document.querySelector('.chat-card')?.hidden === false",
+  );
   if (!chatOpen) return "the assistant button did not open the chat";
 
-  const pressed = await evaluate("document.getElementById('ai-toggle')?.getAttribute('aria-pressed')");
-  if (pressed !== "true") return `aria-pressed is ${pressed} while the chat is open`;
+  const pressed = await evaluate(
+    "document.getElementById('ai-toggle')?.getAttribute('aria-pressed')",
+  );
+  if (pressed !== "true")
+    return `aria-pressed is ${pressed} while the chat is open`;
 
   await clickAt(ai.x, ai.y);
   await sleep(300);
@@ -2025,7 +2257,9 @@ checks.reportDialogOpens = await (async () => {
   await evaluate("document.querySelector('.report-dialog')?.close(); true");
   await sleep(150);
 
-  const closed = await evaluate("document.querySelector('.report-dialog')?.open === false");
+  const closed = await evaluate(
+    "document.querySelector('.report-dialog')?.open === false",
+  );
   if (closed !== true) return "the form would not close";
 
   return form === true ? true : `the feedback form: ${form}`;
@@ -2349,7 +2583,9 @@ try {
          return staged !== unstaged ? true : 'Stage/Unstage both ' + (staged ? 'present' : 'absent');
        })()`,
     );
-    await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
+    await evaluate(
+      "document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true",
+    );
     await sleep(200);
   }
 
@@ -2472,7 +2708,9 @@ try {
      })()`,
   );
   if (deletePoint === null) {
-    throw new Error(`refusing to delete: scratch folder ${SCRATCH} is not visible`);
+    throw new Error(
+      `refusing to delete: scratch folder ${SCRATCH} is not visible`,
+    );
   }
   await rightClickAt(deletePoint.x, deletePoint.y);
   point = await contextItemPoint("Delete");
@@ -2559,7 +2797,9 @@ try {
      })()`,
   );
 
-  await evaluate(`document.querySelector('.activity[data-view="problems"]').click(); true`);
+  await evaluate(
+    `document.querySelector('.activity[data-view="problems"]').click(); true`,
+  );
   await sleep(600);
 
   checks.problemsActivityState = await evaluate(
@@ -2619,7 +2859,10 @@ try {
       const { writeFileSync } = await import("node:fs");
       const { tmpdir } = await import("node:os");
       const { join } = await import("node:path");
-      writeFileSync(join(tmpdir(), "adcode-smoke.png"), Buffer.from(shot.result.data, "base64"));
+      writeFileSync(
+        join(tmpdir(), "adcode-smoke.png"),
+        Buffer.from(shot.result.data, "base64"),
+      );
     }
   }
 
@@ -2643,7 +2886,6 @@ try {
   );
 
   /* ── The editing group, on the file that already has a real error (P2a) ── */
-
 
   /*
    * Every one of these clicks into the editor with real input first.
@@ -2684,7 +2926,9 @@ try {
       );
 
       if (activated !== true) {
-        throw new Error("smoke-broken.ts is not open - refusing to type over another file");
+        throw new Error(
+          "smoke-broken.ts is not open - refusing to type over another file",
+        );
       }
       await sleep(600);
     }
@@ -3207,9 +3451,12 @@ try {
       const shot = await send("Page.captureScreenshot", { format: "png" });
       if (shot.result?.data !== undefined) {
         const { writeFileSync } = await import("node:fs");
-      const { tmpdir } = await import("node:os");
-      const { join } = await import("node:path");
-        writeFileSync(join(tmpdir(), "adcode-peek.png"), Buffer.from(shot.result.data, "base64"));
+        const { tmpdir } = await import("node:os");
+        const { join } = await import("node:path");
+        writeFileSync(
+          join(tmpdir(), "adcode-peek.png"),
+          Buffer.from(shot.result.data, "base64"),
+        );
       }
     }
 
@@ -3479,10 +3726,32 @@ try {
 
   // Clear the template first. A `.ts` file is created with one now, and typing into it
   // would be testing the template's outline rather than the one being written here.
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "a",
+    code: "KeyA",
+    windowsVirtualKeyCode: 65,
+    modifiers: 2,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "a",
+    code: "KeyA",
+    windowsVirtualKeyCode: 65,
+    modifiers: 2,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Delete",
+    code: "Delete",
+    windowsVirtualKeyCode: 46,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Delete",
+    code: "Delete",
+    windowsVirtualKeyCode: 46,
+  });
   await sleep(300);
 
   await typeText("const alpha = 1;");
@@ -3618,10 +3887,32 @@ try {
 
   await clickAt(pageEditorPoint.x, pageEditorPoint.y);
 
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "a",
+    code: "KeyA",
+    windowsVirtualKeyCode: 65,
+    modifiers: 2,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "a",
+    code: "KeyA",
+    windowsVirtualKeyCode: 65,
+    modifiers: 2,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Delete",
+    code: "Delete",
+    windowsVirtualKeyCode: 46,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Delete",
+    code: "Delete",
+    windowsVirtualKeyCode: 46,
+  });
   await sleep(300);
 
   await typeText(".smokecard {");
@@ -3850,7 +4141,9 @@ try {
      })()`,
   );
 
-  await evaluate(`document.querySelector('.activity[data-view="problems"]').click(); true`);
+  await evaluate(
+    `document.querySelector('.activity[data-view="problems"]').click(); true`,
+  );
   await sleep(800);
 
   checks.missingServerBecomesAHint = await evaluate(
@@ -3903,10 +4196,14 @@ try {
    * originating line is included for that reason.
    */
   const where =
-    error instanceof Error ? (error.stack ?? "").split(String.fromCharCode(10))[1]?.trim() : "";
+    error instanceof Error
+      ? (error.stack ?? "").split(String.fromCharCode(10))[1]?.trim()
+      : "";
   checks.explorerFlow = `THREW: ${error instanceof Error ? error.message : String(error)} (${where})`;
 } finally {
-  await rm(join(REPO, SCRATCH), { recursive: true, force: true }).catch(() => {});
+  await rm(join(REPO, SCRATCH), { recursive: true, force: true }).catch(
+    () => {},
+  );
   await rm(join(REPO, "smoke-broken.ts"), { force: true }).catch(() => {});
   await rm(join(REPO, "smoke-lang.py"), { force: true }).catch(() => {});
   await rm(join(REPO, "smoke-page.html"), { force: true }).catch(() => {});
@@ -4037,17 +4334,44 @@ async function dragBy(handleId, dx, dy) {
   );
   if (from === null) return false;
 
-  await send("Input.dispatchMouseEvent", { type: "mousePressed", x: from.x, y: from.y, button: "left", clickCount: 1, buttons: 1 });
+  await send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x: from.x,
+    y: from.y,
+    button: "left",
+    clickCount: 1,
+    buttons: 1,
+  });
   // Two moves: one small, one to the target. A single jump can be coalesced away.
-  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from.x + Math.sign(dx) * 2, y: from.y + Math.sign(dy) * 2, button: "left", buttons: 1 });
-  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from.x + dx, y: from.y + dy, button: "left", buttons: 1 });
-  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: from.x + dx, y: from.y + dy, button: "left", buttons: 0 });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: from.x + Math.sign(dx) * 2,
+    y: from.y + Math.sign(dy) * 2,
+    button: "left",
+    buttons: 1,
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: from.x + dx,
+    y: from.y + dy,
+    button: "left",
+    buttons: 1,
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x: from.x + dx,
+    y: from.y + dy,
+    button: "left",
+    buttons: 0,
+  });
   await sleep(300);
   return true;
 }
 
 const sidebarWidthNow = () =>
-  evaluate("Math.round(document.getElementById('sidebar').getBoundingClientRect().width)");
+  evaluate(
+    "Math.round(document.getElementById('sidebar').getBoundingClientRect().width)",
+  );
 
 checks.sidebarResizes = await (async () => {
   await openSidebar("explorer");
@@ -4058,7 +4382,9 @@ checks.sidebarResizes = await (async () => {
 
   // Roughly the distance dragged, not merely "bigger": a handle that jumps to some fixed
   // size would also pass a `>` check.
-  return Math.abs(after - before - 120) <= 8 ? true : `expected ~+120, got ${after - before}`;
+  return Math.abs(after - before - 120) <= 8
+    ? true
+    : `expected ~+120, got ${after - before}`;
 })();
 
 checks.sidebarClampsAndResets = await (async () => {
@@ -4082,7 +4408,10 @@ checks.sidebarClampsAndResets = await (async () => {
 
 checks.panelResizes = await (async () => {
   // The panel is open from the terminal checks above, and so is its divider.
-  const height = () => evaluate("Math.round(document.getElementById('panel').getBoundingClientRect().height)");
+  const height = () =>
+    evaluate(
+      "Math.round(document.getElementById('panel').getBoundingClientRect().height)",
+    );
   const before = await height();
   if (before === 0) return "panel is not open";
 
@@ -4673,7 +5002,7 @@ checks.earningsSettingsButtonWorks = await evaluate(
      const settings = document.querySelector('.settings-sheet');
      const settingsVisible =
        settings instanceof HTMLElement &&
-       document.getElementById('view-settings')?.hidden === false &&
+       settings.closest('dialog[data-popup-id="settings"]')?.open === true &&
        settings.getBoundingClientRect().height > 100;
 
      const result = {
@@ -5048,7 +5377,7 @@ checks.helpGuideJumpsToSetting = await (async () => {
 async function openSettingsSheet() {
   const isOpen = async () =>
     (await evaluate(
-      `(document.querySelector('.settings-sheet:not(.help-sheet)')?.dataset.state === 'open' && document.getElementById('view-settings')?.hidden === false)`,
+      `(document.querySelector('.settings-sheet:not(.help-sheet)')?.dataset.state === 'open' && document.querySelector('dialog[data-popup-id="settings"]')?.open === true)`,
     )) === true;
 
   /*
@@ -5059,15 +5388,36 @@ async function openSettingsSheet() {
    * parity falls. Clicking once and polling for the result is the only shape that works
    * for a control whose meaning depends on the current state.
    */
-  if (await isOpen()) return true;
-
-  await evaluate("document.getElementById('open-settings')?.click(); true");
-
-  for (let attempt = 0; attempt < 15; attempt += 1) {
-    await sleep(250);
-    if (await isOpen()) return true;
+  let open = await isOpen();
+  if (!open) {
+    await evaluate("document.getElementById('open-settings')?.click(); true");
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      await sleep(250);
+      if (await isOpen()) {
+        open = true;
+        break;
+      }
+    }
   }
-  return false;
+  if (!open) return false;
+
+  checks.settingsCloseGeometry = await evaluate(
+    `(() => {
+       const dialog = document.querySelector('dialog[data-popup-id="settings"]');
+       const surface = dialog?.querySelector('.popup-shell-surface');
+       const close = dialog?.querySelector('.settings-close[aria-label="Close Settings"]');
+       if (!dialog?.open || !surface || !close) return false;
+       const surfaceBox = surface.getBoundingClientRect();
+       const closeBox = close.getBoundingClientRect();
+       return close.getAttribute('title') === 'Close Settings' &&
+         closeBox.width >= 24 && closeBox.height >= 24 &&
+         closeBox.left >= surfaceBox.left && closeBox.right <= surfaceBox.right &&
+         closeBox.top >= surfaceBox.top && closeBox.bottom <= surfaceBox.bottom &&
+         closeBox.left >= 0 && closeBox.top >= 0 &&
+         closeBox.right <= window.innerWidth && closeBox.bottom <= window.innerHeight;
+     })()`,
+  );
+  return checks.settingsCloseGeometry === true;
 }
 
 /*
@@ -5130,7 +5480,10 @@ checks.themePickerRecordsAChoice = await (async () => {
          .find((c) => c.querySelector('.theme-card-label')?.textContent === label);
        card?.click();
        return true;
-     })()`.replace('"Dark"', JSON.stringify(before === "light" ? "Light" : "Dark")),
+     })()`.replace(
+      '"Dark"',
+      JSON.stringify(before === "light" ? "Light" : "Dark"),
+    ),
   );
   await sleep(500);
 
@@ -5213,8 +5566,10 @@ checks.midnightThemeRepaints = await (async () => {
     attribute: applied.attribute === "midnight",
     trueBlackGround: applied.app === "#000000",
     accentInverted: applied.accent === "#f1f3f3",
-    editorFollowed: applied.editor.toLowerCase() === "#08090b" ? true : applied.editor,
-    restored: (await evaluate("document.documentElement.dataset.theme")) !== "midnight",
+    editorFollowed:
+      applied.editor.toLowerCase() === "#08090b" ? true : applied.editor,
+    restored:
+      (await evaluate("document.documentElement.dataset.theme")) !== "midnight",
   };
 })();
 
@@ -5326,6 +5681,23 @@ checks.helpPopoverOpensAndCloses = await (async () => {
 // Leave the app as this block found it, so later checks are not run against a covered window.
 await pressEscape();
 await sleep(400);
+checks.settingsEscapeRestoresLauncher = await evaluate(
+  `document.querySelector('dialog[data-popup-id="settings"]')?.open === false && document.activeElement === document.querySelector('#open-settings')`,
+);
+
+await evaluate("document.getElementById('open-settings')?.click(); true");
+await sleep(400);
+checks.settingsCloseButtonDismisses = await evaluate(
+  `(() => {
+     const dialog = document.querySelector('dialog[data-popup-id="settings"]');
+     const close = dialog?.querySelector('.settings-close[aria-label="Close Settings"]');
+     if (!dialog?.open || !(close instanceof HTMLElement)) return false;
+     close.focus();
+     const focused = document.activeElement === close;
+     close.click();
+     return focused && dialog.open === false && document.activeElement === document.querySelector('#open-settings');
+   })()`,
+);
 
 socket.close();
 child.kill();
@@ -5355,8 +5727,10 @@ process.stdout.write(`\n--- ${bad.length} suspicious log line(s) ---\n`);
 for (const line of bad) process.stdout.write(`  ${line}\n`);
 
 const failed = Object.entries(checks).filter(
-  ([, value]) => value === false || value === undefined || String(value).startsWith("THREW"),
+  ([, value]) =>
+    value === false || value === undefined || String(value).startsWith("THREW"),
 );
-if (failed.length > 0) process.stdout.write(`\nfailed: ${failed.map(([n]) => n).join(", ")}\n`);
+if (failed.length > 0)
+  process.stdout.write(`\nfailed: ${failed.map(([n]) => n).join(", ")}\n`);
 
 process.exit(bad.length === 0 && failed.length === 0 ? 0 : 1);

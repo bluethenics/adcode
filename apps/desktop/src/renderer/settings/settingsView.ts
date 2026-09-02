@@ -25,7 +25,9 @@ import { createHelpButton, createHelpPopover } from "../help/helpPopover.ts";
 import { themePicker } from "./themePicker.ts";
 
 export interface SettingsView {
-  open(): void;
+  readonly element: HTMLElement;
+  shown(): void;
+  hidden(): void;
   /**
    * Open scrolled to one row, with it briefly marked.
    *
@@ -34,24 +36,28 @@ export interface SettingsView {
    * screen with fifty-five rows, "it is in Editing somewhere" is not good enough.
    */
   openAt(settingId: string): void;
-  close(requestShell?: boolean): void;
   isOpen(): boolean;
-  toggle(): void;
 }
 
 export interface SettingsViewDeps {
-  readonly host: HTMLElement;
-  /** Keep help popovers in the top layer even though settings itself is docked. */
+  /** Keep help popovers in the top layer even though settings lives in a dialog shell. */
   readonly overlayHost?: HTMLElement;
-  /** Ask the workbench shell to close the shared sidebar. */
-  readonly requestClose: () => void;
+  /** The coordinator owns shell dismissal and focus restoration. */
+  readonly onRequestClose: () => void;
   readonly read: () => Promise<Record<string, SettingValue>>;
-  readonly write: (id: string, value: SettingValue) => Promise<Record<string, SettingValue>>;
+  readonly write: (
+    id: string,
+    value: SettingValue,
+  ) => Promise<Record<string, SettingValue>>;
   readonly reset: () => Promise<Record<string, SettingValue>>;
   /** Projected hourly earnings per frequency preset, from the server (deviation D1). */
   readonly projections?: () => Record<string, string> | null;
   /** How to connect an external agent to the shared memory (§5.2). */
-  readonly mcpConnection?: () => Promise<{ command: string; storePath: string | null; available: boolean }>;
+  readonly mcpConnection?: () => Promise<{
+    command: string;
+    storePath: string | null;
+    available: boolean;
+  }>;
 }
 
 /**
@@ -63,7 +69,11 @@ export interface SettingsViewDeps {
  * described in documentation the user would have to go and find.
  */
 function connectionCard(
-  load: () => Promise<{ command: string; storePath: string | null; available: boolean }>,
+  load: () => Promise<{
+    command: string;
+    storePath: string | null;
+    available: boolean;
+  }>,
 ): HTMLElement {
   const card = document.createElement("div");
   card.className = "connection-card";
@@ -104,13 +114,19 @@ function connectionCard(
     code.textContent = info.command;
     copy.disabled = !info.available;
     location.textContent =
-      info.storePath === null ? "" : `Memories are stored as markdown in ${info.storePath}`;
+      info.storePath === null
+        ? ""
+        : `Memories are stored as markdown in ${info.storePath}`;
   });
 
   return card;
 }
 
-function iosSwitch(checked: boolean, disabled: boolean, onChange: (next: boolean) => void): HTMLElement {
+function iosSwitch(
+  checked: boolean,
+  disabled: boolean,
+  onChange: (next: boolean) => void,
+): HTMLElement {
   const label = document.createElement("label");
   label.className = "ios-switch";
 
@@ -131,7 +147,11 @@ function iosSwitch(checked: boolean, disabled: boolean, onChange: (next: boolean
 }
 
 function segmented(
-  options: readonly { value: string; label: string; detail?: string | undefined }[],
+  options: readonly {
+    value: string;
+    label: string;
+    detail?: string | undefined;
+  }[],
   current: string,
   disabled: boolean,
   onChange: (next: string) => void,
@@ -173,7 +193,7 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
   let open = false;
 
   // One popover for the whole screen, not one per row. See helpPopover.ts.
-  const popover = createHelpPopover(deps.overlayHost ?? deps.host);
+  const popover = createHelpPopover(deps.overlayHost ?? document.body);
 
   const sheet = document.createElement("div");
   sheet.className = "settings-sheet";
@@ -191,9 +211,12 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
   title.textContent = "Settings";
 
   const closeButton = document.createElement("button");
-  closeButton.className = "ghost-button";
-  closeButton.textContent = "Done";
-  closeButton.addEventListener("click", () => api.close());
+  closeButton.type = "button";
+  closeButton.className = "settings-close";
+  closeButton.textContent = "Close";
+  closeButton.setAttribute("aria-label", "Close Settings");
+  closeButton.title = "Close Settings";
+  closeButton.addEventListener("click", () => deps.onRequestClose());
 
   const search = document.createElement("input");
   search.className = "settings-search";
@@ -206,6 +229,10 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
   });
 
   header.append(title, closeButton);
+
+  const stickyHeader = document.createElement("div");
+  stickyHeader.className = "settings-sticky-header";
+  stickyHeader.append(header, search);
 
   const body = document.createElement("div");
   body.className = "settings-body";
@@ -237,7 +264,7 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
   about.textContent = "";
 
   footer.append(resetButton, about);
-  panel.append(header, search, body, footer);
+  panel.append(stickyHeader, body, footer);
 
   async function showVersion(): Promise<void> {
     if (about.textContent !== "") return;
@@ -323,7 +350,8 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
        * launch `z`, then `zi`, then `zig`. Blur is when the user has finished saying it.
        */
       field.addEventListener("blur", () => {
-        if (field.value === String(values[setting.id] ?? setting.default)) return;
+        if (field.value === String(values[setting.id] ?? setting.default))
+          return;
 
         void deps.write(setting.id, field.value).then((updated) => {
           values = updated;
@@ -343,17 +371,25 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
        */
       row.classList.add("settings-row-stacked");
       row.append(
-        themePicker(setting.options, String(current), !setting.available, (next) => {
-          void deps.write(setting.id, next).then((updated) => {
-            values = updated;
-            renderBody();
-          });
-        }),
+        themePicker(
+          setting.options,
+          String(current),
+          !setting.available,
+          (next) => {
+            void deps.write(setting.id, next).then((updated) => {
+              values = updated;
+              renderBody();
+            });
+          },
+        ),
       );
     } else {
       // §8.1: show projected hourly earnings beside each frequency option. The figure is
       // computed by the server and selected here - the client never multiplies money.
-      const projections = setting.id === "adcode.ads.frequency" ? (deps.projections?.() ?? null) : null;
+      const projections =
+        setting.id === "adcode.ads.frequency"
+          ? (deps.projections?.() ?? null)
+          : null;
 
       const options = setting.options.map((option) => ({
         value: option.value,
@@ -385,7 +421,9 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
     let shown = 0;
 
     for (const group of GROUPS) {
-      const inGroup = searchSettings(query).filter((setting) => setting.group === group.id);
+      const inGroup = searchSettings(query).filter(
+        (setting) => setting.group === group.id,
+      );
       if (inGroup.length === 0) continue;
 
       const section = document.createElement("section");
@@ -412,7 +450,11 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
 
       // The AI group carries the onboarding §5.2 requires, but only when the user is not
       // filtering - a search for "minimap" should not surface MCP setup.
-      if (group.id === "ai" && deps.mcpConnection !== undefined && query.trim().length === 0) {
+      if (
+        group.id === "ai" &&
+        deps.mcpConnection !== undefined &&
+        query.trim().length === 0
+      ) {
         section.append(connectionCard(deps.mcpConnection));
       }
 
@@ -427,19 +469,14 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
     }
   }
 
-  const onKeydown = (event: KeyboardEvent): void => {
-    if (event.key === "Escape" && open && !deps.host.hidden) {
-      event.preventDefault();
-      api.close();
-    }
-  };
-
   const api: SettingsView = {
-    open(): void {
+    element: sheet,
+    shown(): void {
       if (open) return;
       open = true;
 
       void showVersion();
+      renderBody();
       void deps.read().then((next) => {
         values = next;
         renderBody();
@@ -447,14 +484,9 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
 
       sheet.dataset["state"] = "open";
       search.focus({ preventScroll: true });
-
-      document.addEventListener("keydown", onKeydown);
     },
 
     openAt(settingId: string): void {
-      const wasOpen = open;
-      if (!wasOpen) api.open();
-
       // Clearing any search first, or the row being jumped to may be filtered out - and a
       // jump that lands nowhere is worse than not offering one.
       query = "";
@@ -463,42 +495,37 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
       const reveal = (): void => {
         renderBody();
 
-        const row = body.querySelector(`[data-setting-id="${CSS.escape(settingId)}"]`);
+        const row = body.querySelector(
+          `[data-setting-id="${CSS.escape(settingId)}"]`,
+        );
         if (!(row instanceof HTMLElement)) return;
 
         row.scrollIntoView({
           block: "center",
-          behavior: document.documentElement.dataset["reducedMotion"] === "true" ? "auto" : "smooth",
+          behavior:
+            document.documentElement.dataset["reducedMotion"] === "true"
+              ? "auto"
+              : "smooth",
         });
         row.dataset["highlight"] = "true";
+        row.tabIndex = -1;
+        row.focus({ preventScroll: true });
         window.setTimeout(() => delete row.dataset["highlight"], 1600);
       };
 
-      // `open()` reads the values asynchronously and renders when they land, so on a cold
-      // open the rows do not exist yet. Waiting for the sheet's transition covers both that
-      // and the panel still sliding into place.
-      if (wasOpen) reveal();
-      else window.setTimeout(reveal, 300);
+      // The shell opens after `shown()` during a primary transition, so wait one task for the
+      // element to have a viewport before centring and focusing the highlighted row.
+      window.setTimeout(reveal, 0);
     },
 
-    close(requestShell = true): void {
-      if (!open) return;
+    hidden(): void {
       open = false;
-
       popover.close();
       delete sheet.dataset["state"];
-      document.removeEventListener("keydown", onKeydown);
-      if (requestShell) deps.requestClose();
     },
 
-    isOpen: () => open && !deps.host.hidden,
-
-    toggle(): void {
-      if (open) api.close();
-      else api.open();
-    },
+    isOpen: () => open,
   };
 
-  deps.host.append(sheet);
   return api;
 }
