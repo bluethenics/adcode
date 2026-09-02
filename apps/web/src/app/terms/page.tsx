@@ -28,7 +28,10 @@ const UPDATED_LABEL = "30 August 2026";
  * gets struck takes the surrounding protection with it, so the limits below are the ones
  * likely to survive being read out in a courtroom rather than the widest ones imaginable.
  *
- * `docs/legal/LEGAL-REVIEW.md` lists the clauses a lawyer should look at first and why.
+ * `docs/legal/LEGAL-REVIEW.md` lists the clauses a lawyer should look at first and why. It
+ * is on disk and deliberately not in the repository: it says in as many words that these
+ * terms have not been reviewed, and then enumerates the ones that cost money if they are
+ * wrong. That is a useful document to work from and a poor one to hand to the other side.
  */
 const BODY = `
 These are the terms for using the ADCode editor, this website, and the advertising marketplace. They are written to be read, and every number in them matches what the software actually does.

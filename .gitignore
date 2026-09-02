@@ -45,3 +45,34 @@ supabase/.temp/
 # scripts/smoke.mjs types this file into the editor to prove the Problems panel
 # reports a real diagnostic. It is a product of the run, not a fixture.
 smoke-broken.ts
+
+# Internal working documents. On disk, deliberately not published.
+#
+# The repository is public because the installers and the auto-updater fetch from
+# `github.com/<owner>/<repo>/releases` - see `apps/web/src/app/dl/[platform]/route.ts` and
+# `public/install.sh`. Making it private to hide these would break every download and every
+# update, and GitHub offers no per-repo `noindex`: `github.com/robots.txt` is global and
+# GitHub's. Not tracking a file is therefore the only lever there is.
+#
+# Two of these were worse than search-result noise. `docs/legal/LEGAL-REVIEW.md` states in
+# public that the terms are not lawyer-reviewed and then lists the clauses that cost money
+# if they are wrong, on live money paths. `SETUP.md` carries a personal email address and
+# the Supabase project ref. Neither ever contained a credential - the key names in it are
+# instructions, never values - and it stays that way.
+#
+# Prefixed with `/` so these anchor to the repository root and cannot match a `docs/plans`
+# that some package invents later.
+/SETUP.md
+/CLAUDE-HANDOFF.md
+/2026-08-15-scratch-ide-build-prompt.md
+/artifacts/
+/docs/plans/
+/docs/specs/
+/docs/superpowers/
+/docs/legal/
+/docs/architecture/
+/docs/RELEASE-READINESS-*.md
+/docs/DEPLOYING.md
+/docs/RELEASING.md
+/docs/OAUTH-SETUP.md
+/docs/CODE-PROTECTION.md
