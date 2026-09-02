@@ -510,6 +510,28 @@ checks.scmWorkspaceShell = await evaluate(
      };
    })()`,
 );
+checks.scmCloseButtonVisible = await evaluate(
+  `(() => {
+     const popup = document.querySelector('[data-popup-id="source-control"]');
+     const button = popup?.querySelector('.scm-close');
+     const rect = button?.getBoundingClientRect();
+     const surface = popup?.querySelector('.popup-shell-surface')?.getBoundingClientRect();
+     return button?.getAttribute('aria-label') === 'Close Source Control' &&
+       rect !== undefined && rect.width > 0 && rect.height > 0 &&
+       surface !== undefined && rect.left >= surface.left && rect.top >= surface.top &&
+       rect.right <= surface.right && rect.bottom <= surface.bottom &&
+       rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight;
+   })()`,
+);
+await evaluate(`document.querySelector('.activity[data-view="scm"]')?.click(); true`);
+for (let attempt = 0; attempt < 20; attempt += 1) {
+  if (await evaluate(`document.querySelector('[data-popup-id="source-control"]')?.open === false`)) break;
+  await sleep(100);
+}
+checks.scmLauncherToggleCloses = await evaluate(
+  `document.querySelector('[data-popup-id="source-control"]')?.open === false`,
+);
+await openSourceControl();
 checks.scmShowsBranch = await evaluate("document.querySelector('.scm-branch')?.textContent");
 checks.timelineRows = await evaluate("document.querySelectorAll('.timeline-row').length > 0");
 checks.scmRowsStillStageAndUnstage = await (async () => {
@@ -557,12 +579,19 @@ checks.scmRowsStillStageAndUnstage = await (async () => {
        return true;
      })()`,
   );
-  await sleep(900);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const ready = await evaluate(`(() => [...document.querySelectorAll('.scm-row')].some(
+      (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)} &&
+        entry.querySelector('.scm-stage')?.getAttribute('aria-label') === ${JSON.stringify(`Unstage ${SCM_SMOKE_NAME}`)},
+    ))()`);
+    if (ready === true) break;
+    await sleep(150);
+  }
 
   const staged = await evaluate(
     `(() => {
        const row = [...document.querySelectorAll('.scm-row')].find(
-         (entry) => entry.querySelector('.scm-path')?.textContent === 'adcode-smoke-scm.txt',
+         (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
        );
        return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
      })()`,
@@ -578,7 +607,14 @@ checks.scmRowsStillStageAndUnstage = await (async () => {
        return true;
      })()`,
   );
-  await sleep(900);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const ready = await evaluate(`(() => [...document.querySelectorAll('.scm-row')].some(
+      (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)} &&
+        entry.querySelector('.scm-stage')?.getAttribute('aria-label') === ${JSON.stringify(`Stage ${SCM_SMOKE_NAME}`)},
+    ))()`);
+    if (ready === true) break;
+    await sleep(150);
+  }
 
   const unstaged = await evaluate(
     `(() => {
