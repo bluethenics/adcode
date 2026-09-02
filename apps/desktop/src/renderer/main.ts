@@ -2822,6 +2822,7 @@ function registerProfileCommands(): void {
 }
 
 const sourceControl = createSourceControlPanel({
+  onRequestClose: () => closePrimaryPopup("source-control"),
   openFile: (path) => void openFile(absolutePath(path)),
   workspaceRoot: () => workspaceRoot,
   notify: (text) => setStatus(text, 4000),

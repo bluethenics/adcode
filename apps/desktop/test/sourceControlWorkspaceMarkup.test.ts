@@ -13,4 +13,10 @@ describe("Source Control workspace", () => {
     expect(source).toContain('historyRegion.className = "scm-history-region"');
     expect(source).toContain("element.append(changesRegion, commitRegion, historyRegion)");
   });
+
+  it("provides an accessible visible close affordance", () => {
+    expect(source).toContain('close.className = "icon-button scm-close"');
+    expect(source).toContain('close.setAttribute("aria-label", "Close Source Control")');
+    expect(source).toContain("close.addEventListener(\"click\", deps.onRequestClose)");
+  });
 });

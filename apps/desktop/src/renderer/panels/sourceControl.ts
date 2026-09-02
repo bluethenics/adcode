@@ -58,6 +58,8 @@ export interface SourceControlPanel {
 }
 
 export interface SourceControlDeps {
+  /** Dismisses the workspace shell through the owning layer. */
+  readonly onRequestClose: () => void;
   readonly openFile: (path: string) => void;
   readonly workspaceRoot: () => string | null;
   readonly notify: (message: string) => void;
@@ -135,7 +137,15 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   const syncLabel = document.createElement("span");
   syncLabel.className = "scm-sync";
 
-  header.append(branchButton, syncLabel);
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "icon-button scm-close";
+  close.title = "Close (Esc)";
+  close.setAttribute("aria-label", "Close Source Control");
+  close.append(createIcon(ICON.close));
+  close.addEventListener("click", deps.onRequestClose);
+
+  header.append(branchButton, syncLabel, close);
 
   const actions = document.createElement("div");
   actions.className = "scm-actions";

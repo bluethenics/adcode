@@ -600,7 +600,23 @@ checks.commitFailureKeepsMessage = await (async () => {
      })()`,
   );
 
-  await evaluate(`document.querySelector('.scm-commit button[type="submit"]')?.click(); true`);
+  // This is deliberately mocked: the smoke repository must never receive a commit or an
+  // index/worktree mutation from a retention check. The real submit handler still runs, but
+  // its bridge call is guaranteed to return a failed outcome.
+  await evaluate(
+    `(async () => {
+       const api = window.adcode.git;
+       const original = api.commit;
+       api.commit = async () => ({ ok: false, message: 'smoke mock failure' });
+       try {
+         document.querySelector('.scm-commit button[type="submit"]')?.click();
+         await new Promise((resolve) => setTimeout(resolve, 700));
+       } finally {
+         api.commit = original;
+       }
+       return true;
+     })()`,
+  );
   await sleep(700);
 
   const kept = await evaluate(
@@ -614,6 +630,7 @@ checks.commitFailureKeepsMessage = await (async () => {
 })();
 
 checks.historyOpensInWorkspace = await (async () => {
+  await openSourceControl();
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const found = await evaluate(`document.querySelector('.history-head') !== null`);
     if (found === true) break;
