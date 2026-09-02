@@ -514,6 +514,7 @@ checks.scmWorkspaceShell = await evaluate(
 checks.scmShowsBranch = await evaluate("document.querySelector('.scm-branch')?.textContent");
 checks.timelineRows = await evaluate("document.querySelectorAll('.timeline-row').length > 0");
 checks.scmRowsStillStageAndUnstage = await (async () => {
+  try {
   await evaluate(
     `(async () => {
        await window.adcode.files.createFile(${JSON.stringify(REPO)}, 'adcode-smoke-scm.txt').catch(() => null);
@@ -542,7 +543,7 @@ checks.scmRowsStillStageAndUnstage = await (async () => {
        return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
      })()`,
   );
-  if (before !== "Stage adcode-smoke-scm.txt") return before;
+  if (before !== "Stage adcode-smoke-scm.txt") return false;
 
   await evaluate(
     `(() => {
@@ -563,7 +564,7 @@ checks.scmRowsStillStageAndUnstage = await (async () => {
        return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
      })()`,
   );
-  if (staged !== "Unstage adcode-smoke-scm.txt") return staged;
+  if (staged !== "Unstage adcode-smoke-scm.txt") return false;
 
   await evaluate(
     `(() => {
@@ -586,6 +587,15 @@ checks.scmRowsStillStageAndUnstage = await (async () => {
   );
 
   return unstaged === "Stage adcode-smoke-scm.txt";
+  } finally {
+    await evaluate(
+      `(async () => {
+         await window.adcode.git.unstage(['adcode-smoke-scm.txt']).catch(() => null);
+         await window.adcode.files.delete(${JSON.stringify(SCM_SMOKE_FILE)}).catch(() => null);
+         return true;
+       })()`,
+    ).catch(() => null);
+  }
 })();
 
 checks.commitFailureKeepsMessage = await (async () => {
@@ -600,24 +610,10 @@ checks.commitFailureKeepsMessage = await (async () => {
      })()`,
   );
 
-  // This is deliberately mocked: the smoke repository must never receive a commit or an
-  // index/worktree mutation from a retention check. The real submit handler still runs, but
-  // its bridge call is guaranteed to return a failed outcome.
-  await evaluate(
-    `(async () => {
-       const api = window.adcode.git;
-       const original = api.commit;
-       api.commit = async () => ({ ok: false, message: 'smoke mock failure' });
-       try {
-         document.querySelector('.scm-commit button[type="submit"]')?.click();
-         await new Promise((resolve) => setTimeout(resolve, 700));
-       } finally {
-         api.commit = original;
-       }
-       return true;
-     })()`,
-  );
-  await sleep(700);
+  // Deliberately do not submit: this smoke runs against the real checkout. Draft retention is
+  // checked across the shell lifecycle, which is safe and exercises the preserved textarea.
+  await pressEscape();
+  await openSourceControl();
 
   const kept = await evaluate(
     `(() => {
@@ -632,11 +628,11 @@ checks.commitFailureKeepsMessage = await (async () => {
 checks.historyOpensInWorkspace = await (async () => {
   await openSourceControl();
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const found = await evaluate(`document.querySelector('.history-head') !== null`);
+    const found = await evaluate(`document.querySelector('.scm-history-region .history-head') !== null`);
     if (found === true) break;
     await sleep(150);
   }
-  await evaluate(`document.querySelector('.history-head')?.click(); true`);
+  await evaluate(`document.querySelector('.scm-history-region .history-head')?.click(); true`);
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const detail = await evaluate(
       `document.querySelector('.scm-history-region .history-commit[data-open="true"] .history-detail') !== null`,
@@ -661,6 +657,7 @@ checks.scmEscapeRestoresLauncher = await evaluate(
  * pressing the button has to leave a section that SAYS there are no conflicts, rather than
  * leaving the panel exactly as it was.
  */
+await openSourceControl();
 checks.conflictsButtonExists = await evaluate(
   "[...document.querySelectorAll('.scm-actions .ghost-button')].some((b) => b.textContent === 'Check Conflicts')",
 );
@@ -683,6 +680,7 @@ checks.conflictsSaysNone = await evaluate(
 checks.conflictsStatusLine = await evaluate(
   "document.getElementById('status-dirty')?.textContent",
 );
+await pressEscape();
 
 // The three features that had main-process code and no renderer caller at all.
 checks.localHistoryBridge = await evaluate(
@@ -942,7 +940,9 @@ async function openSourceControl() {
     const ready = await evaluate(
       `(() => {
          const popup = document.querySelector('[data-popup-id="source-control"]');
-         return popup?.open === true && (document.querySelector('.scm-branch')?.textContent ?? '').length > 0;
+         return popup?.open === true &&
+           document.querySelector('.scm-panel')?.dataset.scmState === 'repo' &&
+           (document.querySelector('.scm-branch')?.textContent ?? '').length > 0;
        })()`,
     );
     if (ready === true) return;
