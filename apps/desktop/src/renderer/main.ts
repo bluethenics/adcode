@@ -1810,6 +1810,14 @@ document.addEventListener("pointerdown", (event) => {
   closePrimaryPopup(popupLayerState.primary);
 }, true);
 
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || event.defaultPrevented || popupLayerState.primary === null) return;
+  // Popup shells handle Escape locally when focused. This fallback covers document-level
+  // dispatch and focus outside the dialog without competing with already-handled surfaces.
+  closePrimaryPopup(popupLayerState.primary);
+  event.preventDefault();
+});
+
 function layoutWorkbenchSurfaces(): void {
   // Grid transitions settle on the next frame. Measuring there avoids fitting xterm to the
   // old column count while the panel is already visibly at its new size.

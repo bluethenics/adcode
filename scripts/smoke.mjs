@@ -401,6 +401,15 @@ checks.anchoredToolsEvidence = await (async () => {
     `document.querySelector('[data-popup-id="structure"]')?.open === false &&
       document.querySelector('[data-popup-id="earnings"]')?.open === false`,
   );
+  await evaluate(`document.getElementById('open-structure')?.click(); true`);
+  await sleep(180);
+  await evaluate(
+    `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true`,
+  );
+  await sleep(120);
+  const documentEscapeCloses = await evaluate(
+    `document.querySelector('[data-popup-id="structure"]')?.open === false`,
+  );
 
   return {
     structureOpen: structure?.open === true,
@@ -411,6 +420,7 @@ checks.anchoredToolsEvidence = await (async () => {
     directSwitchToStructure:
       switchedToStructure?.structureOpen === true && switchedToStructure?.earningsOpen === false,
     outsidePressCloses: outsideClosed === true,
+    documentEscapeCloses: documentEscapeCloses === true,
     sidebarStable:
       before?.sidebar.width === structure?.sidebarWidth &&
       before?.sidebar.width === switchedToEarnings?.sidebarWidth,
@@ -428,7 +438,8 @@ checks.anchoredTools =
   checks.anchoredToolsEvidence?.rounded === true &&
   checks.anchoredToolsEvidence?.directSwitchToEarnings === true &&
   checks.anchoredToolsEvidence?.directSwitchToStructure === true &&
-  checks.anchoredToolsEvidence?.outsidePressCloses === true;
+  checks.anchoredToolsEvidence?.outsidePressCloses === true &&
+  checks.anchoredToolsEvidence?.documentEscapeCloses === true;
 
 checks.panelMaximizeEvidence = await (async () => {
   await evaluate("document.getElementById('terminal-new')?.click(); true");
