@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { resolveSourceControlDrawers } from "../src/renderer/panels/sourceControl.ts";
 
 const source = readFileSync(
   new URL("../src/renderer/panels/sourceControl.ts", import.meta.url),
@@ -26,5 +27,23 @@ describe("Source Control workspace", () => {
     expect(source).toContain("historyRegion.inert = historyHidden");
     expect(source).toContain('if (outcome.ok) message.value = "";');
     expect(styles).toMatch(/\.scm-drawer-actions\s*\{[\s\S]*padding-inline-end: 48px;/);
+  });
+
+  it("keeps inactive and setup guidance interactive at narrow widths", () => {
+    for (const state of ["inactive", "setup"] as const) {
+      expect(
+        resolveSourceControlDrawers({
+          state,
+          changesMediaMatches: true,
+          historyMediaMatches: true,
+          changesOpen: false,
+          historyOpen: false,
+        }),
+      ).toMatchObject({
+        changesToggleable: false,
+        changesExpanded: true,
+        changesInert: false,
+      });
+    }
   });
 });

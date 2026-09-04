@@ -57,6 +57,42 @@ export interface SourceControlPanel {
   checkConflicts(): Promise<CheckOutcome>;
 }
 
+export interface SourceControlDrawerStateInput {
+  readonly state: "inactive" | "setup" | "repo";
+  readonly changesMediaMatches: boolean;
+  readonly historyMediaMatches: boolean;
+  readonly changesOpen: boolean;
+  readonly historyOpen: boolean;
+}
+
+export interface SourceControlDrawerState {
+  readonly changesToggleable: boolean;
+  readonly historyToggleable: boolean;
+  readonly changesExpanded: boolean;
+  readonly historyExpanded: boolean;
+  readonly changesInert: boolean;
+  readonly historyInert: boolean;
+}
+
+/** Setup guidance is primary content, never a drawer that can be visually present but inert. */
+export function resolveSourceControlDrawers(
+  input: SourceControlDrawerStateInput,
+): SourceControlDrawerState {
+  const inRepository = input.state === "repo";
+  const changesToggleable = inRepository && input.changesMediaMatches;
+  const historyToggleable = inRepository && input.historyMediaMatches;
+  const changesExpanded = !changesToggleable || input.changesOpen;
+  const historyExpanded = !historyToggleable || input.historyOpen;
+  return {
+    changesToggleable,
+    historyToggleable,
+    changesExpanded,
+    historyExpanded,
+    changesInert: !changesExpanded,
+    historyInert: !historyExpanded,
+  };
+}
+
 export interface SourceControlDeps {
   /** Dismisses the workspace shell through the owning layer. */
   readonly onRequestClose: () => void;
@@ -524,8 +560,19 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   let changesDrawerOpen = true;
 
   function syncResponsiveDrawers(reset = false): void {
-    const nextHistoryToggleable = historyDrawerMedia.matches;
-    const nextChangesToggleable = changesDrawerMedia.matches;
+    const state = (element.dataset["scmState"] ?? "inactive") as
+      | "inactive"
+      | "setup"
+      | "repo";
+    const next = resolveSourceControlDrawers({
+      state,
+      changesMediaMatches: changesDrawerMedia.matches,
+      historyMediaMatches: historyDrawerMedia.matches,
+      changesOpen: changesDrawerOpen,
+      historyOpen: historyDrawerOpen,
+    });
+    const nextHistoryToggleable = next.historyToggleable;
+    const nextChangesToggleable = next.changesToggleable;
 
     if (reset || nextHistoryToggleable !== historyDrawerToggleable) {
       historyDrawerToggleable = nextHistoryToggleable;
@@ -540,8 +587,15 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
     if (!historyDrawerToggleable) historyDrawerOpen = true;
     if (!changesDrawerToggleable) changesDrawerOpen = true;
 
-    const changesExpanded = !changesDrawerToggleable || changesDrawerOpen;
-    const historyExpanded = !historyDrawerToggleable || historyDrawerOpen;
+    const resolved = resolveSourceControlDrawers({
+      state,
+      changesMediaMatches: changesDrawerMedia.matches,
+      historyMediaMatches: historyDrawerMedia.matches,
+      changesOpen: changesDrawerOpen,
+      historyOpen: historyDrawerOpen,
+    });
+    const changesExpanded = resolved.changesExpanded;
+    const historyExpanded = resolved.historyExpanded;
 
     element.dataset["changesOpen"] = String(changesExpanded);
     element.dataset["historyOpen"] = String(historyExpanded);

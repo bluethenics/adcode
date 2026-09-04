@@ -64,6 +64,7 @@ export function createShortcutsDialog(host: HTMLElement, deps: ShortcutsDialogDe
   header.className = "shortcuts-header";
 
   const title = document.createElement("h2");
+  title.id = "keyboard-shortcuts-title";
   title.className = "shortcuts-title";
   title.textContent = "Keyboard shortcuts";
 
@@ -82,8 +83,8 @@ export function createShortcutsDialog(host: HTMLElement, deps: ShortcutsDialogDe
   const close = document.createElement("button");
   close.type = "button";
   close.className = "icon-button shortcuts-close";
-  close.title = "Close";
-  close.setAttribute("aria-label", "Close");
+  close.title = "Close Keyboard Shortcuts";
+  close.setAttribute("aria-label", "Close Keyboard Shortcuts");
   close.append(createIcon(ICON.close));
 
   header.append(title, search, resetAll, close);
@@ -96,10 +97,12 @@ export function createShortcutsDialog(host: HTMLElement, deps: ShortcutsDialogDe
 
   card.append(header, hint, list);
   dialog.append(card);
+  dialog.setAttribute("aria-labelledby", title.id);
   host.append(dialog);
 
   /** The command currently capturing keys, or null. */
   let recording: string | null = null;
+  let restoreTarget: HTMLElement | null = null;
 
   close.addEventListener("click", () => api.close());
   search.addEventListener("input", () => draw());
@@ -341,6 +344,10 @@ export function createShortcutsDialog(host: HTMLElement, deps: ShortcutsDialogDe
 
   const api: ShortcutsDialog = {
     open(): void {
+      if (dialog.open) return;
+      restoreTarget = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
       stopRecording();
       search.value = "";
       draw();
@@ -352,6 +359,7 @@ export function createShortcutsDialog(host: HTMLElement, deps: ShortcutsDialogDe
     close(): void {
       stopRecording();
       if (dialog.open) dialog.close();
+      if (restoreTarget?.isConnected === true) restoreTarget.focus();
     },
 
     isOpen: () => dialog.open,

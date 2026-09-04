@@ -62,4 +62,26 @@ describe("shared pop-up shell", () => {
     expect(styles).toContain("@media (prefers-reduced-transparency: reduce)");
     expect(styles).toContain(".popup-shell::backdrop { backdrop-filter: none; }");
   });
+
+  it("distinguishes pointer, keyboard, and reduced-motion disclosure", () => {
+    expect(source).toContain('dialog.dataset["input"]');
+    expect(source).toContain('matchMedia("(prefers-reduced-motion: reduce)")');
+    expect(source).toContain('document.documentElement.dataset["reducedMotion"] === "true"');
+    expect(source).toContain("duration: 220");
+    expect(source).toContain("duration: 100");
+    expect(source).toContain("surface.getAnimations().forEach");
+  });
+
+  it("labels the dialog from its visible title and honours task focus", () => {
+    expect(source).toContain('titleElement.id = `popup-shell-title-');
+    expect(source).toContain('dialog.setAttribute("aria-labelledby"');
+    expect(source).toContain("openOptions.initialFocus ?? options.initialFocus?.() ?? surface");
+  });
+
+  it("keeps high contrast surfaces opaque and explicitly bordered", () => {
+    expect(styles).toContain("@media (prefers-contrast: more)");
+    expect(styles).toContain("border: 2px solid CanvasText");
+    expect(styles).toContain("background: Canvas");
+    expect(styles).toContain("color: CanvasText");
+  });
 });

@@ -34,7 +34,7 @@
   height: min(620px, calc(100vh - 96px));
   overflow: hidden;
   border: 1px solid var(--border-hairline);
-  border-radius: var(--radius-lg);
+  border-radius: 16px;
   background: var(--bg-elevated);
   box-shadow: var(--shadow-floating);
   font-family: var(--font-ui);
@@ -105,6 +105,8 @@
 .structure-popup-close {
   flex: none;
   align-self: flex-start;
+  min-width: 32px;
+  min-height: 32px;
   margin-top: 4px;
 }
 
@@ -426,6 +428,26 @@
 
 .shortcuts-close {
   flex: none;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .shortcuts-dialog::backdrop {
+    backdrop-filter: none;
+  }
+
+  .shortcuts-card {
+    background: var(--bg-elevated);
+  }
+}
+
+@media (prefers-contrast: more) {
+  .shortcuts-card {
+    border: 2px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
 }
 
 /*

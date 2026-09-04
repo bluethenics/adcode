@@ -5370,7 +5370,7 @@ checks.helpGuideJumpsToSetting = await (async () => {
        search.value = 'minimap';
        search.dispatchEvent(new Event('input', { bubbles: true }));
 
-       const jump = document.querySelector('.help-sheet .help-card-jump');
+       const jump = document.querySelector('.help-sheet .help-card-jump[data-setting-id="adcode.editing.minimap"]');
        if (!jump) return false;
        jump.click();
        return true;
@@ -5737,14 +5737,15 @@ checks.settingsEscapeRestoresLauncher = await evaluate(
 await evaluate("document.getElementById('open-settings')?.click(); true");
 await sleep(400);
 checks.settingsCloseButtonDismisses = await evaluate(
-  `(() => {
+  `(async () => {
      const dialog = document.querySelector('dialog[data-popup-id="settings"]');
      const close = dialog?.querySelector('.settings-close[aria-label="Close Settings"]');
      if (!dialog?.open || !(close instanceof HTMLElement)) return false;
      close.focus();
-     const focused = document.activeElement === close;
-     close.click();
-     return focused && dialog.open === false && document.activeElement === document.querySelector('#open-settings');
+      const focused = document.activeElement === close;
+      close.click();
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return focused && dialog.open === false && document.activeElement === document.querySelector('#open-settings');
   })()`,
 );
 
@@ -5953,13 +5954,14 @@ if (chatConnectPoint !== null && typeof chatConnectPoint === "object") {
 }
 await sleep(500);
 checks.chatDependentPointerEvidence = await evaluate(
-  `(() => {
+  `(async () => {
      const chat = document.querySelector('#popup-primary-host dialog[data-popup-id="chat"]');
      const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
      const button = [...(chat?.querySelectorAll('.chat-header button') ?? [])]
        .find((candidate) => candidate.textContent?.trim() === 'Connect');
-     if (!chat?.open || !connect?.open || !button) return false;
-     chat.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      if (!chat?.open || !connect?.open || !button) return false;
+      chat.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 250));
      return {
        dependentDismisses: connect.open === false,
        chatRemainsOpen: chat.open === true,
@@ -5972,7 +5974,7 @@ if (chatConnectPoint !== null && typeof chatConnectPoint === "object") {
 }
 await sleep(500);
 checks.chatConnectLayeringEvidence = await evaluate(
-  `(() => {
+  `(async () => {
      const chat = document.querySelector('#popup-primary-host dialog[data-popup-id="chat"]');
      const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
      const row = connect?.querySelector('.connect-row');
@@ -5992,13 +5994,15 @@ checks.chatConnectLayeringEvidence = await evaluate(
      const stacked = chat?.open === true && connect?.open === true &&
        Number(getComputedStyle(document.getElementById('popup-dependent-host')).zIndex) >
          Number(getComputedStyle(document.getElementById('popup-primary-host')).zIndex);
-     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-     const dependentClosed = connect?.open === false;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const dependentClosed = connect?.open === false;
      const chatStillOpen = chat?.open === true;
      const connectButton = [...(chat?.querySelectorAll('.chat-header button') ?? [])]
        .find((button) => button.textContent?.trim() === 'Connect');
-     const focusReturned = document.activeElement === connectButton;
-     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      const focusReturned = document.activeElement === connectButton;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 250));
      return {
        stacked,
        closeGeometry,
@@ -6023,6 +6027,211 @@ checks.chatConnectWorkspace =
   Object.values(checks.chatDependentPointerEvidence).every((value) => value === true) &&
   typeof checks.chatConnectLayeringEvidence === "object" &&
   Object.values(checks.chatConnectLayeringEvidence).every((value) => value === true);
+
+/*
+ * Every workbench popup has one obvious way out, including at the minimum desktop width.
+ * Geometry is measured from what Chromium painted; source-level presence cannot catch the
+ * Earnings regression where a real close button existed just beyond the clipped surface.
+ */
+async function auditRequiredClose(spec, open) {
+  await open();
+  await sleep(350);
+
+  const before = await evaluate(
+    `(() => {
+       const spec = ${JSON.stringify(spec)};
+       const root = document.querySelector(spec.root);
+       const surface = document.querySelector(spec.surface);
+       const close = document.querySelector(spec.close);
+       if (!(root instanceof HTMLElement) || !(surface instanceof HTMLElement) ||
+           !(close instanceof HTMLButtonElement)) return false;
+       const rootOpen = root instanceof HTMLDialogElement
+         ? root.open
+         : !root.hidden && root.dataset.state === 'open';
+       if (!rootOpen) return false;
+       close.focus();
+       const surfaceBox = surface.getBoundingClientRect();
+       const closeBox = close.getBoundingClientRect();
+       return {
+         named: close.getAttribute('aria-label') === spec.label,
+         focusable: document.activeElement === close && !close.disabled,
+         hitTarget: closeBox.width >= 24 && closeBox.height >= 24,
+         insideSurface:
+           closeBox.left >= surfaceBox.left && closeBox.right <= surfaceBox.right &&
+           closeBox.top >= surfaceBox.top && closeBox.bottom <= surfaceBox.bottom,
+         insideViewport:
+           closeBox.left >= 0 && closeBox.right <= innerWidth &&
+           closeBox.top >= 0 && closeBox.bottom <= innerHeight,
+         distinct:
+           !close.matches('.earnings-refresh, .scm-drawer-toggle') &&
+           close.getAttribute('title') !== null,
+       };
+     })()`,
+  );
+  if (before === false || typeof before !== "object") return before;
+
+  await evaluate(`document.querySelector(${JSON.stringify(spec.close)})?.click(); true`);
+  await sleep(320);
+
+  const after = await evaluate(
+    `(() => {
+       const spec = ${JSON.stringify(spec)};
+       const root = document.querySelector(spec.root);
+       const dismissed = root instanceof HTMLDialogElement
+         ? root.open === false
+         : root?.hidden === true;
+       const ownerStayedOpen = spec.owner === undefined ||
+         document.querySelector(spec.owner)?.open === true;
+       const expected = spec.restore === undefined
+         ? null
+         : document.querySelector(spec.restore);
+       return {
+         dismissed,
+         intendedLayer: dismissed && ownerStayedOpen,
+         focusRestored: expected === null
+           ? document.activeElement instanceof HTMLElement &&
+             !document.activeElement.matches(spec.close)
+           : document.activeElement === expected,
+       };
+     })()`,
+  );
+  return typeof after === "object" && after !== null ? { ...before, ...after } : after;
+}
+
+await send("Emulation.setDeviceMetricsOverride", {
+  width: 680,
+  height: 800,
+  deviceScaleFactor: 1,
+  mobile: false,
+});
+await sleep(250);
+
+checks.dialogCloseAudit = {};
+checks.dialogCloseAudit.structure = await auditRequiredClose(
+  {
+    name: 'Structure',
+    label: "Close Structure",
+    root: 'dialog[data-popup-id="structure"]',
+    surface: 'dialog[data-popup-id="structure"] .popup-shell-surface',
+    close: '.structure-popup-close',
+    restore: '#open-structure',
+  },
+  () => evaluate("document.getElementById('open-structure')?.click(); true"),
+);
+checks.dialogCloseAudit.earnings = await auditRequiredClose(
+  {
+    name: 'Earnings',
+    label: "Close earnings",
+    root: 'dialog[data-popup-id="earnings"]',
+    surface: 'dialog[data-popup-id="earnings"] .popup-shell-surface',
+    close: '.earnings-close',
+    restore: '#open-earnings',
+  },
+  () => evaluate("document.getElementById('open-earnings')?.click(); true"),
+);
+checks.dialogCloseAudit.sourceControl = await auditRequiredClose(
+  {
+    name: 'Source Control',
+    label: "Close Source Control",
+    root: 'dialog[data-popup-id="source-control"]',
+    surface: 'dialog[data-popup-id="source-control"] .popup-shell-surface',
+    close: '.scm-close',
+    restore: '.activity[data-view="scm"]',
+  },
+  () => evaluate("document.querySelector('.activity[data-view=\"scm\"]')?.click(); true"),
+);
+checks.dialogCloseAudit.features = await auditRequiredClose(
+  {
+    name: 'All Features',
+    label: "Close All Features",
+    root: 'dialog[data-popup-id="features"]',
+    surface: 'dialog[data-popup-id="features"] .popup-shell-surface',
+    close: '.feature-library-close',
+    restore: '#open-features',
+  },
+  () => evaluate("document.getElementById('open-features')?.click(); true"),
+);
+checks.dialogCloseAudit.settings = await auditRequiredClose(
+  {
+    name: 'Settings',
+    label: "Close Settings",
+    root: 'dialog[data-popup-id="settings"]',
+    surface: 'dialog[data-popup-id="settings"] .popup-shell-surface',
+    close: '.settings-close',
+    restore: '#open-settings',
+  },
+  () => evaluate("document.getElementById('open-settings')?.click(); true"),
+);
+checks.dialogCloseAudit.chat = await auditRequiredClose(
+  {
+    name: 'Assistant',
+    label: "Close Assistant",
+    root: 'dialog[data-popup-id="chat"]',
+    surface: 'dialog[data-popup-id="chat"] .popup-shell-surface',
+    close: 'dialog[data-popup-id="chat"] [aria-label="Close Assistant"]',
+    restore: '#ai-toggle',
+  },
+  () => evaluate("document.getElementById('ai-toggle')?.click(); true"),
+);
+checks.dialogCloseAudit.connect = await auditRequiredClose(
+  {
+    name: 'Connect a model',
+    label: "Close Connect a model",
+    root: 'dialog[data-popup-id="connect"]',
+    surface: 'dialog[data-popup-id="connect"] .popup-shell-surface',
+    close: 'dialog[data-popup-id="connect"] [aria-label="Close Connect a model"]',
+    owner: 'dialog[data-popup-id="chat"]',
+  },
+  async () => {
+    await evaluate("document.getElementById('ai-toggle')?.click(); true");
+    await sleep(300);
+    await evaluate(
+      `(() => {
+         const button = [...document.querySelectorAll('dialog[data-popup-id="chat"] .chat-header button')]
+           .find((candidate) => candidate.textContent?.trim() === 'Connect');
+         button?.click();
+         return true;
+       })()`,
+    );
+  },
+);
+await pressEscape();
+await sleep(250);
+
+checks.dialogCloseAudit.help = await auditRequiredClose(
+  {
+    name: 'ADCode Guide',
+    label: "Close ADCode Guide",
+    root: '.help-sheet',
+    surface: '.help-guide-panel',
+    close: '.help-guide-close',
+  },
+  () => chooseMenu("Help", "Feature Guide"),
+);
+checks.dialogCloseAudit.shortcuts = await auditRequiredClose(
+  {
+    name: 'Keyboard Shortcuts',
+    label: "Close Keyboard Shortcuts",
+    root: 'dialog.shortcuts-dialog',
+    surface: '.shortcuts-card',
+    close: '.shortcuts-close',
+  },
+  () => chooseMenu("Help", "Keyboard Shortcuts"),
+);
+
+checks.dialogCloseAuditPass = Object.values(checks.dialogCloseAudit).every(
+  (result) =>
+    typeof result === "object" &&
+    result !== null &&
+    Object.values(result).every((value) => value === true),
+);
+
+await send("Emulation.setDeviceMetricsOverride", {
+  width: 1280,
+  height: 800,
+  deviceScaleFactor: 1,
+  mobile: false,
+});
 
 socket.close();
 child.kill();

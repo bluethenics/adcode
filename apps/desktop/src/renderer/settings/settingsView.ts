@@ -210,6 +210,7 @@ export function createSettingsTargetLifecycle(deps: {
       active = true;
       const generation = ++readGeneration;
       deps.render();
+      revealPendingTarget();
       void read().then(() => {
         if (!active || generation !== readGeneration) return;
         deps.render();

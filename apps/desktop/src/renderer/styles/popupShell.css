@@ -23,6 +23,19 @@
   background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
   box-shadow: 0 24px 70px rgb(0 0 0 / 0.28), 0 2px 8px rgb(0 0 0 / 0.16);
   backdrop-filter: blur(28px) saturate(155%);
+  will-change: opacity, scale, translate;
+}
+
+.popup-shell-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .popup-shell[data-popup-size="workspace"] .popup-shell-surface {
@@ -53,10 +66,19 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .popup-shell-surface { transition-duration: 100ms; }
+  .popup-shell-surface { will-change: opacity; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
   .popup-shell-surface { background: var(--bg-elevated); backdrop-filter: none; }
   .popup-shell::backdrop { backdrop-filter: none; }
+}
+
+@media (prefers-contrast: more) {
+  .popup-shell-surface {
+    border: 2px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    backdrop-filter: none;
+  }
 }

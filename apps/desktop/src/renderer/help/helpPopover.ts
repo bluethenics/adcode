@@ -38,6 +38,7 @@ export function createHelpPopover(host: HTMLElement): HelpPopover {
   const card = document.createElement("div");
   card.className = "help-popover";
   card.hidden = true;
+  card.setAttribute("popover", "manual");
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", "What this does");
 
@@ -160,6 +161,7 @@ export function createHelpPopover(host: HTMLElement): HelpPopover {
       how.textContent = `How to use it: ${entry.how}`;
 
       card.hidden = false;
+      card.showPopover();
       anchor.setAttribute("aria-expanded", "true");
 
       // Measured after being made visible, before being revealed - the element has a size
@@ -190,6 +192,7 @@ export function createHelpPopover(host: HTMLElement): HelpPopover {
       anchored = null;
 
       delete card.dataset["state"];
+      card.hidePopover();
       card.hidden = true;
 
       document.removeEventListener("pointerdown", onDocumentPointerDown, true);

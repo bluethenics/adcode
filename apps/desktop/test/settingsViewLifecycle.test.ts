@@ -37,4 +37,27 @@ describe("Settings target lifecycle", () => {
     expect(highlighted).toBe("adcode.editing.minimap");
     expect(focused).toBe("adcode.editing.minimap");
   });
+
+  it("retains a target requested before the asynchronous view becomes active", async () => {
+    const read = deferred<void>();
+    const reveals: string[] = [];
+    const lifecycle = createSettingsTargetLifecycle({
+      render() {},
+      reveal(settingId) {
+        reveals.push(settingId);
+      },
+    });
+
+    lifecycle.openAt("adcode.editing.minimap");
+    lifecycle.shown(() => read.promise);
+    read.resolve();
+    await read.promise;
+    await Promise.resolve();
+
+    expect(reveals).toEqual([
+      "adcode.editing.minimap",
+      "adcode.editing.minimap",
+      "adcode.editing.minimap",
+    ]);
+  });
 });

@@ -69,8 +69,8 @@ export function createStructurePopup(deps: StructurePopupDeps): StructurePopup {
   const close = document.createElement("button");
   close.type = "button";
   close.className = "icon-button structure-popup-close";
-  close.title = "Close (Esc)";
-  close.setAttribute("aria-label", "Close");
+  close.title = "Close Structure (Esc)";
+  close.setAttribute("aria-label", "Close Structure");
   close.append(createIcon(ICON.close));
 
   header.append(tabs, close);

@@ -2005,7 +2005,7 @@ function openPrimaryPopup(
       closeDependentPopup(popupLayerState.dependent, false);
     }
     const previous = primaryPopups.get(popupLayerState.primary);
-    previous?.shell.close({ restoreFocus: false });
+    previous?.shell.close({ restoreFocus: false, immediate: true });
     previous?.content.hidden();
   }
 
@@ -2364,6 +2364,8 @@ const settingsShell = createPopupShell({
   modal: true,
   host: popupPrimaryHost,
   content: settingsView.element,
+  initialFocus: () =>
+    settingsView.element.querySelector<HTMLElement>(".settings-search"),
   onRequestClose: () => closePrimaryPopup("settings"),
 });
 registerPrimaryPopup("settings", settingsShell, settingsView);
@@ -3252,6 +3254,8 @@ const sourceControlShell = createPopupShell({
   modal: true,
   host: popupPrimaryHost,
   content: sourceControl.element,
+  initialFocus: () =>
+    sourceControl.element.querySelector<HTMLElement>(".scm-message"),
   onRequestClose: () => closePrimaryPopup("source-control"),
 });
 
@@ -3276,11 +3280,13 @@ function openSourceControlWorkspace(
     ? "launcher"
     : "editor",
 ): void {
+  const launcher = sourceControlActivity;
+  if (launcher === null) return;
   sourceControlRestoreFocus = restoreFocus;
   openPrimaryPopup(
     "source-control",
     sourceControlShell,
-    sourceControlActivity,
+    launcher,
     input,
   );
 }
@@ -4095,6 +4101,7 @@ const chatShell = createPopupShell({
   modal: true,
   host: popupPrimaryHost,
   content: chat.element,
+  initialFocus: () => chat.element.querySelector<HTMLElement>(".chat-input"),
   onRequestClose: () => closePrimaryPopup("chat"),
 });
 registerPrimaryPopup("chat", chatShell, chat);
@@ -4128,6 +4135,8 @@ const connectShell = createPopupShell({
   modal: true,
   host: popupDependentHost,
   content: dependentConnectView.element,
+  initialFocus: () =>
+    dependentConnectView.element.querySelector<HTMLElement>(".settings-search"),
   onRequestClose: () => closeDependentPopup("connect"),
 });
 registerDependentPopup("connect", connectShell, dependentConnectView);
@@ -4147,6 +4156,8 @@ const connectPrimaryShell = createPopupShell({
   modal: true,
   host: popupPrimaryHost,
   content: connectView.element,
+  initialFocus: () =>
+    connectView.element.querySelector<HTMLElement>(".settings-search"),
   onRequestClose: () => closePrimaryPopup("connect"),
 });
 registerPrimaryPopup("connect", connectPrimaryShell, {
@@ -5286,6 +5297,8 @@ const featuresShell = createPopupShell({
   modal: true,
   host: popupPrimaryHost,
   content: featureLibrary.element,
+  initialFocus: () =>
+    featureLibrary.element.querySelector<HTMLElement>(".feature-library-search"),
   onRequestClose: () => closePrimaryPopup("features"),
 });
 registerPrimaryPopup("features", featuresShell, featureLibrary);
