@@ -610,8 +610,24 @@
   position: relative;
   display: grid;
   grid-template-columns: 280px minmax(360px, 1fr) 360px;
+  grid-template-areas: "history conversation inspector";
   height: calc(100% - var(--chat-header-height));
   min-height: 0;
+}
+
+.chat-card[data-history-open="false"][data-inspector-open="true"] .chat-body {
+  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-areas: "conversation inspector";
+}
+
+.chat-card[data-history-open="true"][data-inspector-open="false"] .chat-body {
+  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-areas: "history conversation";
+}
+
+.chat-card[data-history-open="false"][data-inspector-open="false"] .chat-body {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "conversation";
 }
 
 /*
@@ -621,6 +637,7 @@
  * one, which is the exact thing a history list is supposed to save you from.
  */
 .chat-history {
+  grid-area: history;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -631,6 +648,7 @@
 }
 
 .chat-inspector {
+  grid-area: inspector;
   min-width: 0;
   min-height: 0;
   overflow: auto;
@@ -639,6 +657,7 @@
 }
 
 .chat-conversation {
+  grid-area: conversation;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
@@ -753,9 +772,22 @@
 @media (max-width: 980px) {
   .chat-body {
     grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-areas: "history conversation";
+  }
+
+  .chat-card[data-history-open="true"][data-inspector-open="false"] .chat-body {
+    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-areas: "history conversation";
+  }
+
+  .chat-card[data-history-open="false"][data-inspector-open="true"] .chat-body,
+  .chat-card[data-history-open="false"][data-inspector-open="false"] .chat-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "conversation";
   }
 
   .chat-inspector {
+    grid-area: auto;
     position: absolute;
     inset: 0 0 0 auto;
     z-index: 1;
@@ -777,8 +809,10 @@
     font-size: 10px;
   }
 
-  .chat-body {
-    display: block;
+  .chat-card[data-history-open][data-inspector-open] .chat-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "conversation";
   }
 
   .chat-conversation {
@@ -787,6 +821,7 @@
 
   .chat-history,
   .chat-inspector {
+    grid-area: auto;
     position: absolute;
     inset-block: 0;
     z-index: 1;

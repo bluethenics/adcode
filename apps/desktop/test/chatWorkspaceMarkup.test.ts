@@ -13,6 +13,14 @@ const mainSource = readFileSync(
   new URL("../src/renderer/main.ts", import.meta.url),
   "utf8",
 );
+const styles = readFileSync(
+  new URL("../src/renderer/styles/ai.css", import.meta.url),
+  "utf8",
+);
+const smoke = readFileSync(
+  new URL("../../../scripts/smoke.mjs", import.meta.url),
+  "utf8",
+);
 
 describe("AI Chat workspace", () => {
   it("renders history, conversation, and inspector regions", () => {
@@ -26,6 +34,37 @@ describe("AI Chat workspace", () => {
     expect(source).not.toContain("positionKey");
     expect(source).not.toContain("savePosition");
     expect(source).not.toContain("chat-resize");
+  });
+
+  it("reclaims conversation width for every disclosure combination", () => {
+    expect(styles).toContain(
+      '.chat-card[data-history-open="false"][data-inspector-open="true"] .chat-body',
+    );
+    expect(styles).toContain(
+      '.chat-card[data-history-open="true"][data-inspector-open="false"] .chat-body',
+    );
+    expect(styles).toContain(
+      '.chat-card[data-history-open="false"][data-inspector-open="false"] .chat-body',
+    );
+    expect(styles).toContain("grid-template-columns: minmax(0, 1fr);");
+    expect(styles).toContain("@media (max-width: 980px)");
+    expect(styles).toContain("@media (max-width: 720px)");
+    expect(styles).toMatch(
+      /@media \(max-width: 980px\)[\s\S]*data-history-open="false"\]\[data-inspector-open="true"\] .chat-body/,
+    );
+    expect(styles).toMatch(
+      /@media \(max-width: 720px\)[\s\S]*\.chat-card\[data-history-open\]\[data-inspector-open\] .chat-body/,
+    );
+  });
+
+  it("opens the inspector before revealing Team or Schedule content", () => {
+    expect(source).toContain("function revealInspector(): void");
+    expect(source).toContain(
+      "function showScheduleComposer(): void {\n    revealInspector();",
+    );
+    expect(source).toContain(
+      "showTeam: () => {\n          revealInspector();",
+    );
   });
 });
 
@@ -44,7 +83,18 @@ describe("Chat Connect ownership", () => {
   it("keeps the dependent Connect surface inside coordinator dismissal bounds", () => {
     expect(mainSource).toContain("dependent?.shell.surface.contains(event.target as Node)");
     expect(mainSource).toContain(
+      "if (popupLayerState.dependent !== null) {\n      closeDependentPopup(popupLayerState.dependent);\n      return;\n    }",
+    );
+    expect(mainSource).toContain(
       'openDependentPopup("connect", connectShell, chat.connectButton, "chat", "pointer")',
     );
+  });
+
+  it("keeps collapsed disclosure and send-history smoke evidence explicit", () => {
+    expect(smoke).toContain("checks.chatDisclosureGeometry");
+    expect(smoke).toContain("checks.chatSendHistoryEvidence");
+    expect(smoke).toContain("checks.chatDependentPointerEvidence");
+    expect(smoke).toContain("providerSelected,");
+    expect(smoke).not.toContain("connect?.querySelectorAll('.connect-row').length === 0");
   });
 });

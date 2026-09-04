@@ -527,6 +527,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     applyDisclosures();
   }
 
+  function revealInspector(): void {
+    if (inspectorOpen) return;
+    inspectorOpen = true;
+    applyDisclosures();
+  }
+
   applyDisclosures();
 
   window.adcode.chat.onChanged((session) => renderMemory(session));
@@ -596,6 +602,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   function paintTeamSuggestion(suggestion: AiTeamSuggestionView, prompt: string): void {
     activeSuggestion = suggestion;
     suggestionPrompt = prompt;
+    revealInspector();
     teamPanel.hidden = false;
     teamPanel.dataset["mode"] = "suggestion";
     teamPanel.dataset["state"] = "configured";
@@ -618,6 +625,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       teamPanel.hidden = true;
       return;
     }
+    revealInspector();
     teamPanel.hidden = false;
     teamPanel.dataset["mode"] = "team";
     teamPanel.dataset["state"] = team.state;
@@ -879,6 +887,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   function showScheduleComposer(): void {
+    revealInspector();
     automationPanel.hidden = false;
     refreshAutomationTargets();
     if (automationDue.value.length === 0) {
@@ -1401,7 +1410,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     openTeamSetup(): void {
       runChatWidgetIntent("team", {
         open: () => api.open(),
-        showTeam: () => void suggestForComposer(true),
+        showTeam: () => {
+          revealInspector();
+          void suggestForComposer(true);
+        },
         showSchedule: showScheduleComposer,
       });
     },
@@ -1409,7 +1421,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     openScheduleComposer(): void {
       runChatWidgetIntent("schedule", {
         open: () => api.open(),
-        showTeam: () => void suggestForComposer(true),
+        showTeam: () => {
+          revealInspector();
+          void suggestForComposer(true);
+        },
         showSchedule: showScheduleComposer,
       });
     },

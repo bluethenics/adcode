@@ -48,6 +48,14 @@ describe("pop-up layer", () => {
     });
   });
 
+  it("keeps Chat open when an outside dependent press dismisses Connect", () => {
+    const layered = { primary: "chat" as const, dependent: "connect" as const };
+    expect(reducePopupLayer(layered, { type: "close", id: "connect" })).toEqual({
+      primary: "chat",
+      dependent: null,
+    });
+  });
+
   it("toggles an anchored primary from its launcher", () => {
     const open = reducePopupLayer(initialPopupLayer(), {
       type: "toggle-primary",

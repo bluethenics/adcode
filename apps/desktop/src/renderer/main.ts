@@ -2071,11 +2071,12 @@ document.addEventListener(
     const dependent = popupLayerState.dependent === null
       ? undefined
       : dependentPopups.get(popupLayerState.dependent);
-    if (
-      active?.shell.surface.contains(event.target as Node) ||
-      dependent?.shell.surface.contains(event.target as Node)
-    )
+    if (dependent?.shell.surface.contains(event.target as Node)) return;
+    if (popupLayerState.dependent !== null) {
+      closeDependentPopup(popupLayerState.dependent);
       return;
+    }
+    if (active?.shell.surface.contains(event.target as Node)) return;
     closePrimaryPopup(popupLayerState.primary);
   },
   true,
