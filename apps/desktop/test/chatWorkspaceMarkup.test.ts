@@ -107,6 +107,9 @@ describe("Chat Connect ownership", () => {
   it("keeps collapsed disclosure and send-history smoke evidence explicit", () => {
     expect(smoke).toContain("checks.chatDisclosureGeometry");
     expect(smoke).toContain("checks.chatDisclosureResponsiveEvidence");
+    expect(smoke).toMatch(
+      /checks\.chatConnectWorkspace\s*=[\s\S]*typeof checks\.chatDisclosureResponsiveEvidence === "object"[\s\S]*Object\.values\(checks\.chatDisclosureResponsiveEvidence\)\.every/,
+    );
     expect(smoke).toContain("await setChatViewport(900)");
     expect(smoke).toContain("await setChatViewport(640)");
     expect(smoke).toContain("checks.chatSendHistoryEvidence");
@@ -116,6 +119,8 @@ describe("Chat Connect ownership", () => {
     expect(smoke).toContain("chat-history-open");
     expect(smoke).toContain("const EVALUATE_TIMEOUT_MS");
     expect(smoke).toContain("Runtime.evaluate timed out");
+    expect(smoke).not.toContain("ADCODE_SMOKE_CHAT_PROBE");
+    expect(smoke).not.toContain("chatConnectProbeBefore");
     expect(smoke).not.toContain("composer.dispatchEvent(new Event('submit'");
     expect(smoke).toContain("checks.chatDependentPointerEvidence");
     expect(smoke).toContain("providerSelected,");
