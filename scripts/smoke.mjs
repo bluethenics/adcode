@@ -5709,8 +5709,111 @@ checks.settingsCloseButtonDismisses = await evaluate(
      const focused = document.activeElement === close;
      close.click();
      return focused && dialog.open === false && document.activeElement === document.querySelector('#open-settings');
+  })()`,
+);
+
+await evaluate("document.getElementById('ai-toggle')?.click(); true");
+await sleep(400);
+checks.chatConnectWorkspaceEvidence = await evaluate(
+  `(() => {
+     const chat = document.querySelector('dialog[data-popup-id="chat"]');
+     const surface = chat?.querySelector('.popup-shell-surface');
+     const card = chat?.querySelector('.chat-card');
+     const history = card?.querySelector('.chat-history');
+     const conversation = card?.querySelector('.chat-conversation');
+     const inspector = card?.querySelector('.chat-inspector');
+     const composer = card?.querySelector('.chat-composer');
+     const header = card?.querySelector('.chat-header');
+     const historyButton = [...(header?.querySelectorAll('button') ?? [])]
+       .find((button) => button.textContent?.trim() === 'History');
+     const inspectorButton = [...(header?.querySelectorAll('button') ?? [])]
+       .find((button) => button.textContent?.trim() === 'Inspector');
+     const close = [...(header?.querySelectorAll('button') ?? [])]
+       .find((button) => button.textContent?.trim() === 'Close');
+     if (!chat?.open || !surface || !card || !history || !conversation || !inspector || !composer ||
+         !historyButton || !inspectorButton || !close) return false;
+     if (!history.hidden) historyButton.click();
+     historyButton.click();
+     if (!inspector.hidden) inspectorButton.click();
+     inspectorButton.click();
+     close.focus();
+     const surfaceBox = surface.getBoundingClientRect();
+     const closeBox = close.getBoundingClientRect();
+     const conversationBox = conversation.getBoundingClientRect();
+     const historyBox = history.getBoundingClientRect();
+     const inspectorBox = inspector.getBoundingClientRect();
+     const composerBox = composer.getBoundingClientRect();
+     return {
+       workspace: card.getBoundingClientRect().width === surfaceBox.width &&
+         card.getBoundingClientRect().height === surfaceBox.height,
+       titleAndStatus: header.getBoundingClientRect().height > 20 &&
+         (header.textContent ?? '').includes('Assistant'),
+       transcriptDominant: conversationBox.width >= historyBox.width && conversationBox.width >= inspectorBox.width,
+       historyReopens: historyButton.getAttribute('aria-expanded') === 'true' && !history.hidden,
+       inspectorDisclosure: inspectorButton.getAttribute('aria-expanded') === 'true' && !inspector.hidden,
+       composerReachable: composerBox.width > 0 && composerBox.bottom <= surfaceBox.bottom,
+       closeGeometry: document.activeElement === close && closeBox.width > 0 && closeBox.height > 0 &&
+         closeBox.left >= surfaceBox.left && closeBox.top >= surfaceBox.top &&
+       close.getAttribute('aria-label') === 'Close Assistant' &&
+         closeBox.right <= surfaceBox.right && closeBox.bottom <= surfaceBox.bottom &&
+         closeBox.right <= innerWidth && closeBox.bottom <= innerHeight,
+     };
    })()`,
 );
+
+await evaluate(
+  `(() => {
+     const button = [...document.querySelectorAll('dialog[data-popup-id="chat"] .chat-header button')]
+       .find((candidate) => candidate.textContent?.trim() === 'Connect');
+     button?.click();
+     return true;
+   })()`,
+);
+await sleep(500);
+checks.chatConnectLayeringEvidence = await evaluate(
+  `(() => {
+     const chat = document.querySelector('#popup-primary-host dialog[data-popup-id="chat"]');
+     const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
+     const row = connect?.querySelector('.connect-row');
+     const surface = connect?.querySelector('.popup-shell-surface');
+     const close = [...(connect?.querySelectorAll('.settings-header button') ?? [])]
+       .find((button) => button.textContent?.trim() === 'Close');
+     row?.click();
+     const providerSelected = connect?.querySelector('.connect-row[data-selected="true"]') !== null;
+     close?.focus();
+     const closeBox = close?.getBoundingClientRect();
+     const surfaceBox = surface?.getBoundingClientRect();
+     const closeGeometry = document.activeElement === close && closeBox !== undefined && surfaceBox !== undefined &&
+       close.getAttribute('aria-label') === 'Close Connect a model' && closeBox.width > 0 &&
+       closeBox.height > 0 && closeBox.left >= surfaceBox.left &&
+       closeBox.top >= surfaceBox.top && closeBox.right <= surfaceBox.right &&
+       closeBox.bottom <= surfaceBox.bottom && closeBox.right <= innerWidth && closeBox.bottom <= innerHeight;
+     const stacked = chat?.open === true && connect?.open === true &&
+       Number(getComputedStyle(document.getElementById('popup-dependent-host')).zIndex) >
+         Number(getComputedStyle(document.getElementById('popup-primary-host')).zIndex);
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+     const dependentClosed = connect?.open === false;
+     const chatStillOpen = chat?.open === true;
+     const connectButton = [...(chat?.querySelectorAll('.chat-header button') ?? [])]
+       .find((button) => button.textContent?.trim() === 'Connect');
+     const focusReturned = document.activeElement === connectButton;
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+     return {
+       stacked,
+       closeGeometry,
+       providerSelection: providerSelected || connect?.querySelectorAll('.connect-row').length === 0,
+       layeredEscape: dependentClosed && chatStillOpen,
+       focusReturn: focusReturned,
+       chatEscape: chat?.open === false && document.activeElement === document.getElementById('ai-toggle'),
+     };
+   })()`,
+);
+
+checks.chatConnectWorkspace =
+  typeof checks.chatConnectWorkspaceEvidence === "object" &&
+  Object.values(checks.chatConnectWorkspaceEvidence).every((value) => value === true) &&
+  typeof checks.chatConnectLayeringEvidence === "object" &&
+  Object.values(checks.chatConnectLayeringEvidence).every((value) => value === true);
 
 socket.close();
 child.kill();

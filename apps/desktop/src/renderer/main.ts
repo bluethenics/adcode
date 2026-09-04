@@ -1930,6 +1930,7 @@ let panelHeight = DEFAULT_PANEL_HEIGHT;
 let layoutState = initialWorkbenchLayout(window.innerWidth);
 
 const popupPrimaryHost = el("popup-primary-host");
+const popupDependentHost = el("popup-dependent-host");
 
 interface PopupContentLifecycle {
   shown(): void;
@@ -1941,8 +1942,14 @@ interface RegisteredPrimaryPopup {
   readonly content: PopupContentLifecycle;
 }
 
+interface RegisteredDependentPopup {
+  readonly shell: PopupShell;
+  readonly content: PopupContentLifecycle;
+}
+
 let popupLayerState = initialPopupLayer();
 const primaryPopups = new Map<PopupId, RegisteredPrimaryPopup>();
+const dependentPopups = new Map<PopupId, RegisteredDependentPopup>();
 
 function registerPrimaryPopup(
   id: PopupId,
@@ -1952,9 +1959,30 @@ function registerPrimaryPopup(
   primaryPopups.set(id, { shell, content });
 }
 
+function registerDependentPopup(
+  id: PopupId,
+  shell: PopupShell,
+  content: PopupContentLifecycle,
+): void {
+  dependentPopups.set(id, { shell, content });
+}
+
+function closeDependentPopup(id: PopupId, restoreFocus = true): void {
+  const popup = dependentPopups.get(id);
+  if (popup === undefined) return;
+
+  popup.shell.close({ restoreFocus });
+  popup.content.hidden();
+  popupLayerState = reducePopupLayer(popupLayerState, { type: "close", id });
+}
+
 function closePrimaryPopup(id: PopupId): void {
   const popup = primaryPopups.get(id);
   if (popup === undefined) return;
+
+  if (popupLayerState.dependent !== null) {
+    closeDependentPopup(popupLayerState.dependent, false);
+  }
 
   popup.shell.close();
   popup.content.hidden();
@@ -1973,6 +2001,9 @@ function openPrimaryPopup(
   }
 
   if (popupLayerState.primary !== null) {
+    if (popupLayerState.dependent !== null) {
+      closeDependentPopup(popupLayerState.dependent, false);
+    }
     const previous = primaryPopups.get(popupLayerState.primary);
     previous?.shell.close({ restoreFocus: false });
     previous?.content.hidden();
@@ -1984,6 +2015,27 @@ function openPrimaryPopup(
   });
   primaryPopups.get(id)?.content.shown();
   shell.open({ trigger, anchor: trigger, input });
+}
+
+function openDependentPopup(
+  id: PopupId,
+  shell: PopupShell,
+  trigger: HTMLElement,
+  owner: PopupId,
+  input: LayoutInput,
+): void {
+  if (popupLayerState.primary !== owner) return;
+  if (popupLayerState.dependent !== null) {
+    closeDependentPopup(popupLayerState.dependent, false);
+  }
+
+  popupLayerState = reducePopupLayer(popupLayerState, {
+    type: "open-dependent",
+    id,
+    owner,
+  });
+  dependentPopups.get(id)?.content.shown();
+  shell.open({ trigger, input });
 }
 
 function togglePrimaryPopup(
@@ -2023,15 +2075,12 @@ document.addEventListener(
 );
 
 document.addEventListener("keydown", (event) => {
-  if (
-    event.key !== "Escape" ||
-    event.defaultPrevented ||
-    popupLayerState.primary === null
-  )
+  if (event.key !== "Escape" || event.defaultPrevented || popupLayerState.primary === null)
     return;
   // Popup shells handle Escape locally when focused. This fallback covers document-level
   // dispatch and focus outside the dialog without competing with already-handled surfaces.
-  closePrimaryPopup(popupLayerState.primary);
+  if (popupLayerState.dependent !== null) closeDependentPopup(popupLayerState.dependent);
+  else closePrimaryPopup(popupLayerState.primary);
   event.preventDefault();
 });
 
@@ -4015,23 +4064,12 @@ editorHost.git.onResolved(() => {
 
 /* ── Assistant (§5.3) ─────────────────────────────────────────────────── */
 
-const connectView = createConnectView({
-  host: document.body,
-  status: () => window.adcode.ai.status(),
-  checkKey: (provider, key) => window.adcode.ai.checkKey(provider, key),
-  setKey: (provider, key) => window.adcode.ai.setKey(provider, key),
-  clearKey: (provider) => window.adcode.ai.clearKey(provider),
-  write: async (id, value) => {
-    await window.adcode.settings.write(id, value);
-  },
-  restoreFocus: () => editorHost.focus(),
-});
-
 const chat = createChatWidget({
-  host: document.body,
   // Applying a proposal reopens the file so the user sees the result in the editor.
   openExternalPath: (path) => void openFile(path),
-  openConnect: () => connectView.open(),
+  openConnect: () => openConnectFromChat(),
+  requestOpen: () => openChat("keyboard"),
+  requestClose: () => closePrimaryPopup("chat"),
   askForName: (current) =>
     promptDialog.ask({
       title: "Rename conversation",
@@ -4039,6 +4077,81 @@ const chat = createChatWidget({
       confirmLabel: "Rename",
     }),
 });
+
+const chatLauncher = el<HTMLButtonElement>("ai-toggle");
+
+const chatShell = createPopupShell({
+  id: "chat",
+  title: "Assistant",
+  size: "workspace",
+  modal: true,
+  host: popupPrimaryHost,
+  content: chat.element,
+  onRequestClose: () => closePrimaryPopup("chat"),
+});
+registerPrimaryPopup("chat", chatShell, chat);
+
+function openChat(input: LayoutInput): void {
+  openPrimaryPopup("chat", chatShell, chatLauncher, input);
+}
+
+function createConnectContent(requestOpen: () => void, requestClose: () => void) {
+  return createConnectView({
+    status: () => window.adcode.ai.status(),
+    checkKey: (provider, key) => window.adcode.ai.checkKey(provider, key),
+    setKey: (provider, key) => window.adcode.ai.setKey(provider, key),
+    clearKey: (provider) => window.adcode.ai.clearKey(provider),
+    write: async (id, value) => {
+      await window.adcode.settings.write(id, value);
+    },
+    requestOpen,
+    requestClose,
+  });
+}
+
+const dependentConnectView = createConnectContent(
+  () => openConnectFromChat(),
+  () => closeDependentPopup("connect"),
+);
+const connectShell = createPopupShell({
+  id: "connect",
+  title: "Connect a model",
+  size: "medium",
+  modal: true,
+  host: popupDependentHost,
+  content: dependentConnectView.element,
+  onRequestClose: () => closeDependentPopup("connect"),
+});
+registerDependentPopup("connect", connectShell, dependentConnectView);
+
+function openConnectFromChat(): void {
+  openDependentPopup("connect", connectShell, chat.connectButton, "chat", "pointer");
+}
+
+const connectView = createConnectContent(
+  () => openIndependentConnect("keyboard"),
+  () => closePrimaryPopup("connect"),
+);
+const connectPrimaryShell = createPopupShell({
+  id: "connect",
+  title: "Connect a model",
+  size: "medium",
+  modal: true,
+  host: popupPrimaryHost,
+  content: connectView.element,
+  onRequestClose: () => closePrimaryPopup("connect"),
+});
+registerPrimaryPopup("connect", connectPrimaryShell, {
+  shown: () => connectView.shown(),
+  hidden: () => {
+    connectView.hidden();
+    editorHost.focus();
+  },
+});
+
+function openIndependentConnect(input: LayoutInput): void {
+  openPrimaryPopup("connect", connectPrimaryShell, el("editor-host"), input);
+}
 
 /**
  * Everything in the renderer that remembers something per folder.

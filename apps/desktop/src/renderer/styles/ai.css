@@ -6,73 +6,28 @@
  */
 
 .chat-card {
-  position: fixed;
-  right: 24px;
-  bottom: 56px;
-  z-index: 60;
-
-  width: 420px;
-  height: 520px;
-  /*
-   * Capped against the window, which can be as small as 680x420. Without these the card
-   * kept its full 520px height in a 420px window and hung 156px above the top edge -
-   * taking the header with it, which is the drag handle, the model picker and the close
-   * button. There was no way to get it back.
-   */
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 72px);
-  display: grid;
-  /*
-   * `minmax(0, 1fr)`, not the implicit `auto` column. An `auto` track is at least as wide
-   * as its widest child's min-content, so the composer's textarea was making the whole
-   * card 54px wider than its own `width` - at every size, including the default one.
-   * This says the column may be narrower than its contents, and the contents must cope.
-   */
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 40px auto auto auto minmax(0, 1fr) auto auto;
-  /* So the parts inside can respond to the card's width rather than the window's. */
-  container-type: inline-size;
-
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-hairline);
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-floating);
+  --chat-header-height: 40px;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
-
-  /*
-   * `transform` is this card's *position*, not its entrance - `place()` in chatWidget.ts
-   * writes a fresh translate on every `pointermove` while the header is being dragged. So
-   * it must never be transitioned: a 220ms curve on it means each move event retargets an
-   * eased animation instead of landing, and the card trails the cursor the whole way down
-   * and then keeps gliding after the pointer stops. Direct manipulation has to be 1:1.
-   *
-   * It also bought nothing on the way in. `place()` runs before the open state is set, so
-   * the only thing the transform transition ever animated was an unasked-for drift from
-   * the bottom-right anchor to the saved position, every single time the card was opened.
-   *
-   * Presence is opacity's job here, and opacity alone.
-   */
-  opacity: 0;
-  transition: opacity var(--duration-enter) var(--ease-sheet);
-}
-
-.chat-card[data-state="open"] {
-  opacity: 1;
 }
 
 .chat-header {
+  height: var(--chat-header-height);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 10px;
   border-bottom: 1px solid var(--border-hairline);
   background: var(--bg-chrome);
-  cursor: grab;
-  user-select: none;
+  min-width: 0;
 }
 
-.chat-header:active {
-  cursor: grabbing;
+.chat-header .ghost-button:focus-visible,
+.connect-panel .ghost-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .chat-title {
@@ -84,7 +39,9 @@
 }
 
 .chat-model {
-  margin-right: auto;
+  flex: 1;
+  min-width: 0;
+  margin-right: 0;
   font-size: 10px;
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
@@ -647,33 +604,14 @@
   cursor: default;
 }
 
-.chat-resize {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 16px;
-  height: 16px;
-  cursor: nwse-resize;
-}
-
-.chat-resize::after {
-  content: "";
-  position: absolute;
-  right: 3px;
-  bottom: 3px;
-  width: 7px;
-  height: 7px;
-  border-right: 2px solid var(--text-tertiary);
-  border-bottom: 2px solid var(--text-tertiary);
-  opacity: 0.6;
-}
-
 /* ── History, and what is being remembered ────────────────────────────── */
 
 .chat-body {
-  display: flex;
+  position: relative;
+  display: grid;
+  grid-template-columns: 280px minmax(360px, 1fr) 360px;
+  height: calc(100% - var(--chat-header-height));
   min-height: 0;
-  flex: 1;
 }
 
 /*
@@ -685,26 +623,26 @@
 .chat-history {
   display: flex;
   flex-direction: column;
-  /* Prefers 190px, gives ground before the transcript does. `flex: none` meant a narrow
-     card spent its whole width on the list and left the conversation a sliver. */
-  flex: 0 1 190px;
   min-width: 0;
   min-height: 0;
-  border-right: 1px solid var(--border-hairline);
+  overflow: auto;
+  border-right: 1px solid var(--border-subtle);
   background: var(--bg-hover);
 }
 
-/*
- * On a card too narrow for both, the conversation wins.
- *
- * A container query, not a media query: what matters is how wide the *card* is, and the
- * user can resize it independently of the window. Below this the two columns are each
- * too narrow to read, and a history list you cannot read is worse than one you reopen.
- */
-@container (max-width: 360px) {
-  .chat-history {
-    display: none;
-  }
+.chat-inspector {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-left: 1px solid var(--border-subtle);
+  background: var(--bg-app);
+}
+
+.chat-conversation {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
 }
 
 .chat-history-search {
@@ -812,11 +750,77 @@
   font-size: 11px;
 }
 
+@media (max-width: 980px) {
+  .chat-body {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+
+  .chat-inspector {
+    position: absolute;
+    inset: 0 0 0 auto;
+    z-index: 1;
+    width: min(400px, 82%);
+    box-shadow: -12px 0 30px rgb(0 0 0 / 0.2);
+  }
+}
+
+@media (max-width: 720px) {
+  .chat-header {
+    gap: 4px;
+    padding-inline: 8px;
+    overflow-x: auto;
+  }
+
+  .chat-header .ghost-button {
+    flex: none;
+    padding-inline: 5px;
+    font-size: 10px;
+  }
+
+  .chat-body {
+    display: block;
+  }
+
+  .chat-conversation {
+    height: 100%;
+  }
+
+  .chat-history,
+  .chat-inspector {
+    position: absolute;
+    inset-block: 0;
+    z-index: 1;
+    width: min(340px, 88%);
+    box-shadow: 12px 0 30px rgb(0 0 0 / 0.2);
+  }
+
+  .chat-history {
+    inset-inline-start: 0;
+  }
+
+  .chat-inspector {
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+    box-shadow: -12px 0 30px rgb(0 0 0 / 0.2);
+  }
+}
+
 /* ── Connect a model ──────────────────────────────────────────────────── */
+
+.connect-view,
+.connect-panel {
+  height: 100%;
+  min-height: 0;
+}
+
+.connect-panel {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
 
 .connect-body {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 240px minmax(0, 1fr);
   gap: 0;
   min-height: 0;
 }
@@ -880,6 +884,25 @@
 .connect-detail {
   overflow-y: auto;
   padding: 14px 18px;
+}
+
+@media (max-width: 680px) {
+  .connect-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .connect-list {
+    display: flex;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-hairline);
+  }
+
+  .connect-row {
+    flex: 0 0 auto;
+    width: auto;
+  }
 }
 
 .connect-subheading {
