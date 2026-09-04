@@ -30,6 +30,11 @@ export interface PopupShell {
   focus(): void;
 }
 
+/** A click's composed path survives synchronous replacement of its original target. */
+export function isPopupShellBackdrop(event: Event, surface: HTMLElement): boolean {
+  return !event.composedPath().includes(surface);
+}
+
 export function createPopupShell(options: PopupShellOptions): PopupShell {
   const dialog = document.createElement("dialog");
   dialog.className = "popup-shell";
@@ -62,7 +67,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
     }
   });
   dialog.addEventListener("click", (event) => {
-    if (options.closeOnBackdrop !== false && !surface.contains(event.target as Node)) {
+    if (options.closeOnBackdrop !== false && isPopupShellBackdrop(event, surface)) {
       options.onRequestClose();
     }
   });

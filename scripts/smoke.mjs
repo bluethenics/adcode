@@ -258,6 +258,83 @@ checks.onboardingIsSkippable = await (async () => {
   };
 })();
 
+if (process.env.ADCODE_SMOKE_CHAT_PROBE === "1") {
+  await evaluate("document.getElementById('ai-toggle')?.click(); true");
+  await sleep(400);
+  const before = await evaluate(
+    `(() => {
+       const chat = document.querySelector('#popup-primary-host dialog[data-popup-id="chat"]');
+       const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
+       const button = [...(chat?.querySelectorAll('.chat-header button') ?? [])]
+         .find((candidate) => candidate.textContent?.trim() === 'Connect');
+       if (!(button instanceof HTMLElement)) return { error: 'Connect button missing' };
+       const box = button.getBoundingClientRect();
+       const point = { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) };
+       const record = (entry) => {
+         const events = JSON.parse(button.dataset.smokeChatProbeEvents ?? '[]');
+         events.push(entry);
+         button.dataset.smokeChatProbeEvents = JSON.stringify(events);
+       };
+       for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click'])
+         button.addEventListener(type, () => record(type), { once: true });
+       for (const type of ['beforetoggle', 'toggle', 'cancel', 'close'])
+         connect?.addEventListener(type, () => record(type + ':connect-open=' + String(connect.open)));
+       const hit = document.elementFromPoint(point.x, point.y);
+       return {
+         point,
+         buttonRect: { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height },
+         hit: hit === null ? null : { tag: hit.tagName, className: hit.className, text: hit.textContent?.trim().slice(0, 80) ?? '' },
+         buttonAria: { expanded: button.getAttribute('aria-expanded'), pressed: button.getAttribute('aria-pressed') },
+         dialogs: [chat, connect].map((dialog) => dialog === null ? null : ({ id: dialog.dataset.popupId, open: dialog.open, input: dialog.dataset.input })),
+         hosts: ['popup-primary-host', 'popup-dependent-host'].map((id) => ({ id, zIndex: getComputedStyle(document.getElementById(id)).zIndex })),
+       };
+     })()`,
+  );
+  if (before?.point !== undefined) {
+    await send("Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      ...before.point,
+      button: "left",
+      clickCount: 1,
+      buttons: 1,
+    });
+    await send("Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      ...before.point,
+      button: "left",
+      clickCount: 1,
+      buttons: 0,
+    });
+  }
+  await sleep(500);
+  const after = await evaluate(
+    `(() => {
+       const chat = document.querySelector('#popup-primary-host dialog[data-popup-id="chat"]');
+       const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
+       const button = [...(chat?.querySelectorAll('.chat-header button') ?? [])]
+         .find((candidate) => candidate.textContent?.trim() === 'Connect');
+       return {
+         button: button instanceof HTMLElement ? {
+           active: document.activeElement === button,
+           aria: { expanded: button.getAttribute('aria-expanded'), pressed: button.getAttribute('aria-pressed') },
+           events: JSON.parse(button.dataset.smokeChatProbeEvents ?? '[]'),
+         } : null,
+         dialogs: [chat, connect].map((dialog) => dialog === null ? null : ({ id: dialog.dataset.popupId, open: dialog.open, input: dialog.dataset.input })),
+         active: document.activeElement === null ? null : { tag: document.activeElement.tagName, className: document.activeElement.className, text: document.activeElement.textContent?.trim().slice(0, 80) ?? '' },
+         hosts: ['popup-primary-host', 'popup-dependent-host'].map((id) => ({ id, zIndex: getComputedStyle(document.getElementById(id)).zIndex })),
+       };
+     })()`,
+  );
+  process.stdout.write(`  chatConnectProbeBefore: ${JSON.stringify(before)}\n`);
+  process.stdout.write(`  chatConnectProbeAfter: ${JSON.stringify(after)}\n`);
+  socket.close();
+  child.kill();
+  await sleep(500);
+  await rm(SCM_SMOKE_FILE, { force: true }).catch(() => {});
+  await rm(userData, { recursive: true, force: true }).catch(() => {});
+  process.exit(0);
+}
+
 /*
  * The pin card, which is the only thing allowed to appear once the tour is gone.
  *

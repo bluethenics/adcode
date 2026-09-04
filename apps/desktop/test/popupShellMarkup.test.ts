@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { isPopupShellBackdrop } from "../src/renderer/workbench/popupShell.ts";
 
 const source = readFileSync(
   new URL("../src/renderer/workbench/popupShell.ts", import.meta.url),
@@ -18,8 +19,28 @@ describe("shared pop-up shell", () => {
 
   it("owns Escape, backdrop dismissal, and focus restoration", () => {
     expect(source).toContain('addEventListener("cancel"');
-    expect(source).toContain("surface.contains(event.target as Node)");
+    expect(source).toContain("event.composedPath().includes(surface)");
     expect(source).toContain("restoreTarget?.focus()");
+  });
+
+  it("keeps an inner click after its target synchronously detaches", () => {
+    const surface = {} as HTMLElement;
+    const detachedRow = {} as Node;
+    const event = {
+      composedPath: () => [detachedRow, surface],
+    } as Event;
+
+    expect(isPopupShellBackdrop(event, surface)).toBe(false);
+  });
+
+  it("still recognizes a true backdrop click", () => {
+    const surface = {} as HTMLElement;
+    const backdrop = {} as Node;
+    const event = {
+      composedPath: () => [backdrop],
+    } as Event;
+
+    expect(isPopupShellBackdrop(event, surface)).toBe(true);
   });
 
   it("announces launcher disclosure", () => {
