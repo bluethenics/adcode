@@ -1221,6 +1221,73 @@ async function chooseMenu(topLabel, itemLabel) {
   await sleep(500);
 }
 
+/** Choose an exact command through the keyboard-accessible command palette. */
+async function choosePaletteCommand(commandId, itemLabel) {
+  const alreadyOpen = await evaluate(
+    `document.querySelector('.quickopen-input[aria-label="Command palette"]')?.closest('.quickopen')?.hidden === false`,
+  );
+  if (alreadyOpen === true) {
+    await pressEscape();
+    await sleep(150);
+  }
+
+  await pressChord("p", { shift: true });
+
+  let inputReady = false;
+  for (let attempt = 0; attempt < 10 && !inputReady; attempt += 1) {
+    await sleep(100);
+    inputReady =
+      (await evaluate(
+        `(() => {
+           const input = document.querySelector('.quickopen-input[aria-label="Command palette"]');
+           if (!(input instanceof HTMLInputElement) || input.closest('.quickopen')?.hidden !== false) {
+             return false;
+           }
+           input.focus();
+           input.value = ${JSON.stringify(itemLabel)};
+           input.dispatchEvent(new Event('input', { bubbles: true }));
+           return true;
+         })()`,
+      )) === true;
+  }
+
+  if (!inputReady) throw new Error("command palette did not open");
+
+  let point = null;
+  for (let attempt = 0; attempt < 10 && point === null; attempt += 1) {
+    await sleep(100);
+    point = await evaluate(
+      `(() => {
+         const row = [...document.querySelectorAll('.palette-row')].find((candidate) =>
+           candidate.querySelector('.palette-id')?.textContent?.trim() === ${JSON.stringify(commandId)} &&
+           candidate.querySelector('span:not(.palette-id)')?.textContent?.trim() === ${JSON.stringify(itemLabel)}
+         );
+         if (!(row instanceof HTMLElement)) return null;
+         const box = row.getBoundingClientRect();
+         return box.width > 0 && box.height > 0
+           ? { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) }
+           : null;
+       })()`,
+    );
+  }
+
+  if (point === null || typeof point !== "object") {
+    const visibleCommands = await evaluate(
+      `[...document.querySelectorAll('.palette-row')].map((row) => ({
+         id: row.querySelector('.palette-id')?.textContent?.trim(),
+         label: row.querySelector('span:not(.palette-id)')?.textContent?.trim(),
+       }))`,
+    );
+    await pressEscape();
+    throw new Error(
+      `no palette command ${commandId} (${itemLabel}); palette had ${JSON.stringify(visibleCommands)}`,
+    );
+  }
+
+  await clickAt(point.x, point.y);
+  await sleep(500);
+}
+
 /**
  * Centre of the context-menu entry with this label.
  *
@@ -6034,7 +6101,18 @@ checks.chatConnectWorkspace =
  * Earnings regression where a real close button existed just beyond the clipped surface.
  */
 async function auditRequiredClose(spec, open) {
-  await open();
+  try {
+    await open();
+  } catch (error) {
+    await pressEscape().catch(() => {});
+    await sleep(200);
+    return {
+      launched: false,
+      inspected: false,
+      dismissed: false,
+      launchFailure: error instanceof Error ? error.message : String(error),
+    };
+  }
   await sleep(350);
 
   const before = await evaluate(
@@ -6068,7 +6146,11 @@ async function auditRequiredClose(spec, open) {
        };
      })()`,
   );
-  if (before === false || typeof before !== "object") return before;
+  if (before === false || typeof before !== "object") {
+    await pressEscape();
+    await sleep(200);
+    return { launched: true, inspected: false, dismissed: false };
+  }
 
   await evaluate(`document.querySelector(${JSON.stringify(spec.close)})?.click(); true`);
   await sleep(320);
@@ -6095,7 +6177,9 @@ async function auditRequiredClose(spec, open) {
        };
      })()`,
   );
-  return typeof after === "object" && after !== null ? { ...before, ...after } : after;
+  return typeof after === "object" && after !== null
+    ? { launched: true, ...before, ...after }
+    : after;
 }
 
 await send("Emulation.setDeviceMetricsOverride", {
@@ -6206,7 +6290,7 @@ checks.dialogCloseAudit.help = await auditRequiredClose(
     surface: '.help-guide-panel',
     close: '.help-guide-close',
   },
-  () => chooseMenu("Help", "Feature Guide"),
+  () => choosePaletteCommand("help.guide", "Feature Guide"),
 );
 checks.dialogCloseAudit.shortcuts = await auditRequiredClose(
   {
@@ -6216,7 +6300,7 @@ checks.dialogCloseAudit.shortcuts = await auditRequiredClose(
     surface: '.shortcuts-card',
     close: '.shortcuts-close',
   },
-  () => chooseMenu("Help", "Keyboard Shortcuts"),
+  () => choosePaletteCommand("help.shortcuts", "Keyboard Shortcuts"),
 );
 
 checks.dialogCloseAuditPass = Object.values(checks.dialogCloseAudit).every(

@@ -64,4 +64,17 @@ describe("dialog accessibility polish", () => {
       expect(smoke).toContain(`name: '${name}'`);
     }
   });
+
+  it("launches narrow Help dialogs through the public palette and isolates audit failures", () => {
+    expect(smoke).toContain("async function choosePaletteCommand(commandId, itemLabel)");
+    expect(smoke).toContain(
+      'choosePaletteCommand("help.guide", "Feature Guide")',
+    );
+    expect(smoke).toContain(
+      'choosePaletteCommand("help.shortcuts", "Keyboard Shortcuts")',
+    );
+    expect(smoke).toContain("catch (error)");
+    expect(smoke).toContain("launched: false");
+    expect(smoke).toContain("await pressEscape()");
+  });
 });
