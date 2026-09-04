@@ -9,6 +9,10 @@ const connectSource = readFileSync(
   new URL("../src/renderer/ai/connectView.ts", import.meta.url),
   "utf8",
 );
+const mainSource = readFileSync(
+  new URL("../src/renderer/main.ts", import.meta.url),
+  "utf8",
+);
 
 describe("AI Chat workspace", () => {
   it("renders history, conversation, and inspector regions", () => {
@@ -33,5 +37,14 @@ describe("Connect dialog content", () => {
     expect(connectSource).not.toContain("settings-sheet");
     expect(connectSource).not.toContain("document.addEventListener(\"keydown\"");
     expect(connectSource).not.toContain("restoreFocus");
+  });
+});
+
+describe("Chat Connect ownership", () => {
+  it("keeps the dependent Connect surface inside coordinator dismissal bounds", () => {
+    expect(mainSource).toContain("dependent?.shell.surface.contains(event.target as Node)");
+    expect(mainSource).toContain(
+      'openDependentPopup("connect", connectShell, chat.connectButton, "chat", "pointer")',
+    );
   });
 });

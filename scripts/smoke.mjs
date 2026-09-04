@@ -5761,14 +5761,18 @@ checks.chatConnectWorkspaceEvidence = await evaluate(
    })()`,
 );
 
-await evaluate(
+const chatConnectPoint = await evaluate(
   `(() => {
      const button = [...document.querySelectorAll('dialog[data-popup-id="chat"] .chat-header button')]
        .find((candidate) => candidate.textContent?.trim() === 'Connect');
-     button?.click();
-     return true;
+     if (!(button instanceof HTMLElement)) return null;
+     const box = button.getBoundingClientRect();
+     return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) };
    })()`,
 );
+if (chatConnectPoint !== null && typeof chatConnectPoint === "object") {
+  await clickAt(chatConnectPoint.x, chatConnectPoint.y);
+}
 await sleep(500);
 checks.chatConnectLayeringEvidence = await evaluate(
   `(() => {

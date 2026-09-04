@@ -2068,7 +2068,14 @@ document.addEventListener(
     if (popupLayerState.primary === null || isPrimaryLauncher(event.target))
       return;
     const active = primaryPopups.get(popupLayerState.primary);
-    if (active?.shell.surface.contains(event.target as Node)) return;
+    const dependent = popupLayerState.dependent === null
+      ? undefined
+      : dependentPopups.get(popupLayerState.dependent);
+    if (
+      active?.shell.surface.contains(event.target as Node) ||
+      dependent?.shell.surface.contains(event.target as Node)
+    )
+      return;
     closePrimaryPopup(popupLayerState.primary);
   },
   true,
