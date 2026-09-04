@@ -11,6 +11,7 @@
  * Run after `npm run build`:  node scripts/smoke.mjs
  */
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { access, mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -42,6 +43,17 @@ const PORT = 9333;
 const TRACKED_FILE = join(REPO, "package.json");
 const SCM_SMOKE_NAME = `adcode-smoke-scm-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`;
 const SCM_SMOKE_FILE = join(REPO, SCM_SMOKE_NAME);
+const CHAT_SMOKE_SESSION = {
+  id: "smoke-chat-history",
+  title: "Smoke saved conversation",
+  renamed: true,
+  createdAt: 1,
+  updatedAt: 2,
+  messages: [
+    { role: "user", text: "Saved Chat request", at: 1 },
+    { role: "assistant", text: "Saved Chat response", at: 2 },
+  ],
+};
 
 // A throwaway userData directory, pre-seeded so §4's "Restore workspace" has something to
 // restore. That is also what gives the git checks a real repository to run against.
@@ -56,6 +68,17 @@ await writeFile(
       activeFile: TRACKED_FILE,
     },
   }),
+  "utf8",
+);
+const chatSessionDirectory = join(
+  userData,
+  "ai-sessions",
+  createHash("sha256").update(REPO).digest("hex").slice(0, 16),
+);
+await mkdir(chatSessionDirectory, { recursive: true });
+await writeFile(
+  join(chatSessionDirectory, `${CHAT_SMOKE_SESSION.id}.json`),
+  JSON.stringify(CHAT_SMOKE_SESSION),
   "utf8",
 );
 
@@ -5832,56 +5855,107 @@ checks.chatConnectWorkspaceEvidence = await evaluate(
    })()`,
 );
 
-checks.chatDisclosureGeometry = await evaluate(
-  `(() => {
-     const chat = document.querySelector('dialog[data-popup-id="chat"]');
-     const card = chat?.querySelector('.chat-card');
-     const history = card?.querySelector('.chat-history');
-     const conversation = card?.querySelector('.chat-conversation');
-     const inspector = card?.querySelector('.chat-inspector');
-     const header = card?.querySelector('.chat-header');
-     const historyButton = [...(header?.querySelectorAll('button') ?? [])]
-       .find((button) => button.textContent?.trim() === 'History');
-     const inspectorButton = [...(header?.querySelectorAll('button') ?? [])]
-       .find((button) => button.textContent?.trim() === 'Inspector');
-     if (!card || !history || !conversation || !inspector || !historyButton || !inspectorButton) return false;
-     if (history.hidden) historyButton.click();
-     if (inspector.hidden) inspectorButton.click();
-     const bothOpen = conversation.getBoundingClientRect().width;
-     historyButton.click();
-     const historyOnly = {
-       reclaimed: conversation.getBoundingClientRect().width > bothOpen + 100,
-       historyHidden: history.hidden,
-       inspectorVisible: !inspector.hidden,
-       state: card.dataset.historyOpen === 'false' && card.dataset.inspectorOpen === 'true',
-     };
-     inspectorButton.click();
-     const bothClosed = {
-       reclaimed: conversation.getBoundingClientRect().width > bothOpen + 300,
-       historyHidden: history.hidden,
-       inspectorHidden: inspector.hidden,
-       state: card.dataset.historyOpen === 'false' && card.dataset.inspectorOpen === 'false',
-     };
-     historyButton.click();
-     const inspectorOnly = {
-       reclaimed: conversation.getBoundingClientRect().width > bothOpen + 180,
-       historyVisible: !history.hidden,
-       inspectorHidden: inspector.hidden,
-       state: card.dataset.historyOpen === 'true' && card.dataset.inspectorOpen === 'false',
-     };
-     inspectorButton.click();
-     return {
-       historyCollapsed: historyOnly.reclaimed && historyOnly.historyHidden && historyOnly.inspectorVisible && historyOnly.state,
-       bothCollapsed: bothClosed.reclaimed && bothClosed.historyHidden && bothClosed.inspectorHidden && bothClosed.state,
-       inspectorCollapsed: inspectorOnly.reclaimed && inspectorOnly.historyVisible && inspectorOnly.inspectorHidden && inspectorOnly.state,
-       historyReopens: historyButton.getAttribute('aria-expanded') === 'true' && !history.hidden,
-       inspectorReopens: inspectorButton.getAttribute('aria-expanded') === 'true' && !inspector.hidden,
-     };
-   })()`,
-);
+async function setChatViewport(width) {
+  await send("Emulation.setDeviceMetricsOverride", {
+    width,
+    height: 800,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await sleep(250);
+}
+
+async function readChatDisclosureGeometry() {
+  return evaluate(
+    `(() => {
+       const card = document.querySelector('dialog[data-popup-id="chat"] .chat-card');
+       const history = card?.querySelector('.chat-history');
+       const conversation = card?.querySelector('.chat-conversation');
+       const inspector = card?.querySelector('.chat-inspector');
+       const header = card?.querySelector('.chat-header');
+       const historyButton = [...(header?.querySelectorAll('button') ?? [])]
+         .find((button) => button.textContent?.trim() === 'History');
+       const inspectorButton = [...(header?.querySelectorAll('button') ?? [])]
+         .find((button) => button.textContent?.trim() === 'Inspector');
+       if (!card || !history || !conversation || !inspector || !historyButton || !inspectorButton) return false;
+       const snapshot = () => ({
+         width: conversation.getBoundingClientRect().width,
+         historyHidden: history.hidden,
+         inspectorHidden: inspector.hidden,
+         historyOpen: card.dataset.historyOpen,
+         inspectorOpen: card.dataset.inspectorOpen,
+       });
+       if (card.dataset.historyOpen !== 'true') historyButton.click();
+       if (card.dataset.inspectorOpen !== 'true') inspectorButton.click();
+       const bothOpen = snapshot();
+       historyButton.click();
+       const historyCollapsed = snapshot();
+       inspectorButton.click();
+       const bothCollapsed = snapshot();
+       historyButton.click();
+       const inspectorCollapsed = snapshot();
+       inspectorButton.click();
+       return { viewport: innerWidth, bothOpen, historyCollapsed, bothCollapsed, inspectorCollapsed };
+     })()`,
+  );
+}
+
+function hasDisclosureState(snapshot, historyOpen, inspectorOpen) {
+  return (
+    snapshot?.historyOpen === String(historyOpen) &&
+    snapshot?.inspectorOpen === String(inspectorOpen) &&
+    snapshot?.historyHidden === !historyOpen &&
+    snapshot?.inspectorHidden === !inspectorOpen
+  );
+}
+
+function disclosureGeometryPass(result, layout) {
+  if (typeof result !== "object" || result === null) return false;
+  const { viewport, bothOpen, historyCollapsed, bothCollapsed, inspectorCollapsed } = result;
+  const states =
+    hasDisclosureState(bothOpen, true, true) &&
+    hasDisclosureState(historyCollapsed, false, true) &&
+    hasDisclosureState(bothCollapsed, false, false) &&
+    hasDisclosureState(inspectorCollapsed, true, false);
+  if (!states || ![bothOpen, historyCollapsed, bothCollapsed, inspectorCollapsed].every((entry) => entry.width > 0)) {
+    return false;
+  }
+  if (layout === "wide") {
+    return viewport > 980 &&
+      historyCollapsed.width > bothOpen.width + 100 &&
+      bothCollapsed.width > bothOpen.width + 300 &&
+      inspectorCollapsed.width > bothOpen.width + 180;
+  }
+  if (layout === "medium") {
+    return viewport > 720 && viewport <= 980 &&
+      historyCollapsed.width > bothOpen.width + 100 &&
+      Math.abs(bothCollapsed.width - historyCollapsed.width) < 4 &&
+      Math.abs(inspectorCollapsed.width - bothOpen.width) < 4;
+  }
+  return viewport <= 720 &&
+    Math.abs(historyCollapsed.width - bothOpen.width) < 4 &&
+    Math.abs(bothCollapsed.width - bothOpen.width) < 4 &&
+    Math.abs(inspectorCollapsed.width - bothOpen.width) < 4;
+}
+
+await setChatViewport(1280);
+const wideDisclosureGeometry = await readChatDisclosureGeometry();
+await setChatViewport(900);
+const mediumDisclosureGeometry = await readChatDisclosureGeometry();
+await setChatViewport(640);
+const compactDisclosureGeometry = await readChatDisclosureGeometry();
+await setChatViewport(1280);
+
+checks.chatDisclosureGeometry = {
+  wide: disclosureGeometryPass(wideDisclosureGeometry, "wide"),
+};
+checks.chatDisclosureResponsiveEvidence = {
+  medium: disclosureGeometryPass(mediumDisclosureGeometry, "medium"),
+  compact: disclosureGeometryPass(compactDisclosureGeometry, "compact"),
+};
 
 checks.chatSendHistoryEvidence = await evaluate(
-  `(() => {
+  `(async () => {
      const card = document.querySelector('dialog[data-popup-id="chat"] .chat-card');
      const input = card?.querySelector('.chat-input');
      const composer = card?.querySelector('.chat-composer');
@@ -5892,17 +5966,44 @@ checks.chatSendHistoryEvidence = await evaluate(
        .find((button) => button.textContent?.trim() === 'History');
      const reset = [...(header?.querySelectorAll('button') ?? [])]
        .find((button) => button.textContent?.trim() === 'New');
-     const message = 'Smoke Chat send and history';
      if (!(input instanceof HTMLTextAreaElement) || !(composer instanceof HTMLFormElement) ||
          !transcript || !history || !historyButton || !reset) return false;
-     input.value = message;
+     input.value = 'Smoke Chat send';
      composer.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-     const sent = transcript.textContent?.includes(message) === true;
+     const sent = transcript.textContent?.includes('Smoke Chat send') === true;
+     if (!history.hidden) historyButton.click();
+     historyButton.click();
+     for (let attempt = 0; attempt < 20; attempt += 1) {
+       if (history.querySelector('.chat-history-open') !== null) break;
+       await new Promise((resolve) => setTimeout(resolve, 100));
+     }
+     const sessions = await window.adcode.chat.sessions();
+     const persisted = sessions.some((session) => session.id === 'smoke-chat-history');
+     const row = [...history.querySelectorAll('.chat-history-open')]
+       .find((button) => button.textContent?.trim() === 'Smoke saved conversation');
+     if (!(row instanceof HTMLButtonElement)) return { sent, persisted, historyRow: false };
+     row.click();
+     for (let attempt = 0; attempt < 20; attempt += 1) {
+       if ((transcript.textContent ?? '').includes('Saved Chat response')) break;
+       await new Promise((resolve) => setTimeout(resolve, 100));
+     }
+     const resumed = (transcript.textContent ?? '').includes('Saved Chat request') &&
+       (transcript.textContent ?? '').includes('Saved Chat response');
+     const remembered = card.querySelector('.chat-memory')?.textContent?.includes('Carrying 2 messages') === true;
      reset.click();
+     await new Promise((resolve) => setTimeout(resolve, 100));
+     if (history.hidden) historyButton.click();
+     for (let attempt = 0; attempt < 20; attempt += 1) {
+       if (history.querySelector('.chat-history-open') !== null) break;
+       await new Promise((resolve) => setTimeout(resolve, 100));
+     }
      return {
        sent,
        resetClearsTranscript: transcript.childElementCount === 0,
-       historyRemainsReachable: !history.hidden && historyButton.getAttribute('aria-expanded') === 'true',
+       savedSessionPersists: persisted,
+       historyRow: history.querySelector('.chat-history-open') !== null,
+       resumeRestoresTranscript: resumed,
+       resumeRestoresMemory: remembered,
      };
    })()`,
 );

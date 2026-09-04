@@ -602,7 +602,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   function paintTeamSuggestion(suggestion: AiTeamSuggestionView, prompt: string): void {
     activeSuggestion = suggestion;
     suggestionPrompt = prompt;
-    revealInspector();
     teamPanel.hidden = false;
     teamPanel.dataset["mode"] = "suggestion";
     teamPanel.dataset["state"] = "configured";
@@ -625,7 +624,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       teamPanel.hidden = true;
       return;
     }
-    revealInspector();
     teamPanel.hidden = false;
     teamPanel.dataset["mode"] = "team";
     teamPanel.dataset["state"] = team.state;

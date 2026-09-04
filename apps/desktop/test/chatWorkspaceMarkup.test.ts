@@ -57,7 +57,21 @@ describe("AI Chat workspace", () => {
     );
   });
 
-  it("opens the inspector before revealing Team or Schedule content", () => {
+  it("keeps background Team paints from reopening a collapsed inspector", () => {
+    const suggestion = source.slice(
+      source.indexOf("function paintTeamSuggestion"),
+      source.indexOf("function paintTeam(team"),
+    );
+    const team = source.slice(
+      source.indexOf("function paintTeam(team"),
+      source.indexOf("async function refreshTeam"),
+    );
+
+    expect(suggestion).not.toContain("revealInspector()");
+    expect(team).not.toContain("revealInspector()");
+  });
+
+  it("opens the inspector from explicit Team and Schedule actions", () => {
     expect(source).toContain("function revealInspector(): void");
     expect(source).toContain(
       "function showScheduleComposer(): void {\n    revealInspector();",
@@ -92,7 +106,14 @@ describe("Chat Connect ownership", () => {
 
   it("keeps collapsed disclosure and send-history smoke evidence explicit", () => {
     expect(smoke).toContain("checks.chatDisclosureGeometry");
+    expect(smoke).toContain("checks.chatDisclosureResponsiveEvidence");
+    expect(smoke).toContain("await setChatViewport(900)");
+    expect(smoke).toContain("await setChatViewport(640)");
     expect(smoke).toContain("checks.chatSendHistoryEvidence");
+    expect(smoke).toContain("const CHAT_SMOKE_SESSION");
+    expect(smoke).toContain('createHash("sha256").update(REPO)');
+    expect(smoke).toContain("await window.adcode.chat.sessions()");
+    expect(smoke).toContain("chat-history-open");
     expect(smoke).toContain("checks.chatDependentPointerEvidence");
     expect(smoke).toContain("providerSelected,");
     expect(smoke).not.toContain("connect?.querySelectorAll('.connect-row').length === 0");
