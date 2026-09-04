@@ -94,6 +94,22 @@ export interface ChatWidgetDeps {
   readonly askForName: (current: string) => Promise<string | null>;
 }
 
+export function dispatchChatSend(
+  text: string,
+  deps: {
+    readonly showUser: (text: string) => void;
+    readonly aiSend: (text: string) => Promise<boolean>;
+    readonly onFailure: () => void;
+  },
+): boolean {
+  const message = text.trim();
+  if (message.length === 0) return false;
+
+  deps.showUser(message);
+  void deps.aiSend(message).catch(deps.onFailure);
+  return true;
+}
+
 export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   let open = false;
   let streamingBubble: HTMLElement | null = null;
@@ -1274,22 +1290,29 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /* ── Sending ──────────────────────────────────────────────────────────── */
 
   function submit(): void {
-    const text = input.value.trim();
-    if (text.length === 0) return;
+    const text = input.value;
+    if (text.trim().length === 0) return;
 
     if (activeSuggestion !== null) {
       activeSuggestion = null;
       teamPanel.hidden = true;
     }
 
-    bubble("user", text);
+    if (
+      !dispatchChatSend(text, {
+        showUser: (message) => bubble("user", message),
+        aiSend: (message) => window.adcode.ai.send(message),
+        onFailure: () => {
+          sendButton.disabled = false;
+        },
+      })
+    ) {
+      return;
+    }
+
     input.value = "";
     sendButton.disabled = true;
     streamingBubble = null;
-
-    void window.adcode.ai.send(text).catch(() => {
-      sendButton.disabled = false;
-    });
   }
 
   composer.addEventListener("submit", (event) => {

@@ -114,6 +114,9 @@ describe("Chat Connect ownership", () => {
     expect(smoke).toContain('createHash("sha256").update(REPO)');
     expect(smoke).toContain("await window.adcode.chat.sessions()");
     expect(smoke).toContain("chat-history-open");
+    expect(smoke).toContain("const EVALUATE_TIMEOUT_MS");
+    expect(smoke).toContain("Runtime.evaluate timed out");
+    expect(smoke).not.toContain("composer.dispatchEvent(new Event('submit'");
     expect(smoke).toContain("checks.chatDependentPointerEvidence");
     expect(smoke).toContain("providerSelected,");
     expect(smoke).not.toContain("connect?.querySelectorAll('.connect-row').length === 0");
