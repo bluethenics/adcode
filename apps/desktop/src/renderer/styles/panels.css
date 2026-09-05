@@ -62,18 +62,20 @@
   gap: 8px;
 }
 
-.scm-close {
+.scm-panel .scm-close {
   position: absolute;
   top: 12px;
   right: 16px;
   z-index: 5;
   width: 32px;
   height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
 }
 
-.scm-close:focus-visible {
+.scm-panel .scm-close:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

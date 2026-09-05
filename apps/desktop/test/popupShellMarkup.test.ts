@@ -10,6 +10,10 @@ const styles = readFileSync(
   new URL("../src/renderer/styles/popupShell.css", import.meta.url),
   "utf8",
 );
+const smoke = readFileSync(
+  new URL("../../../scripts/smoke.mjs", import.meta.url),
+  "utf8",
+);
 
 describe("shared pop-up shell", () => {
   it("uses native dialogs for modal surfaces", () => {
@@ -70,6 +74,14 @@ describe("shared pop-up shell", () => {
     expect(source).toContain("duration: 220");
     expect(source).toContain("duration: 100");
     expect(source).toContain("surface.getAnimations().forEach");
+  });
+
+  it("keeps animated close requests idempotent and waits for dismissal in smoke", () => {
+    expect(source).toContain('dialog.dataset["closing"] === "true"');
+    expect(source).toContain("closeOptions.immediate !== true");
+    expect(smoke).toContain("async function waitForPopupsClosed(selectors)");
+    expect(smoke).toContain("const outsideClosed = await waitForPopupsClosed([");
+    expect(smoke).toContain("const documentEscapeCloses = await waitForPopupsClosed([");
   });
 
   it("labels the dialog from its visible title and honours task focus", () => {

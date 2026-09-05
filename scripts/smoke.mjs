@@ -458,20 +458,18 @@ checks.anchoredToolsEvidence = await (async () => {
   await evaluate(
     `document.getElementById('editor-area')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true`,
   );
-  await sleep(120);
-  const outsideClosed = await evaluate(
-    `document.querySelector('[data-popup-id="structure"]')?.open === false &&
-      document.querySelector('[data-popup-id="earnings"]')?.open === false`,
-  );
+  const outsideClosed = await waitForPopupsClosed([
+    '[data-popup-id="structure"]',
+    '[data-popup-id="earnings"]',
+  ]);
   await evaluate(`document.getElementById('open-structure')?.click(); true`);
   await sleep(180);
   await evaluate(
     `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true`,
   );
-  await sleep(120);
-  const documentEscapeCloses = await evaluate(
-    `document.querySelector('[data-popup-id="structure"]')?.open === false`,
-  );
+  const documentEscapeCloses = await waitForPopupsClosed([
+    '[data-popup-id="structure"]',
+  ]);
 
   return {
     structureOpen: structure?.open === true,
@@ -1286,6 +1284,20 @@ async function choosePaletteCommand(commandId, itemLabel) {
 
   await clickAt(point.x, point.y);
   await sleep(500);
+}
+
+/** Wait for animated popup dismissal before the next user action targets the workbench. */
+async function waitForPopupsClosed(selectors) {
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    const closed = await evaluate(
+      `(${JSON.stringify(selectors)}).every((selector) =>
+         document.querySelector(selector)?.open === false
+       )`,
+    );
+    if (closed === true) return true;
+    await sleep(40);
+  }
+  return false;
 }
 
 /**
@@ -5000,8 +5012,11 @@ checks.earningsPopoverOpens = await evaluate(
 
      // Reactivating the launcher dismisses the anchored popup and leaves the sidebar layout alone.
      document.getElementById('open-earnings')?.click();
-     await new Promise((r) => setTimeout(r, 250));
-     result.launcherCloseWorks = document.querySelector('[data-popup-id="earnings"]')?.open === false;
+     const popup = document.querySelector('[data-popup-id="earnings"]');
+     for (let attempt = 0; attempt < 10 && popup?.open === true; attempt += 1) {
+       await new Promise((r) => setTimeout(r, 40));
+     }
+     result.launcherCloseWorks = popup?.open === false;
 
    return result;
   })()`,
@@ -5028,7 +5043,9 @@ checks.earningsCloseButtonEvidence = await evaluate(
      close.focus();
      const focused = document.activeElement === close;
      close.click();
-     await new Promise((r) => setTimeout(r, 250));
+     for (let attempt = 0; attempt < 10 && popup.open; attempt += 1) {
+       await new Promise((r) => setTimeout(r, 40));
+     }
 
      return {
        named: close.getAttribute('aria-label') === 'Close earnings',
@@ -6121,16 +6138,23 @@ async function auditRequiredClose(spec, open) {
        const root = document.querySelector(spec.root);
        const surface = document.querySelector(spec.surface);
        const close = document.querySelector(spec.close);
-       if (!(root instanceof HTMLElement) || !(surface instanceof HTMLElement) ||
-           !(close instanceof HTMLButtonElement)) return false;
-       const rootOpen = root instanceof HTMLDialogElement
+       const rootFound = root instanceof HTMLElement;
+       const surfaceFound = surface instanceof HTMLElement;
+       const closeFound = close instanceof HTMLButtonElement;
+       const rootOpen = rootFound && root instanceof HTMLDialogElement
          ? root.open
-         : !root.hidden && root.dataset.state === 'open';
-       if (!rootOpen) return false;
+         : rootFound && !root.hidden && root.dataset.state === 'open';
+       if (!rootFound || !surfaceFound || !closeFound || !rootOpen) {
+         return { rootFound, surfaceFound, closeFound, rootOpen };
+       }
        close.focus();
        const surfaceBox = surface.getBoundingClientRect();
        const closeBox = close.getBoundingClientRect();
        return {
+         rootFound,
+         surfaceFound,
+         closeFound,
+         rootOpen,
          named: close.getAttribute('aria-label') === spec.label,
          focusable: document.activeElement === close && !close.disabled,
          hitTarget: closeBox.width >= 24 && closeBox.height >= 24,
@@ -6146,10 +6170,22 @@ async function auditRequiredClose(spec, open) {
        };
      })()`,
   );
-  if (before === false || typeof before !== "object") {
+  const inspected =
+    typeof before === "object" &&
+    before !== null &&
+    before.rootFound === true &&
+    before.surfaceFound === true &&
+    before.closeFound === true &&
+    before.rootOpen === true;
+  if (!inspected) {
     await pressEscape();
     await sleep(200);
-    return { launched: true, inspected: false, dismissed: false };
+    return {
+      launched: true,
+      inspected: false,
+      dismissed: false,
+      ...(typeof before === "object" && before !== null ? before : {}),
+    };
   }
 
   await evaluate(`document.querySelector(${JSON.stringify(spec.close)})?.click(); true`);
@@ -6178,7 +6214,7 @@ async function auditRequiredClose(spec, open) {
      })()`,
   );
   return typeof after === "object" && after !== null
-    ? { launched: true, ...before, ...after }
+    ? { launched: true, inspected: true, ...before, ...after }
     : after;
 }
 
@@ -6261,10 +6297,10 @@ checks.dialogCloseAudit.connect = await auditRequiredClose(
   {
     name: 'Connect a model',
     label: "Close Connect a model",
-    root: 'dialog[data-popup-id="connect"]',
-    surface: 'dialog[data-popup-id="connect"] .popup-shell-surface',
-    close: 'dialog[data-popup-id="connect"] [aria-label="Close Connect a model"]',
-    owner: 'dialog[data-popup-id="chat"]',
+    root: '#popup-dependent-host dialog[data-popup-id="connect"]',
+    surface: '#popup-dependent-host dialog[data-popup-id="connect"] .popup-shell-surface',
+    close: '#popup-dependent-host dialog[data-popup-id="connect"] [aria-label="Close Connect a model"]',
+    owner: '#popup-primary-host dialog[data-popup-id="chat"]',
   },
   async () => {
     await evaluate("document.getElementById('ai-toggle')?.click(); true");

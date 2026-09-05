@@ -40,7 +40,7 @@ export interface SettingsView {
 }
 
 export interface SettingsViewDeps {
-  /** Keep help popovers in the top layer even though settings lives in a dialog shell. */
+  /** Legacy construction option; modal Settings keeps its popover in its own subtree. */
   readonly overlayHost?: HTMLElement;
   /** The coordinator owns shell dismissal and focus restoration. */
   readonly onRequestClose: () => void;
@@ -235,9 +235,6 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
   let query = "";
   let open = false;
 
-  // One popover for the whole screen, not one per row. See helpPopover.ts.
-  const popover = createHelpPopover(deps.overlayHost ?? document.body);
-
   const sheet = document.createElement("div");
   sheet.className = "settings-sheet";
   sheet.setAttribute("role", "region");
@@ -308,6 +305,10 @@ export function createSettingsView(deps: SettingsViewDeps): SettingsView {
 
   footer.append(resetButton, about);
   panel.append(stickyHeader, body, footer);
+
+  // One popover for the whole screen, not one per row. It remains a descendant of the
+  // modal dialog so the browser does not make it inert when promoting it to the top layer.
+  const popover = createHelpPopover(panel);
 
   async function showVersion(): Promise<void> {
     if (about.textContent !== "") return;

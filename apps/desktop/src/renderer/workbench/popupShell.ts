@@ -155,6 +155,11 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
     },
     close(closeOptions = {}) {
       if (!dialog.open) return;
+      if (
+        dialog.dataset["closing"] === "true" &&
+        closeOptions.immediate !== true
+      )
+        return;
       cancelSurfaceMotion();
       announce(false);
       const restoreFocus = closeOptions.restoreFocus !== false;

@@ -12,6 +12,9 @@ const main = read("main.ts");
 const smoke = readFileSync(new URL("../../../scripts/smoke.mjs", import.meta.url), "utf8");
 const helpStyles = read("styles/help.css");
 const popupStyles = read("styles/popups.css");
+const panelStyles = read("styles/panels.css");
+const aiStyles = read("styles/ai.css");
+const settings = read("settings/settingsView.ts");
 
 describe("dialog accessibility polish", () => {
   it("gives Help and Shortcuts visible, task-specific close controls", () => {
@@ -35,6 +38,16 @@ describe("dialog accessibility polish", () => {
     expect(popover).toContain("card.showPopover()");
     expect(popover).toContain("card.hidePopover()");
     expect(popover).toContain("returnTo.focus()");
+    expect(settings).toContain("createHelpPopover(panel)");
+  });
+
+  it("keeps task close controls at a practical hit size after generic button rules", () => {
+    expect(panelStyles).toMatch(
+      /\.scm-panel \.scm-close\s*\{[^}]*min-width: 32px;[^}]*min-height: 32px;/,
+    );
+    expect(aiStyles).toMatch(
+      /\[aria-label="Close Assistant"\][\s\S]*\[aria-label="Close Connect a model"\][\s\S]*min-width: 32px;[\s\S]*min-height: 32px;/,
+    );
   });
 
   it("routes task dialogs to their primary input instead of the shell", () => {
@@ -76,5 +89,15 @@ describe("dialog accessibility polish", () => {
     expect(smoke).toContain("catch (error)");
     expect(smoke).toContain("launched: false");
     expect(smoke).toContain("await pressEscape()");
+  });
+
+  it("scopes the dependent Connect audit and reports failed selector evidence", () => {
+    expect(smoke).toContain(
+      "#popup-dependent-host dialog[data-popup-id=\"connect\"]",
+    );
+    expect(smoke).toContain("const rootFound =");
+    expect(smoke).toContain("const surfaceFound =");
+    expect(smoke).toContain("const closeFound =");
+    expect(smoke).toContain("const rootOpen =");
   });
 });
