@@ -577,6 +577,9 @@ checks.scmWorkspaceShell = await evaluate(
          popup?.querySelector('.scm-changes-region') !== null &&
          popup?.querySelector('.scm-commit-region') !== null &&
          popup?.querySelector('.scm-history-region') !== null,
+       drawerControlsLabelRegions: [...popup.querySelectorAll('.scm-drawer-toggle')].every((button) =>
+         button.getAttribute('aria-controls') ===
+           (button.textContent === 'Changes' ? 'scm-changes-region' : 'scm-history-region')),
      };
    })()`,
 );
@@ -5808,7 +5811,31 @@ checks.helpPopoverOpensAndCloses = await (async () => {
      })()`,
   );
 
-  return { ...shown, ...closed };
+  // Use a real full pointer gesture on the modal backdrop. A synthetic pointerdown
+  // alone misses the shell's later click handler and cannot prove layer isolation.
+  await evaluate(`document.querySelector('[data-setting-id="adcode.editing.minimap"] .help-button')?.click(); true`);
+  const outsidePoint = await evaluate(`(() => {
+    const shell = document.querySelector('dialog[data-popup-id="settings"]');
+    const box = shell.querySelector('.popup-shell-surface').getBoundingClientRect();
+    const x = Math.max(1, Math.floor(box.left / 2));
+    return { x, y: Math.round(innerHeight / 2), outsideSurface: x < box.left,
+      helpOpen: document.querySelector('.help-popover')?.hidden === false };
+  })()`);
+  await clickAt(outsidePoint.x, outsidePoint.y);
+  await sleep(300);
+  const outside = await evaluate(`(() => {
+    const shell = document.querySelector('dialog[data-popup-id="settings"]');
+    return {
+      outsidePopoverGone: document.querySelector('.help-popover')?.hidden === true,
+      outsideSettingsStillOpen: shell?.open === true && shell.dataset.closing !== 'true' &&
+        shell.querySelector('.settings-sheet')?.dataset.state === 'open',
+      outsideFocusReturned: document.activeElement ===
+        document.querySelector('[data-setting-id="adcode.editing.minimap"] .help-button'),
+    };
+  })()`);
+
+  return { ...shown, ...closed, outsidePressStartedWithHelp: outsidePoint.helpOpen,
+    outsidePressOnBackdrop: outsidePoint.outsideSurface, ...outside };
 })();
 
 // Leave the app as this block found it, so later checks are not run against a covered window.

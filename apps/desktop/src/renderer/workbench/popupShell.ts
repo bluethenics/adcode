@@ -80,6 +80,12 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
     surface.getAnimations().forEach((animation) => animation.cancel());
   };
 
+  // Computed styles are live. Copy the painted values before canceling their animation.
+  const presentation = (): Keyframe => {
+    const current = getComputedStyle(surface);
+    return { opacity: current.opacity, scale: current.scale, translate: current.translate };
+  };
+
   const offsetFrom = (trigger: HTMLElement | undefined): { x: number; y: number } => {
     if (trigger === undefined) return { x: 0, y: 10 };
     const origin = trigger.getBoundingClientRect();
@@ -90,18 +96,20 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
     };
   };
 
-  const animateOpen = (input: LayoutInput, trigger: HTMLElement | undefined): void => {
+  const animateOpen = (input: LayoutInput, trigger: HTMLElement | undefined, current?: Keyframe): void => {
     cancelSurfaceMotion();
     delete dialog.dataset["closing"];
     if (input === "keyboard") return;
 
-    sourceOffset = offsetFrom(trigger);
-    surface.style.transformOrigin = `${String(sourceOffset.x < 0 ? 0 : surface.clientWidth)}px ${String(sourceOffset.y < 0 ? 0 : surface.clientHeight)}px`;
+    if (current === undefined) {
+      sourceOffset = offsetFrom(trigger);
+      surface.style.transformOrigin = `${String(sourceOffset.x < 0 ? 0 : surface.clientWidth)}px ${String(sourceOffset.y < 0 ? 0 : surface.clientHeight)}px`;
+    }
     const reduce = reducedMotion();
     const keyframes: Keyframe[] = reduce
-      ? [{ opacity: 0 }, { opacity: 1 }]
+      ? [{ opacity: current?.opacity ?? 0 }, { opacity: 1 }]
       : [
-          { opacity: 0, scale: 0.97, translate: `${String(sourceOffset.x)}px ${String(sourceOffset.y)}px` },
+          current ?? { opacity: 0, scale: 0.97, translate: `${String(sourceOffset.x)}px ${String(sourceOffset.y)}px` },
           { opacity: 1, scale: 1, translate: "0 0" },
         ];
     surface.animate(keyframes, reduce ? reducedTiming : enterTiming);
@@ -139,6 +147,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
     element: dialog,
     surface,
     open(openOptions = {}) {
+      const current = dialog.open ? presentation() : undefined;
       restoreTarget = openOptions.trigger ?? null;
       if (openOptions.anchor !== undefined) positionAnchored(dialog, openOptions.anchor);
       if (!dialog.open) {
@@ -147,7 +156,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
       }
       const input = openOptions.input ?? "keyboard";
       dialog.dataset["input"] = input;
-      animateOpen(input, openOptions.trigger);
+      animateOpen(input, openOptions.trigger, current);
       announce(true);
       (openOptions.initialFocus ?? options.initialFocus?.() ?? surface).focus({
         preventScroll: true,
@@ -160,6 +169,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
         closeOptions.immediate !== true
       )
         return;
+      const current = presentation();
       cancelSurfaceMotion();
       announce(false);
       const restoreFocus = closeOptions.restoreFocus !== false;
@@ -170,7 +180,6 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
 
       dialog.dataset["closing"] = "true";
       const generation = motionGeneration;
-      const current = getComputedStyle(surface);
       const duration = reducedMotion() ? 100 : 160;
       const keyframes: Keyframe[] = reducedMotion()
         ? [{ opacity: current.opacity }, { opacity: 0 }]

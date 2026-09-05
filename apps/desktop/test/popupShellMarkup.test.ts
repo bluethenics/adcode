@@ -30,9 +30,8 @@ describe("shared pop-up shell", () => {
   it("keeps an inner click after its target synchronously detaches", () => {
     const surface = {} as HTMLElement;
     const detachedRow = {} as Node;
-    const event = {
-      composedPath: () => [detachedRow, surface],
-    } as Event;
+    const event = new Event("click");
+    event.composedPath = () => [detachedRow, surface];
 
     expect(isPopupShellBackdrop(event, surface)).toBe(false);
   });
@@ -40,9 +39,8 @@ describe("shared pop-up shell", () => {
   it("still recognizes a true backdrop click", () => {
     const surface = {} as HTMLElement;
     const backdrop = {} as Node;
-    const event = {
-      composedPath: () => [backdrop],
-    } as Event;
+    const event = new Event("click");
+    event.composedPath = () => [backdrop];
 
     expect(isPopupShellBackdrop(event, surface)).toBe(true);
   });

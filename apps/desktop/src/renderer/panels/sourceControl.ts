@@ -404,13 +404,13 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   changesToggle.className = "ghost-button scm-drawer-toggle";
   changesToggle.type = "button";
   changesToggle.textContent = "Changes";
-  changesToggle.ariaControls = changesRegion.id;
+  changesToggle.setAttribute("aria-controls", changesRegion.id);
 
   const historyToggle = document.createElement("button");
   historyToggle.className = "ghost-button scm-drawer-toggle";
   historyToggle.type = "button";
   historyToggle.textContent = "History";
-  historyToggle.ariaControls = historyRegion.id;
+  historyToggle.setAttribute("aria-controls", historyRegion.id);
 
   commitToolbar.append(changesToggle, historyToggle);
 
