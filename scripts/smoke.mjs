@@ -5860,13 +5860,21 @@ checks.chatConnectWorkspaceEvidence = await evaluate(
      const historyBox = history.getBoundingClientRect();
      const inspectorBox = inspector.getBoundingClientRect();
      const composerBox = composer.getBoundingClientRect();
+     // A flush grid edge is painted in 1/64 px units and can serialize either side of its
+     // containing edge. One CSS pixel covers that rounding without accepting a clipped row.
+     const composerTolerance = 1;
+     const composerBottomLimit = Math.min(surfaceBox.bottom, innerHeight);
      return {
        workspace: card.getBoundingClientRect().width === surfaceBox.width &&
          card.getBoundingClientRect().height === surfaceBox.height,
        titleAndStatus: header.getBoundingClientRect().height > 20 &&
          (header.textContent ?? '').includes('Assistant'),
        transcriptDominant: conversationBox.width >= historyBox.width && conversationBox.width >= inspectorBox.width,
-       composerReachable: composerBox.width > 0 && composerBox.bottom <= surfaceBox.bottom,
+       composerVisible: composerBox.width > 0 && composerBox.height > 0,
+       composerIntersectsSurface:
+         composerBox.top < composerBottomLimit && composerBox.bottom > surfaceBox.top,
+       composerReachable:
+         composerBox.bottom <= composerBottomLimit + composerTolerance,
        closeGeometry: document.activeElement === close && closeBox.width > 0 && closeBox.height > 0 &&
          closeBox.left >= surfaceBox.left && closeBox.top >= surfaceBox.top &&
        close.getAttribute('aria-label') === 'Close Assistant' &&

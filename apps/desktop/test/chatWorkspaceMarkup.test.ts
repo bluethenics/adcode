@@ -126,4 +126,16 @@ describe("Chat Connect ownership", () => {
     expect(smoke).toContain("providerSelected,");
     expect(smoke).not.toContain("connect?.querySelectorAll('.connect-row').length === 0");
   });
+
+  it("keeps a flush composer visibly bounded with one CSS pixel of rounding tolerance", () => {
+    expect(smoke).toContain("const composerTolerance = 1;");
+    expect(smoke).toContain(
+      "const composerBottomLimit = Math.min(surfaceBox.bottom, innerHeight);",
+    );
+    expect(smoke).toContain("composerBox.width > 0 && composerBox.height > 0");
+    expect(smoke).toContain("composerBox.top < composerBottomLimit");
+    expect(smoke).toContain(
+      "composerBox.bottom <= composerBottomLimit + composerTolerance",
+    );
+  });
 });
