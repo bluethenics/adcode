@@ -14,6 +14,7 @@ let results: {
   nextControlClick: number;
   afterCancelClick: number;
   afterNoClickDrag: number;
+  layeredClose: { firstOpen: boolean; secondOpen: boolean };
 };
 
 beforeAll(() => {
@@ -59,5 +60,8 @@ describe("popup interactions in Chromium", () => {
     expect(results.nextControlClick).toBe(1);
     expect(results.afterCancelClick).toBe(2);
     expect(results.afterNoClickDrag).toBe(3);
+  });
+  it("does not leave a closing primary dialog in the native top layer when another primary opens", () => {
+    expect(results.layeredClose).toEqual({ firstOpen: false, secondOpen: true });
   });
 });

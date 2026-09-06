@@ -38,6 +38,19 @@ export function isPopupShellBackdrop(event: Event, surface: HTMLElement): boolea
   return !event.composedPath().includes(surface);
 }
 
+/**
+ * A native modal placed above a closing popup stops Chromium from advancing the lower
+ * popup's Web Animation. The coordinator has already made that popup logically closed,
+ * so retire its native top-layer entry before opening the next modal.
+ */
+function dismissClosingPopupDialogs(): void {
+  for (const closing of document.querySelectorAll<HTMLDialogElement>(
+    'dialog.popup-shell[open][data-closing="true"]',
+  )) {
+    closing.close();
+  }
+}
+
 export function createPopupShell(options: PopupShellOptions): PopupShell {
   const dialog = document.createElement("dialog");
   dialog.className = "popup-shell";
@@ -153,7 +166,10 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
       restoreTarget = openOptions.trigger ?? null;
       if (openOptions.anchor !== undefined) positionAnchored(dialog, openOptions.anchor);
       if (!dialog.open) {
-        if (options.modal) dialog.showModal();
+        if (options.modal) {
+          dismissClosingPopupDialogs();
+          dialog.showModal();
+        }
         else dialog.show();
       }
       const input = openOptions.input ?? "keyboard";

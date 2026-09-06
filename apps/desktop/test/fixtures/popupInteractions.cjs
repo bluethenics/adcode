@@ -58,6 +58,21 @@ app.whenReady().then(async () => {
       }
       return results;
     })()`);
+    const layeredClose = await run(`(async () => {
+      const first = shellModule.createPopupShell({ id: 'settings', title: 'Settings', size: 'large',
+        modal: true, host: document.body, content: document.createElement('div'), onRequestClose() {} });
+      const second = shellModule.createPopupShell({ id: 'features', title: 'Features', size: 'large',
+        modal: true, host: document.body, content: document.createElement('div'), onRequestClose() {} });
+      first.open({ input: 'pointer' });
+      first.close();
+      second.open({ input: 'pointer' });
+      await new Promise((done) => setTimeout(done, 250));
+      const result = { firstOpen: first.isOpen(), secondOpen: second.isOpen() };
+      second.close({ immediate: true });
+      first.close({ immediate: true });
+      first.element.remove(); second.element.remove();
+      return result;
+    })()`);
     await run(`document.documentElement.dataset.reducedMotion = 'false';
       window.shell = shellModule.createPopupShell({ id: 'settings', title: 'Settings', size: 'large',
         modal: true, host: document.body, content: document.createElement('div'),
@@ -98,7 +113,7 @@ app.whenReady().then(async () => {
       underlying.dispatchEvent(new PointerEvent('pointerup', { pointerId: 22, bubbles: true }));`);
     await click(point.x, point.y);
     const afterNoClickDrag = await run(`underlyingClicks`);
-    console.log("POPUP_RESULTS=" + JSON.stringify({ labels, motion, backdrop, nextPressCloses, inside, nextControlClick, afterCancelClick, afterNoClickDrag }));
+    console.log("POPUP_RESULTS=" + JSON.stringify({ labels, motion, layeredClose, backdrop, nextPressCloses, inside, nextControlClick, afterCancelClick, afterNoClickDrag }));
   } finally {
     window.destroy(); app.quit();
   }
