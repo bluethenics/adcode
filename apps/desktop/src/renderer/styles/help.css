@@ -62,6 +62,8 @@
 
 .help-popover {
   position: fixed;
+  inset: auto;
+  margin: 0;
   /*
    * Above the settings sheet, which sits at 100.
    *
@@ -118,6 +120,99 @@
 }
 
 /* ── The guide ────────────────────────────────────────────────────────── */
+
+.help-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 125;
+  display: grid;
+  place-items: center;
+  padding: max(16px, 3vh) max(16px, 2.5vw);
+  background: color-mix(in srgb, var(--bg-workbench) 42%, transparent);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  transition: opacity 220ms cubic-bezier(.32,.72,0,1);
+}
+
+.help-sheet[hidden] {
+  display: none;
+}
+
+.help-sheet[data-state="open"] {
+  opacity: 1;
+}
+
+.help-guide-panel {
+  width: min(1120px, calc(100vw - 40px));
+  height: min(780px, calc(100vh - 56px));
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 0.28), 0 2px 8px rgb(0 0 0 / 0.16);
+  backdrop-filter: blur(28px) saturate(155%);
+  transform: translateY(10px) scale(0.97);
+  transition: transform 220ms cubic-bezier(.32,.72,0,1);
+}
+
+.help-sheet[data-state="open"] .help-guide-panel {
+  transform: translateY(0) scale(1);
+}
+
+.help-guide-close {
+  flex: none;
+  min-width: 64px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 600 var(--text-xs) var(--font-ui);
+  cursor: pointer;
+}
+
+.help-guide-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.help-guide-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .help-guide-panel,
+  .help-sheet[data-state="open"] .help-guide-panel {
+    transform: none;
+  }
+
+  .help-sheet {
+    transition-duration: 100ms;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .help-sheet,
+  .help-guide-panel,
+  .help-popover {
+    backdrop-filter: none;
+  }
+
+  .help-guide-panel,
+  .help-popover {
+    background: var(--bg-elevated);
+  }
+}
+
+@media (prefers-contrast: more) {
+  .help-guide-panel,
+  .help-popover {
+    border: 2px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+}
 
 .help-lede {
   margin: 0 20px 4px;

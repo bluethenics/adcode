@@ -38,6 +38,7 @@ export function createHelpPopover(host: HTMLElement): HelpPopover {
   const card = document.createElement("div");
   card.className = "help-popover";
   card.hidden = true;
+  card.setAttribute("popover", "manual");
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", "What this does");
 
@@ -104,7 +105,33 @@ export function createHelpPopover(host: HTMLElement): HelpPopover {
     // would close and reopen in the same gesture, which reads as nothing happening.
     if (card.contains(target) || anchored.contains(target)) return;
 
+    const returnTo = anchored;
+    // Window capture runs before the workbench's document capture listener. Help is
+    // the frontmost layer even when its owner has its own outside-dismiss handler.
+    event.preventDefault();
+    event.stopImmediatePropagation();
     api.close();
+    returnTo.focus({ preventScroll: true });
+
+    // Canceling pointerdown does not cancel click. Consume the rest of this gesture
+    // so the shell's backdrop (or a Settings control underneath) cannot also act.
+    // A canceled drag or the next pointerdown releases the guard without a timer.
+    const clear = (): void => {
+      window.removeEventListener("pointerdown", clear, true);
+      window.removeEventListener("pointercancel", clear, true);
+      window.removeEventListener("pointerup", consume, true);
+      window.removeEventListener("click", consume, true);
+    };
+    const consume = (next: Event): void => {
+      if (next instanceof PointerEvent && next.pointerId !== event.pointerId) return;
+      next.preventDefault();
+      next.stopImmediatePropagation();
+      if (next.type === "click") clear();
+    };
+    window.addEventListener("pointerdown", clear, true);
+    window.addEventListener("pointercancel", clear, true);
+    window.addEventListener("pointerup", consume, true);
+    window.addEventListener("click", consume, true);
   };
 
   const onKeydown = (event: KeyboardEvent): void => {
@@ -160,6 +187,7 @@ export function createHelpPopover(host: HTMLElement): HelpPopover {
       how.textContent = `How to use it: ${entry.how}`;
 
       card.hidden = false;
+      card.showPopover();
       anchor.setAttribute("aria-expanded", "true");
 
       // Measured after being made visible, before being revealed - the element has a size
@@ -177,7 +205,7 @@ export function createHelpPopover(host: HTMLElement): HelpPopover {
       void card.offsetHeight;
       card.dataset["state"] = "open";
 
-      document.addEventListener("pointerdown", onDocumentPointerDown, true);
+      window.addEventListener("pointerdown", onDocumentPointerDown, true);
       document.addEventListener("keydown", onKeydown, true);
       window.addEventListener("resize", onViewportChange);
       window.addEventListener("scroll", onViewportChange, true);
@@ -190,9 +218,10 @@ export function createHelpPopover(host: HTMLElement): HelpPopover {
       anchored = null;
 
       delete card.dataset["state"];
+      card.hidePopover();
       card.hidden = true;
 
-      document.removeEventListener("pointerdown", onDocumentPointerDown, true);
+      window.removeEventListener("pointerdown", onDocumentPointerDown, true);
       document.removeEventListener("keydown", onKeydown, true);
       window.removeEventListener("resize", onViewportChange);
       window.removeEventListener("scroll", onViewportChange, true);

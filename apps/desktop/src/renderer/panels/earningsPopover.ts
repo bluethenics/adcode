@@ -1,9 +1,9 @@
 /**
  * The earnings report: what the ad side has actually paid, and what it would pay.
  *
- * A glanceable summary inside the shared sidebar. It uses the same navigation model as the
- * other activity icons, so it is easy to find, close, and revisit without managing a floating
- * card over the editor.
+ * A glanceable summary inside the workbench's activity-anchored popup shell. The shell owns
+ * disclosure, anchoring and dismissal; this module keeps ownership of account and earnings
+ * data, refresh state, rendering, and the visible close action.
  *
  * **The rule this panel is built around: never show a number the server did not send.**
  *
@@ -32,19 +32,20 @@ import type { AccountState, EarningsSnapshot } from "../../shared/api.ts";
 import { ICON, iconButton } from "../workbench/icons.ts";
 
 export interface EarningsPopoverDeps {
-  /** The shared sidebar view that owns the card. */
-  readonly host: HTMLElement;
-  /** Ask the workbench shell to close the shared sidebar. */
-  readonly requestClose: () => void;
+  /** Used only by the visible close button; the workbench shell owns all other dismissal. */
+  readonly onRequestClose: () => void;
   /** Opens Settings at the ads group, for the one action this panel offers. */
   readonly openSettings: () => void;
 }
 
-export interface EarningsPopover {
-  open(): void;
-  close(): void;
-  toggle(): void;
+export interface AnchoredTool {
+  readonly element: HTMLElement;
+  shown(): void;
+  hidden(): void;
   isOpen(): boolean;
+}
+
+export interface EarningsPopover extends AnchoredTool {
   /** The main process broadcasts on every tick; the card redraws whether or not it is open. */
   update(snapshot: EarningsSnapshot): void;
 }
@@ -146,6 +147,9 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   title.className = "earnings-title";
   title.textContent = "Earnings";
 
+  const actions = document.createElement("div");
+  actions.className = "earnings-header-actions";
+
   /*
    * Refresh.
    *
@@ -155,7 +159,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
    * button reports what happened rather than silently returning: a refresh that changes nothing
    * looks identical to a refresh that never ran.
    */
-  const refreshButton = iconButton("Refresh earnings", ICON.reload, "earnings-close");
+  const refreshButton = iconButton("Refresh earnings", ICON.reload, "earnings-refresh");
   refreshButton.addEventListener("click", () => {
     void (async () => {
       if (refreshing) return;
@@ -183,9 +187,10 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   });
 
   const closeButton = iconButton("Close earnings", ICON.close, "earnings-close");
-  closeButton.addEventListener("click", () => deps.requestClose());
+  closeButton.addEventListener("click", deps.onRequestClose);
 
-  header.append(title, refreshButton, closeButton);
+  actions.append(refreshButton, closeButton);
+  header.append(title, actions);
 
   /* ── The hero figure ────────────────────────────────────────────────────── */
 
@@ -352,7 +357,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   settingsButton.className = "ghost-button";
   settingsButton.textContent = "Ad settings";
   settingsButton.addEventListener("click", () => {
-    api.close();
+    deps.onRequestClose();
     deps.openSettings();
   });
 
@@ -361,10 +366,13 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
   footer.append(settingsButton, note);
 
-  card.append(header, hero, facts, accountRow, presetSection, footer);
-  deps.host.append(card);
+  const body = document.createElement("div");
+  body.className = "earnings-body";
+  body.append(hero, facts, accountRow, presetSection, footer);
 
-  let open = false;
+  card.append(header, body);
+
+  let visible = false;
   let latest: EarningsSnapshot | null = null;
   /** Null until the account state has been read, and on builds with no Firebase project. */
   let accountUid: string | null = null;
@@ -447,24 +455,17 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
 
   const api: EarningsPopover = {
-    open(): void {
-      if (open) return;
+    element: card,
 
-      open = true;
+    shown(): void {
+      visible = true;
     },
 
-    close(): void {
-      if (!open) return;
-
-      open = false;
+    hidden(): void {
+      visible = false;
     },
 
-    toggle(): void {
-      if (open) api.close();
-      else api.open();
-    },
-
-    isOpen: () => open && !deps.host.hidden,
+    isOpen: () => visible,
 
     update(snapshot: EarningsSnapshot): void {
       latest = snapshot;

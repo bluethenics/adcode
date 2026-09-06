@@ -57,7 +57,45 @@ export interface SourceControlPanel {
   checkConflicts(): Promise<CheckOutcome>;
 }
 
+export interface SourceControlDrawerStateInput {
+  readonly state: "inactive" | "setup" | "repo";
+  readonly changesMediaMatches: boolean;
+  readonly historyMediaMatches: boolean;
+  readonly changesOpen: boolean;
+  readonly historyOpen: boolean;
+}
+
+export interface SourceControlDrawerState {
+  readonly changesToggleable: boolean;
+  readonly historyToggleable: boolean;
+  readonly changesExpanded: boolean;
+  readonly historyExpanded: boolean;
+  readonly changesInert: boolean;
+  readonly historyInert: boolean;
+}
+
+/** Setup guidance is primary content, never a drawer that can be visually present but inert. */
+export function resolveSourceControlDrawers(
+  input: SourceControlDrawerStateInput,
+): SourceControlDrawerState {
+  const inRepository = input.state === "repo";
+  const changesToggleable = inRepository && input.changesMediaMatches;
+  const historyToggleable = inRepository && input.historyMediaMatches;
+  const changesExpanded = !changesToggleable || input.changesOpen;
+  const historyExpanded = !historyToggleable || input.historyOpen;
+  return {
+    changesToggleable,
+    historyToggleable,
+    changesExpanded,
+    historyExpanded,
+    changesInert: !changesExpanded,
+    historyInert: !historyExpanded,
+  };
+}
+
 export interface SourceControlDeps {
+  /** Dismisses the workspace shell through the owning layer. */
+  readonly onRequestClose: () => void;
   readonly openFile: (path: string) => void;
   readonly workspaceRoot: () => string | null;
   readonly notify: (message: string) => void;
@@ -107,6 +145,23 @@ const CHANGE_LABEL: Readonly<Record<string, string>> = {
 export function createSourceControlPanel(deps: SourceControlDeps): SourceControlPanel {
   const element = document.createElement("div");
   element.className = "scm-panel";
+  element.dataset["scmState"] = "inactive";
+
+  const changesRegion = document.createElement("section");
+  changesRegion.className = "scm-changes-region";
+  changesRegion.id = "scm-changes-region";
+  changesRegion.setAttribute("aria-label", "Changes");
+
+  const commitRegion = document.createElement("section");
+  commitRegion.className = "scm-commit-region";
+  commitRegion.setAttribute("aria-label", "Commit workspace");
+  commitRegion.hidden = true;
+
+  const historyRegion = document.createElement("section");
+  historyRegion.className = "scm-history-region";
+  historyRegion.id = "scm-history-region";
+  historyRegion.setAttribute("aria-label", "History and timeline");
+  historyRegion.hidden = true;
 
   const header = document.createElement("div");
   header.className = "scm-header";
@@ -342,6 +397,23 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   const commitBox = document.createElement("form");
   commitBox.className = "scm-commit";
 
+  const commitToolbar = document.createElement("div");
+  commitToolbar.className = "scm-drawer-actions";
+
+  const changesToggle = document.createElement("button");
+  changesToggle.className = "ghost-button scm-drawer-toggle";
+  changesToggle.type = "button";
+  changesToggle.textContent = "Changes";
+  changesToggle.setAttribute("aria-controls", changesRegion.id);
+
+  const historyToggle = document.createElement("button");
+  historyToggle.className = "ghost-button scm-drawer-toggle";
+  historyToggle.type = "button";
+  historyToggle.textContent = "History";
+  historyToggle.setAttribute("aria-controls", historyRegion.id);
+
+  commitToolbar.append(changesToggle, historyToggle);
+
   const message = document.createElement("textarea");
   message.className = "scm-message";
   message.rows = 2;
@@ -353,7 +425,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   commitButton.type = "submit";
   commitButton.textContent = "Commit";
 
-  commitBox.append(message, commitButton);
+  commitBox.append(commitToolbar, message, commitButton);
 
   commitBox.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -463,11 +535,108 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
     notify: deps.notify,
   });
 
-  element.append(header, actions, commitBox, conflicts, list, empty, timeline, history.element);
+  changesRegion.append(header, actions, conflicts, list, empty);
+  commitRegion.append(commitBox);
+  historyRegion.append(timeline, history.element);
+  element.append(changesRegion, commitRegion, historyRegion);
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "icon-button scm-close";
+  close.title = "Close (Esc)";
+  close.setAttribute("aria-label", "Close Source Control");
+  close.append(createIcon(ICON.close));
+  close.addEventListener("click", deps.onRequestClose);
+  element.append(close);
 
   let activeFile: string | null = null;
   let timelineEnabled = true;
   let timelineGeneration = 0;
+  const historyDrawerMedia = window.matchMedia("(max-width: 980px)");
+  const changesDrawerMedia = window.matchMedia("(max-width: 720px)");
+  let historyDrawerToggleable = false;
+  let changesDrawerToggleable = false;
+  let historyDrawerOpen = true;
+  let changesDrawerOpen = true;
+
+  function syncResponsiveDrawers(reset = false): void {
+    const state = (element.dataset["scmState"] ?? "inactive") as
+      | "inactive"
+      | "setup"
+      | "repo";
+    const next = resolveSourceControlDrawers({
+      state,
+      changesMediaMatches: changesDrawerMedia.matches,
+      historyMediaMatches: historyDrawerMedia.matches,
+      changesOpen: changesDrawerOpen,
+      historyOpen: historyDrawerOpen,
+    });
+    const nextHistoryToggleable = next.historyToggleable;
+    const nextChangesToggleable = next.changesToggleable;
+
+    if (reset || nextHistoryToggleable !== historyDrawerToggleable) {
+      historyDrawerToggleable = nextHistoryToggleable;
+      historyDrawerOpen = !historyDrawerToggleable;
+    }
+
+    if (reset || nextChangesToggleable !== changesDrawerToggleable) {
+      changesDrawerToggleable = nextChangesToggleable;
+      changesDrawerOpen = !changesDrawerToggleable;
+    }
+
+    if (!historyDrawerToggleable) historyDrawerOpen = true;
+    if (!changesDrawerToggleable) changesDrawerOpen = true;
+
+    const resolved = resolveSourceControlDrawers({
+      state,
+      changesMediaMatches: changesDrawerMedia.matches,
+      historyMediaMatches: historyDrawerMedia.matches,
+      changesOpen: changesDrawerOpen,
+      historyOpen: historyDrawerOpen,
+    });
+    const changesExpanded = resolved.changesExpanded;
+    const historyExpanded = resolved.historyExpanded;
+
+    element.dataset["changesOpen"] = String(changesExpanded);
+    element.dataset["historyOpen"] = String(historyExpanded);
+    element.dataset["changesToggleable"] = String(changesDrawerToggleable);
+    element.dataset["historyToggleable"] = String(historyDrawerToggleable);
+
+    changesToggle.hidden = !changesDrawerToggleable || commitRegion.hidden;
+    historyToggle.hidden = !historyDrawerToggleable || historyRegion.hidden;
+    changesToggle.disabled = !changesDrawerToggleable;
+    historyToggle.disabled = !historyDrawerToggleable;
+    changesToggle.setAttribute("aria-expanded", String(changesExpanded));
+    historyToggle.setAttribute("aria-expanded", String(historyExpanded));
+    changesToggle.setAttribute("aria-pressed", String(changesExpanded));
+    historyToggle.setAttribute("aria-pressed", String(historyExpanded));
+    const changesHidden = !changesExpanded || changesRegion.hidden;
+    const historyHidden = !historyExpanded || historyRegion.hidden;
+    changesRegion.inert = changesHidden;
+    historyRegion.inert = historyHidden;
+    changesRegion.setAttribute("aria-hidden", String(changesHidden));
+    historyRegion.setAttribute("aria-hidden", String(historyHidden));
+  }
+
+  changesToggle.addEventListener("click", () => {
+    if (!changesDrawerToggleable) return;
+    const next = !changesDrawerOpen;
+    if (next && historyDrawerToggleable) historyDrawerOpen = false;
+    changesDrawerOpen = next;
+    syncResponsiveDrawers();
+  });
+
+  historyToggle.addEventListener("click", () => {
+    if (!historyDrawerToggleable) return;
+    const next = !historyDrawerOpen;
+    if (next && changesDrawerToggleable) changesDrawerOpen = false;
+    historyDrawerOpen = next;
+    syncResponsiveDrawers();
+  });
+
+  historyDrawerMedia.addEventListener("change", () => syncResponsiveDrawers());
+  changesDrawerMedia.addEventListener("change", () => syncResponsiveDrawers());
+  syncResponsiveDrawers(true);
 
   async function renderTimeline(): Promise<void> {
     const mine = ++timelineGeneration;
@@ -739,26 +908,39 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
 
     async refresh(): Promise<void> {
       if (deps.workspaceRoot() === null) {
+        element.dataset["scmState"] = "inactive";
         timeline.hidden = true;
+        timelineList.replaceChildren();
+        historyRegion.hidden = true;
+        commitRegion.hidden = true;
+        conflicts.hidden = true;
+        conflictsList.replaceChildren();
         list.replaceChildren();
         empty.textContent = "Open a folder to use source control.";
         empty.hidden = false;
         header.hidden = true;
         actions.hidden = true;
         commitBox.hidden = true;
+        syncResponsiveDrawers();
         return;
       }
 
       const status = await window.adcode.git.status();
       lastStatus = status;
       history.element.hidden = !status.isRepo;
+      historyRegion.hidden = !status.isRepo;
 
       if (!status.isRepo) {
+        element.dataset["scmState"] = "setup";
         timeline.hidden = true;
+        timelineList.replaceChildren();
         list.replaceChildren();
         header.hidden = true;
         actions.hidden = true;
         commitBox.hidden = true;
+        commitRegion.hidden = true;
+        conflicts.hidden = true;
+        conflictsList.replaceChildren();
 
         empty.replaceChildren();
         const text = document.createElement("span");
@@ -772,12 +954,16 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
 
         empty.append(text, init);
         empty.hidden = false;
+        syncResponsiveDrawers();
         return;
       }
 
+      element.dataset["scmState"] = "repo";
       header.hidden = false;
       actions.hidden = false;
       commitBox.hidden = false;
+      commitRegion.hidden = false;
+      historyRegion.hidden = false;
       void syncRemoteButton();
 
       branchButton.textContent = status.branch ?? "detached";
@@ -804,6 +990,7 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       empty.textContent = status.isClean ? "No changes." : "";
       empty.hidden = !status.isClean;
 
+      syncResponsiveDrawers();
       await renderTimeline();
 
       // Last, and not awaited into the same failure: a slow `git log` should not stop the

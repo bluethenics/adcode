@@ -71,11 +71,37 @@ describe("packaged smoke safety", () => {
     expect(source).toContain("Search the workspace");
   });
 
+  it("guards the earnings popover close control separately from refresh", () => {
+    const source = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/panels/earningsPopover.ts"),
+      "utf8",
+    );
+    const styles = readFileSync(
+      resolve(import.meta.dirname, "../src/renderer/styles/popups.css"),
+      "utf8",
+    );
+    const smoke = readFileSync(resolve(import.meta.dirname, "../../../scripts/smoke.mjs"), "utf8");
+
+    expect(source).toContain('iconButton("Refresh earnings", ICON.reload, "earnings-refresh")');
+    expect(source).toContain('iconButton("Close earnings", ICON.close, "earnings-close")');
+    expect(styles).toContain(".earnings-header-actions");
+    expect(styles).toContain(".earnings-refresh");
+    expect(smoke).toContain("checks.earningsCloseButtonVisible");
+    expect(smoke).toContain('aria-label') ;
+    expect(smoke).toContain("Close earnings");
+  });
+
   it("cannot inherit Electron's Node-only mode from the invoking agent shell", () => {
     const source = readFileSync(resolve(import.meta.dirname, "../../../scripts/smoke.mjs"), "utf8");
 
     expect(source).toContain("delete childEnv.ELECTRON_RUN_AS_NODE");
     expect(source).toContain("env: childEnv");
+  });
+
+  it("lets an isolated smoke launch select its own DevTools port", () => {
+    const source = readFileSync(resolve(import.meta.dirname, "../../../scripts/smoke.mjs"), "utf8");
+
+    expect(source).toContain('const PORT = Number(process.env.ADCODE_SMOKE_PORT ?? "9333")');
   });
 
   it("re-resolves its scratch folder before destructive Explorer checks", () => {

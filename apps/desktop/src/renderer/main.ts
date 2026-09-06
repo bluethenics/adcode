@@ -10,6 +10,7 @@ import "./styles/settings.css";
 import "./styles/ai.css";
 import "./styles/panels.css";
 import "./styles/structure.css";
+import "./styles/popupShell.css";
 import "./styles/popups.css";
 import "./styles/menubar.css";
 import "./styles/dialogs.css";
@@ -55,6 +56,12 @@ import {
   type SidebarViewId,
 } from "./workbench/workbenchLayout.ts";
 import { animateLayoutFlip, type LayoutInput } from "./workbench/motion.ts";
+import {
+  initialPopupLayer,
+  reducePopupLayer,
+  type PopupId,
+} from "./workbench/popupLayer.ts";
+import { createPopupShell, type PopupShell } from "./workbench/popupShell.ts";
 import { createQuickOpen, createSearchPanel } from "./panels/searchPanel.ts";
 import { createProblemsPanel } from "./panels/problemsPanel.ts";
 import { createBottomPanel, type PanelTabId } from "./panels/bottomPanel.ts";
@@ -75,19 +82,22 @@ import { badgeFor, countBySeverity, summarise } from "@adcode/diagnostics";
 import type { Diagnostic } from "@adcode/diagnostics";
 import { misspellingsIn } from "@adcode/spell";
 import { getSetting } from "@adcode/settings";
-import {
-  CHECKS,
-  messageFor,
-  type CheckSpec,
-} from "./checks/checkReport.ts";
+import { CHECKS, messageFor, type CheckSpec } from "./checks/checkReport.ts";
 import { createChatWidget } from "./ai/chatWidget.ts";
 import { createConnectView } from "./ai/connectView.ts";
 import { ICON, createIcon, iconButton } from "./workbench/icons.ts";
 import { createSettingsView } from "./settings/settingsView.ts";
-import { createEditorHost, languageForFilename, type EditorHost } from "./editor/editorHost.ts";
+import {
+  createEditorHost,
+  languageForFilename,
+  type EditorHost,
+} from "./editor/editorHost.ts";
 import { startActivityTracker } from "./activity/activityTracker.ts";
 import { resolveTheme } from "./theme.ts";
-import { createTerminalPanel, type TerminalPanel } from "./terminal/terminalPanel.ts";
+import {
+  createTerminalPanel,
+  type TerminalPanel,
+} from "./terminal/terminalPanel.ts";
 import { createNotificationCentre } from "./notifications/notifications.ts";
 import { buildAdSignals } from "./ads/adSignals.ts";
 import { createReleaseNotice } from "./releases/releaseNotice.ts";
@@ -105,13 +115,22 @@ import { createFeatureLibrary } from "./features/featureLibrary.ts";
 import { featureFor, featureRecords, type FeatureAction } from "@adcode/help";
 import { formatAccelerator } from "../shared/menuModel.ts";
 import { commandWordOf } from "../shared/runtimes.ts";
-import { applyOverrides, matchesChord, parseChord, resolveBindings } from "../shared/keybindings.ts";
+import {
+  applyOverrides,
+  matchesChord,
+  parseChord,
+  resolveBindings,
+} from "../shared/keybindings.ts";
 import type { BindingOverrides } from "../shared/keybindings.ts";
 import { scaffoldFor, todoMarksIn } from "@adcode/structure";
 import { createAccountMenu } from "./workbench/accountMenu.ts";
 import { createOnboardingSheet } from "./onboarding/onboardingSheet.ts";
 import { createPinPromptCard } from "./onboarding/pinPromptCard.ts";
-import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "./workbench/contextMenu.ts";
+import {
+  createContextMenu,
+  attachContextMenuDismissal,
+  type ContextMenuNode,
+} from "./workbench/contextMenu.ts";
 import { createInlineEditor } from "./workbench/inlineEdit.ts";
 import type {
   AdcodeApi,
@@ -165,7 +184,8 @@ const editorHost: EditorHost = createEditorHost(el("editor-host"), {
   workspaceRoot: () => workspaceRoot,
   list: (directory) => window.adcode.workspace.list(directory),
 
-  readFile: async (path) => (await window.adcode.files.read(path))?.text ?? null,
+  readFile: async (path) =>
+    (await window.adcode.files.read(path))?.text ?? null,
   displayPath: (path) => relativePath(path) ?? path,
   languageFor: (path) => languageForFilename(path.split(/[\/]/).pop() ?? path),
 
@@ -174,10 +194,13 @@ const editorHost: EditorHost = createEditorHost(el("editor-host"), {
   },
 
   // Regex, because every pattern reaching here is built by `@adcode/structure` and is one.
-  search: (pattern, include) => window.adcode.search.run({ pattern, isRegex: true, include }),
+  search: (pattern, include) =>
+    window.adcode.search.run({ pattern, isRegex: true, include }),
 
   absolute: (relative) =>
-    workspaceRoot === null ? relative : `${workspaceRoot.replace(/[\/]+$/, "")}/${relative}`,
+    workspaceRoot === null
+      ? relative
+      : `${workspaceRoot.replace(/[\/]+$/, "")}/${relative}`,
 });
 
 /*
@@ -188,7 +211,9 @@ const editorHost: EditorHost = createEditorHost(el("editor-host"), {
  * see `activity/activityTracker.ts` for what is deliberately not counted, and
  * `shared/activity.ts` for why nothing it sends can carry a filename or a line of code.
  */
-startActivityTracker(editorHost, (deltas) => window.adcode.activity.report(deltas));
+startActivityTracker(editorHost, (deltas) =>
+  window.adcode.activity.report(deltas),
+);
 
 /* ── Settings ─────────────────────────────────────────────────────────── */
 
@@ -216,7 +241,8 @@ function applySettings(values: Record<string, boolean | string>): void {
 
   // §3: "Density is a setting, not a decision."
   const density = values["adcode.appearance.density"];
-  document.documentElement.dataset["density"] = density === "compact" ? "compact" : "comfortable";
+  document.documentElement.dataset["density"] =
+    density === "compact" ? "compact" : "comfortable";
 
   /*
    * Reporting is switched before the editor is told anything.
@@ -225,10 +251,14 @@ function applySettings(values: Record<string, boolean | string>): void {
    * host, so "surface lint diagnostics: off" has to reach both or the panel goes quiet
    * while annotations stay on the lines.
    */
-  diagnosticsHost.setEnabled(values["adcode.formatting.lintDiagnostics"] !== false);
+  diagnosticsHost.setEnabled(
+    values["adcode.formatting.lintDiagnostics"] !== false,
+  );
 
   breadcrumbs.setEnabled(values["adcode.navigation.breadcrumbs"] !== false);
-  terminal?.setAgentDetection(values["adcode.ai.terminalAgentDetection"] !== false);
+  terminal?.setAgentDetection(
+    values["adcode.ai.terminalAgentDetection"] !== false,
+  );
   terminal?.setAutoContinue(
     values["adcode.ai.autoContinue"] === true,
     Number(values["adcode.ai.autoContinueRetries"] ?? 3),
@@ -245,11 +275,17 @@ function applySettings(values: Record<string, boolean | string>): void {
     selectorToElements: values["adcode.structure.selectorToElements"] !== false,
   });
 
-  styleHints.setUnusedEnabled(values["adcode.structure.unusedSelectors"] === true);
-  styleHints.setMissingEnabled(values["adcode.structure.missingClasses"] !== false);
+  styleHints.setUnusedEnabled(
+    values["adcode.structure.unusedSelectors"] === true,
+  );
+  styleHints.setMissingEnabled(
+    values["adcode.structure.missingClasses"] !== false,
+  );
   refreshStyleHints();
   symbolSearch.setEnabled(values["adcode.navigation.symbolSearch"] !== false);
-  structurePopup.setOutlineEnabled(values["adcode.navigation.outline"] !== false);
+  structurePopup.setOutlineEnabled(
+    values["adcode.navigation.outline"] !== false,
+  );
   refreshBreadcrumbs();
   refreshStyleHints();
 
@@ -283,7 +319,9 @@ function syncTheme(): void {
   reportAdSignals();
 }
 
-window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", syncTheme);
+window
+  .matchMedia("(prefers-color-scheme: dark)")
+  .addEventListener("change", syncTheme);
 
 /* ── Tabs ─────────────────────────────────────────────────────────────── */
 
@@ -339,7 +377,9 @@ function renderTabs(): void {
  */
 function revealActiveTab(): void {
   const host = el("tabs");
-  const selected = host.querySelector<HTMLElement>('.tab[aria-selected="true"]');
+  const selected = host.querySelector<HTMLElement>(
+    '.tab[aria-selected="true"]',
+  );
   if (selected === null) return;
 
   // `scrollIntoView` on a fresh element is a no-op until layout has run.
@@ -376,7 +416,8 @@ function activateTab(path: string): void {
   el("editor-placeholder").dataset["visible"] = "false";
 
   const tab = tabs.find((t) => t.path === path);
-  el("status-language").textContent = tab === undefined ? "" : languageForFilename(tab.name);
+  el("status-language").textContent =
+    tab === undefined ? "" : languageForFilename(tab.name);
 
   renderTabs();
   runButton.refresh();
@@ -452,7 +493,10 @@ async function saveActive(): Promise<void> {
   if (activePath === null) return;
 
   if (editorHost.isReadOnly(activePath)) {
-    setStatus("This is a past revision - open the working copy to edit it.", 3000);
+    setStatus(
+      "This is a past revision - open the working copy to edit it.",
+      3000,
+    );
     return;
   }
 
@@ -506,11 +550,16 @@ async function savePath(path: string): Promise<void> {
 /* ── File tree ────────────────────────────────────────────────────────── */
 
 const NEW_FILE_ICON = "M9 2.5H4.5v11h7V5M9 2.5 11.5 5M9 2.5V5h2.5";
-const NEW_FOLDER_ICON = "M2 4.5A1 1 0 0 1 3 3.5h2.6l1 1.2H13a1 1 0 0 1 1 1v6.3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z";
+const NEW_FOLDER_ICON =
+  "M2 4.5A1 1 0 0 1 3 3.5h2.6l1 1.2H13a1 1 0 0 1 1 1v6.3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z";
 const PLUS_ICON = "M8 6v4M6 8h4";
 
 /** A small icon button that lives on a tree row. */
-function rowActionButton(label: string, path: string, run: () => void): HTMLButtonElement {
+function rowActionButton(
+  label: string,
+  path: string,
+  run: () => void,
+): HTMLButtonElement {
   const button = document.createElement("button");
   button.className = "tree-action";
   button.type = "button";
@@ -565,8 +614,16 @@ function makeRow(entry: DirEntry, depth: number): HTMLElement {
     const actions = document.createElement("div");
     actions.className = "tree-actions";
     actions.append(
-      rowActionButton("New File", NEW_FILE_ICON, () => void beginCreate(entry.path, "file")),
-      rowActionButton("New Folder", NEW_FOLDER_ICON, () => void beginCreate(entry.path, "folder")),
+      rowActionButton(
+        "New File",
+        NEW_FILE_ICON,
+        () => void beginCreate(entry.path, "file"),
+      ),
+      rowActionButton(
+        "New Folder",
+        NEW_FOLDER_ICON,
+        () => void beginCreate(entry.path, "folder"),
+      ),
     );
     row.append(actions);
   }
@@ -601,9 +658,12 @@ function makeRow(entry: DirEntry, depth: number): HTMLElement {
       if (children.childElementCount === 0) {
         try {
           const entries = await window.adcode.workspace.list(entry.path);
-          for (const child of entries) children.append(makeRow(child, depth + 1));
+          for (const child of entries)
+            children.append(makeRow(child, depth + 1));
         } catch (error) {
-          setStatus(error instanceof Error ? error.message : "could not read folder");
+          setStatus(
+            error instanceof Error ? error.message : "could not read folder",
+          );
           return;
         }
       }
@@ -614,7 +674,9 @@ function makeRow(entry: DirEntry, depth: number): HTMLElement {
     });
   } else {
     row.addEventListener("click", () => {
-      for (const selected of document.querySelectorAll<HTMLElement>('.tree-row[aria-selected="true"]')) {
+      for (const selected of document.querySelectorAll<HTMLElement>(
+        '.tree-row[aria-selected="true"]',
+      )) {
         selected.ariaSelected = "false";
       }
       row.ariaSelected = "true";
@@ -635,7 +697,8 @@ async function renderTree(root: string): Promise<void> {
   } catch (error) {
     const message = document.createElement("p");
     message.className = "empty-hint";
-    message.textContent = error instanceof Error ? error.message : "could not read folder";
+    message.textContent =
+      error instanceof Error ? error.message : "could not read folder";
     host.append(message);
   }
 }
@@ -693,8 +756,14 @@ function rowFor(path: string): HTMLElement | null {
   // Iterated rather than selected: a path holds backslashes and may hold quotes, and
   // escaping it into an attribute selector correctly is more fragile than a scan of a
   // list that is only ever as long as what is expanded on screen.
-  for (const row of document.querySelectorAll<HTMLElement>("#filetree .tree-row")) {
-    if (row.dataset["path"] !== undefined && samePath(row.dataset["path"], path)) return row;
+  for (const row of document.querySelectorAll<HTMLElement>(
+    "#filetree .tree-row",
+  )) {
+    if (
+      row.dataset["path"] !== undefined &&
+      samePath(row.dataset["path"], path)
+    )
+      return row;
   }
   return null;
 }
@@ -737,7 +806,9 @@ function childrenBoxFor(dirPath: string): HTMLElement | null {
   if (isWorkspaceRoot(dirPath)) return el("filetree");
 
   const row = rowFor(dirPath);
-  const box = row?.parentElement?.querySelector<HTMLElement>(":scope > .tree-children");
+  const box = row?.parentElement?.querySelector<HTMLElement>(
+    ":scope > .tree-children",
+  );
   return box ?? null;
 }
 
@@ -758,7 +829,8 @@ async function refreshDirectory(dirPath: string): Promise<void> {
   // Before the box check, and deliberately: the root's children render straight into the
   // tree rather than into a disclosure box, so a guard placed after it would never run for
   // the one directory the run button needs to know about.
-  if (workspaceRoot !== null && samePath(dirPath, workspaceRoot)) void refreshRootFiles();
+  if (workspaceRoot !== null && samePath(dirPath, workspaceRoot))
+    void refreshRootFiles();
 
   const box = childrenBoxFor(dirPath);
   if (box === null) return;
@@ -772,12 +844,15 @@ async function refreshDirectory(dirPath: string): Promise<void> {
 
   const existing = new Map<string, Element>();
   for (const wrapper of box.children) {
-    const path = wrapper.querySelector<HTMLElement>(":scope > .tree-row")?.dataset["path"];
+    const path =
+      wrapper.querySelector<HTMLElement>(":scope > .tree-row")?.dataset["path"];
     if (path !== undefined) existing.set(path, wrapper);
   }
 
   const depth = depthOf(dirPath);
-  const next = entries.map((entry) => existing.get(entry.path) ?? makeRow(entry, depth));
+  const next = entries.map(
+    (entry) => existing.get(entry.path) ?? makeRow(entry, depth),
+  );
 
   // Anything left in `existing` is gone from disk, and dropping it here is what removes it.
   box.replaceChildren(...next);
@@ -810,13 +885,18 @@ function containingDirOf(path: string): string {
 
 /** Where a new item goes when `path` was right-clicked: inside a folder, beside a file. */
 function createTargetFor(path: string): string {
-  return rowFor(path)?.dataset["kind"] === "directory" ? path : containingDirOf(path);
+  return rowFor(path)?.dataset["kind"] === "directory"
+    ? path
+    : containingDirOf(path);
 }
 
 const baseName = (path: string): string => path.split(/[\\/]/).at(-1) ?? path;
 
 /** Open the inline editor for a new file or folder inside `dirPath`. */
-async function beginCreate(dirPath: string, kind: "file" | "folder"): Promise<void> {
+async function beginCreate(
+  dirPath: string,
+  kind: "file" | "folder",
+): Promise<void> {
   await expandDirectory(dirPath);
 
   const box = childrenBoxFor(dirPath);
@@ -845,7 +925,9 @@ async function beginCreate(dirPath: string, kind: "file" | "folder"): Promise<vo
       // at, so it arrives as an edit they can undo rather than as a file that was never
       // empty.
       if (kind === "file" && result.path !== undefined) {
-        void openFile(result.path).then(() => insertTemplate({ onlyIfEmpty: true }));
+        void openFile(result.path).then(() =>
+          insertTemplate({ onlyIfEmpty: true }),
+        );
       }
       void sourceControl.refresh();
       return null;
@@ -864,10 +946,15 @@ async function beginCreate(dirPath: string, kind: "file" | "folder"): Promise<vo
  * such guard, because there the user asked for it explicitly - and it arrives through the
  * edit stack either way, so Ctrl+Z is always the way out.
  */
-function insertTemplate(options: { readonly onlyIfEmpty?: boolean } = {}): void {
+function insertTemplate(
+  options: { readonly onlyIfEmpty?: boolean } = {},
+): void {
   if (activePath === null) return;
 
-  if (settingsValues["adcode.editing.fileTemplates"] === false && options.onlyIfEmpty === true) {
+  if (
+    settingsValues["adcode.editing.fileTemplates"] === false &&
+    options.onlyIfEmpty === true
+  ) {
     return;
   }
 
@@ -881,7 +968,10 @@ function insertTemplate(options: { readonly onlyIfEmpty?: boolean } = {}): void 
   const scaffold = scaffoldFor(languageForFilename(name), name);
   if (scaffold === null) {
     if (options.onlyIfEmpty !== true) {
-      setStatus(`ADCode has no starting template for ${languageForFilename(name)} files.`, 4000);
+      setStatus(
+        `ADCode has no starting template for ${languageForFilename(name)} files.`,
+        4000,
+      );
     }
     return;
   }
@@ -937,7 +1027,10 @@ function beginRename(path: string): void {
 /** Rename an open file from its location menu without requiring its tree row to be visible. */
 async function renameFromBreadcrumb(path: string): Promise<void> {
   if (editorHost.isReadOnly(path)) {
-    setStatus("Past revisions are read-only. Open the working copy to rename it.", 4000);
+    setStatus(
+      "Past revisions are read-only. Open the working copy to rename it.",
+      4000,
+    );
     return;
   }
   const name = await promptDialog.ask({
@@ -979,7 +1072,11 @@ async function afterRemoval(path: string, said: string): Promise<void> {
 async function deleteForGood(path: string, name: string): Promise<void> {
   const result = await window.adcode.files.delete(path);
   if (!result.ok) {
-    gitResultDialog.show({ action: "Delete", ok: false, message: result.message });
+    gitResultDialog.show({
+      action: "Delete",
+      ok: false,
+      message: result.message,
+    });
     return;
   }
   await afterRemoval(path, `${name} deleted`);
@@ -1015,7 +1112,11 @@ async function confirmAndTrash(path: string): Promise<void> {
   }
 
   if (result.code !== "trash-failed") {
-    gitResultDialog.show({ action: "Delete", ok: false, message: result.message });
+    gitResultDialog.show({
+      action: "Delete",
+      ok: false,
+      message: result.message,
+    });
     return;
   }
 
@@ -1051,7 +1152,9 @@ const TREE_DRAG_TYPE = "application/x-adcode-path";
 let draggingPath: string | null = null;
 
 function clearDropHighlight(): void {
-  for (const marked of document.querySelectorAll<HTMLElement>("[data-drop-target]")) {
+  for (const marked of document.querySelectorAll<HTMLElement>(
+    "[data-drop-target]",
+  )) {
     delete marked.dataset["dropTarget"];
   }
 }
@@ -1089,9 +1192,16 @@ async function handleDrop(event: DragEvent, targetDir: string): Promise<void> {
     void sourceControl.refresh();
 
     if (outcomes.length > 0) {
-      gitResultDialog.show({ action: "Add files", ok: false, message: outcomes.join("\n") });
+      gitResultDialog.show({
+        action: "Add files",
+        ok: false,
+        message: outcomes.join("\n"),
+      });
     } else {
-      setStatus(`Added ${external.length} item${external.length === 1 ? "" : "s"}`, 3500);
+      setStatus(
+        `Added ${external.length} item${external.length === 1 ? "" : "s"}`,
+        3500,
+      );
     }
     return;
   }
@@ -1107,7 +1217,11 @@ async function handleDrop(event: DragEvent, targetDir: string): Promise<void> {
     : await window.adcode.files.move(source, targetDir);
 
   if (!result.ok) {
-    gitResultDialog.show({ action: copying ? "Copy" : "Move", ok: false, message: result.message });
+    gitResultDialog.show({
+      action: copying ? "Copy" : "Move",
+      ok: false,
+      message: result.message,
+    });
     return;
   }
 
@@ -1126,7 +1240,8 @@ function attachRowDragAndDrop(row: HTMLElement, entry: DirEntry): void {
   row.addEventListener("dragstart", (event) => {
     draggingPath = entry.path;
     event.dataTransfer?.setData(TREE_DRAG_TYPE, entry.path);
-    if (event.dataTransfer !== null) event.dataTransfer.effectAllowed = "copyMove";
+    if (event.dataTransfer !== null)
+      event.dataTransfer.effectAllowed = "copyMove";
     row.dataset["dragging"] = "true";
   });
 
@@ -1140,11 +1255,16 @@ function attachRowDragAndDrop(row: HTMLElement, entry: DirEntry): void {
     const target = dropTargetFor(entry.path);
     // Dropping a folder into itself or its own descendant would detach the subtree; the
     // main process refuses it too, but refusing here keeps the cursor honest.
-    if (draggingPath !== null && (samePath(draggingPath, target) || isUnder(draggingPath, target))) return;
+    if (
+      draggingPath !== null &&
+      (samePath(draggingPath, target) || isUnder(draggingPath, target))
+    )
+      return;
 
     event.preventDefault();
     event.stopPropagation();
-    if (event.dataTransfer !== null) event.dataTransfer.dropEffect = event.ctrlKey ? "copy" : "move";
+    if (event.dataTransfer !== null)
+      event.dataTransfer.dropEffect = event.ctrlKey ? "copy" : "move";
 
     clearDropHighlight();
     // Highlight the folder that will receive it, which for a file row is its parent.
@@ -1197,7 +1317,10 @@ async function revealInExplorer(path: string): Promise<void> {
  * pasting into an editor would drop as text, and reading files *out* of the system
  * clipboard would mean honouring whatever any other application had put there.
  */
-let fileClipboard: { readonly path: string; readonly mode: "cut" | "copy" } | null = null;
+let fileClipboard: {
+  readonly path: string;
+  readonly mode: "cut" | "copy";
+} | null = null;
 
 async function pasteInto(targetDir: string): Promise<void> {
   const held = fileClipboard;
@@ -1209,7 +1332,11 @@ async function pasteInto(targetDir: string): Promise<void> {
       : await window.adcode.files.move(held.path, targetDir);
 
   if (!result.ok) {
-    gitResultDialog.show({ action: "Paste", ok: false, message: result.message });
+    gitResultDialog.show({
+      action: "Paste",
+      ok: false,
+      message: result.message,
+    });
     return;
   }
 
@@ -1229,7 +1356,11 @@ async function pasteInto(targetDir: string): Promise<void> {
 async function duplicate(path: string): Promise<void> {
   const result = await window.adcode.files.duplicate(path);
   if (!result.ok) {
-    gitResultDialog.show({ action: "Duplicate", ok: false, message: result.message });
+    gitResultDialog.show({
+      action: "Duplicate",
+      ok: false,
+      message: result.message,
+    });
     return;
   }
 
@@ -1241,18 +1372,25 @@ async function duplicate(path: string): Promise<void> {
 /* ── Git actions on one file ──────────────────────────────────────────── */
 
 /** The staged/worktree state of one file within a status snapshot. */
-function gitEntryFor(status: GitStatusView | null, relative: string): { staged: string } | null {
-  const entry = status?.entries.find((candidate) => samePath(candidate.path, relative));
+function gitEntryFor(
+  status: GitStatusView | null,
+  relative: string,
+): { staged: string } | null {
+  const entry = status?.entries.find((candidate) =>
+    samePath(candidate.path, relative),
+  );
   return entry === undefined ? null : { staged: entry.staged };
 }
 
-async function runGitOnFile(action: string, path: string, run: () => Promise<GitOutcome>): Promise<void> {
-  const outcome = await run().catch(
-    (error: unknown): GitOutcome => ({
-      ok: false,
-      message: error instanceof Error ? error.message : String(error),
-    }),
-  );
+async function runGitOnFile(
+  action: string,
+  path: string,
+  run: () => Promise<GitOutcome>,
+): Promise<void> {
+  const outcome = await run().catch((error: unknown): GitOutcome => ({
+    ok: false,
+    message: error instanceof Error ? error.message : String(error),
+  }));
 
   gitResultDialog.show({
     action,
@@ -1266,7 +1404,10 @@ async function runGitOnFile(action: string, path: string, run: () => Promise<Git
 }
 
 /** The menu for a row, or - when `path` is null - for empty space, meaning the root. */
-function treeMenuNodes(path: string | null, status: GitStatusView | null): ContextMenuNode[] {
+function treeMenuNodes(
+  path: string | null,
+  status: GitStatusView | null,
+): ContextMenuNode[] {
   if (workspaceRoot === null) return [];
 
   // New items go inside a clicked folder and beside a clicked file, which is where
@@ -1293,8 +1434,22 @@ function treeMenuNodes(path: string | null, status: GitStatusView | null): Conte
 
   nodes.push(
     { kind: "separator" },
-    { label: "Cut", accelerator: "Ctrl+X", run: () => { fileClipboard = { path, mode: "cut" }; setStatus(`Cut ${baseName(path)}`, 3000); } },
-    { label: "Copy", accelerator: "Ctrl+C", run: () => { fileClipboard = { path, mode: "copy" }; setStatus(`Copied ${baseName(path)}`, 3000); } },
+    {
+      label: "Cut",
+      accelerator: "Ctrl+X",
+      run: () => {
+        fileClipboard = { path, mode: "cut" };
+        setStatus(`Cut ${baseName(path)}`, 3000);
+      },
+    },
+    {
+      label: "Copy",
+      accelerator: "Ctrl+C",
+      run: () => {
+        fileClipboard = { path, mode: "copy" };
+        setStatus(`Copied ${baseName(path)}`, 3000);
+      },
+    },
     {
       label: "Paste",
       accelerator: "Ctrl+V",
@@ -1306,9 +1461,13 @@ function treeMenuNodes(path: string | null, status: GitStatusView | null): Conte
     { label: "Copy Path", run: () => void copyText(path, "Path copied") },
     {
       label: "Copy Relative Path",
-      run: () => void copyText(relativePath(path) ?? path, "Relative path copied"),
+      run: () =>
+        void copyText(relativePath(path) ?? path, "Relative path copied"),
     },
-    { label: "Reveal in File Explorer", run: () => void revealInExplorer(path) },
+    {
+      label: "Reveal in File Explorer",
+      run: () => void revealInExplorer(path),
+    },
   );
 
   /* The git group, only where there is a repository and only for tracked-able files. */
@@ -1321,8 +1480,20 @@ function treeMenuNodes(path: string | null, status: GitStatusView | null): Conte
 
     nodes.push(
       isStaged
-        ? { label: "Unstage", run: () => void runGitOnFile("Unstage", path, () => window.adcode.git.unstage([relative])) }
-        : { label: "Stage", run: () => void runGitOnFile("Stage", path, () => window.adcode.git.stage([relative])) },
+        ? {
+            label: "Unstage",
+            run: () =>
+              void runGitOnFile("Unstage", path, () =>
+                window.adcode.git.unstage([relative]),
+              ),
+          }
+        : {
+            label: "Stage",
+            run: () =>
+              void runGitOnFile("Stage", path, () =>
+                window.adcode.git.stage([relative]),
+              ),
+          },
     );
 
     nodes.push({
@@ -1334,21 +1505,33 @@ function treeMenuNodes(path: string | null, status: GitStatusView | null): Conte
 
     nodes.push(
       { label: "Commit…", run: () => void commitFromTree(path, relative) },
-      { label: "Push", run: () => void runGitOnFile("Push", path, () => window.adcode.git.push()) },
+      {
+        label: "Push",
+        run: () =>
+          void runGitOnFile("Push", path, () => window.adcode.git.push()),
+      },
     );
   }
 
   nodes.push(
     { kind: "separator" },
     { label: "Rename", accelerator: "F2", run: () => beginRename(path) },
-    { label: "Delete", accelerator: "Del", danger: true, run: () => void confirmAndTrash(path) },
+    {
+      label: "Delete",
+      accelerator: "Del",
+      danger: true,
+      run: () => void confirmAndTrash(path),
+    },
   );
 
   return nodes;
 }
 
 /** Discarding throws away uncommitted work, so it asks first and says what it costs. */
-async function discardFileChanges(path: string, relative: string): Promise<void> {
+async function discardFileChanges(
+  path: string,
+  relative: string,
+): Promise<void> {
   const sure = await confirmDialog.ask({
     title: `Discard changes to ${baseName(path)}?`,
     body: "The file goes back to its last committed state. Uncommitted edits cannot be recovered from git.",
@@ -1357,7 +1540,9 @@ async function discardFileChanges(path: string, relative: string): Promise<void>
   });
   if (!sure) return;
 
-  await runGitOnFile("Discard", path, () => window.adcode.git.discard([relative]));
+  await runGitOnFile("Discard", path, () =>
+    window.adcode.git.discard([relative]),
+  );
 
   // The buffer still holds the old text, so it is reloaded rather than left disagreeing
   // with the file the user just restored.
@@ -1368,11 +1553,15 @@ async function discardFileChanges(path: string, relative: string): Promise<void>
 async function commitFromTree(path: string, relative: string): Promise<void> {
   const staged = await window.adcode.git.stage([relative]);
   if (!staged.ok) {
-    gitResultDialog.show({ action: "Stage", ok: false, message: staged.message });
+    gitResultDialog.show({
+      action: "Stage",
+      ok: false,
+      message: staged.message,
+    });
     return;
   }
 
-  showView("scm");
+  openSourceControlWorkspace("keyboard", "editor");
   await sourceControl.refresh();
   sourceControl.focusCommitMessage();
   setStatus(`${baseName(path)} staged - write a message and commit`, 5000);
@@ -1400,7 +1589,8 @@ for (const type of ["dragover", "drop"] as const) {
     // which has no `closest` - and an exception here would abort the handler before the
     // `preventDefault` that stops the drop navigating the window away.
     const target = event.target;
-    if (target instanceof Element && target.closest("#filetree") !== null) return;
+    if (target instanceof Element && target.closest("#filetree") !== null)
+      return;
 
     event.preventDefault();
     if (type === "drop") clearDropHighlight();
@@ -1410,10 +1600,15 @@ for (const type of ["dragover", "drop"] as const) {
 /* Empty space below the rows drops into the workspace root. */
 el("filetree").addEventListener("dragover", (event) => {
   if (workspaceRoot === null) return;
-  if (event.target instanceof Element && event.target.closest(".tree-row") !== null) return;
+  if (
+    event.target instanceof Element &&
+    event.target.closest(".tree-row") !== null
+  )
+    return;
 
   event.preventDefault();
-  if (event.dataTransfer !== null) event.dataTransfer.dropEffect = event.ctrlKey ? "copy" : "move";
+  if (event.dataTransfer !== null)
+    event.dataTransfer.dropEffect = event.ctrlKey ? "copy" : "move";
   clearDropHighlight();
   el("filetree").dataset["dropTarget"] = "true";
 });
@@ -1424,7 +1619,11 @@ el("filetree").addEventListener("dragleave", (event) => {
 
 el("filetree").addEventListener("drop", (event) => {
   if (workspaceRoot === null) return;
-  if (event.target instanceof Element && event.target.closest(".tree-row") !== null) return;
+  if (
+    event.target instanceof Element &&
+    event.target.closest(".tree-row") !== null
+  )
+    return;
 
   event.preventDefault();
   clearDropHighlight();
@@ -1435,12 +1634,16 @@ el("filetree").addEventListener("contextmenu", (event) => {
   event.preventDefault();
   if (workspaceRoot === null) return;
 
-  const row = (event.target as HTMLElement | null)?.closest<HTMLElement>(".tree-row") ?? null;
+  const row =
+    (event.target as HTMLElement | null)?.closest<HTMLElement>(".tree-row") ??
+    null;
 
   // Right-clicking selects, so the highlight and the menu cannot disagree about which
   // row the next action is going to act on.
   if (row !== null) {
-    for (const selected of document.querySelectorAll<HTMLElement>('.tree-row[aria-selected="true"]')) {
+    for (const selected of document.querySelectorAll<HTMLElement>(
+      '.tree-row[aria-selected="true"]',
+    )) {
       selected.ariaSelected = "false";
     }
     row.ariaSelected = "true";
@@ -1457,11 +1660,15 @@ el("filetree").addEventListener("contextmenu", (event) => {
   void window.adcode.git
     .status()
     .catch(() => null)
-    .then((status) => treeMenu.open(clientX, clientY, treeMenuNodes(path, status)));
+    .then((status) =>
+      treeMenu.open(clientX, clientY, treeMenuNodes(path, status)),
+    );
 });
 
 el("filetree").addEventListener("keydown", (event) => {
-  const path = (event.target as HTMLElement | null)?.closest<HTMLElement>(".tree-row")?.dataset["path"];
+  const path = (event.target as HTMLElement | null)?.closest<HTMLElement>(
+    ".tree-row",
+  )?.dataset["path"];
   if (path === undefined) return;
 
   if (event.key === "F2") {
@@ -1478,7 +1685,8 @@ el("filetree").addEventListener("keydown", (event) => {
 
   // The clipboard keys the menu advertises. Only while focus is on a row, so Ctrl+C in
   // the editor still copies text rather than picking up a file.
-  if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) return;
+  if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey)
+    return;
 
   const key = event.key.toLowerCase();
   if (key === "x" || key === "c") {
@@ -1579,7 +1787,10 @@ async function openFolderAt(root: string): Promise<void> {
   if (opened === null) {
     // The folder has been moved or deleted since it was last opened. Saying so beats opening
     // an empty tree, which reads as the project being empty rather than gone.
-    setStatus("That folder is no longer there. It has been removed from Recent.", 6000);
+    setStatus(
+      "That folder is no longer there. It has been removed from Recent.",
+      6000,
+    );
     void welcome.refresh();
     return;
   }
@@ -1590,9 +1801,13 @@ async function openFolderAt(root: string): Promise<void> {
 window.adcode.session.onOpenIntent((state) => {
   void (async () => {
     if (state.root === null) return;
-    if (!sameWorkspacePath(workspaceRoot, state.root)) await openFolderAt(state.root);
+    if (!sameWorkspacePath(workspaceRoot, state.root))
+      await openFolderAt(state.root);
     for (const file of state.openFiles) await openFile(file);
-    if (state.activeFile !== null && tabs.some((tab) => tab.path === state.activeFile)) {
+    if (
+      state.activeFile !== null &&
+      tabs.some((tab) => tab.path === state.activeFile)
+    ) {
       activateTab(state.activeFile);
     }
   })();
@@ -1632,7 +1847,9 @@ const bottomPanel = createBottomPanel({
   splitter: el("splitter-panel"),
   onLayoutChange: () => renderPanelLayout(),
   onStateChange: (active) => {
-    const activity = document.querySelector<HTMLButtonElement>('.activity[data-view="problems"]');
+    const activity = document.querySelector<HTMLButtonElement>(
+      '.activity[data-view="problems"]',
+    );
     if (activity === null) return;
     const selected = active === "problems";
     activity.setAttribute("aria-pressed", String(selected));
@@ -1689,7 +1906,9 @@ function terminalPanel(): TerminalPanel {
   // A panel created after settings were read still has to honour them: `applySettings` runs
   // once at startup, and the terminal usually does not exist yet when it does.
   if (created) {
-    terminal.setAgentDetection(settingsValues["adcode.ai.terminalAgentDetection"] !== false);
+    terminal.setAgentDetection(
+      settingsValues["adcode.ai.terminalAgentDetection"] !== false,
+    );
     terminal.setAutoContinue(
       settingsValues["adcode.ai.autoContinue"] === true,
       Number(settingsValues["adcode.ai.autoContinueRetries"] ?? 3),
@@ -1810,6 +2029,175 @@ let sidebarWidth = DEFAULT_SIDEBAR_WIDTH;
 let panelHeight = DEFAULT_PANEL_HEIGHT;
 let layoutState = initialWorkbenchLayout(window.innerWidth);
 
+const popupPrimaryHost = el("popup-primary-host");
+const popupDependentHost = el("popup-dependent-host");
+
+interface PopupContentLifecycle {
+  shown(): void;
+  hidden(): void;
+}
+
+interface RegisteredPrimaryPopup {
+  readonly shell: PopupShell;
+  readonly content: PopupContentLifecycle;
+  /**
+   * Most pop-ups restore their launcher. A content owner that deliberately restores a
+   * different target can suppress that delayed shell restoration for its own close.
+   */
+  readonly restoreShellFocus?: () => boolean;
+}
+
+interface RegisteredDependentPopup {
+  readonly shell: PopupShell;
+  readonly content: PopupContentLifecycle;
+}
+
+let popupLayerState = initialPopupLayer();
+const primaryPopups = new Map<PopupId, RegisteredPrimaryPopup>();
+const dependentPopups = new Map<PopupId, RegisteredDependentPopup>();
+
+function registerPrimaryPopup(
+  id: PopupId,
+  shell: PopupShell,
+  content: PopupContentLifecycle,
+  options: Pick<RegisteredPrimaryPopup, "restoreShellFocus"> = {},
+): void {
+  primaryPopups.set(id, { shell, content, ...options });
+}
+
+function registerDependentPopup(
+  id: PopupId,
+  shell: PopupShell,
+  content: PopupContentLifecycle,
+): void {
+  dependentPopups.set(id, { shell, content });
+}
+
+function closeDependentPopup(id: PopupId, restoreFocus = true): void {
+  const popup = dependentPopups.get(id);
+  if (popup === undefined) return;
+
+  popup.shell.close({ restoreFocus });
+  popup.content.hidden();
+  popupLayerState = reducePopupLayer(popupLayerState, { type: "close", id });
+}
+
+function closePrimaryPopup(id: PopupId): void {
+  const popup = primaryPopups.get(id);
+  if (popup === undefined) return;
+
+  if (popupLayerState.dependent !== null) {
+    closeDependentPopup(popupLayerState.dependent, false);
+  }
+
+  popup.shell.close({ restoreFocus: popup.restoreShellFocus?.() ?? true });
+  popup.content.hidden();
+  popupLayerState = reducePopupLayer(popupLayerState, { type: "close", id });
+}
+
+function openPrimaryPopup(
+  id: PopupId,
+  shell: PopupShell,
+  trigger: HTMLElement,
+  input: LayoutInput,
+): void {
+  if (popupLayerState.primary === id && shell.isOpen()) {
+    shell.focus();
+    return;
+  }
+
+  if (popupLayerState.primary !== null) {
+    if (popupLayerState.dependent !== null) {
+      closeDependentPopup(popupLayerState.dependent, false);
+    }
+    const previous = primaryPopups.get(popupLayerState.primary);
+    previous?.shell.close({ restoreFocus: false, immediate: true });
+    previous?.content.hidden();
+  }
+
+  popupLayerState = reducePopupLayer(popupLayerState, {
+    type: "open-primary",
+    id,
+  });
+  primaryPopups.get(id)?.content.shown();
+  shell.open({ trigger, anchor: trigger, input });
+}
+
+function openDependentPopup(
+  id: PopupId,
+  shell: PopupShell,
+  trigger: HTMLElement,
+  owner: PopupId,
+  input: LayoutInput,
+): void {
+  if (popupLayerState.primary !== owner) return;
+  if (popupLayerState.dependent !== null) {
+    closeDependentPopup(popupLayerState.dependent, false);
+  }
+
+  popupLayerState = reducePopupLayer(popupLayerState, {
+    type: "open-dependent",
+    id,
+    owner,
+  });
+  dependentPopups.get(id)?.content.shown();
+  shell.open({ trigger, input });
+}
+
+function togglePrimaryPopup(
+  id: PopupId,
+  shell: PopupShell,
+  trigger: HTMLElement,
+  input: LayoutInput,
+): void {
+  const next = reducePopupLayer(popupLayerState, {
+    type: "toggle-primary",
+    id,
+  });
+  if (next.primary === null) closePrimaryPopup(id);
+  else openPrimaryPopup(id, shell, trigger, input);
+}
+
+function isPrimaryLauncher(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest("#open-structure, #open-earnings") !== null
+  );
+}
+
+// Anchored shell roots are pointer-transparent, so the coordinator owns outside dismissal
+// while the original pointer can continue to the launcher underneath. Launcher clicks are
+// deliberately excluded: their toggle handlers decide whether to close or replace the shell.
+document.addEventListener(
+  "pointerdown",
+  (event) => {
+    if (popupLayerState.primary === null || isPrimaryLauncher(event.target))
+      return;
+    const active = primaryPopups.get(popupLayerState.primary);
+    const dependent = popupLayerState.dependent === null
+      ? undefined
+      : dependentPopups.get(popupLayerState.dependent);
+    if (dependent?.shell.surface.contains(event.target as Node)) return;
+    if (popupLayerState.dependent !== null) {
+      closeDependentPopup(popupLayerState.dependent);
+      return;
+    }
+    if (active?.shell.surface.contains(event.target as Node)) return;
+    closePrimaryPopup(popupLayerState.primary);
+  },
+  true,
+);
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || event.defaultPrevented || popupLayerState.primary === null)
+    return;
+  // Popup shells handle Escape locally when focused. This fallback covers document-level
+  // dispatch and focus outside the dialog without competing with already-handled surfaces.
+  if (popupLayerState.dependent !== null) closeDependentPopup(popupLayerState.dependent);
+  else closePrimaryPopup(popupLayerState.primary);
+  event.preventDefault();
+});
+
 function layoutWorkbenchSurfaces(): void {
   // Grid transitions settle on the next frame. Measuring there avoids fitting xterm to the
   // old column count while the panel is already visibly at its new size.
@@ -1817,14 +2205,19 @@ function layoutWorkbenchSurfaces(): void {
     const terminalTabs = el("terminal-tabs");
     terminalTabs.setAttribute(
       "aria-orientation",
-      el("panel").getBoundingClientRect().width <= 520 ? "horizontal" : "vertical",
+      el("panel").getBoundingClientRect().width <= 520
+        ? "horizontal"
+        : "vertical",
     );
     editorHost.layout();
     terminal?.fit();
   });
 }
 
-function renderPanelLayout(previous?: DOMRectReadOnly, input: LayoutInput = "keyboard"): void {
+function renderPanelLayout(
+  previous?: DOMRectReadOnly,
+  input: LayoutInput = "keyboard",
+): void {
   const main = document.querySelector<HTMLElement>(".main");
   if (main === null) return;
 
@@ -1837,7 +2230,9 @@ function renderPanelLayout(previous?: DOMRectReadOnly, input: LayoutInput = "key
 
   const button = el<HTMLButtonElement>("panel-maximize");
   button.setAttribute("aria-pressed", String(layoutState.panelMaximized));
-  button.title = layoutState.panelMaximized ? "Restore panel size" : "Maximize panel";
+  button.title = layoutState.panelMaximized
+    ? "Restore panel size"
+    : "Maximize panel";
   button.setAttribute("aria-label", button.title);
   button
     .querySelector<SVGSVGElement>(".panel-maximize-icon")!
@@ -1848,7 +2243,9 @@ function renderPanelLayout(previous?: DOMRectReadOnly, input: LayoutInput = "key
 
   layoutWorkbenchSurfaces();
   if (previous !== undefined) {
-    requestAnimationFrame(() => animateLayoutFlip(el("panel"), previous, input));
+    requestAnimationFrame(() =>
+      animateLayoutFlip(el("panel"), previous, input),
+    );
   }
 }
 
@@ -1856,7 +2253,9 @@ function togglePanelMaximized(input: LayoutInput = "pointer"): void {
   if (!bottomPanel.isOpen()) return;
 
   const previous = el("panel").getBoundingClientRect();
-  layoutState = reduceWorkbenchLayout(layoutState, { type: "toggle-panel-maximized" });
+  layoutState = reduceWorkbenchLayout(layoutState, {
+    type: "toggle-panel-maximized",
+  });
   renderPanelLayout(previous, input);
 }
 
@@ -1868,7 +2267,10 @@ function togglePanelMaximized(input: LayoutInput = "pointer"): void {
  * edge and no way to drag it back.
  */
 function applyLayout(): void {
-  const renderedSidebarWidth = clampSidebarWidth(sidebarWidth, window.innerWidth);
+  const renderedSidebarWidth = clampSidebarWidth(
+    sidebarWidth,
+    window.innerWidth,
+  );
   panelHeight = clampPanelHeight(panelHeight, window.innerHeight);
 
   const workbench = el("workbench");
@@ -1912,8 +2314,10 @@ createSplitter({
 });
 
 window.addEventListener("resize", () => {
-  layoutState = reduceWorkbenchLayout(layoutState, { type: "viewport", width: window.innerWidth });
-  if (!layoutState.sidebarOpen) deactivateSidebarViews(null);
+  layoutState = reduceWorkbenchLayout(layoutState, {
+    type: "viewport",
+    width: window.innerWidth,
+  });
   renderWorkbenchLayout("keyboard");
   applyLayout();
 });
@@ -1979,12 +2383,20 @@ document.addEventListener("keydown", (event) => {
   closeSidebar("keyboard");
 });
 el("panel-close").addEventListener("click", () => bottomPanel.close());
-el("panel-maximize").addEventListener("click", () => togglePanelMaximized("pointer"));
-document.querySelector<HTMLElement>(".panel-header")?.addEventListener("dblclick", (event) => {
-  if ((event.target as Element).closest("button, input, select") !== null) return;
-  togglePanelMaximized();
-});
-el("terminal-new").addEventListener("click", () => void terminalPanel().create());
+el("panel-maximize").addEventListener("click", () =>
+  togglePanelMaximized("pointer"),
+);
+document
+  .querySelector<HTMLElement>(".panel-header")
+  ?.addEventListener("dblclick", (event) => {
+    if ((event.target as Element).closest("button, input, select") !== null)
+      return;
+    togglePanelMaximized();
+  });
+el("terminal-new").addEventListener(
+  "click",
+  () => void terminalPanel().create(),
+);
 /*
  * Opened on pointerdown, with the event kept off `document`.
  *
@@ -2002,11 +2414,20 @@ el("terminal-profiles").addEventListener("pointerdown", (event) => {
 el("terminal-profiles").addEventListener("click", (event) => {
   if (event.detail === 0) openProfileLauncher(el("terminal-profiles"));
 });
-el("terminal-split").addEventListener("click", () => void terminalPanel().split());
-el("terminal-kill").addEventListener("click", () => terminalPanel().killActive());
+el("terminal-split").addEventListener(
+  "click",
+  () => void terminalPanel().split(),
+);
+el("terminal-kill").addEventListener("click", () =>
+  terminalPanel().killActive(),
+);
 el("ports-refresh").addEventListener("click", () => void portsPanel.refresh());
 
-for (const activity of document.querySelectorAll<HTMLElement>(".activity")) {
+const structuralViews = new Set(["explorer", "search"]);
+
+for (const activity of document.querySelectorAll<HTMLButtonElement>(
+  ".activity",
+)) {
   // Problems moved to the bottom panel, where VS Code puts it and where the rest of the
   // output now lives. The activity button stays because it carries the error badge, which
   // is how most people notice there is anything to look at - it just opens a tab now.
@@ -2015,12 +2436,17 @@ for (const activity of document.querySelectorAll<HTMLElement>(".activity")) {
     continue;
   }
 
-  const view = activity.dataset["sidebarView"];
-  if (view === undefined) continue;
-
-  activity.addEventListener("click", () =>
-    toggleSidebarView(view, "pointer", activity),
-  );
+  const sidebarView = activity.dataset["sidebarView"];
+  if (sidebarView !== undefined && structuralViews.has(sidebarView)) {
+    // Structure and Earnings retain legacy sidebar metadata for markup/automation, but
+    // their dedicated listeners below open anchored shells. Routing them here as well
+    // would resize the sidebar before the popup opens (and make a click do two things).
+    if (activity.id === "open-structure" || activity.id === "open-earnings")
+      continue;
+    activity.addEventListener("click", () =>
+      toggleSidebarView(sidebarView, "pointer", activity),
+    );
+  }
 }
 
 /* Shortcuts and the menu bar are registered together, near the foot of this file. */
@@ -2028,9 +2454,8 @@ for (const activity of document.querySelectorAll<HTMLElement>(".activity")) {
 /* ── Sponsored notifications ──────────────────────────────────────────── */
 
 const settingsView = createSettingsView({
-  host: el("view-settings"),
   overlayHost: document.body,
-  requestClose: () => closeSidebar("pointer"),
+  onRequestClose: () => closePrimaryPopup("settings"),
   read: () => window.adcode.settings.read(),
   write: (id, value) => window.adcode.settings.write(id, value),
   reset: () => window.adcode.settings.reset(),
@@ -2038,8 +2463,31 @@ const settingsView = createSettingsView({
   mcpConnection: () => window.adcode.memory.connection(),
 });
 
+const settingsShell = createPopupShell({
+  id: "settings",
+  title: "Settings",
+  size: "medium",
+  modal: true,
+  host: popupPrimaryHost,
+  content: settingsView.element,
+  initialFocus: () =>
+    settingsView.element.querySelector<HTMLElement>(".settings-search"),
+  onRequestClose: () => closePrimaryPopup("settings"),
+});
+registerPrimaryPopup("settings", settingsShell, settingsView);
+
+const settingsActivity = el<HTMLButtonElement>("open-settings");
+
+function openSettings(input: LayoutInput = "keyboard"): void {
+  openPrimaryPopup("settings", settingsShell, settingsActivity, input);
+}
+
+settingsActivity.addEventListener("click", () =>
+  togglePrimaryPopup("settings", settingsShell, settingsActivity, "pointer"),
+);
+
 function openSetting(settingId: string): void {
-  showView("settings", "keyboard");
+  openSettings("keyboard");
   settingsView.openAt(settingId);
 }
 
@@ -2052,8 +2500,13 @@ const breadcrumbs = createBreadcrumbs({
   openFile: (path) => void openFile(path),
   openQuick: (seed) => quickOpen.open(seed),
   showStructure: () => {
-    showView("structure", "keyboard");
     structurePopup.open("file");
+    openPrimaryPopup(
+      "structure",
+      structureShell,
+      el("open-structure"),
+      "keyboard",
+    );
   },
   goToLine: (line) => editorHost.revealLine(line),
   copyPath: (path) => void copyText(path, "Path copied"),
@@ -2061,7 +2514,7 @@ const breadcrumbs = createBreadcrumbs({
   renamePath: (path) => void renameFromBreadcrumb(path),
   comparePath: (path) => {
     void openFile(path).then(() => {
-      showView("scm");
+      openSourceControlWorkspace("keyboard", "editor");
       sourceControl.setActiveFile(relativePath(path));
     });
   },
@@ -2079,7 +2532,12 @@ function refreshBreadcrumbs(): void {
 
   const text = editorHost.text(activePath);
   const name = activePath.split(/[\/]/).pop() ?? activePath;
-  breadcrumbs.update(activePath, languageForFilename(name), text ?? "", editorHost.cursorLine());
+  breadcrumbs.update(
+    activePath,
+    languageForFilename(name),
+    text ?? "",
+    editorHost.cursorLine(),
+  );
 }
 
 editorHost.onCursorChange(() => refreshBreadcrumbs());
@@ -2094,7 +2552,9 @@ const symbolSearch = createSymbolSearch({
   languageFor: (path) => languageForFilename(path.split(/[\/]/).pop() ?? path),
   open: (relative, line, column) => {
     const absolute =
-      workspaceRoot === null ? relative : `${workspaceRoot.replace(/[\/]+$/, "")}/${relative}`;
+      workspaceRoot === null
+        ? relative
+        : `${workspaceRoot.replace(/[\/]+$/, "")}/${relative}`;
     void openFile(absolute).then(() => editorHost.revealPosition(line, column));
   },
   restoreFocus: () => editorHost.focus(),
@@ -2114,18 +2574,25 @@ const styleHints = createStyleHints({
    */
   filesMatching: async (include) => {
     const pattern = include.includes("css") ? "[{]" : "<";
-    const hits = await window.adcode.search.run({ pattern, isRegex: true, include });
+    const hits = await window.adcode.search.run({
+      pattern,
+      isRegex: true,
+      include,
+    });
 
     const paths = new Set<string>();
     for (const hit of hits) {
       paths.add(
-        workspaceRoot === null ? hit.path : `${workspaceRoot.replace(/[\/]+$/, "")}/${hit.path}`,
+        workspaceRoot === null
+          ? hit.path
+          : `${workspaceRoot.replace(/[\/]+$/, "")}/${hit.path}`,
       );
     }
     return [...paths];
   },
 
-  readFile: async (path) => (await window.adcode.files.read(path))?.text ?? null,
+  readFile: async (path) =>
+    (await window.adcode.files.read(path))?.text ?? null,
   displayPath: (path) => relativePath(path) ?? path,
 });
 
@@ -2136,7 +2603,11 @@ function refreshStyleHints(): void {
   }
 
   const name = activePath.split(/[\/]/).pop() ?? activePath;
-  styleHints.refresh(activePath, languageForFilename(name), editorHost.text(activePath) ?? "");
+  styleHints.refresh(
+    activePath,
+    languageForFilename(name),
+    editorHost.text(activePath) ?? "",
+  );
 }
 
 /* ── Debugging (§4 Language) ──────────────────────────────────────────── */
@@ -2167,7 +2638,9 @@ window.adcode.debug.onState((state) => {
   // The console has to know which frame to evaluate in, and whether anything can be.
   debugConsole.setState(state);
   // A program stopped at a breakpoint is the clearest "do not interrupt" the editor has.
-  releaseNotice.setDebugActive(state.state === "running" || state.state === "paused");
+  releaseNotice.setDebugActive(
+    state.state === "running" || state.state === "paused",
+  );
 
   // The band on the paused line follows the top frame, which is where execution actually is.
   const top = state.state === "paused" ? state.frames[0] : undefined;
@@ -2176,7 +2649,9 @@ window.adcode.debug.onState((state) => {
   if (state.state === "failed") setStatus(state.message, 6000);
 });
 
-void window.adcode.debug.breakpoints().then((all) => editorHost.setBreakpoints(all));
+void window.adcode.debug
+  .breakpoints()
+  .then((all) => editorHost.setBreakpoints(all));
 
 /**
  * Start debugging whatever is open.
@@ -2232,7 +2707,8 @@ function scheduleAutoSave(path: string): void {
     window.setTimeout(() => {
       pendingDrafts.delete(path);
       const text = editorHost.text(path);
-      if (text !== null && editorHost.isDirty(path)) window.adcode.history.draft(path, text);
+      if (text !== null && editorHost.isDirty(path))
+        window.adcode.history.draft(path, text);
     }, DRAFT_MS),
   );
 
@@ -2282,7 +2758,9 @@ async function offerRecovery(): Promise<number> {
           label: "Restore",
           run: () => {
             void openFile(draft.path).then(() => {
-              editorHost.replaceText(draft.path, draft.text, { keepDirty: true });
+              editorHost.replaceText(draft.path, draft.text, {
+                keepDirty: true,
+              });
               setStatus("Restored - save to keep it.", 4000);
             });
           },
@@ -2309,7 +2787,11 @@ async function offerRecovery(): Promise<number> {
  * pretending a five-file scan is one would be worse than not offering it.
  */
 function scanOpenEditors(
-  collect: (path: string, languageId: string, text: string) => readonly Diagnostic[],
+  collect: (
+    path: string,
+    languageId: string,
+    text: string,
+  ) => readonly Diagnostic[],
 ): readonly Diagnostic[] {
   const found: Diagnostic[] = [];
 
@@ -2317,7 +2799,9 @@ function scanOpenEditors(
     const text = editorHost.text(tab.path);
     if (text === null) continue;
 
-    found.push(...collect(tab.path, languageForFilename(basename(tab.path)), text));
+    found.push(
+      ...collect(tab.path, languageForFilename(basename(tab.path)), text),
+    );
   }
 
   return found;
@@ -2330,7 +2814,11 @@ function scanOpenEditors(
  * survive the next diagnostics pass because the host merges by source, and running a check
  * that now finds nothing clears the rows the last one left behind.
  */
-function reportCheck(source: string, spec: CheckSpec, found: readonly Diagnostic[]): void {
+function reportCheck(
+  source: string,
+  spec: CheckSpec,
+  found: readonly Diagnostic[],
+): void {
   diagnosticsHost.setExternal(`check:${source}`, found);
   if (found.length > 0) bottomPanel.show("problems");
   setStatus(messageFor(spec, found.length), 5000);
@@ -2364,16 +2852,26 @@ async function runStyleCheck(
   }
 
   setStatus(`Checking ${name}…`, 2000);
-  const found = await styleHints.check(which, activePath, languageId, editorHost.text(activePath) ?? "");
+  const found = await styleHints.check(
+    which,
+    activePath,
+    languageId,
+    editorHost.text(activePath) ?? "",
+  );
   if (found.length > 0) bottomPanel.show("problems");
   setStatus(messageFor(spec, found.length), 5000);
 }
 
 /** What "Check for Updates" says, given what the updater knows. */
-function updateMessage(status: UpdateStatus | null, version: string | null): string {
-  const current = version === null ? "the latest version" : `the latest version (${version})`;
+function updateMessage(
+  status: UpdateStatus | null,
+  version: string | null,
+): string {
+  const current =
+    version === null ? "the latest version" : `the latest version (${version})`;
 
-  if (status === null) return "Could not reach the update service. Try again shortly.";
+  if (status === null)
+    return "Could not reach the update service. Try again shortly.";
 
   switch (status.state) {
     case "ready":
@@ -2424,9 +2922,18 @@ function rememberSession(): void {
     root: workspaceRoot,
     // Historical revisions are views, not files; reopening one on launch would show a
     // tab whose content came from a commit the user has probably forgotten opening.
-    openFiles: tabs.filter((tab) => !editorHost.isReadOnly(tab.path)).map((tab) => tab.path),
-    activeFile: activePath !== null && !editorHost.isReadOnly(activePath) ? activePath : null,
-    layout: { sidebarWidth, panelHeight, sidebarView: layoutState.activeSidebarView },
+    openFiles: tabs
+      .filter((tab) => !editorHost.isReadOnly(tab.path))
+      .map((tab) => tab.path),
+    activeFile:
+      activePath !== null && !editorHost.isReadOnly(activePath)
+        ? activePath
+        : null,
+    layout: {
+      sidebarWidth,
+      panelHeight,
+      sidebarView: layoutState.activeSidebarView,
+    },
   });
 }
 
@@ -2485,7 +2992,9 @@ const reportDialog = createReportDialog(document.body, async (input) => {
   return result;
 });
 
-el<HTMLButtonElement>("report-toggle").addEventListener("click", () => reportDialog.open());
+el<HTMLButtonElement>("report-toggle").addEventListener("click", () =>
+  reportDialog.open(),
+);
 
 /* The account button beside it, and the panel it opens. */
 const accountMenu = createAccountMenu(
@@ -2584,7 +3093,9 @@ async function refreshAccountLabel(): Promise<void> {
   node.setAttribute("aria-label", node.title);
 }
 
-el("status-account").addEventListener("click", () => el("account-toggle").click());
+el("status-account").addEventListener("click", () =>
+  el("account-toggle").click(),
+);
 
 // The status bar follows the account rather than being set once: linking happens in a
 // popover that this corner knows nothing about, and a corner that only updated on launch
@@ -2606,7 +3117,8 @@ const missingRuntimeDialog = createMissingRuntimeDialog(document.body);
 let bindingOverrides: BindingOverrides = {};
 
 /** Every command and the shortcut it currently answers to. */
-const currentBindings = (): ReturnType<typeof resolveBindings> => resolveBindings(bindingOverrides);
+const currentBindings = (): ReturnType<typeof resolveBindings> =>
+  resolveBindings(bindingOverrides);
 
 const shortcutsDialog = createShortcutsDialog(document.body, {
   bindings: currentBindings,
@@ -2640,7 +3152,10 @@ function runFeatureAction(action: FeatureAction): void {
 
     void window.adcode.settings.write(action.settingId, next).then((values) => {
       applySettings(values);
-      setStatus(`${setting?.label ?? action.settingId} turned ${next ? "on" : "off"}.`, 3000);
+      setStatus(
+        `${setting?.label ?? action.settingId} turned ${next ? "on" : "off"}.`,
+        3000,
+      );
     });
     return;
   }
@@ -2651,7 +3166,8 @@ function runFeatureAction(action: FeatureAction): void {
 function openFeature(entryId: string): void {
   const feature = featureFor(entryId);
   const action = feature?.actions.find(
-    (candidate) => candidate.kind !== "command" || commands.has(candidate.command),
+    (candidate) =>
+      candidate.kind !== "command" || commands.has(candidate.command),
   );
   if (action === undefined) {
     setStatus("This feature is not available in this window.", 3000);
@@ -2720,7 +3236,10 @@ async function runInTerminal(command: string): Promise<void> {
 
       if (choice === "install") {
         await window.adcode.runtime.openInstall(runtime.id);
-        setStatus(`Opened the ${runtime.label} download page in your browser.`, 6000);
+        setStatus(
+          `Opened the ${runtime.label} download page in your browser.`,
+          6000,
+        );
         return;
       }
 
@@ -2779,8 +3298,11 @@ function openProfileLauncher(anchor: HTMLElement): void {
 
   const rect = anchor.getBoundingClientRect();
   anchor.setAttribute("aria-expanded", "true");
-  panelMenu.open(rect.left, rect.bottom + 2, [{ kind: "heading", label: "New Terminal" }, ...nodes], () =>
-    anchor.setAttribute("aria-expanded", "false"),
+  panelMenu.open(
+    rect.left,
+    rect.bottom + 2,
+    [{ kind: "heading", label: "New Terminal" }, ...nodes],
+    () => anchor.setAttribute("aria-expanded", "false"),
   );
 }
 
@@ -2796,7 +3318,9 @@ function registerProfileCommands(): void {
   for (const profile of terminalProfiles) {
     // The id is derived from the profile's own id, so "git-bash" becomes a well-formed
     // dotted command rather than one carrying a dash into the registry.
-    const suffix = profile.id.replace(/-(.)/g, (_, c: string) => c.toUpperCase());
+    const suffix = profile.id.replace(/-(.)/g, (_, c: string) =>
+      c.toUpperCase(),
+    );
 
     commands.register({
       id: `terminal.newProfile.${suffix}`,
@@ -2810,20 +3334,82 @@ function registerProfileCommands(): void {
 }
 
 const sourceControl = createSourceControlPanel({
+  onRequestClose: () => closePrimaryPopup("source-control"),
   openFile: (path) => void openFile(absolutePath(path)),
   workspaceRoot: () => workspaceRoot,
   notify: (text) => setStatus(text, 4000),
   reportResult: (result) => gitResultDialog.show(result),
   promptFor: (request) => promptDialog.ask(request),
-  openCommitDiff: (ref, shortHash, path) => void openCommitDiff(ref, shortHash, path),
-  restoreFile: (ref, shortHash, path) => restoreFileFromCommit(ref, shortHash, path),
-  openRevision: (path, ref, shortHash) => void openRevision(path, ref, shortHash),
-  openLocalVersion: (path, id, savedAt) => void openLocalVersion(path, id, savedAt),
+  openCommitDiff: (ref, shortHash, path) =>
+    void openCommitDiff(ref, shortHash, path),
+  restoreFile: (ref, shortHash, path) =>
+    restoreFileFromCommit(ref, shortHash, path),
+  openRevision: (path, ref, shortHash) =>
+    void openRevision(path, ref, shortHash),
+  openLocalVersion: (path, id, savedAt) =>
+    void openLocalVersion(path, id, savedAt),
   absolutePath,
 });
 
+let sourceControlRestoreFocus: "launcher" | "editor" = "launcher";
+
+const sourceControlShell = createPopupShell({
+  id: "source-control",
+  title: "Source Control",
+  size: "workspace",
+  modal: true,
+  host: popupPrimaryHost,
+  content: sourceControl.element,
+  initialFocus: () =>
+    sourceControl.element.querySelector<HTMLElement>(".scm-message"),
+  onRequestClose: () => closePrimaryPopup("source-control"),
+});
+
+registerPrimaryPopup("source-control", sourceControlShell, {
+  shown() {
+    void sourceControl.refresh();
+  },
+  hidden() {
+    if (sourceControlRestoreFocus === "editor") editorHost.focus();
+  },
+}, {
+  restoreShellFocus: () => sourceControlRestoreFocus === "launcher",
+});
+
+const sourceControlActivity = document.querySelector<HTMLButtonElement>(
+  '.activity[data-view="scm"]',
+);
+if (sourceControlActivity === null)
+  throw new Error("missing element: source-control activity");
+
+function openSourceControlWorkspace(
+  input: LayoutInput,
+  restoreFocus: "launcher" | "editor" = input === "pointer"
+    ? "launcher"
+    : "editor",
+): void {
+  const launcher = sourceControlActivity;
+  if (launcher === null) return;
+  sourceControlRestoreFocus = restoreFocus;
+  openPrimaryPopup(
+    "source-control",
+    sourceControlShell,
+    launcher,
+    input,
+  );
+}
+
+sourceControlActivity.addEventListener("click", () => {
+  if (sourceControlShell.isOpen()) closePrimaryPopup("source-control");
+  else openSourceControlWorkspace("pointer");
+});
+
 /** Open a locally kept version of a file, read-only. §4's local file history. */
-async function openLocalVersion(path: string, id: string, savedAt: string): Promise<void> {
+async function openLocalVersion(
+  path: string,
+  id: string,
+  savedAt: string,
+): Promise<void> {
   const text = await window.adcode.history.read(path, id);
   if (text === null) {
     setStatus("That local version is no longer on disk.", 3000);
@@ -2833,7 +3419,12 @@ async function openLocalVersion(path: string, id: string, savedAt: string): Prom
   const when = new Date(savedAt);
   const label = Number.isNaN(when.getTime())
     ? savedAt
-    : when.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    : when.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
 
   const key = `adcode-local:${id}:${path}`;
   const name = `${basename(path)} @ ${label}`;
@@ -2855,7 +3446,11 @@ async function openLocalVersion(path: string, id: string, savedAt: string): Prom
  * §4's file timeline is only useful if a row leads somewhere. Historical revisions are
  * kept in their own tabs, keyed by hash, so opening one never shadows the working copy.
  */
-async function openRevision(path: string, ref: string, shortHash: string): Promise<void> {
+async function openRevision(
+  path: string,
+  ref: string,
+  shortHash: string,
+): Promise<void> {
   const text = await window.adcode.git.showFile(ref, path);
   if (text === null) {
     setStatus("That revision has no copy of this file.", 3000);
@@ -2884,8 +3479,14 @@ async function openRevision(path: string, ref: string, shortHash: string): Promi
  * change themselves. Read-only, in its own tab keyed by hash and path, so it can never
  * shadow the working copy or be saved over it.
  */
-async function openCommitDiff(ref: string, shortHash: string, path: string): Promise<void> {
-  const diff = await window.adcode.git.commitFileDiff(ref, path).catch(() => "");
+async function openCommitDiff(
+  ref: string,
+  shortHash: string,
+  path: string,
+): Promise<void> {
+  const diff = await window.adcode.git
+    .commitFileDiff(ref, path)
+    .catch(() => "");
   if (diff.trim().length === 0) {
     setStatus("No changes to show for that file.", 3000);
     return;
@@ -2913,7 +3514,11 @@ async function openCommitDiff(ref: string, shortHash: string, path: string): Pro
  * change: history is untouched, so the restore itself is reviewed and then committed or
  * discarded like any other edit. That is why this offers no reset.
  */
-async function restoreFileFromCommit(ref: string, shortHash: string, path: string): Promise<void> {
+async function restoreFileFromCommit(
+  ref: string,
+  shortHash: string,
+  path: string,
+): Promise<void> {
   const sure = await confirmDialog.ask({
     title: `Restore ${basename(path)} from ${shortHash}?`,
     body: "It is written over the current file as an uncommitted change. No commits are rewritten, so you can review it and then keep or discard it.",
@@ -2922,12 +3527,12 @@ async function restoreFileFromCommit(ref: string, shortHash: string, path: strin
   });
   if (!sure) return;
 
-  const result = await window.adcode.git.restoreFile(ref, path).catch(
-    (error: unknown): GitOutcome => ({
+  const result = await window.adcode.git
+    .restoreFile(ref, path)
+    .catch((error: unknown): GitOutcome => ({
       ok: false,
       message: error instanceof Error ? error.message : String(error),
-    }),
-  );
+    }));
 
   gitResultDialog.show({
     action: "Restore",
@@ -2943,7 +3548,8 @@ async function restoreFileFromCommit(ref: string, shortHash: string, path: strin
   // The buffer still holds what was there a moment ago, and would write it straight back
   // over the restored file on the next save.
   const absolute = absolutePath(path);
-  if (tabs.some((tab) => samePath(tab.path, absolute))) await reloadFile(absolute);
+  if (tabs.some((tab) => samePath(tab.path, absolute)))
+    await reloadFile(absolute);
 
   await refreshDirectory(containingDirOf(absolute));
   void sourceControl.refresh();
@@ -2987,7 +3593,10 @@ async function reloadOpenFiles(): Promise<void> {
   }
 
   if (stale > 0) {
-    setStatus(`${stale} unsaved file${stale === 1 ? "" : "s"} left as they are.`, 5000);
+    setStatus(
+      `${stale} unsaved file${stale === 1 ? "" : "s"} left as they are.`,
+      5000,
+    );
   }
 
   void sourceControl.refresh();
@@ -3024,7 +3633,9 @@ const diagnosticsHost = createDiagnosticsHost({
  * diagnostics surface.
  */
 const editableTab = (fsPath: string): boolean =>
-  tabs.some((tab) => samePath(tab.path, fsPath) && !editorHost.isReadOnly(tab.path));
+  tabs.some(
+    (tab) => samePath(tab.path, fsPath) && !editorHost.isReadOnly(tab.path),
+  );
 
 createLanguageBridge({
   workspaceRoot: () => workspaceRoot,
@@ -3033,7 +3644,9 @@ createLanguageBridge({
 
 const problemsPanel = createProblemsPanel({
   openAt: (path, line, column) => {
-    void openFile(absolutePath(path)).then(() => editorHost.revealPosition(line, column));
+    void openFile(absolutePath(path)).then(() =>
+      editorHost.revealPosition(line, column),
+    );
   },
   quickFixes: (diagnostic) => diagnosticsHost.quickFixes(diagnostic),
   explainWithAI: (diagnostic) => {
@@ -3064,10 +3677,14 @@ diagnosticsHost.onChange((diagnostics) => {
   element.textContent = badge?.text ?? "";
   element.dataset["tone"] = badge?.tone ?? "error";
 
-  const activity = document.querySelector<HTMLElement>('.activity[data-view="problems"]');
+  const activity = document.querySelector<HTMLElement>(
+    '.activity[data-view="problems"]',
+  );
   if (activity !== null) {
     activity.title =
-      badge === null ? "Problems (Ctrl+Shift+M)" : `${summarise(countBySeverity(diagnostics))} (Ctrl+Shift+M)`;
+      badge === null
+        ? "Problems (Ctrl+Shift+M)"
+        : `${summarise(countBySeverity(diagnostics))} (Ctrl+Shift+M)`;
   }
 });
 
@@ -3110,7 +3727,9 @@ const structurePanel = createStructurePanel({
   reveal: (line, column) => editorHost.revealPosition(line, column),
 
   openAt: (path, line, column) => {
-    void openFile(absolutePath(path)).then(() => editorHost.revealPosition(line, column));
+    void openFile(absolutePath(path)).then(() =>
+      editorHost.revealPosition(line, column),
+    );
   },
 
   /*
@@ -3167,15 +3786,31 @@ const projectMap = createProjectMap({
   list: (dirPath) => window.adcode.workspace.list(dirPath),
   open: (path) => {
     void openFile(path);
-    structurePopup.close();
+    closePrimaryPopup("structure");
   },
 });
 
-const structurePopup = createStructurePopup(el("view-structure"), {
+const structurePopup = createStructurePopup({
   filePanel: structurePanel,
   projectMap,
-  requestClose: () => closeSidebar("pointer"),
+  onRequestClose: () => closePrimaryPopup("structure"),
 });
+
+const structureShell = createPopupShell({
+  id: "structure",
+  title: "Structure",
+  size: "anchored",
+  modal: false,
+  host: popupPrimaryHost,
+  content: structurePopup.element,
+  onRequestClose: () => closePrimaryPopup("structure"),
+});
+registerPrimaryPopup("structure", structureShell, structurePopup);
+
+const structureActivity = el<HTMLButtonElement>("open-structure");
+structureActivity.addEventListener("click", () =>
+  togglePrimaryPopup("structure", structureShell, structureActivity, "pointer"),
+);
 
 /**
  * The names of the files at the workspace root.
@@ -3197,7 +3832,9 @@ async function refreshRootFiles(): Promise<void> {
 
   try {
     const entries = await window.adcode.workspace.list(workspaceRoot);
-    rootFileNames = entries.filter((entry) => !entry.isDirectory).map((entry) => entry.name);
+    rootFileNames = entries
+      .filter((entry) => !entry.isDirectory)
+      .map((entry) => entry.name);
   } catch {
     rootFileNames = [];
   }
@@ -3220,7 +3857,10 @@ const runButton = createRunButton({
     if (relative === null) return null;
 
     const tab = tabs.find((entry) => entry.path === activePath);
-    return { relativePath: relative, languageId: languageForFilename(tab?.name ?? relative) };
+    return {
+      relativePath: relative,
+      languageId: languageForFilename(tab?.name ?? relative),
+    };
   },
   rootFiles: () => rootFileNames,
   platform: () => platform,
@@ -3276,7 +3916,6 @@ const previewPane = createPreviewPane({
   },
 });
 
-el("view-scm").append(sourceControl.element);
 el("view-search").append(searchPanel.element);
 
 /* ── The bottom panel's tabs ──────────────────────────────────────────── */
@@ -3290,7 +3929,8 @@ const portsPanel = createPortsPanel({
   // Stopping somebody's database is exactly the class of action that should be hard to do
   // by accident - and the app's own dialog, because `window.confirm` is unstyled and has
   // been measured in this Electron returning without waiting for an answer.
-  confirm: (message) => confirmDialog.ask({ title: message, confirmLabel: "Stop", danger: true }),
+  confirm: (message) =>
+    confirmDialog.ask({ title: message, confirmLabel: "Stop", danger: true }),
 });
 
 const outputPanel = createOutputPanel({
@@ -3299,7 +3939,8 @@ const outputPanel = createOutputPanel({
 });
 
 const debugConsole = createDebugConsole({
-  evaluate: (frameId, expression) => window.adcode.debug.evaluate(frameId, expression),
+  evaluate: (frameId, expression) =>
+    window.adcode.debug.evaluate(frameId, expression),
 });
 
 el("panel-body-problems").append(problemsPanel.element);
@@ -3380,24 +4021,13 @@ el("panel-tabs").addEventListener("keydown", (event) => {
   }
 });
 
-const SIDEBAR_VIEWS = new Set<SidebarViewId>([
-  "explorer",
-  "search",
-  "structure",
-  "scm",
-  "earnings",
-  "features",
-  "settings",
-]);
+const SIDEBAR_VIEWS = new Set<SidebarViewId>(["explorer", "search"]);
 
-const SIDEBAR_COPY: Readonly<Record<SidebarViewId, { title: string; subtitle: string }>> = {
+const SIDEBAR_COPY: Readonly<
+  Record<SidebarViewId, { title: string; subtitle: string }>
+> = {
   explorer: { title: "Explorer", subtitle: "No folder opened" },
   search: { title: "Search", subtitle: "Find across this project" },
-  structure: { title: "Structure", subtitle: "File outline and project map" },
-  scm: { title: "Source Control", subtitle: "Changes and history" },
-  earnings: { title: "Earnings", subtitle: "Balance and ad settings" },
-  features: { title: "Features", subtitle: "Everything ADCode can do" },
-  settings: { title: "Settings", subtitle: "Customize ADCode" },
 };
 
 let sidebarTrigger: HTMLElement | null = null;
@@ -3405,7 +4035,9 @@ let sidebarTrigger: HTMLElement | null = null;
 const isSidebarView = (view: string): view is SidebarViewId =>
   SIDEBAR_VIEWS.has(view as SidebarViewId);
 
-function renderWorkbenchLayout(input: "pointer" | "keyboard" = "keyboard"): void {
+function renderWorkbenchLayout(
+  input: "pointer" | "keyboard" = "keyboard",
+): void {
   const workbench = el("workbench");
   const sidebar = el("sidebar");
   const active = layoutState.activeSidebarView;
@@ -3417,14 +4049,20 @@ function renderWorkbenchLayout(input: "pointer" | "keyboard" = "keyboard"): void
   sidebar.inert = !layoutState.sidebarOpen;
   sidebar.setAttribute("aria-hidden", String(!layoutState.sidebarOpen));
 
-  for (const view of document.querySelectorAll<HTMLElement>(".sidebar-view[data-sidebar-view]")) {
-    view.hidden = !layoutState.sidebarOpen || view.dataset["sidebarView"] !== active;
+  for (const view of document.querySelectorAll<HTMLElement>(
+    ".sidebar-view[data-sidebar-view]",
+  )) {
+    view.hidden =
+      !layoutState.sidebarOpen || view.dataset["sidebarView"] !== active;
   }
 
   for (const activity of document.querySelectorAll<HTMLButtonElement>(
     ".activity[data-sidebar-view]",
   )) {
-    const selected = layoutState.sidebarOpen && activity.dataset["sidebarView"] === active;
+    if (!isSidebarView(activity.dataset["sidebarView"] ?? "")) continue;
+
+    const selected =
+      layoutState.sidebarOpen && activity.dataset["sidebarView"] === active;
     activity.ariaSelected = String(selected);
     activity.setAttribute("aria-pressed", String(selected));
     activity.setAttribute("aria-expanded", String(selected));
@@ -3433,39 +4071,31 @@ function renderWorkbenchLayout(input: "pointer" | "keyboard" = "keyboard"): void
   const copy = SIDEBAR_COPY[active];
   el("sidebar-title").textContent = copy.title;
   if (active !== "explorer") el("sidebar-subtitle").textContent = copy.subtitle;
-  el("sidebar-actions-explorer").hidden = !layoutState.sidebarOpen || active !== "explorer";
+  el("sidebar-actions-explorer").hidden =
+    !layoutState.sidebarOpen || active !== "explorer";
 
-  const overlayOpen = layoutState.sidebarMode === "overlay" && layoutState.sidebarOpen;
+  const overlayOpen =
+    layoutState.sidebarMode === "overlay" && layoutState.sidebarOpen;
   el<HTMLButtonElement>("sidebar-scrim").hidden = !overlayOpen;
 
   editorHost.layout();
   terminal?.fit();
 }
 
-function activateSidebarView(view: SidebarViewId): void {
-  if (view === "structure") structurePopup.open("file");
-  else if (view === "earnings") earningsPopover.open();
-  else if (view === "features") featureLibrary.open();
-  else if (view === "settings") settingsView.open();
-}
-
-function deactivateSidebarViews(next: SidebarViewId | null): void {
-  if (next !== "earnings") earningsPopover.close();
-  if (next !== "features") featureLibrary.close(false);
-  if (next !== "settings") settingsView.close(false);
-}
-
 /** Open one known sidebar view. Commands use this rather than toggling it shut. */
-function showView(view: string, input: "pointer" | "keyboard" = "keyboard"): void {
+function showView(
+  view: string,
+  input: "pointer" | "keyboard" = "keyboard",
+): void {
   if (!isSidebarView(view)) return;
 
-  layoutState = reduceWorkbenchLayout(layoutState, { type: "show-sidebar", view });
-  deactivateSidebarViews(view);
+  layoutState = reduceWorkbenchLayout(layoutState, {
+    type: "show-sidebar",
+    view,
+  });
   renderWorkbenchLayout(input);
 
-  if (view === "scm") void sourceControl.refresh();
   if (view === "search") searchPanel.focus();
-  activateSidebarView(view);
   rememberSession();
 }
 
@@ -3478,20 +4108,19 @@ function toggleSidebarView(
   if (!isSidebarView(view)) return;
 
   if (trigger !== undefined) sidebarTrigger = trigger;
-  layoutState = reduceWorkbenchLayout(layoutState, { type: "toggle-sidebar", view });
-  deactivateSidebarViews(layoutState.sidebarOpen ? layoutState.activeSidebarView : null);
+  layoutState = reduceWorkbenchLayout(layoutState, {
+    type: "toggle-sidebar",
+    view,
+  });
   renderWorkbenchLayout(input);
 
-  if (layoutState.sidebarOpen && view === "scm") void sourceControl.refresh();
   if (layoutState.sidebarOpen && view === "search") searchPanel.focus();
-  if (layoutState.sidebarOpen) activateSidebarView(view);
   rememberSession();
 }
 
 function closeSidebar(input: "pointer" | "keyboard" = "pointer"): void {
   const wasOverlay = layoutState.sidebarMode === "overlay";
   layoutState = reduceWorkbenchLayout(layoutState, { type: "close-sidebar" });
-  deactivateSidebarViews(null);
   renderWorkbenchLayout(input);
 
   if (wasOverlay) sidebarTrigger?.focus();
@@ -3521,7 +4150,9 @@ async function refreshGitOverlay(): Promise<void> {
     return;
   }
 
-  const relative = editorHost.isReadOnly(activePath) ? null : relativePath(activePath);
+  const relative = editorHost.isReadOnly(activePath)
+    ? null
+    : relativePath(activePath);
   if (relative === null) {
     overlay.setLineChanges([]);
     overlay.setBlame(null);
@@ -3538,10 +4169,13 @@ async function refreshGitOverlay(): Promise<void> {
     settingsValues["adcode.git.blame"] === true ||
     settingsValues["adcode.editing.inlineGitBlame"] === true;
 
-  overlay.setLineChanges(wantsGutter ? await window.adcode.git.lineChanges(relative) : []);
+  overlay.setLineChanges(
+    wantsGutter ? await window.adcode.git.lineChanges(relative) : [],
+  );
   overlay.setBlame(wantsBlame ? await window.adcode.git.blame(relative) : null);
 
-  if (settingsValues["adcode.git.mergeConflict"] !== false) overlay.refreshConflicts();
+  if (settingsValues["adcode.git.mergeConflict"] !== false)
+    overlay.refreshConflicts();
 }
 
 // Accepting a side leaves the file dirty on purpose: the user sees the result before it
@@ -3552,23 +4186,12 @@ editorHost.git.onResolved(() => {
 
 /* ── Assistant (§5.3) ─────────────────────────────────────────────────── */
 
-const connectView = createConnectView({
-  host: document.body,
-  status: () => window.adcode.ai.status(),
-  checkKey: (provider, key) => window.adcode.ai.checkKey(provider, key),
-  setKey: (provider, key) => window.adcode.ai.setKey(provider, key),
-  clearKey: (provider) => window.adcode.ai.clearKey(provider),
-  write: async (id, value) => {
-    await window.adcode.settings.write(id, value);
-  },
-  restoreFocus: () => editorHost.focus(),
-});
-
 const chat = createChatWidget({
-  host: document.body,
   // Applying a proposal reopens the file so the user sees the result in the editor.
   openExternalPath: (path) => void openFile(path),
-  openConnect: () => connectView.open(),
+  openConnect: () => openConnectFromChat(),
+  requestOpen: () => openChat("keyboard"),
+  requestClose: () => closePrimaryPopup("chat"),
   askForName: (current) =>
     promptDialog.ask({
       title: "Rename conversation",
@@ -3576,6 +4199,86 @@ const chat = createChatWidget({
       confirmLabel: "Rename",
     }),
 });
+
+const chatLauncher = el<HTMLButtonElement>("ai-toggle");
+
+const chatShell = createPopupShell({
+  id: "chat",
+  title: "Assistant",
+  size: "workspace",
+  modal: true,
+  host: popupPrimaryHost,
+  content: chat.element,
+  initialFocus: () => chat.element.querySelector<HTMLElement>(".chat-input"),
+  onRequestClose: () => closePrimaryPopup("chat"),
+});
+registerPrimaryPopup("chat", chatShell, chat);
+
+function openChat(input: LayoutInput): void {
+  openPrimaryPopup("chat", chatShell, chatLauncher, input);
+}
+
+function createConnectContent(requestOpen: () => void, requestClose: () => void) {
+  return createConnectView({
+    status: () => window.adcode.ai.status(),
+    checkKey: (provider, key) => window.adcode.ai.checkKey(provider, key),
+    setKey: (provider, key) => window.adcode.ai.setKey(provider, key),
+    clearKey: (provider) => window.adcode.ai.clearKey(provider),
+    write: async (id, value) => {
+      await window.adcode.settings.write(id, value);
+    },
+    requestOpen,
+    requestClose,
+  });
+}
+
+const dependentConnectView = createConnectContent(
+  () => openConnectFromChat(),
+  () => closeDependentPopup("connect"),
+);
+const connectShell = createPopupShell({
+  id: "connect",
+  title: "Connect a model",
+  size: "medium",
+  modal: true,
+  host: popupDependentHost,
+  content: dependentConnectView.element,
+  initialFocus: () =>
+    dependentConnectView.element.querySelector<HTMLElement>(".settings-search"),
+  onRequestClose: () => closeDependentPopup("connect"),
+});
+registerDependentPopup("connect", connectShell, dependentConnectView);
+
+function openConnectFromChat(): void {
+  openDependentPopup("connect", connectShell, chat.connectButton, "chat", "pointer");
+}
+
+const connectView = createConnectContent(
+  () => openIndependentConnect("keyboard"),
+  () => closePrimaryPopup("connect"),
+);
+const connectPrimaryShell = createPopupShell({
+  id: "connect",
+  title: "Connect a model",
+  size: "medium",
+  modal: true,
+  host: popupPrimaryHost,
+  content: connectView.element,
+  initialFocus: () =>
+    connectView.element.querySelector<HTMLElement>(".settings-search"),
+  onRequestClose: () => closePrimaryPopup("connect"),
+});
+registerPrimaryPopup("connect", connectPrimaryShell, {
+  shown: () => connectView.shown(),
+  hidden: () => {
+    connectView.hidden();
+    editorHost.focus();
+  },
+});
+
+function openIndependentConnect(input: LayoutInput): void {
+  openPrimaryPopup("connect", connectPrimaryShell, el("editor-host"), input);
+}
 
 /**
  * Everything in the renderer that remembers something per folder.
@@ -3610,7 +4313,9 @@ const releaseNotice = createReleaseNotice({
   openWhatsNew: (announcement) => whatsNewSheet.open(announcement),
 });
 
-window.adcode.releases.onAnnouncement((announcement) => releaseNotice.offer(announcement));
+window.adcode.releases.onAnnouncement((announcement) =>
+  releaseNotice.offer(announcement),
+);
 
 window.adcode.ads.onShow((toast) => notifications.showSponsored(toast));
 
@@ -3686,7 +4391,8 @@ const collabPanel = createCollabPanel({
   anchor: el("status-collab"),
   notify: (message) => setStatus(message, 6000),
   refuse,
-  confirm: (title, body, confirmLabel) => confirmDialog.ask({ title, body, confirmLabel }),
+  confirm: (title, body, confirmLabel) =>
+    confirmDialog.ask({ title, body, confirmLabel }),
   prompt: (title, body, value) => promptDialog.ask({ title, body, value }),
 });
 
@@ -3719,8 +4425,12 @@ window.adcode.collab.onStatus((status) => {
   el("status-collab").dataset["state"] = status.mode;
 });
 
-window.adcode.collab.onDocUpdate((path, update) => collabSession.applyDocUpdate(path, update));
-window.adcode.collab.onPresence((presence) => collabSession.applyPresence(presence));
+window.adcode.collab.onDocUpdate((path, update) =>
+  collabSession.applyDocUpdate(path, update),
+);
+window.adcode.collab.onPresence((presence) =>
+  collabSession.applyPresence(presence),
+);
 window.adcode.collab.onNotice((detail) => setStatus(detail, 6000));
 
 window.adcode.collab.onCommitRequest((request) => {
@@ -3740,7 +4450,11 @@ window.adcode.collab.onCommitRequest((request) => {
     });
 
     if (!approved) {
-      await window.adcode.collab.decideCommit(request.id, false, "The host declined.");
+      await window.adcode.collab.decideCommit(
+        request.id,
+        false,
+        "The host declined.",
+      );
       return;
     }
 
@@ -3756,7 +4470,9 @@ window.adcode.collab.onCommitRequest((request) => {
     );
 
     setStatus(
-      outcome.ok ? `Committed for ${request.participantName}.` : `Commit failed: ${outcome.message}`,
+      outcome.ok
+        ? `Committed for ${request.participantName}.`
+        : `Commit failed: ${outcome.message}`,
       6000,
     );
     void sourceControl.refresh();
@@ -3764,10 +4480,25 @@ window.adcode.collab.onCommitRequest((request) => {
 });
 
 const earningsPopover = createEarningsPopover({
-  host: el("view-earnings"),
-  requestClose: () => closeSidebar("pointer"),
-  openSettings: () => showView("settings", "pointer"),
+  onRequestClose: () => closePrimaryPopup("earnings"),
+  openSettings: () => openSettings("pointer"),
 });
+
+const earningsShell = createPopupShell({
+  id: "earnings",
+  title: "Earnings",
+  size: "anchored",
+  modal: false,
+  host: popupPrimaryHost,
+  content: earningsPopover.element,
+  onRequestClose: () => closePrimaryPopup("earnings"),
+});
+registerPrimaryPopup("earnings", earningsShell, earningsPopover);
+
+const earningsActivity = el<HTMLButtonElement>("open-earnings");
+earningsActivity.addEventListener("click", () =>
+  togglePrimaryPopup("earnings", earningsShell, earningsActivity, "pointer"),
+);
 
 window.adcode.ads.onEarnings((earnings) => {
   // A cached mirror of a server value (§1). The renderer never computes money.
@@ -3820,7 +4551,9 @@ async function boot(): Promise<void> {
   // truth for it; the attribute just lets JS-driven animations read the same value.
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const syncMotion = (): void => {
-    document.documentElement.dataset["reducedMotion"] = String(reduceMotion.matches);
+    document.documentElement.dataset["reducedMotion"] = String(
+      reduceMotion.matches,
+    );
   };
   reduceMotion.addEventListener("change", syncMotion);
   syncMotion();
@@ -3838,13 +4571,15 @@ async function boot(): Promise<void> {
   if (restored.layout !== undefined) {
     sidebarWidth = restored.layout.sidebarWidth;
     panelHeight = restored.layout.panelHeight;
-    if (restored.layout.sidebarView !== undefined) {
+    if (
+      restored.layout.sidebarView !== undefined &&
+      isSidebarView(restored.layout.sidebarView)
+    ) {
       layoutState = reduceWorkbenchLayout(layoutState, {
         type: "restore-sidebar-view",
         view: restored.layout.sidebarView,
       });
       renderWorkbenchLayout("keyboard");
-      if (layoutState.sidebarOpen) activateSidebarView(restored.layout.sidebarView);
     }
     applyLayout();
   }
@@ -3861,7 +4596,10 @@ async function boot(): Promise<void> {
   }
 
   for (const file of restored.openFiles) await openFile(file);
-  if (restored.activeFile !== null && tabs.some((tab) => tab.path === restored.activeFile)) {
+  if (
+    restored.activeFile !== null &&
+    tabs.some((tab) => tab.path === restored.activeFile)
+  ) {
     activateTab(restored.activeFile);
   }
 
@@ -3883,7 +4621,6 @@ async function boot(): Promise<void> {
 
   await offerRecovery();
 }
-
 
 /* ── Commands, shortcuts, and the menu bar (§3) ───────────────────────── */
 
@@ -3967,11 +4704,18 @@ function showShortcuts(): void {
  */
 let openFeatureLibrary: () => void = () => helpGuide.open();
 let openUniversalSearch: (seed?: string) => void = (seed = "") =>
-  palette.open(seed.trimStart().startsWith(">") ? seed.trimStart().slice(1).trimStart() : seed);
+  palette.open(
+    seed.trimStart().startsWith(">")
+      ? seed.trimStart().slice(1).trimStart()
+      : seed,
+  );
 
 function registerCommands(): void {
-  const add = (id: string, title: string, run: (arg?: string) => void | Promise<void>): void =>
-    commands.register({ id, title, run });
+  const add = (
+    id: string,
+    title: string,
+    run: (arg?: string) => void | Promise<void>,
+  ): void => commands.register({ id, title, run });
 
   /* File */
   add("file.new", "New File", () => {
@@ -3997,7 +4741,10 @@ function registerCommands(): void {
       const recents = await window.adcode.workspace.recents();
 
       if (recents.length === 0) {
-        setStatus("No recent folders yet - the ones you open are remembered here.", 4000);
+        setStatus(
+          "No recent folders yet - the ones you open are remembered here.",
+          4000,
+        );
         return;
       }
 
@@ -4069,17 +4816,33 @@ function registerCommands(): void {
   add("editor.closeAll", "Close All Editors", () => {
     for (const tab of [...tabs]) closeTab(tab.path);
   });
-  add("settings.open", "Preferences", () => showView("settings", "keyboard"));
+  add("settings.open", "Preferences", () => openSettings("keyboard"));
   add("account.open", "Open Account", () => accountMenu.open());
 
   /* Edit - Monaco owns these, so they are triggered rather than reimplemented (§2). */
   commands.registerEditorAction("edit.undo", "Undo", "undo");
   commands.registerEditorAction("edit.redo", "Redo", "redo");
   commands.registerEditorAction("edit.find", "Find", "actions.find");
-  commands.registerEditorAction("edit.replace", "Replace", "editor.action.startFindReplaceAction");
-  commands.registerEditorAction("edit.toggleLineComment", "Toggle Line Comment", "editor.action.commentLine");
-  commands.registerEditorAction("edit.toggleBlockComment", "Toggle Block Comment", "editor.action.blockComment");
-  commands.registerEditorAction("edit.format", "Format Document", "editor.action.formatDocument");
+  commands.registerEditorAction(
+    "edit.replace",
+    "Replace",
+    "editor.action.startFindReplaceAction",
+  );
+  commands.registerEditorAction(
+    "edit.toggleLineComment",
+    "Toggle Line Comment",
+    "editor.action.commentLine",
+  );
+  commands.registerEditorAction(
+    "edit.toggleBlockComment",
+    "Toggle Block Comment",
+    "editor.action.blockComment",
+  );
+  commands.registerEditorAction(
+    "edit.format",
+    "Format Document",
+    "editor.action.formatDocument",
+  );
 
   // Clipboard reaches the focused control through Electron's native menu roles. From the
   // keyboard Chromium already handles it; these exist so the ids resolve.
@@ -4089,27 +4852,79 @@ function registerCommands(): void {
   add("edit.copy", "Copy", () => {
     document.execCommand("copy");
   });
-  add("edit.paste", "Paste", () => setStatus("Press Ctrl+V - paste needs the real keystroke.", 3000));
+  add("edit.paste", "Paste", () =>
+    setStatus("Press Ctrl+V - paste needs the real keystroke.", 3000),
+  );
 
   /* Selection */
-  commands.registerEditorAction("selection.all", "Select All", "editor.action.selectAll");
-  commands.registerEditorAction("selection.expand", "Expand Selection", "editor.action.smartSelect.expand");
-  commands.registerEditorAction("selection.shrink", "Shrink Selection", "editor.action.smartSelect.shrink");
-  commands.registerEditorAction("selection.copyLineUp", "Copy Line Up", "editor.action.copyLinesUpAction");
-  commands.registerEditorAction("selection.copyLineDown", "Copy Line Down", "editor.action.copyLinesDownAction");
-  commands.registerEditorAction("selection.moveLineUp", "Move Line Up", "editor.action.moveLinesUpAction");
-  commands.registerEditorAction("selection.moveLineDown", "Move Line Down", "editor.action.moveLinesDownAction");
-  commands.registerEditorAction("selection.duplicate", "Duplicate Selection", "editor.action.duplicateSelection");
-  commands.registerEditorAction("selection.cursorAbove", "Add Cursor Above", "editor.action.insertCursorAbove");
-  commands.registerEditorAction("selection.cursorBelow", "Add Cursor Below", "editor.action.insertCursorBelow");
-  commands.registerEditorAction("selection.addNextOccurrence", "Add Next Occurrence", "editor.action.addSelectionToNextFindMatch");
-  commands.registerEditorAction("selection.selectAllOccurrences", "Select All Occurrences", "editor.action.selectHighlights");
+  commands.registerEditorAction(
+    "selection.all",
+    "Select All",
+    "editor.action.selectAll",
+  );
+  commands.registerEditorAction(
+    "selection.expand",
+    "Expand Selection",
+    "editor.action.smartSelect.expand",
+  );
+  commands.registerEditorAction(
+    "selection.shrink",
+    "Shrink Selection",
+    "editor.action.smartSelect.shrink",
+  );
+  commands.registerEditorAction(
+    "selection.copyLineUp",
+    "Copy Line Up",
+    "editor.action.copyLinesUpAction",
+  );
+  commands.registerEditorAction(
+    "selection.copyLineDown",
+    "Copy Line Down",
+    "editor.action.copyLinesDownAction",
+  );
+  commands.registerEditorAction(
+    "selection.moveLineUp",
+    "Move Line Up",
+    "editor.action.moveLinesUpAction",
+  );
+  commands.registerEditorAction(
+    "selection.moveLineDown",
+    "Move Line Down",
+    "editor.action.moveLinesDownAction",
+  );
+  commands.registerEditorAction(
+    "selection.duplicate",
+    "Duplicate Selection",
+    "editor.action.duplicateSelection",
+  );
+  commands.registerEditorAction(
+    "selection.cursorAbove",
+    "Add Cursor Above",
+    "editor.action.insertCursorAbove",
+  );
+  commands.registerEditorAction(
+    "selection.cursorBelow",
+    "Add Cursor Below",
+    "editor.action.insertCursorBelow",
+  );
+  commands.registerEditorAction(
+    "selection.addNextOccurrence",
+    "Add Next Occurrence",
+    "editor.action.addSelectionToNextFindMatch",
+  );
+  commands.registerEditorAction(
+    "selection.selectAllOccurrences",
+    "Select All Occurrences",
+    "editor.action.selectHighlights",
+  );
 
   /* View */
   add("palette.open", "Command Palette", () => palette.toggle());
   add("features.open", "All Features", () => openFeatureLibrary());
   add("search.universal", "Search All of ADCode", () => openUniversalSearch());
-  add("view.fullScreen", "Toggle Full Screen", () => window.adcode.window.toggleFullScreen());
+  add("view.fullScreen", "Toggle Full Screen", () =>
+    window.adcode.window.toggleFullScreen(),
+  );
   add("view.toggleSidebar", "Toggle Side Bar", () => {
     if (layoutState.sidebarOpen) closeSidebar("keyboard");
     else showView(layoutState.activeSidebarView, "keyboard");
@@ -4121,35 +4936,61 @@ function registerCommands(): void {
   add("view.explorer", "Explorer", () => showView("explorer"));
   add("view.search", "Find in Files", () => showView("search"));
   add("view.structure", "Structure", () => {
-    showView("structure", "keyboard");
     structurePopup.open("file");
+    openPrimaryPopup(
+      "structure",
+      structureShell,
+      structureActivity,
+      "keyboard",
+    );
   });
   add("view.projectMap", "Explain This Project", () => {
-    showView("structure", "keyboard");
     structurePopup.open("project");
+    openPrimaryPopup(
+      "structure",
+      structureShell,
+      structureActivity,
+      "keyboard",
+    );
   });
   add("editor.insertTemplate", "Insert File Template", () => insertTemplate());
-  add("view.scm", "Source Control", () => showView("scm"));
+  add("view.scm", "Source Control", () =>
+    openSourceControlWorkspace("keyboard"),
+  );
   add("view.problems", "Problems", () => bottomPanel.show("problems"));
   add("view.output", "Output", () => bottomPanel.show("output"));
   add("view.debugConsole", "Debug Console", () => bottomPanel.show("debug"));
   add("view.ports", "Ports", () => bottomPanel.show("ports"));
-  add("view.earnings", "Earnings", () => showView("earnings", "keyboard"));
-  add("collab.panel", "Live Session: Share or Join", () => collabPanel.toggle());
-  add("collab.leave", "Live Session: Leave", () => void window.adcode.collab.leave());
+  add("view.earnings", "Earnings", () =>
+    openPrimaryPopup("earnings", earningsShell, earningsActivity, "keyboard"),
+  );
+  add("collab.panel", "Live Session: Share or Join", () =>
+    collabPanel.toggle(),
+  );
+  add(
+    "collab.leave",
+    "Live Session: Leave",
+    () => void window.adcode.collab.leave(),
+  );
   add("preview.toggle", "Toggle Live Preview", () => void previewPane.toggle());
   add("preview.reload", "Reload Live Preview", () => previewPane.reload());
   add("preview.undock", "Undock Live Preview Into a Floating Window", () =>
     previewPane.togglePlacement(),
   );
-  add("preview.switchMode", "Switch Preview Between Project and Files", () =>
-    void previewPane.switchMode(),
+  add(
+    "preview.switchMode",
+    "Switch Preview Between Project and Files",
+    () => void previewPane.switchMode(),
   );
-  add("preview.device", "Check Preview at Another Screen Size", () => previewPane.toggleDevice());
+  add("preview.device", "Check Preview at Another Screen Size", () =>
+    previewPane.toggleDevice(),
+  );
   add("run.file", "Run Active File", () => runButton.activate());
   add("ai.toggle", "Assistant", () => chat.toggle());
   add("ai.connect", "Connect a Model", () => connectView.open());
-  add("ai.complete", "Suggest Code with AI", () => editorHost.triggerInlineCompletion());
+  add("ai.complete", "Suggest Code with AI", () =>
+    editorHost.triggerInlineCompletion(),
+  );
   add("ai.team", "Set Up AI Team", () => chat.openTeamSetup());
   add("ai.schedule", "Schedule an AI Message", () => chat.openScheduleComposer());
   add("ai.terminalTeam", "Start an AI Team in the Terminal", () => void openTerminalTeamSetup());
@@ -4168,11 +5009,21 @@ function registerCommands(): void {
 
   /* Go */
   add("go.file", "Go to File", () => quickOpen.toggle());
-  add("go.line", "Go to Line/Column", () => editorHost.runAction("editor.action.gotoLine"));
+  add("go.line", "Go to Line/Column", () =>
+    editorHost.runAction("editor.action.gotoLine"),
+  );
   add("go.nextEditor", "Next Editor", () => stepEditor(1));
   add("go.previousEditor", "Previous Editor", () => stepEditor(-1));
-  commands.registerEditorAction("go.nextChange", "Next Change", "editor.action.dirtydiff.next");
-  commands.registerEditorAction("go.previousChange", "Previous Change", "editor.action.dirtydiff.previous");
+  commands.registerEditorAction(
+    "go.nextChange",
+    "Next Change",
+    "editor.action.dirtydiff.next",
+  );
+  commands.registerEditorAction(
+    "go.previousChange",
+    "Previous Change",
+    "editor.action.dirtydiff.previous",
+  );
 
   /*
    * Git.
@@ -4189,32 +5040,68 @@ function registerCommands(): void {
       return;
     }
 
-    showView("scm");
+    openSourceControlWorkspace("keyboard", "editor");
     await run();
   };
 
   // The id stays on the same line as `add(` here as everywhere else: `menuModel.test.ts`
   // proves every menu entry resolves to a registered command by reading this file, and it
   // reads it one line at a time.
-  add("git.commit", "Git: Commit", withScm(async () => {
-    // The commit box is where the message lives, so this either sends what is already
-    // typed or puts the cursor where it has to be typed. Inventing a second place to
-    // write a commit message would mean two boxes that can disagree.
-    if (sourceControl.commit()) return;
+  add(
+    "git.commit",
+    "Git: Commit",
+    withScm(async () => {
+      // The commit box is where the message lives, so this either sends what is already
+      // typed or puts the cursor where it has to be typed. Inventing a second place to
+      // write a commit message would mean two boxes that can disagree.
+      if (sourceControl.commit()) return;
 
-    sourceControl.focusCommitMessage();
-    setStatus("Type a commit message, then press Ctrl+Enter.", 4000);
-    await Promise.resolve();
-  }));
+      sourceControl.focusCommitMessage();
+      setStatus("Type a commit message, then press Ctrl+Enter.", 4000);
+      await Promise.resolve();
+    }),
+  );
 
-  add("git.stageAll", "Git: Stage All Changes", withScm(() => sourceControl.stageAll()));
-  add("git.unstageAll", "Git: Unstage All Changes", withScm(() => sourceControl.unstageAll()));
-  add("git.push", "Git: Push", withScm(() => sourceControl.push()));
-  add("git.pull", "Git: Pull", withScm(() => sourceControl.pull()));
-  add("git.fetch", "Git: Fetch", withScm(() => sourceControl.fetch()));
-  add("git.checkout", "Git: Checkout Branch", withScm(() => sourceControl.switchBranch()));
-  add("git.createBranch", "Git: Create Branch", withScm(() => sourceControl.createBranch()));
-  add("git.init", "Git: Initialise Repository", withScm(() => sourceControl.initRepository()));
+  add(
+    "git.stageAll",
+    "Git: Stage All Changes",
+    withScm(() => sourceControl.stageAll()),
+  );
+  add(
+    "git.unstageAll",
+    "Git: Unstage All Changes",
+    withScm(() => sourceControl.unstageAll()),
+  );
+  add(
+    "git.push",
+    "Git: Push",
+    withScm(() => sourceControl.push()),
+  );
+  add(
+    "git.pull",
+    "Git: Pull",
+    withScm(() => sourceControl.pull()),
+  );
+  add(
+    "git.fetch",
+    "Git: Fetch",
+    withScm(() => sourceControl.fetch()),
+  );
+  add(
+    "git.checkout",
+    "Git: Checkout Branch",
+    withScm(() => sourceControl.switchBranch()),
+  );
+  add(
+    "git.createBranch",
+    "Git: Create Branch",
+    withScm(() => sourceControl.createBranch()),
+  );
+  add(
+    "git.init",
+    "Git: Initialise Repository",
+    withScm(() => sourceControl.initRepository()),
+  );
 
   /*
    * The checks: eleven features that worked and could not be asked.
@@ -4224,10 +5111,14 @@ function registerCommands(): void {
    * inguishable from one that is broken, and until now the only evidence ADCode could
    * resolve a conflict was a switch in Settings claiming it could.
    */
-  add("git.conflicts", "Git: Check Merge Conflicts", withScm(async () => {
-    const outcome = await sourceControl.checkConflicts();
-    setStatus(outcome.message, 5000);
-  }));
+  add(
+    "git.conflicts",
+    "Git: Check Merge Conflicts",
+    withScm(async () => {
+      const outcome = await sourceControl.checkConflicts();
+      setStatus(outcome.message, 5000);
+    }),
+  );
 
   add("git.blame", "Git: Blame This Line", async () => {
     if (activePath === null) {
@@ -4254,24 +5145,33 @@ function registerCommands(): void {
     );
   });
 
-  add("git.timeline", "Git: File Timeline", withScm(async () => {
-    if (activePath === null) {
-      setStatus("Open a file to see its timeline.", 3000);
-      return;
-    }
+  add(
+    "git.timeline",
+    "Git: File Timeline",
+    withScm(async () => {
+      if (activePath === null) {
+        setStatus("Open a file to see its timeline.", 3000);
+        return;
+      }
 
-    const relative = relativePath(activePath);
-    if (relative === null) {
-      setStatus("The timeline only covers files inside the open folder.", 3000);
-      return;
-    }
+      const relative = relativePath(activePath);
+      if (relative === null) {
+        setStatus(
+          "The timeline only covers files inside the open folder.",
+          3000,
+        );
+        return;
+      }
 
-    const commits = await window.adcode.git.fileHistory(relative).catch(() => []);
-    // The panel's own timeline section is already showing these; the status line is what
-    // answers a menu item that would otherwise appear to do nothing on a fresh file.
-    sourceControl.setActiveFile(relative);
-    setStatus(messageFor(CHECKS.timeline, commits.length), 5000);
-  }));
+      const commits = await window.adcode.git
+        .fileHistory(relative)
+        .catch(() => []);
+      // The panel's own timeline section is already showing these; the status line is what
+      // answers a menu item that would otherwise appear to do nothing on a fresh file.
+      sourceControl.setActiveFile(relative);
+      setStatus(messageFor(CHECKS.timeline, commits.length), 5000);
+    }),
+  );
 
   /*
    * Local file history, given a door.
@@ -4286,7 +5186,9 @@ function registerCommands(): void {
       return;
     }
 
-    const versions = await window.adcode.history.versions(activePath).catch(() => []);
+    const versions = await window.adcode.history
+      .versions(activePath)
+      .catch(() => []);
     const message = messageFor(CHECKS.localHistory, versions.length);
 
     if (versions.length === 0) {
@@ -4295,7 +5197,8 @@ function registerCommands(): void {
     }
 
     const labels = versions.map(
-      (version) => `${localVersionLabel(version.savedAt)} · ${version.bytes} bytes`,
+      (version) =>
+        `${localVersionLabel(version.savedAt)} · ${version.bytes} bytes`,
     );
 
     const picked = await promptDialog.ask({
@@ -4309,7 +5212,8 @@ function registerCommands(): void {
 
     const at = labels.indexOf(picked);
     const version = versions[at === -1 ? 0 : at];
-    if (version !== undefined) await openLocalVersion(activePath, version.id, version.savedAt);
+    if (version !== undefined)
+      await openLocalVersion(activePath, version.id, version.savedAt);
   });
 
   /*
@@ -4382,7 +5286,11 @@ function registerCommands(): void {
   });
 
   add("structure.unusedCss", "Find Unused CSS Rules", async () => {
-    await runStyleCheck("unused", CHECKS.unusedCss, "Open a stylesheet to check its rules.");
+    await runStyleCheck(
+      "unused",
+      CHECKS.unusedCss,
+      "Open a stylesheet to check its rules.",
+    );
   });
 
   add("structure.missingClasses", "Find Classes Nothing Defines", async () => {
@@ -4404,7 +5312,9 @@ function registerCommands(): void {
   });
   add("terminal.split", "Split Terminal", () => terminalPanel().split());
   add("terminal.next", "Next Terminal", () => terminalPanel().next());
-  add("terminal.previous", "Previous Terminal", () => terminalPanel().previous());
+  add("terminal.previous", "Previous Terminal", () =>
+    terminalPanel().previous(),
+  );
   add("terminal.clear", "Clear Terminal", () => terminalPanel().clear());
   /*
    * Named for where they act, not just what they do.
@@ -4417,7 +5327,9 @@ function registerCommands(): void {
   add("terminal.copy", "Copy from Terminal", () => terminalPanel().copy());
   add("terminal.paste", "Paste into Terminal", () => terminalPanel().paste());
   add("terminal.kill", "Kill Terminal", () => terminalPanel().killActive());
-  add("terminal.killAll", "Kill All Terminals", () => terminalPanel().killAll());
+  add("terminal.killAll", "Kill All Terminals", () =>
+    terminalPanel().killAll(),
+  );
   add("terminal.runActiveFile", "Run Active File", async () => {
     if (activePath === null) {
       setStatus("Open a file first.", 3000);
@@ -4448,16 +5360,24 @@ function registerCommands(): void {
   add("debug.stepOut", "Step Out", () => void window.adcode.debug.stepOut());
 
   add("go.symbol", "Go to Symbol", () => symbolSearch.open());
-  add("go.definition", "Go to Definition", () => void editorHost.goToDefinition());
+  add(
+    "go.definition",
+    "Go to Definition",
+    () => void editorHost.goToDefinition(),
+  );
   add("go.peek", "Peek Definition", () => void editorHost.peekDefinition());
 
   /* Help */
   add("help.guide", "Feature Guide", () => helpGuide.open());
   add("help.whatsNew", "What’s New", () => {
-    void window.adcode.releases.list().then((announcement) => whatsNewSheet.open(announcement));
+    void window.adcode.releases
+      .list()
+      .then((announcement) => whatsNewSheet.open(announcement));
   });
   add("help.shortcuts", "Keyboard Shortcuts", () => showShortcuts());
-  add("help.devTools", "Toggle Developer Tools", () => window.adcode.window.toggleDevTools());
+  add("help.devTools", "Toggle Developer Tools", () =>
+    window.adcode.window.toggleDevTools(),
+  );
   add("help.about", "About ADCode", () => {
     gitResultDialog.showBrand({
       title: "ADCode",
@@ -4476,9 +5396,8 @@ const palette = createPalette({
 });
 
 const featureLibrary = createFeatureLibrary({
-  host: el("view-features"),
   overlayHost: document.body,
-  requestClose: () => closeSidebar("pointer"),
+  onRequestClose: () => closePrimaryPopup("features"),
   hasCommand: (command) => commands.has(command),
   settingValue: (settingId) => {
     const value = settingsValues[settingId];
@@ -4486,9 +5405,27 @@ const featureLibrary = createFeatureLibrary({
   },
   runAction: (action) => runFeatureAction(action),
 });
+
+const featuresShell = createPopupShell({
+  id: "features",
+  title: "All Features",
+  size: "large",
+  modal: true,
+  host: popupPrimaryHost,
+  content: featureLibrary.element,
+  initialFocus: () =>
+    featureLibrary.element.querySelector<HTMLElement>(".feature-library-search"),
+  onRequestClose: () => closePrimaryPopup("features"),
+});
+registerPrimaryPopup("features", featuresShell, featureLibrary);
+
+const featuresActivity = el<HTMLButtonElement>("open-features");
+featuresActivity.addEventListener("click", () =>
+  togglePrimaryPopup("features", featuresShell, featuresActivity, "pointer"),
+);
+
 openFeatureLibrary = () => {
-  showView("features", "keyboard");
-  featureLibrary.open();
+  openPrimaryPopup("features", featuresShell, featuresActivity, "keyboard");
 };
 
 /* The menu bar owns the title bar's left edge on Windows and Linux; macOS uses the
@@ -4524,7 +5461,8 @@ async function cloneRepository(): Promise<void> {
   if (url === null) return;
 
   // `owner/repo.git` → `repo`. A sensible default the user can overwrite, not a decision.
-  const suggested = (url.split(/[\\/]/).at(-1) ?? "repo").replace(/\.git$/i, "") || "repo";
+  const suggested =
+    (url.split(/[\\/]/).at(-1) ?? "repo").replace(/\.git$/i, "") || "repo";
 
   const parent = await window.adcode.workspace.open();
   if (parent === null) return;
@@ -4539,9 +5477,17 @@ async function cloneRepository(): Promise<void> {
 
   setStatus(`Cloning ${url}…`);
 
-  const outcome = await window.adcode.git.clone(url, `${parent.root}/${target}`);
+  const outcome = await window.adcode.git.clone(
+    url,
+    `${parent.root}/${target}`,
+  );
   if (!outcome.ok) {
-    gitResultDialog.show({ action: "Clone", ok: false, message: outcome.message, details: [["URL", url]] });
+    gitResultDialog.show({
+      action: "Clone",
+      ok: false,
+      message: outcome.message,
+      details: [["URL", url]],
+    });
     return;
   }
 
@@ -4584,7 +5530,8 @@ function syncRootCreateButtons(): void {
 async function openPickedFile(picked: string): Promise<void> {
   const root = workspaceRoot;
   const inside =
-    root !== null && picked.replace(/\\/g, "/").startsWith(`${root.replace(/\\/g, "/")}/`);
+    root !== null &&
+    picked.replace(/\\/g, "/").startsWith(`${root.replace(/\\/g, "/")}/`);
 
   if (!inside) await openFolderAt(picked.replace(/[\\/][^\\/]*$/, ""));
 
@@ -4603,7 +5550,9 @@ const welcome = createWelcomeView({
   cloneRepository: () => void cloneRepository(),
   openRecent: (path) => void openFolderAt(path),
   forgetRecent: (path) => {
-    void window.adcode.workspace.forgetRecent(path).then(() => welcome.refresh());
+    void window.adcode.workspace
+      .forgetRecent(path)
+      .then(() => welcome.refresh());
   },
 });
 
@@ -4636,7 +5585,9 @@ function runUniversalAction(action: UniversalDesktopAction): void {
     return;
   }
   const absolute = absolutePath(action.path);
-  void openFile(absolute).then(() => editorHost.revealPosition(action.line, action.column));
+  void openFile(absolute).then(() =>
+    editorHost.revealPosition(action.line, action.column),
+  );
 }
 
 const universalSearch = createUniversalSearch({
@@ -4645,15 +5596,18 @@ const universalSearch = createUniversalSearch({
     ...featureUniversalItems(featureRecords()),
     ...commandUniversalItems(commands.all()),
   ],
-  files: async (query) => fileUniversalItems(await window.adcode.search.quickOpen(query)),
-  recents: async () => recentUniversalItems(await window.adcode.workspace.recents()),
+  files: async (query) =>
+    fileUniversalItems(await window.adcode.search.quickOpen(query)),
+  recents: async () =>
+    recentUniversalItems(await window.adcode.workspace.recents()),
   symbols: async (query) => {
-    const hits = await window.adcode.search.run({ pattern: query, isRegex: false });
+    const hits = await window.adcode.search.run({
+      pattern: query,
+      isRegex: false,
+    });
     return symbolUniversalItems(
-      findWorkspaceSymbols(
-        hits,
-        query,
-        (path) => languageForFilename(path.split(/[\\/]/).pop() ?? path),
+      findWorkspaceSymbols(hits, query, (path) =>
+        languageForFilename(path.split(/[\\/]/).pop() ?? path),
       ),
     );
   },
@@ -4662,7 +5616,9 @@ const universalSearch = createUniversalSearch({
 });
 openUniversalSearch = (seed = "") => universalSearch.open(seed);
 
-chat.onVisibilityChange((open) => el("ai-toggle").setAttribute("aria-pressed", String(open)));
+chat.onVisibilityChange((open) =>
+  el("ai-toggle").setAttribute("aria-pressed", String(open)),
+);
 
 window.adcode.window.onCommand((command, arg) => commands.run(command, arg));
 
@@ -4724,7 +5680,12 @@ const altMenu = createAltMenuActivation();
 window.addEventListener(
   "keydown",
   (event) => {
-    if (gitResultDialog.isOpen() || confirmDialog.isOpen() || promptDialog.isOpen()) altMenu.cancel();
+    if (
+      gitResultDialog.isOpen() ||
+      confirmDialog.isOpen() ||
+      promptDialog.isOpen()
+    )
+      altMenu.cancel();
     else altMenu.keydown(event);
   },
   true,
@@ -4757,14 +5718,20 @@ window.addEventListener(
   "keydown",
   (event) => {
     if (menuBar === null) return;
-    if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
+      return;
     if (event.key.length !== 1) return;
-    if (gitResultDialog.isOpen() || confirmDialog.isOpen() || promptDialog.isOpen()) return;
+    if (
+      gitResultDialog.isOpen() ||
+      confirmDialog.isOpen() ||
+      promptDialog.isOpen()
+    )
+      return;
 
-  // While a shortcut is being recorded, every key belongs to the recorder. Without this the
-  // chord you are trying to bind runs the command it is currently bound to instead of being
-  // captured - and the shortcuts worth changing are exactly the ones already bound.
-  if (shortcutsDialog.isRecording()) return;
+    // While a shortcut is being recorded, every key belongs to the recorder. Without this the
+    // chord you are trying to bind runs the command it is currently bound to instead of being
+    // captured - and the shortcuts worth changing are exactly the ones already bound.
+    if (shortcutsDialog.isRecording()) return;
 
     if (menuBar.openByMnemonic(event.key)) event.preventDefault();
   },
@@ -4781,7 +5748,12 @@ window.addEventListener("keydown", (event) => {
   // A modal result owns the keyboard while it is up. Without this, Ctrl+S saved and Alt
   // opened the menu bar behind a dialog the user was still reading. Escape is deliberately
   // not handled here: `<dialog>` closes itself on cancel, and doing it twice would race.
-  if (gitResultDialog.isOpen() || confirmDialog.isOpen() || promptDialog.isOpen()) return;
+  if (
+    gitResultDialog.isOpen() ||
+    confirmDialog.isOpen() ||
+    promptDialog.isOpen()
+  )
+    return;
 
   // Escape dismisses whatever transient surface is on top, wherever focus happens to be.
   // Leaving this to each surface's own input meant a palette opened by shortcut could not
@@ -4811,7 +5783,8 @@ window.addEventListener("keydown", (event) => {
   }
 
   for (const binding of currentBindings()) {
-    if (binding.chord === null || !RENDERER_HANDLED.has(binding.command)) continue;
+    if (binding.chord === null || !RENDERER_HANDLED.has(binding.command))
+      continue;
 
     const chord = parseChord(binding.chord);
     if (chord === null || !matchesChord(chord, event)) continue;

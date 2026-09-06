@@ -49,40 +49,11 @@ import {
   onAiAutomationTargetsChanged,
 } from "./automationHost.ts";
 
-interface Position {
-  x: number;
-  y: number;
-}
-
-/** §5.3: "Remembers position per workspace." */
-function positionKey(workspace: string | null): string {
-  return `adcode.chat.position.${workspace ?? "no-workspace"}`;
-}
-
-function loadPosition(workspace: string | null): Position | null {
-  try {
-    const raw = localStorage.getItem(positionKey(workspace));
-    if (raw === null) return null;
-
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return null;
-
-    const { x, y } = parsed as Position;
-    return typeof x === "number" && typeof y === "number" ? { x, y } : null;
-  } catch {
-    return null;
-  }
-}
-
-function savePosition(workspace: string | null, position: Position): void {
-  try {
-    localStorage.setItem(positionKey(workspace), JSON.stringify(position));
-  } catch {
-    // A full or disabled storage costs a remembered position, nothing more.
-  }
-}
-
 export interface ChatWidget {
+  readonly element: HTMLElement;
+  readonly connectButton: HTMLButtonElement;
+  shown(): void;
+  hidden(): void;
   toggle(): void;
   open(): void;
   /** Bring chat forward and open the existing, confirmed Team setup flow. */
@@ -113,27 +84,44 @@ export interface ChatWidget {
 }
 
 export interface ChatWidgetDeps {
-  readonly host: HTMLElement;
   readonly openExternalPath: (path: string) => void;
   /** Open the Connect screen, which owns providers, keys and models. */
   readonly openConnect: () => void;
+  /** The coordinator owns the workspace shell and all dismissal. */
+  readonly requestOpen: () => void;
+  readonly requestClose: () => void;
   /** Ask the user for a new name, or null if they changed their mind. */
   readonly askForName: (current: string) => Promise<string | null>;
 }
 
+export function dispatchChatSend(
+  text: string,
+  deps: {
+    readonly showUser: (text: string) => void;
+    readonly aiSend: (text: string) => Promise<boolean>;
+    readonly onFailure: () => void;
+  },
+): boolean {
+  const message = text.trim();
+  if (message.length === 0) return false;
+
+  deps.showUser(message);
+  void deps.aiSend(message).catch(deps.onFailure);
+  return true;
+}
+
 export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
-  let workspace: string | null = null;
   let open = false;
-  let position: Position = { x: 0, y: 0 };
   let streamingBubble: HTMLElement | null = null;
 
   const card = document.createElement("section");
   card.className = "chat-card";
-  card.hidden = true;
-  card.setAttribute("role", "complementary");
-  card.setAttribute("aria-label", "Assistant");
+  card.setAttribute("aria-label", "Assistant workspace");
 
-  /* ── Header (drag handle) ─────────────────────────────────────────────── */
+  let historyOpen = window.innerWidth >= 720;
+  let inspectorOpen = window.innerWidth >= 980;
+
+  /* ── Header ───────────────────────────────────────────────────────────── */
 
   const header = document.createElement("header");
   header.className = "chat-header";
@@ -149,7 +137,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   historyButton.className = "ghost-button";
   historyButton.textContent = "History";
   historyButton.title = "Past conversations in this project";
-  historyButton.setAttribute("aria-expanded", "false");
+  historyButton.setAttribute("aria-expanded", String(historyOpen));
   historyButton.addEventListener("click", () => toggleHistory());
 
   const connectButton = document.createElement("button");
@@ -157,6 +145,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   connectButton.textContent = "Connect";
   connectButton.title = "Choose a provider and model";
   connectButton.addEventListener("click", () => deps.openConnect());
+
+  const inspectorButton = document.createElement("button");
+  inspectorButton.className = "ghost-button";
+  inspectorButton.textContent = "Inspector";
+  inspectorButton.title = "Show task, Team, and schedule details";
+  inspectorButton.setAttribute("aria-expanded", String(inspectorOpen));
+  inspectorButton.addEventListener("click", () => toggleInspector());
 
   const resetButton = document.createElement("button");
   resetButton.className = "ghost-button";
@@ -173,9 +168,19 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const closeButton = document.createElement("button");
   closeButton.className = "ghost-button";
   closeButton.textContent = "Close";
+  closeButton.setAttribute("aria-label", "Close Assistant");
+  closeButton.title = "Close Assistant";
   closeButton.addEventListener("click", () => api.close());
 
-  header.append(title, modelLabel, historyButton, connectButton, resetButton, closeButton);
+  header.append(
+    title,
+    modelLabel,
+    historyButton,
+    connectButton,
+    inspectorButton,
+    resetButton,
+    closeButton,
+  );
 
   /* ── Transcript ───────────────────────────────────────────────────────── */
 
@@ -189,7 +194,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   const history = document.createElement("aside");
   history.className = "chat-history";
-  history.hidden = true;
   history.setAttribute("aria-label", "Past conversations");
 
   const historySearch = document.createElement("input");
@@ -224,9 +228,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   function toggleHistory(): void {
-    history.hidden = !history.hidden;
-    historyButton.setAttribute("aria-expanded", String(!history.hidden));
-    if (!history.hidden) void refreshHistory();
+    historyOpen = !historyOpen;
+    applyDisclosures();
+    if (historyOpen) void refreshHistory();
   }
 
   function renderHistory(): void {
@@ -302,8 +306,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
 
     renderMemory(session);
-    history.hidden = true;
-    historyButton.setAttribute("aria-expanded", "false");
+    historyOpen = false;
+    applyDisclosures();
   }
 
   /* -- What is being remembered ----------------------------------------- */
@@ -511,19 +515,44 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   composer.append(input, manualTeam, scheduleMessage, sendButton);
 
-  const resizeGrip = document.createElement("div");
-  resizeGrip.className = "chat-resize";
-  resizeGrip.setAttribute("aria-hidden", "true");
+  const conversation = document.createElement("main");
+  conversation.className = "chat-conversation";
+  conversation.append(memory, transcript, composer);
 
-  const chatBody = document.createElement("div");
-  chatBody.className = "chat-body";
-  chatBody.append(history, transcript);
+  const inspector = document.createElement("aside");
+  inspector.className = "chat-inspector";
+  inspector.setAttribute("aria-label", "AI task inspector");
+  inspector.append(taskStrip, teamPanel, automationPanel);
 
-  card.append(header, taskStrip, teamPanel, automationPanel, chatBody, memory, composer, resizeGrip);
+  const body = document.createElement("div");
+  body.className = "chat-body";
+  body.append(history, conversation, inspector);
+  card.append(header, body);
+
+  function applyDisclosures(): void {
+    card.dataset["historyOpen"] = String(historyOpen);
+    card.dataset["inspectorOpen"] = String(inspectorOpen);
+    history.hidden = !historyOpen;
+    inspector.hidden = !inspectorOpen;
+    historyButton.setAttribute("aria-expanded", String(historyOpen));
+    inspectorButton.setAttribute("aria-expanded", String(inspectorOpen));
+  }
+
+  function toggleInspector(): void {
+    inspectorOpen = !inspectorOpen;
+    applyDisclosures();
+  }
+
+  function revealInspector(): void {
+    if (inspectorOpen) return;
+    inspectorOpen = true;
+    applyDisclosures();
+  }
+
+  applyDisclosures();
 
   window.adcode.chat.onChanged((session) => renderMemory(session));
   void window.adcode.chat.current().then((session) => renderMemory(session));
-  deps.host.append(card);
 
   /* ── Rendering ────────────────────────────────────────────────────────── */
 
@@ -872,6 +901,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   function showScheduleComposer(): void {
+    revealInspector();
     automationPanel.hidden = false;
     refreshAutomationTargets();
     if (automationDue.value.length === 0) {
@@ -1260,22 +1290,29 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /* ── Sending ──────────────────────────────────────────────────────────── */
 
   function submit(): void {
-    const text = input.value.trim();
-    if (text.length === 0) return;
+    const text = input.value;
+    if (text.trim().length === 0) return;
 
     if (activeSuggestion !== null) {
       activeSuggestion = null;
       teamPanel.hidden = true;
     }
 
-    bubble("user", text);
+    if (
+      !dispatchChatSend(text, {
+        showUser: (message) => bubble("user", message),
+        aiSend: (message) => window.adcode.ai.send(message),
+        onFailure: () => {
+          sendButton.disabled = false;
+        },
+      })
+    ) {
+      return;
+    }
+
     input.value = "";
     sendButton.disabled = true;
     streamingBubble = null;
-
-    void window.adcode.ai.send(text).catch(() => {
-      sendButton.disabled = false;
-    });
   }
 
   composer.addEventListener("submit", (event) => {
@@ -1350,132 +1387,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }, 350);
   });
 
-  /* ── Dragging and resizing ────────────────────────────────────────────── */
-
-  /**
-   * A translation that keeps the header on screen.
-   *
-   * The card is anchored bottom-right and moved with a translate, so a large negative `y`
-   * walks it off the top of the window - and the header is the drag handle, the model
-   * picker and the close button. Once it was up there nothing could bring it back. This
-   * is also what a saved position needs on the way in: the window it was saved from may
-   * have been bigger than the one it is being restored into.
-   *
-   * The bottom and right edges are deliberately allowed to hang off. Only the header has
-   * to stay reachable, and clamping all four would fight the user over a card they
-   * dragged half off the edge on purpose.
-   */
-  function clamp(next: Position): Position {
-    const box = card.getBoundingClientRect();
-
-    /*
-     * A hidden card has no box, and clamping against an empty rect is not conservative -
-     * it is wrong. Every measurement below reads zero, so the "keep 48px on screen" floor
-     * became `x >= 48` and each call pushed the card another 48px right. Two calls before
-     * it was ever shown left it permanently 96px off the right edge.
-     */
-    if (box.width === 0 && box.height === 0) return next;
-
-    // Where the card would sit with no translation at all.
-    const restX = box.left - position.x;
-    const restY = box.top - position.y;
-
-    const KEEP = 48;
-    const minX = -restX - box.width + KEEP;
-    const maxX = window.innerWidth - restX - KEEP;
-    const minY = -restY;
-    const maxY = window.innerHeight - restY - KEEP;
-
-    return {
-      x: Math.min(Math.max(next.x, minX), Math.max(minX, maxX)),
-      y: Math.min(Math.max(next.y, minY), Math.max(minY, maxY)),
-    };
-  }
-
-  function place(next: Position): void {
-    position = clamp(next);
-    // A translate, never `left`/`top`: §1 allows only transform and opacity to animate,
-    // and dragging with layout properties janks the editor behind it.
-    card.style.transform = `translate(${position.x}px, ${position.y}px)`;
-  }
-
-  /*
-   * Shrinking the window can strand a card that was perfectly placed a moment ago, so the
-   * clamp is re-applied rather than only being checked while dragging. Passing the current
-   * position back through `place` is enough - `clamp` re-reads the window each time.
-   */
-  window.addEventListener("resize", () => {
-    place(position);
-  });
-
-  header.addEventListener("pointerdown", (event) => {
-    if ((event.target as HTMLElement).tagName === "BUTTON") return;
-
-    const startX = event.clientX - position.x;
-    const startY = event.clientY - position.y;
-    header.setPointerCapture(event.pointerId);
-
-    const move = (moveEvent: PointerEvent): void => {
-      place({ x: moveEvent.clientX - startX, y: moveEvent.clientY - startY });
-    };
-
-    const release = (): void => {
-      header.removeEventListener("pointermove", move);
-      header.removeEventListener("pointerup", release);
-      savePosition(workspace, position);
-    };
-
-    header.addEventListener("pointermove", move);
-    header.addEventListener("pointerup", release);
-  });
-
-  resizeGrip.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    const startWidth = card.offsetWidth;
-    const startHeight = card.offsetHeight;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    resizeGrip.setPointerCapture(event.pointerId);
-
-    const move = (moveEvent: PointerEvent): void => {
-      /*
-       * A ceiling as well as a floor. The minimums were always here; without maximums you
-       * could drag the card larger than the window it lives in, and the CSS `max-width`
-       * would then quietly disagree with the inline width - so the grip stopped following
-       * the pointer and the card looked stuck.
-       */
-      const maxWidth = Math.max(320, window.innerWidth - 32);
-      const maxHeight = Math.max(260, window.innerHeight - 72);
-
-      const width = startWidth + (moveEvent.clientX - startX);
-      const height = startHeight + (moveEvent.clientY - startY);
-
-      card.style.width = `${Math.min(Math.max(320, width), maxWidth)}px`;
-      card.style.height = `${Math.min(Math.max(260, height), maxHeight)}px`;
-
-      // Growing downward or rightward can push the header off; re-clamp as it changes.
-      place(position);
-    };
-
-    const release = (): void => {
-      resizeGrip.removeEventListener("pointermove", move);
-      resizeGrip.removeEventListener("pointerup", release);
-    };
-
-    resizeGrip.addEventListener("pointermove", move);
-    resizeGrip.addEventListener("pointerup", release);
-  });
-
-  /* ── Open / close ─────────────────────────────────────────────────────── */
-
-  const onKeydown = (event: KeyboardEvent): void => {
-    // §5.3: "Dismisses on Escape without losing the conversation." The transcript and the
-    // agent's history both survive - only the card is hidden.
-    if (event.key === "Escape" && open) {
-      event.preventDefault();
-      api.close();
-    }
-  };
+  /* ── Coordinator lifecycle ────────────────────────────────────────────── */
 
   const visibilityListeners: ((open: boolean) => void)[] = [];
   const announce = (): void => {
@@ -1483,23 +1395,20 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   };
 
   const api: ChatWidget = {
+    element: card,
+    connectButton,
+
     open(): void {
+      deps.requestOpen();
+    },
+
+    shown(): void {
       if (open) return;
       open = true;
       announce();
 
-      card.hidden = false;
       requestAnimationFrame(() => {
-        /*
-         * The first moment the card has a box, so the first moment its saved position can
-         * honestly be checked against the window. Anything earlier measures a zero rect.
-         */
-        place(position);
-
-        requestAnimationFrame(() => {
-          card.dataset["state"] = "open";
-          input.focus();
-        });
+        input.focus();
       });
 
       void window.adcode.ai.status().then((status) => {
@@ -1511,13 +1420,21 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       void refreshTeam();
       if (!automationPanel.hidden) void refreshAutomations();
 
-      document.addEventListener("keydown", onKeydown);
+    },
+
+    hidden(): void {
+      if (!open) return;
+      open = false;
+      announce();
     },
 
     openTeamSetup(): void {
       runChatWidgetIntent("team", {
         open: () => api.open(),
-        showTeam: () => void suggestForComposer(true),
+        showTeam: () => {
+          revealInspector();
+          void suggestForComposer(true);
+        },
         showSchedule: showScheduleComposer,
       });
     },
@@ -1525,21 +1442,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     openScheduleComposer(): void {
       runChatWidgetIntent("schedule", {
         open: () => api.open(),
-        showTeam: () => void suggestForComposer(true),
+        showTeam: () => {
+          revealInspector();
+          void suggestForComposer(true);
+        },
         showSchedule: showScheduleComposer,
       });
     },
 
     close(): void {
-      if (!open) return;
-      open = false;
-      announce();
-
-      delete card.dataset["state"];
-      document.removeEventListener("keydown", onKeydown);
-      window.setTimeout(() => {
-        if (!open) card.hidden = true;
-      }, 200);
+      deps.requestClose();
     },
 
     toggle(): void {
@@ -1565,7 +1477,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     },
 
     setWorkspace(root: string | null): void {
-      workspace = root;
       suggestionGeneration += 1;
       if (suggestionTimer !== null) {
         window.clearTimeout(suggestionTimer);
@@ -1576,7 +1487,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       teamPanel.hidden = true;
       automationPanel.hidden = true;
       automationList.replaceChildren();
-      place(loadPosition(root) ?? { x: 0, y: 0 });
       if (root === null) {
         paintWorkspaceTask(null);
       } else {
@@ -1590,6 +1500,5 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     },
   };
 
-  place({ x: 0, y: 0 });
   return api;
 }

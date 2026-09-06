@@ -69,6 +69,7 @@ const titleFor = (group: HelpGroupId): string => GROUP_TITLES[group] ?? group;
 export function createHelpGuide(deps: HelpGuideDeps): HelpGuide {
   let open = false;
   let query = "";
+  let restoreTarget: HTMLElement | null = null;
 
   const sheet = document.createElement("div");
   sheet.className = "settings-sheet help-sheet";
@@ -78,7 +79,7 @@ export function createHelpGuide(deps: HelpGuideDeps): HelpGuide {
   sheet.setAttribute("aria-label", "ADCode Guide");
 
   const panel = document.createElement("div");
-  panel.className = "settings-panel";
+  panel.className = "settings-panel help-guide-panel";
 
   const header = document.createElement("header");
   header.className = "settings-header";
@@ -88,8 +89,11 @@ export function createHelpGuide(deps: HelpGuideDeps): HelpGuide {
   title.textContent = "ADCode Guide";
 
   const closeButton = document.createElement("button");
-  closeButton.className = "ghost-button";
-  closeButton.textContent = "Done";
+  closeButton.type = "button";
+  closeButton.className = "help-guide-close";
+  closeButton.textContent = "Close";
+  closeButton.setAttribute("aria-label", "Close ADCode Guide");
+  closeButton.title = "Close ADCode Guide";
   closeButton.addEventListener("click", () => api.close());
 
   header.append(title, closeButton);
@@ -174,6 +178,7 @@ export function createHelpGuide(deps: HelpGuideDeps): HelpGuide {
       const jump = document.createElement("button");
       jump.type = "button";
       jump.className = "ghost-button help-card-jump";
+      jump.dataset["settingId"] = settingId;
       jump.textContent = "Open its setting";
       jump.addEventListener("click", () => {
         api.close();
@@ -268,6 +273,9 @@ export function createHelpGuide(deps: HelpGuideDeps): HelpGuide {
     open(): void {
       if (open) return;
       open = true;
+      restoreTarget = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
 
       query = "";
       search.value = "";
@@ -278,6 +286,11 @@ export function createHelpGuide(deps: HelpGuideDeps): HelpGuide {
     openAt(entryId: string): void {
       const wasOpen = open;
       open = true;
+      if (!wasOpen) {
+        restoreTarget = document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+      }
 
       query = "";
       search.value = "";
@@ -297,7 +310,10 @@ export function createHelpGuide(deps: HelpGuideDeps): HelpGuide {
       document.removeEventListener("keydown", onKeydown);
 
       window.setTimeout(() => {
-        if (!open) sheet.hidden = true;
+        if (!open) {
+          sheet.hidden = true;
+          if (restoreTarget?.isConnected === true) restoreTarget.focus();
+        }
       }, 220);
     },
 
