@@ -1,6 +1,6 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { DocsSearch } from "@/components/DocsSearch";
 import { DocsSidebar } from "@/components/DocsSidebar";
 import { JsonLd } from "@/components/JsonLd";
 import { docsBySection } from "@/lib/docs";
@@ -15,7 +15,32 @@ export const metadata: Metadata = {
   openGraph: { title: "ADCode Documentation", url: url("/docs"), type: "website" },
 };
 
-export default async function DocsIndex() {
+interface Props {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+/*
+ * `?q=` is read on the server and handed to the search field as its initial query.
+ *
+ * The client-side filter already existed; what this adds is that the *URL* performs the
+ * search. That is the difference between a search box and a searchable site: a query can
+ * be linked to, shared, and reopened, and - the reason it is here - `webSite()` can
+ * declare a `SearchAction` pointing at this template without the claim being false. Google
+ * checks that the URL a SearchAction constructs really returns filtered results, and a
+ * page that only filters after hydration does not pass.
+ *
+ * The cost, stated because it is real: reading `searchParams` opts this one route out of
+ * static rendering. It is not free and it is not much - the upstream `/v1/posts` fetch is
+ * still revalidate-cached, so what a request pays for is a React render of an index page,
+ * and the ~100 `/docs/<slug>` pages that make up the crawlable bulk are untouched.
+ * `metadata.alternates.canonical` stays pinned to `/docs` so the parameterised URLs
+ * consolidate onto one address rather than becoming a hundred thin near-duplicates.
+ */
+const firstParam = (value: string | string[] | undefined): string =>
+  Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+
+export default async function DocsIndex({ searchParams }: Props) {
+  const query = firstParam((await searchParams)["q"]).slice(0, 120);
   const sections = await docsBySection();
   const total = sections.reduce((count, section) => count + section.pages.length, 0);
 
@@ -44,46 +69,17 @@ export default async function DocsIndex() {
               </p>
             </header>
 
-            <div style={{ display: "grid", gap: 36 }}>
-              {sections.map((section) => (
-                <section key={section.title} className="rise">
-                  <h2
-                    style={{
-                      color: "var(--faint)",
-                      fontSize: 13,
-                      fontWeight: 600,
-                      letterSpacing: "0.06em",
-                      marginBottom: 14,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {section.title}
-                  </h2>
-                  <ul style={{ display: "grid", gap: 2, listStyle: "none", margin: 0, padding: 0 }}>
-                    {section.pages.map((page) => (
-                      <li key={page.slug}>
-                        <Link
-                          href={`/docs/${page.slug}`}
-                          className="docs-index-link"
-                          style={{
-                            borderRadius: "var(--radius-sm)",
-                            display: "grid",
-                            gap: 3,
-                            margin: "0 -12px",
-                            padding: "10px 12px",
-                          }}
-                        >
-                          <span style={{ fontWeight: 600 }}>{page.title}</span>
-                          <span style={{ color: "var(--muted)", fontSize: 14 }}>
-                            {page.description}
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
+            <DocsSearch
+              initialQuery={query}
+              sections={sections.map((section) => ({
+                title: section.title,
+                pages: section.pages.map(({ slug, title, description }) => ({
+                  slug,
+                  title,
+                  description,
+                })),
+              }))}
+            />
           </main>
         </div>
       </section>

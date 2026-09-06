@@ -4,8 +4,8 @@
   "bin": {
     "adcode": "scripts/adcode.mjs"
   },
-  "private": true,
   "type": "module",
+  "private": true,
   "description": "ADCode - an ad-supported, AI-native IDE",
   "author": "ADCode",
   "license": "UNLICENSED",
@@ -18,6 +18,7 @@
     "start": "node scripts/start.mjs",
     "dev": "npm --prefix apps/desktop run dev",
     "package": "node scripts/package.mjs",
+    "package:store": "node scripts/package-store.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json && tsc --noEmit -p apps/web/tsconfig.json",
     "desktop": "npm --prefix apps/desktop run dev",
     "desktop:build": "npm --prefix apps/desktop run build",
@@ -35,7 +36,8 @@
     "web": "npm --prefix apps/web run dev",
     "web:build": "npm --prefix apps/web run build",
     "web:preview": "npm --prefix apps/web run preview",
-    "web:deploy": "npm --prefix apps/web run deploy"
+    "web:deploy": "npm --prefix apps/web run deploy",
+    "seo-audit": "node scripts/seo-audit.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

@@ -18,16 +18,24 @@ describe("the complete feature guide", () => {
     expect(missing.map(({ entry }) => entry.id)).toEqual([]);
   });
 
-  it("documents every direct command route exposed by the catalogue", () => {
+  it("documents command routes by their user-facing labels", () => {
     const content = guide();
     const missing = featureRecords().flatMap((record) =>
       record.actions
         .filter((action) => action.kind === "command")
-        .filter((action) => !content.includes(`command:${action.command}`))
+        .filter((action) => !/^Developer tools\b/i.test(action.label))
+        .filter((action) => !content.includes(action.label))
         .map((action) => `${record.entry.id}:${action.command}`),
     );
 
     expect(missing).toEqual([]);
+    expect(content).not.toMatch(/(?:command|setting):[a-z0-9_.-]+/i);
+  });
+
+  it("contains user guidance rather than maintenance instructions", () => {
+    const content = guide();
+
+    expect(content).not.toMatch(/packages\/help|docs-seed\.mjs|registered ADCode commands/i);
   });
 
   it("distinguishes universal and specialized search routes", () => {

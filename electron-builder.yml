@@ -98,6 +98,37 @@ win:
     - target: portable
       arch: [x64]
 
+# The Microsoft Store build.
+#
+# Deliberately NOT in `win.target` above: every field below that identifies the app has to
+# match a reservation in Partner Center exactly, and a build made with the wrong identity
+# is rejected on upload rather than at build time. So the Store package is produced only by
+# `npm run package:store`, which fills these in from the environment and refuses to run
+# without them - a normal `npm run package` is unchanged and still produces nsis + portable.
+#
+# Why the Store at all: Microsoft signs what it distributes. That removes the SmartScreen
+# warning without a code-signing certificate, and because nobody downloads an .exe from a
+# browser it also sidesteps Chrome's Safe Browsing scan entirely. It costs a one-time
+# Partner Center registration rather than a few hundred dollars a year.
+#
+# `identityName`, `publisher` and `publisherDisplayName` are placeholders here on purpose:
+# they read as obviously-not-real so a package built without the wrapper cannot be mistaken
+# for a submittable one.
+appx:
+  identityName: PLACEHOLDER.SetByPackageStore
+  publisher: CN=PLACEHOLDER-SET-BY-PACKAGE-STORE
+  publisherDisplayName: PLACEHOLDER
+  # Alphanumeric, must start with a letter, and no dots - Store rules, not ours.
+  applicationId: ADCode
+  displayName: ADCode
+  # The tiles are drawn from build/icon.svg by `npm run icons`, so they cannot drift from
+  # the icon everything else uses.
+  backgroundColor: transparent
+  showNameOnTiles: true
+  languages:
+    - en-US
+  artifactName: ADCode-${arch}.${ext}
+
 nsis:
   oneClick: false
   perMachine: false

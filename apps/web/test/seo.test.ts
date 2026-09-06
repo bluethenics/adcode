@@ -27,6 +27,28 @@ describe("structured data", () => {
     expect(node["sameAs"]).toContain("https://github.com/bluethenics/adcode");
   });
 
+  /*
+   * `adcode.bluethenics.com` is a subdomain, and a search engine treats a hostname as its
+   * own entity unless something says otherwise. Unexplained, the brand looks like a
+   * subdomain of a company that never mentions it: the parent's authority does not carry
+   * and the child has none. The matching `subOrganization` lives in `bluethenics-web`, and
+   * `scripts/seo-audit.mjs` is what checks both ends are actually deployed.
+   */
+  it("names the studio that publishes it, so the subdomain is not an orphan", () => {
+    const node = organisation() as Record<string, unknown>;
+    const parent = node["parentOrganization"] as Record<string, unknown>;
+
+    expect(parent["name"]).toBe("Bluethenics");
+    expect(parent["@id"]).toBe("https://bluethenics.com/#organization");
+    expect(node["sameAs"]).toContain("https://bluethenics.com/");
+  });
+
+  it("claims the spellings people actually type", () => {
+    // "ADCode" is one word to us and two to everybody else, and it collides with "ad code"
+    // in the advertising sense - an older, far better-linked meaning of those characters.
+    expect(organisation()["alternateName"]).toContain("AdCode");
+  });
+
   it("describes the app as something installable, with a version and a way to get it", () => {
     const node = softwareApplication() as Record<string, unknown>;
 
@@ -54,11 +76,24 @@ describe("structured data", () => {
     expect(node["publisher"]).toEqual({ "@id": url("/#organization") });
   });
 
-  it("claims no sitelinks searchbox, because the site has no search", () => {
-    // A SearchAction has to point at a URL that really performs a search. There is no
-    // such page here, and declaring one would be a claim a crawler can check and find
-    // false. If site search is ever built, this is the test that says to add it.
-    expect((webSite() as Record<string, unknown>)["potentialAction"]).toBeUndefined();
+  /*
+   * This test used to assert the opposite, and the comment under it said "if site search
+   * is ever built, this is the test that says to add it". It was built - `DocsSearch` on
+   * `/docs` - and `/docs?q=` is now read on the server, so the URL this template
+   * constructs really does return filtered results rather than an unfiltered page that
+   * filters itself after hydration. That is the condition the claim has to meet.
+   */
+  it("declares a searchbox that points at a URL which really searches", () => {
+    const action = (webSite() as Record<string, unknown>)["potentialAction"] as Record<
+      string,
+      unknown
+    >;
+
+    expect(action["@type"]).toBe("SearchAction");
+    expect((action["target"] as Record<string, unknown>)["urlTemplate"]).toBe(
+      `${url("/docs")}?q={search_term_string}`,
+    );
+    expect(action["query-input"]).toBe("required name=search_term_string");
   });
 });
 
@@ -67,7 +102,21 @@ describe("crawling", () => {
     const entries = await sitemap();
     const paths = entries.map((entry) => new URL(entry.url).pathname);
 
-    for (const wanted of ["/", "/docs", "/versions", "/privacy", "/terms"]) {
+    for (const wanted of [
+      "/",
+      "/docs",
+      "/versions",
+      "/privacy",
+      "/terms",
+      // The pages written to be entry points. Missing here means the only route in is the
+      // footer, which is exactly the state the landing work was meant to leave behind.
+      "/free-ai-code-editor",
+      "/earn-while-you-code",
+      "/compare",
+      "/compare/vscode",
+      "/compare/cursor",
+      "/compare/idlen",
+    ]) {
       expect(paths, wanted).toContain(wanted);
     }
 

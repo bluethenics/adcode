@@ -95,6 +95,8 @@ import { createWhatsNewSheet } from "./releases/whatsNewSheet.ts";
 import { createResultDialog } from "./dialogs/resultDialog.ts";
 import { createConfirmDialog } from "./dialogs/confirmDialog.ts";
 import { createPromptDialog } from "./dialogs/promptDialog.ts";
+import { knownAgents } from "@adcode/ai/agents";
+import { MAX_TERMINAL_TEAM_AGENTS, buildTerminalTeamPlan } from "@adcode/ai/terminalTeam";
 import { createReportDialog } from "./dialogs/reportDialog.ts";
 import { createMissingRuntimeDialog } from "./dialogs/missingRuntimeDialog.ts";
 import { createShortcutsDialog } from "./dialogs/shortcutsDialog.ts";
@@ -231,6 +233,7 @@ function applySettings(values: Record<string, boolean | string>): void {
     values["adcode.ai.autoContinue"] === true,
     Number(values["adcode.ai.autoContinueRetries"] ?? 3),
   );
+  terminal?.setScheduling(values["adcode.ai.scheduledMessages"] !== false);
 
   // The lines are drawn by every tree, so the switch is one attribute on the root rather
   // than a call into three panels.
@@ -1669,6 +1672,18 @@ function terminalPanel(): TerminalPanel {
     // The panel handles the divider, the editor re-layout and where focus goes on close;
     // this only has to say that something changed size.
     onLayoutChange: () => editorHost.layout(),
+    /*
+     * The three doors the terminal's right-click menu opens.
+     *
+     * Routed through the command registry rather than called directly so the menu, the
+     * command palette and the Feature library all reach these flows by the same path -
+     * one of them behaving differently is exactly the sort of drift nobody notices until
+     * a user reports that a feature "only works from the palette". The registry is
+     * defined below this function, which is fine: these run on a click, not on creation.
+     */
+    onScheduleMessage: () => commands.run("ai.schedule"),
+    onSetUpTeam: () => commands.run("ai.terminalTeam"),
+    onShowFeatures: () => commands.run("features.open"),
   });
 
   // A panel created after settings were read still has to honour them: `applySettings` runs
@@ -1679,12 +1694,97 @@ function terminalPanel(): TerminalPanel {
       settingsValues["adcode.ai.autoContinue"] === true,
       Number(settingsValues["adcode.ai.autoContinueRetries"] ?? 3),
     );
+    terminal.setScheduling(settingsValues["adcode.ai.scheduledMessages"] !== false);
   }
 
   return terminal;
 }
 
 const toggleTerminal = (): Promise<void> => terminalPanel().toggle();
+
+/**
+ * Set up a Team that runs across terminal panes, one agent CLI per role.
+ *
+ * Three steps, in the order the decisions actually get made: what needs doing, who does it,
+ * and a last look before anything starts. The confirmation is not ceremony - unlike the
+ * Assistant's Team, these agents are not sandboxed. They are the user's own CLIs editing
+ * the real working tree, so the moment before the first one starts is the last moment
+ * anybody can change their mind cheaply.
+ */
+async function openTerminalTeamSetup(): Promise<void> {
+  const panel = terminalPanel();
+  if (panel.teamStatus() !== null) {
+    setStatus("A Team is already running in the terminal.", 4000);
+    return;
+  }
+
+  const task = await promptDialog.ask({
+    title: "Start a Team in the terminal",
+    body: "What should the team do? Each CLI you pick gets its own terminal and its own part of this.",
+    placeholder: "Add a dark mode to the settings screen",
+    confirmLabel: "Next",
+  });
+  if (task === null) return;
+
+  const available = knownAgents();
+  const chosen = await promptDialog.ask({
+    title: "Which CLIs should work on it?",
+    body: `Two to ${String(MAX_TERMINAL_TEAM_AGENTS)}, separated by commas, in the order they should take Build, Tests, Docs and Review. Available: ${available
+      .map((agent) => agent.name)
+      .join(", ")}.`,
+    value: "Claude Code, Codex",
+    suggestions: available.map((agent) => agent.name),
+    confirmLabel: "Next",
+  });
+  if (chosen === null) return;
+
+  // Matched on the display name the body just listed, so what the user was shown and what
+  // they may type are the same set.
+  const byName = new Map(available.map((agent) => [agent.name.toLowerCase(), agent.id]));
+  const wanted = chosen
+    .split(",")
+    .map((piece) => piece.trim().toLowerCase())
+    .filter((piece) => piece.length > 0);
+  const unknown = wanted.filter((piece) => !byName.has(piece));
+  if (unknown.length > 0) {
+    setStatus(`ADCode does not recognise: ${unknown.join(", ")}`, 5000);
+    return;
+  }
+
+  let draft: ReturnType<typeof buildTerminalTeamPlan>;
+  try {
+    draft = buildTerminalTeamPlan(
+      `terminal-team-${String(Date.now())}`,
+      task,
+      wanted.map((piece) => byName.get(piece)!),
+    );
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : "That team could not be set up.", 5000);
+    return;
+  }
+
+  const lineup = draft.assignments
+    .map((assignment) => {
+      const role = draft.plan.roles.find((candidate) => candidate.id === assignment.roleId);
+      const name = available.find((agent) => agent.id === assignment.agentId)?.name ?? assignment.agentId;
+      return `${role?.label ?? assignment.roleId}: ${name}`;
+    })
+    .join("\n");
+
+  const go = await confirmDialog.ask({
+    title: "Start this Team?",
+    body: `${lineup}\n\nEach CLI opens in its own terminal and edits this project directly - there is no sandbox and no review step. Tasks wait for whatever they depend on.`,
+    confirmLabel: "Start",
+  });
+  if (!go) return;
+
+  try {
+    await panel.startTeam(draft.plan, draft.assignments);
+    setStatus(`Team started across ${String(draft.assignments.length)} terminals.`, 4000);
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : "The Team could not start.", 5000);
+  }
+}
 
 /**
  * Toggle the panel as a whole.
@@ -4052,6 +4152,18 @@ function registerCommands(): void {
   add("ai.complete", "Suggest Code with AI", () => editorHost.triggerInlineCompletion());
   add("ai.team", "Set Up AI Team", () => chat.openTeamSetup());
   add("ai.schedule", "Schedule an AI Message", () => chat.openScheduleComposer());
+  add("ai.terminalTeam", "Start an AI Team in the Terminal", () => void openTerminalTeamSetup());
+  /*
+   * A command rather than only a settings row, so the feature library, universal search and
+   * the terminal's own right-click menu can all offer the thing itself. It writes the
+   * setting rather than holding its own flag - two places that each remember whether
+   * continuation is on is how they come to disagree.
+   */
+  add("ai.autoContinue", "Continue Terminal AI After Usage Limits", () => {
+    const on = terminalPanel().autoContinue();
+    void window.adcode.settings.write("adcode.ai.autoContinue", !on);
+    setStatus(on ? "Automatic continuation is off." : "Automatic continuation is on.", 3000);
+  });
   add("view.toggleWordWrap", "Toggle Word Wrap", () => editorHost.toggleWordWrap());
 
   /* Go */

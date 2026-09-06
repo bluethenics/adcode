@@ -39,6 +39,68 @@ export const API_ORIGIN =
 export const GITHUB_REPO = process.env["NEXT_PUBLIC_GITHUB_REPO"] ?? "bluethenics/adcode";
 
 /**
+ * The studio that publishes ADCode.
+ *
+ * This exists for one reason: `adcode.bluethenics.com` is a subdomain, and a search engine
+ * treats a hostname as its own entity unless something tells it otherwise. Left alone, the
+ * brand looks like an unexplained subdomain of a company that never mentions it - which is
+ * the weakest position a new name can be in, because the parent's authority does not carry
+ * and the child has none of its own.
+ *
+ * Stating the relationship as data on both ends fixes that. `schema.ts` emits
+ * `parentOrganization` here; `bluethenics.com` emits the matching `subOrganization` and a
+ * real page about the product. Two sites asserting the same edge is what a knowledge graph
+ * is built out of - one side claiming it alone is just a link.
+ */
+export const PARENT = {
+  name: "Bluethenics",
+  url: "https://bluethenics.com/",
+  /** The page on the parent site that is *about* ADCode, not merely linking to it. */
+  productUrl: "https://bluethenics.com/adcode",
+  id: "https://bluethenics.com/#organization",
+} as const;
+
+/**
+ * Profiles that independently corroborate the name.
+ *
+ * `sameAs` is the only part of `Organization` a crawler can actually check, which is what
+ * makes it the part that counts. Every entry must be a page that exists and that visibly
+ * belongs to this project - an aspirational profile is a claim that fails verification and
+ * costs more than the empty array would have.
+ *
+ * Add a listing here only once it is live. `scripts/seo-audit.mjs` fetches all of them.
+ */
+export const SAME_AS: readonly string[] = [
+  `https://github.com/${GITHUB_REPO}`,
+  PARENT.url,
+  PARENT.productUrl,
+];
+
+/**
+ * Search-engine ownership tokens.
+ *
+ * Google and Bing will not show a property's index coverage, its queries, or its manual
+ * actions until the host is verified, and the meta-tag method is the only one that
+ * survives a deploy without touching DNS. Both are public strings - they prove control of
+ * the site to someone who already has the console open, they authorise nothing - so they
+ * are `NEXT_PUBLIC_*` and may be committed if that is ever convenient.
+ *
+ * Empty means "not verified yet", and the tag is omitted rather than emitted blank: an
+ * empty `content` attribute is a verification failure, not a no-op. SETUP.md steps 21 and
+ * 22 are the click path that produces these values. (`SETUP.md` is the maintainer's
+ * runbook and is deliberately not in the public repository - see the end of `.gitignore`.)
+ */
+const verificationToken = (key: string): string | undefined => {
+  const raw = process.env[key];
+  return raw === undefined || raw.trim() === "" ? undefined : raw.trim();
+};
+
+export const VERIFICATION = {
+  google: verificationToken("NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION"),
+  bing: verificationToken("NEXT_PUBLIC_BING_SITE_VERIFICATION"),
+} as const;
+
+/**
  * The version this build documents.
  *
  * Read from the package rather than typed here, so `npm version` moves it and the

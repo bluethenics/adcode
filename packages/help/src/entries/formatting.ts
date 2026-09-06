@@ -10,7 +10,7 @@ export const FORMATTING_ENTRIES: readonly HelpEntry[] = [
     plain:
       "Tidies your code for you - puts the spaces, indents and line breaks in the same places every time.",
     why: "Arguing about where the spaces go is the least valuable thing a person can do with their day. A formatter ends the argument by always doing the same thing.",
-    how: "On by default, and there is nothing to install. Press Shift+Alt+F to tidy the open file. If a language server is running for that language, ADCode asks it first, because it knows the language better than we do; otherwise ADCode's own formatter does it.",
+    how: "On by default, and there is nothing to install. Press Shift+Alt+F to tidy the open file. If a language server is running for that language, ADCode asks it first because it understands that language more precisely; otherwise ADCode's own formatter does it.",
     group: "formatting",
     settingIds: ["adcode.formatting.formatter"],
     shortcut: "Shift+Alt+F",

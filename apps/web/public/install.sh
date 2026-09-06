@@ -56,8 +56,7 @@ case "$OS" in
     # an un-notarised app is not warned about but refused outright by Gatekeeper. Saying
     # so plainly is better than downloading something that will not open.
     printf '  %sADCode for macOS is not published yet.%s\n\n' "$YELLOW" "$RESET"
-    printf '  Builds need Apple notarisation before they will open at all, and that is\n'
-    printf '  not in place. Windows and Linux are available today.\n\n'
+    printf '  Windows and Linux downloads are available today.\n\n'
     printf '  Follow along at %s/versions\n\n' "$SITE"
     exit 0
     ;;

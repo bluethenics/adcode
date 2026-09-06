@@ -73,26 +73,15 @@ export default async function DocPage({ params }: Props) {
             <div className="prose" dangerouslySetInnerHTML={{ __html: renderMarkdown(page.body) }} />
 
             {related.length > 0 && (
-              <aside style={{ borderTop: "1px solid var(--hairline)", marginTop: 44, paddingTop: 24 }}>
-                <h2
-                  style={{
-                    color: "var(--faint)",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                    marginBottom: 12,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  See also
-                </h2>
-                <ul style={{ display: "grid", gap: 8, listStyle: "none", margin: 0, padding: 0 }}>
+              <aside className="docs-related">
+                <h2>See also</h2>
+                <ul>
                   {related.map((item) => (
                     <li key={item.slug}>
-                      <Link href={`/docs/${item.slug}`} style={{ fontWeight: 600 }}>
-                        {item.title}
+                      <Link href={`/docs/${item.slug}`}>
+                        <strong>{item.title}</strong>
+                        <span>{item.description}</span>
                       </Link>
-                      <span style={{ color: "var(--muted)" }}> — {item.description}</span>
                     </li>
                   ))}
                 </ul>

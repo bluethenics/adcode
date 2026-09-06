@@ -1838,7 +1838,22 @@
   overflow: hidden;
 }
 
-/* The agent strip spans both columns: it is about the panel, not about one terminal. */
+/*
+ * The strips span both columns: they are about the panel, not about one terminal.
+ *
+ * They share one grid cell and stack inside it, so the panel can grow another strip - the
+ * Team progress line was the second - without the grid having to learn a new row. The rule
+ * below still names `.agent-strip` because the strips keep that class for their styling;
+ * inside a flex wrapper its grid placement is simply ignored.
+ */
+.panel-body-terminal .terminal-strips {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-width: 0;
+}
+
 .panel-body-terminal .agent-strip {
   grid-column: 1 / -1;
   grid-row: 1;

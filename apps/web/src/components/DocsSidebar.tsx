@@ -29,7 +29,7 @@ export async function DocsSidebar({ currentDoc, reading }: Props) {
 
   return (
     <aside className="docs-sidebar" aria-label="Documentation navigation">
-      <section>
+      <section className="docs-sidebar-primary">
         <h2>Documentation</h2>
         <Link href="/docs" aria-current={currentDoc === undefined && reading === undefined ? "page" : undefined}>
           All pages
@@ -70,7 +70,7 @@ export async function DocsSidebar({ currentDoc, reading }: Props) {
         round trip and splits the link equity between two URLs for one page. The essays
         the Blog row used to point at are now sections in this very sidebar.
       */}
-      <section>
+      <section className="docs-sidebar-secondary">
         <h2>Reading</h2>
         <Link href="/versions" aria-current={reading === "changelog" ? "page" : undefined}>
           Releases
@@ -78,7 +78,7 @@ export async function DocsSidebar({ currentDoc, reading }: Props) {
         <Link href="/feed.xml">RSS</Link>
       </section>
 
-      <section>
+      <section className="docs-sidebar-secondary">
         <h2>The product</h2>
         <Link href="/versions">Download</Link>
         <Link href="/#advertise">Advertise</Link>

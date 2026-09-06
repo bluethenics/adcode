@@ -78,6 +78,19 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     related: ["adcode.ai.mcpServer", "ai.sessions"],
   },
   {
+    id: "ai.terminalTeam",
+    title: "Team in the terminal",
+    plain:
+      "Split one task across several agent CLIs - Claude Code, Codex, Grok, Kimi and the rest - each working in its own terminal pane.",
+    why:
+      "You already pay for more than one of these, and they are good at different things. Running them one after another wastes the ones that are idle; running them by hand means writing the same briefing four times and watching four panes to see who has finished.",
+    how:
+      "Right-click a terminal and choose Start a Team here, or run Set Up AI Team. Describe the task, then pick which CLI takes which role. ADCode opens a pane per role, starts that CLI, and briefs it with its own piece, the acceptance criteria, and what its teammates have already finished. A task only starts once everything it depends on has reported done. Each agent is asked to print one line when it finishes; an agent that goes quiet for five minutes is treated as finished instead. Nothing is sandboxed - these are your CLIs editing your working tree, which is why you confirm the plan first. Closing a pane fails just that task and leaves the others running.",
+    group: "ai",
+    settingIds: [],
+    related: ["ai.team", "adcode.ai.terminalAgentDetection", "adcode.ai.autoContinue"],
+  },
+  {
     id: "adcode.ai.autoContinue",
     title: "Continue terminal AI after limits",
     plain:
@@ -98,7 +111,7 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     why:
       "A reminder that can actually reach the assistant is useful for follow-up reviews, delayed provider windows, and work you want to queue without leaving an agent running.",
     how:
-      "Choose Schedule beside the chat composer, select an available adapter and local time, then confirm. Built-in chat is always supported. For a detected terminal AI, first choose Allow next schedule while its prompt is visibly waiting; any later terminal activity removes that one-time permission. Compatible internal adapters use the same registration contract. If ADCode, the project, or scheduled messages are unavailable at delivery time, the one-time message is marked missed and does nothing until you choose Run now.",
+      "Choose Schedule beside the chat composer, choose where to send the message and set a local time, then confirm. Built-in chat is always available. For a detected terminal AI, first choose Allow next schedule while its prompt is visibly waiting; later terminal activity removes that one-time permission. If ADCode, the project, or scheduled messages are unavailable at delivery time, the message is marked missed and waits for you to choose Run now.",
     group: "ai",
     settingIds: ["adcode.ai.scheduledMessages"],
     related: ["adcode.ai.autoContinue", "adcode.ai.chatWidget"],

@@ -72,25 +72,11 @@ ADCode installs from one command. This page is the whole of it: what the command
 
     irm https://adcode.bluethenics.com/install.ps1 | iex
 
-**macOS is not published yet.** Signing and notarising a macOS build needs a paid Apple Developer membership, and an un-notarised app is not merely warned about - macOS refuses to open it. Rather than hand you a file your machine will reject, the installer says so and stops.
+**macOS downloads are not available yet.** Windows and Linux downloads are available from the [downloads page](/versions).
 
-## Why the terminal is the better route today
+## Before installation
 
-ADCode's installers are not code-signed yet, and on Windows that would normally mean the "Windows protected your PC" dialog, which hides the Run button behind More info.
-
-That dialog fires on the Mark of the Web - a zone tag Windows attaches to files a *browser* downloaded. A file fetched by \`Invoke-WebRequest\` does not carry it, and ADCode installs per-user, so it asks for no administrator prompt either. The terminal install is not a way around a warning; it is the route that does not produce one.
-
-## What the script actually does
-
-Worth knowing, because you are piping it into a shell:
-
-1. Asks GitHub for the latest release.
-2. Picks the artifact for your platform - a \`.deb\` where \`dpkg\` exists, an AppImage otherwise.
-3. Downloads it into a private temporary directory.
-4. Verifies it against the checksum published with the release. A tampered mirror or a truncated download is caught before anything runs.
-5. Installs it, and prints what to do next.
-
-If the checksum does not match, nothing is installed and the file is deleted.
+The installer checks the download before installing it. If that check fails, nothing is installed and the downloaded file is removed. Windows installation is per-user and does not need administrator access.
 
 ## Where it lands
 
@@ -117,13 +103,6 @@ To update by hand, run the install command again. To stop automatic updates, tur
 - **Debian and Ubuntu** - \`sudo apt remove adcode\`
 - **AppImage** - \`rm ~/.local/bin/adcode\`
 - **Windows** - Settings, Apps, Installed apps, ADCode
-
-## Options the scripts honour
-
-Set these before running if you need to point the installer elsewhere:
-
-- \`ADCODE_SITE\` - the site the script names in its messages.
-- \`ADCODE_GH_OWNER\` and \`ADCODE_GH_REPO\` - the repository releases are fetched from.
 
 ## If something goes wrong
 

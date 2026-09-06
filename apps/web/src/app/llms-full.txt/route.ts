@@ -1,8 +1,9 @@
 import { FAQ } from "@/lib/schema";
 import { allPosts } from "@/lib/posts";
 import { docsBySection } from "@/lib/docs";
+import { LANDINGS, landingPath, landingPlainText } from "@/lib/landings";
 import { allReleases } from "@/lib/releases";
-import { SITE, url, ECONOMICS, formatMicros } from "@/lib/site";
+import { PARENT, SITE, url, ECONOMICS, formatMicros } from "@/lib/site";
 
 /**
  * `/llms-full.txt` - the whole site as plain text, in one request.
@@ -71,6 +72,19 @@ export async function GET(): Promise<Response> {
 
   const faq = FAQ.map((item) => `## ${item.q}\n\n${item.a}`).join("\n\n");
 
+  /*
+   * The comparisons, in full, including the paragraph arguing for the other product.
+   *
+   * That paragraph is the reason these belong in this file rather than being summarised.
+   * An assistant asked to compare two editors will answer from whatever it has; if all it
+   * has from us is marketing, it either repeats marketing or - more often - discounts the
+   * source and answers from a review site instead. The concessions are what make this
+   * text usable as a citation.
+   */
+  const landings = LANDINGS.map(
+    (page) => `${landingPlainText(page)}\n\nURL: ${url(landingPath(page))}`,
+  ).join(rule);
+
   const text = `# ${SITE.name} - complete text
 
 > ${SITE.description}
@@ -88,6 +102,12 @@ Facts, stated once:
   framework in use. File contents, file paths, and project names never leave the machine.
 - Earnings are recorded on an append-only ledger. Entries are never edited or deleted;
   corrections are separate reversals that reference the original.
+- ${SITE.name} is published by ${PARENT.name} (${PARENT.url}), an independent software
+  studio. The studio's page about this product is ${PARENT.productUrl}.
+
+# Guides and comparisons
+
+${landings}
 
 # Documentation
 

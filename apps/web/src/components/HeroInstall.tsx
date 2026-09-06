@@ -12,10 +12,13 @@ import { SITE } from "@/lib/site";
  * Three different offers, because the three platforms are in genuinely different states
  * and a single "Download" button would be wrong on two of them:
  *
- * - **Windows** gets the command, not a button. The build is unsigned, and a browser
- *   download of an unsigned installer earns the SmartScreen dialog that hides Run behind
- *   *More info* - where most people stop. A terminal fetch carries no Mark of the Web and
- *   raises nothing, so it is the better path today and it is what the hero leads with.
+ * - **Windows** leads with the command and offers the installer underneath it. The build is
+ *   unsigned, and a browser download of an unsigned installer earns the SmartScreen dialog
+ *   that hides Run behind *More info*, where some people stop; a terminal fetch carries no
+ *   Mark of the Web and raises nothing. So the command leads because it is the path with
+ *   no warning - but refusing to offer a download at all turns away everybody who does not
+ *   want a terminal, which is most people. The button says what the dialog will look like
+ *   and how to get past it, which costs one line and one click.
  * - **Linux** gets the button. Nothing to sign, nothing to warn about.
  * - **macOS** gets the truth. Notarisation needs a paid Apple membership and an
  *   un-notarised app is refused outright, so a download button would hand somebody a file
@@ -70,6 +73,26 @@ export function HeroInstall() {
           Windows asks for no administrator password and shows no security warning.{" "}
           <Link href="/docs/installing-adcode">What this does</Link>
         </p>
+
+        {/*
+          The installer, for people who would rather click than paste - which is most
+          people, and not wanting a terminal is not a reason to be turned away.
+
+          Secondary rather than primary, and the note says why in one line rather than
+          leaving somebody to meet the dialog cold. This is the same file the command
+          fetches; the only difference is that a browser marks it as downloaded, and that
+          mark is what Windows reacts to.
+        */}
+        <div className="hero-install-or">
+          <a href="/dl/windows" className="marketplace-secondary hero-install-download">
+            Download the installer <span aria-hidden="true">↓</span>
+          </a>
+          <span className="hero-install-note">
+            109 MB. Windows will say <strong>“Windows protected your PC”</strong> — choose{" "}
+            <strong>More info</strong>, then <strong>Run anyway</strong>. The command above
+            avoids that entirely.
+          </span>
+        </div>
       </div>
     );
   }
@@ -106,8 +129,8 @@ export function HeroInstall() {
           </a>
         </div>
         <p className="hero-install-note">
-          macOS builds need Apple notarisation before they will open at all, and that is not in
-          place yet. Windows and Linux are available today.
+          macOS downloads are not available yet. Windows and Linux downloads are available
+          today.
         </p>
       </div>
     );

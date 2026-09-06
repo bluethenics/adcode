@@ -195,6 +195,20 @@ function accessFor(entry, metadata, booleanSettings) {
   ]);
 }
 
+/** Turn catalogue routes into the labels a person sees in ADCode. */
+function publicAccessFor(entry, metadata, booleanSettings) {
+  return unique(
+    accessFor(entry, metadata, booleanSettings)
+      .filter((route) => !/^Developer tools\b/i.test(route))
+      .map((route) =>
+        route
+          .replace(/\s+\((?:command|setting):[^)]+\)/gi, "")
+          .replace(/Settings\s*→\s*adcode\.[a-z0-9_.-]+/gi, "Settings")
+          .replace(/CmdOrCtrl/gi, "Ctrl/Cmd"),
+      ),
+  );
+}
+
 function render(entries, metadataById, booleanSettings) {
   const known = entries.filter((entry) => ORDER.includes(entry.group));
   const bySlug = new Map(known.map((entry) => [entry.id, slugFor(entry.id)]));
@@ -300,7 +314,7 @@ function renderGuide(entries, metadataById, booleanSettings) {
         .filter((entry) => entry.group === group)
         .map((entry) => {
           const metadata = metadataById.get(entry.id) ?? { actions: [], keywords: [] };
-          const routes = accessFor(entry, metadata, booleanSettings);
+          const routes = publicAccessFor(entry, metadata, booleanSettings);
           return `<!-- feature:${entry.id} -->
 ### ${entry.title}
 
@@ -325,34 +339,32 @@ Access: ${routes.map((route) => `\`${route}\``).join("; ")}.
 
   return `# Complete ADCode feature guide
 
-This guide is the human-readable inventory behind ADCode's **All Features** library. The
-same catalogue also powers the title-bar Universal Search, the Help → Feature Guide, menu
-routes, and the website docs. It is generated from \`packages/help\`; edit that catalogue
-and run \`node scripts/docs-seed.mjs\` rather than letting these surfaces drift apart.
+This guide explains every item in ADCode's **All Features** library: what it does, when it
+helps, and where to find it. You can also search for any of these features from Universal
+Search in the title bar or from Help → Feature Guide.
 
 ## Find and open anything
 
-- Open **All Features** with the four-cell icon below Earnings, with **View → All
-  Features**, or by running \`command:features.open\`.
-- Use the title-bar **Universal Search** or \`command:search.universal\` when you know what
-  you want but not where it lives. It searches features, commands, files, recent projects,
-  and workspace symbols. Start with \`>\` to favour commands.
+- Open **All Features** with the four-cell icon below Earnings or with **View → All
+  Features**.
+- Use the title-bar **Universal Search** when you know what you want but not where it
+  lives. It searches features, actions, files, recent projects, and workspace symbols.
+  Start with \`>\` to favour actions.
 - Use **Quick Open** (\`Ctrl+P\`) when you only want a file.
 - Use the **Command Palette** (\`Ctrl+Shift+P\`) when you only want a command.
 - Use **Symbol Search** (\`Ctrl+T\`) when you only want a function, class, or symbol.
 - Use project **Content Search** (\`Ctrl+Shift+F\`) when you want text inside files.
 
-Search results are grouped by kind and arrive progressively. A failed symbol or recent-file
-provider does not prevent local feature and command results from opening. A newer query
-always replaces an older one, so stale asynchronous results cannot take over the panel.
+Search results are grouped by kind and update as you type, so the list always matches your
+latest query.
 
 ## Use the Feature Library
 
 1. Open **All Features** using the icon, View menu, Feature Guide, or Universal Search.
 2. Type a goal such as “multiple AI”, “format on save”, or “preview phone”.
 3. Filter by category if you want to browse instead of search.
-4. Select **Open**, **Search**, **Connect**, **Schedule**, or the setting route shown on the
-   card. The library dispatches only registered ADCode commands and known settings.
+4. Select **Open**, **Search**, **Connect**, **Schedule**, or the Settings route shown on the
+   card.
 5. Select the \`?\` explanation for **What it does**, **Why use it**, and **How to use it**.
 
 ## AI work without giving up normal coding
@@ -388,9 +400,8 @@ ${shortcuts}
 
 # Feature inventory
 
-Every item below is also a searchable card in **All Features**. Command identifiers are
-included for automation, keyboard customization, and troubleshooting; most people can use
-the matching menu or button.
+Every item below is also a searchable card in **All Features**. Use the matching menu,
+button, or shortcut shown for each feature.
 
 ${inventory}`;
 }

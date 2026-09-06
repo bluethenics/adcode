@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { HeroInstall } from "@/components/HeroInstall";
 import { LandingBidBuilder } from "@/components/LandingBidBuilder";
-import { MarketDemand } from "@/components/MarketDemand";
 import { HeroCircuit } from "@/components/HeroCircuit";
+import { HeroCounter } from "@/components/HeroCounter";
 import { HomeFaq } from "@/components/HomeFaq";
 import { JsonLd } from "@/components/JsonLd";
 import { FAQ, faqPage } from "@/lib/schema";
@@ -47,18 +47,22 @@ export default function Home() {
         <div className="marketplace-wrap" id="marketplace-main">
           <div className="marketplace-hero-copy">
             <h1>Earn while you code</h1>
-            <p>Use a professional code editor for free. An occasional sponsored card appears while you work - never mid-debug, never behind your back - and half of every verified payment goes to you.</p>
             {/*
-              One offer, chosen for the machine the visitor is on.
-
-              Windows gets the command rather than a button - an unsigned installer fetched
-              by a browser earns the SmartScreen dialog, and one fetched by the terminal
-              does not. Linux gets the button. macOS gets the truth. See HeroInstall.
+              One line, not five. What this cut said - never mid-debug, never behind your
+              back, half of every verified payment - is all still on the page, in the
+              principles strip and the FAQ, where somebody who wants the detail goes
+              looking. Saying it twice cost the hero its only job.
+            */}
+            <p>A real editor, free. Half of every ad it shows pays you.</p>
+            <HeroCounter />
+            {/*
+              One offer, chosen for the machine the visitor is on. Windows leads with the
+              command because it raises no SmartScreen dialog, and offers the installer
+              under it for everybody who would rather click. See HeroInstall.
             */}
             <HeroInstall />
             <small>Windows · Linux · free to use · macOS coming soon</small>
           </div>
-          <MarketDemand />
         </div>
       </section>
 

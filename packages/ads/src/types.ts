@@ -64,9 +64,14 @@ export interface RemoteCaps {
  * somebody their earnings is that they can watch them change, and a number that takes a
  * fortnight to reach a cent teaches the opposite lesson.
  *
- * The restraint rules are untouched and they are the ones that actually protect focus: no
- * card while typing, while debugging, while the window is unfocused, or inside the settle
- * period after launch. This changes how often a *pause* is eligible, not whether work gets
+ * The restraint rules are untouched, and it is worth naming them accurately because this
+ * comment used to claim one that does not exist. `decide` gates on debugging, an unfocused
+ * window, the settle period after launch, the kill switch, the daily cap and the minimum
+ * gap. It does **not** gate on typing: there is no typing or idle field on `SchedulerState`,
+ * and `doNotDisturb` - the only hook that could carry one - is hard-coded `false` by the
+ * desktop app. Cards are meant to arrive mid-work, and always have.
+ *
+ * This preset table changes how often a card is *eligible*, not whether work is
  * interrupted. `off` still means off.
  */
 export const PRESETS: Readonly<Record<FrequencyPreset, FrequencyCaps>> = {

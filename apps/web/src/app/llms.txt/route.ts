@@ -1,8 +1,9 @@
 import { FAQ } from "@/lib/schema";
 import { allPosts } from "@/lib/posts";
 import { docsBySection } from "@/lib/docs";
+import { landingIndex } from "@/lib/landings";
 import { allReleases } from "@/lib/releases";
-import { SITE, url } from "@/lib/site";
+import { PARENT, SITE, url } from "@/lib/site";
 
 /**
  * `/llms.txt` - a plain-text summary for answer engines and assistants.
@@ -22,6 +23,21 @@ export async function GET(): Promise<Response> {
     .join("\n");
 
   const faq = FAQ.map((item) => `### ${item.q}\n\n${item.a}`).join("\n\n");
+
+  /*
+   * The pages written for a question rather than for a visitor.
+   *
+   * These are the ones an assistant asked "is there a free alternative to Cursor" should
+   * be able to reach, and they are also where the honest concessions live - each
+   * comparison names the case for choosing the other product. Listing them by their real
+   * paths matters more here than anywhere else on the site: the previous version of this
+   * file advertised `/download` and `/advertise`, both of which are redirect stubs, so
+   * every machine that followed a link from it landed somewhere other than the page it
+   * had been promised.
+   */
+  const pages = landingIndex()
+    .map((page) => `- [${page.title}](${url(page.path)}): ${page.description}`)
+    .join("\n");
 
   /*
    * The documentation index, grouped the way the sidebar groups it. One line per feature
@@ -63,17 +79,24 @@ revenue to the developer using it.
 - Earnings record: an append-only ledger. Entries are never edited or deleted; corrections
   are recorded as reversals that reference the original entry.
 
+## Publisher
+
+${SITE.name} is published by ${PARENT.name} (${PARENT.url}), an independent software studio.
+The studio's page about this product is ${PARENT.productUrl}.
+
 ## Pages
 
 - [Home](${url("/")}): what ADCode is and how earnings work.
-- [Download](${url("/download")}): one-line install for Windows, macOS, and Linux.
-- [Advertise](${url("/advertise")}): targeting, pricing, and verification for advertisers.
-- [Documentation](${url("/docs")}): every feature, what it does and how to use it.
+- [Download and releases](${url("/versions")}): one-line install for Windows, macOS, and Linux, and what changed in each release.
+- [Advertise](${url("/#advertise")}): targeting, pricing, and verification for advertisers.
 - [Documentation](${url("/docs")}): every feature, plus the explanations of how the system works.
-- [Releases](${url("/versions")}): what changed in each release.
 - [Full text for machines](${url("/llms-full.txt")}): the complete text of every page in one file.
 - [Privacy](${url("/privacy")}): what is collected and what is not.
 - [Terms](${url("/terms")}): the terms of use.
+
+## Guides and comparisons
+
+${pages}
 
 ## Documentation
 

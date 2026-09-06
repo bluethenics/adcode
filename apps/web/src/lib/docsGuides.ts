@@ -157,7 +157,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Nothing phones home; the helper runs on your machine, reading your project locally.",
     ],
     betterThan:
-      "Typical editors bundle their own forks and decide what you get. ADCode speaks the standard protocol and uses the servers you already have - the same intelligence the CLI tools use, with no second copy to maintain.",
+      "Typical editors bundle their own versions and decide what you get. ADCode speaks the standard protocol and uses the servers you already have, giving you the same intelligence as your command-line tools without duplicate tooling.",
   },
 
   "language-dap-client": {
@@ -174,10 +174,85 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Languages without a debug adapter say so honestly instead of offering dead buttons.",
     ],
     betterThan:
-      "Print-debugging is guessing with extra steps; most light editors leave you to it because a real debug adapter client is hard to build. ADCode includes one, wired for JavaScript, TypeScript, and Python out of the box.",
+      "Print-debugging only shows the values you remembered to print. ADCode includes visual debugging for JavaScript, TypeScript, and Python out of the box, so you can inspect the full state at each breakpoint.",
   },
 
   /* ── The assistant ───────────────────────────────────────────────────── */
+
+  "ai-terminal-team": {
+    steps: [
+      "Open a terminal in ADCode, right-click anywhere in it, and choose Start a Team here.",
+      "Describe the whole task in one sentence - the same way you would brief one assistant.",
+      "Name the CLIs you want, separated by commas, in the order they should take Build, Tests, Docs and Review. Two is a team; four is the maximum.",
+      "Read the line-up and confirm. Nothing has started until you do.",
+      "ADCode opens a terminal for each CLI, starts it, and gives it its own part of the task plus whatever its teammates have already finished.",
+      "Watch them work. A task that depends on another one waits until that one reports it is done.",
+      "To stop early, right-click any terminal and choose Stop the running Team. The terminals stay open so you can read what happened.",
+    ],
+    benefits: [
+      "The CLIs you already pay for stop taking turns. Claude Code can write the change while Codex writes the tests and Kimi writes the docs.",
+      "Each agent is briefed once, by ADCode, with the acceptance criteria and what its teammates finished - not by you, four times, in four panes.",
+      "Work only starts when its dependencies are done, so the tester never reviews a half-written change.",
+      "Closing one terminal fails only that task. The others keep going.",
+    ],
+    betterThan:
+      "Multi-agent tools normally mean one vendor's agents, on one vendor's subscription, in a web app that cannot touch your working tree. ADCode orchestrates the command-line agents you already installed and already pay for - Claude Code, Codex, Grok, Kimi, Gemini, Cursor, Qwen, Amp, Goose and the rest - side by side in your own editor, on your own files. No other editor lets rival CLIs work as one team.",
+  },
+
+  "ai-auto-continue": {
+    steps: [
+      "Right-click a terminal running an agent and choose Continue after usage limits, or turn it on in AI settings.",
+      "Set how many continuations you will allow in one session - one, three, or five.",
+      "Work as normal. When the agent says it has hit a usage or rate limit and names a retry time, ADCode waits for it.",
+      "At that time ADCode types a single word - continue - and tells you it did.",
+      "Touch the terminal at any point and the pending continuation is cancelled, because you have taken over.",
+    ],
+    benefits: [
+      "A long task that hits a limit at midnight is still moving at half past, without you sitting up for it.",
+      "It works with whichever CLI you run - Claude Code, Codex, Grok, Kimi and the others are all recognised.",
+      "The retry cap means a repeatedly limited agent stops rather than looping all night.",
+      "Only the terminal output already on your screen is read, and only for a limit message with a stated retry time. An unclear message stops safely.",
+    ],
+    betterThan:
+      "Everywhere else this is a shell script you wrote yourself, guessing at the retry time and re-sending blindly. ADCode reads the agent's own stated reset time, sends exactly one word, caps the retries, and cancels the moment you touch the keyboard.",
+  },
+
+  "ai-scheduled-messages": {
+    steps: [
+      "Right-click the terminal running your agent and choose Schedule a message, or run Schedule an AI Message from the palette.",
+      "Write the message and pick a local time for it.",
+      "Choose where it goes: the built-in assistant, or any terminal with an agent in it - each one is listed by the CLI running there.",
+      "For a terminal target, right-click it and choose Allow the next scheduled message while its prompt is sitting idle.",
+      "Leave ADCode open. At the chosen time the message is typed into that target.",
+      "If ADCode was closed or the target was busy, the message is marked missed and waits for you to choose Run now.",
+    ],
+    benefits: [
+      "A follow-up review at 6pm reaches the agent instead of reaching a notepad.",
+      "With several CLIs running in split terminals, each is its own target - so a message written for Codex goes to Codex, not to whichever pane happened to be focused.",
+      "The one-time permission means an agent mid-thought never gets interrupted by something you queued an hour ago.",
+      "Nothing is silently dropped: a message that could not be delivered says so and offers to run.",
+    ],
+    betterThan:
+      "A reminder app can tell you to prompt your agent. ADCode actually prompts it - into the right terminal, at the right time, only when that agent is genuinely idle and waiting.",
+  },
+
+  "ai-terminal-agent-detection": {
+    steps: [
+      "Turn it on in AI settings; it is on by default.",
+      "Start any agent CLI in ADCode's terminal - claude, codex, gemini, grok, kimi, qwen, amp, goose, crush, droid, cursor-agent, aider, opencode or copilot.",
+      "ADCode recognises it from the command you typed and offers to share this project's memory with it.",
+      "Choose Copy to put the connection command on your clipboard, then run it once if you want it.",
+      "From then on that terminal can use automatic continuation, scheduled messages and Team.",
+    ],
+    benefits: [
+      "Detection is what turns on every other terminal AI feature, so a recognised CLI immediately gains all three.",
+      "Two assistants working on one project can share what ADCode already remembers about it, instead of each starting from nothing.",
+      "Recognition comes from the command you typed - nothing else about your machine is inspected.",
+      "The offer appears once per agent per run, not every time you restart it.",
+    ],
+    betterThan:
+      "Other editors treat the terminal as a dumb box that happens to be embedded. ADCode notices what you started in it and makes the editor's own memory, scheduling and orchestration available to it - without a plugin per CLI.",
+  },
 
   "ai-connect": {
     steps: [
@@ -284,6 +359,23 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   },
 
   /* ── The workbench ───────────────────────────────────────────────────── */
+
+  "updates-auto": {
+    steps: [
+      "Leave it on, which is the default. New versions download in the background.",
+      "Keep working. ADCode never restarts itself and never asks you to.",
+      "Close the editor when you are ready. The next launch is the new version.",
+      "Help → Check for Updates asks straight away and tells you where you stand.",
+      "Turn it off to update by hand; Help → Check for Updates still works.",
+    ],
+    benefits: [
+      "An update never costs you an unsaved buffer, because it applies on a restart you chose.",
+      "No modal demanding a restart, and no progress bar between you and your work.",
+      "Whichever way you installed ADCode, only one thing is ever updating it.",
+    ],
+    betterThan:
+      "Where ADCode installed itself, it updates itself; where something else installed it, that keeps the job. From the Microsoft Store the Store updates it, and on Linux your package manager does — in those builds ADCode's own updater stands down instead of downloading a copy it has no permission to apply, and Settings tells you so rather than showing a check that can never succeed.",
+  },
 
   "workbench-terminal": {
     steps: [
@@ -418,7 +510,7 @@ export const SECTION_COMPARISONS: Readonly<Record<string, string>> = {
   "Understanding a project":
     "Knowing what a style rule touches, or which classes nothing defines, normally needs a bespoke extension per framework - if it exists at all. ADCode reads HTML, JSX, Vue, Angular, and Handlebars templates natively and connects markup to styles both ways, with findings surfaced in the same Problems panel as everything else.",
   Languages:
-    "Instead of bundling its own forks of every toolchain, ADCode speaks the standard protocols - LSP for intelligence, DAP for debugging, tree-sitter for highlighting - and uses the servers installed on your machine. You get the same understanding the CLI tools have, one config line for anything unsupported, and no second copy of anything to maintain.",
+    "Instead of bundling separate versions of every toolchain, ADCode speaks the standard protocols - LSP for intelligence, DAP for debugging, and tree-sitter for highlighting - and uses the servers installed on your machine. You get the same understanding as your command-line tools, with one configuration line for anything unsupported and no duplicate tooling.",
   "The assistant":
     "Most AI editors rent you a subscription, choose your models, and take a margin on every token. ADCode connects to the provider you pick - major labs, a gateway, or a model on your own machine - stores your key in your OS keychain, keeps conversations on your disk, and shows you exactly what its memory holds.",
   Git:

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCommandLineReader, detectAgent } from "@adcode/ai/agents";
+import { agentCommand, createCommandLineReader, detectAgent, knownAgents } from "@adcode/ai/agents";
 
 describe("detectAgent", () => {
   it("recognises an agent started by name", () => {
@@ -47,6 +47,52 @@ describe("detectAgent", () => {
     expect(detectAgent("npm run build")).toBeNull();
     expect(detectAgent("ls -la")).toBeNull();
     expect(detectAgent("")).toBeNull();
+  });
+
+  /*
+   * Detection is what gates every terminal AI feature: an undetected CLI gets no automatic
+   * continuation, cannot be a scheduled message's target, and cannot take a Team role. So
+   * each recognised name is worth a line here rather than trusting the map by inspection.
+   */
+  it("recognises the other agent CLIs people run", () => {
+    expect(detectAgent("grok")?.name).toBe("Grok CLI");
+    expect(detectAgent("kimi")?.name).toBe("Kimi CLI");
+    expect(detectAgent("qwen")?.name).toBe("Qwen Code");
+    expect(detectAgent("amp")?.name).toBe("Amp");
+    expect(detectAgent("goose session")?.name).toBe("Goose");
+    expect(detectAgent("crush")?.name).toBe("Crush");
+    expect(detectAgent("droid")?.name).toBe("Factory Droid");
+    expect(detectAgent("cn")?.name).toBe("Continue CLI");
+    expect(detectAgent("cursor-agent")?.name).toBe("Cursor Agent");
+  });
+
+  /* `cursor` alone opens the editor, not the agent, and must not be mistaken for it. */
+  it("does not treat the Cursor editor as the Cursor agent", () => {
+    expect(detectAgent("cursor .")).toBeNull();
+  });
+
+  it("sees the newer ones through a runner and a path too", () => {
+    expect(detectAgent("npx grok")?.id).toBe("grok");
+    expect(detectAgent("XAI_API_KEY=sk-x grok --resume")?.id).toBe("grok");
+    expect(detectAgent("./node_modules/.bin/kimi")?.id).toBe("kimi");
+  });
+});
+
+describe("knownAgents", () => {
+  it("lists every recognised agent once, sorted for a menu", () => {
+    const names = knownAgents().map((agent) => agent.name);
+    expect(names).toContain("Grok CLI");
+    expect(names).toContain("Kimi CLI");
+    expect(names).toContain("Claude Code");
+    expect(new Set(names).size).toBe(names.length);
+    expect([...names]).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+  });
+
+  /* Team launches a CLI by typing its name, so every listed agent needs one that works. */
+  it("gives a command that detection recognises back", () => {
+    for (const agent of knownAgents()) {
+      expect(detectAgent(agentCommand(agent.id))?.id).toBe(agent.id);
+    }
   });
 });
 

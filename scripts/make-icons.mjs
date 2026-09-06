@@ -8,13 +8,14 @@
  * Writes:
  *   build/icon.ico   multi-size, for the Windows installer, the taskbar and Explorer
  *   build/icon.png   512px, electron-builder's fallback and the Linux icon
+ *   build/appx/*.png the six tiles the Microsoft Store package needs
  *
  * The .ico embeds PNGs rather than BMPs. That has been valid since Vista, and it is what
  * keeps the 256px entry from costing 256KB of uncompressed bitmap.
  */
 import { app, BrowserWindow } from "electron";
 import { appendFileSync, writeFileSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import process from "node:process";
@@ -48,6 +49,27 @@ const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256];
 const PNG_SIZE = 512;
 
 /**
+ * The tiles the Microsoft Store package needs, at the exact names electron-builder looks
+ * for in `build/appx`.
+ *
+ * Generated here rather than drawn by hand because electron-builder silently falls back to
+ * its own bundled placeholders when a tile is missing - so a forgotten file does not fail
+ * the build, it ships an Electron logo to the Store listing.
+ *
+ * `Wide310x150Logo` is the only non-square one. The mark is square, so it is centred on a
+ * transparent canvas rather than stretched; a stretched logo is the tell of a rushed
+ * submission and Store review does look.
+ */
+const APPX_TILES = [
+  { file: "StoreLogo.png", width: 50, height: 50 },
+  { file: "Square44x44Logo.png", width: 44, height: 44 },
+  { file: "Square71x71Logo.png", width: 71, height: 71 },
+  { file: "Square150x150Logo.png", width: 150, height: 150 },
+  { file: "Square310x310Logo.png", width: 310, height: 310 },
+  { file: "Wide310x150Logo.png", width: 310, height: 150 },
+];
+
+/**
  * One PNG of the mark, drawn onto a canvas inside the page.
  *
  * Not `capturePage`. That screenshots the *compositor*, so it needs a window that is
@@ -73,6 +95,38 @@ async function render(window, svg, size) {
         const context = canvas.getContext("2d");
         context.clearRect(0, 0, ${size}, ${size});
         context.drawImage(image, 0, 0, ${size}, ${size});
+        resolve(canvas.toDataURL("image/png").split(",")[1]);
+      };
+      image.onerror = () => reject(new Error("the SVG did not decode"));
+      image.src = ${JSON.stringify(source)};
+    })
+  `);
+
+  return Buffer.from(base64, "base64");
+}
+
+/**
+ * The square mark, centred on a canvas of any shape.
+ *
+ * `render` above asks the SVG to decode at the size it wants, which only works while the
+ * target is square. A 310x150 tile has to draw a 150x150 mark in the middle of a
+ * transparent strip instead - scaling the mark to fill would distort it.
+ */
+async function renderTile(window, svg, width, height) {
+  const side = Math.min(width, height);
+  const sized = svg.replace("<svg ", `<svg width="${side}" height="${side}" `);
+  const source = `data:image/svg+xml;base64,${Buffer.from(sized).toString("base64")}`;
+
+  const base64 = await window.webContents.executeJavaScript(`
+    new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = ${width};
+        canvas.height = ${height};
+        const context = canvas.getContext("2d");
+        context.clearRect(0, 0, ${width}, ${height});
+        context.drawImage(image, ${Math.round((width - side) / 2)}, ${Math.round((height - side) / 2)}, ${side}, ${side});
         resolve(canvas.toDataURL("image/png").split(",")[1]);
       };
       image.onerror = () => reject(new Error("the SVG did not decode"));
@@ -146,6 +200,15 @@ void app.whenReady().then(async () => {
 
     log(`build/icon.ico  ${ICO_SIZES.join(", ")}`);
     log(`build/icon.png  ${PNG_SIZE}x${PNG_SIZE}`);
+
+    // The Store tiles, from the same SVG, so a redrawn mark cannot leave them behind.
+    const appx = join(REPO, "build", "appx");
+    await mkdir(appx, { recursive: true });
+    for (const tile of APPX_TILES) {
+      await writeFile(join(appx, tile.file), await renderTile(window, svg, tile.width, tile.height));
+      log(`build/appx/${tile.file}  ${tile.width}x${tile.height}`);
+    }
+
     log("--- done ---");
     app.exit(0);
   } catch (error) {

@@ -14,7 +14,22 @@
  * Pure, so the parsing is tested against strings rather than by starting subprocesses.
  */
 
-export type AgentId = "claude" | "codex" | "gemini" | "aider" | "opencode" | "cursor" | "copilot";
+export type AgentId =
+  | "claude"
+  | "codex"
+  | "gemini"
+  | "aider"
+  | "opencode"
+  | "cursor"
+  | "copilot"
+  | "grok"
+  | "kimi"
+  | "qwen"
+  | "amp"
+  | "goose"
+  | "crush"
+  | "droid"
+  | "continue";
 
 export interface DetectedAgent {
   readonly id: AgentId;
@@ -39,8 +54,35 @@ const AGENTS = new Map<string, DetectedAgent>(
     opencode: { id: "opencode", name: "OpenCode" },
     "cursor-agent": { id: "cursor", name: "Cursor Agent" },
     copilot: { id: "copilot", name: "GitHub Copilot CLI" },
+    grok: { id: "grok", name: "Grok CLI" },
+    kimi: { id: "kimi", name: "Kimi CLI" },
+    qwen: { id: "qwen", name: "Qwen Code" },
+    amp: { id: "amp", name: "Amp" },
+    goose: { id: "goose", name: "Goose" },
+    crush: { id: "crush", name: "Crush" },
+    droid: { id: "droid", name: "Factory Droid" },
+    cn: { id: "continue", name: "Continue CLI" },
   }) as [string, DetectedAgent][],
 );
+
+/**
+ * Every agent this build can recognise, for the places that have to offer a choice.
+ *
+ * Team mode needs a list to put in a picker, and a picker built by hand next to the map
+ * above is a list that goes stale the first time somebody adds an agent and only edits one
+ * of them. Sorted by name so the menu order does not depend on object key order.
+ */
+export function knownAgents(): DetectedAgent[] {
+  return [...new Map([...AGENTS.values()].map((agent) => [agent.id, agent])).values()].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+}
+
+/** The word that starts an agent, for a Team pane that has to launch one. */
+export function agentCommand(id: AgentId): string {
+  for (const [word, agent] of AGENTS) if (agent.id === id) return word;
+  throw new Error(`Unknown agent ${id}`);
+}
 
 /** Runners that put the real command one word later. */
 const RUNNERS = new Set(["npx", "pnpm", "bunx", "yarn", "uvx", "uv", "pipx", "sudo", "time", "env"]);

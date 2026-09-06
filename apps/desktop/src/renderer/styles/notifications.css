@@ -26,7 +26,12 @@
 .toast {
   pointer-events: auto;
   display: grid;
-  grid-template-columns: 32px 1fr auto;
+  /*
+   * Plain notices have content and a dismiss control. The logo column belongs only to
+   * sponsored notices; reserving it here put ordinary notification content in a 32px
+   * track, including the Restore/Discard actions on crash-recovery notices.
+   */
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 10px;
   width: 320px;
@@ -41,6 +46,11 @@
   transition:
     transform 180ms var(--ease-toast),
     opacity var(--duration-exit) var(--ease-toast);
+}
+
+/* Sponsored notices add the leading logo that their three-column markup provides. */
+.toast-sponsored {
+  grid-template-columns: 32px minmax(0, 1fr) auto;
 }
 
 .toast[data-state="entering"] {

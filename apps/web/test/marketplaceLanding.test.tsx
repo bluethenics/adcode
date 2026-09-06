@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import Home from "../src/app/page";
 import { MarketPriceChart } from "../src/components/MarketPriceChart";
 import { AdPreviewMark } from "../src/components/AdPreviewMark";
 import {
@@ -81,5 +82,14 @@ describe("landing ad preview", () => {
     expect(markup).toContain("bid-preview-initial");
     expect(markup).toContain(">L<");
     expect(markup).not.toContain("<img");
+  });
+});
+
+describe("landing page focus", () => {
+  it("keeps advertising available without showing the live market panel", () => {
+    const markup = renderToStaticMarkup(<Home />);
+
+    expect(markup).toContain("Advertise on ADCode");
+    expect(markup).not.toContain('class="market-panel"');
   });
 });

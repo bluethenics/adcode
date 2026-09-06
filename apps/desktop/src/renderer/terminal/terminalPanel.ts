@@ -10,13 +10,21 @@
  */
 import { createTerminalHost, type TerminalHost } from "./terminalHost.ts";
 import { uniqueTerminalTitle } from "./terminalTitles.ts";
+import { terminalMenuModel } from "./terminalMenu.ts";
+import {
+  createTerminalTeamRunner,
+  type TerminalTeamRunner,
+  type TerminalTeamStatus,
+} from "./terminalTeamRunner.ts";
 import { ICON, createIcon } from "../workbench/icons.ts";
+import { createContextMenu, attachContextMenuDismissal } from "../workbench/contextMenu.ts";
 import type { ThemeChoice } from "../../shared/api.ts";
 import {
   createAiUsageLimitReader,
   type AiUsageLimitReader,
 } from "@adcode/ai/continuation";
 import type { DetectedAgent } from "@adcode/ai/agents";
+import type { TeamPlan, TerminalTeamAssignment } from "@adcode/ai/terminalTeam";
 import {
   refreshAiAutomationTargets,
   registerAiAutomationAdapter,
@@ -35,6 +43,8 @@ interface Pane {
   continuationDeadline: number | null;
   activityVersion: number;
   scheduleGrantVersion: number | null;
+  /** Removes this pane's scheduled-message adapter when the pane goes away. */
+  releaseAdapter: (() => void) | null;
 }
 
 interface Tab {
@@ -64,6 +74,22 @@ export interface TerminalPanel {
   setAgentDetection(enabled: boolean): void;
   /** Opt-in literal `continue` after a detected agent reports a usage limit. */
   setAutoContinue(enabled: boolean, maxAttempts?: number): void;
+  /** Whether automatic continuation is on, for the menu that offers to flip it. */
+  autoContinue(): boolean;
+  /** `adcode.ai.scheduledMessages`, so the menu can hide what would not be delivered. */
+  setScheduling(enabled: boolean): void;
+  /**
+   * Run a Team plan across terminal panes, one external CLI per role.
+   *
+   * Each role gets its own pane and its own agent, and a node is only handed over once
+   * everything it depends on has reported finished. Nothing is sandboxed: these CLIs edit
+   * the real working tree, which is why the caller confirms the plan first.
+   */
+  startTeam(plan: TeamPlan, assignments: readonly TerminalTeamAssignment[]): Promise<void>;
+  stopTeam(): void;
+  teamStatus(): TerminalTeamStatus | null;
+  /** Called whenever a Team task starts, finishes, or fails. */
+  onTeamChanged(listener: () => void): () => void;
   /** Paste the clipboard into the active terminal. */
   paste(): void;
   /** Copy the active terminal's selection. */
@@ -107,6 +133,16 @@ export interface TerminalPanelDeps {
    */
   readonly mcpConnection?: () => Promise<{ command: string; available: boolean }>;
   /**
+   * The three doors the right-click menu opens that are not the terminal's to own.
+   *
+   * Scheduling and Team both have composers in the Assistant, and the feature library is a
+   * whole panel. The terminal knows when to offer them and nothing else about them, which
+   * is what keeps this file from importing half the renderer.
+   */
+  readonly onScheduleMessage?: () => void;
+  readonly onSetUpTeam?: () => void;
+  readonly onShowFeatures?: () => void;
+  /**
    * Called when the visible terminal changes.
    *
    * The tab strip hides itself at one terminal, so with named shells the panel header is
@@ -126,47 +162,285 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
     return tab?.panes[tab.activePane];
   };
 
+  /**
+   * Whether a pane can be handed a message right now, and why not when it cannot.
+   *
+   * Shared by the adapter's snapshot and its delivery so the reason the target was offered
+   * and the reason delivery was refused can never disagree - they are the same three rules
+   * read in the same order.
+   */
+  function paneDeliveryRefusal(pane: Pane | undefined): string | null {
+    if (pane === undefined || pane.agent === null) return "No detected AI is in that terminal";
+    if (pane.continuationTimer !== null || pane.continuationArmTimer !== null) {
+      return "The terminal AI is waiting for a usage limit to reset";
+    }
+    if (pane.scheduleGrantVersion !== pane.activityVersion) {
+      return "Confirm the terminal AI is waiting at its prompt before delivery";
+    }
+    return null;
+  }
+
+  function deliverToPane(pane: Pane | undefined, message: string): void {
+    const refusal = paneDeliveryRefusal(pane);
+    if (refusal !== null || pane === undefined) throw new Error(refusal ?? "No terminal");
+    pane.scheduleGrantVersion = null;
+    refreshAiAutomationTargets();
+    pane.host.send(message);
+  }
+
+  /**
+   * The active pane, as a scheduling target.
+   *
+   * Kept alongside the per-pane adapters below because messages scheduled before those
+   * existed carry `terminal:active` as their target id, and a target that vanishes turns
+   * every one of them into a missed delivery the user has to re-run by hand.
+   */
   registerAiAutomationAdapter({
     snapshot: () => {
       const pane = activePane();
       const limited =
         pane !== undefined &&
         (pane.continuationTimer !== null || pane.continuationArmTimer !== null);
-      const ready =
-        pane?.agent !== null &&
-        pane?.agent !== undefined &&
-        pane.scheduleGrantVersion === pane.activityVersion;
+      const ready = pane !== undefined && paneDeliveryRefusal(pane) === null;
       return {
         id: "terminal:active",
-        label: pane?.agent === null || pane?.agent === undefined ? "Active terminal AI" : pane.agent.name,
+        label: pane?.agent == null ? "Active terminal AI" : `${pane.agent.name} (active terminal)`,
         kind: "terminal" as const,
-        connected: pane?.agent !== null && pane?.agent !== undefined,
+        connected: pane?.agent != null,
         promptState: limited ? ("limited" as const) : ready ? ("ready" as const) : ("ambiguous" as const),
         capabilities: { scheduledPrompts: true, cancellation: false, safeContinuation: true },
       };
     },
-    deliver(message) {
-      const pane = activePane();
-      if (pane?.agent === null || pane?.agent === undefined) {
-        throw new Error("No detected AI is active in the terminal");
-      }
-      if (pane.continuationTimer !== null || pane.continuationArmTimer !== null) {
-        throw new Error("The terminal AI is waiting for a usage limit to reset");
-      }
-      if (pane.scheduleGrantVersion !== pane.activityVersion) {
-        throw new Error("Confirm the terminal AI is waiting at its prompt before delivery");
-      }
-      pane.scheduleGrantVersion = null;
-      refreshAiAutomationTargets();
-      pane.host.send(message);
-    },
+    deliver: (message) => deliverToPane(activePane(), message),
   });
+
+  /**
+   * One scheduling target per pane, named after the CLI running in it.
+   *
+   * With only the active-terminal target above, somebody running Grok, Codex and Kimi in
+   * three split panes could schedule to exactly one of them - whichever happened to be
+   * focused when the message came due, which is not a thing anyone can plan around. A
+   * stable per-pane id lets a message name the CLI it was written for.
+   */
+  function registerPaneAdapter(pane: Pane): () => void {
+    return registerAiAutomationAdapter({
+      snapshot: () => {
+        const limited = pane.continuationTimer !== null || pane.continuationArmTimer !== null;
+        return {
+          id: `terminal:pane:${pane.id}`,
+          label: pane.agent === null ? `Terminal ${pane.id}` : `${pane.agent.name} · terminal ${pane.id}`,
+          kind: "terminal" as const,
+          connected: pane.agent !== null,
+          promptState: limited
+            ? ("limited" as const)
+            : paneDeliveryRefusal(pane) === null
+              ? ("ready" as const)
+              : ("ambiguous" as const),
+          capabilities: { scheduledPrompts: true, cancellation: false, safeContinuation: true },
+        };
+      },
+      deliver: (message) => deliverToPane(pane, message),
+    });
+  }
+
+  /* ── Team, across panes ─────────────────────────────────────────────── */
+
+  /**
+   * The Team runner drives panes it asks for; it never reaches into them itself.
+   *
+   * `openPane` splits the active tab while there is room and starts a new tab after that,
+   * so a four-role plan does not end up refused by the four-pane split limit.
+   */
+  const team: TerminalTeamRunner = createTerminalTeamRunner({
+    async openPane(roleLabel) {
+      const tab = activeTab === null ? undefined : findTab(activeTab);
+
+      /*
+       * Both `split` and `create` report failure by notifying and returning, not by
+       * throwing - they are wired to buttons, where a rejected promise is a silent
+       * no-op. So the count is checked rather than the call: without that, a refused
+       * split hands back the *previous* last pane, which is already running somebody
+       * else's task, and the team dies on "pane is already busy" instead of on the
+       * real reason.
+       */
+      if (tab !== undefined && tab.panes.length < 4) {
+        const before = tab.panes.length;
+        await split();
+        const pane = tab.panes.length > before ? tab.panes[tab.panes.length - 1] : undefined;
+        if (pane === undefined) throw new Error(`No terminal could be opened for ${roleLabel}`);
+        return pane.id;
+      }
+
+      const tabsBefore = tabs.length;
+      await create();
+      const opened = tabs.length > tabsBefore && activeTab !== null ? findTab(activeTab) : undefined;
+      const pane = opened?.panes[0];
+      if (pane === undefined) throw new Error(`No terminal could be opened for ${roleLabel}`);
+      return pane.id;
+    },
+    send(paneId, text) {
+      paneById(paneId)?.host.send(text);
+    },
+    label(paneId, title) {
+      const tab = tabs.find((candidate) => candidate.panes.some((pane) => pane.id === paneId));
+      if (tab === undefined) return;
+      tab.title = uniqueTerminalTitle(
+        title,
+        tabs.filter((other) => other !== tab).map((other) => other.title),
+      );
+      renderTabs();
+      deps.onActiveTitle(activeTab === null ? null : (findTab(activeTab)?.title ?? null));
+    },
+    notify: (message) => deps.notify(message),
+    now: () => Date.now(),
+  });
+
+  // A CLI that finished without printing the marker still has to release its pane. Once a
+  // minute is often enough for a five-minute threshold and cheap enough to always run; the
+  // timer lives as long as the window, like the panel itself.
+  window.setInterval(() => team.sweep(), 60_000);
+
+  /**
+   * What the Team is doing, above the terminals.
+   *
+   * Renamed tab titles and a notification per finished task are real feedback, but neither
+   * answers "how far through is it" - and four panes each showing one agent's scrollback is
+   * precisely the situation where that is the only question worth asking. One line, only
+   * while a team exists.
+   */
+  /*
+   * Both strips share one grid cell.
+   *
+   * `.panel-body-terminal` defines exactly two rows, and `.agent-strip` is pinned to the
+   * first - so a second strip placed the same way would sit on top of the memory offer
+   * rather than under it. A flex wrapper in that one cell stacks however many strips the
+   * panel grows without the grid needing to know about any of them.
+   */
+  const strips = document.createElement("div");
+  strips.className = "terminal-strips";
+  deps.container.prepend(strips);
+
+  const teamStrip = document.createElement("div");
+  teamStrip.className = "agent-strip team-strip";
+  teamStrip.hidden = true;
+  strips.append(teamStrip);
+
+  const STATE_MARK: Readonly<Record<string, string>> = {
+    completed: "done",
+    running: "running",
+    failed: "failed",
+    blocked: "blocked",
+    pending: "waiting",
+    paused: "paused",
+  };
+
+  function renderTeamStrip(): void {
+    const status = team.status();
+    if (status === null) {
+      teamStrip.hidden = true;
+      teamStrip.replaceChildren();
+      return;
+    }
+
+    const done = status.nodes.filter((node) => node.state === "completed").length;
+    const headline = document.createElement("span");
+    headline.className = "agent-strip-text";
+    headline.textContent =
+      status.state === "active"
+        ? `Team: ${String(done)} of ${String(status.nodes.length)} done`
+        : status.state === "completed"
+          ? "Team: finished"
+          : "Team: stopped with unfinished tasks";
+
+    const detail = document.createElement("code");
+    detail.className = "agent-strip-command";
+    detail.textContent = status.nodes
+      .map((node) => `${node.roleLabel} ${STATE_MARK[node.state] ?? node.state}`)
+      .join("  ·  ");
+
+    const stop = document.createElement("button");
+    stop.type = "button";
+    stop.className = "ghost-button";
+    stop.textContent = status.state === "active" ? "Stop" : "Dismiss";
+    stop.addEventListener("click", () => team.stop());
+
+    teamStrip.replaceChildren(headline, detail, stop);
+    teamStrip.hidden = false;
+  }
+
+  team.onChanged(renderTeamStrip);
+
+  function paneById(id: number): Pane | undefined {
+    for (const tab of tabs) {
+      const pane = tab.panes.find((candidate) => candidate.id === id);
+      if (pane !== undefined) return pane;
+    }
+    return undefined;
+  }
+
+  /* ── The right-click menu ───────────────────────────────────────────── */
+
+  const menu = createContextMenu(deps.container);
+  attachContextMenuDismissal(menu, () => activePane()?.host.focus());
+
+  /**
+   * Open the menu for the pane that was right-clicked.
+   *
+   * Everything the terminal's AI features can do was, until this menu existed, reachable
+   * only from a settings screen and a panel on the other side of the window - so somebody
+   * running an agent in here had no way to discover any of it. The right-click is where
+   * people look for what an element can do.
+   */
+  function openPaneMenu(pane: Pane, x: number, y: number): void {
+    const nodes = terminalMenuModel(
+      {
+        agent: pane.agent,
+        autoContinue,
+        continuationPending: pane.continuationTimer !== null || pane.continuationArmTimer !== null,
+        schedulingEnabled,
+        scheduleAllowed: pane.scheduleGrantVersion === pane.activityVersion,
+        teamRunning: team.isRunning(),
+        hasSelection: pane.host.hasSelection(),
+      },
+      {
+        copy: () => void pane.host.copy(),
+        paste: () => pane.host.paste(),
+        clear: () => pane.host.clear(),
+        split: () => void split(),
+        close: () => {
+          const tab = tabs.find((candidate) => candidate.panes.includes(pane));
+          if (tab !== undefined) kill(tab.id);
+        },
+        toggleAutoContinue: () => {
+          // Written to settings rather than flipped locally: the settings screen, the
+          // Feature library and this menu must not be able to disagree about it.
+          void window.adcode.settings.write("adcode.ai.autoContinue", !autoContinue);
+        },
+        cancelContinuation: () => {
+          clearContinuation(pane);
+          deps.notify("The pending continuation was cancelled.");
+        },
+        allowSchedule: () => {
+          pane.scheduleGrantVersion = pane.activityVersion;
+          refreshAiAutomationTargets();
+          deps.notify(`${pane.agent?.name ?? "That terminal"} may receive its next scheduled message.`);
+        },
+        scheduleMessage: () => deps.onScheduleMessage?.(),
+        startTeam: () => deps.onSetUpTeam?.(),
+        stopTeam: () => team.stop(),
+        showFeatures: () => deps.onShowFeatures?.(),
+      },
+    );
+
+    menu.open(x, y, nodes);
+  }
 
   /* ── The shared-memory offer ────────────────────────────────────────── */
 
   let agentDetection = true;
   let autoContinue = false;
   let autoContinueMaxAttempts = 3;
+  let schedulingEnabled = true;
 
   function clearContinuation(pane: Pane): void {
     if (pane.continuationTimer !== null) window.clearTimeout(pane.continuationTimer);
@@ -224,7 +498,8 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
   });
 
   strip.append(stripText, stripCommand, stripCopy, stripSchedule, stripDismiss);
-  deps.container.prepend(strip);
+  // Below the Team strip: an offer can wait, a running team is what you are watching.
+  strips.append(strip);
 
   /**
    * Offer to connect a recognised agent to this project's memory.
@@ -339,6 +614,9 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
       },
       onOutput: (data) => {
         if (pane === null) return;
+        // Before anything else: this is what tells a running Team its task has finished,
+        // and it must not be skipped by any of the early returns below.
+        team.observe(pane.id, data);
         pane.activityVersion += 1;
         if (pane.scheduleGrantVersion !== null) {
           pane.scheduleGrantVersion = null;
@@ -418,7 +696,16 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
       continuationDeadline: null,
       activityVersion: 0,
       scheduleGrantVersion: null,
+      releaseAdapter: null,
     };
+    pane.releaseAdapter = registerPaneAdapter(pane);
+
+    const owned = pane;
+    element.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      openPaneMenu(owned, event.clientX, event.clientY);
+    });
+
     return pane;
   }
 
@@ -496,6 +783,11 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
 
     for (const pane of tab.panes) {
       clearContinuation(pane);
+      pane.releaseAdapter?.();
+      pane.releaseAdapter = null;
+      // Before disposing the host, so a Team task running here is failed with a reason
+      // rather than left running against a pty that has gone.
+      team.paneClosed(pane.id);
       pane.host.dispose();
     }
     tab.element.remove();
@@ -536,6 +828,17 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
         }
       }
     },
+
+    autoContinue: () => autoContinue,
+
+    setScheduling(enabled: boolean): void {
+      schedulingEnabled = enabled;
+    },
+
+    startTeam: (plan, assignments) => team.start(plan, assignments),
+    stopTeam: () => team.stop(),
+    teamStatus: () => team.status(),
+    onTeamChanged: (listener) => team.onChanged(listener),
 
     create,
     split,

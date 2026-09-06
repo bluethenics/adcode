@@ -153,6 +153,53 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("ai.team", "Set up Team")],
     keywords: ["multiple ai", "parallel agents", "divide task", "roles"],
   },
+  "ai.terminalTeam": {
+    actions: [command("ai.terminalTeam", "Start a Team in the terminal")],
+    keywords: [
+      "grok",
+      "kimi",
+      "codex",
+      "claude code",
+      "gemini cli",
+      "cursor agent",
+      "qwen",
+      "amp",
+      "goose",
+      "crush",
+      "droid",
+      "external cli",
+      "several agents at once",
+      "split a task between clis",
+    ],
+  },
+  /*
+   * These two used to have no entry at all, so the only route the feature library, search
+   * and the docs could offer into either was "open its Settings row" - a switch, for a
+   * feature whose whole life is in the terminal.
+   *
+   * Continuation gets a real command. Detection gets keywords only, and so falls through to
+   * the derived toggle: it is genuinely just an on/off, and a command that did nothing but
+   * flip it would be the same switch wearing a different hat. Neither may name
+   * `terminal.new` or `features.open` - a command belongs to exactly one feature, and both
+   * of those are already spoken for.
+   */
+  "adcode.ai.autoContinue": {
+    actions: [command("ai.autoContinue", "Turn continuation on or off")],
+    keywords: [
+      "usage limit",
+      "rate limit",
+      "resume after limit",
+      "keep going",
+      "unattended",
+      "grok",
+      "kimi",
+      "codex",
+      "claude code",
+    ],
+  },
+  "adcode.ai.terminalAgentDetection": {
+    keywords: ["recognise agent", "detect cli", "grok", "kimi", "codex", "share memory with agent"],
+  },
   "adcode.ai.inlineCompletion": {
     actions: [command("ai.complete", "Suggest now")],
     keywords: ["autosuggest", "auto suggest", "ghost text", "tab completion"],

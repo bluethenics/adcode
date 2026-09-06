@@ -26,6 +26,13 @@ export interface TerminalHost {
   paste(): void;
   /** Copy the selection. Returns false when nothing is selected. */
   copy(): Promise<boolean>;
+  /**
+   * Whether anything is selected right now.
+   *
+   * Separate from `copy` because a menu has to decide whether to grey out its Copy entry
+   * before the user picks it, and `copy` answers that only by doing it.
+   */
+  hasSelection(): boolean;
   applyTheme(theme: ThemeChoice): void;
 }
 
@@ -284,6 +291,9 @@ export async function createTerminalHost(
     },
     copy() {
       return copySelection();
+    },
+    hasSelection() {
+      return terminal.hasSelection();
     },
     send(text) {
       // Straight to the pty rather than into xterm: the shell is what should see the

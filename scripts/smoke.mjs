@@ -444,7 +444,21 @@ checks.conflictsButtonExists = await evaluate(
 await evaluate(
   "[...document.querySelectorAll('.scm-actions .ghost-button')].find((b) => b.textContent === 'Check Conflicts')?.click()",
 );
-await sleep(900);
+
+/*
+ * Poll rather than sleep a fixed 900ms.
+ *
+ * `checkConflicts` awaits a full `git status` before it renders anything, and on a dirty
+ * checkout that call takes about as long as the budget did: measured at 0.917s against
+ * 900ms on a tree with 48 modified files. So the check was reading the panel before the
+ * answer arrived and reporting a conflict-detection bug that did not exist - intermittently
+ * at first, then every run as the tree grew dirtier. Waiting for the outcome instead of
+ * guessing at how long git takes makes it independent of how much is uncommitted.
+ */
+for (let attempt = 0; attempt < 50; attempt++) {
+  if ((await evaluate("document.querySelector('.scm-conflicts')?.hidden === false")) === true) break;
+  await sleep(100);
+}
 
 checks.conflictsAnswerShown = await evaluate(
   "document.querySelector('.scm-conflicts')?.hidden === false",
@@ -1428,6 +1442,52 @@ checks.multipleTerminals = await evaluate(
      await new Promise((r) => setTimeout(r, 2000));
 
      return JSON.stringify({ tabs, panes: panesOf() });
+   })()`,
+);
+
+/*
+ * The terminal's right-click menu.
+ *
+ * This is the only door into automatic continuation, scheduled messages and Team for
+ * somebody working in the terminal - before it existed those three were reachable only from
+ * a settings screen and a panel on the other side of the window. The menu model has unit
+ * tests; what they cannot tell us is whether the listener is attached to a real pane and
+ * whether the panel renders what it returns, which is exactly how a feature ends up
+ * finished and unreachable.
+ *
+ * The AI rows are deliberately not asserted here: no agent is running in this pane, so the
+ * honest expectation is the shell menu plus the two rows that always show.
+ */
+checks.terminalContextMenu = await evaluate(
+  `(async () => {
+     const pane = document.querySelector('.terminal-pane');
+     if (!pane) return 'no terminal pane';
+
+     const box = pane.getBoundingClientRect();
+     pane.dispatchEvent(new MouseEvent('contextmenu', {
+       bubbles: true,
+       clientX: Math.round(box.left + box.width / 2),
+       clientY: Math.round(box.top + box.height / 2),
+     }));
+     await new Promise((r) => setTimeout(r, 300));
+
+     const panel = document.querySelector('.menu-panel[data-context]');
+     if (!panel) return 'no context menu opened';
+     // The label span, not the item: an item also holds its accelerator, so reading the
+     // whole row gives you "CopyCtrl+Shift+C" and every startsWith below stops matching.
+     const labels = [...panel.querySelectorAll('.menu-item .menu-item-label')].map(
+       (label) => label.textContent.trim(),
+     );
+
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+     await new Promise((r) => setTimeout(r, 200));
+
+     return JSON.stringify({
+       labels,
+       team: labels.some((label) => label.startsWith('Start a Team')),
+       features: labels.some((label) => label.startsWith('All terminal AI features')),
+       closed: document.querySelector('.menu-panel[data-context]') === null,
+     });
    })()`,
 );
 

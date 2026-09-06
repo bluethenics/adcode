@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter_Tight, JetBrains_Mono, Inter } from "next/font/google";
-import { SITE, url } from "@/lib/site";
+import { SITE, VERIFICATION, url } from "@/lib/site";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { JsonLd } from "@/components/JsonLd";
@@ -55,7 +55,34 @@ export const metadata: Metadata = {
     "ADCode",
   ],
   authors: [{ name: SITE.name, url: SITE.origin }],
-  alternates: { canonical: url("/") },
+  /*
+   * Ownership tokens, and the machine-readable copy of the site.
+   *
+   * `verification` is what unlocks Search Console and Bing Webmaster Tools - until a host
+   * is verified neither will show whether the site is indexed at all, which is the single
+   * question worth being able to answer. Both values come from the environment and both
+   * are omitted entirely when unset, because an empty `content` attribute reads as a
+   * failed verification rather than as no verification.
+   *
+   * `types` advertises `/llms.txt` from every page. An assistant that lands anywhere on
+   * the site then has a link to the version written for it, instead of reconstructing the
+   * facts from rendered marketing HTML and getting the revenue share wrong.
+   */
+  ...(VERIFICATION.google === undefined && VERIFICATION.bing === undefined
+    ? {}
+    : {
+        verification: {
+          ...(VERIFICATION.google === undefined ? {} : { google: VERIFICATION.google }),
+          ...(VERIFICATION.bing === undefined ? {} : { other: { "msvalidate.01": VERIFICATION.bing } }),
+        },
+      }),
+  alternates: {
+    canonical: url("/"),
+    types: {
+      "text/plain": [{ url: url("/llms.txt"), title: `${SITE.name} for language models` }],
+      "application/rss+xml": [{ url: url("/feed.xml"), title: `${SITE.name} updates` }],
+    },
+  },
   openGraph: {
     type: "website",
     siteName: SITE.name,

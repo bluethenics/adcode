@@ -44,7 +44,7 @@ export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
     id: "workbench.keybindings",
     title: "Keyboard shortcuts",
     plain: "Every shortcut can be changed to whatever keys you prefer.",
-    why: "Muscle memory from another editor is worth more than any default we could pick.",
+    why: "Keeping the shortcuts you already know makes changing editors much easier.",
     how: "Help, then Keyboard Shortcuts. Search for a command, click its keys, and press the combination you want. Conflicts are pointed out rather than silently taking over.",
     group: "workbench",
     settingIds: [],

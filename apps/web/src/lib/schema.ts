@@ -6,7 +6,16 @@
  * the facts stated as data rather than inferred from prose, which is why the economics
  * here come from `site.ts` rather than being typed twice.
  */
-import { APP_VERSION, GITHUB_REPO, SITE, url, formatMicros, ECONOMICS } from "./site";
+import {
+  APP_VERSION,
+  GITHUB_REPO,
+  PARENT,
+  SAME_AS,
+  SITE,
+  url,
+  formatMicros,
+  ECONOMICS,
+} from "./site";
 
 type Node = Record<string, unknown>;
 
@@ -16,18 +25,41 @@ export function organisation(): Node {
     "@type": "Organization",
     "@id": url("/#organization"),
     name: SITE.name,
+    /*
+     * The spellings a person actually types.
+     *
+     * "ADCode" is one word to us and two to nearly everybody else, and it collides head-on
+     * with "ad code" in the advertising sense - which is a far older, far better-linked
+     * meaning of those characters. `alternateName` is how an entity says "these all denote
+     * me" rather than leaving a search engine to decide the query meant the other thing.
+     */
+    alternateName: ["AdCode", "Ad Code Editor", "ADCode IDE", "ADCode Editor"],
     url: url("/"),
     description: SITE.description,
+    slogan: SITE.tagline,
     /*
-     * A logo and a profile that corroborates it.
+     * A logo and the profiles that corroborate it.
      *
-     * These are the two properties a knowledge panel is assembled from: without a logo
-     * there is no mark to show beside the name, and without `sameAs` there is nothing
-     * independent tying this name to the thing it claims to be. The repository is the
-     * honest one to cite - it is public, it is ours, and it is checkable.
+     * These are the properties a knowledge panel is assembled from: without a logo there
+     * is no mark to show beside the name, and without `sameAs` there is nothing
+     * independent tying this name to the thing it claims to be. Everything cited is public
+     * and checkable - see `SAME_AS` for why nothing aspirational belongs in it.
      */
     logo: url("/icon.svg"),
-    sameAs: [`https://github.com/${GITHUB_REPO}`],
+    sameAs: [...SAME_AS],
+    /*
+     * The edge that makes a subdomain legible.
+     *
+     * `bluethenics.com` emits the matching `subOrganization` pointing back at this `@id`.
+     * A crawler that fetches both sees the same relationship asserted from both ends,
+     * which is the difference between a knowledge-graph edge and a hyperlink.
+     */
+    parentOrganization: {
+      "@type": "Organization",
+      "@id": PARENT.id,
+      name: PARENT.name,
+      url: PARENT.url,
+    },
   };
 }
 
@@ -38,8 +70,12 @@ export function organisation(): Node {
  * breadcrumb line rather than guessing from the domain, which matters more than usual
  * while the domain is a shared `.workers.dev` subdomain that says nothing about the brand.
  *
- * Deliberately no `potentialAction`. A SearchAction has to point at a URL that performs a
- * search, and there is no such page here; declaring one is a claim a crawler can check.
+ * The `potentialAction` is now honest and so it is declared. A SearchAction has to point at
+ * a URL that really performs a search, and `/docs?q=` does: the docs index reads the
+ * parameter on the server and hands it to the search field as its initial query, so the
+ * URL a crawler constructs from this template returns filtered results without JavaScript
+ * having to run first. That is the whole test Google applies before it will show a
+ * sitelinks searchbox, and it is why this was absent until the search existed.
  */
 export function webSite(): Node {
   return {
@@ -47,10 +83,19 @@ export function webSite(): Node {
     "@type": "WebSite",
     "@id": url("/#website"),
     name: SITE.name,
+    alternateName: ["AdCode", "ADCode Editor"],
     url: url("/"),
     description: SITE.description,
     inLanguage: "en",
     publisher: { "@id": url("/#organization") },
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${url("/docs")}?q={search_term_string}`,
+      },
+      "query-input": "required name=search_term_string",
+    },
   };
 }
 
@@ -242,3 +287,98 @@ export const FAQ: readonly { q: string; a: string }[] = [
     a: "ADCode runs on Windows, macOS, and Linux. It can be installed with a single terminal command, and it updates itself automatically when a new version is released.",
   },
 ];
+
+/**
+ * A landing page, as data.
+ *
+ * Two nodes rather than one, because the page is two things and a search engine treats
+ * them differently. The `Article` is the writing - what gets a `dateModified` and an
+ * author. The `WebPage` is the address, and it is the node `breadcrumb` and `isPartOf`
+ * hang off. Emitting only the article leaves the URL itself undescribed; emitting only
+ * the page leaves the writing undated, which is what makes a comparison look stale.
+ *
+ * Comparison pages carry `about` for both products. Naming the competitor as an entity is
+ * not a courtesy - it is what lets "Cursor alternative" resolve to this page rather than
+ * to whatever else mentions the word, and an answer engine asked to compare the two has
+ * the pair stated rather than inferred from prose.
+ */
+export function landingArticle(page: {
+  slug: string;
+  title: string;
+  description: string;
+  heading: string;
+  lede: string;
+  updated: string;
+  comparison?: { subject: string };
+}): Node {
+  const path =
+    page.comparison === undefined ? `/${page.slug}` : `/compare/${page.slug}`;
+
+  const about: Node[] = [{ "@id": url("/#app") }];
+  if (page.comparison !== undefined) {
+    about.push({
+      "@type": "SoftwareApplication",
+      name: page.comparison.subject,
+      applicationCategory: "DeveloperApplication",
+    });
+  }
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Article",
+        "@id": url(`${path}#article`),
+        headline: page.title,
+        description: page.description,
+        alternativeHeadline: page.heading,
+        abstract: page.lede,
+        dateModified: page.updated,
+        datePublished: page.updated,
+        inLanguage: SITE.locale,
+        mainEntityOfPage: { "@id": url(path) },
+        publisher: { "@id": url("/#organization") },
+        author: { "@id": url("/#organization") },
+        about,
+      },
+      {
+        "@type": "WebPage",
+        "@id": url(path),
+        url: url(path),
+        name: page.title,
+        description: page.description,
+        isPartOf: { "@id": url("/#website") },
+        primaryImageOfPage: { "@type": "ImageObject", url: url("/opengraph-image.png") },
+      },
+    ],
+  };
+}
+
+/**
+ * Installing the editor, as steps.
+ *
+ * `HowTo` is the vocabulary for "how do I install X", which is a query the download page
+ * answers in prose and could not previously be quoted from. Each step names the command
+ * rather than describing it, because a step whose text is "run the installer" is one an
+ * answer engine cannot turn into anything useful.
+ */
+export function installHowTo(
+  steps: readonly { name: string; text: string }[],
+): Node {
+  return {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name: `How to install ${SITE.name}`,
+    description: `Install ${SITE.name} on Windows, macOS, or Linux with a single terminal command.`,
+    totalTime: "PT2M",
+    supply: [],
+    tool: [{ "@type": "HowToTool", name: "A terminal" }],
+    step: steps.map((step, index) => ({
+      "@type": "HowToStep",
+      position: index + 1,
+      name: step.name,
+      text: step.text,
+      url: `${url("/versions")}#step-${String(index + 1)}`,
+    })),
+  };
+}

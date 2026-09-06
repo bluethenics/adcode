@@ -14,7 +14,7 @@ export const ADS_ENTRIES: readonly HelpEntry[] = [
     plain:
       "A small advert card appears in the corner sometimes, and you get paid a little each time one is shown.",
     why: "It is how ADCode is free. If you would rather not, turning this off costs you nothing else - no nag screens, no locked features.",
-    how: "On by default. This switch is the final say on this machine: with it off, nothing is shown and nothing is earned, whatever the server says. Cards never appear while you are typing, while a command is running, while you are debugging, or when the window is not in front.",
+    how: "On by default. This switch is the final say on this machine: with it off, nothing is shown and nothing is earned, whatever the server says. Cards arrive while you work - that is how they are seen at all - but never during a debug session, never when the window is not in front, not for the first minute after launch, and never twice in a row without a gap.",
     group: "ads",
     settingIds: ["adcode.ads.enabled"],
     related: ["adcode.ads.frequency", "account.earnings"],

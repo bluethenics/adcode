@@ -52,6 +52,35 @@ function stepsFromHow(how: string): { note: string | null; steps: string[] } {
 }
 
 /**
+ * Public docs name actions the way the interface names them. Internal command and setting
+ * identifiers help ADCode wire controls together, but they do not help someone use the
+ * product and make the documentation read like an implementation reference.
+ */
+function userFacingText(text: string): string {
+  return text
+    .replace(/\s+\((?:command|setting):[^)]+\)/gi, "")
+    .replace(/Settings\s*→\s*adcode\.[a-z0-9_.-]+/gi, "Settings")
+    .replace(/CmdOrCtrl/gi, "Ctrl/Cmd");
+}
+
+function userFacingAccess(access: readonly string[]): string[] {
+  return [...new Set(
+    access
+      .filter((route) => !/^Developer tools\b/i.test(route))
+      .map((route) => userFacingText(route).trim()),
+  )];
+}
+
+function userFacingMarkdown(body: string): string {
+  return userFacingText(
+    body
+      .split("\n")
+      .filter((line) => !/Developer tools(?:\s+\(command:[^)]+\))?/i.test(line))
+      .join("\n"),
+  );
+}
+
+/**
  * A seeded page's body.
  *
  * Every page reads as a guide, not a stub: what it is for, the concrete benefits, numbered
@@ -67,7 +96,7 @@ function bodyFromSeed(seed: (typeof DOC_SEED)[number]): string {
   parts.push("## When you would want it", "", seed.why, "");
 
   parts.push("## Where to find it", "");
-  for (const route of seed.access) parts.push(`- ${route}`);
+  for (const route of userFacingAccess(seed.access)) parts.push(`- ${route}`);
   parts.push("");
 
   if (guide?.benefits !== undefined && guide.benefits.length > 0) {
@@ -92,7 +121,7 @@ function bodyFromSeed(seed: (typeof DOC_SEED)[number]): string {
   }
 
   if (seed.shortcut !== undefined) {
-    parts.push("## Shortcut", "", `\`${seed.shortcut}\``, "");
+    parts.push("## Shortcut", "", `\`${userFacingText(seed.shortcut)}\``, "");
   }
 
   parts.push(
@@ -122,7 +151,7 @@ const fromPost = (post: Post): DocPage => ({
   title: post.title,
   section: post.section ?? "Guides",
   description: post.description,
-  body: post.body,
+  body: userFacingMarkdown(post.body),
   related: [...(post.related ?? [])],
   order: post.order ?? 0,
   authored: true,

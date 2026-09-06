@@ -12,6 +12,7 @@
  */
 import { app, ipcMain } from "electron";
 import { CHANNELS, type UpdateStatus } from "../shared/api.ts";
+import { canSelfUpdate, runningFromWindowsStore } from "./updatePolicy.ts";
 
 /** Long enough that a laptop opened for ten minutes does not spend it downloading. */
 const FIRST_CHECK_DELAY_MS = 45_000;
@@ -44,12 +45,16 @@ export const currentUpdateStatus = (): UpdateStatus => status;
  * Whether updates are even possible for this build.
  *
  * A dev run and an unpacked build have no update feed, and electron-updater throws
- * rather than no-ops in that case. Checking first keeps the log clean.
+ * rather than no-ops in that case. Checking first keeps the log clean. The decision
+ * itself lives in `updatePolicy.ts`, which has no Electron import and so can be tested
+ * without one.
  */
 function updatable(): boolean {
-  if (!app.isPackaged) return false;
-  if (process.env["ADCODE_DISABLE_UPDATES"] === "1") return false;
-  return true;
+  return canSelfUpdate({
+    packaged: app.isPackaged,
+    disabled: process.env["ADCODE_DISABLE_UPDATES"] === "1",
+    windowsStore: runningFromWindowsStore(),
+  });
 }
 
 export async function startAutoUpdate(enabled: () => boolean): Promise<void> {
