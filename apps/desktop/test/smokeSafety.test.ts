@@ -98,6 +98,12 @@ describe("packaged smoke safety", () => {
     expect(source).toContain("env: childEnv");
   });
 
+  it("lets an isolated smoke launch select its own DevTools port", () => {
+    const source = readFileSync(resolve(import.meta.dirname, "../../../scripts/smoke.mjs"), "utf8");
+
+    expect(source).toContain('const PORT = Number(process.env.ADCODE_SMOKE_PORT ?? "9333")');
+  });
+
   it("re-resolves its scratch folder before destructive Explorer checks", () => {
     const source = readFileSync(resolve(import.meta.dirname, "../../../scripts/smoke.mjs"), "utf8");
     const start = source.indexOf("// Delete, through however many confirmations");

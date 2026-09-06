@@ -37,7 +37,9 @@ const electronPath = packaged
 // A packaged app *is* the app; an unpackaged Electron has to be told where it lives.
 const appArgs = packaged ? [] : ["apps/desktop"];
 
-const PORT = 9333;
+// Keep the long-standing default for callers, while allowing concurrent or isolated smoke
+// launches to avoid attaching to another Electron instance's DevTools endpoint.
+const PORT = Number(process.env.ADCODE_SMOKE_PORT ?? "9333");
 
 // A file that is committed, so the history and blame checks have something to find.
 const TRACKED_FILE = join(REPO, "package.json");
@@ -621,6 +623,22 @@ for (let attempt = 0; attempt < 20; attempt += 1) {
 checks.scmLauncherToggleCloses = await evaluate(
   `document.querySelector('[data-popup-id="source-control"]')?.open === false`,
 );
+checks.scmKeyboardCloseRestoresEditor = await (async () => {
+  await evaluate("document.querySelector('.monaco-editor textarea')?.focus(); true");
+  await pressChord("g", { shift: true });
+
+  const openedFromKeyboard = await evaluate(
+    `document.querySelector('[data-popup-id="source-control"]')?.open === true &&
+      document.querySelector('[data-popup-id="source-control"]')?.dataset.input === "keyboard"`,
+  );
+  if (openedFromKeyboard !== true) return false;
+
+  await pressEscape();
+  return await evaluate(
+    `document.querySelector('[data-popup-id="source-control"]')?.open === false &&
+      document.activeElement?.closest(".monaco-editor") !== null`,
+  );
+})();
 await openSourceControl();
 checks.scmShowsBranch = await evaluate(
   "document.querySelector('.scm-branch')?.textContent",

@@ -1940,6 +1940,11 @@ interface PopupContentLifecycle {
 interface RegisteredPrimaryPopup {
   readonly shell: PopupShell;
   readonly content: PopupContentLifecycle;
+  /**
+   * Most pop-ups restore their launcher. A content owner that deliberately restores a
+   * different target can suppress that delayed shell restoration for its own close.
+   */
+  readonly restoreShellFocus?: () => boolean;
 }
 
 interface RegisteredDependentPopup {
@@ -1955,8 +1960,9 @@ function registerPrimaryPopup(
   id: PopupId,
   shell: PopupShell,
   content: PopupContentLifecycle,
+  options: Pick<RegisteredPrimaryPopup, "restoreShellFocus"> = {},
 ): void {
-  primaryPopups.set(id, { shell, content });
+  primaryPopups.set(id, { shell, content, ...options });
 }
 
 function registerDependentPopup(
@@ -1984,7 +1990,7 @@ function closePrimaryPopup(id: PopupId): void {
     closeDependentPopup(popupLayerState.dependent, false);
   }
 
-  popup.shell.close();
+  popup.shell.close({ restoreFocus: popup.restoreShellFocus?.() ?? true });
   popup.content.hidden();
   popupLayerState = reducePopupLayer(popupLayerState, { type: "close", id });
 }
@@ -3266,6 +3272,8 @@ registerPrimaryPopup("source-control", sourceControlShell, {
   hidden() {
     if (sourceControlRestoreFocus === "editor") editorHost.focus();
   },
+}, {
+  restoreShellFocus: () => sourceControlRestoreFocus === "launcher",
 });
 
 const sourceControlActivity = document.querySelector<HTMLButtonElement>(
