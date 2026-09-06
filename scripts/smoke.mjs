@@ -11,7 +11,8 @@
  * Run after `npm run build`:  node scripts/smoke.mjs
  */
 import { spawn } from "node:child_process";
-import { mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { access, mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
@@ -36,10 +37,25 @@ const electronPath = packaged
 // A packaged app *is* the app; an unpackaged Electron has to be told where it lives.
 const appArgs = packaged ? [] : ["apps/desktop"];
 
-const PORT = 9333;
+// Keep the long-standing default for callers, while allowing concurrent or isolated smoke
+// launches to avoid attaching to another Electron instance's DevTools endpoint.
+const PORT = Number(process.env.ADCODE_SMOKE_PORT ?? "9333");
 
 // A file that is committed, so the history and blame checks have something to find.
 const TRACKED_FILE = join(REPO, "package.json");
+const SCM_SMOKE_NAME = `adcode-smoke-scm-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`;
+const SCM_SMOKE_FILE = join(REPO, SCM_SMOKE_NAME);
+const CHAT_SMOKE_SESSION = {
+  id: "smoke-chat-history",
+  title: "Smoke saved conversation",
+  renamed: true,
+  createdAt: 1,
+  updatedAt: 2,
+  messages: [
+    { role: "user", text: "Saved Chat request", at: 1 },
+    { role: "assistant", text: "Saved Chat response", at: 2 },
+  ],
+};
 
 // A throwaway userData directory, pre-seeded so §4's "Restore workspace" has something to
 // restore. That is also what gives the git checks a real repository to run against.
@@ -56,6 +72,17 @@ await writeFile(
   }),
   "utf8",
 );
+const chatSessionDirectory = join(
+  userData,
+  "ai-sessions",
+  createHash("sha256").update(REPO).digest("hex").slice(0, 16),
+);
+await mkdir(chatSessionDirectory, { recursive: true });
+await writeFile(
+  join(chatSessionDirectory, `${CHAT_SMOKE_SESSION.id}.json`),
+  JSON.stringify(CHAT_SMOKE_SESSION),
+  "utf8",
+);
 
 // Codex and some CI launchers use Electron's executable as a Node runtime. That inherited
 // switch would make the child run this package as a script and no renderer could exist.
@@ -68,12 +95,21 @@ await writeFile(
  * pointing at a menu entry that is not there is worse than no card. Forcing it here is the
  * only way to exercise the card without packaging and installing first.
  */
-const childEnv = { ...process.env, ELECTRON_ENABLE_LOGGING: "1", ADCODE_PIN_PROMPT: "1" };
+const childEnv = {
+  ...process.env,
+  ELECTRON_ENABLE_LOGGING: "1",
+  ADCODE_PIN_PROMPT: "1",
+};
 delete childEnv.ELECTRON_RUN_AS_NODE;
 
 const child = spawn(
   electronPath,
-  [...appArgs, "--enable-logging", `--remote-debugging-port=${PORT}`, `--user-data-dir=${userData}`],
+  [
+    ...appArgs,
+    "--enable-logging",
+    `--remote-debugging-port=${PORT}`,
+    `--user-data-dir=${userData}`,
+  ],
   {
     cwd: REPO,
     env: childEnv,
@@ -87,6 +123,7 @@ child.stdout.on("data", (chunk) => (output += chunk.toString()));
 child.stderr.on("data", (chunk) => (output += chunk.toString()));
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const EVALUATE_TIMEOUT_MS = 15_000;
 
 /** Poll the DevTools endpoint until the renderer target shows up. */
 async function findTarget() {
@@ -94,7 +131,9 @@ async function findTarget() {
     try {
       const response = await fetch(`http://127.0.0.1:${PORT}/json/list`);
       const targets = await response.json();
-      const page = targets.find((target) => target.type === "page" && target.webSocketDebuggerUrl);
+      const page = targets.find(
+        (target) => target.type === "page" && target.webSocketDebuggerUrl,
+      );
       if (page !== undefined) return page;
     } catch {
       // The port is not listening yet; that is the normal first second or two.
@@ -131,11 +170,23 @@ function send(method, params) {
 
 /** Evaluate an expression in the page and return its value. */
 async function evaluate(expression) {
-  const message = await send("Runtime.evaluate", {
+  let timeout;
+  const request = send("Runtime.evaluate", {
     expression,
     returnByValue: true,
     awaitPromise: true,
   });
+  const message = await Promise.race([
+    request,
+    new Promise((resolve) => {
+      timeout = setTimeout(() => resolve(null), EVALUATE_TIMEOUT_MS);
+    }),
+  ]);
+  clearTimeout(timeout);
+
+  if (message === null) {
+    return `THREW: Runtime.evaluate timed out after ${String(EVALUATE_TIMEOUT_MS)}ms`;
+  }
 
   if (message.result?.exceptionDetails !== undefined) {
     return `THREW: ${message.result.exceptionDetails.exception?.description ?? "unknown"}`;
@@ -149,13 +200,21 @@ await sleep(4000);
 
 const checks = {
   title: await evaluate("document.title"),
-  activities: await evaluate("document.querySelectorAll('.activity[data-view]').length"),
-  monacoMounted: await evaluate("document.querySelectorAll('.monaco-editor').length > 0"),
+  activities: await evaluate(
+    "document.querySelectorAll('.activity[data-view]').length",
+  ),
+  monacoMounted: await evaluate(
+    "document.querySelectorAll('.monaco-editor').length > 0",
+  ),
 
   // §4 session restore: the folder and the editor came back without anyone clicking.
-  restoredWorkspace: await evaluate("document.getElementById('status-workspace').textContent"),
+  restoredWorkspace: await evaluate(
+    "document.getElementById('status-workspace').textContent",
+  ),
   restoredTab: await evaluate("document.querySelectorAll('.tab').length"),
-  treeHasRows: await evaluate("document.querySelectorAll('#filetree .tree-row').length > 5"),
+  treeHasRows: await evaluate(
+    "document.querySelectorAll('#filetree .tree-row').length > 5",
+  ),
 
   // §4 git: a real repository answers real questions.
   isRepo: await evaluate("window.adcode.git.status().then((s) => s.isRepo)"),
@@ -227,9 +286,13 @@ checks.onboardingIsSkippable = await (async () => {
 
   return {
     ...opened,
-    closes: (await evaluate("document.querySelector('dialog.onboarding')?.open === false")) === true,
+    closes:
+      (await evaluate(
+        "document.querySelector('dialog.onboarding')?.open === false",
+      )) === true,
     // Once dismissed it must stay dismissed, or every launch reopens it.
-    remembered: (await evaluate("window.adcode.onboarding.completed()")) === true,
+    remembered:
+      (await evaluate("window.adcode.onboarding.completed()")) === true,
   };
 })();
 
@@ -285,7 +348,8 @@ checks.pinPromptAsksToPin = await (async () => {
   return {
     ...drawn,
     stepsShownOnRequest: steps,
-    dismissed: (await evaluate("document.querySelector('.pin-card') === null")) === true,
+    dismissed:
+      (await evaluate("document.querySelector('.pin-card') === null")) === true,
   };
 })();
 
@@ -340,43 +404,113 @@ checks.sidebarShell =
   checks.sidebarShellEvidence?.collapsed === true &&
   checks.sidebarShellEvidence?.switched === true;
 
-checks.dockedSideToolsEvidence = {};
-for (const [buttonId, viewId, rootSelector] of [
-  ["open-structure", "view-structure", ".structure-popup"],
-  ["open-earnings", "view-earnings", ".earnings-card"],
-  ["open-features", "view-features", ".feature-library"],
-  ["open-settings", "view-settings", ".settings-sheet"],
-]) {
-  await evaluate(`document.getElementById('${buttonId}')?.click(); true`);
-  await sleep(220);
-  checks.dockedSideToolsEvidence[viewId] = await evaluate(
+checks.anchoredToolsEvidence = await (async () => {
+  const before = await evaluate(
     `(() => {
-       const workbench = document.getElementById('workbench');
-       const view = document.getElementById('${viewId}');
-       const root = view?.querySelector('${rootSelector}');
-       const modal = root?.matches('[aria-modal="true"], dialog[open]') === true;
-       return (
-         workbench?.dataset.sidebarOpen === 'true' &&
-         view?.hidden === false &&
-         root !== null &&
-         modal === false &&
-         getComputedStyle(root).position !== 'fixed'
-       );
+       const sidebar = document.getElementById('sidebar')?.getBoundingClientRect();
+       const editor = document.getElementById('editor-area')?.getBoundingClientRect();
+       return sidebar && editor
+         ? { sidebar: { width: sidebar.width }, editor: { width: editor.width } }
+         : null;
      })()`,
   );
+
+  await evaluate(`document.getElementById('open-structure')?.click(); true`);
+  await sleep(220);
+  const structure = await evaluate(
+    `(() => {
+       const popup = document.querySelector('[data-popup-id="structure"]');
+       const surface = popup?.querySelector('.popup-shell-surface');
+       const sidebar = document.getElementById('sidebar')?.getBoundingClientRect();
+       const editor = document.getElementById('editor-area')?.getBoundingClientRect();
+       return {
+         open: popup?.open === true,
+         structureOpen: document.querySelector('[data-popup-id="structure"]')?.open === true,
+         sidebarWidth: sidebar?.width ?? -1,
+         editorWidth: editor?.width ?? -1,
+         rounded: surface ? parseFloat(getComputedStyle(surface).borderRadius) >= 12 : false,
+       };
+     })()`,
+  );
+  await evaluate(`document.getElementById('open-earnings')?.click(); true`);
+  await sleep(220);
+  const switchedToEarnings = await evaluate(
+    `(() => {
+       const popup = document.querySelector('[data-popup-id="earnings"]');
+       const surface = popup?.querySelector('.popup-shell-surface');
+       const sidebar = document.getElementById('sidebar')?.getBoundingClientRect();
+       const editor = document.getElementById('editor-area')?.getBoundingClientRect();
+       return {
+         open: popup?.open === true,
+         structureOpen: document.querySelector('[data-popup-id="structure"]')?.open === true,
+         sidebarWidth: sidebar?.width ?? -1,
+         editorWidth: editor?.width ?? -1,
+         rounded: surface ? parseFloat(getComputedStyle(surface).borderRadius) >= 12 : false,
+       };
+     })()`,
+  );
+  await evaluate(`document.getElementById('open-structure')?.click(); true`);
+  await sleep(220);
+  const switchedToStructure = await evaluate(
+    `(() => ({
+       structureOpen: document.querySelector('[data-popup-id="structure"]')?.open === true,
+       earningsOpen: document.querySelector('[data-popup-id="earnings"]')?.open === true,
+     }))()`,
+  );
+  await evaluate(
+    `document.getElementById('editor-area')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true`,
+  );
+  const outsideClosed = await waitForPopupsClosed([
+    '[data-popup-id="structure"]',
+    '[data-popup-id="earnings"]',
+  ]);
+  await evaluate(`document.getElementById('open-structure')?.click(); true`);
+  await sleep(180);
   await evaluate(
     `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true`,
   );
-  await sleep(120);
-}
-checks.dockedSideTools = Object.values(checks.dockedSideToolsEvidence).every(
-  (value) => value === true,
-);
+  const documentEscapeCloses = await waitForPopupsClosed([
+    '[data-popup-id="structure"]',
+  ]);
+
+  return {
+    structureOpen: structure?.open === true,
+    earningsOpen: switchedToEarnings?.open === true,
+    directSwitchToEarnings:
+      switchedToEarnings?.open === true &&
+      switchedToEarnings?.structureOpen === false,
+    directSwitchToStructure:
+      switchedToStructure?.structureOpen === true &&
+      switchedToStructure?.earningsOpen === false,
+    outsidePressCloses: outsideClosed === true,
+    documentEscapeCloses: documentEscapeCloses === true,
+    sidebarStable:
+      before?.sidebar.width === structure?.sidebarWidth &&
+      before?.sidebar.width === switchedToEarnings?.sidebarWidth,
+    editorStable:
+      before?.editor.width === structure?.editorWidth &&
+      before?.editor.width === switchedToEarnings?.editorWidth,
+    rounded:
+      structure?.rounded === true && switchedToEarnings?.rounded === true,
+  };
+})();
+checks.anchoredTools =
+  checks.anchoredToolsEvidence?.structureOpen === true &&
+  checks.anchoredToolsEvidence?.earningsOpen === true &&
+  checks.anchoredToolsEvidence?.sidebarStable === true &&
+  checks.anchoredToolsEvidence?.editorStable === true &&
+  checks.anchoredToolsEvidence?.rounded === true &&
+  checks.anchoredToolsEvidence?.directSwitchToEarnings === true &&
+  checks.anchoredToolsEvidence?.directSwitchToStructure === true &&
+  checks.anchoredToolsEvidence?.outsidePressCloses === true &&
+  checks.anchoredToolsEvidence?.documentEscapeCloses === true;
 
 checks.panelMaximizeEvidence = await (async () => {
   await evaluate("document.getElementById('terminal-new')?.click(); true");
   await sleep(500);
-  const before = await evaluate("document.getElementById('panel')?.getBoundingClientRect().height ?? 0");
+  const before = await evaluate(
+    "document.getElementById('panel')?.getBoundingClientRect().height ?? 0",
+  );
   await evaluate("document.getElementById('panel-maximize')?.click(); true");
   await sleep(320);
   const maximized = await evaluate(
@@ -414,20 +548,265 @@ checks.panelMaximize =
   checks.panelMaximizeEvidence?.restored === true;
 
 if (process.env.ADCODE_SMOKE_WORKBENCH_PROBE === "1") {
-  process.stdout.write(`  sidebarShell: ${JSON.stringify(checks.sidebarShellEvidence)}\n`);
-  process.stdout.write(`  dockedSideTools: ${JSON.stringify(checks.dockedSideToolsEvidence)}\n`);
-  process.stdout.write(`  panelMaximize: ${JSON.stringify(checks.panelMaximizeEvidence)}\n`);
+  process.stdout.write(
+    `  sidebarShell: ${JSON.stringify(checks.sidebarShellEvidence)}\n`,
+  );
+  process.stdout.write(
+    `  anchoredTools: ${JSON.stringify(checks.anchoredToolsEvidence)}\n`,
+  );
+  process.stdout.write(
+    `  panelMaximize: ${JSON.stringify(checks.panelMaximizeEvidence)}\n`,
+  );
   socket.close();
   child.kill();
   await sleep(500);
-  process.exit(checks.sidebarShell && checks.dockedSideTools && checks.panelMaximize ? 0 : 1);
+  await rm(userData, { recursive: true, force: true }).catch(() => {});
+  process.exit(
+    checks.sidebarShell && checks.anchoredTools && checks.panelMaximize ? 0 : 1,
+  );
 }
 
-// Drive the source-control view the way a click would.
-await evaluate("document.querySelector('.activity[data-sidebar-view=\"scm\"]').click()");
-await sleep(1200);
-checks.scmShowsBranch = await evaluate("document.querySelector('.scm-branch')?.textContent");
-checks.timelineRows = await evaluate("document.querySelectorAll('.timeline-row').length > 0");
+await openSourceControl();
+checks.scmWorkspaceShell = await evaluate(
+  `(() => {
+     const popup = document.querySelector('[data-popup-id="source-control"]');
+     return {
+       open: popup?.open === true,
+       titlebarVisible: (document.getElementById('titlebar')?.getBoundingClientRect().height ?? 0) > 20,
+       statusbarVisible: (document.getElementById('statusbar')?.getBoundingClientRect().height ?? 0) > 12,
+       launcherPressed: document.querySelector('.activity[data-view="scm"]')?.getAttribute('aria-pressed') === 'true',
+       regions:
+         popup?.querySelector('.scm-changes-region') !== null &&
+         popup?.querySelector('.scm-commit-region') !== null &&
+         popup?.querySelector('.scm-history-region') !== null,
+       drawerControlsLabelRegions: [...popup.querySelectorAll('.scm-drawer-toggle')].every((button) =>
+         button.getAttribute('aria-controls') ===
+           (button.textContent === 'Changes' ? 'scm-changes-region' : 'scm-history-region')),
+     };
+   })()`,
+);
+checks.scmCloseButtonVisible = await evaluate(
+  `(() => {
+     const popup = document.querySelector('[data-popup-id="source-control"]');
+     const button = popup?.querySelector('.scm-close');
+     const rect = button?.getBoundingClientRect();
+     const surface = popup?.querySelector('.popup-shell-surface')?.getBoundingClientRect();
+     return button?.getAttribute('aria-label') === 'Close Source Control' &&
+       rect !== undefined && rect.width > 0 && rect.height > 0 &&
+       surface !== undefined && rect.left >= surface.left && rect.top >= surface.top &&
+       rect.right <= surface.right && rect.bottom <= surface.bottom &&
+       rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight;
+   })()`,
+);
+checks.scmCloseAndDrawerControlsDoNotOverlap = await evaluate(
+  `(() => {
+     const popup = document.querySelector('[data-popup-id="source-control"]');
+     const close = popup?.querySelector('.scm-close')?.getBoundingClientRect();
+     const toggle = popup?.querySelector('.scm-drawer-toggle:not([hidden])')?.getBoundingClientRect();
+     if (close === undefined || toggle === undefined) return true;
+     return close.right <= toggle.left || toggle.right <= close.left ||
+       close.bottom <= toggle.top || toggle.bottom <= close.top;
+   })()`,
+);
+await evaluate(
+  `document.querySelector('.activity[data-view="scm"]')?.click(); true`,
+);
+for (let attempt = 0; attempt < 20; attempt += 1) {
+  if (
+    await evaluate(
+      `document.querySelector('[data-popup-id="source-control"]')?.open === false`,
+    )
+  )
+    break;
+  await sleep(100);
+}
+checks.scmLauncherToggleCloses = await evaluate(
+  `document.querySelector('[data-popup-id="source-control"]')?.open === false`,
+);
+checks.scmKeyboardCloseRestoresEditor = await (async () => {
+  await evaluate("document.querySelector('.monaco-editor textarea')?.focus(); true");
+  await pressChord("g", { shift: true });
+
+  const openedFromKeyboard = await evaluate(
+    `document.querySelector('[data-popup-id="source-control"]')?.open === true &&
+      document.querySelector('[data-popup-id="source-control"]')?.dataset.input === "keyboard"`,
+  );
+  if (openedFromKeyboard !== true) return false;
+
+  await pressEscape();
+  return await evaluate(
+    `document.querySelector('[data-popup-id="source-control"]')?.open === false &&
+      document.activeElement?.closest(".monaco-editor") !== null`,
+  );
+})();
+await openSourceControl();
+checks.scmShowsBranch = await evaluate(
+  "document.querySelector('.scm-branch')?.textContent",
+);
+checks.timelineRows = await evaluate(
+  "document.querySelectorAll('.timeline-row').length > 0",
+);
+checks.scmRowsStillStageAndUnstage = await (async () => {
+  try {
+    await access(SCM_SMOKE_FILE).then(
+      () => {
+        throw new Error(`fixture unexpectedly exists: ${SCM_SMOKE_NAME}`);
+      },
+      () => {},
+    );
+    await evaluate(
+      `(async () => {
+       await window.adcode.files.createFile(${JSON.stringify(REPO)}, ${JSON.stringify(SCM_SMOKE_NAME)});
+       await window.adcode.files.write(${JSON.stringify(SCM_SMOKE_FILE)}, 'source control smoke\\n');
+       return true;
+     })()`,
+    );
+    await pressEscape();
+    await openSourceControl();
+
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const found = await evaluate(
+        `(() => [...document.querySelectorAll('.scm-row')].some(
+        (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
+      ))()`,
+      );
+      if (found === true) break;
+      await sleep(150);
+    }
+
+    const before = await evaluate(
+      `(() => {
+       const row = [...document.querySelectorAll('.scm-row')].find(
+         (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
+       );
+       return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
+     })()`,
+    );
+    if (before !== `Stage ${SCM_SMOKE_NAME}`) return false;
+
+    await evaluate(
+      `(() => {
+       const row = [...document.querySelectorAll('.scm-row')].find(
+         (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
+       );
+       row?.querySelector('.scm-stage')?.click();
+       return true;
+     })()`,
+    );
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const ready =
+        await evaluate(`(() => [...document.querySelectorAll('.scm-row')].some(
+      (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)} &&
+        entry.querySelector('.scm-stage')?.getAttribute('aria-label') === ${JSON.stringify(`Unstage ${SCM_SMOKE_NAME}`)},
+    ))()`);
+      if (ready === true) break;
+      await sleep(150);
+    }
+
+    const staged = await evaluate(
+      `(() => {
+       const row = [...document.querySelectorAll('.scm-row')].find(
+         (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
+       );
+       return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
+     })()`,
+    );
+    if (staged !== `Unstage ${SCM_SMOKE_NAME}`) return false;
+
+    await evaluate(
+      `(() => {
+       const row = [...document.querySelectorAll('.scm-row')].find(
+         (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
+       );
+       row?.querySelector('.scm-stage')?.click();
+       return true;
+     })()`,
+    );
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const ready =
+        await evaluate(`(() => [...document.querySelectorAll('.scm-row')].some(
+      (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)} &&
+        entry.querySelector('.scm-stage')?.getAttribute('aria-label') === ${JSON.stringify(`Stage ${SCM_SMOKE_NAME}`)},
+    ))()`);
+      if (ready === true) break;
+      await sleep(150);
+    }
+
+    const unstaged = await evaluate(
+      `(() => {
+       const row = [...document.querySelectorAll('.scm-row')].find(
+         (entry) => entry.querySelector('.scm-path')?.textContent === ${JSON.stringify(SCM_SMOKE_NAME)},
+       );
+       return row?.querySelector('.scm-stage')?.getAttribute('aria-label') ?? null;
+     })()`,
+    );
+
+    return unstaged === `Stage ${SCM_SMOKE_NAME}`;
+  } finally {
+    await evaluate(
+      `(async () => {
+         await window.adcode.git.unstage([${JSON.stringify(SCM_SMOKE_NAME)}]).catch(() => null);
+         await window.adcode.files.delete(${JSON.stringify(SCM_SMOKE_FILE)}).catch(() => null);
+         return true;
+       })()`,
+    ).catch(() => null);
+  }
+})();
+
+checks.messageLifecyclePersistence = await (async () => {
+  const text = "Smoke keeps this message";
+  await evaluate(
+    `(() => {
+       const field = document.querySelector('.scm-message');
+       if (!(field instanceof HTMLTextAreaElement)) return false;
+       field.value = ${JSON.stringify(text)};
+       field.dispatchEvent(new Event('input', { bubbles: true }));
+       return true;
+     })()`,
+  );
+
+  // Deliberately do not submit: this smoke runs against the real checkout. Draft retention is
+  // checked across the shell lifecycle, which is safe and exercises the preserved textarea.
+  await pressEscape();
+  await openSourceControl();
+
+  const kept = await evaluate(
+    `(() => {
+       const field = document.querySelector('.scm-message');
+       return field instanceof HTMLTextAreaElement ? field.value : null;
+     })()`,
+  );
+  await pressEscape();
+  return kept === text;
+})();
+
+checks.historyOpensInWorkspace = await (async () => {
+  await openSourceControl();
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const found = await evaluate(
+      `document.querySelector('.scm-history-region .history-head') !== null`,
+    );
+    if (found === true) break;
+    await sleep(150);
+  }
+  await evaluate(
+    `document.querySelector('.scm-history-region .history-head')?.click(); true`,
+  );
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const detail = await evaluate(
+      `document.querySelector('.scm-history-region .history-commit[data-open="true"] .history-detail') !== null`,
+    );
+    if (detail === true) return true;
+    await sleep(150);
+  }
+  return false;
+})();
+
+await pressEscape();
+checks.scmEscapeRestoresLauncher = await evaluate(
+  `document.querySelector('[data-popup-id="source-control"]')?.open === false &&
+    document.activeElement === document.querySelector('.activity[data-view="scm"]')`,
+);
 
 /*
  * The merge-conflict check, which is the whole reason this feature was unfindable.
@@ -437,6 +816,7 @@ checks.timelineRows = await evaluate("document.querySelectorAll('.timeline-row')
  * pressing the button has to leave a section that SAYS there are no conflicts, rather than
  * leaving the panel exactly as it was.
  */
+await openSourceControl();
 checks.conflictsButtonExists = await evaluate(
   "[...document.querySelectorAll('.scm-actions .ghost-button')].some((b) => b.textContent === 'Check Conflicts')",
 );
@@ -444,7 +824,13 @@ checks.conflictsButtonExists = await evaluate(
 await evaluate(
   "[...document.querySelectorAll('.scm-actions .ghost-button')].find((b) => b.textContent === 'Check Conflicts')?.click()",
 );
-await sleep(900);
+for (let attempt = 0; attempt < 20; attempt += 1) {
+  const visible = await evaluate(
+    "document.querySelector('.scm-conflicts')?.hidden === false",
+  );
+  if (visible === true) break;
+  await sleep(150);
+}
 
 checks.conflictsAnswerShown = await evaluate(
   "document.querySelector('.scm-conflicts')?.hidden === false",
@@ -455,6 +841,7 @@ checks.conflictsSaysNone = await evaluate(
 checks.conflictsStatusLine = await evaluate(
   "document.getElementById('status-dirty')?.textContent",
 );
+await pressEscape();
 
 // The three features that had main-process code and no renderer caller at all.
 checks.localHistoryBridge = await evaluate(
@@ -463,7 +850,6 @@ checks.localHistoryBridge = await evaluate(
 checks.updateStatusBridge = await evaluate(
   "window.adcode.updates.status().then((s) => typeof s.state === 'string')",
 );
-
 
 // Quick open, opened by keyboard rather than by calling into its module directly.
 await evaluate(
@@ -524,7 +910,9 @@ checks.terminalStarts = await evaluate(
 
 // §3's workbench chrome: the menu bar, the palette, and the terminal panel are all ours,
 // so all three are driven here rather than assumed.
-checks.menuBarPresent = await evaluate("document.querySelectorAll('.menubar-item').length");
+checks.menuBarPresent = await evaluate(
+  "document.querySelectorAll('.menubar-item').length",
+);
 
 /**
  * A click at real page coordinates, routed through the renderer's own hit testing.
@@ -535,8 +923,22 @@ checks.menuBarPresent = await evaluate("document.querySelectorAll('.menubar-item
  * menu bar was completely dead to a mouse.
  */
 async function clickAt(x, y) {
-  await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1, buttons: 1 });
-  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1, buttons: 0 });
+  await send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x,
+    y,
+    button: "left",
+    clickCount: 1,
+    buttons: 1,
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x,
+    y,
+    button: "left",
+    clickCount: 1,
+    buttons: 0,
+  });
   await sleep(250);
 }
 
@@ -547,11 +949,30 @@ async function clickAt(x, y) {
  * repository. A fixed sleep passed on a warm run and failed on a cold one.
  */
 async function rightClickAt(x, y) {
-  await send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "right", clickCount: 1, buttons: 2 });
-  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "right", clickCount: 1, buttons: 0 });
+  await send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x,
+    y,
+    button: "right",
+    clickCount: 1,
+    buttons: 2,
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x,
+    y,
+    button: "right",
+    clickCount: 1,
+    buttons: 0,
+  });
 
   for (let attempt = 0; attempt < 40; attempt++) {
-    if (await evaluate("document.querySelector('.menu-panel[data-context] .menu-item') !== null")) return true;
+    if (
+      await evaluate(
+        "document.querySelector('.menu-panel[data-context] .menu-item') !== null",
+      )
+    )
+      return true;
     await sleep(100);
   }
   return false;
@@ -590,13 +1011,24 @@ async function typeText(text) {
     );
   }
 
-  for (const character of text) await send("Input.dispatchKeyEvent", { type: "char", text: character });
+  for (const character of text)
+    await send("Input.dispatchKeyEvent", { type: "char", text: character });
   await sleep(120);
 }
 
 async function pressEnter() {
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Enter",
+    code: "Enter",
+    windowsVirtualKeyCode: 13,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Enter",
+    code: "Enter",
+    windowsVirtualKeyCode: 13,
+  });
   await sleep(500);
 }
 
@@ -621,10 +1053,14 @@ async function pressEnterInEditor() {
     text: "\r",
     unmodifiedText: "\r",
   });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Enter",
+    code: "Enter",
+    windowsVirtualKeyCode: 13,
+  });
   await sleep(350);
 }
-
 
 /**
  * A real modifier chord, through the same path a user's keyboard takes.
@@ -638,14 +1074,36 @@ async function pressChord(key, { shift = false, alt = false } = {}) {
   const code = `Key${key.toUpperCase()}`;
   const virtualKey = key.toUpperCase().charCodeAt(0);
 
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode: virtualKey, modifiers });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: virtualKey, modifiers });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key,
+    code,
+    windowsVirtualKeyCode: virtualKey,
+    modifiers,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key,
+    code,
+    windowsVirtualKeyCode: virtualKey,
+    modifiers,
+  });
   await sleep(400);
 }
 
 async function pressEscape() {
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+  });
   await sleep(350);
 }
 
@@ -655,19 +1113,36 @@ async function pressEscape() {
  * `pressChord` cannot do these: it holds Ctrl and builds a `KeyX` code, which is right for
  * `Ctrl+A` and meaningless for Home.
  */
-const PLAIN_KEYS = { Home: 36, End: 35, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40 };
+const PLAIN_KEYS = {
+  Home: 36,
+  End: 35,
+  ArrowLeft: 37,
+  ArrowUp: 38,
+  ArrowRight: 39,
+  ArrowDown: 40,
+};
 
 async function pressKey(key) {
   const virtualKey = PLAIN_KEYS[key];
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key, code: key, windowsVirtualKeyCode: virtualKey });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key, code: key, windowsVirtualKeyCode: virtualKey });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key,
+    code: key,
+    windowsVirtualKeyCode: virtualKey,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key,
+    code: key,
+    windowsVirtualKeyCode: virtualKey,
+  });
   await sleep(120);
 }
 
-/** Open the docked Structure view on a tab, whatever state it was in. */
+/** Open the anchored Structure popup on a tab, whatever state it was in. */
 async function openStructure(tab) {
   const alreadyOpen = await evaluate(
-    `document.getElementById('view-structure')?.hidden === false && document.querySelector('.workbench')?.dataset.sidebarOpen === 'true'`,
+    `document.querySelector('[data-popup-id="structure"]')?.open === true`,
   );
   if (alreadyOpen !== true) {
     await pressChord("u", { shift: true });
@@ -688,8 +1163,10 @@ async function openStructure(tab) {
 }
 
 async function closeStructure() {
-  const open = await evaluate(`document.getElementById('view-structure')?.hidden === false`);
-  if (open === true) await evaluate(`document.getElementById('sidebar-close')?.click(); true`);
+  const open = await evaluate(
+    `document.querySelector('[data-popup-id="structure"]')?.open === true`,
+  );
+  if (open === true) await pressEscape();
   await sleep(300);
 }
 
@@ -699,8 +1176,34 @@ async function openSidebar(view) {
     `document.querySelector('.workbench')?.dataset.sidebarOpen === 'true' && document.querySelector('.activity[data-sidebar-view="${view}"]')?.getAttribute('aria-pressed') === 'true'`,
   );
   if (visible !== true) {
-    await evaluate(`document.querySelector('.activity[data-sidebar-view="${view}"]')?.click(); true`);
+    await evaluate(
+      `document.querySelector('.activity[data-sidebar-view="${view}"]')?.click(); true`,
+    );
     await sleep(300);
+  }
+}
+
+async function openSourceControl() {
+  const open = await evaluate(
+    `document.querySelector('[data-popup-id="source-control"]')?.open === true`,
+  );
+  if (open !== true) {
+    await evaluate(
+      `document.querySelector('.activity[data-view="scm"]')?.click(); true`,
+    );
+  }
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const ready = await evaluate(
+      `(() => {
+         const popup = document.querySelector('[data-popup-id="source-control"]');
+         return popup?.open === true &&
+           document.querySelector('.scm-panel')?.dataset.scmState === 'repo' &&
+           (document.querySelector('.scm-branch')?.textContent ?? '').length > 0;
+       })()`,
+    );
+    if (ready === true) return;
+    await sleep(150);
   }
 }
 
@@ -731,9 +1234,91 @@ async function chooseMenu(topLabel, itemLabel) {
      })()`,
   );
 
-  if (chosen !== true) throw new Error(`${topLabel} > ${itemLabel}: ${String(chosen)}`);
+  if (chosen !== true)
+    throw new Error(`${topLabel} > ${itemLabel}: ${String(chosen)}`);
 
   await sleep(500);
+}
+
+/** Choose an exact command through the keyboard-accessible command palette. */
+async function choosePaletteCommand(commandId, itemLabel) {
+  const alreadyOpen = await evaluate(
+    `document.querySelector('.quickopen-input[aria-label="Command palette"]')?.closest('.quickopen')?.hidden === false`,
+  );
+  if (alreadyOpen === true) {
+    await pressEscape();
+    await sleep(150);
+  }
+
+  await pressChord("p", { shift: true });
+
+  let inputReady = false;
+  for (let attempt = 0; attempt < 10 && !inputReady; attempt += 1) {
+    await sleep(100);
+    inputReady =
+      (await evaluate(
+        `(() => {
+           const input = document.querySelector('.quickopen-input[aria-label="Command palette"]');
+           if (!(input instanceof HTMLInputElement) || input.closest('.quickopen')?.hidden !== false) {
+             return false;
+           }
+           input.focus();
+           input.value = ${JSON.stringify(itemLabel)};
+           input.dispatchEvent(new Event('input', { bubbles: true }));
+           return true;
+         })()`,
+      )) === true;
+  }
+
+  if (!inputReady) throw new Error("command palette did not open");
+
+  let point = null;
+  for (let attempt = 0; attempt < 10 && point === null; attempt += 1) {
+    await sleep(100);
+    point = await evaluate(
+      `(() => {
+         const row = [...document.querySelectorAll('.palette-row')].find((candidate) =>
+           candidate.querySelector('.palette-id')?.textContent?.trim() === ${JSON.stringify(commandId)} &&
+           candidate.querySelector('span:not(.palette-id)')?.textContent?.trim() === ${JSON.stringify(itemLabel)}
+         );
+         if (!(row instanceof HTMLElement)) return null;
+         const box = row.getBoundingClientRect();
+         return box.width > 0 && box.height > 0
+           ? { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) }
+           : null;
+       })()`,
+    );
+  }
+
+  if (point === null || typeof point !== "object") {
+    const visibleCommands = await evaluate(
+      `[...document.querySelectorAll('.palette-row')].map((row) => ({
+         id: row.querySelector('.palette-id')?.textContent?.trim(),
+         label: row.querySelector('span:not(.palette-id)')?.textContent?.trim(),
+       }))`,
+    );
+    await pressEscape();
+    throw new Error(
+      `no palette command ${commandId} (${itemLabel}); palette had ${JSON.stringify(visibleCommands)}`,
+    );
+  }
+
+  await clickAt(point.x, point.y);
+  await sleep(500);
+}
+
+/** Wait for animated popup dismissal before the next user action targets the workbench. */
+async function waitForPopupsClosed(selectors) {
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    const closed = await evaluate(
+      `(${JSON.stringify(selectors)}).every((selector) =>
+         document.querySelector(selector)?.open === false
+       )`,
+    );
+    if (closed === true) return true;
+    await sleep(40);
+  }
+  return false;
 }
 
 /**
@@ -838,7 +1423,9 @@ if (filePoint === null) {
     );
   })();
 
-  await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
+  await evaluate(
+    "document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true",
+  );
 }
 
 /*
@@ -849,13 +1436,23 @@ if (filePoint === null) {
  * and this listener has to run in the capture phase to be ahead of it.
  */
 checks.altLetterOpensMenu = await (async () => {
-  await evaluate("document.querySelector('.monaco-editor textarea')?.focus(); true");
+  await evaluate(
+    "document.querySelector('.monaco-editor textarea')?.focus(); true",
+  );
 
   await send("Input.dispatchKeyEvent", {
-    type: "rawKeyDown", key: "g", code: "KeyG", windowsVirtualKeyCode: 71, modifiers: 1,
+    type: "rawKeyDown",
+    key: "g",
+    code: "KeyG",
+    windowsVirtualKeyCode: 71,
+    modifiers: 1,
   });
   await send("Input.dispatchKeyEvent", {
-    type: "keyUp", key: "g", code: "KeyG", windowsVirtualKeyCode: 71, modifiers: 1,
+    type: "keyUp",
+    key: "g",
+    code: "KeyG",
+    windowsVirtualKeyCode: 71,
+    modifiers: 1,
   });
   await sleep(250);
 
@@ -869,7 +1466,9 @@ checks.altLetterOpensMenu = await (async () => {
      })()`,
   );
 
-  await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
+  await evaluate(
+    "document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true",
+  );
   return opened;
 })();
 
@@ -966,22 +1565,26 @@ if (featureLauncherPoint === null) {
     `(() => {
        const button = document.querySelector('#open-features');
        const sheet = document.querySelector('.feature-library');
-       const host = document.getElementById('view-features');
-       if (!button || !sheet || host?.hidden !== false) return false;
-       const anchor = button.getBoundingClientRect();
+       const dialog = sheet?.closest('dialog[data-popup-id="features"]');
+       const surface = dialog?.querySelector('.popup-shell-surface');
+       const close = sheet?.querySelector('.feature-library-close[aria-label="Close All Features"]');
+       if (!button || !sheet || !dialog?.open || !surface || !close) return false;
        const box = sheet.getBoundingClientRect();
-       const overlaps =
-         anchor.left < box.right && anchor.right > box.left &&
-         anchor.top < box.bottom && anchor.bottom > box.top;
+       const categories = sheet.querySelector('.feature-library-categories');
+       const results = sheet.querySelector('.feature-library-results');
+       const categoriesBox = categories?.getBoundingClientRect();
+       const resultsBox = results?.getBoundingClientRect();
+       const closeBox = close.getBoundingClientRect();
+       const surfaceBox = surface.getBoundingClientRect();
        return {
          belowEarnings: button.previousElementSibling?.id === 'open-earnings',
          expanded: button.getAttribute('aria-expanded') === 'true',
          open: sheet.dataset.state === 'open',
-         docked: host.contains(sheet) && getComputedStyle(sheet).position !== 'fixed',
+         shellOwned: dialog.contains(sheet),
          margin: box.left >= 48 && box.top >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight,
-         box: { left: box.left, top: box.top, right: box.right, bottom: box.bottom },
-         viewport: { width: window.innerWidth, height: window.innerHeight },
-         launcherClear: !overlaps,
+         twoPanes: categoriesBox && resultsBox && categoriesBox.width > 0 && resultsBox.width > 0 && categoriesBox.right <= resultsBox.left,
+         closeNamed: close.getAttribute('title') === 'Close All Features',
+         closeVisible: closeBox.width >= 24 && closeBox.height >= 24 && closeBox.left >= surfaceBox.left && closeBox.right <= surfaceBox.right && closeBox.top >= surfaceBox.top && closeBox.bottom <= surfaceBox.bottom && closeBox.right <= window.innerWidth && closeBox.bottom <= window.innerHeight,
          sidebarStable: Math.round(document.getElementById('sidebar').getBoundingClientRect().width) === ${String(featureLauncherPoint.sidebarWidth)},
          panelStable: Math.round(document.getElementById('panel').getBoundingClientRect().height) === ${String(featureLauncherPoint.panelHeight)},
        };
@@ -989,8 +1592,18 @@ if (featureLauncherPoint === null) {
   );
   checks.featureLibraryPlacement =
     typeof checks.featureLibraryPlacementEvidence === "object" &&
-    ["belowEarnings", "expanded", "open", "docked", "margin", "launcherClear", "sidebarStable", "panelStable"]
-      .every((key) => checks.featureLibraryPlacementEvidence[key] === true);
+    [
+      "belowEarnings",
+      "expanded",
+      "open",
+      "shellOwned",
+      "margin",
+      "twoPanes",
+      "closeNamed",
+      "closeVisible",
+      "sidebarStable",
+      "panelStable",
+    ].every((key) => checks.featureLibraryPlacementEvidence[key] === true);
 
   checks.featureLibrarySearch = await evaluate(
     `(() => {
@@ -1056,27 +1669,30 @@ if (featureLauncherPoint === null) {
          const library = document.querySelector('.feature-library');
          const settings = document.querySelector('.settings-sheet:not(.help-sheet)');
          const row = document.querySelector('[data-setting-id="adcode.ai.editPolicy"]');
-         return {
-           libraryClosed: document.getElementById('view-features')?.hidden === true,
-           settingsVisible: document.getElementById('view-settings')?.hidden === false,
-           settingsAnimatedOpen: settings?.dataset.state === 'open',
-           rowExists: row !== null,
-           rowMarked: row?.dataset.highlight === 'true',
-         };
-       })()`,
+        return {
+          libraryClosed: library?.closest('dialog[data-popup-id="features"]')?.open === false,
+          settingsVisible: settings?.closest('dialog[data-popup-id="settings"]')?.open === true,
+          settingsAnimatedOpen: settings?.dataset.state === 'open',
+          rowExists: row !== null,
+          rowMarked: row?.dataset.highlight === 'true',
+          rowFocused: document.activeElement === row,
+        };
+      })()`,
     );
     checks.featureLibraryActionDispatch =
       typeof checks.featureLibraryActionEvidence === "object" &&
       checks.featureLibraryActionEvidence.libraryClosed === true &&
       checks.featureLibraryActionEvidence.settingsVisible === true &&
-      checks.featureLibraryActionEvidence.rowExists === true;
+      checks.featureLibraryActionEvidence.rowExists === true &&
+      checks.featureLibraryActionEvidence.rowMarked === true &&
+      checks.featureLibraryActionEvidence.rowFocused === true;
     await pressEscape();
   }
 }
 
 for (let attempt = 0; attempt < 10; attempt += 1) {
   const settingsVisible = await evaluate(
-    `document.getElementById('view-settings')?.hidden === false`,
+    `document.querySelector('dialog[data-popup-id="settings"]')?.open === true`,
   );
   if (settingsVisible !== true) break;
   await pressEscape();
@@ -1087,7 +1703,7 @@ checks.featureLibraryMenuEvidence = await evaluate(
   `(() => {
      const library = document.querySelector('.feature-library');
      return {
-       visible: document.getElementById('view-features')?.hidden === false,
+       visible: library?.closest('dialog[data-popup-id="features"]')?.open === true,
        state: library?.dataset.state ?? null,
        expanded: document.querySelector('#open-features')?.getAttribute('aria-expanded'),
      };
@@ -1098,6 +1714,9 @@ checks.featureLibraryFromViewMenu =
   checks.featureLibraryMenuEvidence?.state === "open" &&
   checks.featureLibraryMenuEvidence?.expanded === "true";
 await pressEscape();
+checks.featureLibraryEscapeRestoresLauncher = await evaluate(
+  `document.querySelector('dialog[data-popup-id="features"]')?.open === false && document.activeElement === document.querySelector('#open-features')`,
+);
 
 const commandCentrePoint = await evaluate(
   `(() => {
@@ -1138,7 +1757,10 @@ if (commandCentrePoint !== null) {
   }
 }
 
-checks.universalSearchEvidence = { baseGroups: baseUniversalGroups, symbols: symbolUniversalGroup };
+checks.universalSearchEvidence = {
+  baseGroups: baseUniversalGroups,
+  symbols: symbolUniversalGroup,
+};
 checks.universalSearchSources =
   Array.isArray(baseUniversalGroups) &&
   ["Features", "Commands", "Files", "Recent folders"].every((name) =>
@@ -1162,42 +1784,45 @@ const editorFocusPoint = await evaluate(
      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
    })()`,
 );
-if (editorFocusPoint !== null) await clickAt(editorFocusPoint.x, editorFocusPoint.y);
+if (editorFocusPoint !== null)
+  await clickAt(editorFocusPoint.x, editorFocusPoint.y);
 checks.discoveryCloseRestoresEditor = await evaluate(
   `document.querySelector('.universal-search-overlay')?.hidden === true &&
-   document.getElementById('view-features')?.hidden === true &&
+   document.querySelector('dialog[data-popup-id="features"]')?.open === false &&
    document.activeElement?.closest('.monaco-editor') !== null`,
 );
 
 const focusedSearchEvidence = {};
 await pressChord("p");
 focusedSearchEvidence.quickOpen = await evaluate(
-    `document.querySelector('.quickopen-input[aria-label="Go to file"]')?.closest('.quickopen')?.hidden === false`,
-  );
+  `document.querySelector('.quickopen-input[aria-label="Go to file"]')?.closest('.quickopen')?.hidden === false`,
+);
 await pressEscape();
 
 await pressChord("p", { shift: true });
 focusedSearchEvidence.palette = await evaluate(
-    `document.querySelector('.quickopen-input[aria-label="Command palette"]')?.closest('.quickopen')?.hidden === false`,
-  );
+  `document.querySelector('.quickopen-input[aria-label="Command palette"]')?.closest('.quickopen')?.hidden === false`,
+);
 await pressEscape();
 
 await chooseMenu("Go", "Go to Symbol…");
 focusedSearchEvidence.symbols = await evaluate(
-    `document.querySelector('.quickopen-input[aria-label="Go to symbol in project"]')?.closest('.quickopen')?.hidden === false`,
-  );
+  `document.querySelector('.quickopen-input[aria-label="Go to symbol in project"]')?.closest('.quickopen')?.hidden === false`,
+);
 await pressEscape();
 
 await pressChord("f", { shift: true });
 focusedSearchEvidence.content = await evaluate(
-    `(() => {
+  `(() => {
        const input = document.querySelector('input[aria-label="Search the workspace"]');
        const view = document.getElementById('view-search');
        return input !== null && view?.hidden === false;
      })()`,
-  );
+);
 checks.focusedSearchEvidence = focusedSearchEvidence;
-checks.focusedSearchShortcuts = Object.values(focusedSearchEvidence).every((value) => value === true);
+checks.focusedSearchShortcuts = Object.values(focusedSearchEvidence).every(
+  (value) => value === true,
+);
 await openSidebar("explorer");
 await sleep(300);
 
@@ -1273,12 +1898,16 @@ if (process.argv.includes("--visual-only")) {
   );
   await pressEscape();
 
-  const viewportBeforeZoom = await evaluate(`({ width: innerWidth, height: innerHeight })`);
+  const viewportBeforeZoom = await evaluate(
+    `({ width: innerWidth, height: innerHeight })`,
+  );
   for (let step = 0; step < 8; step += 1) {
     await evaluate(`window.adcode.window.zoom(1); true`);
     await sleep(80);
   }
-  const viewportAtZoom = await evaluate(`({ width: innerWidth, height: innerHeight })`);
+  const viewportAtZoom = await evaluate(
+    `({ width: innerWidth, height: innerHeight })`,
+  );
   await evaluate(`document.querySelector('#open-features')?.click(); true`);
   await sleep(300);
   visual.zoom = await evaluate(
@@ -1356,7 +1985,9 @@ if (process.argv.includes("--visual-only")) {
   child.kill();
   await sleep(500);
   await rm(userData, { recursive: true, force: true }).catch(() => {});
-  process.stdout.write(`${JSON.stringify({ visual, screenshotPaths }, null, 2)}\n`);
+  process.stdout.write(
+    `${JSON.stringify({ visual, screenshotPaths }, null, 2)}\n`,
+  );
 
   const visualPassed =
     visual.lightComfortable?.theme === "light" &&
@@ -1391,7 +2022,9 @@ if (process.argv.includes("--discovery-only")) {
     ),
   );
   process.stdout.write(`${JSON.stringify(discovery, null, 2)}\n`);
-  const failedDiscovery = Object.entries(discovery).filter(([, value]) => value === false);
+  const failedDiscovery = Object.entries(discovery).filter(
+    ([, value]) => value === false,
+  );
   process.exit(failedDiscovery.length === 0 ? 0 : 1);
 }
 
@@ -1522,7 +2155,9 @@ checks.terminalProfileLauncher = await (async () => {
 
   if (shells === null || shells.length === 0) return "launcher did not open";
 
-  const before = await evaluate("document.querySelectorAll('.terminal-tab').length");
+  const before = await evaluate(
+    "document.querySelectorAll('.terminal-tab').length",
+  );
   const point = await contextItemPoint(shells[0]);
   await clickAt(point.x, point.y);
   await sleep(2500);
@@ -1536,12 +2171,17 @@ checks.terminalProfileLauncher = await (async () => {
   );
 
   const { count, titles } = JSON.parse(after);
-  if (count <= before) return `picking ${shells[0]} started nothing (${before} -> ${count})`;
+  if (count <= before)
+    return `picking ${shells[0]} started nothing (${before} -> ${count})`;
 
   // "Terminal 1" was the old numbered title; a tab still called that means the shell's
   // name never reached the strip.
-  const named = titles.some((t) => typeof t === "string" && t.includes(shells[0]));
-  return named ? true : `tabs are ${titles.join(', ')}, expected one saying ${shells[0]}`;
+  const named = titles.some(
+    (t) => typeof t === "string" && t.includes(shells[0]),
+  );
+  return named
+    ? true
+    : `tabs are ${titles.join(", ")}, expected one saying ${shells[0]}`;
 })();
 
 /*
@@ -1553,15 +2193,34 @@ checks.terminalProfileLauncher = await (async () => {
  * bug: nothing about it is visible from a single synthesised event.
  */
 checks.altChordLeavesMenuShut = await (async () => {
-  const altDown = { type: "rawKeyDown", key: "Alt", code: "AltLeft", windowsVirtualKeyCode: 18, modifiers: 1 };
-  const altUp = { type: "keyUp", key: "Alt", code: "AltLeft", windowsVirtualKeyCode: 18 };
+  const altDown = {
+    type: "rawKeyDown",
+    key: "Alt",
+    code: "AltLeft",
+    windowsVirtualKeyCode: 18,
+    modifiers: 1,
+  };
+  const altUp = {
+    type: "keyUp",
+    key: "Alt",
+    code: "AltLeft",
+    windowsVirtualKeyCode: 18,
+  };
 
   await send("Input.dispatchKeyEvent", altDown);
   await send("Input.dispatchKeyEvent", {
-    type: "rawKeyDown", key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38, modifiers: 1,
+    type: "rawKeyDown",
+    key: "ArrowUp",
+    code: "ArrowUp",
+    windowsVirtualKeyCode: 38,
+    modifiers: 1,
   });
   await send("Input.dispatchKeyEvent", {
-    type: "keyUp", key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38, modifiers: 1,
+    type: "keyUp",
+    key: "ArrowUp",
+    code: "ArrowUp",
+    windowsVirtualKeyCode: 38,
+    modifiers: 1,
   });
   await send("Input.dispatchKeyEvent", altUp);
   await sleep(250);
@@ -1593,7 +2252,9 @@ checks.altChordLeavesMenuShut = await (async () => {
      })()`,
   );
 
-  await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
+  await evaluate(
+    "document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true",
+  );
 
   return focused === true ? true : `a bare Alt: ${focused}`;
 })();
@@ -1615,11 +2276,16 @@ checks.titleBarControlsWork = await (async () => {
   if (ai === null) return "no assistant button";
 
   await clickAt(ai.x, ai.y);
-  const chatOpen = await evaluate("document.querySelector('.chat-card')?.hidden === false");
+  const chatOpen = await evaluate(
+    "document.querySelector('.chat-card')?.hidden === false",
+  );
   if (!chatOpen) return "the assistant button did not open the chat";
 
-  const pressed = await evaluate("document.getElementById('ai-toggle')?.getAttribute('aria-pressed')");
-  if (pressed !== "true") return `aria-pressed is ${pressed} while the chat is open`;
+  const pressed = await evaluate(
+    "document.getElementById('ai-toggle')?.getAttribute('aria-pressed')",
+  );
+  if (pressed !== "true")
+    return `aria-pressed is ${pressed} while the chat is open`;
 
   await clickAt(ai.x, ai.y);
   await sleep(300);
@@ -1730,7 +2396,9 @@ checks.reportDialogOpens = await (async () => {
   await evaluate("document.querySelector('.report-dialog')?.close(); true");
   await sleep(150);
 
-  const closed = await evaluate("document.querySelector('.report-dialog')?.open === false");
+  const closed = await evaluate(
+    "document.querySelector('.report-dialog')?.open === false",
+  );
   if (closed !== true) return "the form would not close";
 
   return form === true ? true : `the feedback form: ${form}`;
@@ -2054,7 +2722,9 @@ try {
          return staged !== unstaged ? true : 'Stage/Unstage both ' + (staged ? 'present' : 'absent');
        })()`,
     );
-    await evaluate("document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true");
+    await evaluate(
+      "document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true",
+    );
     await sleep(200);
   }
 
@@ -2177,7 +2847,9 @@ try {
      })()`,
   );
   if (deletePoint === null) {
-    throw new Error(`refusing to delete: scratch folder ${SCRATCH} is not visible`);
+    throw new Error(
+      `refusing to delete: scratch folder ${SCRATCH} is not visible`,
+    );
   }
   await rightClickAt(deletePoint.x, deletePoint.y);
   point = await contextItemPoint("Delete");
@@ -2264,7 +2936,9 @@ try {
      })()`,
   );
 
-  await evaluate(`document.querySelector('.activity[data-view="problems"]').click(); true`);
+  await evaluate(
+    `document.querySelector('.activity[data-view="problems"]').click(); true`,
+  );
   await sleep(600);
 
   checks.problemsActivityState = await evaluate(
@@ -2324,7 +2998,10 @@ try {
       const { writeFileSync } = await import("node:fs");
       const { tmpdir } = await import("node:os");
       const { join } = await import("node:path");
-      writeFileSync(join(tmpdir(), "adcode-smoke.png"), Buffer.from(shot.result.data, "base64"));
+      writeFileSync(
+        join(tmpdir(), "adcode-smoke.png"),
+        Buffer.from(shot.result.data, "base64"),
+      );
     }
   }
 
@@ -2348,7 +3025,6 @@ try {
   );
 
   /* ── The editing group, on the file that already has a real error (P2a) ── */
-
 
   /*
    * Every one of these clicks into the editor with real input first.
@@ -2389,7 +3065,9 @@ try {
       );
 
       if (activated !== true) {
-        throw new Error("smoke-broken.ts is not open - refusing to type over another file");
+        throw new Error(
+          "smoke-broken.ts is not open - refusing to type over another file",
+        );
       }
       await sleep(600);
     }
@@ -2912,9 +3590,12 @@ try {
       const shot = await send("Page.captureScreenshot", { format: "png" });
       if (shot.result?.data !== undefined) {
         const { writeFileSync } = await import("node:fs");
-      const { tmpdir } = await import("node:os");
-      const { join } = await import("node:path");
-        writeFileSync(join(tmpdir(), "adcode-peek.png"), Buffer.from(shot.result.data, "base64"));
+        const { tmpdir } = await import("node:os");
+        const { join } = await import("node:path");
+        writeFileSync(
+          join(tmpdir(), "adcode-peek.png"),
+          Buffer.from(shot.result.data, "base64"),
+        );
       }
     }
 
@@ -3130,30 +3811,35 @@ try {
        button.click();
        await new Promise((r) => setTimeout(r, 400));
 
-       const popup = document.querySelector('.structure-popup');
-       const opened = popup !== null && document.getElementById('view-structure')?.hidden === false;
+       const popup = document.querySelector('[data-popup-id="structure"]');
+       const opened = popup?.open === true && popup.querySelector('.structure-popup') !== null;
        const announced = button.getAttribute('aria-expanded');
+       const sidebarBeforeClose = [...document.querySelectorAll('.activity[data-sidebar-view]')]
+         .find((activity) => ['explorer', 'search'].includes(activity.dataset.sidebarView)
+           && activity.getAttribute('aria-pressed') === 'true')?.dataset.sidebarView ?? null;
 
        // A second press closes it again, which is what a toggle has to do or the button
        // feels broken the moment anybody presses it twice.
        button.click();
        await new Promise((r) => setTimeout(r, 400));
-       const closed = document.querySelector('.workbench')?.dataset.sidebarOpen === 'false';
+       const closed = popup?.open === false;
 
        return {
          inTheActivityBar: button.closest('#activitybar') !== null,
          topmost,
          opened,
          closesOnSecondPress: closed,
-         participatesInSidebarSelection: button.dataset.sidebarView === 'structure',
+         leavesSidebarSelection: sidebarBeforeClose !== null &&
+           document.querySelector('.activity[data-sidebar-view="' + sidebarBeforeClose + '"]')
+             ?.getAttribute('aria-pressed') === 'true',
          announcesState: before === 'false' && announced === 'true'
            && button.getAttribute('aria-expanded') === 'false',
        };
     })()`,
   );
 
-  // The second Structure press intentionally collapses the selected sidebar. Re-open the
-  // Explorer explicitly before asking for coordinates inside its tree.
+  // Structure leaves the selected structural view alone. Select Explorer before asking for
+  // coordinates inside its tree.
   await openSidebar("explorer");
 
   /*
@@ -3179,10 +3865,32 @@ try {
 
   // Clear the template first. A `.ts` file is created with one now, and typing into it
   // would be testing the template's outline rather than the one being written here.
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "a",
+    code: "KeyA",
+    windowsVirtualKeyCode: 65,
+    modifiers: 2,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "a",
+    code: "KeyA",
+    windowsVirtualKeyCode: 65,
+    modifiers: 2,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Delete",
+    code: "Delete",
+    windowsVirtualKeyCode: 46,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Delete",
+    code: "Delete",
+    windowsVirtualKeyCode: 46,
+  });
   await sleep(300);
 
   await typeText("const alpha = 1;");
@@ -3204,7 +3912,7 @@ try {
   checks.structureReadsTheOpenFile = await evaluate(
     `(() => {
        const popup = document.querySelector('.structure-popup');
-       if (popup === null || document.getElementById('view-structure')?.hidden !== false) return 'the structure view did not open';
+       if (popup === null || popup.closest('[data-popup-id="structure"]')?.open !== true) return 'the structure view did not open';
 
        const rows = [...popup.querySelectorAll('.structure-row')];
        if (rows.length === 0) return 'no rows: ' + (view.textContent ?? '').slice(0, 120);
@@ -3318,10 +4026,32 @@ try {
 
   await clickAt(pageEditorPoint.x, pageEditorPoint.y);
 
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA", windowsVirtualKeyCode: 65, modifiers: 2 });
-  await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
-  await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Delete", code: "Delete", windowsVirtualKeyCode: 46 });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "a",
+    code: "KeyA",
+    windowsVirtualKeyCode: 65,
+    modifiers: 2,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "a",
+    code: "KeyA",
+    windowsVirtualKeyCode: 65,
+    modifiers: 2,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Delete",
+    code: "Delete",
+    windowsVirtualKeyCode: 46,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Delete",
+    code: "Delete",
+    windowsVirtualKeyCode: 46,
+  });
   await sleep(300);
 
   await typeText(".smokecard {");
@@ -3383,7 +4113,7 @@ try {
   checks.projectMapExplainsTheFolders = await evaluate(
     `(() => {
        const popup = document.querySelector('.structure-popup');
-       if (popup === null || document.getElementById('view-structure')?.hidden !== false) return 'the structure view did not open';
+       if (popup === null || popup.closest('[data-popup-id="structure"]')?.open !== true) return 'the structure view did not open';
 
        const map = popup.querySelector('.projectmap');
        if (map === null || map.hidden) return 'the project tab did not show';
@@ -3550,7 +4280,9 @@ try {
      })()`,
   );
 
-  await evaluate(`document.querySelector('.activity[data-view="problems"]').click(); true`);
+  await evaluate(
+    `document.querySelector('.activity[data-view="problems"]').click(); true`,
+  );
   await sleep(800);
 
   checks.missingServerBecomesAHint = await evaluate(
@@ -3603,10 +4335,14 @@ try {
    * originating line is included for that reason.
    */
   const where =
-    error instanceof Error ? (error.stack ?? "").split(String.fromCharCode(10))[1]?.trim() : "";
+    error instanceof Error
+      ? (error.stack ?? "").split(String.fromCharCode(10))[1]?.trim()
+      : "";
   checks.explorerFlow = `THREW: ${error instanceof Error ? error.message : String(error)} (${where})`;
 } finally {
-  await rm(join(REPO, SCRATCH), { recursive: true, force: true }).catch(() => {});
+  await rm(join(REPO, SCRATCH), { recursive: true, force: true }).catch(
+    () => {},
+  );
   await rm(join(REPO, "smoke-broken.ts"), { force: true }).catch(() => {});
   await rm(join(REPO, "smoke-lang.py"), { force: true }).catch(() => {});
   await rm(join(REPO, "smoke-page.html"), { force: true }).catch(() => {});
@@ -3737,17 +4473,44 @@ async function dragBy(handleId, dx, dy) {
   );
   if (from === null) return false;
 
-  await send("Input.dispatchMouseEvent", { type: "mousePressed", x: from.x, y: from.y, button: "left", clickCount: 1, buttons: 1 });
+  await send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x: from.x,
+    y: from.y,
+    button: "left",
+    clickCount: 1,
+    buttons: 1,
+  });
   // Two moves: one small, one to the target. A single jump can be coalesced away.
-  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from.x + Math.sign(dx) * 2, y: from.y + Math.sign(dy) * 2, button: "left", buttons: 1 });
-  await send("Input.dispatchMouseEvent", { type: "mouseMoved", x: from.x + dx, y: from.y + dy, button: "left", buttons: 1 });
-  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: from.x + dx, y: from.y + dy, button: "left", buttons: 0 });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: from.x + Math.sign(dx) * 2,
+    y: from.y + Math.sign(dy) * 2,
+    button: "left",
+    buttons: 1,
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: from.x + dx,
+    y: from.y + dy,
+    button: "left",
+    buttons: 1,
+  });
+  await send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x: from.x + dx,
+    y: from.y + dy,
+    button: "left",
+    buttons: 0,
+  });
   await sleep(300);
   return true;
 }
 
 const sidebarWidthNow = () =>
-  evaluate("Math.round(document.getElementById('sidebar').getBoundingClientRect().width)");
+  evaluate(
+    "Math.round(document.getElementById('sidebar').getBoundingClientRect().width)",
+  );
 
 checks.sidebarResizes = await (async () => {
   await openSidebar("explorer");
@@ -3758,7 +4521,9 @@ checks.sidebarResizes = await (async () => {
 
   // Roughly the distance dragged, not merely "bigger": a handle that jumps to some fixed
   // size would also pass a `>` check.
-  return Math.abs(after - before - 120) <= 8 ? true : `expected ~+120, got ${after - before}`;
+  return Math.abs(after - before - 120) <= 8
+    ? true
+    : `expected ~+120, got ${after - before}`;
 })();
 
 checks.sidebarClampsAndResets = await (async () => {
@@ -3782,7 +4547,10 @@ checks.sidebarClampsAndResets = await (async () => {
 
 checks.panelResizes = await (async () => {
   // The panel is open from the terminal checks above, and so is its divider.
-  const height = () => evaluate("Math.round(document.getElementById('panel').getBoundingClientRect().height)");
+  const height = () =>
+    evaluate(
+      "Math.round(document.getElementById('panel').getBoundingClientRect().height)",
+    );
   const before = await height();
   if (before === 0) return "panel is not open";
 
@@ -4228,7 +4996,7 @@ checks.earningsPopoverOpens = await evaluate(
      await new Promise((r) => setTimeout(r, 300));
 
      const card = document.querySelector('.earnings-card');
-     if (!card || document.getElementById('view-earnings')?.hidden !== false) return 'earnings view did not open';
+     if (!card || card.closest('[data-popup-id="earnings"]')?.open !== true) return 'earnings view did not open';
 
      const box = card.getBoundingClientRect();
      const centre = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
@@ -4260,17 +5028,90 @@ checks.earningsPopoverOpens = await evaluate(
        // Four presets, from the server's own table.
        presetRows: card.querySelectorAll('.earnings-preset').length,
        earningsSelected:
-         document.querySelector('.activity[data-sidebar-view="earnings"]')?.ariaSelected === 'true',
+         document.getElementById('open-earnings')?.getAttribute('aria-pressed') === 'true',
      };
 
-     // The shared close control dismisses the docked view and restores the editor width.
-     document.getElementById('sidebar-close')?.click();
-     await new Promise((r) => setTimeout(r, 250));
-     result.sharedCloseWorks = document.querySelector('.workbench')?.dataset.sidebarOpen === 'false';
+     // Reactivating the launcher dismisses the anchored popup and leaves the sidebar layout alone.
+     document.getElementById('open-earnings')?.click();
+     const popup = document.querySelector('[data-popup-id="earnings"]');
+     for (let attempt = 0; attempt < 10 && popup?.open === true; attempt += 1) {
+       await new Promise((r) => setTimeout(r, 40));
+     }
+     result.launcherCloseWorks = popup?.open === false;
 
-     return result;
+   return result;
+  })()`,
+);
+
+checks.earningsCloseButtonEvidence = await evaluate(
+  `(async () => {
+     document.getElementById('open-earnings')?.click();
+     await new Promise((r) => setTimeout(r, 300));
+
+     const card = document.querySelector('.earnings-card');
+     const popup = document.querySelector('[data-popup-id="earnings"]');
+     const surface = popup?.querySelector('.popup-shell-surface');
+     if (!card || popup?.open !== true) return 'earnings view did not open';
+
+     const close = card.querySelector('.earnings-close[aria-label="Close earnings"]');
+     const refresh = card.querySelector('.earnings-refresh[aria-label="Refresh earnings"]');
+     if (!(close instanceof HTMLElement)) return 'no dedicated earnings close button';
+     if (!(refresh instanceof HTMLElement)) return 'no separate earnings refresh button';
+
+     const cardBox = card.getBoundingClientRect();
+     const surfaceBox = surface?.getBoundingClientRect();
+     const closeBox = close.getBoundingClientRect();
+     close.focus();
+     const focused = document.activeElement === close;
+     close.click();
+     for (let attempt = 0; attempt < 10 && popup.open; attempt += 1) {
+       await new Promise((r) => setTimeout(r, 40));
+     }
+
+     return {
+       named: close.getAttribute('aria-label') === 'Close earnings',
+       separateClass: !close.classList.contains('earnings-refresh') &&
+         !refresh.classList.contains('earnings-close'),
+       nonzero: closeBox.width > 0 && closeBox.height > 0,
+       insideCard:
+         closeBox.left >= cardBox.left &&
+         closeBox.right <= cardBox.right &&
+         closeBox.top >= cardBox.top &&
+         closeBox.bottom <= cardBox.bottom,
+       insideSurface:
+         surfaceBox !== undefined &&
+         closeBox.left >= surfaceBox.left &&
+         closeBox.right <= surfaceBox.right &&
+         closeBox.top >= surfaceBox.top &&
+         closeBox.bottom <= surfaceBox.bottom,
+       insideViewport:
+         closeBox.left >= 0 &&
+         closeBox.top >= 0 &&
+         closeBox.right <= window.innerWidth &&
+         closeBox.bottom <= window.innerHeight,
+       focusable: focused,
+       dismissed: popup.open === false,
+       launcherFocused: document.activeElement?.id === 'open-earnings',
+       hitTarget: closeBox.width >= 24 && closeBox.height >= 24,
+       distinctTitles:
+         close.getAttribute('title') === 'Close earnings' &&
+         refresh.getAttribute('title') === 'Refresh earnings',
+     };
    })()`,
 );
+checks.earningsCloseButtonVisible =
+  typeof checks.earningsCloseButtonEvidence === "object" &&
+  checks.earningsCloseButtonEvidence.named === true &&
+  checks.earningsCloseButtonEvidence.separateClass === true &&
+  checks.earningsCloseButtonEvidence.nonzero === true &&
+  checks.earningsCloseButtonEvidence.insideCard === true &&
+  checks.earningsCloseButtonEvidence.insideSurface === true &&
+  checks.earningsCloseButtonEvidence.insideViewport === true &&
+  checks.earningsCloseButtonEvidence.focusable === true &&
+  checks.earningsCloseButtonEvidence.dismissed === true &&
+  checks.earningsCloseButtonEvidence.launcherFocused === true &&
+  checks.earningsCloseButtonEvidence.hitTarget === true &&
+  checks.earningsCloseButtonEvidence.distinctTitles === true;
 
 /*
  * The one button inside the earnings popover actually does something.
@@ -4292,7 +5133,7 @@ checks.earningsSettingsButtonWorks = await evaluate(
      await new Promise((r) => setTimeout(r, 300));
 
      const card = document.querySelector('.earnings-card');
-     if (!card || document.getElementById('view-earnings')?.hidden !== false) return 'the earnings view did not open';
+     if (!card || card.closest('[data-popup-id="earnings"]')?.open !== true) return 'the earnings view did not open';
 
      const button = [...card.querySelectorAll('button')].find(
        (b) => (b.textContent ?? '').trim() === 'Ad settings',
@@ -4305,7 +5146,7 @@ checks.earningsSettingsButtonWorks = await evaluate(
      const settings = document.querySelector('.settings-sheet');
      const settingsVisible =
        settings instanceof HTMLElement &&
-       document.getElementById('view-settings')?.hidden === false &&
+       settings.closest('dialog[data-popup-id="settings"]')?.open === true &&
        settings.getBoundingClientRect().height > 100;
 
      const result = {
@@ -4591,7 +5432,7 @@ checks.collabSessionStartsAndStops = await evaluate(
  */
 
 checks.helpGuideOpens = await (async () => {
-  await chooseMenu("Help", "Feature Guide");
+  await choosePaletteCommand("help.guide", "Feature Guide");
   await sleep(500);
 
   return await evaluate(
@@ -4634,7 +5475,7 @@ checks.helpGuideJumpsToSetting = await (async () => {
        search.value = 'minimap';
        search.dispatchEvent(new Event('input', { bubbles: true }));
 
-       const jump = document.querySelector('.help-sheet .help-card-jump');
+       const jump = document.querySelector('.help-sheet .help-card-jump[data-setting-id="adcode.editing.minimap"]');
        if (!jump) return false;
        jump.click();
        return true;
@@ -4646,7 +5487,7 @@ checks.helpGuideJumpsToSetting = await (async () => {
   // delayed past the sheet transition, so this waits longer than a click normally would.
   await sleep(900);
 
-  return await evaluate(
+  checks.helpGuideJumpEvidence = await evaluate(
     `(() => {
        const guide = document.querySelector('.help-sheet');
        const settings = document.querySelector('.settings-sheet:not(.help-sheet)');
@@ -4656,8 +5497,18 @@ checks.helpGuideJumpsToSetting = await (async () => {
          settingsOpen: settings?.dataset.state === 'open',
          rowExists: row !== null,
          rowMarked: row?.dataset.highlight === 'true',
-       };
-     })()`,
+          rowFocused: document.activeElement === row,
+        };
+      })()`,
+  );
+
+  return (
+    typeof checks.helpGuideJumpEvidence === "object" &&
+    checks.helpGuideJumpEvidence.guideClosed === true &&
+    checks.helpGuideJumpEvidence.settingsOpen === true &&
+    checks.helpGuideJumpEvidence.rowExists === true &&
+    checks.helpGuideJumpEvidence.rowMarked === true &&
+    checks.helpGuideJumpEvidence.rowFocused === true
   );
 })();
 
@@ -4680,7 +5531,7 @@ checks.helpGuideJumpsToSetting = await (async () => {
 async function openSettingsSheet() {
   const isOpen = async () =>
     (await evaluate(
-      `(document.querySelector('.settings-sheet:not(.help-sheet)')?.dataset.state === 'open' && document.getElementById('view-settings')?.hidden === false)`,
+      `(document.querySelector('.settings-sheet:not(.help-sheet)')?.dataset.state === 'open' && document.querySelector('dialog[data-popup-id="settings"]')?.open === true)`,
     )) === true;
 
   /*
@@ -4691,15 +5542,36 @@ async function openSettingsSheet() {
    * parity falls. Clicking once and polling for the result is the only shape that works
    * for a control whose meaning depends on the current state.
    */
-  if (await isOpen()) return true;
-
-  await evaluate("document.getElementById('open-settings')?.click(); true");
-
-  for (let attempt = 0; attempt < 15; attempt += 1) {
-    await sleep(250);
-    if (await isOpen()) return true;
+  let open = await isOpen();
+  if (!open) {
+    await evaluate("document.getElementById('open-settings')?.click(); true");
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      await sleep(250);
+      if (await isOpen()) {
+        open = true;
+        break;
+      }
+    }
   }
-  return false;
+  if (!open) return false;
+
+  checks.settingsCloseGeometry = await evaluate(
+    `(() => {
+       const dialog = document.querySelector('dialog[data-popup-id="settings"]');
+       const surface = dialog?.querySelector('.popup-shell-surface');
+       const close = dialog?.querySelector('.settings-close[aria-label="Close Settings"]');
+       if (!dialog?.open || !surface || !close) return false;
+       const surfaceBox = surface.getBoundingClientRect();
+       const closeBox = close.getBoundingClientRect();
+       return close.getAttribute('title') === 'Close Settings' &&
+         closeBox.width >= 24 && closeBox.height >= 24 &&
+         closeBox.left >= surfaceBox.left && closeBox.right <= surfaceBox.right &&
+         closeBox.top >= surfaceBox.top && closeBox.bottom <= surfaceBox.bottom &&
+         closeBox.left >= 0 && closeBox.top >= 0 &&
+         closeBox.right <= window.innerWidth && closeBox.bottom <= window.innerHeight;
+     })()`,
+  );
+  return checks.settingsCloseGeometry === true;
 }
 
 /*
@@ -4762,7 +5634,10 @@ checks.themePickerRecordsAChoice = await (async () => {
          .find((c) => c.querySelector('.theme-card-label')?.textContent === label);
        card?.click();
        return true;
-     })()`.replace('"Dark"', JSON.stringify(before === "light" ? "Light" : "Dark")),
+     })()`.replace(
+      '"Dark"',
+      JSON.stringify(before === "light" ? "Light" : "Dark"),
+    ),
   );
   await sleep(500);
 
@@ -4845,8 +5720,10 @@ checks.midnightThemeRepaints = await (async () => {
     attribute: applied.attribute === "midnight",
     trueBlackGround: applied.app === "#000000",
     accentInverted: applied.accent === "#f1f3f3",
-    editorFollowed: applied.editor.toLowerCase() === "#08090b" ? true : applied.editor,
-    restored: (await evaluate("document.documentElement.dataset.theme")) !== "midnight",
+    editorFollowed:
+      applied.editor.toLowerCase() === "#08090b" ? true : applied.editor,
+    restored:
+      (await evaluate("document.documentElement.dataset.theme")) !== "midnight",
   };
 })();
 
@@ -4952,16 +5829,661 @@ checks.helpPopoverOpensAndCloses = await (async () => {
      })()`,
   );
 
-  return { ...shown, ...closed };
+  // Use a real full pointer gesture on the modal backdrop. A synthetic pointerdown
+  // alone misses the shell's later click handler and cannot prove layer isolation.
+  await evaluate(`document.querySelector('[data-setting-id="adcode.editing.minimap"] .help-button')?.click(); true`);
+  const outsidePoint = await evaluate(`(() => {
+    const shell = document.querySelector('dialog[data-popup-id="settings"]');
+    const box = shell.querySelector('.popup-shell-surface').getBoundingClientRect();
+    const x = Math.max(1, Math.floor(box.left / 2));
+    return { x, y: Math.round(innerHeight / 2), outsideSurface: x < box.left,
+      helpOpen: document.querySelector('.help-popover')?.hidden === false };
+  })()`);
+  await clickAt(outsidePoint.x, outsidePoint.y);
+  await sleep(300);
+  const outside = await evaluate(`(() => {
+    const shell = document.querySelector('dialog[data-popup-id="settings"]');
+    return {
+      outsidePopoverGone: document.querySelector('.help-popover')?.hidden === true,
+      outsideSettingsStillOpen: shell?.open === true && shell.dataset.closing !== 'true' &&
+        shell.querySelector('.settings-sheet')?.dataset.state === 'open',
+      outsideFocusReturned: document.activeElement ===
+        document.querySelector('[data-setting-id="adcode.editing.minimap"] .help-button'),
+    };
+  })()`);
+
+  return { ...shown, ...closed, outsidePressStartedWithHelp: outsidePoint.helpOpen,
+    outsidePressOnBackdrop: outsidePoint.outsideSurface, ...outside };
 })();
 
 // Leave the app as this block found it, so later checks are not run against a covered window.
 await pressEscape();
 await sleep(400);
+checks.settingsEscapeRestoresLauncher = await evaluate(
+  `document.querySelector('dialog[data-popup-id="settings"]')?.open === false && document.activeElement === document.querySelector('#open-settings')`,
+);
+
+await evaluate("document.getElementById('open-settings')?.click(); true");
+await sleep(400);
+checks.settingsCloseButtonDismisses = await evaluate(
+  `(async () => {
+     const dialog = document.querySelector('dialog[data-popup-id="settings"]');
+     const close = dialog?.querySelector('.settings-close[aria-label="Close Settings"]');
+     if (!dialog?.open || !(close instanceof HTMLElement)) return false;
+     close.focus();
+      const focused = document.activeElement === close;
+      close.click();
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return focused && dialog.open === false && document.activeElement === document.querySelector('#open-settings');
+  })()`,
+);
+
+await evaluate("document.getElementById('ai-toggle')?.click(); true");
+await sleep(400);
+checks.chatConnectWorkspaceEvidence = await evaluate(
+  `(() => {
+     const chat = document.querySelector('dialog[data-popup-id="chat"]');
+     const surface = chat?.querySelector('.popup-shell-surface');
+     const card = chat?.querySelector('.chat-card');
+     const history = card?.querySelector('.chat-history');
+     const conversation = card?.querySelector('.chat-conversation');
+     const inspector = card?.querySelector('.chat-inspector');
+     const composer = card?.querySelector('.chat-composer');
+     const header = card?.querySelector('.chat-header');
+     const historyButton = [...(header?.querySelectorAll('button') ?? [])]
+       .find((button) => button.textContent?.trim() === 'History');
+     const inspectorButton = [...(header?.querySelectorAll('button') ?? [])]
+       .find((button) => button.textContent?.trim() === 'Inspector');
+     const close = [...(header?.querySelectorAll('button') ?? [])]
+       .find((button) => button.textContent?.trim() === 'Close');
+     if (!chat?.open || !surface || !card || !history || !conversation || !inspector || !composer ||
+         !historyButton || !inspectorButton || !close) return false;
+     close.focus();
+     const surfaceBox = surface.getBoundingClientRect();
+     const closeBox = close.getBoundingClientRect();
+     const conversationBox = conversation.getBoundingClientRect();
+     const historyBox = history.getBoundingClientRect();
+     const inspectorBox = inspector.getBoundingClientRect();
+     const composerBox = composer.getBoundingClientRect();
+     // A flush grid edge is painted in 1/64 px units and can serialize either side of its
+     // containing edge. One CSS pixel covers that rounding without accepting a clipped row.
+     const composerTolerance = 1;
+     const composerBottomLimit = Math.min(surfaceBox.bottom, innerHeight);
+     return {
+       workspace: card.getBoundingClientRect().width === surfaceBox.width &&
+         card.getBoundingClientRect().height === surfaceBox.height,
+       titleAndStatus: header.getBoundingClientRect().height > 20 &&
+         (header.textContent ?? '').includes('Assistant'),
+       transcriptDominant: conversationBox.width >= historyBox.width && conversationBox.width >= inspectorBox.width,
+       composerVisible: composerBox.width > 0 && composerBox.height > 0,
+       composerIntersectsSurface:
+         composerBox.top < composerBottomLimit && composerBox.bottom > surfaceBox.top,
+       composerReachable:
+         composerBox.bottom <= composerBottomLimit + composerTolerance,
+       closeGeometry: document.activeElement === close && closeBox.width > 0 && closeBox.height > 0 &&
+         closeBox.left >= surfaceBox.left && closeBox.top >= surfaceBox.top &&
+       close.getAttribute('aria-label') === 'Close Assistant' &&
+         closeBox.right <= surfaceBox.right && closeBox.bottom <= surfaceBox.bottom &&
+         closeBox.right <= innerWidth && closeBox.bottom <= innerHeight,
+     };
+   })()`,
+);
+
+async function setChatViewport(width) {
+  await send("Emulation.setDeviceMetricsOverride", {
+    width,
+    height: 800,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await sleep(250);
+}
+
+async function readChatDisclosureGeometry() {
+  return evaluate(
+    `(() => {
+       const card = document.querySelector('dialog[data-popup-id="chat"] .chat-card');
+       const history = card?.querySelector('.chat-history');
+       const conversation = card?.querySelector('.chat-conversation');
+       const inspector = card?.querySelector('.chat-inspector');
+       const header = card?.querySelector('.chat-header');
+       const historyButton = [...(header?.querySelectorAll('button') ?? [])]
+         .find((button) => button.textContent?.trim() === 'History');
+       const inspectorButton = [...(header?.querySelectorAll('button') ?? [])]
+         .find((button) => button.textContent?.trim() === 'Inspector');
+       if (!card || !history || !conversation || !inspector || !historyButton || !inspectorButton) return false;
+       const snapshot = () => ({
+         width: conversation.getBoundingClientRect().width,
+         historyHidden: history.hidden,
+         inspectorHidden: inspector.hidden,
+         historyOpen: card.dataset.historyOpen,
+         inspectorOpen: card.dataset.inspectorOpen,
+       });
+       if (card.dataset.historyOpen !== 'true') historyButton.click();
+       if (card.dataset.inspectorOpen !== 'true') inspectorButton.click();
+       const bothOpen = snapshot();
+       historyButton.click();
+       const historyCollapsed = snapshot();
+       inspectorButton.click();
+       const bothCollapsed = snapshot();
+       historyButton.click();
+       const inspectorCollapsed = snapshot();
+       inspectorButton.click();
+       return { viewport: innerWidth, bothOpen, historyCollapsed, bothCollapsed, inspectorCollapsed };
+     })()`,
+  );
+}
+
+function hasDisclosureState(snapshot, historyOpen, inspectorOpen) {
+  return (
+    snapshot?.historyOpen === String(historyOpen) &&
+    snapshot?.inspectorOpen === String(inspectorOpen) &&
+    snapshot?.historyHidden === !historyOpen &&
+    snapshot?.inspectorHidden === !inspectorOpen
+  );
+}
+
+function disclosureGeometryPass(result, layout) {
+  if (typeof result !== "object" || result === null) return false;
+  const { viewport, bothOpen, historyCollapsed, bothCollapsed, inspectorCollapsed } = result;
+  const states =
+    hasDisclosureState(bothOpen, true, true) &&
+    hasDisclosureState(historyCollapsed, false, true) &&
+    hasDisclosureState(bothCollapsed, false, false) &&
+    hasDisclosureState(inspectorCollapsed, true, false);
+  if (!states || ![bothOpen, historyCollapsed, bothCollapsed, inspectorCollapsed].every((entry) => entry.width > 0)) {
+    return false;
+  }
+  if (layout === "wide") {
+    return viewport > 980 &&
+      historyCollapsed.width > bothOpen.width + 100 &&
+      bothCollapsed.width > bothOpen.width + 300 &&
+      inspectorCollapsed.width > bothOpen.width + 180;
+  }
+  if (layout === "medium") {
+    return viewport > 720 && viewport <= 980 &&
+      historyCollapsed.width > bothOpen.width + 100 &&
+      Math.abs(bothCollapsed.width - historyCollapsed.width) < 4 &&
+      Math.abs(inspectorCollapsed.width - bothOpen.width) < 4;
+  }
+  return viewport <= 720 &&
+    Math.abs(historyCollapsed.width - bothOpen.width) < 4 &&
+    Math.abs(bothCollapsed.width - bothOpen.width) < 4 &&
+    Math.abs(inspectorCollapsed.width - bothOpen.width) < 4;
+}
+
+await setChatViewport(1280);
+const wideDisclosureGeometry = await readChatDisclosureGeometry();
+await setChatViewport(900);
+const mediumDisclosureGeometry = await readChatDisclosureGeometry();
+await setChatViewport(640);
+const compactDisclosureGeometry = await readChatDisclosureGeometry();
+await setChatViewport(1280);
+
+checks.chatDisclosureGeometry = {
+  wide: disclosureGeometryPass(wideDisclosureGeometry, "wide"),
+};
+checks.chatDisclosureResponsiveEvidence = {
+  medium: disclosureGeometryPass(mediumDisclosureGeometry, "medium"),
+  compact: disclosureGeometryPass(compactDisclosureGeometry, "compact"),
+};
+
+checks.chatSendHistoryEvidence = await evaluate(
+  `(async () => {
+     const card = document.querySelector('dialog[data-popup-id="chat"] .chat-card');
+     const transcript = card?.querySelector('.chat-transcript');
+     const history = card?.querySelector('.chat-history');
+     const header = card?.querySelector('.chat-header');
+     const historyButton = [...(header?.querySelectorAll('button') ?? [])]
+       .find((button) => button.textContent?.trim() === 'History');
+     const reset = [...(header?.querySelectorAll('button') ?? [])]
+       .find((button) => button.textContent?.trim() === 'New');
+     if (!transcript || !history || !historyButton || !reset) return false;
+     if (!history.hidden) historyButton.click();
+     historyButton.click();
+     for (let attempt = 0; attempt < 20; attempt += 1) {
+       if (history.querySelector('.chat-history-open') !== null) break;
+       await new Promise((resolve) => setTimeout(resolve, 100));
+     }
+     const sessions = await window.adcode.chat.sessions();
+     const persisted = sessions.some((session) => session.id === 'smoke-chat-history');
+     const row = [...history.querySelectorAll('.chat-history-open')]
+       .find((button) => button.textContent?.trim() === 'Smoke saved conversation');
+     if (!(row instanceof HTMLButtonElement)) {
+       return { savedSessionPersists: persisted, historyRow: false };
+     }
+     row.click();
+     for (let attempt = 0; attempt < 20; attempt += 1) {
+       if ((transcript.textContent ?? '').includes('Saved Chat response')) break;
+       await new Promise((resolve) => setTimeout(resolve, 100));
+     }
+     const resumed = (transcript.textContent ?? '').includes('Saved Chat request') &&
+       (transcript.textContent ?? '').includes('Saved Chat response');
+     const remembered = card.querySelector('.chat-memory')?.textContent?.includes('Carrying 2 messages') === true;
+     reset.click();
+     await new Promise((resolve) => setTimeout(resolve, 100));
+     if (history.hidden) historyButton.click();
+     for (let attempt = 0; attempt < 20; attempt += 1) {
+       if (history.querySelector('.chat-history-open') !== null) break;
+       await new Promise((resolve) => setTimeout(resolve, 100));
+     }
+     return {
+       resetClearsTranscript: transcript.childElementCount === 0,
+       savedSessionPersists: persisted,
+       historyRow: history.querySelector('.chat-history-open') !== null,
+       resumeRestoresTranscript: resumed,
+       resumeRestoresMemory: remembered,
+     };
+   })()`,
+);
+
+const chatConnectPoint = await evaluate(
+  `(() => {
+     const button = [...document.querySelectorAll('dialog[data-popup-id="chat"] .chat-header button')]
+       .find((candidate) => candidate.textContent?.trim() === 'Connect');
+     if (!(button instanceof HTMLElement)) return null;
+     const box = button.getBoundingClientRect();
+     return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) };
+   })()`,
+);
+if (chatConnectPoint !== null && typeof chatConnectPoint === "object") {
+  await clickAt(chatConnectPoint.x, chatConnectPoint.y);
+}
+await sleep(500);
+checks.chatDependentPointerEvidence = await evaluate(
+  `(async () => {
+     const chat = document.querySelector('#popup-primary-host dialog[data-popup-id="chat"]');
+     const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
+     const button = [...(chat?.querySelectorAll('.chat-header button') ?? [])]
+       .find((candidate) => candidate.textContent?.trim() === 'Connect');
+      if (!chat?.open || !connect?.open || !button) return false;
+      chat.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 250));
+     return {
+       dependentDismisses: connect.open === false,
+       chatRemainsOpen: chat.open === true,
+       focusReturns: document.activeElement === button,
+     };
+   })()`,
+);
+if (chatConnectPoint !== null && typeof chatConnectPoint === "object") {
+  await clickAt(chatConnectPoint.x, chatConnectPoint.y);
+}
+await sleep(500);
+checks.chatConnectLayeringEvidence = await evaluate(
+  `(async () => {
+     const chat = document.querySelector('#popup-primary-host dialog[data-popup-id="chat"]');
+     const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
+     const row = connect?.querySelector('.connect-row');
+     const surface = connect?.querySelector('.popup-shell-surface');
+     const close = [...(connect?.querySelectorAll('.settings-header button') ?? [])]
+       .find((button) => button.textContent?.trim() === 'Close');
+     row?.click();
+     const providerSelected = connect?.querySelector('.connect-row[data-selected="true"]') !== null;
+     close?.focus();
+     const closeBox = close?.getBoundingClientRect();
+     const surfaceBox = surface?.getBoundingClientRect();
+     const closeGeometry = document.activeElement === close && closeBox !== undefined && surfaceBox !== undefined &&
+       close.getAttribute('aria-label') === 'Close Connect a model' && closeBox.width > 0 &&
+       closeBox.height > 0 && closeBox.left >= surfaceBox.left &&
+       closeBox.top >= surfaceBox.top && closeBox.right <= surfaceBox.right &&
+       closeBox.bottom <= surfaceBox.bottom && closeBox.right <= innerWidth && closeBox.bottom <= innerHeight;
+     const stacked = chat?.open === true && connect?.open === true &&
+       Number(getComputedStyle(document.getElementById('popup-dependent-host')).zIndex) >
+         Number(getComputedStyle(document.getElementById('popup-primary-host')).zIndex);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const dependentClosed = connect?.open === false;
+     const chatStillOpen = chat?.open === true;
+     const connectButton = [...(chat?.querySelectorAll('.chat-header button') ?? [])]
+       .find((button) => button.textContent?.trim() === 'Connect');
+      const focusReturned = document.activeElement === connectButton;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 250));
+     return {
+       stacked,
+       closeGeometry,
+       providerSelection: row !== null && providerSelected,
+       layeredEscape: dependentClosed && chatStillOpen,
+       focusReturn: focusReturned,
+       chatEscape: chat?.open === false && document.activeElement === document.getElementById('ai-toggle'),
+     };
+   })()`,
+);
+
+checks.chatConnectWorkspace =
+  typeof checks.chatConnectWorkspaceEvidence === "object" &&
+  Object.values(checks.chatConnectWorkspaceEvidence).every((value) => value === true) &&
+  typeof checks.chatDisclosureGeometry === "object" &&
+  Object.values(checks.chatDisclosureGeometry).every((value) => value === true) &&
+  typeof checks.chatDisclosureResponsiveEvidence === "object" &&
+  Object.values(checks.chatDisclosureResponsiveEvidence).every((value) => value === true) &&
+  typeof checks.chatSendHistoryEvidence === "object" &&
+  Object.values(checks.chatSendHistoryEvidence).every((value) => value === true) &&
+  typeof checks.chatDependentPointerEvidence === "object" &&
+  Object.values(checks.chatDependentPointerEvidence).every((value) => value === true) &&
+  typeof checks.chatConnectLayeringEvidence === "object" &&
+  Object.values(checks.chatConnectLayeringEvidence).every((value) => value === true);
+
+/*
+ * Every workbench popup has one obvious way out, including at the minimum desktop width.
+ * Geometry is measured from what Chromium painted; source-level presence cannot catch the
+ * Earnings regression where a real close button existed just beyond the clipped surface.
+ */
+async function auditRequiredClose(spec, open) {
+  try {
+    await open();
+  } catch (error) {
+    await pressEscape().catch(() => {});
+    await sleep(200);
+    return {
+      launched: false,
+      inspected: false,
+      dismissed: false,
+      launchFailure: error instanceof Error ? error.message : String(error),
+    };
+  }
+  let openSettled = false;
+  for (let attempt = 0; attempt < 15 && !openSettled; attempt += 1) {
+    openSettled =
+      (await evaluate(
+        `(() => {
+           const spec = ${JSON.stringify(spec)};
+           const root = document.querySelector(spec.root);
+           const surface = document.querySelector(spec.surface);
+           const rootOpen = root instanceof HTMLDialogElement
+             ? root.open
+             : root instanceof HTMLElement && !root.hidden && root.dataset.state === 'open';
+           return rootOpen && surface instanceof HTMLElement &&
+             surface.getAnimations().every((animation) =>
+               animation.playState !== 'pending' && animation.playState !== 'running'
+             );
+         })()`,
+      )) === true;
+    if (!openSettled) await sleep(40);
+  }
+
+  const before = await evaluate(
+    `(() => {
+       const spec = ${JSON.stringify(spec)};
+       const root = document.querySelector(spec.root);
+       const surface = document.querySelector(spec.surface);
+       const close = document.querySelector(spec.close);
+       const rootFound = root instanceof HTMLElement;
+       const surfaceFound = surface instanceof HTMLElement;
+       const closeFound = close instanceof HTMLButtonElement;
+       const rootOpen = rootFound && root instanceof HTMLDialogElement
+         ? root.open
+         : rootFound && !root.hidden && root.dataset.state === 'open';
+       if (!rootFound || !surfaceFound || !closeFound || !rootOpen) {
+         return { rootFound, surfaceFound, closeFound, rootOpen };
+       }
+       const beforeFocus = close.getBoundingClientRect().toJSON();
+       close.focus();
+       const surfaceBox = surface.getBoundingClientRect();
+       const closeBox = close.getBoundingClientRect();
+       return {
+         geometry: {
+           beforeFocus, close: closeBox.toJSON(), surface: surfaceBox.toJSON(),
+           root: root.getBoundingClientRect().toJSON(),
+           viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
+           scroll: [root, surface].map((element) => ({ top: element.scrollTop, left: element.scrollLeft })),
+           animation: surface.getAnimations().map((animation) => ({ time: animation.currentTime, state: animation.playState })),
+           presentation: { scale: getComputedStyle(surface).scale, translate: getComputedStyle(surface).translate, transform: getComputedStyle(surface).transform },
+         },
+         rootFound,
+         surfaceFound,
+         closeFound,
+         rootOpen,
+         openSettled: ${String(openSettled)},
+         named: close.getAttribute('aria-label') === spec.label,
+         focusable: document.activeElement === close && !close.disabled,
+         focusDidNotMove:
+           beforeFocus.left === closeBox.left && beforeFocus.right === closeBox.right &&
+           beforeFocus.top === closeBox.top && beforeFocus.bottom === closeBox.bottom,
+         hitTarget: closeBox.width >= 24 && closeBox.height >= 24,
+         insideSurface:
+           closeBox.left >= surfaceBox.left && closeBox.right <= surfaceBox.right &&
+           closeBox.top >= surfaceBox.top && closeBox.bottom <= surfaceBox.bottom,
+         insideViewport:
+           closeBox.left >= 0 && closeBox.right <= innerWidth &&
+           closeBox.top >= 0 && closeBox.bottom <= innerHeight,
+         distinct:
+           !close.matches('.earnings-refresh, .scm-drawer-toggle') &&
+           close.getAttribute('title') !== null,
+       };
+     })()`,
+  );
+  if (typeof before === "object" && before !== null && "geometry" in before) {
+    process.stdout.write(`  closeGeometry ${spec.name}: ${JSON.stringify(before.geometry)}\n`);
+    delete before.geometry;
+  }
+  const inspected =
+    typeof before === "object" &&
+    before !== null &&
+    before.rootFound === true &&
+    before.surfaceFound === true &&
+    before.closeFound === true &&
+    before.rootOpen === true;
+  if (!inspected) {
+    await pressEscape();
+    await sleep(200);
+    return {
+      launched: true,
+      inspected: false,
+      dismissed: false,
+      ...(typeof before === "object" && before !== null ? before : {}),
+    };
+  }
+
+  await evaluate(`document.querySelector(${JSON.stringify(spec.close)})?.click(); true`);
+  let closeSettled = false;
+  for (let attempt = 0; attempt < 15 && !closeSettled; attempt += 1) {
+    closeSettled =
+      (await evaluate(
+        `(() => {
+           const spec = ${JSON.stringify(spec)};
+           const root = document.querySelector(spec.root);
+           const dismissed = root instanceof HTMLDialogElement
+             ? root.open === false
+             : root instanceof HTMLElement && root.hidden === true;
+           const ownerStayedOpen = spec.owner === undefined ||
+             document.querySelector(spec.owner)?.open === true;
+           const expected = document.querySelector(spec.restore) ??
+             (spec.restoreFallback === undefined
+               ? null
+               : document.querySelector(spec.restoreFallback));
+           return dismissed && ownerStayedOpen && expected instanceof HTMLElement &&
+             document.activeElement === expected;
+         })()`,
+      )) === true;
+    if (!closeSettled) await sleep(40);
+  }
+
+  const after = await evaluate(
+    `(() => {
+       const spec = ${JSON.stringify(spec)};
+       const root = document.querySelector(spec.root);
+       const dismissed = root instanceof HTMLDialogElement
+         ? root.open === false
+         : root?.hidden === true;
+       const ownerStayedOpen = spec.owner === undefined ||
+         document.querySelector(spec.owner)?.open === true;
+       const expected = document.querySelector(spec.restore) ??
+         (spec.restoreFallback === undefined
+           ? null
+           : document.querySelector(spec.restoreFallback));
+       return {
+         focusTelemetry: {
+           expectedFound: expected instanceof HTMLElement,
+           expected: expected instanceof HTMLElement
+             ? { tag: expected.tagName, id: expected.id, className: expected.className }
+             : null,
+           active: document.activeElement instanceof HTMLElement
+             ? { tag: document.activeElement.tagName, id: document.activeElement.id, className: document.activeElement.className }
+             : null,
+         },
+         dismissed,
+         intendedLayer: dismissed && ownerStayedOpen,
+         focusRestored: expected instanceof HTMLElement && document.activeElement === expected,
+         closeSettled: ${String(closeSettled)},
+       };
+     })()`,
+  );
+  if (typeof after === "object" && after !== null && "focusTelemetry" in after) {
+    process.stdout.write(`  closeFocus ${spec.name}: ${JSON.stringify(after.focusTelemetry)}\n`);
+    delete after.focusTelemetry;
+  }
+  return typeof after === "object" && after !== null
+    ? { launched: true, inspected: true, ...before, ...after }
+    : after;
+}
+
+await send("Emulation.setDeviceMetricsOverride", {
+  width: 680,
+  height: 800,
+  deviceScaleFactor: 1,
+  mobile: false,
+});
+await sleep(250);
+
+checks.dialogCloseAudit = {};
+checks.dialogCloseAudit.structure = await auditRequiredClose(
+  {
+    name: 'Structure',
+    label: "Close Structure",
+    root: 'dialog[data-popup-id="structure"]',
+    surface: 'dialog[data-popup-id="structure"] .popup-shell-surface',
+    close: '.structure-popup-close',
+    restore: '#open-structure',
+  },
+  () => evaluate("document.getElementById('open-structure')?.click(); true"),
+);
+checks.dialogCloseAudit.earnings = await auditRequiredClose(
+  {
+    name: 'Earnings',
+    label: "Close earnings",
+    root: 'dialog[data-popup-id="earnings"]',
+    surface: 'dialog[data-popup-id="earnings"] .popup-shell-surface',
+    close: '.earnings-close',
+    restore: '#open-earnings',
+  },
+  () => evaluate("document.getElementById('open-earnings')?.click(); true"),
+);
+checks.dialogCloseAudit.sourceControl = await auditRequiredClose(
+  {
+    name: 'Source Control',
+    label: "Close Source Control",
+    root: 'dialog[data-popup-id="source-control"]',
+    surface: 'dialog[data-popup-id="source-control"] .popup-shell-surface',
+    close: '.scm-close',
+    restore: '.activity[data-view="scm"]',
+  },
+  () => evaluate("document.querySelector('.activity[data-view=\"scm\"]')?.click(); true"),
+);
+checks.dialogCloseAudit.features = await auditRequiredClose(
+  {
+    name: 'All Features',
+    label: "Close All Features",
+    root: 'dialog[data-popup-id="features"]',
+    surface: 'dialog[data-popup-id="features"] .popup-shell-surface',
+    close: '.feature-library-close',
+    restore: '#open-features',
+  },
+  () => evaluate("document.getElementById('open-features')?.click(); true"),
+);
+checks.dialogCloseAudit.settings = await auditRequiredClose(
+  {
+    name: 'Settings',
+    label: "Close Settings",
+    root: 'dialog[data-popup-id="settings"]',
+    surface: 'dialog[data-popup-id="settings"] .popup-shell-surface',
+    close: '.settings-close',
+    restore: '#open-settings',
+  },
+  () => evaluate("document.getElementById('open-settings')?.click(); true"),
+);
+checks.dialogCloseAudit.chat = await auditRequiredClose(
+  {
+    name: 'Assistant',
+    label: "Close Assistant",
+    root: 'dialog[data-popup-id="chat"]',
+    surface: 'dialog[data-popup-id="chat"] .popup-shell-surface',
+    close: 'dialog[data-popup-id="chat"] [aria-label="Close Assistant"]',
+    restore: '#ai-toggle',
+  },
+  () => evaluate("document.getElementById('ai-toggle')?.click(); true"),
+);
+checks.dialogCloseAudit.connect = await auditRequiredClose(
+  {
+    name: 'Connect a model',
+    label: "Close Connect a model",
+    root: '#popup-dependent-host dialog[data-popup-id="connect"]',
+    surface: '#popup-dependent-host dialog[data-popup-id="connect"] .popup-shell-surface',
+    close: '#popup-dependent-host dialog[data-popup-id="connect"] [aria-label="Close Connect a model"]',
+    owner: '#popup-primary-host dialog[data-popup-id="chat"]',
+    restore: '#popup-primary-host dialog[data-popup-id="chat"] button[title="Choose a provider and model"]',
+  },
+  async () => {
+    await evaluate("document.getElementById('ai-toggle')?.click(); true");
+    await sleep(300);
+    await evaluate(
+      `(() => {
+         const button = [...document.querySelectorAll('dialog[data-popup-id="chat"] .chat-header button')]
+           .find((candidate) => candidate.textContent?.trim() === 'Connect');
+         button?.click();
+         return true;
+       })()`,
+    );
+  },
+);
+await pressEscape();
+await sleep(250);
+
+checks.dialogCloseAudit.help = await auditRequiredClose(
+  {
+    name: 'ADCode Guide',
+    label: "Close ADCode Guide",
+    root: '.help-sheet',
+    surface: '.help-guide-panel',
+    close: '.help-guide-close',
+    restore: '#editor-host .native-edit-context',
+    restoreFallback: '#editor-host .monaco-editor textarea.inputarea',
+  },
+  () => choosePaletteCommand("help.guide", "Feature Guide"),
+);
+checks.dialogCloseAudit.shortcuts = await auditRequiredClose(
+  {
+    name: 'Keyboard Shortcuts',
+    label: "Close Keyboard Shortcuts",
+    root: 'dialog.shortcuts-dialog',
+    surface: '.shortcuts-card',
+    close: '.shortcuts-close',
+    restore: '#editor-host .native-edit-context',
+    restoreFallback: '#editor-host .monaco-editor textarea.inputarea',
+  },
+  () => choosePaletteCommand("help.shortcuts", "Keyboard Shortcuts"),
+);
+
+checks.dialogCloseAuditPass = Object.values(checks.dialogCloseAudit).every(
+  (result) =>
+    typeof result === "object" &&
+    result !== null &&
+    Object.values(result).every((value) => value === true),
+);
+
+await send("Emulation.setDeviceMetricsOverride", {
+  width: 1280,
+  height: 800,
+  deviceScaleFactor: 1,
+  mobile: false,
+});
 
 socket.close();
 child.kill();
 await sleep(500);
+await rm(SCM_SMOKE_FILE, { force: true }).catch(() => {});
+await rm(userData, { recursive: true, force: true }).catch(() => {});
 
 const bad = output
   .split(/\r?\n/)
@@ -4985,8 +6507,10 @@ process.stdout.write(`\n--- ${bad.length} suspicious log line(s) ---\n`);
 for (const line of bad) process.stdout.write(`  ${line}\n`);
 
 const failed = Object.entries(checks).filter(
-  ([, value]) => value === false || value === undefined || String(value).startsWith("THREW"),
+  ([, value]) =>
+    value === false || value === undefined || String(value).startsWith("THREW"),
 );
-if (failed.length > 0) process.stdout.write(`\nfailed: ${failed.map(([n]) => n).join(", ")}\n`);
+if (failed.length > 0)
+  process.stdout.write(`\nfailed: ${failed.map(([n]) => n).join(", ")}\n`);
 
 process.exit(bad.length === 0 && failed.length === 0 ? 0 : 1);

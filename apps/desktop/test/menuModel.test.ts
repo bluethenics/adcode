@@ -41,7 +41,7 @@ const MENU_COMMANDS = MENU_BAR.flatMap((top) => commandsIn(top.items));
 
 /** Ids passed to `add(...)` or `commands.registerEditorAction(...)` in the renderer. */
 const REGISTERED = new Set(
-  [...MAIN.matchAll(/(?:\badd|commands\.registerEditorAction)\("([^"]+)"/g)].map((m) => m[1]!),
+  [...MAIN.matchAll(/(?:\badd|commands\.registerEditorAction)\(\s*"([^"]+)"/g)].map((m) => m[1]!),
 );
 
 describe("the menu model", () => {

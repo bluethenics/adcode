@@ -17,20 +17,24 @@
 import type { AiProviderInfo, AiStatus } from "../../shared/api.ts";
 
 export interface ConnectView {
+  readonly element: HTMLElement;
+  shown(): void;
+  hidden(): void;
   open(): void;
   close(): void;
   isOpen(): boolean;
 }
 
 export interface ConnectViewDeps {
-  readonly host: HTMLElement;
   readonly status: () => Promise<AiStatus>;
   readonly checkKey: (provider: string, key: string) => Promise<{ ok: boolean; detail?: string; message?: string }>;
   readonly setKey: (provider: string, key: string) => Promise<AiStatus>;
   readonly clearKey: (provider: string) => Promise<AiStatus>;
   /** Persist the chosen provider, model, and custom address. */
   readonly write: (id: string, value: string) => Promise<void>;
-  readonly restoreFocus: () => void;
+  /** The coordinator owns the dialog shell, dismissal, and focus return. */
+  readonly requestOpen: () => void;
+  readonly requestClose: () => void;
 }
 
 export function createConnectView(deps: ConnectViewDeps): ConnectView {
@@ -39,15 +43,12 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   let selected: string | null = null;
   let query = "";
 
-  const sheet = document.createElement("div");
-  sheet.className = "settings-sheet connect-sheet";
-  sheet.hidden = true;
-  sheet.setAttribute("role", "dialog");
-  sheet.setAttribute("aria-modal", "true");
-  sheet.setAttribute("aria-label", "Connect a model");
+  const element = document.createElement("section");
+  element.className = "connect-view";
+  element.setAttribute("aria-label", "Connect a model");
 
   const panel = document.createElement("div");
-  panel.className = "settings-panel";
+  panel.className = "connect-panel";
 
   const header = document.createElement("header");
   header.className = "settings-header";
@@ -58,7 +59,9 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
 
   const done = document.createElement("button");
   done.className = "ghost-button";
-  done.textContent = "Done";
+  done.textContent = "Close";
+  done.setAttribute("aria-label", "Close Connect a model");
+  done.title = "Close Connect a model";
   done.addEventListener("click", () => api.close());
 
   header.append(title, done);
@@ -87,12 +90,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
 
   body.append(list, detail);
   panel.append(header, search, lede, body);
-  sheet.append(panel);
-  deps.host.append(sheet);
-
-  sheet.addEventListener("click", (event) => {
-    if (event.target === sheet) api.close();
-  });
+  element.append(panel);
 
   function matches(provider: AiProviderInfo): boolean {
     const needle = query.trim().toLowerCase();
@@ -351,42 +349,30 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     renderDetail();
   }
 
-  const onKeydown = (event: KeyboardEvent): void => {
-    if (event.key === "Escape" && open) {
-      event.preventDefault();
-      api.close();
-    }
-  };
-
   const api: ConnectView = {
+    element,
+
     open(): void {
+      deps.requestOpen();
+    },
+
+    shown(): void {
       if (open) return;
       open = true;
 
       void load();
 
-      sheet.hidden = false;
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          sheet.dataset["state"] = "open";
-          search.focus();
-        });
+        search.focus();
       });
+    },
 
-      document.addEventListener("keydown", onKeydown);
+    hidden(): void {
+      open = false;
     },
 
     close(): void {
-      if (!open) return;
-      open = false;
-
-      delete sheet.dataset["state"];
-      document.removeEventListener("keydown", onKeydown);
-      window.setTimeout(() => {
-        if (!open) sheet.hidden = true;
-      }, 220);
-
-      deps.restoreFocus();
+      deps.requestClose();
     },
 
     isOpen: () => open,

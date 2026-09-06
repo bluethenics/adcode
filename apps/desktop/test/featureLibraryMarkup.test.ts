@@ -2,20 +2,40 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const HTML = readFileSync(join(import.meta.dirname, "../src/renderer/index.html"), "utf8");
-const MAIN = readFileSync(join(import.meta.dirname, "../src/renderer/main.ts"), "utf8");
+const HTML = readFileSync(
+  join(import.meta.dirname, "../src/renderer/index.html"),
+  "utf8",
+);
+const MAIN = readFileSync(
+  join(import.meta.dirname, "../src/renderer/main.ts"),
+  "utf8",
+);
 const LIBRARY = readFileSync(
   join(import.meta.dirname, "../src/renderer/features/featureLibrary.ts"),
   "utf8",
 );
-const CSS_PATH = join(import.meta.dirname, "../src/renderer/styles/features.css");
+const SMOKE = readFileSync(
+  join(import.meta.dirname, "../../../scripts/smoke.mjs"),
+  "utf8",
+);
+const CSS_PATH = join(
+  import.meta.dirname,
+  "../src/renderer/styles/features.css",
+);
 
 describe("All Features renderer contract", () => {
-  it("places a four-cell docked-view button below Earnings and above Settings", () => {
+  it("keeps All Features as a popup launcher and moves its host out of the structural sidebar", () => {
     const earningsAt = HTML.indexOf('id="open-earnings"');
     const featuresAt = HTML.indexOf('id="open-features"');
     const settingsAt = HTML.indexOf('id="open-settings"');
-    const button = HTML.slice(featuresAt, HTML.indexOf("</button>", featuresAt));
+    const button = HTML.slice(
+      featuresAt,
+      HTML.indexOf("</button>", featuresAt),
+    );
+    const sidebarContent = HTML.slice(
+      HTML.indexOf('class="sidebar-content"'),
+      HTML.indexOf("</aside>", HTML.indexOf('class="sidebar-content"')),
+    );
 
     expect(earningsAt).toBeGreaterThan(-1);
     expect(featuresAt).toBeGreaterThan(earningsAt);
@@ -23,9 +43,11 @@ describe("All Features renderer contract", () => {
     expect(button).toContain('data-sidebar-view="features"');
     expect(button).toContain('aria-pressed="false"');
     expect(button).toContain('aria-expanded="false"');
+    expect(button).toContain('aria-haspopup="dialog"');
     expect(button).toContain('aria-label="All Features"');
-    expect(button).not.toContain('aria-haspopup="dialog"');
-    expect(HTML).toContain('class="sidebar-view" id="view-features" data-sidebar-view="features"');
+    expect(sidebarContent).not.toContain('id="view-features"');
+    expect(HTML).toContain('<div id="popup-primary-host"></div>');
+    expect(HTML).toContain('<div id="popup-dependent-host"></div>');
     expect(button.match(/<rect /g)).toHaveLength(4);
   });
 
@@ -34,27 +56,48 @@ describe("All Features renderer contract", () => {
     expect(LIBRARY).toContain("createHelpButton");
     expect(MAIN).toContain("commands.run(action.command)");
     expect(MAIN).toContain("openSetting(action.settingId)");
-    expect(MAIN).toContain('showView("features", "keyboard")');
-    expect(MAIN).toContain("featureLibrary.open()");
+    expect(MAIN).toContain('size: "large"');
+    expect(MAIN).toContain('openPrimaryPopup("features", featuresShell');
   });
 
-  it("chooses a category from a menu, not a strip that scrolls out of reach", () => {
+  it("renders categories beside a spacious results workspace", () => {
     const css = readFileSync(CSS_PATH, "utf8");
 
-    /*
-     * The strip this replaced was `overflow-x: auto` with `scrollbar-width: none`. Arrow
-     * keys walked it, so it looked accessible, but once the catalogue outgrew the sheet's
-     * width a pointer had no scrollbar and no gesture that reached the categories past the
-     * edge. A vertical menu has no edge to fall off.
-     */
-    expect(css).not.toContain("scrollbar-width: none");
-    expect(css).toContain(".feature-library-filter-menu");
+    // Removing either region would collapse the two-pane library back into a narrow list.
+    expect(LIBRARY).toContain(
+      'categoryRail.className = "feature-library-categories"',
+    );
+    expect(LIBRARY).toContain(
+      'workspace.className = "feature-library-workspace"',
+    );
+    expect(LIBRARY).toContain("body.append(categoryRail, workspace)");
+    expect(css).toContain(".feature-library-body");
+    expect(css).toContain("grid-template-columns: 220px minmax(0, 1fr)");
+  });
 
-    expect(LIBRARY).toContain('filterButton.setAttribute("aria-haspopup", "listbox")');
-    expect(LIBRARY).toContain('menu.setAttribute("role", "listbox")');
-    expect(LIBRARY).toContain('option.setAttribute("role", "option")');
-    // Escape closes the menu before the sheet, so one press is never two dismissals.
-    expect(LIBRARY).toContain("if (menuIsOpen()) closeMenu();");
+  it("does not position or dismiss its own overlay", () => {
+    // The shared shell is the only owner of placement and document-level dismissal.
+    expect(LIBRARY).not.toContain("positionPopover");
+    expect(LIBRARY).not.toContain('document.addEventListener("pointerdown"');
+    expect(LIBRARY).not.toContain('document.addEventListener("keydown"');
+  });
+
+  it("keeps the activated category control in place while updating selection", () => {
+    // Replacing a focused category button makes keyboard activation drop focus to the page.
+    expect(LIBRARY).toContain("const categoryButtons = new Map");
+    expect(LIBRARY).not.toContain("categoryRail.replaceChildren()");
+  });
+
+  it("requires settings highlight and focus evidence before smoke passes", () => {
+    expect(SMOKE).toContain("rowFocused: document.activeElement === row");
+    expect(SMOKE).toContain(
+      "checks.featureLibraryActionEvidence.rowMarked === true",
+    );
+    expect(SMOKE).toContain(
+      "checks.featureLibraryActionEvidence.rowFocused === true",
+    );
+    expect(SMOKE).toContain("checks.helpGuideJumpEvidence.rowMarked === true");
+    expect(SMOKE).toContain("checks.helpGuideJumpEvidence.rowFocused === true");
   });
 
   it("uses semantic materials and removes motion when requested", () => {

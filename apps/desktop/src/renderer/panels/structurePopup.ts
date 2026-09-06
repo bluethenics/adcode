@@ -1,9 +1,8 @@
 /**
- * Structure, embedded in the shared workbench sidebar.
+ * Structure content for an activity-anchored popup shell.
  *
- * It shares the same predictable frame as Explorer and Search, while keeping both of its
- * internal questions available as tabs. The workbench owns disclosure and responsive overlay
- * behavior; this module owns only the Structure content and its local keyboard navigation.
+ * The workbench owns disclosure, anchoring, focus and responsive behavior. This module owns
+ * only the Structure content and its local keyboard navigation.
  *
  * Two tabs, because there are two questions and they arrive at different moments:
  *
@@ -23,16 +22,21 @@ export type StructureTab = "file" | "project";
 export interface StructurePopupDeps {
   readonly filePanel: StructurePanel;
   readonly projectMap: ProjectMap;
-  /** Ask the workbench shell to close the shared sidebar. */
-  readonly requestClose: () => void;
+  /** Used only by the visible close button; the workbench shell owns all other dismissal. */
+  readonly onRequestClose: () => void;
 }
 
-export interface StructurePopup {
-  /** Open on a tab, or toggle the shared view if it is already on that tab. */
+export interface AnchoredTool {
+  readonly element: HTMLElement;
+  shown(): void;
+  hidden(): void;
+  isOpen(): boolean;
+}
+
+export interface StructurePopup extends AnchoredTool {
+  /** Select a tab, or request dismissal if that tab is already visible. */
   toggle(tab?: StructureTab): void;
   open(tab?: StructureTab): void;
-  close(): void;
-  isOpen(): boolean;
   /**
    * `adcode.navigation.outline`.
    *
@@ -42,9 +46,9 @@ export interface StructurePopup {
   setOutlineEnabled(enabled: boolean): void;
 }
 
-export function createStructurePopup(host: HTMLElement, deps: StructurePopupDeps): StructurePopup {
+export function createStructurePopup(deps: StructurePopupDeps): StructurePopup {
   const dialog = document.createElement("section");
-  dialog.className = "structure-popup structure-sidebar-view";
+  dialog.className = "structure-popup";
   dialog.setAttribute("role", "region");
   dialog.setAttribute("aria-label", "Structure browser");
 
@@ -65,8 +69,8 @@ export function createStructurePopup(host: HTMLElement, deps: StructurePopupDeps
   const close = document.createElement("button");
   close.type = "button";
   close.className = "icon-button structure-popup-close";
-  close.title = "Close (Esc)";
-  close.setAttribute("aria-label", "Close");
+  close.title = "Close Structure (Esc)";
+  close.setAttribute("aria-label", "Close Structure");
   close.append(createIcon(ICON.close));
 
   header.append(tabs, close);
@@ -77,9 +81,9 @@ export function createStructurePopup(host: HTMLElement, deps: StructurePopupDeps
 
   card.append(header, body);
   dialog.append(card);
-  host.append(dialog);
 
   let current: StructureTab = "file";
+  let visible = false;
 
   function tabButton(label: string, tab: StructureTab): HTMLButtonElement {
     const button = document.createElement("button");
@@ -117,7 +121,7 @@ export function createStructurePopup(host: HTMLElement, deps: StructurePopupDeps
     }
   }
 
-  close.addEventListener("click", () => api.close());
+  close.addEventListener("click", deps.onRequestClose);
 
   // Left and right walk the tabs, which is what a tablist is supposed to do and what
   // anybody who has used one will try.
@@ -135,6 +139,8 @@ export function createStructurePopup(host: HTMLElement, deps: StructurePopupDeps
   let outlineEnabled = true;
 
   const api: StructurePopup = {
+    element: dialog,
+
     setOutlineEnabled(enabled: boolean): void {
       outlineEnabled = enabled;
       fileTab.hidden = !enabled;
@@ -147,17 +153,22 @@ export function createStructurePopup(host: HTMLElement, deps: StructurePopupDeps
       show(tab);
     },
 
-    close(): void {
-      deps.requestClose();
+    shown(): void {
+      visible = true;
+      show(current);
     },
 
-    isOpen: () => !host.hidden,
+    hidden(): void {
+      visible = false;
+    },
+
+    isOpen: () => visible,
 
     toggle(tab = "file"): void {
       // Toggling to the tab you are already on closes it; toggling to the other one
       // switches. Anything else makes the shortcut feel like it did not work.
-      if (!host.hidden && current === tab) {
-        api.close();
+      if (visible && current === tab) {
+        deps.onRequestClose();
         return;
       }
 

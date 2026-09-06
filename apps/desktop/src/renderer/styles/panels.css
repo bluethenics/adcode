@@ -4,56 +4,80 @@
 
 /* ── Source control ───────────────────────────────────────────────────── */
 
-/*
- * The panel itself does not scroll; its two lists do.
- *
- * One scrollbar for the whole column put the history below however many changed files
- * there happened to be - on this repository, twenty-two of them, which is several screens
- * of scrolling before the commit list is even visible. Splitting the scroll means both
- * halves are always reachable: the changes take what they need up to a share of the
- * height, and the history gets the rest.
- */
 .scm-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.2fr) minmax(300px, 1fr);
+  min-height: 0;
+  min-width: 0;
   overflow: hidden;
   height: 100%;
 }
 
-/* Header, actions and commit box keep their natural height. */
-.scm-panel > .scm-header,
-.scm-panel > .scm-actions,
-.scm-panel > .scm-commit {
-  flex: none;
+.scm-panel[data-scm-state="inactive"],
+.scm-panel[data-scm-state="setup"] {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-/* A floor as well as a ceiling: `flex: 0 1 auto` alone let the history squeeze the
-   changes down to a single visible row. */
+.scm-changes-region,
+.scm-commit-region,
+.scm-history-region {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.scm-commit-region,
+.scm-history-region {
+  border-left: 1px solid var(--border-subtle);
+}
+
 .scm-list {
   flex: 1 1 auto;
-  min-height: 108px;
-  max-height: 45%;
-  overflow-y: auto;
+  min-height: 120px;
+  overflow: auto;
 }
 
 .scm-timeline {
-  flex: none;
-  max-height: 22%;
-  overflow-y: auto;
+  flex: 0 0 auto;
+  max-height: 32%;
+  overflow: auto;
 }
 
 .scm-history {
   flex: 1 1 auto;
   min-height: 120px;
-  overflow-y: auto;
+  overflow: auto;
 }
 
 .scm-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.scm-panel .scm-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 5;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+}
+
+.scm-panel .scm-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .scm-branch {
@@ -72,6 +96,7 @@
 
 .scm-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -81,8 +106,19 @@
   gap: 6px;
 }
 
+.scm-drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.scm-drawer-toggle {
+  display: none;
+}
+
 .scm-message {
   resize: vertical;
+  min-height: 96px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-hairline);
   background: var(--bg-elevated);
@@ -100,6 +136,7 @@
 
 .scm-section {
   margin-top: 6px;
+  min-height: 0;
 }
 
 .scm-section-title {
@@ -175,6 +212,82 @@
   text-align: left;
 }
 
+@media (max-width: 980px) {
+  .scm-panel[data-scm-state="repo"] {
+    grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.35fr);
+  }
+
+  .scm-drawer-toggle:last-child {
+    display: inline-flex;
+  }
+
+  /* Keep the History hit target clear of the dialog-level close control. */
+  .scm-drawer-actions {
+    padding-inline-end: 48px;
+  }
+
+  .scm-panel[data-scm-state="repo"] .scm-history-region {
+    position: absolute;
+    inset: 12px 12px 12px auto;
+    width: min(380px, 80%);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    background: var(--bg-panel);
+    box-shadow: 0 18px 42px rgb(0 0 0 / 0.22);
+    transform: translateX(calc(100% + 12px));
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 160ms ease, opacity 160ms ease;
+    z-index: 2;
+  }
+
+  .scm-panel[data-history-open="true"] .scm-history-region {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .scm-panel[data-scm-state="repo"] {
+    display: block;
+  }
+
+  .scm-panel[data-scm-state="repo"] .scm-commit-region {
+    height: 100%;
+    border-left: 0;
+  }
+
+  .scm-drawer-toggle:first-child {
+    display: inline-flex;
+  }
+
+  .scm-drawer-actions {
+    padding-inline-end: 48px;
+  }
+
+  .scm-panel[data-scm-state="repo"] .scm-changes-region {
+    position: absolute;
+    inset: 12px auto 12px 12px;
+    width: min(340px, 86%);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    background: var(--bg-panel);
+    box-shadow: 0 18px 42px rgb(0 0 0 / 0.22);
+    transform: translateX(calc(-100% - 12px));
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 160ms ease, opacity 160ms ease;
+    z-index: 3;
+  }
+
+  .scm-panel[data-changes-open="true"] .scm-changes-region {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 /* Grid-centred and drawn as paths. See `workbench/icons.ts`. */
 /*
  * Stage and unstage are the two most-pressed buttons in the git panel, and they had no
@@ -229,6 +342,8 @@
   gap: 6px;
   padding: 8px;
   height: 100%;
+  min-height: 0;
+  min-width: 0;
   overflow: hidden;
 }
 
