@@ -2,6 +2,8 @@ import type { PopupId } from "./popupLayer.ts";
 import type { LayoutInput } from "./motion.ts";
 
 export type PopupSize = "anchored" | "medium" | "large" | "workspace";
+type SurfacePresentation = { opacity: string; scale: string; translate: string };
+let nextTitleId = 0;
 
 export interface PopupShellOptions {
   readonly id: PopupId;
@@ -49,7 +51,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
 
   const visibleTitle = options.content.querySelector<HTMLElement>("h1, h2");
   const titleElement = visibleTitle ?? document.createElement("h2");
-  titleElement.id = `popup-shell-title-${options.id}`;
+  titleElement.id = `popup-shell-title-${options.id}-${String(++nextTitleId)}`;
   if (visibleTitle === null) {
     titleElement.className = "popup-shell-title";
     titleElement.textContent = options.title;
@@ -81,7 +83,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
   };
 
   // Computed styles are live. Copy the painted values before canceling their animation.
-  const presentation = (): Keyframe => {
+  const presentation = (): SurfacePresentation => {
     const current = getComputedStyle(surface);
     return { opacity: current.opacity, scale: current.scale, translate: current.translate };
   };
@@ -96,7 +98,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
     };
   };
 
-  const animateOpen = (input: LayoutInput, trigger: HTMLElement | undefined, current?: Keyframe): void => {
+  const animateOpen = (input: LayoutInput, trigger: HTMLElement | undefined, current?: SurfacePresentation): void => {
     cancelSurfaceMotion();
     delete dialog.dataset["closing"];
     if (input === "keyboard") return;

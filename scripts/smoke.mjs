@@ -5414,7 +5414,7 @@ checks.collabSessionStartsAndStops = await evaluate(
  */
 
 checks.helpGuideOpens = await (async () => {
-  await chooseMenu("Help", "Feature Guide");
+  await choosePaletteCommand("help.guide", "Feature Guide");
   await sleep(500);
 
   return await evaluate(
@@ -6165,7 +6165,25 @@ async function auditRequiredClose(spec, open) {
       launchFailure: error instanceof Error ? error.message : String(error),
     };
   }
-  await sleep(350);
+  let openSettled = false;
+  for (let attempt = 0; attempt < 15 && !openSettled; attempt += 1) {
+    openSettled =
+      (await evaluate(
+        `(() => {
+           const spec = ${JSON.stringify(spec)};
+           const root = document.querySelector(spec.root);
+           const surface = document.querySelector(spec.surface);
+           const rootOpen = root instanceof HTMLDialogElement
+             ? root.open
+             : root instanceof HTMLElement && !root.hidden && root.dataset.state === 'open';
+           return rootOpen && surface instanceof HTMLElement &&
+             surface.getAnimations().every((animation) =>
+               animation.playState !== 'pending' && animation.playState !== 'running'
+             );
+         })()`,
+      )) === true;
+    if (!openSettled) await sleep(40);
+  }
 
   const before = await evaluate(
     `(() => {
@@ -6182,16 +6200,29 @@ async function auditRequiredClose(spec, open) {
        if (!rootFound || !surfaceFound || !closeFound || !rootOpen) {
          return { rootFound, surfaceFound, closeFound, rootOpen };
        }
+       const beforeFocus = close.getBoundingClientRect().toJSON();
        close.focus();
        const surfaceBox = surface.getBoundingClientRect();
        const closeBox = close.getBoundingClientRect();
        return {
+         geometry: {
+           beforeFocus, close: closeBox.toJSON(), surface: surfaceBox.toJSON(),
+           root: root.getBoundingClientRect().toJSON(),
+           viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
+           scroll: [root, surface].map((element) => ({ top: element.scrollTop, left: element.scrollLeft })),
+           animation: surface.getAnimations().map((animation) => ({ time: animation.currentTime, state: animation.playState })),
+           presentation: { scale: getComputedStyle(surface).scale, translate: getComputedStyle(surface).translate, transform: getComputedStyle(surface).transform },
+         },
          rootFound,
          surfaceFound,
          closeFound,
          rootOpen,
+         openSettled: ${String(openSettled)},
          named: close.getAttribute('aria-label') === spec.label,
          focusable: document.activeElement === close && !close.disabled,
+         focusDidNotMove:
+           beforeFocus.left === closeBox.left && beforeFocus.right === closeBox.right &&
+           beforeFocus.top === closeBox.top && beforeFocus.bottom === closeBox.bottom,
          hitTarget: closeBox.width >= 24 && closeBox.height >= 24,
          insideSurface:
            closeBox.left >= surfaceBox.left && closeBox.right <= surfaceBox.right &&
@@ -6205,6 +6236,10 @@ async function auditRequiredClose(spec, open) {
        };
      })()`,
   );
+  if (typeof before === "object" && before !== null && "geometry" in before) {
+    process.stdout.write(`  closeGeometry ${spec.name}: ${JSON.stringify(before.geometry)}\n`);
+    delete before.geometry;
+  }
   const inspected =
     typeof before === "object" &&
     before !== null &&
@@ -6224,7 +6259,28 @@ async function auditRequiredClose(spec, open) {
   }
 
   await evaluate(`document.querySelector(${JSON.stringify(spec.close)})?.click(); true`);
-  await sleep(320);
+  let closeSettled = false;
+  for (let attempt = 0; attempt < 15 && !closeSettled; attempt += 1) {
+    closeSettled =
+      (await evaluate(
+        `(() => {
+           const spec = ${JSON.stringify(spec)};
+           const root = document.querySelector(spec.root);
+           const dismissed = root instanceof HTMLDialogElement
+             ? root.open === false
+             : root instanceof HTMLElement && root.hidden === true;
+           const ownerStayedOpen = spec.owner === undefined ||
+             document.querySelector(spec.owner)?.open === true;
+           const expected = document.querySelector(spec.restore) ??
+             (spec.restoreFallback === undefined
+               ? null
+               : document.querySelector(spec.restoreFallback));
+           return dismissed && ownerStayedOpen && expected instanceof HTMLElement &&
+             document.activeElement === expected;
+         })()`,
+      )) === true;
+    if (!closeSettled) await sleep(40);
+  }
 
   const after = await evaluate(
     `(() => {
@@ -6235,19 +6291,31 @@ async function auditRequiredClose(spec, open) {
          : root?.hidden === true;
        const ownerStayedOpen = spec.owner === undefined ||
          document.querySelector(spec.owner)?.open === true;
-       const expected = spec.restore === undefined
-         ? null
-         : document.querySelector(spec.restore);
+       const expected = document.querySelector(spec.restore) ??
+         (spec.restoreFallback === undefined
+           ? null
+           : document.querySelector(spec.restoreFallback));
        return {
+         focusTelemetry: {
+           expectedFound: expected instanceof HTMLElement,
+           expected: expected instanceof HTMLElement
+             ? { tag: expected.tagName, id: expected.id, className: expected.className }
+             : null,
+           active: document.activeElement instanceof HTMLElement
+             ? { tag: document.activeElement.tagName, id: document.activeElement.id, className: document.activeElement.className }
+             : null,
+         },
          dismissed,
          intendedLayer: dismissed && ownerStayedOpen,
-         focusRestored: expected === null
-           ? document.activeElement instanceof HTMLElement &&
-             !document.activeElement.matches(spec.close)
-           : document.activeElement === expected,
+         focusRestored: expected instanceof HTMLElement && document.activeElement === expected,
+         closeSettled: ${String(closeSettled)},
        };
      })()`,
   );
+  if (typeof after === "object" && after !== null && "focusTelemetry" in after) {
+    process.stdout.write(`  closeFocus ${spec.name}: ${JSON.stringify(after.focusTelemetry)}\n`);
+    delete after.focusTelemetry;
+  }
   return typeof after === "object" && after !== null
     ? { launched: true, inspected: true, ...before, ...after }
     : after;
@@ -6336,6 +6404,7 @@ checks.dialogCloseAudit.connect = await auditRequiredClose(
     surface: '#popup-dependent-host dialog[data-popup-id="connect"] .popup-shell-surface',
     close: '#popup-dependent-host dialog[data-popup-id="connect"] [aria-label="Close Connect a model"]',
     owner: '#popup-primary-host dialog[data-popup-id="chat"]',
+    restore: '#popup-primary-host dialog[data-popup-id="chat"] button[title="Choose a provider and model"]',
   },
   async () => {
     await evaluate("document.getElementById('ai-toggle')?.click(); true");
@@ -6360,6 +6429,8 @@ checks.dialogCloseAudit.help = await auditRequiredClose(
     root: '.help-sheet',
     surface: '.help-guide-panel',
     close: '.help-guide-close',
+    restore: '#editor-host .native-edit-context',
+    restoreFallback: '#editor-host .monaco-editor textarea.inputarea',
   },
   () => choosePaletteCommand("help.guide", "Feature Guide"),
 );
@@ -6370,6 +6441,8 @@ checks.dialogCloseAudit.shortcuts = await auditRequiredClose(
     root: 'dialog.shortcuts-dialog',
     surface: '.shortcuts-card',
     close: '.shortcuts-close',
+    restore: '#editor-host .native-edit-context',
+    restoreFallback: '#editor-host .monaco-editor textarea.inputarea',
   },
   () => choosePaletteCommand("help.shortcuts", "Keyboard Shortcuts"),
 );

@@ -18,6 +18,20 @@ app.whenReady().then(async () => {
     const run = (code) => window.webContents.executeJavaScript(code);
     await run(`window.shellModule = (() => { const exports = {}; ${compiled("workbench/popupShell.ts")} return exports; })();
       window.helpModule = (() => { const exports = {}; ${compiled("help/helpPopover.ts")} return exports; })(); undefined;`);
+    const labels = await run(`(() => {
+      const shells = [0, 1].map(() => {
+        const content = document.createElement('div');
+        content.innerHTML = '<h1>Connect a model</h1>';
+        return shellModule.createPopupShell({ id: 'connect', title: 'Connect a model', size: 'medium',
+          modal: true, host: document.body, content, onRequestClose() {} });
+      });
+      const result = shells.map(shell => {
+        const id = shell.element.getAttribute('aria-labelledby');
+        return { id, ownsLabel: document.getElementById(id) === shell.element.querySelector('h1') };
+      });
+      shells.forEach(shell => shell.element.remove());
+      return result;
+    })()`);
     const motion = await run(`(() => {
       const results = [];
       const sample = (surface) => {
@@ -84,7 +98,7 @@ app.whenReady().then(async () => {
       underlying.dispatchEvent(new PointerEvent('pointerup', { pointerId: 22, bubbles: true }));`);
     await click(point.x, point.y);
     const afterNoClickDrag = await run(`underlyingClicks`);
-    console.log("POPUP_RESULTS=" + JSON.stringify({ motion, backdrop, nextPressCloses, inside, nextControlClick, afterCancelClick, afterNoClickDrag }));
+    console.log("POPUP_RESULTS=" + JSON.stringify({ labels, motion, backdrop, nextPressCloses, inside, nextControlClick, afterCancelClick, afterNoClickDrag }));
   } finally {
     window.destroy(); app.quit();
   }

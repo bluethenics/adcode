@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 type Presentation = { opacity: string; scale: string; translate: string };
 let results: {
+  labels: { id: string; ownsLabel: boolean }[];
   motion: { reduce: boolean; beforeClose: Presentation; afterClose: Presentation;
     beforeReopen: Presentation; afterReopen: Presentation; open: boolean }[];
   backdrop: { helpClosed: boolean; settingsOpen: boolean; focusReturned: boolean };
@@ -29,6 +30,10 @@ beforeAll(() => {
 }, 30_000);
 
 describe("popup interactions in Chromium", () => {
+  it("labels simultaneous Connect instances from their own unique title", () => {
+    expect(new Set(results.labels.map((label) => label.id)).size).toBe(2);
+    expect(results.labels.every((label) => label.ownsLabel)).toBe(true);
+  });
   for (const reduce of [false, true]) {
     it(`closes midway through opening without jumping (reduced motion: ${String(reduce)})`, () => {
       const sample = results.motion.find((entry) => entry.reduce === reduce)!;
