@@ -184,7 +184,7 @@ It does not appear during a debug session, when the window is not focused, in th
 
 That focus rule matters more than it sounds: an ad shown to an unfocused window is one nobody saw, so paying for it would be fraud against the advertiser and showing it would be noise for you. It is simply not served.
 
-An earlier version of this page said cards also wait for you to stop typing. They do not, and they never did — the scheduler has no typing rule in it. We have corrected the claim rather than quietly leave it standing: a card that only ever arrived once you had stopped working would be a card shown to somebody who had already left, and that is not a promise worth keeping even if we had built it. These rules are the ones actually evaluated, in a fixed order, in the editor's scheduler.
+These rules are the ones actually evaluated, in a fixed order, in the editor's scheduler — nothing else gates a card, so the list above is the complete answer to "when do ads appear".
 
 ## 2. Your code stays on your machine
 
