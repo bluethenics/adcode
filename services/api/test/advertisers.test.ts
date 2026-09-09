@@ -41,19 +41,15 @@ beforeEach(() => {
   store = createMemoryStore();
 });
 
-/** Sign up, create a campaign, approve its creative. Returns the campaign id. */
+/** Sign up, create a campaign, attach its card. Returns the campaign id. */
 async function withCampaign(uid = "u-1"): Promise<string> {
   await createAdvertiser(deps(), uid, { name: "Acme" });
   const created = await createCampaign(deps(), uid, parseCampaign(CAMPAIGN)!);
   if (!created.ok) throw new Error("campaign not created");
 
   const campaignId = created.value.campaignId;
+  // Cards are approved on submit - no review step - so nothing further is needed here.
   await createCreative(deps(), uid, { ...parseCreative({ ...CREATIVE, campaignId })! }, "https://api.test");
-
-  const pending = await store.allCreativesForCampaign(campaignId);
-  for (const creative of pending) {
-    await store.putCreative({ ...creative, status: "approved" });
-  }
 
   return campaignId;
 }
@@ -202,7 +198,7 @@ describe("setCampaignStatus", () => {
     expect(activated).toEqual({ ok: false, error: "insufficient-funds" });
   });
 
-  it("refuses to activate with no approved creative", async () => {
+  it("refuses to activate with no card attached", async () => {
     await createAdvertiser(deps(), "u-1", { name: "Acme" });
     const created = await createCampaign(deps(), "u-1", parseCampaign(CAMPAIGN)!);
     if (!created.ok) return;
@@ -238,9 +234,6 @@ describe("setCampaignStatus", () => {
     const second = await createCampaign(deps(), "u-1", parseCampaign(CAMPAIGN)!);
     if (!second.ok) return;
     await createCreative(deps(), "u-1", parseCreative({ ...CREATIVE, campaignId: second.value.campaignId })!, "https://api.test");
-    for (const creative of await store.allCreativesForCampaign(second.value.campaignId)) {
-      await store.putCreative({ ...creative, status: "approved" });
-    }
 
     const activated = await setCampaignStatus(deps(), "u-1", second.value.campaignId, "active");
     expect(activated).toEqual({ ok: false, error: "insufficient-funds" });
@@ -258,9 +251,6 @@ describe("setCampaignStatus", () => {
       parseCreative({ ...CREATIVE, campaignId: second.value.campaignId })!,
       "https://api.test",
     );
-    for (const creative of await store.allCreativesForCampaign(second.value.campaignId)) {
-      await store.putCreative({ ...creative, status: "approved" });
-    }
 
     const results = await Promise.all([
       setCampaignStatus(deps(), "u-1", first, "active"),
@@ -310,7 +300,7 @@ describe("setCampaignStatus", () => {
 /* ── Creatives ──────────────────────────────────────────────────────────── */
 
 describe("createCreative", () => {
-  it("submits pending, never approved", async () => {
+  it("approves on submit - there is no review queue", async () => {
     await createAdvertiser(deps(), "u-1", { name: "Acme" });
     const created = await createCampaign(deps(), "u-1", parseCampaign(CAMPAIGN)!);
     if (!created.ok) return;
@@ -324,7 +314,34 @@ describe("createCreative", () => {
 
     expect(creative.ok).toBe(true);
     if (!creative.ok) return;
-    expect(creative.value.status).toBe("pending");
+    expect(creative.value.status).toBe("approved");
+  });
+
+  it("takes a funded campaign live the moment its first card exists", async () => {
+    await createAdvertiser(deps(), "u-1", { name: "Acme" });
+    const advertiser = await store.advertiserForOwner("u-1");
+    await store.putAdvertiser({ ...advertiser!, fundedMicros: 100_000_000n });
+
+    const created = await createCampaign(deps(), "u-1", parseCampaign(CAMPAIGN)!);
+    if (!created.ok) return;
+    expect(created.value.status).toBe("paused");
+
+    const creative = await createCreative(
+      deps(),
+      "u-1",
+      parseCreative({ ...CREATIVE, campaignId: created.value.campaignId })!,
+      "https://api.test",
+    );
+    expect(creative.ok).toBe(true);
+
+    const campaigns = await store.campaignsForAdvertiser(advertiser!.advertiserId);
+    expect(campaigns.find((c) => c.campaignId === created.value.campaignId)?.status).toBe("active");
+  });
+
+  it("leaves an unfunded campaign paused until credits arrive", async () => {
+    const campaignId = await withCampaign();
+    const campaigns = await store.campaignsForAdvertiser((await store.advertiserForOwner("u-1"))!.advertiserId);
+    expect(campaigns.find((c) => c.campaignId === campaignId)?.status).toBe("paused");
   });
 
   it("gives it an id the ad client will accept", async () => {
@@ -353,7 +370,7 @@ describe("createCreative", () => {
 });
 
 describe("listCreatives", () => {
-  it("shows pending ones too, so the advertiser can see what is waiting", async () => {
+  it("shows the live card, so the advertiser can see what is serving", async () => {
     await createAdvertiser(deps(), "u-1", { name: "Acme" });
     const created = await createCampaign(deps(), "u-1", parseCampaign(CAMPAIGN)!);
     if (!created.ok) return;
@@ -369,6 +386,6 @@ describe("listCreatives", () => {
     expect(listed.ok).toBe(true);
     if (!listed.ok) return;
     expect(listed.value).toHaveLength(1);
-    expect(listed.value[0]?.status).toBe("pending");
+    expect(listed.value[0]?.status).toBe("approved");
   });
 });

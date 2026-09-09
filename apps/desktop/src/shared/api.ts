@@ -474,6 +474,7 @@ export const CHANNELS = {
   terminalResize: "terminal:resize",
   terminalDispose: "terminal:dispose",
   terminalProfiles: "terminal:profiles",
+  terminalOpenLink: "terminal:open-link",
   terminalData: "terminal:data",
   terminalExit: "terminal:exit",
   platformInfo: "platform:info",
@@ -547,6 +548,7 @@ export const CHANNELS = {
   gitClone: "git:clone",
   gitAddRemote: "git:add-remote",
   gitRemotes: "git:remotes",
+  gitOpenGitHub: "git:open-github",
   gitBranches: "git:branches",
   gitCheckout: "git:checkout",
   gitCreateBranch: "git:create-branch",
@@ -919,7 +921,13 @@ export interface AiProviderInfo {
   readonly doc: string | null;
 }
 
+export interface AiConnectionInfo {
+ readonly id: string; readonly name: string; readonly baseUrl: string; readonly model: string; readonly rpm: number;
+ readonly queued: number; readonly cooldownUntil: number; readonly nextStartAt: number;
+}
+
 export interface AiStatus {
+  readonly connections?: readonly AiConnectionInfo[];
   readonly providers: readonly AiProviderInfo[];
   readonly activeProvider: string;
   readonly activeModel: string;
@@ -1052,6 +1060,7 @@ export interface AiAutomationView extends AiAutomationCreateInputView {
 }
 
 export interface AiTeamRoleInputView {
+ readonly route?: { readonly provider: string; readonly model: string };
   readonly id: string;
   readonly label: string;
   readonly objective: string;
@@ -1171,6 +1180,8 @@ export interface AiTeamView {
 export interface AiTeamTraceView {
   readonly id: string;
   readonly nodeId: string | null;
+  /** Child workspaces belong to roles, which may execute more than one task node. */
+  readonly roleId?: string;
   readonly at: number;
   readonly kind: string;
   readonly summary: string;
@@ -1329,6 +1340,14 @@ export interface AdcodeApi {
     write(id: string, data: string): void;
     resize(id: string, cols: number, rows: number): void;
     dispose(id: string): void;
+    /**
+     * Open a link clicked in the terminal, in the system browser.
+     *
+     * The terminal's links come out of the user's own shell output, so passing a URL here
+     * is unavoidable - the main process answers by parsing it and opening only http and
+     * https, which is as tight as a link the user clicked can be held to.
+     */
+    openLink(url: string): Promise<void>;
     onData(listener: (id: string, data: string) => void): () => void;
     onExit(listener: (id: string, exitCode: number) => void): () => void;
   };
@@ -1521,6 +1540,7 @@ export interface AdcodeApi {
     addRemote(name: string, url: string): Promise<GitOutcome>;
     /** The remotes configured, so the panel can offer to add one when there are none. */
     remotes(): Promise<readonly { readonly name: string; readonly url: string }[]>;
+    openGitHub(remote: string, destination: import("./githubRepository.ts").GitHubDestination): Promise<GitOutcome>;
     branches(): Promise<GitBranchView[]>;
     checkout(ref: string): Promise<GitOutcome>;
     createBranch(name: string): Promise<GitOutcome>;

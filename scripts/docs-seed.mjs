@@ -54,9 +54,11 @@ function readEntries() {
 
   for (const file of files) {
     const source = read(join(dir, `${file}.ts`));
+    let count = 0;
 
     // Each entry is a `{ ... }` at one indent level inside the exported array.
     for (const block of source.matchAll(/\n  \{\n([\s\S]*?)\n  \},/g)) {
+      count += 1;
       const body = block[1];
 
       const field = (name) => {
@@ -94,6 +96,13 @@ function readEntries() {
         shortcut: field("shortcut"),
       });
     }
+
+    // A file that parses to zero entries almost certainly changed shape (single quotes,
+    // different indent, new literal style) rather than becoming empty. Fail loudly instead
+    // of writing a seed silently missing those routes.
+    if (count === 0) {
+      throw new Error(`entries/${file}.ts: parsed 0 entries - the source shape has changed`);
+    }
   }
 
   // Reading source with regexes fails by matching nothing, which looks exactly like a
@@ -113,16 +122,20 @@ function readMetadata() {
   const source = read(join(ROOT, "packages", "help", "src", "features.ts"));
   const result = new Map();
 
-  for (const block of source.matchAll(/\n  "([^"]+)": \{\n([\s\S]*?)\n  \},/g)) {
+  for (const block of source.matchAll(/\n  ["']([^"']+)["']: \{\n([\s\S]*?)\n  \},/g)) {
     const id = block[1];
     const body = block[2];
-    const actions = [...body.matchAll(/command\("([^"]+)", "([^"]+)"\)/g)].map((match) => ({
+    const actions = [...body.matchAll(/command\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g)].map((match) => ({
       command: match[1],
       label: match[2],
     }));
     const keywordsBlock = /keywords:\s*\[([^\]]*)\]/.exec(body)?.[1] ?? "";
-    const keywords = [...keywordsBlock.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+    const keywords = [...keywordsBlock.matchAll(/["']([^"']+)["']/g)].map((match) => match[1]);
     result.set(id, { actions, keywords });
+  }
+
+  if (result.size === 0) {
+    throw new Error("no feature metadata found in features.ts - the source shape has changed");
   }
 
   return result;
@@ -409,6 +422,22 @@ ${inventory}`;
 const entries = readEntries();
 const metadata = readMetadata();
 const booleanSettings = readBooleanSettings();
+
+// A command belongs to exactly one feature, and a feature the docs cannot reach is a
+// feature that does not exist. Fail loudly instead of writing a seed missing routes.
+{
+  const entryIds = new Set(entries.map((entry) => entry.id));
+  const orphanMetadata = [...metadata.keys()].filter((id) => !entryIds.has(id));
+  if (orphanMetadata.length > 0) {
+    throw new Error(`features.ts metadata without a help entry: ${orphanMetadata.join(", ")}`);
+  }
+  const unknownGroups = [...new Set(entries.map((entry) => entry.group))].filter(
+    (group) => !ORDER.includes(group),
+  );
+  if (unknownGroups.length > 0) {
+    throw new Error(`help entries with an unknown group (missing from GROUP_TITLES): ${unknownGroups.join(", ")}`);
+  }
+}
 const rendered = render(entries, metadata, booleanSettings);
 const renderedGuide = renderGuide(entries, metadata, booleanSettings);
 

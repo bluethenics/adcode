@@ -7,11 +7,11 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
   {
     id: "ai.team",
     title: "AI Team",
-    plain: "Several assistants can divide one larger task, work in parallel, and bring their results back to one reviewed task.",
+    plain: "Create named agents with their own instructions and models, then let a team divide a task and bring its results back for review.",
     why: "Independent research, coding, and checking can finish faster without making one assistant carry every detail in the same context.",
-    how: "Open the Assistant, describe the task, then choose Team. Review the suggested roles, files, token budget, and overlap warnings before you confirm. Team uses the same isolated workspaces, review policy, traces, and rollback protections as a single assistant.",
+    how: "Open the Assistant and its activity panel. Create agents with a name, instructions, connection, and model. Enable Run after teammates for an agent that should receive others' handoffs first. Select two to four agents, describe a task in the composer, and choose Set up selected Team. Review the plan and start it. Agent rows show tasks and status; Agent trace shows tool activity and results. Review combined changes before applying them, or cancel a running team. Requests share each connection's rate limit.",
     group: "ai",
-    settingIds: [],
+    settingIds: ["adcode.ai.agentProfiles"],
     related: ["adcode.ai.isolatedWorkspaces", "adcode.ai.taskTokenBudget", "adcode.ai.editPolicy"],
   },
   {
@@ -36,10 +36,10 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
   },
   {
     id: "adcode.ai.chatWidget",
-    title: "Chat widget",
-    plain: "A small chat card you can call up to ask questions about the code you are looking at.",
+    title: "AI chat workspace",
+    plain: "A spacious conversation workspace with searchable history and a panel for agents, tasks, and live activity.",
     why: "Asking in the editor beats copying code into a browser, because the assistant can already see the project.",
-    how: "On by default. Press the shortcut to summon it, drag its title bar to move it, and press Escape to dismiss it without losing the conversation. Past conversations are kept in the history list beside it.",
+    how: "Open Assistant from the workbench or command palette. Write in the composer and send your request. Use History to browse conversations and the activity panel to see agent work and review changes. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation.",
     group: "ai",
     settingIds: ["adcode.ai.chatWidget"],
     related: ["ai.sessions", "adcode.ai.inlineCompletion", "adcode.ai.memoryCapture"],

@@ -526,6 +526,17 @@ Access: `All Features → Tree-sitter highlighting`; `Turn on or off`; `Settings
 
 ## The assistant
 
+<!-- feature:adcode.ai.chatWidget -->
+### AI chat workspace
+
+A spacious conversation workspace with searchable history and a panel for agents, tasks, and live activity.
+
+Why use it: Asking in the editor beats copying code into a browser, because the assistant can already see the project.
+
+How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. Use History to browse conversations and the activity panel to see agent work and review changes. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation.
+
+Access: `All Features → AI chat workspace`; `Turn on or off`; `Settings`.
+
 <!-- feature:adcode.ai.editPolicy -->
 ### AI edit approval
 
@@ -540,13 +551,13 @@ Access: `All Features → AI edit approval`; `Settings`.
 <!-- feature:ai.team -->
 ### AI Team
 
-Several assistants can divide one larger task, work in parallel, and bring their results back to one reviewed task.
+Create named agents with their own instructions and models, then let a team divide a task and bring its results back for review.
 
 Why use it: Independent research, coding, and checking can finish faster without making one assistant carry every detail in the same context.
 
-How to use it: Open the Assistant, describe the task, then choose Team. Review the suggested roles, files, token budget, and overlap warnings before you confirm. Team uses the same isolated workspaces, review policy, traces, and rollback protections as a single assistant.
+How to use it: Open the Assistant and its activity panel. Create agents with a name, instructions, connection, and model. Enable Run after teammates for an agent that should receive others' handoffs first. Select two to four agents, describe a task in the composer, and choose Set up selected Team. Review the plan and start it. Agent rows show tasks and status; Agent trace shows tool activity and results. Review combined changes before applying them, or cancel a running team. Requests share each connection's rate limit.
 
-Access: `All Features → AI Team`; `Set up Team`.
+Access: `All Features → AI Team`; `Set up Team`; `Settings`.
 
 <!-- feature:ai.workspaceStorage -->
 ### AI workspace storage
@@ -570,27 +581,16 @@ How to use it: The list beside the chat holds your past conversations - search t
 
 Access: `All Features → Chat history and memory`; `Open Assistant`.
 
-<!-- feature:adcode.ai.chatWidget -->
-### Chat widget
-
-A small chat card you can call up to ask questions about the code you are looking at.
-
-Why use it: Asking in the editor beats copying code into a browser, because the assistant can already see the project.
-
-How to use it: On by default. Press the shortcut to summon it, drag its title bar to move it, and press Escape to dismiss it without losing the conversation. Past conversations are kept in the history list beside it.
-
-Access: `All Features → Chat widget`; `Turn on or off`; `Settings`.
-
 <!-- feature:ai.connect -->
 ### Connect a model
 
-The screen where you tell ADCode which AI to use and give it your key. It checks the key works before saving it.
+Connect an AI provider or save several named API connections with a model, secure key, and requests-per-minute limit, including NVIDIA NIM.
 
 Why use it: A key that was pasted wrong should say so immediately, not silently fail the first time you ask a question.
 
-How to use it: Pick a provider from the list, or choose Custom and paste any address that speaks the OpenAI format - that covers most services, including one running on your own machine. Where a provider supports signing in with an account instead of a key, there is a Sign in button. Keys go to your operating system's password store.
+How to use it: Open Connect a model. Choose a provider or add a named connection with an OpenAI-compatible base URL and exact model ID. The NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system.
 
-Access: `All Features → Connect a model`; `Connect`.
+Access: `All Features → Connect a model`; `Connect`; `Settings`.
 
 <!-- feature:adcode.ai.autoContinue -->
 ### Continue terminal AI after limits
@@ -1007,9 +1007,9 @@ Files can be renamed, moved, copied and deleted straight from the file list.
 
 Why use it: Leaving the editor to use a file manager for something this ordinary is a break in the work.
 
-How to use it: Right-click any file for the full list. Drag to move, hold Ctrl while dragging to copy, and F2 to rename. Deleting sends to the recycle bin, not to nowhere.
+How to use it: Right-click any file for the full list. Drag to move, hold Ctrl while dragging to copy, and F2 to rename. Deleting sends to the recycle bin, not to nowhere. Use Split editor right in a file header or the command palette to edit two files side by side. Each panel has a file picker; selecting a tab or opening a file uses the focused panel. Drag the divider to resize, or focus it and use arrow keys. Merge editor panels returns to the focused file without closing your buffers.
 
-Access: `All Features → Selecting and moving files`; `Open Explorer`; `New file`; `Open file`; `Save`; `Save as`; `Save all`; `Revert file`; `Close editor`; `Close all editors`; `Insert file template`; `Open folder`; `Open recent`; `Open a recent folder`; `Clear recent folders`; `Close folder`; `Keyboard → F2`.
+Access: `All Features → Selecting and moving files`; `Open Explorer`; `New file`; `Open file`; `Save`; `Save as`; `Save all`; `Revert file`; `Close editor`; `Close all editors`; `Split editor right`; `Merge editor panels`; `Insert file template`; `Open folder`; `Open recent`; `Open a recent folder`; `Clear recent folders`; `Close folder`; `Keyboard → F2`.
 
 ## Ads and earnings
 

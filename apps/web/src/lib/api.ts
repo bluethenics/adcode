@@ -87,7 +87,7 @@ export const MESSAGES: Record<ApiError, string> = {
   suspended: "This account is suspended. Email adcode.support@gmail.com.",
   "not-found": "That doesn't exist, or it isn't yours.",
   "insufficient-funds": "Not enough funded balance to cover this budget. Add funds first.",
-  "no-approved-creative": "Add a creative and wait for it to be approved before going live.",
+  "no-approved-creative": "Add a card to this campaign before going live.",
   "invalid-state": "That change isn't allowed from the current state.",
   "rate-limited": "Too many requests. Wait a moment and try again.",
   "already-admin": "That address is already an administrator.",

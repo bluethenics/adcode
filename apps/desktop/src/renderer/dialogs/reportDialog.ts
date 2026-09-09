@@ -1,3 +1,5 @@
+import { bindBackdropDismissal } from "./backdropDismissal.ts";
+
 /**
  * The report form: a bug, a feature request, or a question.
  *
@@ -228,10 +230,7 @@ export function createReportDialog(
 
   // Clicking the backdrop dismisses, but not mid-send: losing what you typed because you
   // missed the card by ten pixels is the kind of thing people do not forgive.
-  dialog.addEventListener("click", (event) => {
-    if (sending) return;
-    if (!card.contains(event.target as Node)) dialog.close();
-  });
+  bindBackdropDismissal(dialog, card, () => { if (!sending) dialog.close(); });
 
   dialog.addEventListener("close", () => reset());
 

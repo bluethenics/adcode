@@ -6,6 +6,7 @@
  * surface, because a source-control panel that cannot push is a diff viewer.
  */
 import type { GitOutcome, GitStatusView } from "../../shared/api.ts";
+import { githubRepositoryUrl, type GitHubDestination } from "../../shared/githubRepository.ts";
 import type { GitResult } from "../dialogs/resultDialog.ts";
 import { createCommitBrowser, type CommitBrowserDeps } from "./commitBrowser.ts";
 import { ICON, createIcon } from "../workbench/icons.ts";
@@ -146,6 +147,15 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   const element = document.createElement("div");
   element.className = "scm-panel";
   element.dataset["scmState"] = "inactive";
+
+  const workspaceHeader = document.createElement("header");
+  workspaceHeader.className = "scm-workspace-header";
+  const workspaceTitle = document.createElement("h2");
+  workspaceTitle.textContent = "Source Control";
+  const workspaceSummary = document.createElement("p");
+  workspaceSummary.className = "scm-workspace-summary";
+  workspaceHeader.append(workspaceTitle, workspaceSummary);
+  element.append(workspaceHeader);
 
   const changesRegion = document.createElement("section");
   changesRegion.className = "scm-changes-region";
@@ -325,10 +335,33 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   }
 
   async function syncRemoteButton(): Promise<void> {
+    const root = deps.workspaceRoot();
     try {
-      connectButton.hidden = (await window.adcode.git.remotes()).length > 0;
+      const remotes = await window.adcode.git.remotes();
+      if (root !== deps.workspaceRoot()) return;
+      connectButton.hidden = remotes.length > 0;
+      const selected = githubRemote.value;
+      githubRemote.replaceChildren();
+      for (const remote of remotes) {
+        const url = githubRepositoryUrl(remote.url, "code");
+        if (url === null) continue;
+        const option = document.createElement("option");
+        option.value = remote.name;
+        option.textContent = `${remote.name} · ${url.slice("https://github.com/".length)}`;
+        githubRemote.append(option);
+      }
+      if ([...githubRemote.options].some((option) => option.value === selected)) githubRemote.value = selected;
+      else if ([...githubRemote.options].some((option) => option.value === "origin")) githubRemote.value = "origin";
+      githubRemote.hidden = githubRemote.options.length === 0;
+      githubLinks.hidden = githubRemote.hidden;
+      githubHint.textContent = githubRemote.hidden
+        ? "Connect a github.com remote to access your repository online."
+        : "Opens in your browser using your GitHub account and repository permissions.";
     } catch {
       connectButton.hidden = true;
+      githubRemote.hidden = true;
+      githubLinks.hidden = true;
+      githubHint.textContent = "Could not read remotes. Refresh to try again.";
     }
   }
 
@@ -393,6 +426,57 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
     conflictsButton,
     connectButton,
   );
+
+  const newBranch = document.createElement("button");
+  newBranch.className = "ghost-button";
+  newBranch.textContent = "New branch";
+  newBranch.addEventListener("click", () => void api.createBranch());
+  const refreshButton = document.createElement("button");
+  refreshButton.className = "ghost-button";
+  refreshButton.textContent = "Refresh";
+  refreshButton.addEventListener("click", () => {
+    refreshButton.disabled = true;
+    void api.refresh().catch(() => deps.notify("Could not refresh source control. Try again."))
+      .finally(() => { refreshButton.disabled = false; });
+  });
+  actions.append(newBranch, refreshButton);
+
+  const githubSection = document.createElement("section");
+  githubSection.className = "scm-github";
+  const githubTitle = document.createElement("h3");
+  githubTitle.textContent = "GitHub";
+  const githubHint = document.createElement("p");
+  githubHint.textContent = "Loading repository connections…";
+  const githubRemote = document.createElement("select");
+  githubRemote.className = "scm-github-remote";
+  githubRemote.setAttribute("aria-label", "GitHub repository");
+  githubRemote.hidden = true;
+  const githubLinks = document.createElement("div");
+  githubLinks.className = "scm-github-links";
+  githubLinks.hidden = true;
+  const destinations: readonly (readonly [GitHubDestination, string])[] = [
+    ["new-pull-request", "New pull request"], ["new-issue", "New issue"],
+    ["code", "Code"], ["pulls", "Pull requests"], ["issues", "Issues"],
+    ["actions", "Actions"], ["projects", "Projects"], ["discussions", "Discussions"],
+    ["releases", "Releases"], ["wiki", "Wiki"], ["security", "Security"],
+    ["insights", "Insights"], ["settings", "Settings"],
+  ];
+  for (const [destination, label] of destinations) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ghost-button";
+    button.textContent = label;
+    button.title = `${label} on GitHub (opens in browser)`;
+    button.addEventListener("click", () => {
+      button.disabled = true;
+      void window.adcode.git.openGitHub(githubRemote.value, destination)
+        .then((result) => deps.notify(result.message))
+        .catch(() => deps.notify("Could not open GitHub. Try again."))
+        .finally(() => { button.disabled = false; });
+    });
+    githubLinks.append(button);
+  }
+  githubSection.append(githubTitle, githubHint, githubRemote, githubLinks);
 
   const commitBox = document.createElement("form");
   commitBox.className = "scm-commit";
@@ -536,7 +620,14 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
   });
 
   changesRegion.append(header, actions, conflicts, list, empty);
-  commitRegion.append(commitBox);
+  const commitHeading = document.createElement("div");
+  commitHeading.className = "scm-commit-heading";
+  const commitTitle = document.createElement("h3");
+  commitTitle.textContent = "Commit changes";
+  const commitHint = document.createElement("p");
+  commitHint.textContent = "Stage your files, then describe what changed.";
+  commitHeading.append(commitTitle, commitHint);
+  commitRegion.append(commitHeading, commitBox, githubSection);
   historyRegion.append(timeline, history.element);
   element.append(changesRegion, commitRegion, historyRegion);
 
@@ -926,6 +1017,9 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       }
 
       const status = await window.adcode.git.status();
+      workspaceSummary.textContent = status.isRepo
+        ? `${status.branch ?? "Detached HEAD"} · ${status.entries.length} changed files · ${status.ahead} ahead · ${status.behind} behind`
+        : "Track this project and connect a remote repository";
       lastStatus = status;
       history.element.hidden = !status.isRepo;
       historyRegion.hidden = !status.isRepo;

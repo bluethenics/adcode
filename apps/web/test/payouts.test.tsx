@@ -95,22 +95,39 @@ describe("the admin jump box", () => {
 
 describe("the admin rail", () => {
   /*
-   * The panel had nine destinations and the complaint was that it took too much room to
-   * say too little. Six is the number that fits without a scroller at any width this
-   * site supports; this fails if a tenth ever gets added without that being reconsidered.
+   * The panel used to be six pages with a second level hidden inside them; it then
+   * spent a while as one page of disclosures. It is now thirteen destinations in six
+   * groups - one row per real job, each with its own URL, so the rail reads like a
+   * table of contents and the browser's back button works inside the panel.
    */
-  it("stays at six destinations", () => {
-    expect(ADMIN_NAV.map((item) => item.href)).toEqual([
+  const items = ADMIN_NAV.flatMap((group) => group.items);
+
+  it("keeps thirteen destinations in six groups", () => {
+    expect(ADMIN_NAV.map((group) => group.label)).toEqual([
+      "Now",
+      "Queues",
+      "Money",
+      "People",
+      "Publishing",
+      "Tools",
+    ]);
+    expect(items.map((item) => item.href)).toEqual([
       "/admin",
       "/admin/review",
+      "/admin/review?tab=feedback",
       "/admin/money",
+      "/admin/money?tab=advertisers",
+      "/admin/money?tab=countries",
       "/admin/people",
+      "/admin/people?tab=admins",
       "/admin/content",
+      "/admin/content?tab=releases",
+      "/admin/content?tab=notices",
       "/admin/tools",
     ]);
   });
 
-  it("counts the two queues that can block somebody else", () => {
+  it("counts the three queues that can block somebody else", () => {
     const counts = {
       creativesWaiting: 2,
       withdrawalsPending: 3,
@@ -119,9 +136,25 @@ describe("the admin rail", () => {
       noticesActive: 1,
       pendingWithdrawalMicros: "0",
     };
-    const badged = ADMIN_NAV.filter((item) => item.badge !== undefined);
-    expect(badged.map((item) => item.href)).toEqual(["/admin/review", "/admin/money"]);
-    expect(badged.map((item) => item.badge?.(counts))).toEqual([6, 3]);
+    const badged = items.filter((item) => item.badge !== undefined);
+    expect(badged.map((item) => item.href)).toEqual([
+      "/admin/review",
+      "/admin/review?tab=feedback",
+      "/admin/money",
+    ]);
+    expect(badged.map((item) => item.badge?.(counts))).toEqual([2, 4, 3]);
+  });
+
+  it("marks each destination with the tab its page shows by default", () => {
+    /*
+     * The rail highlights a row by comparing its `tab` to the page's current one. A
+     * destination without this would never light up - or the wrong one would.
+     */
+    expect(items.filter((item) => item.href === "/admin").map((i) => i.tab)).toEqual([undefined]);
+    expect(items.find((i) => i.href === "/admin/review")?.tab).toBe("creatives");
+    expect(items.find((i) => i.href === "/admin/money")?.tab).toBe("payouts");
+    expect(items.find((i) => i.href === "/admin/people")?.tab).toBe("users");
+    expect(items.find((i) => i.href === "/admin/content")?.tab).toBe("writing");
   });
 });
 

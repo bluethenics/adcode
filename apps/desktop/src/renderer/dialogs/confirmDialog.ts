@@ -1,3 +1,5 @@
+import { bindBackdropDismissal } from "./backdropDismissal.ts";
+
 /**
  * A centred yes/no, for actions that destroy something.
  *
@@ -67,10 +69,9 @@ export function createConfirmDialog(host: HTMLElement): ConfirmDialog {
 
   // Escape closes the dialog natively; `close` is where every route out converges, so a
   // dismissal that never reached a button still resolves the promise rather than leaking it.
-  dialog.addEventListener("close", () => finish(false));
-  dialog.addEventListener("click", (event) => {
-    if (!card.contains(event.target as Node)) finish(false);
-  });
+  // A queued close from the previous request must not dismiss its replacement.
+  dialog.addEventListener("close", () => { if (!dialog.open) finish(false); });
+  bindBackdropDismissal(dialog, card, () => { finish(false); });
 
   return {
     ask(request) {

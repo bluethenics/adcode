@@ -86,6 +86,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
 
   /** Plain toasts stack; only the sponsored kind is limited to one at a time. */
   const plain = new Set<HTMLElement>();
+  const MAX_PLAIN_TOASTS = 4;
 
   function dismissPlain(card: HTMLElement): void {
     if (!plain.delete(card)) return;
@@ -144,6 +145,13 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       card.append(content, close);
       host.append(card);
       plain.add(card);
+      // Uncapped stacking buries the editor under a column of stale FYIs. Evict the
+      // oldest plain toast once the cap is exceeded; sponsored impressions are never
+      // evicted here because cutting one short would cost earned credit.
+      if (plain.size > MAX_PLAIN_TOASTS) {
+        const oldest = plain.values().next().value;
+        if (oldest !== undefined && oldest !== card) dismissPlain(oldest);
+      }
 
       // Same synchronous flush as the sponsored kind, and for the same reason.
       reveal(card, "entered");

@@ -1,5 +1,5 @@
 /** Pure conversion from privileged Team records to renderer-safe summaries. */
-import { computeHunks } from "@adcode/ai";
+import { computeHunks, type OperationalTrace } from "@adcode/ai";
 import type {
   AiTeamConflictView,
   AiTeamTraceView,
@@ -107,6 +107,24 @@ export function toAiTeamTraceView(
   return {
     id: trace.id,
     nodeId: trace.nodeId,
+    at: trace.at,
+    kind: trace.kind,
+    summary: redact(trace.summary, privateRoots),
+    detail: redact(trace.detail, privateRoots),
+    outcome: trace.outcome,
+  };
+}
+
+/** Attribute a child workspace event to its named role without exposing private roots. */
+export function toAiTeamActivityView(
+  trace: OperationalTrace,
+  roleId: string,
+  privateRoots: readonly string[],
+): AiTeamTraceView {
+  return {
+    id: trace.id,
+    nodeId: null,
+    roleId,
     at: trace.at,
     kind: trace.kind,
     summary: redact(trace.summary, privateRoots),

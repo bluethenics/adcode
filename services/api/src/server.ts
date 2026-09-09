@@ -6,6 +6,7 @@
  * worth testing hard lives in the modules this one wires together.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { authenticate, type TokenVerifier } from "./auth.ts";
 import { handleServe } from "./serve.ts";
 import { handleReceipts } from "./receipts.ts";
@@ -116,6 +117,19 @@ function send(
 ): void {
   res.writeHead(status, { "content-type": "application/json", ...extra });
   res.end(JSON.stringify(body));
+}
+
+/**
+ * Shared-secret comparison without a timing signal.
+ *
+ * Mirrors `constantTimeEquals` in `billing.ts`: `timingSafeEqual` throws on a length
+ * mismatch, so lengths are compared first and a mismatch is a plain false.
+ */
+function agentTokenEquals(offered: string, secret: string): boolean {
+  const left = Buffer.from(offered, "utf8");
+  const right = Buffer.from(secret, "utf8");
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
 }
 
 /**
@@ -446,7 +460,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       const secret = process.env["ADCODE_AGENT_TOKEN"];
       const offered = (req.headers["authorization"] ?? "").toString().replace(/^Bearer /i, "");
 
-      if (secret === undefined || secret.length === 0 || offered !== secret) {
+      if (secret === undefined || secret.length === 0 || !agentTokenEquals(offered, secret)) {
         send(res, 401, { error: "unauthorized" }, cors);
         return;
       }

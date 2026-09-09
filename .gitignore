@@ -76,3 +76,6 @@ smoke-broken.ts
 /docs/RELEASING.md
 /docs/OAUTH-SETUP.md
 /docs/CODE-PROTECTION.md
+
+# git ignore for the editing file
+how-to-edit-the-code-for-humans.md

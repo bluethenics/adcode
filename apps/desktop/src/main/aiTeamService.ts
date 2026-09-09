@@ -507,10 +507,15 @@ export function createAiTeamService(options: AiTeamServiceOptions): AiTeamServic
         return team;
       }
       if (mergePlan.changes.length === 0) {
-        team = transitionAiTeamRecord(team, "paused", now());
+        // Research/review-only tasks have nothing to apply. Their handoffs are the
+        // result; pausing here would make every resume attempt repeat the empty merge.
+        team = {
+          ...transitionAiTeamRecord(team, "completed", now()),
+          merge: { state: "completed", combinedTaskId: null, conflicts: [] },
+        };
         await store.save(team);
-        await trace(team, "Team completed without reviewable file changes", "blocked");
-        return team;
+        await trace(team, "Team completed without file changes", "ok");
+        return cleanPrivateResources(team, false);
       }
 
       const source =

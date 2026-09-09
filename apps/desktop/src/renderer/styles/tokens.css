@@ -62,6 +62,12 @@ button {
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 20px;
+  --radius-panel: 14px;
+  --border-subtle: color-mix(in srgb, var(--text-primary) 14%, transparent);
+  --border-strong: color-mix(in srgb, var(--text-primary) 22%, transparent);
+  --bg-workbench: var(--bg-app);
+  --bg-panel: var(--bg-elevated);
+  --shadow-surface: 0 1px 3px color-mix(in srgb, var(--text-primary) 5%, transparent);
 
   /* Motion */
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);

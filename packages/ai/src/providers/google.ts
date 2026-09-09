@@ -87,7 +87,7 @@ export function createGoogleProvider(deps: GoogleProviderDeps): Provider {
       });
 
       if (!response.ok || response.body === null) {
-        throw new Error(`Google returned HTTP ${response.status}`);
+        throw Object.assign(new Error(`Google returned HTTP ${response.status}`), { status: response.status, retryAfter: response.headers.get("retry-after") });
       }
 
       const reader = response.body.getReader();

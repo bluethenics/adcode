@@ -5,6 +5,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 type Presentation = { opacity: string; scale: string; translate: string };
 let results: {
+  prompts: { replacementSurvives: boolean; dragSurvives: boolean; backdropCloses: boolean }[];
+  dismissal: { openingClickSurvives: boolean; dragSurvives: boolean; backdropCloses: boolean };
   labels: { id: string; ownsLabel: boolean }[];
   motion: { reduce: boolean; beforeClose: Presentation; afterClose: Presentation;
     beforeReopen: Presentation; afterReopen: Presentation; open: boolean }[];
@@ -15,6 +17,7 @@ let results: {
   afterCancelClick: number;
   afterNoClickDrag: number;
   layeredClose: { firstOpen: boolean; secondOpen: boolean };
+  repeatedOpen: { open: boolean; opacity: string }[];
 };
 
 beforeAll(() => {
@@ -31,6 +34,18 @@ beforeAll(() => {
 }, 30_000);
 
 describe("popup interactions in Chromium", () => {
+  it("stays visible after repeated completed close and reopen animations", () => {
+    expect(results.repeatedOpen).toEqual(Array.from({ length: 4 }, () => ({ open: true, opacity: "1" })));
+  });
+  it("keeps replacement prompts open and preserves them when selecting text outside the card", () => {
+    expect(results.prompts).toEqual([
+      { replacementSurvives: true, dragSurvives: true, backdropCloses: true },
+      { replacementSurvives: true, dragSurvives: true, backdropCloses: true },
+    ]);
+  });
+  it("requires a fresh backdrop press rather than an opening click or a drag out", () => {
+    expect(results.dismissal).toEqual({ openingClickSurvives: true, dragSurvives: true, backdropCloses: true });
+  });
   it("labels simultaneous Connect instances from their own unique title", () => {
     expect(new Set(results.labels.map((label) => label.id)).size).toBe(2);
     expect(results.labels.every((label) => label.ownsLabel)).toBe(true);

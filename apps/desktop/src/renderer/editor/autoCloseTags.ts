@@ -33,13 +33,14 @@ export interface TagClosing {
 export function installTagClosing(
   editor: monaco.editor.IStandaloneCodeEditor,
   monacoApi: typeof monaco,
+  isActive: () => boolean = () => true,
 ): TagClosing {
   let enabled = true;
   /** True while this module is the one editing, so its own insert is not reacted to. */
   let inserting = false;
 
   const subscription = editor.onDidChangeModelContent((event) => {
-    if (!enabled || inserting) return;
+    if (!enabled || inserting || !isActive()) return;
 
     // Undo and redo replay edits that were already answered when they were first made;
     // answering them again would insert a second closing tag on every Ctrl+Z.

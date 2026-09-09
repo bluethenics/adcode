@@ -57,7 +57,8 @@ export async function openWorkspace(): Promise<OpenedWorkspace | null> {
  * supposed to be that one function owns the change, and one caller had quietly opted out.
  */
 export function openWorkspaceAt(root: string): OpenedWorkspace | null {
-  if (typeof root !== "string" || root.length === 0) return null;
+  if (typeof root !== "string" || root.trim().length === 0) return null;
+  if (root.includes("\0")) return null;
 
   setWorkspaceRoot(root);
   return currentWorkspace();

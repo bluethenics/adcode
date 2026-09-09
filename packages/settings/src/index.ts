@@ -296,22 +296,18 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   bool("adcode.session.crashRecovery", "session", "Crash recovery", "Recover unsaved buffers after an unexpected exit.", true, true),
 
   /* ── AI (§5) ────────────────────────────────────────────────────────── */
+  { id: "adcode.ai.connections", group: "ai", kind: "text", label: "Model connections", description: "Named API connection profiles. Configure endpoints, models and shared RPM in Connect a model. Keys are stored separately.", default: "[]", available: true, placeholder: "[]", multiline: true, maxLength: 100000 },
+  { id: "adcode.ai.agentProfiles", group: "ai", kind: "text", label: "Named agents", description: "Reusable agent names, instructions and model routes. Configure these in Chat Teams.", default: "[]", available: true, placeholder: "[]", multiline: true, maxLength: 100000 },
   {
     id: "adcode.ai.provider",
     group: "ai",
-    kind: "enum",
+    kind: "text",
+    placeholder: "anthropic", multiline: false, maxLength: 120,
     label: "Provider",
     description:
       "Bring your own key. Keys are stored in the OS keychain, never in this settings file. The local option needs no key.",
     default: "anthropic",
     available: true,
-    options: [
-      { value: "anthropic", label: "Anthropic" },
-      { value: "openai", label: "OpenAI" },
-      { value: "google", label: "Google" },
-      { value: "ollama", label: "Local" },
-      { value: "custom", label: "Custom" },
-    ],
   },
   /*
    * Free text rather than a fixed list.

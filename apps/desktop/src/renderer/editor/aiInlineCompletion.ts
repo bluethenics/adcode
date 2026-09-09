@@ -9,12 +9,13 @@ export interface AiInlineCompletion {
   dispose(): void;
 }
 
+let nextRequestId = 1;
+
 export function installAiInlineCompletion(
   editor: monaco.editor.IStandaloneCodeEditor,
   eligible: (model: monaco.editor.ITextModel) => boolean,
 ): AiInlineCompletion {
   let enabled = true;
-  let nextRequestId = 1;
 
   const provider = monaco.languages.registerInlineCompletionsProvider("*", {
     displayName: "ADCode AI",

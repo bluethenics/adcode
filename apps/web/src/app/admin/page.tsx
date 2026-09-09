@@ -1,31 +1,28 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminShell } from "@/components/AdminShell";
 import { useAuth } from "@/components/AuthProvider";
 import { money } from "@/components/money";
 import { apiFetch, type AdminOverviewView } from "@/lib/api";
-import { ReviewQueue } from "./_sections/CreativeQueue";
-import { ReportsBody } from "./_sections/Feedback";
-import { Withdrawals } from "./_sections/Withdrawals";
-import { AdvertisersBody } from "./_sections/Advertisers";
-import { PayoutCorridors } from "./_sections/PayoutCorridors";
-import { UsersBody } from "./_sections/People";
-import { AdminsBody } from "./_sections/Administrators";
-import { BlogBody } from "./_sections/Posts";
-import { ReleasesBody } from "./_sections/Releases";
-import { NoticesBody } from "./_sections/Notices";
-import { TestAdsBody } from "./_sections/TestDelivery";
 
+/**
+ * The front desk: every queue's count, each one a link to where the work happens.
+ *
+ * This page used to be the whole panel - eleven disclosures stacked on one URL. It is
+ * deliberately spare now: the rail beside it is the panel, and this screen only answers
+ * "is anything waiting, and where do I go".
+ */
 export default function AdminPage() {
   return (
-    <AdminShell singlePage title="Admin" subtitle="Every queue and operating control, on one page.">
-      <AdminWorkspace />
+    <AdminShell title="Overview" subtitle="What needs a decision, and how many of them.">
+      <Overview />
     </AdminShell>
   );
 }
 
-function AdminWorkspace() {
+function Overview() {
   const { token } = useAuth();
   const [counts, setCounts] = useState<AdminOverviewView | null>(null);
 
@@ -38,34 +35,41 @@ function AdminWorkspace() {
 
   return (
     <>
-      <div className="admin-tiles admin-single-metrics">
-        <div className="admin-tile" data-waiting={(counts?.creativesWaiting ?? 0) > 0}><strong>{counts?.creativesWaiting ?? "—"}</strong><span>Creatives waiting</span><small>Review before delivery</small></div>
-        <div className="admin-tile" data-waiting={(counts?.withdrawalsPending ?? 0) > 0}><strong>{counts?.withdrawalsPending ?? "—"}</strong><span>Payouts waiting</span><small>{money(counts?.pendingWithdrawalMicros ?? "0")} held</small></div>
-        <div className="admin-tile" data-waiting={(counts?.reportsOpen ?? 0) > 0}><strong>{counts?.reportsOpen ?? "—"}</strong><span>Reports open</span><small>Needs a response</small></div>
-        <div className="admin-tile"><strong>{counts?.advertisers ?? "—"}</strong><span>Advertisers</span><small>Funding the network</small></div>
+      <div className="admin-tiles">
+        <Link className="admin-tile" href="/admin/review" data-waiting={(counts?.creativesWaiting ?? 0) > 0}>
+          <strong>{counts?.creativesWaiting ?? "—"}</strong>
+          <span>Creatives waiting</span>
+          <small>Review before delivery</small>
+        </Link>
+        <Link className="admin-tile" href="/admin/money" data-waiting={(counts?.withdrawalsPending ?? 0) > 0}>
+          <strong>{counts?.withdrawalsPending ?? "—"}</strong>
+          <span>Payouts waiting</span>
+          <small>{money(counts?.pendingWithdrawalMicros ?? "0")} held</small>
+        </Link>
+        <Link className="admin-tile" href="/admin/review?tab=feedback" data-waiting={(counts?.reportsOpen ?? 0) > 0}>
+          <strong>{counts?.reportsOpen ?? "—"}</strong>
+          <span>Reports open</span>
+          <small>Needs a response</small>
+        </Link>
+        <Link className="admin-tile" href="/admin/content?tab=notices" data-waiting={false}>
+          <strong>{counts?.noticesActive ?? "—"}</strong>
+          <span>Notices live</span>
+          <small>Shown inside ADCode</small>
+        </Link>
       </div>
 
-      <AdminBlock id="creative-review" title="Creative review" hint="Approve or reject ads before they reach developers." defaultOpen><ReviewQueue /></AdminBlock>
-      <AdminBlock id="withdrawals" title="Manual payouts" hint="Review, approve, send through Wise, and record payment evidence." defaultOpen><Withdrawals initialQuery="" /></AdminBlock>
-      <AdminBlock id="feedback" title="Feedback and reports" hint="Questions and issues sent from ADCode."><ReportsBody initialQuery="" /></AdminBlock>
-      <AdminBlock id="advertisers" title="Advertisers" hint="Accounts, campaigns, balances, and delivery."><AdvertisersBody initialQuery="" /></AdminBlock>
-      <AdminBlock id="corridors" title="Payout countries" hint="Eligible destinations and their required bank fields."><PayoutCorridors /></AdminBlock>
-      <AdminBlock id="users" title="Users and earnings" hint="Accounts, balances, activity, and ledger access."><UsersBody initialQuery="" /></AdminBlock>
-      <AdminBlock id="administrators" title="Administrators" hint="Who can access these operations."><AdminsBody /></AdminBlock>
-      <AdminBlock id="writing" title="Blog and documentation" hint="Public content maintained by the operator."><BlogBody /></AdminBlock>
-      <AdminBlock id="releases" title="Releases" hint="Desktop release publishing and notes."><ReleasesBody /></AdminBlock>
-      <AdminBlock id="notices" title="Notices" hint="Messages shown inside ADCode."><NoticesBody /></AdminBlock>
-      <AdminBlock id="tools" title="Delivery tools" hint="Send safe test cards without moving money."><TestAdsBody /></AdminBlock>
-    </>
-  );
-}
+      <div className="admin-tiles admin-tiles-quiet">
+        <Link className="admin-tile" href="/admin/money?tab=advertisers">
+          <strong>{counts?.advertisers ?? "—"}</strong>
+          <span>Advertisers</span>
+          <small>Funding the network</small>
+        </Link>
+      </div>
 
-function AdminBlock({ id, title, hint, defaultOpen = false, children }: { id: string; title: string; hint: string; defaultOpen?: boolean; children: React.ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <details id={id} className="admin-block" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary><span><strong>{title}</strong><small>{hint}</small></span><i aria-hidden="true">+</i></summary>
-      {open && <div className="admin-block-body">{children}</div>}
-    </details>
+      <p className="field-hint" style={{ maxWidth: "64ch" }}>
+        Pick a destination from the rail, or paste an id into the jump box - every
+        identifier in the system routes itself to the screen that shows it.
+      </p>
+    </>
   );
 }

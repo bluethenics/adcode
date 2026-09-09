@@ -1,6 +1,7 @@
 /** Durable parent records and lane traces for confirmed or configured AI Teams. */
 import { createHash } from "node:crypto";
-import { appendFile, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { atomicReplace } from "./atomicReplace.ts";
 import { join } from "node:path";
 import {
   createFileClaim,
@@ -145,7 +146,7 @@ const TRANSITIONS: Readonly<Record<AiTeamState, readonly AiTeamState[]>> = {
   preparing: ["running", "paused", "failed", "cancelled"],
   running: ["paused", "merging", "failed", "cancelled"],
   paused: ["preparing", "running", "failed", "cancelled"],
-  merging: ["review", "conflict", "paused", "failed", "cancelled"],
+  merging: ["review", "completed", "conflict", "paused", "failed", "cancelled"],
   review: ["completed", "conflict", "cancelled"],
   conflict: ["merging", "review", "cancelled"],
   completed: [],
@@ -226,7 +227,7 @@ function parseRoutes(raw: unknown): Record<string, AiTeamRouteRecord> {
       candidate["providerId"].includes("\u0000") ||
       typeof candidate["modelId"] !== "string" ||
       candidate["modelId"].length === 0 ||
-      candidate["modelId"].length > 160 ||
+      candidate["modelId"].length > 256 ||
       candidate["modelId"].includes("\u0000") ||
       typeof candidate["reason"] !== "string" ||
       candidate["reason"].trim().length === 0 ||
@@ -462,7 +463,7 @@ export function createAiTeamStore(userDataDirectory: string): AiTeamStore {
       const temporary = `${target}.tmp`;
       await mkdir(targetFolder, { recursive: true });
       await writeFile(temporary, JSON.stringify(validated, null, 2), "utf8");
-      await rename(temporary, target);
+      await atomicReplace(temporary, target);
     },
     read,
     async list(workspaceId): Promise<AiTeamRecord[]> {

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { LogoDrop } from "@/components/LogoDrop";
 import { TagPicker } from "@/components/TagPicker";
+import { SponsoredToastPreview } from "@/components/SponsoredToastPreview";
 import { dollarsToMicros } from "@/components/money";
 import {
   apiFetch,
@@ -16,7 +17,7 @@ import {
 import { ECONOMICS, formatMicros } from "@/lib/site";
 
 /**
- * One screen from nothing to a campaign in review.
+ * One screen from nothing to a live campaign.
  *
  * This used to be three: name an advertiser account, then fill a campaign form, then land
  * on a detail page and fill a second form for the creative. Nine fields, three submits,
@@ -145,7 +146,7 @@ export function NewCampaignForm() {
       return;
     }
 
-    setStep("Submitting your card for review…");
+    setStep("Publishing your card…");
     const creative = await apiFetch<CreativeView>({
       path: "/portal/creatives",
       token: t,
@@ -334,8 +335,9 @@ export function NewCampaignForm() {
         </section>
 
         <div className="notice" data-tone="info">
-          Nothing is charged yet. Campaigns start paused: we review the card, then you fund
-          it and set it live.
+          Nothing is charged yet. Your card goes live as soon as the campaign is funded —
+          there is no review wait. An account that already has credits can start serving
+          immediately.
         </div>
 
         <div className="actions">
@@ -354,22 +356,11 @@ export function NewCampaignForm() {
         <div className="ios-card">
           <header className="ios-card-head">
             <h2>How it looks</h2>
-            <p>Actual size, in the corner of the editor.</p>
+            <p>Exactly what a developer sees — the same card, at the same size.</p>
           </header>
 
           <div className="card-preview-ground">
-            <div className="toast" style={{ position: "static", animation: "none" }}>
-              <span className="toast-tag">Sponsored · {brand.trim() || "Your brand"}</span>
-              <span className="toast-headline">
-                {logo !== null && (
-                  // eslint-disable-next-line @next/next/no-img-element -- a data: URL at
-                  // its rendered size; next/image would proxy it for nothing.
-                  <img src={logo} alt="" className="toast-logo" width={28} height={28} />
-                )}
-                <span className="toast-head">{headline.trim() || "Your message"}</span>
-              </span>
-              {body.trim().length > 0 && <span className="toast-body">{body}</span>}
-            </div>
+            <SponsoredToastPreview brand={brand} headline={headline} body={body} logo={logo} />
           </div>
 
           <ul className="ios-group ios-group-plain">

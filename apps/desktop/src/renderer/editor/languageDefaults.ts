@@ -21,6 +21,17 @@ import {
   typescriptDefaults,
 } from "monaco-editor/languages/features/typescript/register.js";
 import { jsonDefaults } from "monaco-editor/languages/features/json/register.js";
+// Imported for the same side effect as the two above: each `register.js` hooks its
+// language mode up on import (`languages.onLanguage` → `setupMode`), which is what
+// registers the completion, hover, and colour providers. Without these two lines the
+// CSS/HTML workers `editorHost.ts` bundles have no mode to run in, and typing `back`
+// in a stylesheet offers only words already in the file - never `background-color`.
+import {
+  cssDefaults,
+  lessDefaults,
+  scssDefaults,
+} from "monaco-editor/languages/features/css/register.js";
+import { htmlDefaults } from "monaco-editor/languages/features/html/register.js";
 
 /**
  * Module resolution the worker cannot perform.
@@ -92,4 +103,18 @@ export function configureLanguageDefaults(): void {
       },
     ],
   });
+
+  /*
+   * The CSS/HTML modes format too, and ADCode already owns that job: `installFormatting`
+   * registers its own provider for every language, and format-on-save calls it directly.
+   * Two document formatters for one language means Shift+Alt+F (Monaco's own default,
+   * still active) stops having one answer. Completions, hover, colours, links, symbols -
+   * everything the modes do that nobody else does - stay on.
+   */
+  for (const defaults of [cssDefaults, lessDefaults, scssDefaults, htmlDefaults]) {
+    defaults.setModeConfiguration({
+      documentFormattingEdits: false,
+      documentRangeFormattingEdits: false,
+    });
+  }
 }

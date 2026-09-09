@@ -5,55 +5,150 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { SignInCard } from "./SignInCard";
+import { SideIcon, SidebarGlyph, type SideNavIcon } from "./AppShell";
 import { apiFetch, type AdminOverviewView } from "@/lib/api";
 
 /**
- * The admin panel's own chrome.
+ * The admin panel's chrome.
  *
- * This is the third shape it has had, and each change was the same complaint: it took too
- * much room to say too little. Nine destinations in a top tab strip pushed three off the
- * right edge. Nine in a sidebar fitted, but a 232px column of headings and hint text is a
- * quarter of a laptop screen spent on navigation - and on a phone it became a horizontal
- * scroller, which is a gesture nobody makes on a page they have just opened.
+ * Fourth shape. The third put everything on one page behind eleven disclosures -
+ * a "+" to unfold for every queue - which read as one enormous screen of collapsed
+ * questions and made every job start with a scroll. This one goes the other way:
+ * thirteen destinations in a grouped rail, one page per job, and the second level
+ * (creatives vs feedback, payouts vs advertisers) is a real URL again, so a link,
+ * the jump box, or the browser's back button lands exactly on the thing.
  *
- * So: **six destinations, not nine.** The pages that were split by data type are now
- * grouped by job and switch with a control inside the page - creatives and feedback are
- * both "things people sent that need a decision", users and administrators are both
- * "people". Nothing was removed; the second level moved inside.
+ * The rail borrows the portal's iOS sidebar whole - same rows, same icons, same
+ * sheet on a phone - with two additions of its own: a jump box for pasted ids, and
+ * a count beside each queue that can block somebody, so "what needs me" is answered
+ * without opening anything. Under 900px the rail leaves the layout and opens as a
+ * sheet from the sidebar icon in the bar. The content fades in on every destination
+ * change, which costs nothing and makes the panel feel like pages rather than swaps.
  *
- * The rail is 172px of labels with a count beside the two that can block somebody, so
- * "what needs me" is answered from wherever you happen to be. Under 900px it collapses
- * into a drawer behind a button in a sticky bar, and the content gets the whole width.
- *
- * The gate is the same convenience the rest of the app uses. It decides what renders; the
- * API re-checks the admin claim on every `/v1/admin/*` request, so editing your way past
- * this reaches endpoints that refuse you.
+ * The gate is the same convenience the rest of the app uses. It decides what renders;
+ * the API re-checks the admin claim on every `/v1/admin/*` request, so editing your
+ * way past this reaches endpoints that refuse you.
  */
 export interface AdminNavItem {
   href: string;
   label: string;
   hint: string;
+  icon: SideNavIcon;
+  /** The `?tab=` this destination stands for. Absent means the page has a single view. */
+  tab?: string;
   /** Which overview count belongs beside it, if any. */
   badge?: (counts: AdminOverviewView) => number;
 }
 
-export const ADMIN_NAV: AdminNavItem[] = [
-  { href: "/admin", label: "Overview", hint: "What is waiting for you" },
+export interface AdminNavGroup {
+  label: string;
+  items: AdminNavItem[];
+}
+
+export const ADMIN_NAV: AdminNavGroup[] = [
   {
-    href: "/admin/review",
-    label: "Review",
-    hint: "Creatives and feedback awaiting a decision",
-    badge: (c) => c.creativesWaiting + c.reportsOpen,
+    label: "Now",
+    items: [{ href: "/admin", label: "Overview", hint: "Every queue, at a glance", icon: "grid" }],
   },
   {
-    href: "/admin/money",
+    label: "Queues",
+    items: [
+      {
+        href: "/admin/review",
+        label: "Creatives",
+        hint: "Ads waiting on a decision",
+        tab: "creatives",
+        icon: "target",
+        badge: (c) => c.creativesWaiting,
+      },
+      {
+        href: "/admin/review?tab=feedback",
+        label: "Feedback",
+        hint: "Reports and questions from inside ADCode",
+        tab: "feedback",
+        icon: "bubble",
+        badge: (c) => c.reportsOpen,
+      },
+    ],
+  },
+  {
     label: "Money",
-    hint: "Withdrawals to pay, advertisers to watch",
-    badge: (c) => c.withdrawalsPending,
+    items: [
+      {
+        href: "/admin/money",
+        label: "Payouts",
+        hint: "Withdrawals to review and pay",
+        tab: "payouts",
+        icon: "send",
+        badge: (c) => c.withdrawalsPending,
+      },
+      {
+        href: "/admin/money?tab=advertisers",
+        label: "Advertisers",
+        hint: "Funding, campaigns, delivery",
+        tab: "advertisers",
+        icon: "card",
+      },
+      {
+        href: "/admin/money?tab=countries",
+        label: "Countries",
+        hint: "Where payouts can go",
+        tab: "countries",
+        icon: "globe",
+      },
+    ],
   },
-  { href: "/admin/people", label: "People", hint: "Accounts, ledgers, administrators" },
-  { href: "/admin/content", label: "Content", hint: "Blog, docs, releases, notices" },
-  { href: "/admin/tools", label: "Tools", hint: "Test delivery and repairs" },
+  {
+    label: "People",
+    items: [
+      {
+        href: "/admin/people",
+        label: "Users",
+        hint: "Accounts, balances, activity",
+        tab: "users",
+        icon: "person",
+      },
+      {
+        href: "/admin/people?tab=admins",
+        label: "Administrators",
+        hint: "Who can operate this panel",
+        tab: "admins",
+        icon: "shield",
+      },
+    ],
+  },
+  {
+    label: "Publishing",
+    items: [
+      {
+        href: "/admin/content",
+        label: "Blog and docs",
+        hint: "Words on the site",
+        tab: "writing",
+        icon: "doc",
+      },
+      {
+        href: "/admin/content?tab=releases",
+        label: "Releases",
+        hint: "Desktop versions and notes",
+        tab: "releases",
+        icon: "tag",
+      },
+      {
+        href: "/admin/content?tab=notices",
+        label: "Notices",
+        hint: "Messages inside the editor",
+        tab: "notices",
+        icon: "bell",
+      },
+    ],
+  },
+  {
+    label: "Tools",
+    items: [
+      { href: "/admin/tools", label: "Delivery", hint: "Test ads, no money moves", icon: "wrench" },
+    ],
+  },
 ];
 
 /**
@@ -81,15 +176,16 @@ export function jumpTarget(raw: string): string | null {
 export function AdminShell({
   title,
   subtitle,
+  tab,
   actions,
-  singlePage = false,
   children,
 }: {
   title: string;
   subtitle?: string;
+  /** Which `?tab=` of this page is showing; matches rail items to their destination. */
+  tab?: string;
   /** Buttons that belong to this page, shown beside its title. */
   actions?: React.ReactNode;
-  singlePage?: boolean;
   children: React.ReactNode;
 }) {
   const { user, loading, configured, isAdmin, token } = useAuth();
@@ -112,9 +208,21 @@ export function AdminShell({
     if (isAdmin) void loadCounts();
   }, [isAdmin, loadCounts]);
 
-  // The drawer is navigation, so arriving somewhere closes it. Without this, following a
-  // link on a phone leaves the panel sitting over the page you asked for.
-  useEffect(() => setDrawer(false), [pathname]);
+  /* The drawer is navigation: arriving anywhere - a new page or a new tab - closes it. */
+  useEffect(() => setDrawer(false), [pathname, tab]);
+
+  useEffect(() => {
+    if (!drawer) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setDrawer(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [drawer]);
 
   if (!configured) {
     return (
@@ -180,45 +288,8 @@ export function AdminShell({
     );
   }
 
-  if (singlePage) {
-    return (
-      <section className="admin admin-single">
-        <div className="wrap">
-          <header className="admin-head">
-            <div><h1>{title}</h1>{subtitle !== undefined && <p>{subtitle}</p>}</div>
-            {actions !== undefined && <div className="admin-head-actions">{actions}</div>}
-          </header>
-          {children}
-        </div>
-      </section>
-    );
-  }
-
-  const nav = (
-    <nav className="admin-nav" aria-label="Admin">
-      {ADMIN_NAV.map((item) => {
-        const count = counts === null || item.badge === undefined ? 0 : item.badge(counts);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="admin-nav-item"
-            title={item.hint}
-            // `/admin` is a prefix of every other route here, so an exact match is the
-            // only thing that marks the overview correctly.
-            aria-current={pathname === item.href ? "page" : undefined}
-          >
-            <span>{item.label}</span>
-            {count > 0 && (
-              <b className="admin-badge" aria-label={`${count} waiting`}>
-                {count > 99 ? "99+" : count}
-              </b>
-            )}
-          </Link>
-        );
-      })}
-    </nav>
-  );
+  const isCurrent = (item: AdminNavItem): boolean =>
+    pathname === item.href.split("?")[0] && item.tab === tab;
 
   const search = (
     <form
@@ -241,44 +312,77 @@ export function AdminShell({
     </form>
   );
 
+  const rail = (
+    <>
+      {search}
+      <nav className="app-side-nav" aria-label="Admin">
+        {ADMIN_NAV.map((group) => (
+          <div className="app-side-group" key={group.label}>
+            <h2>{group.label}</h2>
+            {group.items.map((item) => {
+              const count = counts === null || item.badge === undefined ? 0 : item.badge(counts);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="app-side-item"
+                  title={item.hint}
+                  aria-current={isCurrent(item) ? "page" : undefined}
+                  onClick={() => setDrawer(false)}
+                >
+                  <SideIcon name={item.icon} />
+                  <span>{item.label}</span>
+                  {count > 0 && (
+                    <b className="admin-badge" aria-label={`${count} waiting`}>
+                      {count > 99 ? "99+" : count}
+                    </b>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+    </>
+  );
+
   return (
     <section className="admin">
-      {/* The phone's chrome: one bar, always reachable, and never on a desktop. */}
-      <div className="admin-bar">
+      {/* The phone's chrome: one slim bar, one icon, never on a laptop. */}
+      <div className="app-bar">
         <button
           type="button"
-          className="admin-bar-toggle"
+          className="app-bar-toggle"
+          aria-label="Open the admin menu"
           aria-expanded={drawer}
           onClick={() => setDrawer((open) => !open)}
         >
-          <span aria-hidden="true">☰</span> Menu
+          <SidebarGlyph />
         </button>
         <strong>{title}</strong>
       </div>
 
       {drawer && (
-        <div className="admin-drawer">
-          {/* A click anywhere off the panel closes it - the gesture people already try. */}
+        <div className="app-drawer">
+          {/* The gesture people already try: a tap off the sheet dismisses it. */}
           <button
             type="button"
-            className="admin-drawer-scrim"
+            className="app-drawer-scrim"
             aria-label="Close the menu"
             onClick={() => setDrawer(false)}
           />
-          <div className="admin-drawer-panel">
-            {search}
-            {nav}
-          </div>
+          <div className="app-drawer-panel">{rail}</div>
         </div>
       )}
 
       <div className="admin-layout">
-        <div className="admin-rail">
-          {search}
-          {nav}
-        </div>
+        <aside className="admin-rail">{rail}</aside>
 
-        <div className="admin-content">
+        {/*
+          Keyed on the destination, so turning a page replays the entrance rather than
+          repainting in place. The motion is subtle; the "this is a new page" read is not.
+        */}
+        <div className="admin-content admin-page-in" key={`${pathname}#${tab ?? ""}`}>
           <header className="admin-head">
             <div>
               <h1>{title}</h1>

@@ -3,15 +3,16 @@
 import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { LogoDrop } from "@/components/LogoDrop";
+import { SponsoredToastPreview } from "@/components/SponsoredToastPreview";
 import { apiFetch, MESSAGES, type CreativeView } from "@/lib/api";
 
 /**
  * Adding another card to a campaign that already exists.
  *
- * The first card is created with the campaign on one screen; this is for the second one,
- * for replacing one that was rejected, and for running two messages against the same
- * budget. Same fields, same live preview, same logo drop - nothing here asks anyone to
- * host a PNG somewhere first.
+ * The first card is created with the campaign on one screen; this is for the second one
+ * and for running two messages against the same budget. Same fields, same live preview,
+ * same logo drop - nothing here asks anyone to host a PNG somewhere first. Cards go
+ * live immediately: there is no review step.
  */
 const LIMITS = { headline: 80, body: 160, advertiser: 40 } as const;
 
@@ -83,7 +84,7 @@ export function CreativeForm({
     <form onSubmit={submit} className="ios-card">
       <header className="ios-card-head">
         <h2>Add another card</h2>
-        <p>Two messages can share one budget. Each is reviewed on its own.</p>
+        <p>Two messages can share one budget. Each goes live the moment you publish it.</p>
       </header>
 
       {error !== null && (
@@ -93,7 +94,7 @@ export function CreativeForm({
       )}
       {done && (
         <div className="notice" data-tone="ok">
-          Submitted for review. We check cards before they reach anyone&apos;s editor.
+          Live. The card is serving to matching developers now.
         </div>
       )}
 
@@ -168,26 +169,15 @@ export function CreativeForm({
 
       <div className="field">
         <label>Preview</label>
-        <span className="field-hint">How it appears in the corner of the editor.</span>
+        <span className="field-hint">Exactly what a developer sees in the editor.</span>
         <div className="card-preview-ground">
-          <div className="toast" style={{ position: "static", animation: "none" }}>
-            <span className="toast-tag">Sponsored · {advertiser || "Your brand"}</span>
-            <span className="toast-headline">
-              {logo !== null && (
-                // eslint-disable-next-line @next/next/no-img-element -- a data: URL at its
-                // rendered size; next/image would proxy it for nothing.
-                <img src={logo} alt="" className="toast-logo" width={28} height={28} />
-              )}
-              <span className="toast-head">{headline || "Your message"}</span>
-            </span>
-            {body.trim().length > 0 && <span className="toast-body">{body}</span>}
-          </div>
+          <SponsoredToastPreview brand={advertiser} headline={headline} body={body} logo={logo} />
         </div>
       </div>
 
       <div className="actions">
         <button type="submit" className="btn btn-primary" disabled={busy}>
-          Submit for review
+          Publish card
         </button>
       </div>
     </form>

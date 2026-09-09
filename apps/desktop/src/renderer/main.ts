@@ -18,6 +18,7 @@ import "./styles/help.css";
 import "./styles/features.css";
 import "./styles/releases.css";
 import "./styles/editor.css";
+import "./styles/editorWorkspace.css";
 import "./styles/navigation.css";
 import "./ai/automationHost.ts";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
@@ -88,10 +89,9 @@ import { createConnectView } from "./ai/connectView.ts";
 import { ICON, createIcon, iconButton } from "./workbench/icons.ts";
 import { createSettingsView } from "./settings/settingsView.ts";
 import {
-  createEditorHost,
   languageForFilename,
-  type EditorHost,
 } from "./editor/editorHost.ts";
+import { createEditorWorkspace } from "./editor/editorWorkspace.ts";
 import { startActivityTracker } from "./activity/activityTracker.ts";
 import { resolveTheme } from "./theme.ts";
 import {
@@ -179,7 +179,7 @@ let theme: ThemeChoice = "dark";
  * any of what they read exists. A closure defers all three problems to the moment somebody
  * actually asks.
  */
-const editorHost: EditorHost = createEditorHost(el("editor-host"), {
+const editorHost = createEditorWorkspace(el("editor-host"), {
   activeFile: () => activePath,
   workspaceRoot: () => workspaceRoot,
   list: (directory) => window.adcode.workspace.list(directory),
@@ -201,7 +201,7 @@ const editorHost: EditorHost = createEditorHost(el("editor-host"), {
     workspaceRoot === null
       ? relative
       : `${workspaceRoot.replace(/[\/]+$/, "")}/${relative}`,
-});
+}, (path) => activateTab(path));
 
 /*
  * The editing counters.
@@ -326,6 +326,7 @@ window
 /* ── Tabs ─────────────────────────────────────────────────────────────── */
 
 function renderTabs(): void {
+  editorHost.refreshTabs(tabs);
   const host = el("tabs");
   host.replaceChildren();
 
@@ -867,8 +868,14 @@ async function expandDirectory(dirPath: string): Promise<void> {
 
   row.click();
   // The click handler lists the directory before revealing it, so the box is not
-  // populated on the next tick.
-  await new Promise((resolve) => setTimeout(resolve, 120));
+  // populated on the next tick. Poll for the open flag instead of sleeping a fixed
+  // 120ms: slow disks and large directories exceed it, leaving beginCreate() with an
+  // empty box and a spurious "folder is not open" error.
+  const deadline = Date.now() + 1000;
+  while (Date.now() < deadline) {
+    if (row.dataset["open"] === "true") return;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  }
 }
 
 /**
@@ -2161,7 +2168,9 @@ function togglePrimaryPopup(
 function isPrimaryLauncher(target: EventTarget | null): boolean {
   return (
     target instanceof Element &&
-    target.closest("#open-structure, #open-earnings") !== null
+    target.closest(
+      "#open-structure, #open-earnings, #open-features, #open-settings, #ai-toggle, [data-view=\"scm\"]",
+    ) !== null
   );
 }
 
@@ -2177,6 +2186,9 @@ document.addEventListener(
     const dependent = popupLayerState.dependent === null
       ? undefined
       : dependentPopups.get(popupLayerState.dependent);
+    // Native modal shells own their backdrop gesture. A prompt/result/help dialog above
+    // a shell also owns its pointer events; interacting with it must not close its owner.
+    if (document.querySelector("dialog:modal") !== null) return;
     if (dependent?.shell.surface.contains(event.target as Node)) return;
     if (popupLayerState.dependent !== null) {
       closeDependentPopup(popupLayerState.dependent);
@@ -2191,6 +2203,11 @@ document.addEventListener(
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape" || event.defaultPrevented || popupLayerState.primary === null)
     return;
+  const modal = event.composedPath().find((target) => target instanceof HTMLDialogElement && target.open)
+    ?? document.querySelector("dialog:modal");
+  if (modal !== null &&
+      modal !== primaryPopups.get(popupLayerState.primary)?.shell.element &&
+      modal !== dependentPopups.get(popupLayerState.dependent!)?.shell.element) return;
   // Popup shells handle Escape locally when focused. This fallback covers document-level
   // dispatch and focus outside the dialog without competing with already-handled surfaces.
   if (popupLayerState.dependent !== null) closeDependentPopup(popupLayerState.dependent);
@@ -3029,7 +3046,7 @@ const onboarding = createOnboardingSheet({
   write: (id, value) => window.adcode.settings.write(id, value),
   openAccount: () => el<HTMLButtonElement>("account-toggle").click(),
   complete: () => {
-    void window.adcode.onboarding.complete();
+    window.adcode.onboarding.complete().catch(() => undefined);
     /*
      * Every way out of the tour ends here - Skip, Escape, and Start coding - so this is
      * the one place that knows the modal is gone and the taskbar is visible again. It
@@ -3050,7 +3067,7 @@ void window.adcode.onboarding.completed().then((seen) => {
   // A beat after first paint. Opening a modal in the same frame as the window appearing
   // reads as a stutter rather than as a welcome.
   window.setTimeout(() => onboarding.open(), 900);
-});
+}).catch(() => undefined);
 
 /**
  * Who this window is signed in as, in the status bar after the version.
@@ -4513,7 +4530,10 @@ window.adcode.ads.onEarnings((earnings) => {
 
 document.addEventListener("keydown", (event) => {
   // Escape dismisses a sponsored toast, matching every other transient surface.
-  if (event.key === "Escape") notifications.dismissAll();
+  // Guarded on defaultPrevented: the popup coordinator above consumes Escape for an
+  // open shell, and without this every popup dismissal also killed (and reported a
+  // dismissed receipt for) the live sponsored toast.
+  if (event.key === "Escape" && !event.defaultPrevented) notifications.dismissAll();
 });
 
 const resizeObserver = new ResizeObserver(() => {
@@ -5005,6 +5025,8 @@ function registerCommands(): void {
     void window.adcode.settings.write("adcode.ai.autoContinue", !on);
     setStatus(on ? "Automatic continuation is off." : "Automatic continuation is on.", 3000);
   });
+  add("editor.splitRight", "Split Editor Right", () => editorHost.split());
+  add("editor.mergePanels", "Merge Editor Panels", () => editorHost.collapse());
   add("view.toggleWordWrap", "Toggle Word Wrap", () => editorHost.toggleWordWrap());
 
   /* Go */

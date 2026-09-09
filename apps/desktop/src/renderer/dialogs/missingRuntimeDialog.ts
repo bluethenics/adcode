@@ -1,3 +1,5 @@
+import { bindBackdropDismissal } from "./backdropDismissal.ts";
+
 /**
  * "Python isn't installed."
  *
@@ -99,9 +101,7 @@ export function createMissingRuntimeDialog(host: HTMLElement): MissingRuntimeDia
     finish("cancel");
   });
 
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) finish("cancel");
-  });
+  bindBackdropDismissal(dialog, card, () => { finish("cancel"); });
 
   return {
     isOpen: () => dialog.open,

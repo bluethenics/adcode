@@ -1,3 +1,5 @@
+import { bindBackdropDismissal } from "./backdropDismissal.ts";
+
 /**
  * The centred result dialog.
  *
@@ -69,9 +71,7 @@ export function createResultDialog(host: HTMLElement): ResultDialog {
 
   // Clicking the backdrop closes. The dialog element's own box covers the whole viewport,
   // so the card is what has to be tested against rather than the dialog.
-  dialog.addEventListener("click", (event) => {
-    if (!card.contains(event.target as Node)) dialog.close();
-  });
+  bindBackdropDismissal(dialog, card, () => { dialog.close(); });
 
   return {
     show(result) {

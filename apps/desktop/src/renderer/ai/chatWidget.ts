@@ -25,6 +25,7 @@ import type {
   ProposedEditView,
 } from "../../shared/api.ts";
 import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
+import { createAgentLibrary } from "./agentLibrary.ts";
 import {
   aiWorkspaceActions,
   formatAiWorkspaceUsage,
@@ -38,6 +39,7 @@ import {
   extractTeamFileHints,
   formatAiTeamUsage,
   manualTeamSuggestion,
+  formatConnectionQueue,
 } from "./aiTeamViewModel.ts";
 import {
   aiAutomationCanCancel,
@@ -130,8 +132,37 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   title.className = "chat-title";
   title.textContent = "Assistant";
 
-  const modelLabel = document.createElement("span");
+  const modelLabel = document.createElement("button");
+  modelLabel.type = "button";
   modelLabel.className = "chat-model";
+  modelLabel.title = "Choose a provider and model (Connect)";
+  modelLabel.setAttribute("aria-label", "Choose a provider and model");
+  modelLabel.addEventListener("click", () => deps.openConnect());
+  const queueLabel = document.createElement("span");
+  queueLabel.className = "chat-queue-status";
+  queueLabel.setAttribute("role", "status");
+  queueLabel.hidden = true;
+  let statusTimer: number | null = null;
+  async function refreshModelStatus(): Promise<void> {
+    try {
+      const status = await window.adcode.ai.status();
+      const active = status.providers.find((provider) => provider.id === status.activeProvider);
+      const saved = status.providers.some((provider) => provider.hasKey && provider.needsKey);
+      modelLabel.textContent = status.ready
+        ? `${active?.displayName ?? status.activeProvider} / ${status.activeModel}`
+        : saved ? "Select a saved connection" : "Connect a model to begin";
+      connectButton.textContent = status.ready || saved ? "Models" : "Connect";
+      modelLabel.dataset["ready"] = String(status.ready);
+      modelLabel.title = status.ready
+        ? `${status.activeModel} — change provider or model (Connect)`
+        : "Choose a provider and model (Connect)";
+      queueLabel.textContent = formatConnectionQueue(status.connections ?? [], Date.now());
+        queueLabel.hidden = !queueLabel.textContent;
+        if (open && inspectorOpen) void refreshAgentActivity();
+    } catch {
+      modelLabel.textContent = "Connection status unavailable";
+    }
+  }
 
   const historyButton = document.createElement("button");
   historyButton.className = "ghost-button";
@@ -172,21 +203,27 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   closeButton.title = "Close Assistant";
   closeButton.addEventListener("click", () => api.close());
 
-  header.append(
-    title,
-    modelLabel,
+  const identity = document.createElement("div");
+  identity.className = "chat-identity";
+  identity.append(title, modelLabel);
+  const headerActions = document.createElement("div");
+  headerActions.className = "chat-header-actions";
+  headerActions.append(
     historyButton,
     connectButton,
     inspectorButton,
     resetButton,
     closeButton,
   );
+  header.append(identity, queueLabel, headerActions);
 
   /* ── Transcript ───────────────────────────────────────────────────────── */
 
   const transcript = document.createElement("div");
   transcript.className = "chat-transcript";
   transcript.setAttribute("aria-live", "polite");
+  transcript.setAttribute("role", "log");
+  transcript.setAttribute("aria-label", "Conversation");
 
   /* ── Composer ─────────────────────────────────────────────────────────── */
 
@@ -218,7 +255,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     });
   });
 
-  history.append(historySearch, historyList, clearAll);
+  const historyHeading = document.createElement("h2");
+  historyHeading.className = "chat-section-heading";
+  historyHeading.textContent = "Conversations";
+  history.append(historyHeading, historySearch, historyList, clearAll);
 
   let saved: readonly ChatSessionView[] = [];
 
@@ -499,7 +539,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const sendButton = document.createElement("button");
   sendButton.className = "chat-send";
   sendButton.type = "submit";
-  sendButton.textContent = "Send";
+  sendButton.textContent = "↑";
+  sendButton.title = "Send (Enter)";
+  sendButton.setAttribute("aria-label", "Send message");
+  sendButton.dataset["mode"] = "send";
 
   const manualTeam = document.createElement("button");
   manualTeam.className = "chat-team-button";
@@ -513,16 +556,82 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   scheduleMessage.textContent = "Schedule";
   scheduleMessage.title = "Send this message later while ADCode is open";
 
-  composer.append(input, manualTeam, scheduleMessage, sendButton);
+  // Vibe-coder context helper: no new backend, just Cursor-style `@` affordance
+  // that names the intent so the model answers about *this* project.
+  const attachContext = document.createElement("button");
+  attachContext.className = "chat-team-button";
+  attachContext.type = "button";
+  attachContext.textContent = "@ Files";
+  attachContext.title = "Mention the open project in your message";
+  attachContext.setAttribute("aria-label", "Mention the open project");
+  attachContext.addEventListener("click", () => {
+    const prefix = "About my open project: ";
+    if (!input.value.startsWith(prefix)) {
+      input.value = `${prefix}${input.value}`;
+    }
+    input.focus();
+  });
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "chat-toolbar";
+  const spacer = document.createElement("span");
+  spacer.className = "chat-toolbar-spacer";
+  toolbar.append(manualTeam, scheduleMessage, attachContext, spacer, sendButton);
+  composer.append(input, toolbar);
 
   const conversation = document.createElement("main");
   conversation.className = "chat-conversation";
-  conversation.append(memory, transcript, composer);
+  const welcome = document.createElement("section");
+  welcome.className = "chat-welcome";
+  const welcomeTitle = document.createElement("h2");
+  welcomeTitle.textContent = "What are we building?";
+  const welcomeText = document.createElement("p");
+  welcomeText.textContent = "Ask about your project, make a change, or bring your agents together for a Team task.";
+  const quickActions = document.createElement("div");
+  quickActions.className = "chat-quick-actions";
+  const starters: ReadonlyArray<{ label: string; hint: string; prompt: string }> = [
+    { label: "Build something", hint: "Describe it in plain words", prompt: "Build this for my open project: " },
+    { label: "Fix an error", hint: "Paste it or name the file", prompt: "Fix this error in my open project: " },
+    { label: "Explain this file", hint: "No jargon, step by step", prompt: "Explain what this file does, step by step: " },
+  ];
+  for (const starter of starters) {
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "chat-quick-action";
+    action.textContent = starter.label;
+    const hint = document.createElement("small");
+    hint.textContent = starter.hint;
+    action.append(hint);
+    action.addEventListener("click", () => {
+      input.value = starter.prompt;
+      input.focus();
+    });
+    quickActions.append(action);
+  }
+  welcome.append(welcomeTitle, welcomeText, quickActions);
+  const refreshWelcome = (): void => { welcome.hidden = transcript.childElementCount > 0; };
+  new MutationObserver(refreshWelcome).observe(transcript, { childList: true });
+  conversation.append(memory, welcome, transcript, composer);
+
+  const agentLibrary = createAgentLibrary({
+    prompt: () => input.value.trim(),
+    openConnect: deps.openConnect,
+    configure: async (configuration) => {
+      if (!canOfferAnotherTeam()) throw new Error("Finish or cancel the current Team before setting up another.");
+      const team = await window.adcode.aiTeam.configure(configuration);
+      paintTeam(team);
+      bubble("user", `Team plan: ${configuration.prompt}`);
+      input.value = "";
+    },
+  });
 
   const inspector = document.createElement("aside");
   inspector.className = "chat-inspector";
   inspector.setAttribute("aria-label", "AI task inspector");
-  inspector.append(taskStrip, teamPanel, automationPanel);
+  const inspectorHeading = document.createElement("h2");
+  inspectorHeading.className = "chat-section-heading";
+  inspectorHeading.textContent = "Agents & activity";
+  inspector.append(inspectorHeading, teamPanel, taskStrip, agentLibrary.element, automationPanel);
 
   const body = document.createElement("div");
   body.className = "chat-body";
@@ -563,6 +672,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   function bubble(role: "user" | "assistant", text: string): HTMLElement {
     const element = document.createElement("div");
     element.className = `chat-bubble chat-bubble-${role}`;
+    if (role === "assistant" && text.length === 0) element.classList.add("is-streaming");
     element.textContent = text;
     transcript.append(element);
     scrollToEnd();
@@ -607,12 +717,18 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
   }
 
-  function renderTeamRole(label: string, state: string): void {
-    const role = document.createElement("span");
+  function renderTeamRole(label: string, state: string): HTMLElement {
+    const role = document.createElement("article");
     role.className = "ai-team-role";
     role.dataset["state"] = state;
-    role.textContent = label;
+    const name = document.createElement("strong");
+    name.textContent = label;
+    const status = document.createElement("span");
+    status.className = "ai-team-role-state";
+    status.textContent = state;
+    role.append(name, status);
     teamRoles.append(role);
+    return role;
   }
 
   function paintTeamSuggestion(suggestion: AiTeamSuggestionView, prompt: string): void {
@@ -653,7 +769,26 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         nodes.find((node) => node.state === "running")?.state ??
         nodes.find((node) => node.state === "failed" || node.state === "blocked")?.state ??
         (nodes.every((node) => node.state === "completed") ? "completed" : nodes[0]?.state ?? "pending");
-      renderTeamRole(role.label, state);
+      const row = renderTeamRole(role.label, state);
+      row.dataset["roleId"] = role.id;
+      const objective = document.createElement("p");
+      objective.textContent = role.objective;
+      const tasks = document.createElement("p");
+      tasks.textContent = nodes.map(node => `${node.title}: ${node.state}${node.failure ? ` · ${node.failure}` : ""}`).join(" · ");
+      const route = nodes.map(node => team.routes[node.id]).find(value => value !== undefined);
+      const routeLabel = document.createElement("p");
+      routeLabel.textContent = route ? `${route.providerId} · ${route.modelId}` : role.route ? `${role.route.provider} · ${role.route.model}` : "Current connected model";
+      const activity = document.createElement("button");
+      activity.type = "button";
+      activity.className = "ghost-button";
+      activity.textContent = "Agent trace";
+      activity.setAttribute("aria-label", `View ${role.label} trace`);
+      activity.disabled = team.confirmedAt === null;
+      activity.addEventListener("click", () => void renderTeamTrace(team, role.id));
+      const latest = document.createElement("p");
+      latest.className = "ai-team-latest";
+      latest.textContent = team.handoffs.find(handoff => nodes.some(node => node.id === handoff.nodeId))?.summary ?? "";
+      row.append(objective, tasks, routeLabel, latest, activity);
     }
     const completed = team.nodes.filter((node) => node.state === "completed").length;
     teamReason.textContent =
@@ -668,6 +803,29 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (actions.conflict) visibleActions.push(teamConflict);
     if (actions.cancel) visibleActions.push(teamCancel);
     showOnlyTeamActions(visibleActions);
+    if (open && inspectorOpen) void refreshAgentActivity();
+  }
+
+  let activityRefreshing = false;
+  async function refreshAgentActivity(): Promise<void> {
+    const team = activeTeam;
+    if (team === null || team.confirmedAt === null || activityRefreshing) return;
+    activityRefreshing = true;
+    try {
+      const events = await window.adcode.aiTeam.traces(team.id);
+      if (activeTeam?.id !== team.id || !open) return;
+      for (const row of teamRoles.querySelectorAll<HTMLElement>("[data-role-id]")) {
+        const nodeIds = team.nodes.filter(node => node.roleId === row.dataset["roleId"]).map(node => node.id);
+        if (team.handoffs.some(handoff => nodeIds.includes(handoff.nodeId))) continue;
+        const latest = [...events].reverse().find(event => event.roleId === row.dataset["roleId"] || (event.nodeId !== null && nodeIds.includes(event.nodeId)));
+        const target = row.querySelector<HTMLElement>(".ai-team-latest");
+        if (latest && target) {
+          target.textContent = [latest.summary, latest.detail].filter(Boolean).join(" — ");
+          target.title = target.textContent;
+        }
+      }
+    } catch { /* A trace read must not interrupt the agent or its controls. */ }
+    finally { activityRefreshing = false; }
   }
 
   async function refreshTeam(): Promise<void> {
@@ -676,18 +834,22 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (generation === teamRefreshGeneration) paintTeam(teams[0] ?? null);
   }
 
-  async function renderTeamTrace(team: AiTeamView): Promise<void> {
+  async function renderTeamTrace(team: AiTeamView, roleId?: string): Promise<void> {
     teamTrace.disabled = true;
     try {
-      const events = await window.adcode.aiTeam.traces(team.id);
+      const allEvents = await window.adcode.aiTeam.traces(team.id);
+      const events = roleId === undefined ? allEvents : allEvents.filter(event => event.roleId === roleId || team.nodes.some(node => node.roleId === roleId && node.id === event.nodeId));
       if (events.length === 0) {
         teamNotice.textContent = "No Team trace events yet.";
         return;
       }
       for (const event of events) {
-        const lane = event.nodeId === null ? "Team" : event.nodeId;
+        const node = team.nodes.find(item => item.id === event.nodeId);
+        const lane = team.roles.find(item => item.id === (event.roleId ?? node?.roleId))?.label ?? "Team";
         trace(`${lane} · ${event.summary}`, event.detail, traceTone(event.outcome));
       }
+    } catch (error) {
+      teamNotice.textContent = error instanceof Error ? error.message : "Could not load Team trace.";
     } finally {
       teamTrace.disabled = false;
     }
@@ -1227,6 +1389,20 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /* ── Events from the agent ────────────────────────────────────────────── */
 
+  function setSendMode(mode: "send" | "stop"): void {
+    sendButton.dataset["mode"] = mode;
+    sendButton.disabled = false;
+    if (mode === "stop") {
+      sendButton.textContent = "■";
+      sendButton.title = "Stop this turn";
+      sendButton.setAttribute("aria-label", "Stop this turn");
+    } else {
+      sendButton.textContent = "↑";
+      sendButton.title = "Send (Enter)";
+      sendButton.setAttribute("aria-label", "Send message");
+    }
+  }
+
   window.adcode.ai.onEvent((raw) => {
     const event = raw as { kind: string; [key: string]: unknown };
 
@@ -1261,23 +1437,29 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       }
 
       case "refusal":
+        streamingBubble?.classList.remove("is-streaming");
         streamingBubble = null;
+        setSendMode("send");
         bubble("assistant", `The model declined this request. ${String(event["detail"] ?? "")}`.trim());
         break;
 
       case "error":
+        streamingBubble?.classList.remove("is-streaming");
         streamingBubble = null;
+        setSendMode("send");
         trace("Error", String(event["detail"] ?? "unknown"), "error");
         break;
 
       case "cancelled":
         streamingBubble = null;
+        setSendMode("send");
         trace("Cancelled", "You stopped this turn.", "ok");
         break;
 
       case "turn-end":
+        streamingBubble?.classList.remove("is-streaming");
         streamingBubble = null;
-        sendButton.disabled = false;
+        setSendMode("send");
         break;
     }
   });
@@ -1290,6 +1472,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /* ── Sending ──────────────────────────────────────────────────────────── */
 
   function submit(): void {
+    // Cursor-style stop: while a turn is running the send key stops it.
+    if (sendButton.dataset["mode"] === "stop") {
+      window.adcode.ai.cancel();
+      return;
+    }
     const text = input.value;
     if (text.trim().length === 0) return;
 
@@ -1303,7 +1490,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         showUser: (message) => bubble("user", message),
         aiSend: (message) => window.adcode.ai.send(message),
         onFailure: () => {
-          sendButton.disabled = false;
+          setSendMode("send");
         },
       })
     ) {
@@ -1311,7 +1498,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
 
     input.value = "";
-    sendButton.disabled = true;
+    setSendMode("stop");
     streamingBubble = null;
   }
 
@@ -1411,13 +1598,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         input.focus();
       });
 
-      void window.adcode.ai.status().then((status) => {
-        modelLabel.textContent = status.ready
-          ? status.activeModel
-          : "No API key — add one in Settings";
-      });
+      void refreshModelStatus();
+      statusTimer = window.setInterval(() => void refreshModelStatus(), 2_000);
       void refreshWorkspaceTask();
       void refreshTeam();
+      void agentLibrary.refresh();
       if (!automationPanel.hidden) void refreshAutomations();
 
     },
@@ -1425,6 +1610,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     hidden(): void {
       if (!open) return;
       open = false;
+      if (statusTimer !== null) window.clearInterval(statusTimer);
+      statusTimer = null;
       announce();
     },
 
@@ -1433,6 +1620,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         open: () => api.open(),
         showTeam: () => {
           revealInspector();
+          void agentLibrary.refresh();
           void suggestForComposer(true);
         },
         showSchedule: showScheduleComposer,

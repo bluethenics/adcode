@@ -4,6 +4,7 @@ export interface TeamRoleInput {
   readonly id: string;
   readonly label: string;
   readonly objective: string;
+  readonly route?: { readonly provider: string; readonly model: string };
 }
 
 export interface TeamPlanNodeInput {
@@ -90,6 +91,10 @@ export function createTeamPlan(input: TeamPlanInput): TeamPlan {
     id: role.id,
     label: boundedText(role.label, "Role label", 80),
     objective: boundedText(role.objective, "Role objective", 2_000),
+    ...(role.route === undefined ? {} : { route: {
+      provider: boundedText(role.route.provider, "Role provider", 128),
+      model: boundedText(role.route.model, "Role model", 256),
+    } }),
   }));
   const roleIds = new Set(roles.map((role) => role.id));
   const nodeIds = new Set(input.nodes.map((node) => node.id));

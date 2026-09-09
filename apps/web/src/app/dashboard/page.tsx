@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AppShell } from "@/components/AppShell";
+import { AppShell, type SideNavGroup } from "@/components/AppShell";
 import { useAuth } from "@/components/AuthProvider";
 import { CopyField } from "@/components/CopyField";
 import { LedgerRows } from "@/components/LedgerRows";
@@ -27,9 +27,31 @@ const EARNING_KINDS: ReadonlySet<string> = new Set(["impression", "click", "reve
 const MANUAL = seriesColor(0);
 const AGENT = seriesColor(1);
 
+/**
+ * The dashboard is one long workspace too: balance, then earnings, payouts, activity
+ * and the ledger. The rail on the left names those destinations - on a laptop it is
+ * always on screen, on a phone it opens as a sheet from the sidebar icon.
+ */
+const DASHBOARD_SIDEBAR: SideNavGroup[] = [
+  {
+    label: "Account",
+    items: [
+      { href: "/dashboard", label: "Overview", icon: "grid" },
+      { href: "/dashboard#earnings", label: "Earnings", icon: "chart" },
+      { href: "/dashboard#payouts", label: "Payouts", icon: "send" },
+      { href: "/dashboard#activity", label: "Activity", icon: "clock" },
+      { href: "/dashboard#ledger", label: "Ledger", icon: "list" },
+    ],
+  },
+];
+
 export default function Dashboard() {
   return (
-    <AppShell title="Your account" subtitle="Earnings, activity, and every entry behind them">
+    <AppShell
+      title="Your account"
+      subtitle="Earnings, activity, and every entry behind them"
+      sidebar={DASHBOARD_SIDEBAR}
+    >
       <DashboardBody />
     </AppShell>
   );

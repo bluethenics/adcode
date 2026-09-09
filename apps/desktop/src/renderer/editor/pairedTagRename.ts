@@ -42,6 +42,7 @@ const shifted = (span: TagNameSpan, delta: number): TagNameSpan => ({
 export function installPairedTagRename(
   editor: monaco.editor.IStandaloneCodeEditor,
   monacoApi: typeof monaco,
+  isActive: () => boolean = () => true,
 ): PairedTagRename {
   let enabled = true;
   let editing = false;
@@ -72,8 +73,10 @@ export function installPairedTagRename(
 
   const cursorSubscription = editor.onDidChangeCursorPosition(() => relink());
   const modelSubscription = editor.onDidChangeModel(() => relink());
+  const focusSubscription = editor.onDidFocusEditorText(() => relink());
 
   const contentSubscription = editor.onDidChangeModelContent((event) => {
+    if (!isActive()) { link = null; return; }
     if (!enabled || editing) return;
 
     if (event.isUndoing || event.isRedoing) {
@@ -192,6 +195,7 @@ export function installPairedTagRename(
     dispose() {
       cursorSubscription.dispose();
       modelSubscription.dispose();
+      focusSubscription.dispose();
       contentSubscription.dispose();
     },
   };

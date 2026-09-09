@@ -18,15 +18,7 @@ import { app, safeStorage } from "electron";
 import type { KeyStore, ProviderId } from "@adcode/ai";
 
 const FILENAME = "provider-keys.json";
-/**
- * Providers whose keys may live in the fallback file.
- *
- * The keychain itself takes any id - the catalogue grows without this app shipping - but
- * the fallback file is written by this process and read back into a typed shape, so it
- * keeps a known set rather than accepting anything a caller passes.
- */
-const PROVIDERS: readonly string[] = ["anthropic", "openai", "google", "ollama", "custom"];
-
+/** Credential IDs include catalogue providers and user-created connection IDs. */
 type Stored = Record<string, string>;
 
 function filePath(): string {
@@ -38,8 +30,13 @@ async function readAll(): Promise<Stored> {
     const parsed: unknown = JSON.parse(await readFile(filePath(), "utf8"));
     if (typeof parsed !== "object" || parsed === null) return {};
 
-    const out: Stored = {};
-    for (const provider of PROVIDERS) {
+    const out: Stored = Object.create(null) as Stored;
+    for (const provider of Object.keys(parsed)) {
+      if (
+        !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,119}$/.test(provider) ||
+        ["constructor", "prototype", "__proto__"].includes(provider)
+      )
+        continue;
       const value = (parsed as Record<string, unknown>)[provider];
       if (typeof value === "string") out[provider] = value;
     }
@@ -58,9 +55,17 @@ async function writeAll(values: Stored): Promise<void> {
   await rename(temporary, target);
 }
 
+let writes: Promise<unknown> = Promise.resolve();
+function mutate(work: () => Promise<void>): Promise<void> {
+  const next = writes.then(work);
+  writes = next.catch(() => undefined);
+  return next;
+}
+
 export function createKeychainStore(): KeyStore {
   return {
     async get(provider: ProviderId): Promise<string | null> {
+      await writes;
       const stored = (await readAll())[provider];
       if (stored === undefined) return null;
       if (!safeStorage.isEncryptionAvailable()) return null;
@@ -75,34 +80,46 @@ export function createKeychainStore(): KeyStore {
     },
 
     async set(provider: ProviderId, key: string): Promise<void> {
-      // Fail closed. Writing the key unencrypted because the OS store is unavailable
-      // would quietly break the one promise §5.2 makes about it.
-      if (!safeStorage.isEncryptionAvailable()) {
-        throw new Error("The OS credential store is unavailable, so the key was not saved.");
-      }
+      if (
+        !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,119}$/.test(provider) ||
+        ["constructor", "prototype", "__proto__"].includes(provider)
+      )
+        throw new Error("Invalid credential ID");
+      return mutate(async () => {
+        // Fail closed. Writing the key unencrypted because the OS store is unavailable
+        // would quietly break the one promise §5.2 makes about it.
+        if (!safeStorage.isEncryptionAvailable()) {
+          throw new Error(
+            "The OS credential store is unavailable, so the key was not saved.",
+          );
+        }
 
-      const values = await readAll();
-      values[provider] = safeStorage.encryptString(key).toString("base64");
-      await writeAll(values);
+        const values = await readAll();
+        values[provider] = safeStorage.encryptString(key).toString("base64");
+        await writeAll(values);
+      });
     },
 
     async clear(provider: ProviderId): Promise<void> {
-      const values = await readAll();
-      delete values[provider];
+      return mutate(async () => {
+        const values = await readAll();
+        delete values[provider];
 
-      if (Object.keys(values).length === 0) {
-        try {
-          await unlink(filePath());
-        } catch {
-          // Nothing to remove.
+        if (Object.keys(values).length === 0) {
+          try {
+            await unlink(filePath());
+          } catch {
+            // Nothing to remove.
+          }
+          return;
         }
-        return;
-      }
 
-      await writeAll(values);
+        await writeAll(values);
+      });
     },
 
     async has(provider: ProviderId): Promise<boolean> {
+      await writes;
       return (await readAll())[provider] !== undefined;
     },
   };

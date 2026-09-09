@@ -77,6 +77,14 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
   let restoreTarget: HTMLElement | null = null;
   let sourceOffset = { x: 0, y: 10 };
   let motionGeneration = 0;
+  let surfaceMotion: Animation | undefined;
+  let backdropPressed = false;
+  let anchor: HTMLElement | undefined;
+
+  window.addEventListener("resize", () => {
+    if (dialog.open && options.size === "anchored" && anchor?.isConnected)
+      positionAnchored(dialog, anchor);
+  });
 
   const reducedMotion = (): boolean =>
     document.documentElement.dataset["reducedMotion"] === "true" ||
@@ -92,6 +100,9 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
 
   const cancelSurfaceMotion = (): void => {
     motionGeneration += 1;
+    // Keep the handle: hidden/top-layer-retired dialogs may not enumerate their effects.
+    surfaceMotion?.cancel();
+    surfaceMotion = undefined;
     surface.getAnimations().forEach((animation) => animation.cancel());
   };
 
@@ -117,21 +128,25 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
     if (input === "keyboard") return;
 
     if (current === undefined) {
-      sourceOffset = offsetFrom(trigger);
-      surface.style.transformOrigin = `${String(sourceOffset.x < 0 ? 0 : surface.clientWidth)}px ${String(sourceOffset.y < 0 ? 0 : surface.clientHeight)}px`;
+      sourceOffset = options.size === "anchored" ? offsetFrom(trigger) : { x: 0, y: 10 };
+      surface.style.transformOrigin = options.size === "anchored"
+        ? `left ${String(Math.max(0, Math.min(surface.clientHeight, (trigger?.getBoundingClientRect().top ?? 0) - surface.getBoundingClientRect().top)))}px`
+        : "center";
     }
     const reduce = reducedMotion();
     const keyframes: Keyframe[] = reduce
       ? [{ opacity: current?.opacity ?? 0 }, { opacity: 1 }]
       : [
-          current ?? { opacity: 0, scale: 0.97, translate: `${String(sourceOffset.x)}px ${String(sourceOffset.y)}px` },
+          current ?? { opacity: 0, scale: 0.96, translate: `${String(sourceOffset.x)}px ${String(sourceOffset.y)}px` },
           { opacity: 1, scale: 1, translate: "0 0" },
         ];
-    surface.animate(keyframes, reduce ? reducedTiming : enterTiming);
+    surfaceMotion = surface.animate(keyframes, reduce ? reducedTiming : enterTiming);
   };
 
   const finishClose = (generation: number, restoreFocus: boolean): void => {
     if (generation !== motionGeneration || !dialog.open) return;
+    // A forwards-filled exit must not survive as an invisible presentation on reuse.
+    cancelSurfaceMotion();
     dialog.close();
     delete dialog.dataset["closing"];
     if (restoreFocus) restoreTarget?.focus();
@@ -153,16 +168,25 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
     }
   });
   dialog.addEventListener("click", (event) => {
-    if (options.closeOnBackdrop !== false && isPopupShellBackdrop(event, surface)) {
+    const dismiss = backdropPressed && isPopupShellBackdrop(event, surface);
+    backdropPressed = false;
+    if (options.closeOnBackdrop !== false && dismiss) {
       options.onRequestClose();
     }
   });
+  dialog.addEventListener("pointerdown", (event) => {
+    backdropPressed = event.button === 0 && isPopupShellBackdrop(event, surface);
+  }, true);
+  dialog.addEventListener("pointercancel", () => { backdropPressed = false; });
 
   return {
     element: dialog,
     surface,
     open(openOptions = {}) {
+      backdropPressed = false;
+      anchor = openOptions.anchor;
       const current = dialog.open ? presentation() : undefined;
+      cancelSurfaceMotion();
       restoreTarget = openOptions.trigger ?? null;
       if (openOptions.anchor !== undefined) positionAnchored(dialog, openOptions.anchor);
       if (!dialog.open) {
@@ -172,6 +196,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
         }
         else dialog.show();
       }
+      if (anchor !== undefined && options.size === "anchored") positionAnchored(dialog, anchor);
       const input = openOptions.input ?? "keyboard";
       dialog.dataset["input"] = input;
       animateOpen(input, openOptions.trigger, current);
@@ -181,6 +206,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
       });
     },
     close(closeOptions = {}) {
+      backdropPressed = false;
       if (!dialog.open) return;
       if (
         dialog.dataset["closing"] === "true" &&
@@ -203,13 +229,14 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
         ? [{ opacity: current.opacity }, { opacity: 0 }]
         : [
             { opacity: current.opacity, scale: current.scale, translate: current.translate },
-            { opacity: 0, scale: 0.97, translate: `${String(sourceOffset.x)}px ${String(sourceOffset.y)}px` },
+            { opacity: 0, scale: 0.96, translate: `${String(sourceOffset.x)}px ${String(sourceOffset.y)}px` },
           ];
       const animation = surface.animate(keyframes, {
         duration,
-        easing: "cubic-bezier(.4,0,1,1)",
+        easing: enterTiming.easing,
         fill: "forwards",
       });
+      surfaceMotion = animation;
       void animation.finished
         .then(() => finishClose(generation, restoreFocus))
         .catch(() => undefined);
@@ -224,5 +251,7 @@ function positionAnchored(dialog: HTMLDialogElement, anchor: HTMLElement): void 
   const width = Math.min(420, window.innerWidth - 72);
   const x = Math.max(12, Math.min(box.right + 10, window.innerWidth - width - 12));
   dialog.style.setProperty("--popup-anchor-x", `${String(x)}px`);
-  dialog.style.setProperty("--popup-anchor-y", `${String(box.top)}px`);
+  const height = dialog.querySelector<HTMLElement>(".popup-shell-surface")?.offsetHeight ?? 620;
+  const y = Math.max(12, Math.min(box.top, window.innerHeight - height - 12));
+  dialog.style.setProperty("--popup-anchor-y", `${String(y)}px`);
 }

@@ -40,7 +40,7 @@ interface ToolUseAccumulator {
 }
 
 export function createAnthropicProvider(deps: AnthropicProviderDeps): Provider {
-  const client = deps.client ?? new Anthropic({ apiKey: deps.apiKey });
+  const client = deps.client ?? new Anthropic({ apiKey: deps.apiKey, maxRetries: 0 });
 
   return {
     id: "anthropic",

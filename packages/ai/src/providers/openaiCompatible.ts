@@ -115,7 +115,7 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
       });
 
       if (!response.ok || response.body === null) {
-        throw new Error(`${deps.displayName} returned HTTP ${response.status}`);
+        throw Object.assign(new Error(`${deps.displayName} returned HTTP ${response.status}`), { status: response.status, retryAfter: response.headers.get("retry-after") });
       }
 
       const reader = response.body.getReader();
