@@ -457,9 +457,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         void deps
           .checkKey(provider.id, key)
           .then(async (outcome) => {
-            check.disabled = false;
-
             if (!outcome.ok) {
+              check.disabled = false;
               result.dataset["tone"] = "error";
               result.textContent =
                 outcome.message ?? "That key was not accepted.";
@@ -476,6 +475,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
               ) {
                 result.textContent =
                   "The connection address changed. Check the key again for its new address.";
+                check.disabled = false;
                 return;
               }
             }
