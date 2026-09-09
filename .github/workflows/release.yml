@@ -2,12 +2,11 @@
 #
 # Three platforms, three runners. macOS and Linux installers cannot be produced on the
 # Windows machine this project is developed on - a .dmg needs macOS tooling and an
-# AppImage needs a Linux filesystem - so until this existed the site offered five downloads
-# and only two of them had ever been built.
+# AppImage needs a Linux filesystem.
 #
-# The release is created as a **draft**, always. `apps/web/src/app/dl/[platform]/route.ts`
-# streams from `releases/latest/download/...`, and GitHub does not count a draft as latest,
-# so nothing is downloadable until a person opens the release and presses Publish. That is
+# The release is created as a **draft**, always. The terminal install scripts fetch from
+# `releases/latest/download/...`, and GitHub does not count a draft as latest,
+# so nothing is installable until a person opens the release and presses Publish. That is
 # deliberate: at the time of writing the binaries are unsigned, and unsigned binaries
 # reaching users is a decision somebody should make on purpose rather than by pushing a tag.
 #
@@ -58,8 +57,20 @@ jobs:
             echo "Tag ${GITHUB_REF_NAME} matches."
           fi
 
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - run: npm audit --omit=dev --audit-level=high
+
   build:
-    needs: version
+    needs: [version, verify]
     strategy:
       # One platform failing should not hide whether the other two work.
       fail-fast: false
@@ -69,8 +80,8 @@ jobs:
             platform: windows
             # nsis and portable, both x64, as electron-builder.yml declares.
             args: "--win"
-            # Which /dl route ids this runner is responsible for. macOS and Linux each
-            # answer two, so a single id per runner would leave half of them unchecked.
+            # Which installer ids this runner is responsible for. macOS and Linux each
+            # cover two, so a single id per runner would leave half of them unchecked.
             serves: "windows"
           - os: macos-latest
             platform: macos
@@ -209,10 +220,10 @@ jobs:
           echo "Collected:"
           ls -la dist
 
-      # The website asks for five exact filenames. electron-builder produces them through
-      # `${arch}` templates that resolve differently per target, so the two agree only by
-      # having been reasoned about - and when they stop agreeing, the build succeeds, the
-      # release publishes, and every download button returns 404.
+      # The terminal install scripts ask for exact filenames. electron-builder produces
+      # them through `${arch}` templates that resolve differently per target, so the two
+      # agree only by having been reasoned about - and when they stop agreeing, the build
+      # succeeds, the release publishes, and the install command finds nothing.
       - name: Check the names the website will ask for
         shell: bash
         run: |
@@ -250,9 +261,10 @@ jobs:
         shell: bash
         run: ls -la release-assets
 
-      # All five, together. The per-runner checks each saw one platform's output; this is
-      # the first point at which "can the website serve every download it advertises?" can
-      # actually be answered, and it is answered before a release exists rather than after.
+      # All installers, together. The per-runner checks each saw one platform's output;
+      # this is the first point at which "can the install scripts serve every platform?"
+      # can actually be answered, and it is answered before a release exists rather than
+      # after.
       - name: Check every download the website advertises
         shell: bash
         run: node scripts/check-release-assets.mjs release-assets
@@ -309,8 +321,8 @@ jobs:
           {
             echo "## ADCode ${VERSION} drafted"
             echo
-            echo "The release is a **draft**. Nothing is downloadable yet:"
-            echo "\`/dl/windows\` and the rest stream from \`releases/latest/download\`,"
+            echo "The release is a **draft**. Nothing is installable yet:"
+            echo "the install scripts fetch from \`releases/latest/download\`,"
             echo "and GitHub does not treat a draft as latest."
             echo
             if [ "$HAS_CERT" != "true" ]; then

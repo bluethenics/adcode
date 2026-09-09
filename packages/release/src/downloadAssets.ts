@@ -1,21 +1,21 @@
 /**
- * Do the built installers have the names the website will ask for?
+ * Do the built installers have the names the terminal install scripts will ask for?
  *
- * `apps/web/src/app/dl/[platform]/route.ts` streams `releases/latest/download/<asset>` for
- * five fixed asset names. `electron-builder.yml` produces those names through
- * `artifactName` templates whose `${arch}` token resolves differently per target - `x64`
- * for an `.exe`, `x86_64` for an AppImage, `amd64` for a `.deb`. The two files agree only
- * because whoever wrote them knew that, and nothing checked it.
+ * The install scripts (`apps/web/public/install.ps1` and `install.sh`) fetch the latest
+ * GitHub release and pick an asset by pattern - `*.exe` on Windows, `.deb` or
+ * `.AppImage` on Linux. The exact filenames below are what `electron-builder.yml`
+ * produces through `artifactName` templates whose `${arch}` token resolves differently
+ * per target - `x64` for an `.exe`, `x86_64` for an AppImage, `amd64` for a `.deb`.
  *
- * The failure that causes is the quiet kind: the build succeeds, the release publishes,
- * every download button returns 404, and the first person to notice is a user.
+ * The failure this check guards against is the quiet kind: the build succeeds, the
+ * release publishes, and the install scripts find no asset for the platform.
  *
  * Pure - no filesystem, no process. `scripts/check-release-assets.mjs` reads the directory
- * and `apps/web/src/lib/downloads.ts` and hands the strings here, the same arrangement
- * `releaseDirectory.ts` already has with `scripts/release-directory.mjs`.
+ * and hands the strings here, the same arrangement `releaseDirectory.ts` already has
+ * with `scripts/release-directory.mjs`.
  */
 
-/** One download the site offers, as parsed out of `apps/web/src/lib/downloads.ts`. */
+/** One installer the terminal install scripts can fetch, as parsed out of a source file. */
 export interface ParsedTarget {
   readonly id: string;
   readonly asset: string;
@@ -23,11 +23,34 @@ export interface ParsedTarget {
 }
 
 /**
- * Every download the site declares, read from its own `DOWNLOADS` literal.
+ * The installers the terminal install scripts need, by the platform id the release
+ * workflow checks per runner (`windows`, `linux`, `linux-deb`, `macos`, `macos-intel`).
  *
- * A regex over TypeScript, for the same reason `scripts/docs-seed.mjs` uses one: the
- * alternative is transpiling a Next module inside a release script, and the shape being
- * read is one this repository controls and this package's test pins.
+ * macOS ids map to nothing: macOS installs are advertised as coming soon, so requiring
+ * a .dmg would block every release on a build nobody is being offered.
+ */
+export const TERMINAL_REQUIRED_ASSETS: Readonly<Record<string, readonly string[]>> = {
+  windows: ["ADCode-Setup-x64.exe"],
+  linux: ["ADCode-x86_64.AppImage"],
+  "linux-deb": ["ADCode-amd64.deb"],
+  macos: [],
+  "macos-intel": [],
+};
+
+/** Every asset a release has to carry for the terminal install to work everywhere. */
+export const ALL_TERMINAL_ASSETS: readonly string[] = [
+  ...(TERMINAL_REQUIRED_ASSETS["windows"] ?? []),
+  ...(TERMINAL_REQUIRED_ASSETS["linux"] ?? []),
+  ...(TERMINAL_REQUIRED_ASSETS["linux-deb"] ?? []),
+];
+
+/**
+ * Every installer declared in a `DOWNLOADS`-shaped source, read with a regex.
+ *
+ * Kept as a pure parser so the shape of an asset list stays tested without a
+ * filesystem. `scripts/check-release-assets.mjs` no longer reads
+ * `apps/web/src/lib/downloads.ts` - the website has no file downloads - but the parsing
+ * and set-difference helpers below are still the units under test.
  *
  * Throws rather than returning an empty list when it matches nothing. Parsing nothing and
  * reporting success is exactly how a check like this quietly stops checking.
@@ -56,14 +79,21 @@ export function parseDownloads(source: string): readonly ParsedTarget[] {
 /**
  * The assets a release actually has to carry.
  *
- * A platform marked unavailable is one the site advertises as coming soon and does not
- * link, so requiring its installer would block every release on a build nobody is being
- * offered. Pass an id to narrow to one platform, for a per-runner check.
+ * A platform marked unavailable is one advertised as coming soon, so requiring its
+ * installer would block every release on a build nobody is being offered. Pass an id
+ * to narrow to one platform, for a per-runner check. Unknown ids fall back to the
+ * terminal asset table above, which is what the release workflow checks.
  */
 export function requiredAssets(
   targets: readonly ParsedTarget[],
   only?: string,
 ): readonly string[] {
+  // No parsed list (the website no longer declares downloads): answer from the static
+  // table of what the terminal install scripts fetch.
+  if (targets.length === 0) {
+    if (only === undefined) return ALL_TERMINAL_ASSETS;
+    return TERMINAL_REQUIRED_ASSETS[only] ?? [];
+  }
   return targets
     .filter((target) => target.available && (only === undefined || target.id === only))
     .map((target) => target.asset);

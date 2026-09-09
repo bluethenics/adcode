@@ -33,7 +33,25 @@ app.whenReady().then(async () => {
       card.style.width = '1200px'; update();
       handles[0].dispatchEvent(new MouseEvent('dblclick'));
       const reset = handles[0].getAttribute('aria-valuenow') === '240';
-      return { keyboard, conversationRoom, medium, compact, hidden, reset };
+      const conversation = document.querySelector('.chat-conversation');
+      conversation.innerHTML = '<section class="chat-welcome"><h2>Build with ADCode</h2><p>Ask a question or describe a change to your project.</p></section><div class="chat-transcript"></div><form class="chat-composer"><textarea class="chat-input" placeholder="Ask about this project..."></textarea><div class="chat-toolbar"><button class="chat-team-button">@ Files</button><button class="chat-team-button">Team</button><button class="chat-team-button">Schedule</button><span class="chat-toolbar-spacer"></span><button class="chat-model">Model</button><button class="chat-send">↑</button></div></form><div class="chat-quick-actions"><button class="chat-quick-action">Build something</button><button class="chat-quick-action">Fix an error</button><button class="chat-quick-action">Explain this file</button></div>';
+      card.dataset.inspectorOpen = 'false'; document.querySelector('.chat-inspector').hidden = true;
+      let spacious = true, composerFits = true;
+      for (const width of [1200, 850, 480]) {
+        card.style.width = width + 'px'; update();
+        conversation.dataset.empty = 'true';
+        const form = conversation.querySelector('.chat-composer');
+        const welcome = conversation.querySelector('.chat-welcome');
+        const starters = conversation.querySelector('.chat-quick-actions');
+        welcome.hidden = false; starters.hidden = false;
+        const box = form.getBoundingClientRect(), area = conversation.getBoundingClientRect();
+        spacious &&= box.top > area.top + 70 && box.height >= 130 && box.left >= area.left && box.right <= area.right && starters.getBoundingClientRect().bottom <= area.bottom;
+        conversation.dataset.empty = 'false'; welcome.hidden = true; starters.hidden = true;
+        conversation.querySelector('.chat-transcript').innerHTML = '<div class="chat-bubble chat-bubble-user">Create a calculator</div><div class="chat-working"><span class="chat-working-text">Thinking</span></div>';
+        const active = form.getBoundingClientRect();
+        composerFits &&= active.bottom <= area.bottom && active.top > area.top + 100 && conversation.scrollWidth <= conversation.clientWidth;
+      }
+      return { keyboard, conversationRoom, medium, compact, hidden, reset, spacious, composerFits };
     })()`);
     console.log('CHAT_LAYOUT_RESULTS=' + JSON.stringify(result));
   } catch (error) { console.error(error); process.exitCode = 1; }

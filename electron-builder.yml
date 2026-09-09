@@ -136,8 +136,8 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: ADCode
-  # A stable filename, not "ADCode Setup 1.2.3.exe": the site links straight at
-  # releases/latest/download/<name>, which only works while the name never changes.
+  # A stable filename, not "ADCode Setup 1.2.3.exe": the terminal install scripts
+  # fetch releases/latest/download/<name>, which only works while the name never changes.
   artifactName: ADCode-Setup-${arch}.${ext}
 
 # The portable build gets its own stable name for the same reason.

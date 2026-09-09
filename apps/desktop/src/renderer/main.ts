@@ -4239,6 +4239,20 @@ editorHost.git.onResolved(() => {
 /* ── Assistant (§5.3) ─────────────────────────────────────────────────── */
 
 const chat = createChatWidget({
+  openCodeReference: (reference) => {
+    const absolute = /^(?:[a-z]:\/|\/)/i.test(reference.path);
+    if (!absolute && workspaceRoot === null) {
+      setStatus("Open a project to follow this relative code reference.", 4000);
+      return;
+    }
+    const resolved = absolute ? reference.path : absolutePath(reference.path);
+    const path = tabs.find(tab => tab.path.replace(/\\/g, "/") === resolved.replace(/\\/g, "/"))?.path ?? resolved;
+    void openFile(path).then(() => {
+      if (activePath !== path) return;
+      chat.close();
+      editorHost.revealPosition(reference.line, reference.column);
+    });
+  },
   // Applying a proposal reopens the file so the user sees the result in the editor.
   openExternalPath: (path) => void openFile(path),
   openConnect: () => openConnectFromChat(),

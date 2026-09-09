@@ -43,8 +43,8 @@ describe("reading the machine", () => {
     expect(detectPlatform("some crawler/1.0")).toBe("unknown");
   });
 
-  it("treats an iPhone as a Mac, which costs one click and never a wrong download", () => {
-    // It matches /Mac/, so it lands on "coming soon" and a link to the download page -
+  it("treats an iPhone as a Mac, which costs one click and never a wrong command", () => {
+    // It matches /Mac/, so it lands on "coming soon" and a link to the install page -
     // which is the right destination for a phone anyway.
     expect(installRoute(detectPlatform(UA.iphone))).toBe("soon");
   });
@@ -52,15 +52,13 @@ describe("reading the machine", () => {
 
 describe("how each platform should install", () => {
   /*
-   * The routes differ because the platforms genuinely do, not for variety.
-   *
-   * Windows takes the terminal because a browser download of an unsigned installer earns
-   * the SmartScreen dialog and a terminal fetch does not. Linux has nothing to sign.
+   * Every shippable platform installs from a terminal. A browser download of an
+   * unsigned installer earns the SmartScreen dialog and a terminal fetch does not.
    * macOS cannot ship at all until it is notarised.
    */
-  it("sends Windows to the terminal and Linux to the button", () => {
+  it("sends Windows and Linux to the terminal", () => {
     expect(installRoute("windows")).toBe("terminal");
-    expect(installRoute("linux")).toBe("download");
+    expect(installRoute("linux")).toBe("terminal");
   });
 
   it("offers macOS nothing it cannot deliver", () => {

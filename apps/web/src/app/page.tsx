@@ -56,9 +56,8 @@ export default function Home() {
             <p>A real editor, free. Half of every ad it shows pays you.</p>
             <HeroCounter />
             {/*
-              One offer, chosen for the machine the visitor is on. Windows leads with the
-              command because it raises no SmartScreen dialog, and offers the installer
-              under it for everybody who would rather click. See HeroInstall.
+              One offer, chosen for the machine the visitor is on. Every install is the
+              terminal command, because it raises no SmartScreen dialog. See HeroInstall.
             */}
             <HeroInstall />
             <small>Windows · Linux · free to use · macOS coming soon</small>

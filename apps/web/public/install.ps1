@@ -50,7 +50,7 @@ $version = $release.tag_name
 $asset = $release.assets | Where-Object { $_.name -like '*.exe' -and $_.name -notlike '*portable*' } | Select-Object -First 1
 
 if (-not $asset) {
-    Fail "That release has no Windows installer in it. Try the download page instead: $Site/download"
+    Fail "That release has no Windows installer in it. See what is published: $Site/versions"
 }
 
 Write-Host "  Found $version ($([math]::Round($asset.size / 1MB)) MB)"
@@ -63,7 +63,7 @@ Write-Host "  Downloading..."
 try {
     Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $target -UseBasicParsing
 } catch {
-    Fail "Download failed. Try again, or grab the installer from $Site/download"
+    Fail "Download failed. Try again, or see what is published at $Site/versions"
 }
 
 # electron-builder publishes a latest.yml carrying the SHA-512 of each artifact. When it

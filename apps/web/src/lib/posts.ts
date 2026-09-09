@@ -72,7 +72,7 @@ ADCode installs from one command. This page is the whole of it: what the command
 
     irm https://adcode.bluethenics.com/install.ps1 | iex
 
-**macOS downloads are not available yet.** Windows and Linux downloads are available from the [downloads page](/versions).
+**macOS installs are not available yet.** Windows and Linux install with the commands above - see the [install page](/versions).
 
 ## Before installation
 
@@ -108,7 +108,7 @@ To update by hand, run the install command again. To stop automatic updates, tur
 
 **"is not on your PATH"** - the AppImage installed correctly and your shell cannot find it. Add \`~/.local/bin\` to your PATH, or run it by full path.
 
-**dpkg reports missing dependencies** - the script already runs \`apt-get install -f\` to resolve them. If it still fails, use the AppImage from the [downloads page](/versions) instead.
+**dpkg reports missing dependencies** - the script already runs \`apt-get install -f\` to resolve them. If it still fails, fetch the AppImage asset from the latest GitHub release and run it directly instead.
 
 **The checksum did not match** - nothing was installed, and this is worth telling us about at [support](/support). It means the file you received was not the file that was published.
 
@@ -263,7 +263,7 @@ ADCode is a full desktop IDE - Monaco editing, real terminals, git, debugging, f
 
 ## 1. Install it
 
-Press the download button on the [home page](/) - it detects your operating system and fetches the right installer directly. Windows gets an executable installer, Linux an AppImage, and macOS users can grab a disk image from [the downloads page](/download) or install with one line of shell.
+Run the install command for your system - Windows in PowerShell, Linux in your shell - from the [home page](/) or the [install page](/versions). It detects the right build, verifies it, and installs it. macOS installs are not available yet.
 
 The first launch creates an anonymous account so your earnings have somewhere to go. There is nothing to sign up for, no card to add, and no wizard to click through.
 

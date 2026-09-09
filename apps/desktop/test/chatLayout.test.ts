@@ -15,5 +15,6 @@ it("resizes assistant panels in Chromium and preserves room at narrow popup widt
   expect(line, run.stdout).toBeDefined();
   expect(JSON.parse(line!.slice("CHAT_LAYOUT_RESULTS=".length))).toEqual({
     keyboard: true, conversationRoom: true, medium: true, compact: true, hidden: true, reset: true,
+    spacious: true, composerFits: true,
   });
 }, 30_000);

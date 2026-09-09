@@ -48,9 +48,9 @@ smoke-broken.ts
 
 # Internal working documents. On disk, deliberately not published.
 #
-# The repository is public because the installers and the auto-updater fetch from
-# `github.com/<owner>/<repo>/releases` - see `apps/web/src/app/dl/[platform]/route.ts` and
-# `public/install.sh`. Making it private to hide these would break every download and every
+# The repository is public because the install scripts and the auto-updater fetch from
+# `github.com/<owner>/<repo>/releases` - see `apps/web/public/install.sh`. Making it
+# private to hide these would break every install and every
 # update, and GitHub offers no per-repo `noindex`: `github.com/robots.txt` is global and
 # GitHub's. Not tracking a file is therefore the only lever there is.
 #

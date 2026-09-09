@@ -149,7 +149,7 @@ describe("public documentation navigation", () => {
   it("gives users availability guidance without operator rationale", async () => {
     const installation = await getDoc("installing-adcode");
 
-    expect(installation?.body).toContain("macOS downloads are not available yet.");
+    expect(installation?.body).toContain("macOS installs are not available yet.");
     expect(installation?.body).not.toMatch(
       /paid Apple Developer|notaris|notariz|code-sign|Mark of the Web|zone tag/i,
     );

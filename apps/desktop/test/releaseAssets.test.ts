@@ -2,52 +2,48 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  ALL_TERMINAL_ASSETS,
   missingFrom,
   parseDownloads,
   requiredAssets,
+  TERMINAL_REQUIRED_ASSETS,
 } from "@adcode/release/downloadAssets";
 
 const ROOT = join(import.meta.dirname, "..", "..", "..");
-const SOURCE = join(ROOT, "apps", "web", "src", "lib", "downloads.ts");
 const BUILDER = join(ROOT, "electron-builder.yml");
 
-const downloads = readFileSync(SOURCE, "utf8");
 const builder = readFileSync(BUILDER, "utf8");
 
-describe("the names the website will ask for", () => {
-  it("reads every download the site declares, with whether it can ship", () => {
-    const targets = parseDownloads(downloads);
+// The website no longer declares file downloads - every install is a terminal command.
+// These tests pin what the terminal install scripts fetch, using inline fixtures for the
+// pure parser and the static table for the release check itself.
 
-    expect(targets.map((target) => target.id).sort()).toEqual([
-      "linux",
-      "linux-deb",
-      "macos",
-      "macos-intel",
-      "windows",
-    ]);
-    expect(targets.find((target) => target.id === "windows")?.asset).toBe(
+describe("the installers the terminal scripts will ask for", () => {
+  it("requires the Windows and Linux installers, and nothing for macOS", () => {
+    expect([...ALL_TERMINAL_ASSETS].sort()).toEqual([
       "ADCode-Setup-x64.exe",
-    );
-    expect(targets.find((target) => target.id === "linux")?.asset).toBe(
+      "ADCode-amd64.deb",
       "ADCode-x86_64.AppImage",
-    );
+    ]);
+    expect(TERMINAL_REQUIRED_ASSETS["windows"]).toEqual(["ADCode-Setup-x64.exe"]);
+    expect([...(TERMINAL_REQUIRED_ASSETS["linux"] ?? []), ...(TERMINAL_REQUIRED_ASSETS["linux-deb"] ?? [])].sort()).toEqual([
+      "ADCode-amd64.deb",
+      "ADCode-x86_64.AppImage",
+    ]);
   });
 
   /*
-   * macOS is listed and not shippable.
+   * macOS is not published yet.
    *
    * Signing and notarisation need a paid Apple membership, and an un-notarised app is not
    * warned about but refused. Requiring the .dmg would block every release on a build
    * nobody is being offered, so "coming soon" has to mean something to the release check
    * and not only to the page.
    */
-  it("does not require an installer for a platform it advertises as coming soon", () => {
-    const targets = parseDownloads(downloads);
-    const required = requiredAssets(targets);
-
-    expect(required).not.toContain("ADCode-arm64.dmg");
-    expect(required).not.toContain("ADCode-x64.dmg");
-    expect(required).toEqual([
+  it("does not require an installer for a platform that is coming soon", () => {
+    expect(requiredAssets([], "macos")).toEqual([]);
+    expect(requiredAssets([], "macos-intel")).toEqual([]);
+    expect(requiredAssets([])).toEqual([
       "ADCode-Setup-x64.exe",
       "ADCode-x86_64.AppImage",
       "ADCode-amd64.deb",
@@ -55,11 +51,19 @@ describe("the names the website will ask for", () => {
   });
 
   it("narrows to one platform for a per-runner check", () => {
-    const targets = parseDownloads(downloads);
-
-    expect(requiredAssets(targets, "windows")).toEqual(["ADCode-Setup-x64.exe"]);
+    expect(requiredAssets([], "windows")).toEqual(["ADCode-Setup-x64.exe"]);
     // Asking about a platform that cannot ship is not an error; there is simply nothing
     // for that runner to prove.
+    expect(requiredAssets([], "macos")).toEqual([]);
+  });
+
+  it("still parses a declared list when one is given", () => {
+    const targets = parseDownloads(`
+      id: "windows" asset: "ADCode-Setup-x64.exe" available: true
+      id: "macos" asset: "ADCode-arm64.dmg" available: false
+    `);
+
+    expect(requiredAssets(targets)).toEqual(["ADCode-Setup-x64.exe"]);
     expect(requiredAssets(targets, "macos")).toEqual([]);
   });
 

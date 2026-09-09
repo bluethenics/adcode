@@ -25,6 +25,7 @@ import type {
   ProposedEditView,
 } from "../../shared/api.ts";
 import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
+import { codeReferenceParts, type CodeReference } from "../editor/codeReferences.ts";
 import { createAgentLibrary } from "./agentLibrary.ts";
 import { attachChatLayout } from "./chatLayout.ts";
 import {
@@ -88,6 +89,7 @@ export interface ChatWidget {
 
 export interface ChatWidgetDeps {
   readonly openExternalPath: (path: string) => void;
+  readonly openCodeReference?: (reference: CodeReference) => void;
   /** Open the Connect screen, which owns providers, keys and models. */
   readonly openConnect: () => void;
   /** The coordinator owns the workspace shell and all dismissal. */
@@ -116,13 +118,34 @@ export function dispatchChatSend(
 export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   let open = false;
   let streamingBubble: HTMLElement | null = null;
+  const messageSources = new WeakMap<HTMLElement, string>();
+
+  function renderMessage(element: HTMLElement, text: string): void {
+    messageSources.set(element, text);
+    const content = document.createDocumentFragment();
+    for (const part of codeReferenceParts(text)) {
+      if (!part.reference || !deps.openCodeReference) {
+        content.append(document.createTextNode(part.text));
+        continue;
+      }
+      const reference = part.reference;
+      const link = document.createElement("button");
+      link.type = "button";
+      link.className = "chat-code-reference";
+      link.textContent = part.text;
+      link.title = `Open ${reference.path} at line ${reference.line}, column ${reference.column}`;
+      link.addEventListener("click", () => deps.openCodeReference?.(reference));
+      content.append(link);
+    }
+    element.replaceChildren(content);
+  }
 
   const card = document.createElement("section");
   card.className = "chat-card";
   card.setAttribute("aria-label", "Assistant workspace");
 
   let historyOpen = window.innerWidth >= 720;
-  let inspectorOpen = window.innerWidth >= 980;
+  let inspectorOpen = false;
 
   /* ── Header ───────────────────────────────────────────────────────────── */
 
@@ -131,11 +154,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   const title = document.createElement("span");
   title.className = "chat-title";
-  title.textContent = "Assistant";
-  const brand = document.createElement("span");
-  brand.className = "chat-brand";
-  brand.textContent = "<$>";
-  brand.setAttribute("aria-hidden", "true");
+  title.textContent = "ADCode Assistant";
 
   const modelLabel = document.createElement("button");
   modelLabel.type = "button";
@@ -210,7 +229,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   const identity = document.createElement("div");
   identity.className = "chat-identity";
-  identity.append(title, modelLabel);
+  identity.append(title);
   const headerActions = document.createElement("div");
   headerActions.className = "chat-header-actions";
   headerActions.append(
@@ -220,7 +239,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     resetButton,
     closeButton,
   );
-  header.append(brand, identity, queueLabel, headerActions);
+  header.append(identity, queueLabel, headerActions);
 
   /* ── Transcript ───────────────────────────────────────────────────────── */
 
@@ -582,7 +601,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   toolbar.className = "chat-toolbar";
   const spacer = document.createElement("span");
   spacer.className = "chat-toolbar-spacer";
-  toolbar.append(manualTeam, scheduleMessage, attachContext, spacer, sendButton);
+  toolbar.append(attachContext, manualTeam, scheduleMessage, spacer, modelLabel, sendButton);
   composer.append(input, toolbar);
 
   const conversation = document.createElement("main");
@@ -590,9 +609,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const welcome = document.createElement("section");
   welcome.className = "chat-welcome";
   const welcomeTitle = document.createElement("h2");
-  welcomeTitle.textContent = "What are we building?";
+  welcomeTitle.textContent = "Build with ADCode";
   const welcomeText = document.createElement("p");
-  welcomeText.textContent = "Ask about your project, make a change, or bring your agents together for a Team task.";
+  welcomeText.textContent = "Ask a question or describe a change to your project.";
   const quickActions = document.createElement("div");
   quickActions.className = "chat-quick-actions";
   const starters: ReadonlyArray<{ label: string; hint: string; prompt: string }> = [
@@ -614,22 +633,24 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     });
     quickActions.append(action);
   }
-  welcome.append(welcomeTitle, welcomeText, quickActions);
-  const refreshWelcome = (): void => { welcome.hidden = transcript.childElementCount > 0; };
+  welcome.append(welcomeTitle, welcomeText);
+  const refreshWelcome = (): void => {
+    const empty = transcript.childElementCount === 0;
+    welcome.hidden = !empty;
+    quickActions.hidden = !empty;
+    conversation.dataset["empty"] = String(empty);
+  };
   new MutationObserver(refreshWelcome).observe(transcript, { childList: true });
-  conversation.append(memory, welcome, transcript, composer);
+  conversation.append(memory, welcome, transcript, composer, quickActions);
+  refreshWelcome();
   const working = document.createElement("div");
   working.className = "chat-working";
   working.hidden = true;
   working.setAttribute("role", "status");
-  const workingMark = document.createElement("span");
-  workingMark.className = "chat-working-mark";
-  workingMark.textContent = "<$>";
-  workingMark.setAttribute("aria-hidden", "true");
   const workingText = document.createElement("span");
+  workingText.className = "chat-working-text";
   workingText.textContent = "Thinking";
-  working.append(workingMark, workingText);
-  composer.prepend(working);
+  working.append(workingText);
 
   const agentLibrary = createAgentLibrary({
     prompt: () => input.value.trim(),
@@ -688,6 +709,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /* ── Rendering ────────────────────────────────────────────────────────── */
 
   function scrollToEnd(): void {
+    if (!working.hidden && transcript.lastElementChild !== working) transcript.append(working);
     transcript.scrollTop = transcript.scrollHeight;
   }
 
@@ -695,7 +717,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const element = document.createElement("div");
     element.className = `chat-bubble chat-bubble-${role}`;
     if (role === "assistant" && text.length === 0) element.classList.add("is-streaming");
-    element.textContent = text;
+    renderMessage(element, text);
     transcript.append(element);
     scrollToEnd();
     return element;
@@ -1413,6 +1435,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   function setSendMode(mode: "send" | "stop"): void {
     working.hidden = mode !== "stop";
+    if (mode === "stop") {
+      transcript.append(working);
+      scrollToEnd();
+    } else {
+      working.remove();
+    }
     card.dataset["working"] = String(mode === "stop");
     if (mode === "stop") workingText.textContent = "Thinking";
     sendButton.dataset["mode"] = mode;
@@ -1436,7 +1464,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         workingText.textContent = "Writing response";
         // Append to the live bubble rather than creating one per delta.
         streamingBubble ??= bubble("assistant", "");
-        streamingBubble.textContent = `${streamingBubble.textContent ?? ""}${String(event["text"])}`;
+        renderMessage(streamingBubble, `${messageSources.get(streamingBubble) ?? ""}${String(event["text"])}`);
         scrollToEnd();
         break;
       }

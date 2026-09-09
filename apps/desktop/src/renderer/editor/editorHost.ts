@@ -42,6 +42,7 @@ import { allowsAiCompletionForPath } from "./inlineCompletionContext.ts";
 // can be tested without launching a window.
 export { languageForFilename } from "./languageIds.ts";
 import { languageForFilename } from "./languageIds.ts";
+import { markdownCodeReference } from "./codeReferences.ts";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -547,6 +548,23 @@ export function createEditorHost(
   const models = store.models;
   const viewStates = new Map<string, monaco.editor.ICodeEditorViewState>();
   let active: string | null = null;
+  editor.addAction({
+    id: "adcode.copyMarkdownCodeLink",
+    label: "Copy Markdown Link to Line",
+    contextMenuGroupId: "9_cutcopypaste",
+    contextMenuOrder: 4,
+    precondition: "editorTextFocus",
+    run: async () => {
+      if (active === null) return;
+      const selection = editor.getSelection();
+      if (!selection) return;
+      const endLine = selection.endLineNumber > selection.startLineNumber && selection.endColumn === 1
+        ? selection.endLineNumber - 1 : selection.endLineNumber;
+      await window.adcode.clipboard.writeText(markdownCodeReference(
+        deps.displayPath(active), selection.startLineNumber, endLine,
+      ));
+    },
+  });
   const aiInlineCompletion = installAiInlineCompletion(editor, (model) => {
     if (store.focusedEditor !== editor) return false;
     if (active === null) return false;
