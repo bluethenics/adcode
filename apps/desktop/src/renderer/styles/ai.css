@@ -166,9 +166,9 @@
 /* The inspector itself scrolls; no tiny nested viewport around a running team. */
 .ai-team-panel {
   display: grid;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
-  padding: 18px;
+  padding: 20px;
   border-bottom: 1px solid var(--border-hairline);
   background: var(--bg-elevated);
 }
@@ -204,16 +204,16 @@
 
 .ai-team-roles {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .ai-team-role {
   display: grid;
   grid-template-columns: 8px minmax(0, 1fr);
   align-items: start;
-  gap: 6px 10px;
+  gap: 6px 12px;
   min-width: 0;
-  padding: 12px;
+  padding: 14px 16px;
   border: 1px solid var(--border-hairline);
   border-radius: var(--radius-sm);
   background: var(--bg-app);
@@ -308,9 +308,9 @@
 
 .ai-automation-panel {
   display: grid;
-  gap: 7px;
+  gap: 10px;
   max-height: 184px;
-  padding: 9px 10px;
+  padding: 14px 16px;
   overflow-y: auto;
   border-bottom: 1px solid var(--border-hairline);
   background: color-mix(in srgb, var(--bg-elevated) 92%, var(--accent) 8%);
@@ -397,23 +397,24 @@
 
 .chat-transcript {
   /* Takes the space the history does not, and is allowed to be narrower than the longest
-     unbroken thing in it - the bubbles already break anywhere. */
+     unbroken thing in it - the bubbles already break anywhere. Rhythm is a 4pt scale:
+     24px outer breathing room, 20px between turns. */
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: 28px max(24px, calc((100% - 760px) / 2));
+  padding: 24px max(24px, calc((100% - 760px) / 2));
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 20px;
   scrollbar-gutter: stable;
 }
 
 .chat-bubble {
   max-width: 100%;
-  padding: 14px 18px;
-  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  border-radius: 16px;
   font-size: var(--text-md);
-  line-height: 1.65;
+  line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -426,8 +427,11 @@
   border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
+/* Assistant turns read as full-width text, not a card: the transcript's own padding
+   is the gutter, so nothing double-indents and long answers stay scannable. */
 .chat-bubble-assistant {
-  align-self: flex-start;
+  align-self: stretch;
+  padding: 4px 0;
   background: transparent;
   color: var(--text-primary);
 }
@@ -442,13 +446,13 @@
 }
 
 .trace-summary {
-  padding: 5px 9px;
+  padding: 8px 12px;
   cursor: pointer;
   color: var(--text-secondary);
   list-style: none;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .trace-summary::before {
@@ -472,7 +476,7 @@
 
 .trace-detail {
   margin: 0;
-  padding: 8px 10px;
+  padding: 10px 14px;
   border-top: 1px solid var(--border-hairline);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -493,7 +497,7 @@
 }
 
 .diff-heading {
-  padding: 7px 10px;
+  padding: 10px 14px;
   background: var(--bg-selected);
   font-size: var(--text-xs);
   font-weight: 560;
@@ -511,8 +515,8 @@
 .diff-toggle {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 10px;
+  gap: 8px;
+  padding: 8px 12px;
   font-size: 11px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -520,7 +524,7 @@
 
 .diff-body {
   margin: 0;
-  padding: 6px 10px 8px;
+  padding: 10px 14px 12px;
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.5;
@@ -542,8 +546,8 @@
 
 .diff-actions {
   display: flex;
-  gap: 8px;
-  padding: 9px 10px;
+  gap: 10px;
+  padding: 12px 14px;
   border-top: 1px solid var(--border-hairline);
   background: var(--bg-chrome);
 }
@@ -564,6 +568,7 @@
 
 .chat-composer:focus-within {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 .chat-input {
@@ -585,7 +590,7 @@
   border: 0;
   background: var(--bg-elevated);
   color: var(--text-primary);
-  padding: 7px 9px;
+  padding: 10px 12px;
   font-family: var(--font-ui);
   font-size: var(--text-md);
   line-height: 1.55;
@@ -622,7 +627,10 @@
   font-size: var(--text-xs);
   font-weight: 600;
   cursor: pointer;
-  transition: transform var(--duration-exit) var(--ease-sheet);
+  transition: transform var(--duration-exit) var(--ease-sheet),
+    background-color var(--duration-exit) var(--ease-sheet),
+    border-color var(--duration-exit) var(--ease-sheet),
+    color var(--duration-exit) var(--ease-sheet);
 }
 
 .chat-team-button:hover {
@@ -638,13 +646,15 @@
   align-self: flex-end;
   border: 0;
   border-radius: var(--radius-sm);
-  padding: 7px 13px;
+  padding: 8px 16px;
   background: var(--accent);
   color: var(--text-on-accent);
   font-size: var(--text-xs);
   font-weight: 560;
   cursor: pointer;
-  transition: transform var(--duration-exit) var(--ease-sheet);
+  transition: transform var(--duration-exit) var(--ease-sheet),
+    background-color var(--duration-exit) var(--ease-sheet),
+    filter var(--duration-exit) var(--ease-sheet);
 }
 
 .chat-send:active:not(:disabled) {
@@ -741,6 +751,7 @@
   padding: 4px 8px;
   margin: 2px 8px;
   border-radius: 8px;
+  transition: background-color 140ms ease;
 }
 
 .chat-history-row:hover {
@@ -775,6 +786,7 @@
   font-size: 10px;
   cursor: pointer;
   opacity: 0;
+  transition: opacity 140ms ease, background-color 140ms ease, color 140ms ease;
 }
 
 .chat-history-row:hover .chat-history-action,
@@ -818,7 +830,7 @@
  * assistant that remembers invisibly is worse than one that forgets.
  */
 .chat-memory {
-  padding: 5px 12px;
+  padding: 8px 16px;
   border-top: 1px solid var(--border-hairline);
   color: var(--text-tertiary);
   font-size: 11px;
@@ -931,7 +943,10 @@
   overflow-y: auto;
   border-right: 1px solid var(--border-hairline);
   background: var(--bg-app);
-  padding: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
 }
 
 .connect-row {
@@ -1012,7 +1027,7 @@
 }
 
 .connect-subheading {
-  margin: 18px 0 8px;
+  margin: 20px 0 10px;
   font-size: var(--text-sm);
   font-weight: 640;
   color: var(--text-primary);
@@ -1022,7 +1037,7 @@
   box-sizing: border-box;
   width: 100%;
   margin: 10px 0 6px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--border-hairline);
   border-radius: 8px;
   background: var(--bg-elevated);
@@ -1034,8 +1049,8 @@
 .connect-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
 .connect-result {
@@ -1067,8 +1082,8 @@
 .connect-model {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  padding: 7px 12px;
+  gap: 12px;
+  padding: 10px 14px;
   border: 0;
   border-bottom: 1px solid var(--border-hairline);
   background: transparent;
@@ -1077,6 +1092,7 @@
   font-size: var(--text-xs);
   text-align: left;
   cursor: pointer;
+  transition: background-color 140ms ease;
 }
 
 .connect-model:last-child {
@@ -1107,7 +1123,7 @@
 
 /* Named agents live beside their work, with ordinary form controls and clear labels. */
 .ai-agent-library {
-  padding: 18px;
+  padding: 20px;
   border-bottom: 1px solid var(--border-hairline);
 }
 
@@ -1124,7 +1140,7 @@
 .ai-agent-library > p,
 .ai-agent-list > p { font-size: var(--text-xs); line-height: 1.5; color: var(--text-secondary); }
 .chat-welcome { margin: auto 0; padding: 24px 0 40px; max-width: 480px; align-self: center; }
-.chat-welcome h2 { font-size: 28px; font-weight: 600; letter-spacing: -0.035em; margin: 0 0 12px; line-height: 1.2; }
+.chat-welcome h2 { font-size: 28px; font-weight: 600; letter-spacing: -0.035em; margin: 0 0 16px; line-height: 1.2; }
 .chat-welcome p { color: var(--text-secondary); font-size: var(--text-md); line-height: 1.6; margin: 0; }
 
 .ai-agent-list,
@@ -1136,8 +1152,8 @@
 
 .ai-agent-profile {
   display: grid;
-  gap: 8px;
-  padding: 12px 0;
+  gap: 10px;
+  padding: 14px 0;
   border-bottom: 1px solid var(--border-hairline);
   min-width: 0;
   font-size: var(--text-sm);
@@ -1282,7 +1298,7 @@ button.chat-model {
   align-items: center;
   gap: 6px;
   margin-right: auto;
-  padding: 5px 10px;
+  padding: 6px 12px;
   border: 1px solid var(--border-hairline);
   border-radius: 999px;
   background: var(--bg-hover);
@@ -1366,12 +1382,12 @@ button.chat-model[data-ready="false"]::before {
 .chat-quick-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 16px;
+  gap: 12px;
+  margin-top: 20px;
 }
 
 .chat-quick-action {
-  padding: 10px 11px;
+  padding: 14px 16px;
   border: 1px solid var(--border-hairline);
   border-radius: 12px;
   background: var(--bg-elevated);
@@ -1380,15 +1396,16 @@ button.chat-model[data-ready="false"]::before {
   font-size: var(--text-xs);
   font-weight: 600;
   text-align: left;
-  line-height: 1.35;
+  line-height: 1.4;
   cursor: pointer;
   transition: transform var(--duration-exit) var(--ease-sheet),
-    border-color var(--duration-exit) var(--ease-sheet);
+    border-color var(--duration-exit) var(--ease-sheet),
+    background-color var(--duration-exit) var(--ease-sheet);
 }
 
 .chat-quick-action small {
   display: block;
-  margin-top: 2px;
+  margin-top: 4px;
   color: var(--text-secondary);
   font-weight: 400;
 }
@@ -1410,6 +1427,7 @@ button.chat-model[data-ready="false"]::before {
   gap: 8px;
   padding: 10px;
   border-radius: 16px;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .chat-toolbar {
@@ -1460,10 +1478,11 @@ button.chat-model[data-ready="false"]::before {
 .connect-row {
   flex-direction: row;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 12px 14px;
   border: 1px solid transparent;
   border-radius: 12px;
+  transition: background-color 140ms ease, border-color 140ms ease;
 }
 
 .connect-row[data-selected="true"] {
@@ -1643,5 +1662,24 @@ button.chat-model[data-ready="false"]::before {
   :root:not([data-reduced-motion="true"]) .chat-card .chat-inspector {
     transition: opacity 200ms var(--ease-sheet), translate 200ms var(--ease-sheet);
     @starting-style { opacity: 0; translate: 0 6px; }
+  }
+}
+
+/* ── Popup entrance: one soft rise for the whole Assistant ──────────
+ *
+ * Independent `translate`/`scale` properties, not `transform`, so the
+ * centered Connect surface keeps its `translate(-50%, -50%)` while it
+ * fades in. 220ms so it settles before smoke reads geometry (~400ms
+ * after open) and before a reader can notice it.
+ */
+@keyframes chat-popup-in {
+  from { opacity: 0; translate: 0 10px; scale: 0.985; }
+  to { opacity: 1; translate: 0 0; scale: 1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-reduced-motion="true"]) .popup-shell[data-popup-id="chat"] .popup-shell-surface,
+  :root:not([data-reduced-motion="true"]) #popup-dependent-host .popup-shell[data-popup-id="connect"] .popup-shell-surface {
+    animation: chat-popup-in 220ms var(--ease-sheet);
   }
 }
