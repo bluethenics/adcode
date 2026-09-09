@@ -1119,12 +1119,14 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "Open any HTML file and start the live preview.",
       "Edit - the preview reloads itself on save.",
-      "Switch device sizes from the preview toolbar to check layouts.",
+      "Switch device sizes from the preview toolbar to check layouts: one click for Phone, Tablet, or Desktop, labelled W and H boxes with minus and plus steppers, a preset list, or drag the frame's visible edges. The page reshapes in place without reloading, and Fit scales it to fit so you never scroll to see it.",
+      "Turn on Inspect, then right-click anything in the preview to see its width, height, padding, margin, and highlighted markup for restyling. If it grabs an inner piece instead of the card you meant, walk up the breadcrumb to the parent — the page flashes each level as you pick it. Choose List all to see every element's spacing with a filter.",
       "Undock to a separate window if you want it on another screen.",
     ],
     benefits: [
       "Save-and-switch-to-browser becomes a thing you used to do.",
       "Layout experiments iterate at the speed of typing.",
+      "Box-model numbers live where the page is, so fixing spacing means no devtools detour.",
     ],
     betterThan:
       "External live-reload setups mean installing a server and managing a port per project. A built-in preview pointed at the open file makes the loop part of the editor, not an assembly project.",

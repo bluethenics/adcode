@@ -902,9 +902,9 @@ See a web page you are building beside your code, updating as you type.
 
 Why use it: Saving, switching to a browser, and refreshing is three steps too many when you are adjusting a layout.
 
-How to use it: Open a HTML file and start the preview. It reloads itself when you save.
+How to use it: Open a HTML file and start the preview. It reloads itself when you save. Open device sizes for one-click Phone, Tablet, or Desktop, labelled W and H boxes with minus and plus steppers, or drag the frame's visible edges — the page reshapes in place without reloading, and Fit scales it down so you never scroll to see it. Turn on Inspect, then right-click anything in the preview to see its width, height, padding, margin, and markup; if it grabs an inner piece instead of the card you meant, walk up the breadcrumb to the parent, which flashes in the page as you pick it. Choose List all for every element's spacing at once.
 
-Access: `All Features → Live preview`; `Open`; `Reload`; `Undock into a window`; `Switch project or files`; `Another screen size`.
+Access: `All Features → Live preview`; `Open`; `Reload`; `Undock into a window`; `Switch project or files`; `Another screen size`; `Inspect element size and spacing`.
 
 <!-- feature:workbench.run -->
 ### Run

@@ -868,9 +868,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "The workbench",
     description: "See a web page you are building beside your code, updating as you type.",
     why: "Saving, switching to a browser, and refreshing is three steps too many when you are adjusting a layout.",
-    how: "Open a HTML file and start the preview. It reloads itself when you save.",
-    keywords: ["Live preview", "The workbench", "browser", "website", "screen size", "responsive"],
-    access: ["All Features → Live preview", "Open (command:preview.toggle)", "Reload (command:preview.reload)", "Undock into a window (command:preview.undock)", "Switch project or files (command:preview.switchMode)", "Another screen size (command:preview.device)"],
+    how: "Open a HTML file and start the preview. It reloads itself when you save. Open device sizes for one-click Phone, Tablet, or Desktop, labelled W and H boxes with minus and plus steppers, or drag the frame's visible edges — the page reshapes in place without reloading, and Fit scales it down so you never scroll to see it. Turn on Inspect, then right-click anything in the preview to see its width, height, padding, margin, and markup; if it grabs an inner piece instead of the card you meant, walk up the breadcrumb to the parent, which flashes in the page as you pick it. Choose List all for every element's spacing at once.",
+    keywords: ["Live preview", "The workbench", "browser", "website", "screen size", "responsive", "inspect element", "box model", "padding margin", "width height"],
+    access: ["All Features → Live preview", "Open (command:preview.toggle)", "Reload (command:preview.reload)", "Undock into a window (command:preview.undock)", "Switch project or files (command:preview.switchMode)", "Another screen size (command:preview.device)", "Inspect element size and spacing (command:preview.inspect)"],
     related: ["workbench-run"],
   },
   {

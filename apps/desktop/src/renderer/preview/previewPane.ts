@@ -30,6 +30,7 @@
  */
 import type { PreviewMode, PreviewStatus } from "../../shared/api.ts";
 import { createDeviceToolbar, type DeviceToolbar } from "./deviceToolbar.ts";
+import { createElementInspector, type ElementInspector } from "./elementInspector.ts";
 import { formatViewport, parseViewport } from "./deviceSizes.ts";
 import { ICON, createIcon, iconButton } from "../workbench/icons.ts";
 import {
@@ -87,6 +88,15 @@ export interface PreviewPane {
    * the page - see `deviceToolbar.ts` for why that is the whole design.
    */
   toggleDevice(): void;
+  /**
+   * Turn the element inspector on or off.
+   *
+   * Right-click an element in the preview to see its width, height, padding,
+   * margin and markup. Only the static file server injects the bridge; on a
+   * project dev server the toggle explains that instead of pretending.
+   */
+  toggleInspect(): void;
+  isInspecting(): boolean;
   /** Placement, position and size are remembered per folder, as the chat card is. */
   setWorkspace(root: string | null): void;
 }
@@ -139,6 +149,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
   address.textContent = "Not running";
 
   const deviceButton = iconButton("Check other screen sizes", ICON.device);
+  const inspectButton = iconButton("Inspect an element's size and spacing", ICON.inspect);
   const logButton = iconButton("Show output", ICON.output);
   const reloadButton = iconButton("Reload preview", ICON.reload);
   const dockButton = iconButton("Undock preview", ICON.undock);
@@ -149,6 +160,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     engine,
     address,
     deviceButton,
+    inspectButton,
     logButton,
     reloadButton,
     dockButton,
@@ -207,7 +219,9 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
       write(workspace, "device", viewport === null ? "" : formatViewport(viewport)),
   });
 
-  pane.append(bar, deviceToolbar.element, stage, output, resizeGrip);
+  const inspector: ElementInspector = createElementInspector({ frame });
+
+  pane.append(bar, deviceToolbar.element, stage, inspector.element, output, resizeGrip);
   deps.host.append(pane);
 
   /*
@@ -352,6 +366,37 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     output.scrollTop = output.scrollHeight;
   });
 
+  /*
+   * The inspector bridge.
+   *
+   * The page posts `adcode-inspect` messages out; only loopback origins are
+   * honoured, so a stray page elsewhere cannot draw into this panel. Reloading
+   * the frame drops the page's enabled flag, so every load re-asserts it.
+   */
+  window.addEventListener("message", (event) => {
+    if (typeof event.origin !== "string") return;
+    if (
+      event.origin !== "null" &&
+      !event.origin.startsWith("http://127.0.0.1") &&
+      !event.origin.startsWith("http://localhost")
+    ) {
+      return;
+    }
+    inspector.handleMessage(event.data);
+  });
+
+  frame.addEventListener("load", () => {
+    if (!inspector.isActive()) return;
+    try {
+      frame.contentWindow?.postMessage(
+        { source: "adcode-preview", kind: "inspect-enable", enabled: true },
+        "*",
+      );
+    } catch {
+      // No document yet; the next load retries.
+    }
+  });
+
   /* ── Dragging and resizing, only while floating ─────────────────────────── */
 
   bar.addEventListener("pointerdown", (event) => {
@@ -417,6 +462,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     deviceToolbar.toggle();
     deviceButton.dataset["active"] = String(deviceToolbar.isActive());
   });
+  inspectButton.addEventListener("click", () => api.toggleInspect());
   logButton.addEventListener("click", () => showLog(!logShown));
   reloadButton.addEventListener("click", () => api.reload());
   dockButton.addEventListener("click", () => api.togglePlacement());
@@ -519,6 +565,19 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
       deviceToolbar.toggle();
       deviceButton.dataset["active"] = String(deviceToolbar.isActive());
     },
+
+    toggleInspect(): void {
+      if (mode === "project") {
+        deps.notify(
+          "Inspect works on the Files preview, where ADCode serves the page itself. Switch back from the Project preview to use it.",
+        );
+        return;
+      }
+      inspector.toggle();
+      inspectButton.dataset["active"] = String(inspector.isActive());
+    },
+
+    isInspecting: () => inspector.isActive(),
 
     setWorkspace(root: string | null): void {
       workspace = root;

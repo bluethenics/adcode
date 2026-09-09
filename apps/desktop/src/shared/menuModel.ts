@@ -350,6 +350,7 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
             { label: "&Undock Into a Floating Window", command: "preview.undock" },
             { label: "&Switch Between Project and Files", command: "preview.switchMode" },
             { label: "Check Another &Device Size", command: "preview.device" },
+            { label: "&Inspect Element Size and Spacing", command: "preview.inspect" },
           ],
         },
         separator,

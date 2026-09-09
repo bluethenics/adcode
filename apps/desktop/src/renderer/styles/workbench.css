@@ -870,12 +870,13 @@ select {
   width: var(--preview-width, 0px);
   display: grid;
   /*
-   * Bar, device bar, stage, output drawer. The rows are assigned explicitly below because
-   * two of the four are `display: none` most of the time: with auto-placement the stage
-   * would slide up into the device bar's row whenever it was hidden, and the layout would
-   * depend on which combination of things happened to be showing.
+   * Bar, device bar, stage, inspector, output drawer. The rows are assigned explicitly
+   * below because three of the five are `display: none` most of the time: with
+   * auto-placement the stage would slide up into the device bar's row whenever it was
+   * hidden, and the layout would depend on which combination of things happened to be
+   * showing.
    */
-  grid-template-rows: 32px auto minmax(0, 1fr) auto;
+  grid-template-rows: 32px auto minmax(0, 1fr) auto auto;
   min-width: 0;
   background: var(--bg-editor);
   border-left: 1px solid var(--border-hairline);
@@ -893,8 +894,12 @@ select {
   grid-row: 3;
 }
 
-.preview-output {
+.inspect-panel {
   grid-row: 4;
+}
+
+.preview-output {
+  grid-row: 5;
 }
 
 .preview-bar {
@@ -985,7 +990,8 @@ select {
 .device-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px 8px;
   padding: 5px 10px;
   background: var(--bg-chrome);
   border-bottom: 1px solid var(--border-hairline);
@@ -1042,6 +1048,335 @@ select {
 
 .device-size:hover {
   border-color: var(--text-tertiary);
+}
+
+/* One-click sizes: the fastest route to phone / tablet / desktop. */
+.device-quick {
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+/* A labelled dimension: W − [390] + . The label is what the bare boxes lacked. */
+.device-dim {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 4px 1px 6px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+}
+
+.device-dim-label {
+  font-size: var(--text-xs);
+  font-weight: 650;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.device-step {
+  padding: 0 5px;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+/* Explicit width / height boxes: same control language as the combined size box. */
+.device-width,
+.device-height {
+  width: 52px;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Hide the native number spinners: the − / + buttons beside the box are the
+   stepper, and two steppers for one value fight each other. */
+.device-width::-webkit-inner-spin-button,
+.device-height::-webkit-inner-spin-button {
+  display: none;
+}
+
+.device-width,
+.device-height {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.device-dim:focus-within {
+  border-color: var(--text-tertiary);
+}
+
+.device-hint {
+  flex-basis: 100%;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+/* ── Element inspector ────────────────────────────────────────────── */
+
+.inspect-panel {
+  min-height: 0;
+  max-height: 42%;
+  overflow: auto;
+  background: var(--bg-chrome);
+  border-top: 1px solid var(--border-hairline);
+}
+
+.inspect-panel[hidden] {
+  display: none;
+}
+
+.inspect-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.inspect-title {
+  font-size: var(--text-xs);
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.inspect-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.inspect-body {
+  padding: 8px 10px 10px;
+}
+
+.inspect-empty {
+  margin: 4px 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.inspect-selector {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.inspect-meta {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* The ancestor trail: body › card › heading › span. Each level is a button
+   with its own identity, so "which is which" is answered by position. */
+.inspect-crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  margin-bottom: 6px;
+  padding: 5px 7px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+}
+
+.inspect-crumb {
+  padding: 1px 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspect-crumb:hover {
+  border-color: var(--text-tertiary);
+  color: var(--text-primary);
+}
+
+.inspect-crumb[data-current="true"] {
+  background: var(--bg-selected);
+  color: var(--accent);
+  cursor: default;
+}
+
+.inspect-crumb-sep {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  user-select: none;
+}
+
+.inspect-crumb-note {
+  margin: -2px 0 6px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.inspect-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 8px 0 0;
+  font-size: var(--text-xs);
+}
+
+.inspect-grid dt {
+  color: var(--text-secondary);
+}
+
+.inspect-grid dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.inspect-model {
+  margin-top: 8px;
+  font-size: var(--text-xs);
+}
+
+.inspect-margin {
+  padding: 8px;
+  border: 1px dashed var(--text-tertiary);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.inspect-border {
+  padding: 6px;
+  border: 1px solid var(--text-tertiary);
+  border-radius: 6px;
+}
+
+.inspect-padding {
+  padding: 8px;
+  border: 1px dashed var(--text-tertiary);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.inspect-content {
+  padding: 6px;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  text-align: center;
+}
+
+.inspect-model-label {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.inspect-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.inspect-code {
+  margin: 4px 0 0;
+  padding: 8px;
+  max-height: 160px;
+  overflow: auto;
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.inspect-tag {
+  color: var(--accent);
+}
+
+.inspect-attr {
+  color: var(--text-primary);
+}
+
+.inspect-string {
+  color: var(--success, #1a7f37);
+}
+
+.inspect-list-wrap {
+  display: grid;
+  gap: 6px;
+}
+
+.inspect-filter {
+  width: 100%;
+  padding: 3px 8px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+}
+
+.inspect-list {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.inspect-row {
+  display: grid;
+  gap: 1px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.inspect-row:hover {
+  border-color: var(--text-tertiary);
+}
+
+.inspect-row-main {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.inspect-row-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
 }
 
 .device-action {
@@ -1107,20 +1442,26 @@ select {
   cursor: nwse-resize;
 }
 
-/* Invisible until aimed at, then a clear grab bar. */
+/*
+ * Always faintly visible, strong on hover or while dragging.
+ *
+ * The handles used to be invisible until aimed at, which meant nobody found
+ * them: an undiscoverable resize is no resize at all. The faint baseline says
+ * "grab here"; hovering or dragging lights it fully.
+ */
 .device-handle::after {
   content: "";
   position: absolute;
   inset: 3px;
   border-radius: 999px;
   background: var(--text-tertiary);
-  opacity: 0;
+  opacity: 0.55;
   transition: opacity var(--duration-exit) var(--ease-sheet);
 }
 
 .device-handle:hover::after,
 .device-handle[data-dragging="true"]::after {
-  opacity: 0.9;
+  opacity: 1;
 }
 
 .editor-host[data-ready="true"] {

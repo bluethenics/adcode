@@ -83,6 +83,137 @@ const RELOAD_SCRIPT = `<script>
 </script>`;
 
 /**
+ * Element inspector, injected alongside the reload script.
+ *
+ * Right-click an element in the preview and the workbench shows its box model
+ * (width, height, padding, margin) plus the markup to restyle - along with the
+ * same numbers for every ancestor up to the body, because a right-click lands
+ * on the innermost span while the person usually meant the card around it.
+ * This has to live in the page itself: the preview iframe is cross-origin
+ * against `app://adcode`, so the workbench cannot read its DOM directly. The
+ * bridge is `postMessage` in both directions, namespaced under
+ * `adcode-inspect` / `adcode-preview`.
+ *
+ * Plain script, no dependencies, guarded so it no-ops outside the preview frame.
+ */
+export const INSPECT_SCRIPT = `<script>
+(function () {
+  if (window.parent === window) return;
+  if (window.__adcodeInspectInstalled) return;
+  window.__adcodeInspectInstalled = true;
+  var enabled = false;
+  var lastOutline = null;
+  var lastTarget = null;
+  function clearHighlight() {
+    if (lastTarget && lastOutline !== null) {
+      try { lastTarget.style.outline = lastOutline; } catch (e) {}
+    }
+    lastTarget = null;
+    lastOutline = null;
+  }
+  function boxOf(el) {
+    var rect = el.getBoundingClientRect();
+    var cs = window.getComputedStyle(el);
+    var html = el.outerHTML || "";
+    if (html.length > 1200) html = html.slice(0, 1200) + "…";
+    return {
+      tag: (el.tagName || "?").toLowerCase(),
+      id: el.id || null,
+      classes: el.className && typeof el.className === "string" ? el.className.split(/\\s+/).filter(Boolean).slice(0, 6) : [],
+      selector: describe(el),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+      padding: { top: cs.paddingTop, right: cs.paddingRight, bottom: cs.paddingBottom, left: cs.paddingLeft },
+      margin: { top: cs.marginTop, right: cs.marginRight, bottom: cs.marginBottom, left: cs.marginLeft },
+      border: { top: cs.borderTopWidth, right: cs.borderRightWidth, bottom: cs.borderBottomWidth, left: cs.borderLeftWidth },
+      display: cs.display,
+      position: cs.position,
+      html: html
+    };
+  }
+  function describe(el) {
+    var parts = [];
+    var node = el;
+    for (var depth = 0; node && node.nodeType === 1 && depth < 4; depth++) {
+      var piece = (node.tagName || "?").toLowerCase();
+      if (node.id) { piece += "#" + node.id; parts.unshift(piece); break; }
+      var cls = node.className && typeof node.className === "string" ? node.className.split(/\\s+/).filter(Boolean).slice(0, 2).join(".") : "";
+      if (cls) piece += "." + cls;
+      parts.unshift(piece);
+      node = node.parentElement;
+    }
+    return parts.join(" > ");
+  }
+  /*
+   * The clicked element plus its ancestors, outermost first.
+   *
+   * A right-click almost always lands on the innermost thing - the span inside
+   * the heading inside the card - while the person meant the card. Sending the
+   * chain lets the workbench offer every level, so a wrong pick is one click
+   * away from the right one instead of a fresh right-click and a guess.
+   */
+  function chainOf(el) {
+    var chain = [];
+    var node = el.parentElement;
+    for (var depth = 0; node && node.nodeType === 1 && depth < 6; depth++) {
+      if (node === document.documentElement) break;
+      try { chain.unshift(boxOf(node)); } catch (e) { break; }
+      node = node.parentElement;
+    }
+    return chain;
+  }
+  function flash(el) {
+    clearHighlight();
+    try {
+      lastOutline = el.style.outline;
+      lastTarget = el;
+      el.style.outline = "2px solid #0a84ff";
+      setTimeout(clearHighlight, 1400);
+    } catch (e) {}
+  }
+  document.addEventListener("contextmenu", function (event) {
+    if (!enabled) return;
+    var el = event.target && event.target.nodeType === 1 ? event.target : event.target && event.target.parentElement;
+    if (!el || el === document.documentElement) return;
+    event.preventDefault();
+    event.stopPropagation();
+    flash(el);
+    var payload = null;
+    try { payload = { current: boxOf(el), chain: chainOf(el) }; } catch (e) { return; }
+    try { parent.postMessage({ source: "adcode-inspect", kind: "inspect-hit", payload: payload }, "*"); } catch (e) {}
+  }, true);
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (!data || data.source !== "adcode-preview") return;
+    if (data.kind === "inspect-enable") {
+      enabled = !!data.enabled;
+      if (!enabled) clearHighlight();
+      try { parent.postMessage({ source: "adcode-inspect", kind: "inspect-ready", payload: { enabled: enabled } }, "*"); } catch (e) {}
+    } else if (data.kind === "inspect-list") {
+      var nodes = document.querySelectorAll("body *");
+      var out = [];
+      var limit = Math.min(nodes.length, 300);
+      for (var i = 0; i < limit; i++) {
+        try { out.push(boxOf(nodes[i])); } catch (e) {}
+      }
+      try { parent.postMessage({ source: "adcode-inspect", kind: "inspect-list", payload: out }, "*"); } catch (e) {}
+    } else if (data.kind === "inspect-flash") {
+      /*
+       * The workbench picked a breadcrumb level. Re-outline it in the page so
+       * the eye and the panel agree on which element is which. Best effort:
+       * anything unqueryable simply keeps the panel's numbers without a flash.
+       */
+      if (typeof data.selector !== "string" || data.selector === "") return;
+      try {
+        var found = document.querySelector(data.selector);
+        if (found && found.nodeType === 1) flash(found);
+      } catch (e) {}
+    }
+  });
+})();
+</script>`;
+
+/**
  * Put the reload script in the page.
  *
  * Before `</body>` when there is one, appended when there is not - a fragment with no body
@@ -91,10 +222,23 @@ const RELOAD_SCRIPT = `<script>
  * render.
  */
 export function injectReloadScript(html: string): string {
-  const index = html.toLowerCase().lastIndexOf("</body>");
-  if (index === -1) return `${html}\n${RELOAD_SCRIPT}`;
+  return injectAdcodeScripts(html);
+}
 
-  return `${html.slice(0, index)}${RELOAD_SCRIPT}\n${html.slice(index)}`;
+/**
+ * Put the reload and inspector scripts in the page.
+ *
+ * Before `</body>` when there is one, appended when there is not - a fragment with no body
+ * tag is still perfectly good HTML to a browser, and half-written markup is the normal
+ * state of a file someone is learning on. This must never be the reason a page fails to
+ * render.
+ */
+export function injectAdcodeScripts(html: string): string {
+  const bundle = `${RELOAD_SCRIPT}\n${INSPECT_SCRIPT}`;
+  const index = html.toLowerCase().lastIndexOf("</body>");
+  if (index === -1) return `${html}\n${bundle}`;
+
+  return `${html.slice(0, index)}${bundle}\n${html.slice(index)}`;
 }
 
 export function escapeHtml(value: string): string {
@@ -152,7 +296,7 @@ export function directoryListing(urlPath: string, names: readonly string[]): str
 a:hover{text-decoration:underline}li{margin:.25rem 0}h1{font-size:1rem;color:#6c6c70;font-weight:600}</style>
 </head><body><h1>${escapeHtml(urlPath)}</h1><ul>${rows}</ul>
 <p style="color:#a1a1a6;margin-top:2rem">No <code>index.html</code> in this folder, so ADCode listed it instead.</p>
-${RELOAD_SCRIPT}</body></html>`;
+${RELOAD_SCRIPT}\n${INSPECT_SCRIPT}</body></html>`;
 }
 
 /**

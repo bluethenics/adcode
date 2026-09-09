@@ -5040,6 +5040,9 @@ function registerCommands(): void {
   add("preview.device", "Check Preview at Another Screen Size", () =>
     previewPane.toggleDevice(),
   );
+  add("preview.inspect", "Inspect a Preview Element's Size and Spacing", () =>
+    previewPane.toggleInspect(),
+  );
   add("run.file", "Run Active File", () => runButton.activate());
   add("ai.toggle", "Assistant", () => chat.toggle());
   add("ai.connect", "Connect a Model", () => connectView.open());

@@ -78,9 +78,125 @@ export function createDeviceToolbar(deps: DeviceToolbarDeps): DeviceToolbar {
   const size = document.createElement("input");
   size.type = "text";
   size.className = "device-size";
-  size.ariaLabel = "Width by height";
+  size.ariaLabel = "Width by height, for pasting a size";
+  size.title = "Paste a size, e.g. 390 × 844. For typing, the W and H boxes beside it are easier.";
+  size.placeholder = "W × H";
   size.spellcheck = false;
   size.autocomplete = "off";
+
+  /*
+   * One-click sizes, before the dropdown.
+   *
+   * The dropdown lists seven presets but reads as a setting; these three answer
+   * the question people actually ask - "phone, tablet, or desktop?" - with one
+   * click. They write the same viewport as picking the matching preset.
+   */
+  const QUICK_SIZES: ReadonlyArray<readonly [string, number, number]> = [
+    ["Phone", 390, 844],
+    ["Tablet", 768, 1024],
+    ["Desktop", 1440, 900],
+  ];
+  const quickButtons: HTMLButtonElement[] = QUICK_SIZES.map(([label, width, height]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ghost-button device-quick";
+    button.textContent = label;
+    button.title = `Preview at ${width} × ${height} without reloading the page`;
+    button.setAttribute("aria-label", `Preview at ${label} size, ${width} by ${height}`);
+    button.addEventListener("click", () => set({ width, height }));
+    return button;
+  });
+
+  /*
+   * Labelled width and height steppers.
+   *
+   * The earlier bar had two bare number boxes and a combined text box with no
+   * visible labels - three inputs for one size, none saying which was which.
+   * Now each dimension is one labelled group: a − button, the number, a + button.
+   * Typing, arrow keys, and the steppers all write the same three frame
+   * properties (`width`, `height`, `transform`) and nothing else, so none of
+   * them ever reloads the page. The combined box stays behind them for paste
+   * and for the smoke check that types `360x640` into it.
+   */
+  const STEP = 20;
+
+  function dimensionGroup(
+    name: "Width" | "Height",
+    applyStep: (viewport: Viewport, delta: number) => Viewport,
+    commit: (input: HTMLInputElement) => void,
+  ): { group: HTMLElement; input: HTMLInputElement } {
+    const group = document.createElement("span");
+    group.className = "device-dim";
+
+    const label = document.createElement("span");
+    label.className = "device-dim-label";
+    label.textContent = name === "Width" ? "W" : "H";
+    label.title = `Viewport ${name.toLowerCase()} in CSS pixels — the frame reshapes in place`;
+    label.setAttribute("aria-hidden", "true");
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.className = name === "Width" ? "device-width" : "device-height";
+    input.ariaLabel = `Viewport ${name.toLowerCase()} in CSS pixels`;
+    input.title = `Viewport ${name.toLowerCase()} in CSS pixels — the frame reshapes in place, never reloads`;
+    input.min = "180";
+    input.max = "4000";
+    input.step = String(STEP);
+
+    const minus = document.createElement("button");
+    minus.type = "button";
+    minus.className = "ghost-button device-step";
+    minus.textContent = "−";
+    minus.title = `${name} minus ${STEP}px`;
+    minus.setAttribute("aria-label", `Decrease ${name.toLowerCase()} by ${STEP} pixels`);
+    minus.addEventListener("click", () => set(applyStep(viewport, -STEP)));
+
+    const plus = document.createElement("button");
+    plus.type = "button";
+    plus.className = "ghost-button device-step";
+    plus.textContent = "+";
+    plus.title = `${name} plus ${STEP}px`;
+    plus.setAttribute("aria-label", `Increase ${name.toLowerCase()} by ${STEP} pixels`);
+    plus.addEventListener("click", () => set(applyStep(viewport, STEP)));
+
+    input.addEventListener("change", () => commit(input));
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commit(input);
+      }
+    });
+
+    group.append(label, minus, input, plus);
+    return { group, input };
+  }
+
+  const widthGroup = dimensionGroup(
+    "Width",
+    (current, delta) => ({ width: current.width + delta, height: current.height }),
+    (input) => {
+      const width = Number(input.value);
+      if (!Number.isFinite(width)) {
+        input.value = String(viewport.width);
+        return;
+      }
+      set({ width, height: viewport.height });
+    },
+  );
+  const heightGroup = dimensionGroup(
+    "Height",
+    (current, delta) => ({ width: current.width, height: current.height + delta }),
+    (input) => {
+      const height = Number(input.value);
+      if (!Number.isFinite(height)) {
+        input.value = String(viewport.height);
+        return;
+      }
+      set({ width: viewport.width, height });
+    },
+  );
+  const widthInput = widthGroup.input;
+  const heightInput = heightGroup.input;
 
   const rotateButton = document.createElement("button");
   rotateButton.type = "button";
@@ -109,12 +225,36 @@ export function createDeviceToolbar(deps: DeviceToolbarDeps): DeviceToolbar {
   // and a pointer drag gives a screen reader nothing else to go on.
   readout.ariaLive = "polite";
 
-  element.append(presetPicker, size, rotateButton, zoomPicker, readout);
+  /*
+   * The one-line hint that makes resizing discoverable. The bar used to be a row
+   * of bare boxes nobody could explain; now it says what to do.
+   */
+  const hint = document.createElement("span");
+  hint.className = "device-hint";
+  hint.textContent = "Tip: drag the frame's edges, or use W / H.";
+
+  element.append(
+    ...quickButtons,
+    presetPicker,
+    widthGroup.group,
+    heightGroup.group,
+    size,
+    rotateButton,
+    zoomPicker,
+    readout,
+    hint,
+  );
 
   /* ── The drag handles ───────────────────────────────────────────────── */
 
   const edges = ["right", "bottom", "corner"] as const;
   type Edge = (typeof edges)[number];
+
+  const HANDLE_TITLES: Record<Edge, string> = {
+    right: "Drag to resize the width — the page keeps running, it never reloads",
+    bottom: "Drag to resize the height — the page keeps running, it never reloads",
+    corner: "Drag to resize width and height — the page keeps running, it never reloads",
+  };
 
   const handles = new Map<Edge, HTMLElement>();
   for (const edge of edges) {
@@ -122,6 +262,9 @@ export function createDeviceToolbar(deps: DeviceToolbarDeps): DeviceToolbar {
     handle.className = `device-handle device-handle-${edge}`;
     handle.dataset["edge"] = edge;
     handle.hidden = true;
+    handle.title = HANDLE_TITLES[edge];
+    // Hidden from assistive tech: the size readout and the W / H inputs are the
+    // screen-reader route, and a pointer-only drag handle has nothing to say there.
     handle.setAttribute("aria-hidden", "true");
     handles.set(edge, handle);
     deps.stage.append(handle);
@@ -170,6 +313,8 @@ export function createDeviceToolbar(deps: DeviceToolbarDeps): DeviceToolbar {
     const percent = Math.round(factor * 100);
     readout.textContent = factor === 1 ? formatSize(viewport) : `${formatSize(viewport)} · ${percent}%`;
     size.value = formatSize(viewport);
+    widthInput.value = String(viewport.width);
+    heightInput.value = String(viewport.height);
 
     const preset = presetFor(viewport);
     presetPicker.value = preset?.id ?? "custom";

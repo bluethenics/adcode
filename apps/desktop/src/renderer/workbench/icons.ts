@@ -66,6 +66,8 @@ export const ICON = {
   output: "M2.5 3.5h11M2.5 8h11M2.5 12.5h7",
   /* A tablet beside a phone: "the same page at another size". */
   device: "M2 3.5h7.5v9H2zM11 6.5h3v6h-3z",
+  /** Crosshair: "tell me about the element under the pointer". Symmetric about (8, 8). */
+  inspect: "M8 2v3M8 11v3M2 8h3M11 8h3M8 8m-2.5 0a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0",
 
   /* ── Severity, for the Problems panel's badges ──────────────────────────── */
 

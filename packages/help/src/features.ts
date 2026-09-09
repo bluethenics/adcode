@@ -106,8 +106,9 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
       command("preview.undock", "Undock into a window"),
       command("preview.switchMode", "Switch project or files"),
       command("preview.device", "Another screen size"),
+      command("preview.inspect", "Inspect element size and spacing"),
     ],
-    keywords: ["browser", "website", "screen size", "responsive"],
+    keywords: ["browser", "website", "screen size", "responsive", "inspect element", "box model", "padding margin", "width height"],
   },
   "workbench.collab": {
     actions: [command("collab.panel", "Open"), command("collab.leave", "Leave session")],
