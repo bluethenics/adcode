@@ -57,7 +57,7 @@ export function createPalette(deps: PaletteDeps): Palette {
       const row = document.createElement("button");
       row.className = "quickopen-row palette-row";
       row.type = "button";
-      row.ariaSelected = String(index === selected);
+      row.setAttribute("aria-selected", String(index === selected));
 
       const title = document.createElement("span");
       title.textContent = command.title;

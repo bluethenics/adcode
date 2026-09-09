@@ -58,6 +58,14 @@ export function createStructurePopup(deps: StructurePopupDeps): StructurePopup {
   const header = document.createElement("header");
   header.className = "structure-popup-header";
 
+  const heading = document.createElement("div");
+  heading.className = "structure-popup-heading";
+  const title = document.createElement("h2");
+  title.textContent = "Structure";
+  const subtitle = document.createElement("p");
+  subtitle.textContent = "Explore your file and project";
+  heading.append(title, subtitle);
+
   const tabs = document.createElement("div");
   tabs.className = "structure-tabs";
   tabs.setAttribute("role", "tablist");
@@ -73,7 +81,7 @@ export function createStructurePopup(deps: StructurePopupDeps): StructurePopup {
   close.setAttribute("aria-label", "Close Structure");
   close.append(createIcon(ICON.close));
 
-  header.append(tabs, close);
+  header.append(heading, close, tabs);
 
   const body = document.createElement("div");
   body.className = "structure-popup-body";

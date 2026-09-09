@@ -132,6 +132,8 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
       command("file.revert", "Revert file"),
       command("editor.close", "Close editor"),
       command("editor.closeAll", "Close all editors"),
+      command("editor.splitRight", "Split editor right"),
+      command("editor.mergePanels", "Merge editor panels"),
       command("editor.insertTemplate", "Insert file template"),
       command("workspace.open", "Open folder"),
       command("workspace.openRecent", "Open recent"),
@@ -139,11 +141,11 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
       command("workspace.clearRecents", "Clear recent folders"),
       command("workspace.close", "Close folder"),
     ],
-    keywords: ["files", "rename", "move", "copy", "delete"],
+    keywords: ["files", "rename", "move", "copy", "delete", "split editor", "side by side"],
   },
   "ai.connect": {
     actions: [command("ai.connect", "Connect")],
-    keywords: ["api key", "provider", "model", "local ai"],
+    keywords: ["api key", "provider", "model", "local ai", "NVIDIA NIM", "custom endpoint", "connections", "requests per minute", "RPM", "rate limit", "429"],
   },
   "ai.sessions": {
     actions: [command("ai.toggle", "Open Assistant")],
@@ -151,7 +153,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   },
   "ai.team": {
     actions: [command("ai.team", "Set up Team")],
-    keywords: ["multiple ai", "parallel agents", "divide task", "roles"],
+    keywords: ["multiple ai", "parallel agents", "divide task", "roles", "named agents", "agent profiles", "team activity", "agent instructions"],
   },
   "ai.terminalTeam": {
     actions: [command("ai.terminalTeam", "Start a Team in the terminal")],

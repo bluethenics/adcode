@@ -36,6 +36,10 @@ export function registerKeywordCompletions(): monaco.IDisposable {
           label: item.label,
           kind: KIND[item.kind],
           detail: item.detail,
+          // The detail line is always visible; `documentation` opens the explanation
+          // pane beside the widget, which is where a learner reads what `range()`
+          // actually does before accepting it.
+          documentation: { value: item.detail },
           insertText: item.insert,
           // Every entry goes in as a snippet. A plain keyword contains no `${}` so it
           // behaves identically, and a single rule means a table entry can grow tab stops

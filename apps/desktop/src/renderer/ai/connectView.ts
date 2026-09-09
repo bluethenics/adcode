@@ -14,6 +14,11 @@
  * Keys go to the operating system's password store, never to a settings file. The screen
  * says so, because "where did my key go" is a fair question to have about an editor.
  */
+import {
+  parseConnections,
+  NIM_BASE_URL,
+  type ConnectionProfile,
+} from "@adcode/ai/connections";
 import type { AiProviderInfo, AiStatus } from "../../shared/api.ts";
 
 export interface ConnectView {
@@ -27,7 +32,10 @@ export interface ConnectView {
 
 export interface ConnectViewDeps {
   readonly status: () => Promise<AiStatus>;
-  readonly checkKey: (provider: string, key: string) => Promise<{ ok: boolean; detail?: string; message?: string }>;
+  readonly checkKey: (
+    provider: string,
+    key: string,
+  ) => Promise<{ ok: boolean; detail?: string; message?: string }>;
   readonly setKey: (provider: string, key: string) => Promise<AiStatus>;
   readonly clearKey: (provider: string) => Promise<AiStatus>;
   /** Persist the chosen provider, model, and custom address. */
@@ -42,6 +50,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   let status: AiStatus | null = null;
   let selected: string | null = null;
   let query = "";
+  let polling: ReturnType<typeof setInterval> | undefined;
 
   const element = document.createElement("section");
   element.className = "connect-view";
@@ -89,8 +98,102 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   detail.className = "connect-detail";
 
   body.append(list, detail);
-  panel.append(header, search, lede, body);
+  const add = document.createElement("button");
+  add.className = "btn btn-primary";
+  add.textContent = "Add API connection";
+  add.addEventListener("click", () => renderConnection());
+  const toolbar = document.createElement("div");
+  toolbar.className = "connect-toolbar";
+  toolbar.append(search, add);
+  panel.append(header, lede, toolbar, body);
   element.append(panel);
+
+  function renderConnection(existing?: ConnectionProfile): void {
+    detail.replaceChildren();
+    const heading = document.createElement("h2");
+    heading.textContent = existing ? "Edit connection" : "New API connection";
+    const form = document.createElement("form");
+    form.className = "connect-profile-form";
+    const field = (label: string, value: string, type = "text") => {
+      const wrapper = document.createElement("label");
+      wrapper.textContent = label;
+      const input = document.createElement("input");
+      input.className = "input connect-input";
+      input.type = type;
+      input.value = value;
+      input.required = true;
+      input.setAttribute("aria-label", label);
+      wrapper.append(input);
+      form.append(wrapper);
+      return input;
+    };
+    const name = field("Connection name", existing?.name ?? "");
+    const endpoint = field("API base URL", existing?.baseUrl ?? "", "url");
+    const model = field("Model ID", existing?.model ?? "");
+    const rpm = field(
+      "Requests per minute",
+      String(existing?.rpm ?? 30),
+      "number",
+    );
+    rpm.min = "1";
+    rpm.max = "6000";
+    const preset = document.createElement("button");
+    preset.type = "button";
+    preset.className = "btn btn-outline";
+    preset.textContent = "Use NVIDIA NIM preset";
+    preset.addEventListener("click", () => {
+      endpoint.value = NIM_BASE_URL;
+      name.value ||= "NVIDIA NIM";
+      model.placeholder = "Exact model ID from your NVIDIA API dashboard";
+    });
+    const explanation = document.createElement("p");
+    explanation.className = "settings-row-description";
+    explanation.textContent =
+      "Chat, completion and team requests share this RPM limit. Upstream token and account limits still apply. Save the profile, then check and save its API key.";
+    const result = document.createElement("p");
+    result.className = "connect-result";
+    result.setAttribute("role", "status");
+    const save = document.createElement("button");
+    save.type = "submit";
+    save.className = "btn btn-primary";
+    save.textContent = "Save connection";
+    form.append(preset, explanation, save, result);
+    detail.append(heading, form);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void (async () => {
+        save.disabled = true;
+        try {
+          const profile = {
+            id: existing?.id ?? `connection-${crypto.randomUUID()}`,
+            name: name.value,
+            baseUrl: endpoint.value,
+            model: model.value,
+            rpm: Number(rpm.value),
+          };
+          const latest = await deps.status();
+          const profiles = parseConnections([
+            ...(latest.connections ?? []).filter(
+              (item) => item.id !== profile.id,
+            ),
+            profile,
+          ]);
+          await deps.write("adcode.ai.connections", JSON.stringify(profiles));
+          selected = profile.id;
+          status = await deps.status();
+          renderProviders();
+          renderDetail();
+        } catch (error) {
+          result.textContent =
+            error instanceof Error
+              ? error.message
+              : "Could not save connection.";
+        } finally {
+          save.disabled = false;
+        }
+      })();
+    });
+  }
 
   function matches(provider: AiProviderInfo): boolean {
     const needle = query.trim().toLowerCase();
@@ -99,7 +202,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     if (provider.displayName.toLowerCase().includes(needle)) return true;
     return provider.models.some(
       (model) =>
-        model.name.toLowerCase().includes(needle) || model.id.toLowerCase().includes(needle),
+        model.name.toLowerCase().includes(needle) ||
+        model.id.toLowerCase().includes(needle),
     );
   }
 
@@ -116,6 +220,11 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       row.dataset["selected"] = String(provider.id === selected);
       row.dataset["active"] = String(provider.id === status.activeProvider);
 
+      const avatar = document.createElement("span");
+      avatar.className = "connect-provider-avatar";
+      avatar.setAttribute("aria-hidden", "true");
+      avatar.textContent = provider.displayName.slice(0, 1).toUpperCase();
+
       const name = document.createElement("span");
       name.className = "connect-name";
       name.textContent = provider.displayName;
@@ -123,7 +232,9 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       const state = document.createElement("span");
       state.className = "connect-state";
       // Three different things, and conflating them is how a connection screen lies.
-      state.textContent = !provider.needsKey
+      state.textContent = provider.id === status.activeProvider && status.ready
+        ? "In use"
+        : !provider.needsKey
         ? "no key needed"
         : provider.hasKey
           ? "connected"
@@ -131,9 +242,13 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
             ? "needs an address"
             : "needs a key";
       state.dataset["tone"] =
-        provider.hasKey || !provider.needsKey ? "ok" : provider.transport === "unsupported" ? "warn" : "";
+        provider.hasKey || !provider.needsKey
+          ? "ok"
+          : provider.transport === "unsupported"
+            ? "warn"
+            : "";
 
-      row.append(name, state);
+      row.append(avatar, name, state);
       row.addEventListener("click", () => {
         selected = provider.id;
         renderProviders();
@@ -168,6 +283,83 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     heading.className = "settings-group-title";
     heading.textContent = provider.displayName;
     detail.append(heading);
+    const selection = document.createElement("div");
+    selection.className = "connect-selection";
+    const selectionText = document.createElement("p");
+    selectionText.setAttribute("role", "status");
+    selectionText.textContent = provider.id === status.activeProvider && status.ready
+      ? "This model is in use by the assistant."
+      : provider.hasKey || !provider.needsKey
+        ? "Connection saved. Select a model to use it in the assistant."
+        : "Check and save your API key to start using this provider.";
+    const use = document.createElement("button");
+    use.className = "btn btn-primary";
+    use.textContent = provider.id === status.activeProvider && status.ready ? "In use" : "Use this model";
+    use.disabled = !(provider.hasKey || !provider.needsKey) || provider.transport === "unsupported"
+      || (provider.id === status.activeProvider && status.ready);
+    use.addEventListener("click", () => {
+      use.disabled = true;
+      void activateProvider(provider).then(() => {
+        renderProviders();
+        renderDetail();
+      }).catch((error: unknown) => {
+        selectionText.textContent = error instanceof Error ? error.message : "Could not select this model.";
+        use.disabled = false;
+      });
+    });
+    selection.append(selectionText, use);
+    detail.append(selection);
+    const connection = status.connections?.find(
+      (item) => item.id === provider.id,
+    );
+    if (connection) {
+      const summary = document.createElement("p");
+      summary.className = "settings-row-description";
+      summary.textContent = `${connection.baseUrl} / ${connection.rpm} requests/minute`;
+      const activity = document.createElement("p");
+      activity.className = "connect-activity";
+      activity.dataset["connectionActivity"] = connection.id;
+      activity.setAttribute("role", "status");
+      const edit = document.createElement("button");
+      edit.className = "btn btn-outline";
+      edit.textContent = "Edit connection";
+      edit.addEventListener("click", () => renderConnection(connection));
+      const remove = document.createElement("button");
+      remove.className = "btn btn-outline";
+      remove.dataset["danger"] = "true";
+      remove.textContent = "Delete connection";
+      remove.addEventListener("click", () => {
+        void (async () => {
+          try {
+            const latest = await deps.status();
+            await deps.clearKey(connection.id);
+            await deps.write(
+              "adcode.ai.connections",
+              JSON.stringify(
+                parseConnections(
+                  (latest.connections ?? []).filter(
+                    (item) => item.id !== connection.id,
+                  ),
+                ),
+              ),
+            );
+            if (latest.activeProvider === connection.id) {
+              await deps.write("adcode.ai.provider", "anthropic");
+              await deps.write("adcode.ai.model", "");
+            }
+            selected = null;
+            await load();
+          } catch (error) {
+            activity.textContent =
+              error instanceof Error
+                ? error.message
+                : "Could not delete connection.";
+          }
+        })();
+      });
+      detail.append(summary, activity, edit, remove);
+      renderActivity();
+    }
 
     /* ── The address, for the custom endpoint ─────────────────────────── */
 
@@ -193,11 +385,53 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     /* ── The key ──────────────────────────────────────────────────────── */
 
     if (provider.needsKey) {
+      const keyRow = document.createElement("div");
+      keyRow.className = "connect-key-row";
+
       const keyField = document.createElement("input");
       keyField.className = "input connect-input";
       keyField.type = "password";
-      keyField.placeholder = provider.hasKey ? "A key is stored for this provider" : "Paste your key";
+      keyField.placeholder = provider.hasKey
+        ? "A key is stored for this provider"
+        : "Paste your key";
       keyField.setAttribute("aria-label", `${provider.displayName} key`);
+      keyField.setAttribute("autocomplete", "off");
+      keyField.setAttribute("spellcheck", "false");
+
+      const showKey = document.createElement("button");
+      showKey.type = "button";
+      showKey.className = "connect-show-key";
+      showKey.textContent = "Show";
+      showKey.title = "Show or hide the key";
+      showKey.setAttribute("aria-label", "Show or hide the key");
+      showKey.addEventListener("click", () => {
+        const showing = keyField.type === "text";
+        keyField.type = showing ? "password" : "text";
+        showKey.textContent = showing ? "Show" : "Hide";
+        keyField.focus();
+      });
+
+      const pasteKey = document.createElement("button");
+      pasteKey.type = "button";
+      pasteKey.className = "connect-show-key";
+      pasteKey.textContent = "Paste";
+      pasteKey.title = "Paste from clipboard";
+      pasteKey.setAttribute("aria-label", "Paste key from clipboard");
+      pasteKey.addEventListener("click", () => {
+        void navigator.clipboard
+          ?.readText()
+          .then((text) => {
+            if (text.trim().length > 0) {
+              keyField.value = text.trim();
+              keyField.focus();
+            }
+          })
+          .catch(() => {
+            keyField.focus();
+          });
+      });
+
+      keyRow.append(keyField, showKey, pasteKey);
 
       const actions = document.createElement("div");
       actions.className = "actions connect-actions";
@@ -220,25 +454,47 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         result.dataset["tone"] = "";
         result.textContent = "Asking the provider…";
 
-        void deps.checkKey(provider.id, key).then(async (outcome) => {
-          check.disabled = false;
+        void deps
+          .checkKey(provider.id, key)
+          .then(async (outcome) => {
+            check.disabled = false;
 
-          if (!outcome.ok) {
-            result.dataset["tone"] = "error";
-            result.textContent = outcome.message ?? "That key was not accepted.";
-            return;
-          }
+            if (!outcome.ok) {
+              result.dataset["tone"] = "error";
+              result.textContent =
+                outcome.message ?? "That key was not accepted.";
+              return;
+            }
 
-          // Only stored once it has actually worked. A saved key that does not is worse
-          // than no key, because nothing later says why the assistant is silent.
-          status = await deps.setKey(provider.id, key);
-          keyField.value = "";
-          result.dataset["tone"] = "ok";
-          result.textContent = outcome.detail ?? "Connected.";
+            // Only stored once it has actually worked. A saved key that does not is worse
+            // than no key, because nothing later says why the assistant is silent.
+            if (connection) {
+              const latest = await deps.status();
+              if (
+                latest.connections?.find((item) => item.id === connection.id)
+                  ?.baseUrl !== connection.baseUrl
+              ) {
+                result.textContent =
+                  "The connection address changed. Check the key again for its new address.";
+                return;
+              }
+            }
+            status = await deps.setKey(provider.id, key);
+            keyField.value = "";
+            await activateProvider(provider);
+            result.dataset["tone"] = "ok";
+            result.textContent = outcome.detail ?? "Connected.";
 
-          renderProviders();
-          renderDetail();
-        });
+            renderProviders();
+            renderDetail();
+          })
+          .catch((error) => {
+            check.disabled = false;
+            result.textContent =
+              error instanceof Error
+                ? error.message
+                : "Connection check failed.";
+          });
       });
 
       actions.append(check);
@@ -257,7 +513,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         actions.append(forget);
       }
 
-      detail.append(keyField, actions, result);
+      detail.append(keyRow, actions, result);
 
       const stored = document.createElement("p");
       stored.className = "settings-row-description";
@@ -289,7 +545,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         row.type = "button";
         row.className = "connect-model";
         row.dataset["selected"] = String(
-          provider.id === status.activeProvider && model.id === status.activeModel,
+          provider.id === status.activeProvider &&
+            model.id === status.activeModel,
         );
 
         const name = document.createElement("span");
@@ -300,20 +557,23 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         marks.className = "connect-model-marks";
         // Tool calls are the one capability that changes what this editor may do with a
         // model: without them the agent cannot read a file, and it is a chat box.
-        marks.textContent = [model.toolCall ? "tools" : "no tools", model.reasoning ? "reasoning" : ""]
+        marks.textContent = [
+          model.toolCall ? "tools" : "no tools",
+          model.reasoning ? "reasoning" : "",
+        ]
           .filter((mark) => mark.length > 0)
           .join(" · ");
 
         row.append(name, marks);
         row.addEventListener("click", () => {
-          void Promise.all([
-            deps.write("adcode.ai.provider", provider.id),
-            deps.write("adcode.ai.model", model.id),
-          ]).then(async () => {
-            status = await deps.status();
-            renderProviders();
-            renderDetail();
-          });
+          void deps
+            .write("adcode.ai.provider", provider.id)
+            .then(() => deps.write("adcode.ai.model", model.id))
+            .then(async () => {
+              status = await deps.status();
+              renderProviders();
+              renderDetail();
+            });
         });
 
         models.append(row);
@@ -337,13 +597,41 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     }
   }
 
+  async function activateProvider(provider: AiProviderInfo): Promise<void> {
+    const model = status?.activeProvider === provider.id
+      ? status.activeModel
+      : provider.models[0]?.id ?? "";
+    await deps.write("adcode.ai.provider", provider.id);
+    await deps.write("adcode.ai.model", model);
+    status = await deps.status();
+  }
+
+  function renderActivity(): void {
+    for (const activity of detail.querySelectorAll<HTMLElement>(
+      "[data-connection-activity]",
+    )) {
+      const item = status?.connections?.find(
+        (one) => one.id === activity.dataset["connectionActivity"],
+      );
+      if (!item) continue;
+      const seconds = Math.max(
+        0,
+        Math.ceil((item.cooldownUntil - Date.now()) / 1000),
+      );
+      activity.textContent =
+        seconds > 0
+          ? `Provider cooldown: ${seconds}s / ${item.queued} queued`
+          : item.queued > 0
+            ? `${item.queued} requests queued: waiting for RPM slot`
+            : "Ready: shared request pacing active";
+    }
+  }
+
   async function load(): Promise<void> {
     status = await deps.status();
     selected ??= status.activeProvider;
 
-    lede.textContent = status.catalogueIsLive
-      ? "Every provider that publishes a model list. Your key stays on this machine."
-      : `Showing the list that shipped with ADCode, taken on ${status.catalogueTakenOn}. It refreshes when there is a connection.`;
+    lede.textContent = "Choose the model your assistant uses. Connect a provider or add your own API endpoint.";
 
     renderProviders();
     renderDetail();
@@ -361,6 +649,16 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       open = true;
 
       void load();
+      polling = setInterval(() => {
+        if (open)
+          void deps
+            .status()
+            .then((next) => {
+              status = next;
+              renderActivity();
+            })
+            .catch(() => undefined);
+      }, 1000);
 
       requestAnimationFrame(() => {
         search.focus();
@@ -369,6 +667,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
 
     hidden(): void {
       open = false;
+      clearInterval(polling);
     },
 
     close(): void {

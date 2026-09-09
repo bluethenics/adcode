@@ -160,11 +160,12 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
    * looks identical to a refresh that never ran.
    */
   const refreshButton = iconButton("Refresh earnings", ICON.reload, "earnings-refresh");
-  refreshButton.addEventListener("click", () => {
-    void (async () => {
+  async function refreshEarnings(): Promise<void> {
       if (refreshing) return;
 
       refreshing = true;
+      card.setAttribute("aria-busy", "true");
+      heroCaption.textContent = "Refreshing balance…";
       refreshButton.disabled = true;
       refreshButton.dataset["busy"] = "true";
 
@@ -180,11 +181,12 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
         heroCaption.textContent = "Could not reach the server just now";
       } finally {
         refreshing = false;
+        card.setAttribute("aria-busy", "false");
         refreshButton.disabled = false;
         delete refreshButton.dataset["busy"];
       }
-    })();
-  });
+  }
+  refreshButton.addEventListener("click", () => void refreshEarnings());
 
   const closeButton = iconButton("Close earnings", ICON.close, "earnings-close");
   closeButton.addEventListener("click", deps.onRequestClose);
@@ -203,9 +205,14 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
   const heroCaption = document.createElement("p");
   heroCaption.className = "earnings-hero-caption";
+  heroCaption.setAttribute("role", "status");
   heroCaption.textContent = "Available to withdraw";
 
   hero.append(heroValue, heroCaption);
+  const balanceLabel = document.createElement("span");
+  balanceLabel.className = "earnings-balance-label";
+  balanceLabel.textContent = "Your balance";
+  hero.prepend(balanceLabel);
 
   /* ── The facts ──────────────────────────────────────────────────────────── */
 
@@ -224,7 +231,11 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
   const presetList = document.createElement("ul");
   presetList.className = "earnings-presets";
 
-  presetSection.append(presetHeading, presetList);
+  const presetEmpty = document.createElement("p");
+  presetEmpty.className = "earnings-empty";
+  presetEmpty.textContent = "Frequency estimates will appear when available.";
+
+  presetSection.append(presetHeading, presetList, presetEmpty);
 
   /* ── Account ────────────────────────────────────────────────────────────── */
 
@@ -390,6 +401,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
       heroCaption.textContent = "Waiting for the server";
       facts.replaceChildren();
       presetList.replaceChildren();
+      presetEmpty.hidden = false;
       note.textContent = "";
       return;
     }
@@ -418,6 +430,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
       ...(accountUid === null ? [] : [accountIdRow(accountUid)]),
     );
 
+    presetEmpty.hidden = snapshot.presets.length > 0;
     presetList.replaceChildren(
       ...snapshot.presets.map((option) => {
         const item = document.createElement("li");
@@ -446,8 +459,8 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
     );
 
     note.textContent = snapshot.hasServerBalance
-      ? "Payout history and statements need the advertiser backend, which is not built yet."
-      : "Balances appear once the ad server answers. Nothing is estimated on this machine.";
+      ? "Only server-confirmed earnings are shown here."
+      : "Your balance will appear after a successful update. Use Refresh to try again.";
 
   }
 
@@ -459,6 +472,7 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
     shown(): void {
       visible = true;
+      void refreshEarnings();
     },
 
     hidden(): void {

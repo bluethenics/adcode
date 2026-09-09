@@ -7,6 +7,7 @@
  */
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import { createCommandLineReader, detectAgent, type DetectedAgent } from "@adcode/ai/agents";
@@ -134,6 +135,19 @@ export async function createTerminalHost(
 
   const fit = new FitAddon();
   terminal.loadAddon(fit);
+
+  /*
+   * Clickable links. Without this addon a URL in the output is just text that looks
+   * clickable. The handler goes through `terminal:open-link`, which parses the address
+   * in the main process and lets only http and https through to the system browser -
+   * and `http://localhost:3000` works, which the window-open interceptor's https-only
+   * rule would have dropped.
+   */
+  terminal.loadAddon(
+    new WebLinksAddon((_event, uri) => {
+      void window.adcode.terminal.openLink(uri);
+    }),
+  );
   terminal.open(container);
 
   try {

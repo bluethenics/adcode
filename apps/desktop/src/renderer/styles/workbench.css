@@ -436,7 +436,8 @@ select {
   transform: scale(0.95);
 }
 
-.filetree {
+.filetree.sidebar-view {
+  /* The Explorer owns scrolling; other sidebar views scroll their inner panels. */
   overflow: auto;
   padding: 6px 6px 12px;
 }
@@ -484,8 +485,8 @@ select {
   z-index: 90;
 }
 
-#popup-primary-host > *,
-#popup-dependent-host > * {
+#popup-primary-host > :not(.popup-shell[data-popup-size="anchored"]),
+#popup-dependent-host > :not(.popup-shell[data-popup-size="anchored"]) {
   pointer-events: auto;
 }
 

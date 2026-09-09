@@ -243,7 +243,8 @@ describe("confirmed AI Team coordination", () => {
       "alpha-change",
     ]);
     expect(JSON.stringify(reviewInput.context)).not.toContain("transcript");
-    expect(final.state).toBe("paused");
+    expect(final.state).toBe("completed");
+    expect(final.merge).toMatchObject({ state: "completed", combinedTaskId: null });
     expect(final.budget.usedTokens).toBe(180);
     expect(final.budget.reservations).toEqual([]);
   });
@@ -348,6 +349,6 @@ describe("confirmed AI Team coordination", () => {
     expect(resumed.childTaskIds).toEqual(allocated.childTaskIds);
     const final = await coordinator.wait("team-coordinator");
     expect(starts).toContain("alpha-change");
-    expect(final.state).toBe("paused");
+    expect(final.state).toBe("completed");
   });
 });

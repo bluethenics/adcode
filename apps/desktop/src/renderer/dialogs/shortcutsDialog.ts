@@ -1,3 +1,5 @@
+import { bindBackdropDismissal } from "./backdropDismissal.ts";
+
 /**
  * Keyboard shortcuts - the list, and the way to change one.
  *
@@ -128,9 +130,7 @@ export function createShortcutsDialog(host: HTMLElement, deps: ShortcutsDialogDe
     api.close();
   });
 
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) api.close();
-  });
+  bindBackdropDismissal(dialog, card, () => api.close());
 
   /*
    * The capture handler, on the dialog, in the capture phase.

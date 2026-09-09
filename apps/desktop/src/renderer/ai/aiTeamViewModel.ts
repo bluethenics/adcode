@@ -22,6 +22,15 @@ export function aiTeamStateLabel(state: AiTeamStateView): string {
   return LABELS[state];
 }
 
+export function formatConnectionQueue(
+  connections: readonly { readonly queued: number; readonly cooldownUntil: number }[],
+  now: number,
+): string {
+  const queued = connections.reduce((total, connection) => total + connection.queued, 0);
+  const cooldown = Math.max(0, ...connections.map(connection => connection.cooldownUntil - now));
+  return [queued > 0 ? `${queued} request${queued === 1 ? "" : "s"} waiting` : "", cooldown > 0 ? `retry in ${Math.ceil(cooldown / 1_000)}s` : ""].filter(Boolean).join(" · ");
+}
+
 function compact(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value < 10_000_000 ? 1 : 0)}m`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(value < 10_000 ? 1 : 0)}k`;

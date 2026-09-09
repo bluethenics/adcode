@@ -14,6 +14,8 @@ import { randomUUID } from "node:crypto";
 import { join, relative } from "node:path";
 import { app, BrowserWindow } from "electron";
 import {
+  parseConnections,
+  RequestScheduler,
   BUILT_IN_TOOLS,
   BUNDLED_CATALOGUE,
   DEFAULT_ANTHROPIC_MODEL,
@@ -88,11 +90,13 @@ import {
 } from "./aiTeamCoordinator.ts";
 import { createAiTeamService, type AiTeamService } from "./aiTeamService.ts";
 import type { ParsedAiTeamConfigure } from "./aiTeamIpcValidation.ts";
-import { toAiTeamTraceView, toAiTeamView } from "./aiTeamViews.ts";
+import { toAiTeamActivityView, toAiTeamTraceView, toAiTeamView } from "./aiTeamViews.ts";
 import { createAiAutomationService, type AiAutomationService } from "./aiAutomationService.ts";
 import { toAiAutomationView } from "./aiAutomationViews.ts";
 
 const keys = createKeychainStore();
+const requestScheduler = new RequestScheduler();
+function connections() { try { return parseConnections(currentSettings()["adcode.ai.connections"] ?? "[]"); } catch { return []; } }
 
 /**
  * The providers that need no key.
@@ -131,6 +135,8 @@ export async function refreshCatalogue(): Promise<void> {
 
 /** Where a provider's API lives: the catalogue's address, or the user's own. */
 function baseUrlOf(providerId: string): string | null {
+  const connection = connections().find(item => item.id === providerId);
+  if (connection) return connection.baseUrl;
   if (providerId === "custom") {
     const custom = currentSettings()["adcode.ai.customBaseUrl"];
     const trimmed = typeof custom === "string" ? custom.trim().replace(/\/+$/, "") : "";
@@ -435,6 +441,7 @@ export function aiCurrentSession(): ChatSession | null {
 let agent: Agent | null = null;
 let agentProvider: string | null = null;
 let agentModel: string | null = null;
+let agentEndpoint: string | null = null;
 
 function broadcast(channel: string, ...args: unknown[]): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -455,6 +462,8 @@ function activeProvider(): string {
  * catalogue entry, which is the closest thing to "the obvious one".
  */
 function activeModel(provider: string): string {
+  const connection = connections().find(item => item.id === provider);
+  if (connection) return connection.model;
   const value = currentSettings()["adcode.ai.model"];
   if (typeof value === "string" && value.trim().length > 0) return value.trim();
 
@@ -470,25 +479,26 @@ function activeModel(provider: string): string {
  * That is what makes hundreds of providers reachable without hundreds of adapters, and it
  * is the same mechanism the custom endpoint uses.
  */
-export async function buildProvider(id: string): Promise<Provider | null> {
-  const key = KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? "");
+export async function buildProvider(id: string, offeredKey?: string): Promise<Provider | null> {
+  const key = offeredKey ?? (KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? ""));
+  const paced = (provider: Provider) => requestScheduler.wrap(provider, id, () => connections().find(item => item.id === id)?.rpm ?? 6000);
   if (!KEYLESS.has(id) && key.length === 0 && id !== "custom") return null;
 
-  if (id === "anthropic") return createAnthropicProvider({ apiKey: key });
-  if (id === "google") return createGoogleProvider({ apiKey: key });
+  if (id === "anthropic") return paced(createAnthropicProvider({ apiKey: key }));
+  if (id === "google") return paced(createGoogleProvider({ apiKey: key }));
 
   const baseUrl = baseUrlOf(id);
   if (baseUrl === null) return null;
 
   const known = providerIn(catalogue, id);
 
-  return createOpenAiCompatibleProvider({
+  return paced(createOpenAiCompatibleProvider({
     id,
     displayName: known?.name ?? id,
     baseUrl,
     apiKey: key,
     models: (known?.models ?? []).map((model) => model.id),
-  });
+  }));
 }
 
 function toolRunner() {
@@ -571,10 +581,14 @@ export async function aiStatus(): Promise<AiStatus> {
     doc: null,
   });
 
+  for (const item of connections()) {
+    providers.unshift({id:item.id,displayName:item.name,models:[{id:item.model,name:item.model,toolCall:true,reasoning:false}],hasKey:await keys.has(item.id),needsKey:true,transport:"openai-compatible",doc:null});
+  }
   const active = providers.find((one) => one.id === provider);
 
   return {
     providers,
+    connections: connections().map(item => ({...item,...requestScheduler.status(item.id)})),
     activeProvider: provider,
     activeModel: activeModel(provider),
     // Ready means a turn would actually reach something: a key where one is needed, and an
@@ -621,11 +635,10 @@ export async function checkProviderKey(providerId: string, key: string): Promise
 
   // Checked against the key being offered rather than the one already stored, so this
   // answers about what the user just typed.
-  const previous = await keys.get(providerId);
-  if (trimmed.length > 0) await keys.set(providerId, trimmed);
+
 
   try {
-    const provider = await buildProvider(providerId);
+    const provider = await buildProvider(providerId, trimmed);
     if (provider === null) {
       return { ok: false, message: "ADCode has no address for that provider yet." };
     }
@@ -644,8 +657,7 @@ export async function checkProviderKey(providerId: string, key: string): Promise
       message: error instanceof Error ? error.message : "that key was not accepted",
     };
   } finally {
-    // A failed check must not leave a bad key behind where a good one was.
-    if (trimmed.length > 0 && previous !== null) await keys.set(providerId, previous);
+
     agent = null;
   }
 }
@@ -667,7 +679,7 @@ export async function aiSend(text: string): Promise<boolean> {
 
     // Rebuild when the user switches provider or model - §5.2's runtime choice - but
     // keep the agent otherwise so the conversation survives.
-    if (agent === null || agentProvider !== providerId || agentModel !== model) {
+    if (agent === null || agentProvider !== providerId || agentModel !== model || agentEndpoint !== baseUrlOf(providerId)) {
       const provider = await buildProvider(providerId);
 
       if (provider === null) {
@@ -716,6 +728,7 @@ export async function aiSend(text: string): Promise<boolean> {
       });
       agentProvider = providerId;
       agentModel = model;
+      agentEndpoint = baseUrlOf(providerId);
     }
 
     session ??= startSession();
@@ -934,6 +947,8 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
     let answer = "";
     let failure: Error | null = null;
     for await (const event of roleAgent.send(compactPrompt, input.signal)) {
+      const activity = agentEventTrace(event);
+      if (activity !== null) await service.recordTrace(task.id, activity);
       if (event.kind === "text") answer += event.text;
       if (event.kind === "error") failure = new Error(event.detail);
       if (event.kind === "refusal") failure = new Error(event.detail);
@@ -960,9 +975,10 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
   };
 }
 
-async function routeCurrentTeamModel() {
-  const providerId = activeProvider();
-  const modelId = activeModel(providerId);
+async function routeCurrentTeamModel(team: Parameters<import("./aiTeamCoordinator.ts").AiTeamCoordinatorOptions["resolveRoute"]>[0], node: Parameters<import("./aiTeamCoordinator.ts").AiTeamCoordinatorOptions["resolveRoute"]>[1]) {
+  const route = team.plan.roles.find(role => role.id === node.roleId)?.route;
+  const providerId = route?.provider ?? activeProvider();
+  const modelId = route?.model ?? activeModel(providerId);
   if ((await buildProvider(providerId)) === null) {
     throw new Error(`Connect ${providerId} before starting this Team`);
   }
@@ -974,7 +990,7 @@ async function routeCurrentTeamModel() {
   return {
     providerId,
     modelId,
-    reason: "Used the connected model selected in ADCode settings.",
+    reason: route ? "Used this named agent's saved model." : "Used the connected model selected in ADCode settings.",
     priceKnown,
     blendedCostMicrosPerMillion: priceKnown
       ? Math.round(
@@ -1072,9 +1088,14 @@ export async function aiTeamTraces(id: string): Promise<AiTeamTraceView[]> {
       join(userData, "ai-workspaces", "sandboxes", taskId),
     ),
   ];
-  return (await (await readyAiTeamService()).traces(id)).map((trace) =>
+  const parentEvents = (await (await readyAiTeamService()).traces(id)).map((trace) =>
     toAiTeamTraceView(trace, roots),
   );
+  const workspaceService = await readyAiWorkspaceService();
+  const childEvents = await Promise.all(Object.entries(team.childTaskIds).map(async ([roleId, taskId]) =>
+    (await workspaceService.traces(taskId)).map(trace => toAiTeamActivityView(trace, roleId, roots)),
+  ));
+  return [...parentEvents, ...childEvents.flat()].sort((a, b) => a.at - b.at);
 }
 
 export function createAiTeamId(): string {

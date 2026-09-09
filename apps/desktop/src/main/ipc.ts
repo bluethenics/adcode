@@ -639,6 +639,27 @@ export function registerIpc(): void {
     if (isString(id)) disposeTerminal(id);
   });
 
+  /*
+   * A link clicked in the terminal, on its way to the system browser.
+   *
+   * Every other `shell.openExternal` route takes no URL at all, because a renderer that
+   * can hand one over is a way out of the sandbox. The terminal is the exception: the
+   * address came out of the user's own shell output and there is nothing to look it up
+   * against. So it is parsed rather than pattern-matched, and only http and https leave
+   * - `file://` and anything stranger stop here.
+   */
+  ipcMain.handle(CHANNELS.terminalOpenLink, async (_event, url: unknown) => {
+    if (!isString(url)) return;
+
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return;
+      await shell.openExternal(parsed.toString());
+    } catch {
+      // Not a URL. xterm's matcher can disagree with `new URL`; a no-op is the right answer.
+    }
+  });
+
   ipcMain.handle(CHANNELS.platformInfo, () => ({
     platform: process.platform,
     isPackaged: app.isPackaged,

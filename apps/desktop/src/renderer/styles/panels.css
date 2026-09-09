@@ -8,10 +8,14 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.2fr) minmax(300px, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   min-width: 0;
   overflow: hidden;
   height: 100%;
+  padding: 12px;
+  gap: 10px;
+  background: var(--bg-app);
 }
 
 .scm-panel[data-scm-state="inactive"],
@@ -29,12 +33,30 @@
   min-height: 0;
   padding: 16px;
   overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-editor);
 }
 
 .scm-commit-region,
 .scm-history-region {
   border-left: 1px solid var(--border-subtle);
 }
+
+.scm-commit-heading h3 { margin: 0; font-size: var(--text-lg); font-weight: 650; }
+.scm-commit-heading p { margin: 6px 0 0; color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.5; }
+
+.scm-workspace-header { grid-column: 1 / -1; padding: 4px 48px 4px 4px; min-width: 0; }
+.scm-workspace-header h2 { margin: 0; font-size: var(--text-lg); font-weight: 650; }
+.scm-workspace-summary { margin: 5px 0 0; color: var(--text-secondary); font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scm-commit-region { overflow: auto; }
+.scm-github { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+.scm-github h3 { margin: 0; font-size: var(--text-sm); }
+.scm-github p { color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.5; }
+.scm-github-remote { width: 100%; min-height: 32px; margin-bottom: 10px; padding: 6px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-elevated); color: var(--text-primary); }
+.scm-github-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.scm-github-links .ghost-button { justify-content: flex-start; padding: 8px; min-height: 32px; }
+.scm-github-links .ghost-button:first-child { color: var(--accent); }
 
 .scm-list {
   flex: 1 1 auto;
@@ -64,8 +86,8 @@
 
 .scm-panel .scm-close {
   position: absolute;
-  top: 12px;
-  right: 16px;
+  top: 20px;
+  right: 24px;
   z-index: 5;
   width: 32px;
   height: 32px;
@@ -228,7 +250,7 @@
 
   .scm-panel[data-scm-state="repo"] .scm-history-region {
     position: absolute;
-    inset: 12px 12px 12px auto;
+    inset: 80px 12px 12px auto;
     width: min(380px, 80%);
     border: 1px solid var(--border-subtle);
     border-radius: 14px;
@@ -250,7 +272,8 @@
 
 @media (max-width: 720px) {
   .scm-panel[data-scm-state="repo"] {
-    display: block;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .scm-panel[data-scm-state="repo"] .scm-commit-region {
@@ -268,7 +291,7 @@
 
   .scm-panel[data-scm-state="repo"] .scm-changes-region {
     position: absolute;
-    inset: 12px auto 12px 12px;
+    inset: 80px auto 12px 12px;
     width: min(340px, 86%);
     border: 1px solid var(--border-subtle);
     border-radius: 14px;

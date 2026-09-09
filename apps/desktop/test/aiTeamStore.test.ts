@@ -76,6 +76,15 @@ const record = (root = "C:/private/project", id = "team-alpha"): AiTeamRecord =>
   });
 
 describe("durable AI Team records", () => {
+  it("reloads execution routes with the same model length accepted by named agents", async () => {
+    const store = createAiTeamStore(directory);
+    const modelId = "m".repeat(256);
+    const team = { ...record(), routes: {
+      "desktop-change": { providerId: "connection-local", modelId, reason: "Saved agent model", priceKnown: false, blendedCostMicrosPerMillion: null },
+    } };
+    await store.save(team);
+    expect((await createAiTeamStore(directory).read(team.id))?.routes["desktop-change"]?.modelId).toBe(modelId);
+  });
   it("writes atomically and survives a new store instance", async () => {
     const first = createAiTeamStore(directory);
     await first.save(record());

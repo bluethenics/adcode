@@ -381,7 +381,7 @@ Campaigns are created paused. Nothing spends until you deliberately go live.
 
 ## Step 4: attach a creative
 
-On the campaign page, add the creative: a headline, an optional line of body text, a link, and logos for light and dark themes. Small on purpose - the placement has to sit in a corner without shouting, and cards that shout perform worse anyway. Creatives are reviewed before serving; nothing serves unreviewed.
+On the campaign page, add the creative: a headline, an optional line of body text, a link, and logos for light and dark themes. Small on purpose - the placement has to sit in a corner without shouting, and cards that shout perform worse anyway. Cards go live immediately; automated checks (https-only links, raster-only artwork, size and length limits) run on submit, and abuse is removed after the fact rather than held in a review queue.
 
 ## Step 5: add funds
 
@@ -389,7 +389,9 @@ On the campaign page, add the creative: a headline, an optional line of body tex
 
 ## Step 6: go live
 
-Set the campaign active once its creative is approved. From that moment:
+Funded campaigns go live by themselves the moment the card exists. If the campaign was
+created before credits arrived, one click on Set live finishes it - there is no approval
+wait. From that moment:
 
 - Cards serve only into matching, focused, non-working moments - the same respect rules users get.
 - Every serve is recorded, and a view bills only when its receipt matches a record.

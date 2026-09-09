@@ -145,6 +145,10 @@ export function installPeek(
     const code = document.createElement("div");
     code.className = "peek-code";
     // `colorize` is async because a language's tokenizer may still be loading.
+    // Safety: `slice` is untrusted file text. This innerHTML sink is safe only because
+    // Monaco's `colorize` HTML-escapes the source before wrapping tokens in spans.
+    // Every other panel uses textContent; if this ever stops going through `colorize`,
+    // it must switch to textContent or an explicit sanitizer.
     code.innerHTML = await monacoApi.editor.colorize(
       slice.join("\n"),
       deps.languageFor(target.path),

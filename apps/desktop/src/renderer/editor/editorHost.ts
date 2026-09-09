@@ -173,6 +173,9 @@ function defineThemes(): void {
 }
 
 export interface EditorHost {
+  /** Detach a view without closing or disposing its buffer. */
+  deactivate(): void;
+  onFocus(listener: () => void): void;
   open(path: string, text: string, languageId: string): void;
   activate(path: string): void;
   close(path: string): void;
@@ -291,6 +294,23 @@ interface OpenModel {
   readOnly: boolean;
 }
 
+interface EditorBufferStore {
+  readonly models: Map<string, OpenModel>;
+  readonly dirtyListeners: ((path: string, dirty: boolean) => void)[];
+  formatting?: ReturnType<typeof installFormatting>;
+  treeSitter?: ReturnType<typeof installTreeSitterHighlight>;
+  pathComplete?: ReturnType<typeof installPathComplete>;
+  focusedEditor?: monaco.editor.IStandaloneCodeEditor;
+}
+
+/** Two views share models, dirty versions and global language providers. */
+export function createEditorPair(
+  containers: readonly [HTMLElement, HTMLElement], deps: EditorHostDeps,
+): readonly [EditorHost, EditorHost] {
+  const store: EditorBufferStore = { models: new Map(), dirtyListeners: [] };
+  return [createEditorHost(containers[0], deps, store), createEditorHost(containers[1], deps, store)];
+}
+
 /**
  * What the editor needs from the shell.
  *
@@ -314,7 +334,10 @@ export interface EditorHostDeps {
   readonly absolute: (relativePath: string) => string;
 }
 
-export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): EditorHost {
+export function createEditorHost(
+  container: HTMLElement, deps: EditorHostDeps,
+  store: EditorBufferStore = { models: new Map(), dirtyListeners: [] },
+): EditorHost {
   defineThemes();
 
   // Before the first model exists, so no file is ever checked under the wrong rules.
@@ -371,7 +394,9 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
 
   // Python, Rust, Go and the rest have no language worker, so the suggest widget has
   // nothing to offer them but words already in the file. This is the honest middle.
-  registerKeywordCompletions();
+  if (store.formatting === undefined) registerKeywordCompletions();
+
+  editor.onDidFocusEditorWidget(() => { store.focusedEditor = editor; });
 
   const git = createGitOverlay(editor);
   const remoteCursors = createRemoteCursors(editor);
@@ -384,24 +409,24 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
    * listener would need disposing in `close`, and the one that gets forgotten is the one
    * that fires twice.
    */
-  const tagClosing = installTagClosing(editor, monaco);
+  const tagClosing = installTagClosing(editor, monaco, () => store.focusedEditor === editor);
 
   /*
    * The rest of §4's editing group, installed the same way and for the same reason: each
    * reads the language off whatever model is current, so one subscription covers every file
    * that will ever be opened and none of them can leak.
    */
-  const pairedTagRename = installPairedTagRename(editor, monaco);
+  const pairedTagRename = installPairedTagRename(editor, monaco, () => store.focusedEditor === editor);
   const errorLens = installErrorLens(editor, monaco);
   const todoHighlight = installTodoHighlight(editor, monaco);
   const commentTones = installCommentTones(editor, monaco);
   const spellCheck = installSpellCheck(editor, monaco);
-  const treeSitter = installTreeSitterHighlight(monaco);
+  const treeSitter = store.treeSitter ??= installTreeSitterHighlight(monaco);
 
-  const formatting = installFormatting(monaco, {
+  const formatting = store.formatting ??= installFormatting(monaco, {
     lspFormatting: (path, languageId, options) =>
       window.adcode.language.formatting(path, languageId, options),
-    hideSuggestions: () => editor.trigger("adcode.format", "hideSuggestWidget", null),
+    hideSuggestions: () => store.focusedEditor?.trigger("adcode.format", "hideSuggestWidget", null),
   });
 
   /* ── Breakpoints and the paused line ─────────────────────────────────── */
@@ -513,21 +538,23 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
     else if (browserEvent.ctrlKey || browserEvent.metaKey) void jumpToDefinition();
   });
 
-  const pathComplete = installPathComplete(monaco, {
+  const pathComplete = store.pathComplete ??= installPathComplete(monaco, {
     activeFile: deps.activeFile,
     workspaceRoot: deps.workspaceRoot,
     list: deps.list,
   });
 
-  const models = new Map<string, OpenModel>();
+  const models = store.models;
+  const viewStates = new Map<string, monaco.editor.ICodeEditorViewState>();
   let active: string | null = null;
   const aiInlineCompletion = installAiInlineCompletion(editor, (model) => {
+    if (store.focusedEditor !== editor) return false;
     if (active === null) return false;
     const entry = models.get(active);
     return entry?.model === model && !entry.readOnly && allowsAiCompletionForPath(active);
   });
 
-  const dirtyListeners: ((path: string, dirty: boolean) => void)[] = [];
+  const dirtyListeners = store.dirtyListeners;
   const cursorListeners: ((line: number, column: number) => void)[] = [];
   const saveListeners: (() => void)[] = [];
 
@@ -553,6 +580,18 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
     git,
     remoteCursors,
 
+    onFocus(listener) { editor.onDidFocusEditorWidget(listener); },
+
+    deactivate() {
+      if (active !== null) {
+        const state = editor.saveViewState();
+        if (state !== null) viewStates.set(active, state);
+      }
+      active = null;
+      editor.setModel(null);
+      delete container.dataset["ready"];
+    },
+
     modelFor(path) {
       return models.get(path)?.model ?? null;
     },
@@ -575,14 +614,22 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
     activate(path) {
       const entry = models.get(path);
       if (entry === undefined) return;
+      if (active === path && editor.getModel() === entry.model) {
+        editor.focus();
+        return;
+      }
 
       if (active !== null) {
         const previous = models.get(active);
-        if (previous !== undefined) previous.viewState = editor.saveViewState();
+        if (previous !== undefined) {
+          const state = editor.saveViewState();
+          if (state !== null) viewStates.set(active, state);
+        }
       }
 
       editor.setModel(entry.model);
-      if (entry.viewState !== null) editor.restoreViewState(entry.viewState);
+      const state = viewStates.get(path) ?? entry.viewState;
+      if (state !== null && state !== undefined) editor.restoreViewState(state);
       editor.updateOptions({ readOnly: entry.readOnly });
       active = path;
 
@@ -596,21 +643,35 @@ export function createEditorHost(container: HTMLElement, deps: EditorHostDeps): 
 
     close(path) {
       const entry = models.get(path);
-      if (entry === undefined) return;
-
-      entry.model.dispose();
-      models.delete(path);
-
       if (active === path) {
         active = null;
         editor.setModel(null);
-        if (models.size === 0) delete container.dataset["ready"];
+        delete container.dataset["ready"];
       }
+      viewStates.delete(path);
+      entry?.model.dispose();
+      models.delete(path);
     },
 
     rename(oldPath, newPath) {
+      const localState = viewStates.get(oldPath);
+      if (localState !== undefined) {
+        viewStates.set(newPath, localState);
+        viewStates.delete(oldPath);
+      }
       const entry = models.get(oldPath);
-      if (entry === undefined || oldPath === newPath) return;
+      if (oldPath === newPath) return;
+      if (entry === undefined) {
+        if (active === oldPath) {
+          const renamed = models.get(newPath);
+          if (renamed !== undefined) {
+            editor.setModel(renamed.model);
+            active = newPath;
+            if (localState !== undefined) editor.restoreViewState(localState);
+          }
+        }
+        return;
+      }
 
       /*
        * A rename is a new model, not a re-keyed map entry.

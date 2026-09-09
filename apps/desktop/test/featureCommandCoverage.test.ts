@@ -6,7 +6,7 @@ import { FEATURE_COMMANDS, featureRecords } from "@adcode/help";
 const MAIN = readFileSync(join(import.meta.dirname, "../src/renderer/main.ts"), "utf8");
 
 const REGISTERED = new Set(
-  [...MAIN.matchAll(/(?:\badd|commands\.registerEditorAction)\(\s*"([^"]+)"/g)].map(
+  [...MAIN.matchAll(/(?:\badd|commands\.registerEditorAction)\(\s*["']([^"']+)["']/g)].map(
     (match) => match[1]!,
   ),
 );

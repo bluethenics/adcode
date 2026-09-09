@@ -4,7 +4,8 @@
  * Electron is intentionally absent: supplying userData is the caller's responsibility,
  * which keeps crash and corruption behavior testable without launching a window.
  */
-import { appendFile, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { atomicReplace } from "./atomicReplace.ts";
 import { join } from "node:path";
 import {
   createOperationalTrace,
@@ -64,7 +65,7 @@ export function createAiWorkspaceStore(userDataDirectory: string): AiWorkspaceSt
     const temporary = `${target}.tmp`;
     await mkdir(folder, { recursive: true });
     await writeFile(temporary, JSON.stringify(task, null, 2), "utf8");
-    await rename(temporary, target);
+    await atomicReplace(temporary, target);
   }
 
   async function read(id: string): Promise<AiWorkspaceTask | null> {

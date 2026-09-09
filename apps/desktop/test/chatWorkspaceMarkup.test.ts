@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 const source = readFileSync(
   new URL("../src/renderer/ai/chatWidget.ts", import.meta.url),
   "utf8",
-);
+).replace(/\r\n/g, "\n");
 const connectSource = readFileSync(
   new URL("../src/renderer/ai/connectView.ts", import.meta.url),
   "utf8",
@@ -12,7 +12,7 @@ const connectSource = readFileSync(
 const mainSource = readFileSync(
   new URL("../src/renderer/main.ts", import.meta.url),
   "utf8",
-);
+).replace(/\r\n/g, "\n");
 const styles = readFileSync(
   new URL("../src/renderer/styles/ai.css", import.meta.url),
   "utf8",

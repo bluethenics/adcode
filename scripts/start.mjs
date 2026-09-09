@@ -163,15 +163,15 @@ function buildWithProgress(electronVite, known) {
     const progress = createBuildProgress(known);
     const raw = [];
     let pending = "";
-    let drawn = 0;
+    let drawn = false;
     let announced = "";
 
     function erase() {
-      if (drawn === 0) return;
-      // Up N lines, then clear everything below the cursor - one escape rather than a
-      // clear per line, so a resize mid-build cannot leave half a frame behind.
-      process.stdout.write(`\u001b[${drawn}A\u001b[0J`);
-      drawn = 0;
+      if (!drawn) return;
+      // A single frame is overwritten in place. Carriage return is understood even by
+      // terminals that ignore cursor-up sequences, which otherwise scroll every redraw.
+      process.stdout.write("\r\u001b[2K");
+      drawn = false;
     }
 
     function draw() {
@@ -196,9 +196,8 @@ function buildWithProgress(electronVite, known) {
         colour,
       });
 
-      erase();
-      process.stdout.write(`${lines.join("\n")}\n`);
-      drawn = lines.length;
+      process.stdout.write(`\r${lines[0]}`);
+      drawn = true;
     }
 
     // Split on either ending: Vite rewrites its progress line with a bare carriage return,

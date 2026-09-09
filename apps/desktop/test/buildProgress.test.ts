@@ -192,12 +192,11 @@ describe("drawing", () => {
       colour: false,
     });
 
-  it("draws three lines with the percentage and the clock", () => {
+  it("draws one progress bar with only the percentage", () => {
     const lines = frame(100);
-    expect(lines).toHaveLength(3);
+    expect(lines).toHaveLength(1);
     expect(lines[0]).toContain("50%");
-    expect(lines[0]).toContain("0:42");
-    expect(lines[1]).toContain("the workbench");
+    expect(lines[0]).not.toMatch(/Building|workbench|tree-sitter|0:42/);
   });
 
   it("fits inside a narrow terminal", () => {

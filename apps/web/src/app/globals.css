@@ -722,6 +722,105 @@ a {
   line-height: 1.4;
 }
 
+/*
+ * The desktop toast, mirrored pixel for pixel for advertiser previews.
+ *
+ * Every number below is copied from
+ * `apps/desktop/src/renderer/styles/notifications.css` (dark theme values from
+ * `tokens.css`), and the markup comes from `SponsoredToastPreview.tsx`, which
+ * follows `showSponsored` in `notifications.ts`. An advertiser approving a card
+ * here should see exactly what a developer sees in the corner of the editor:
+ * 320px wide, a 32px logo, the "Sponsored" pill, and `{brand} — {headline}`.
+ */
+.toast-desktop {
+  pointer-events: none;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  width: 320px;
+  max-width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #2c2c2e;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-family: system-ui, sans-serif;
+  text-align: left;
+}
+
+.toast-desktop-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  font-weight: 650;
+  color: #a1a1a6;
+  font-size: 15px;
+}
+
+.toast-desktop-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.toast-desktop-content {
+  min-width: 0;
+}
+
+.toast-desktop-label {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #6c6c70;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  padding: 1px 5px;
+  margin-bottom: 5px;
+}
+
+.toast-desktop-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 560;
+  line-height: 1.35;
+  color: #f5f5f7;
+  overflow-wrap: anywhere;
+}
+
+.toast-desktop-body {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #a1a1a6;
+  overflow-wrap: anywhere;
+}
+
+.toast-desktop-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: #6c6c70;
+  border-radius: 6px;
+  width: 20px;
+  height: 20px;
+}
+
+.toast-desktop-close svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
 /* ── Ledger rows ────────────────────────────────────────────────────────── */
 
 .ledger {
@@ -1105,6 +1204,221 @@ body { background: var(--surface); }
 .app-tab[aria-current="page"] {
   color: var(--accent);
   border-bottom-color: var(--accent);
+}
+
+/* ── The split view: a rail on the laptop, a sheet on the phone ─────────── */
+
+/*
+ * The portal and dashboard are workspaces, and a workspace's destinations belong in a
+ * column beside the content - the shape iOS reaches for first. The rail is a slim set
+ * of grouped links, sticky under the site nav, on screen for the whole scroll. Under
+ * 900px there is no room for two columns, so the rail becomes a sheet behind the
+ * sidebar icon in the bar - the same trade the admin panel makes.
+ */
+.app-layout {
+  display: grid;
+  grid-template-columns: 204px minmax(0, 1fr);
+  gap: clamp(20px, 2.6vw, 36px);
+  max-width: var(--page);
+  margin: 0 auto;
+  padding-inline: var(--gutter);
+}
+
+.app-rail {
+  position: sticky;
+  top: 96px;
+  align-self: start;
+}
+
+.app-side-nav {
+  display: grid;
+  gap: 22px;
+}
+
+.app-side-group h2 {
+  margin: 0 0 6px;
+  padding-inline: 10px;
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.app-side-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 520;
+  color: var(--muted);
+  transition: background 160ms var(--ease), color 160ms var(--ease);
+}
+
+.app-side-item svg {
+  flex: none;
+  color: var(--faint);
+  transition: color 160ms var(--ease);
+}
+
+.app-side-item:hover {
+  background: var(--ios-fill);
+  color: var(--text);
+}
+
+.app-side-item:hover svg {
+  color: var(--text);
+}
+
+.app-side-item[aria-current="page"] {
+  background: var(--ios-fill);
+  color: var(--text);
+  font-weight: 580;
+  box-shadow: inset 0 0 0 1px var(--ios-hairline);
+}
+
+.app-side-item[aria-current="page"] svg {
+  color: var(--text);
+}
+
+.app-content {
+  min-width: 0;
+}
+
+/* -- The phone's chrome ---------------------------------------------------- */
+
+/* One slim bar, one icon, never on a laptop. It rides under the site nav, which is
+   68px tall until 640px and 66px below it. */
+.app-bar {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .app-side {
+    padding-block: 0 64px;
+  }
+
+  .app-layout {
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: 18px;
+  }
+
+  /* The rail is in the sheet at this width; leaving it in flow would print the
+     navigation twice. */
+  .app-rail {
+    display: none;
+  }
+
+  .app-bar {
+    position: sticky;
+    top: 68px;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px var(--gutter);
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: saturate(160%) blur(18px);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .app-bar strong {
+    font-size: 15px;
+    font-weight: 580;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-bar {
+    top: 66px;
+  }
+}
+
+.app-bar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 38px;
+  height: 32px;
+  border: 1px solid var(--ios-hairline);
+  border-radius: 9px;
+  background: var(--ios-fill);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 160ms var(--ease), transform 160ms var(--ease);
+}
+
+.app-bar-toggle:active {
+  transform: scale(0.94);
+}
+
+/*
+ * The iOS sheet: slides in from the leading edge on the platform's sheet curve while
+ * the page dims behind it. A tap on the dim, a nav, or Escape dismisses it.
+ */
+.app-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+}
+
+.app-drawer-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  cursor: pointer;
+  animation: app-scrim-in 240ms var(--ease) both;
+}
+
+.app-drawer-panel {
+  position: relative;
+  width: min(78vw, 288px);
+  height: 100%;
+  padding: 20px 14px 30px;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--ios-raised) 94%, transparent);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border-right: 1px solid var(--ios-hairline);
+  box-shadow: 20px 0 60px rgba(0, 0, 0, 0.35);
+  animation: app-sheet-in 320ms var(--ease-sheet) both;
+}
+
+@keyframes app-sheet-in {
+  from {
+    transform: translateX(-28px);
+    opacity: 0;
+  }
+}
+
+@keyframes app-scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-drawer-panel,
+  .app-drawer-scrim {
+    animation: none;
+  }
+
+  .app-bar-toggle {
+    transition: none;
+  }
 }
 
 /* ── Stat tiles ─────────────────────────────────────────────────────────── */
@@ -2618,16 +2932,13 @@ body { background: var(--surface); }
    Admin
    ═══════════════════════════════════════════════════════════════════════════
 
-   Third shape, same complaint each time: it took too much room to say too
-   little. Nine destinations in a top tab strip pushed three off the right edge.
-   Nine in a 232px sidebar of headings and hint text spent a quarter of a laptop
-   screen on navigation, and on a phone became a horizontal scroller - a gesture
-   nobody makes on a page they have just opened.
-
-   So the panel has six destinations and the second level moved inside the
-   pages. The rail is 172px of labels, with a count beside the two that can
-   block somebody. Under 900px it becomes a drawer behind a button in a sticky
-   bar, and the content takes the whole width.
+   Fourth shape. The third put everything on one page behind eleven disclosures,
+   which made every task start with a scroll and an unfold. Now the panel is
+   thirteen destinations in a grouped rail - one page per job - using the portal's
+   iOS sidebar wholesale: same rows, same icons, same sheet on a phone. Admin adds
+   two things of its own: a jump box for pasted ids, and a count beside each queue
+   that can block somebody. Below 900px the rail becomes the shared sheet behind
+   the sidebar icon in the bar, and the content takes the whole width.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .admin {
@@ -2637,8 +2948,8 @@ body { background: var(--surface); }
 
 .admin-layout {
   display: grid;
-  grid-template-columns: 172px minmax(0, 1fr);
-  gap: clamp(18px, 2.4vw, 34px);
+  grid-template-columns: 188px minmax(0, 1fr);
+  gap: clamp(16px, 2vw, 28px);
   max-width: var(--page);
   margin: 0 auto;
   padding-inline: var(--gutter);
@@ -2646,39 +2957,34 @@ body { background: var(--surface); }
 
 .admin-rail {
   position: sticky;
-  top: 84px;
+  top: 96px;
   align-self: start;
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
-.admin-nav {
-  display: grid;
-  gap: 2px;
+/* Badge trailing inside the shared sidebar row. */
+.app-side-item .admin-badge {
+  margin-left: auto;
 }
 
-.admin-nav-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 9px;
-  font-size: 14px;
-  font-weight: 520;
-  color: var(--muted);
-  transition: background 160ms var(--ease), color 160ms var(--ease);
+/* Turning to a new destination replays a short entrance rather than repainting
+   in place - the panel reads as pages, not swaps. */
+.admin-page-in {
+  animation: admin-page-in 240ms var(--ease) both;
 }
 
-.admin-nav-item:hover {
-  background: var(--ios-fill);
-  color: var(--text);
+@keyframes admin-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
 }
 
-.admin-nav-item[aria-current="page"] {
-  background: var(--ios-fill);
-  color: var(--text);
-  font-weight: 580;
+@media (prefers-reduced-motion: reduce) {
+  .admin-page-in {
+    animation: none;
+  }
 }
 
 /* The one thing the old rail could not do: say that something is waiting
@@ -2704,104 +3010,27 @@ body { background: var(--surface); }
   font-size: 13px;
 }
 
-/* -- The phone's chrome -------------------------------------------------- */
-
-.admin-bar {
-  display: none;
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  align-items: center;
-  gap: 12px;
-  padding: 10px var(--gutter);
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: saturate(150%) blur(14px);
-  border-bottom: 1px solid var(--hairline);
-}
-
-.admin-bar strong {
-  font-size: 15px;
-  font-weight: 580;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.admin-bar-toggle {
-  flex: none;
-  padding: 7px 12px;
-  border: 1px solid var(--hairline);
-  border-radius: 9px;
-  background: var(--card);
-  color: var(--text);
-  font: inherit;
-  font-size: 13.5px;
-  cursor: pointer;
-}
-
-.admin-drawer {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-}
-
-.admin-drawer-scrim {
-  position: absolute;
-  inset: 0;
-  border: 0;
-  padding: 0;
-  background: rgba(0, 0, 0, 0.55);
-  cursor: pointer;
-}
-
-.admin-drawer-panel {
-  position: relative;
-  width: min(76vw, 260px);
-  height: 100%;
-  padding: 18px 14px;
-  display: grid;
-  gap: 14px;
-  align-content: start;
-  background: var(--bg);
-  border-right: 1px solid var(--hairline);
-  animation: drawer-in 200ms var(--ease);
-}
-
-@keyframes drawer-in {
-  from {
-    transform: translateX(-14px);
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .admin-drawer-panel {
-    animation: none;
-  }
-}
-
 /* -- Page header --------------------------------------------------------- */
 
 .admin-head {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 12px;
   align-items: flex-end;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .admin-head h1 {
-  font-size: clamp(24px, 3vw, 31px);
-  letter-spacing: -0.035em;
+  font-size: clamp(20px, 2.3vw, 26px);
+  letter-spacing: -0.032em;
 }
 
 .admin-head p {
-  margin-top: 6px;
-  font-size: 14px;
+  margin-top: 3px;
+  font-size: 13.5px;
   color: var(--muted);
-  max-width: 56ch;
+  max-width: 60ch;
 }
 
 .admin-head-actions {
@@ -2814,10 +3043,10 @@ body { background: var(--surface); }
 
 .admin-tabs {
   display: flex;
-  gap: 4px;
-  margin-bottom: 20px;
+  gap: 3px;
+  margin-bottom: 16px;
   padding: 3px;
-  border-radius: 11px;
+  border-radius: 10px;
   background: var(--ios-fill);
   overflow-x: auto;
 }
@@ -2825,13 +3054,18 @@ body { background: var(--surface); }
 .admin-tab {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 13px;
-  border-radius: 9px;
-  font-size: 13.5px;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-size: 13px;
   font-weight: 520;
   color: var(--muted);
   white-space: nowrap;
+  transition: background 160ms var(--ease), color 160ms var(--ease);
+}
+
+.admin-tab:hover {
+  color: var(--text);
 }
 
 .admin-tab[aria-current="page"] {
@@ -2844,14 +3078,14 @@ body { background: var(--surface); }
 
 .admin-tiles {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  margin-bottom: 14px;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  margin-bottom: 12px;
 }
 
 .admin-tile {
   display: block;
-  padding: 18px;
+  padding: 13px 15px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-md);
   background: var(--card);
@@ -2860,12 +3094,12 @@ body { background: var(--surface); }
 
 .admin-tile:hover {
   border-color: rgba(255, 255, 255, 0.22);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .admin-tile strong {
   display: block;
-  font-size: 30px;
+  font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
@@ -2873,15 +3107,15 @@ body { background: var(--surface); }
 
 .admin-tile span {
   display: block;
-  margin-top: 3px;
-  font-size: 14px;
+  margin-top: 2px;
+  font-size: 13px;
   font-weight: 520;
 }
 
 .admin-tile small {
   display: block;
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: 3px;
+  font-size: 11.5px;
   color: var(--faint);
   line-height: 1.4;
 }
@@ -2906,10 +3140,10 @@ body { background: var(--surface); }
 .admin-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .admin-filters {
@@ -2922,38 +3156,38 @@ body { background: var(--surface); }
   flex: 1 1 210px;
   min-width: 0;
   max-width: 320px;
-  padding: 8px 11px;
-  font-size: 13.5px;
+  padding: 7px 10px;
+  font-size: 13px;
 }
 
 /* -- A record with a header, facts, and actions -------------------------- */
 
 .admin-card-head {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .admin-card-head h3 {
-  font-size: 17px;
+  font-size: 15.5px;
 }
 
 .admin-card-head .row-sub {
-  margin-top: 4px;
+  margin-top: 3px;
   overflow-wrap: anywhere;
 }
 
 .admin-facts {
   display: grid;
-  gap: 10px 22px;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  margin: 0 0 12px;
+  gap: 8px 18px;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  margin: 0 0 10px;
 }
 
 .admin-facts dt {
-  font-size: 11px;
+  font-size: 10.5px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--faint);
@@ -2961,17 +3195,17 @@ body { background: var(--surface); }
 
 .admin-facts dd {
   margin: 2px 0 0;
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
 /* -- Making a payout ------------------------------------------------------ */
 
 .admin-payout {
-  margin-top: 14px;
-  padding-top: 14px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid var(--hairline);
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 /* The input and the button that acts on it, on one line where there is room -
@@ -2979,7 +3213,7 @@ body { background: var(--surface); }
 .admin-decide {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   align-items: flex-end;
 }
 
@@ -3121,17 +3355,13 @@ body { background: var(--surface); }
     padding-block: 0 64px;
   }
 
-  .admin-bar {
-    display: flex;
-  }
-
   .admin-layout {
     grid-template-columns: minmax(0, 1fr);
     padding-top: 18px;
   }
 
-  /* The rail is in the drawer at this width; leaving it in flow would print the
-     navigation twice. */
+  /* The rail is in the sheet at this width; leaving it in flow would print the
+     navigation twice. The bar and sheet themselves are the shared `.app-*` ones. */
   .admin-rail {
     display: none;
   }
@@ -3383,8 +3613,8 @@ body { background: var(--surface); }
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .admin-search .input {
@@ -3756,16 +3986,12 @@ body { background: var(--surface); }
   html { scroll-behavior: auto; }.marketplace-atmosphere i { animation: none; }.marketplace-primary,.marketplace-nav-earn { transition: none; }
 }
 
-/* Continuous role workspaces: headings replace tab bars and disclosures keep density low. */
+/* Continuous role workspaces: headings above each section, reached from the rail. */
 .workspace-section { margin-top: 46px; scroll-margin-top: 92px; }
 .workspace-section-title { margin-bottom: 18px; color: #909a97; font-size: 12px; font-family: var(--font-mono); font-weight: 650; letter-spacing: .09em; text-transform: uppercase; }
-.workspace-disclosure,.campaign-inline,.admin-block { border: 1px solid var(--hairline); border-radius: var(--radius-md); background: var(--card); overflow: clip; }
-.workspace-disclosure > summary,.campaign-inline > summary,.admin-block > summary { list-style: none; cursor: pointer; }
-.workspace-disclosure > summary::-webkit-details-marker,.campaign-inline > summary::-webkit-details-marker,.admin-block > summary::-webkit-details-marker { display: none; }
-.workspace-disclosure > summary { min-height: 66px; padding: 19px 22px; display: flex; align-items: center; justify-content: space-between; font-weight: 650; }
-.workspace-disclosure > summary::after { content: "+"; color: var(--faint); font-family: var(--font-mono); font-size: 20px; }
-.workspace-disclosure[open] > summary::after { content: "−"; }
-.workspace-disclosure-body { padding: 4px 22px 26px; }
+.campaign-inline { border: 1px solid var(--hairline); border-radius: var(--radius-md); background: var(--card); overflow: clip; }
+.campaign-inline > summary { list-style: none; cursor: pointer; }
+.campaign-inline > summary::-webkit-details-marker { display: none; }
 .campaign-stack { display: grid; gap: 10px; }
 .campaign-stack > .row-head { display: none; }
 .campaign-inline > summary { min-height: 78px; padding: 15px 18px; display: grid; grid-template-columns: minmax(220px,1fr) repeat(3,minmax(90px,auto)); align-items: center; gap: 18px; }
@@ -3776,16 +4002,13 @@ body { background: var(--surface); }
 .campaign-inline-body dl div { padding: 13px; border-radius: 10px; background: rgba(255,255,255,.04); }
 .campaign-inline-body dt { color: var(--faint); font-size: 10px; text-transform: uppercase; }.campaign-inline-body dd { margin: 5px 0 0; color: var(--text); }
 
-.admin-single { padding: 54px 0 100px; }
-.admin-single .admin-head { margin-bottom: 28px; }
-.admin-single-metrics { margin-bottom: 20px; }
-.admin-block { margin-top: 12px; scroll-margin-top: 84px; }
-.admin-block > summary { min-height: 76px; padding: 17px 20px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-.admin-block > summary > span { display: flex; flex-direction: column; gap: 4px; }.admin-block > summary strong { font-size: 15px; }.admin-block > summary small { color: var(--faint); font-size: 11px; font-weight: 400; }.admin-block > summary i { color: var(--faint); font: 20px var(--font-mono); font-style: normal; }.admin-block[open] > summary i { transform: rotate(45deg); }
-.admin-block-body { padding: 22px 20px 28px; border-top: 1px solid var(--hairline); }
-
 @media (max-width: 700px) {
-  .campaign-inline > summary { grid-template-columns: 1fr auto; }.campaign-inline > summary .row-num { display: none; }.campaign-inline-body dl { grid-template-columns: 1fr; }.workspace-disclosure-body { padding-inline: 14px; }.admin-single { padding-top: 34px; }
+  .campaign-inline > summary { grid-template-columns: 1fr auto; }.campaign-inline > summary .row-num { display: none; }.campaign-inline-body dl { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 900px) {
+  /* The phone's sticky bar rides above where a 92px margin would leave an anchor. */
+  .workspace-section { scroll-margin-top: 132px; }
 }
 
 /* Monochrome glass system ------------------------------------------------ */
@@ -4012,37 +4235,28 @@ body { color-scheme: dark; }
 
 /* ── Hero counter, and the second install route ───────────────────────── */
 
-/*
- * The count towards the first thousand.
- *
- * Every number it draws is read from the download totals GitHub publishes, so the urgency
- * has to come from the framing rather than from the figure - the goal is what makes "of
- * the first 1,000" mean something while the count is still small. See lib/heroStats.ts.
- *
- * Only `width` on the fill and `opacity`/`transform` elsewhere animate. The bar sits in a
- * hero that also runs HeroCircuit, and a layout-triggering transition here would be paid
- * for on every frame of that one.
- */
-.hero-counter { margin: 22px auto 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; width: min(360px, 100%); min-height: 46px; opacity: 0; transition: opacity 420ms var(--ease, ease-out); }
-/* Height is held before the figure arrives, so the buttons below never move. */
-.hero-counter[data-ready="true"] { opacity: 1; }
-
-.hero-counter-line { display: flex; align-items: center; gap: 9px; margin: 0; color: #9aa4a0; font-size: 13.5px; letter-spacing: .01em; }
-.hero-counter-line strong { color: #f1f5f3; font-weight: 700; font-variant-numeric: tabular-nums; }
-
-/* Tabular figures above: without them each tick changes the width of the number and the
-   whole line jitters left and right while it counts. */
-
-.hero-counter-dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--market-green, #3ad07a); box-shadow: 0 0 0 0 rgba(58,208,122,.55); animation: hero-counter-pulse 2.4s var(--ease, ease-out) infinite; }
-
-@keyframes hero-counter-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(58,208,122,.5); }
-  70% { box-shadow: 0 0 0 9px rgba(58,208,122,0); }
-  100% { box-shadow: 0 0 0 0 rgba(58,208,122,0); }
+/* Fixed-width slots keep the illustrative count steady as individual digits change. */
+.hero-counter { margin: 24px auto 0; display: flex; flex-direction: column; align-items: center; gap: 6px; width: min(360px, 100%); padding: 16px 0; border-block: 1px solid rgba(136,193,161,.14); }
+.hero-counter-heading { display: flex; align-items: center; gap: 8px; color: #a3c6b3; font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.hero-counter-line { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.hero-counter-number { display: inline-flex; color: #e5f5ec; font-family: var(--font-mono), monospace; font-size: clamp(30px, 7vw, 38px); font-weight: 500; line-height: 1.3; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.hero-counter-digit, .hero-counter-comma { display: inline-block; overflow: hidden; }
+.hero-counter-digit { width: 1ch; }
+.hero-counter-comma { width: .6ch; }
+.hero-counter-digit > span { display: block; animation: hero-counter-rise 200ms var(--ease, cubic-bezier(.23,1,.32,1)) both; }
+.hero-counter-toggle { min-width: 58px; min-height: 44px; padding: 0 8px; border: 1px solid rgba(163,198,179,.2); border-radius: 8px; color: #b7c8bf; background: rgba(163,198,179,.04); font: inherit; font-size: 11px; cursor: pointer; transition: color 160ms ease, border-color 160ms ease; }
+.hero-counter-toggle:focus-visible { outline: 2px solid var(--market-green, #3ad07a); outline-offset: 4px; }
+.hero-counter-toggle:disabled { opacity: .5; cursor: default; }
+.hero-counter-note { color: #97aaa0; font-size: 11px; line-height: 1.5; }
+.hero-counter-dot { display: none; flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: var(--market-green, #3ad07a); }
+.hero-counter[data-running="false"] .hero-counter-dot { background: #82928a; }
+@keyframes hero-counter-rise {
+  from { transform: translateY(35%); opacity: .3; }
+  to { transform: translateY(0); opacity: 1; }
 }
-
-.hero-counter-track { width: 100%; height: 4px; border-radius: 999px; background: rgba(255,255,255,.09); overflow: hidden; }
-.hero-counter-fill { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, rgba(58,208,122,.55), var(--market-green, #3ad07a)); transition: width 1600ms var(--ease, cubic-bezier(.16,1,.3,1)); }
+@media (hover: hover) and (pointer: fine) {
+  .hero-counter-toggle:hover:not(:disabled) { color: #e5f5ec; border-color: #709d83; }
+}
 
 /* The installer, under the command that raises no warning. Stacked and quieter, because
    it is the second answer to the same question rather than a competing one. */
@@ -4050,15 +4264,10 @@ body { color-scheme: dark; }
 .hero-install-download { min-height: 44px; padding: 11px 18px; font-size: 14px; gap: 10px; }
 .hero-install-or .hero-install-note { text-align: center; max-width: 42ch; }
 
-/*
- * A person who has asked their system to stop animating things has not asked for a subtler
- * version of the same thing. The pulse stops, the bar arrives at its width, and the count
- * itself is already handled in HeroCounter.tsx - which reads the same query and skips
- * straight to the final figure rather than easing towards it.
- */
+/* The component also suspends automatic updates when reduced motion is requested. */
 @media (prefers-reduced-motion: reduce) {
-  .hero-counter-dot { animation: none; }
-  .hero-counter-fill { transition: none; }
+  .hero-counter-digit > span { animation: none; }
+  .hero-counter-toggle { transition: none; }
 }
 
 /* ── Footer: four link columns ──────────────────────────────────────────────

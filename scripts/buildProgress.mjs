@@ -273,31 +273,25 @@ export function formatSize(kB) {
 }
 
 /**
- * One frame, as an array of lines.
+ * One compact frame, as an array containing a single line.
  *
  * Returned rather than written so the shape can be asserted in a test without a terminal,
  * and so `start.mjs` owns every escape code that moves the cursor.
  */
 export function renderFrame(input) {
-  const { fraction, label, quip, elapsedMs, columns = 80, colour = true } = input;
+  const { fraction, columns = 80, colour = true } = input;
   const dim = colour ? DIM : "";
   const bold = colour ? BOLD : "";
   const off = colour ? RESET : "";
 
   const percent = `${String(Math.round(fraction * 100)).padStart(3, " ")}%`;
-  const time = formatDuration(elapsedMs);
-
-  // Everything that is not the bar: two spaces, the label, the caps, the percent and the
-  // clock, plus the gaps between them. The bar takes whatever is left.
-  const width = Math.max(10, Math.min(48, columns - 30));
+  // The percent is the only text in the live frame. Keeping it to one physical line makes
+  // redraws reliable in terminals that do not honour cursor-up escape sequences.
+  const width = Math.max(10, Math.min(48, columns - 12));
   const filled = Math.max(0, Math.min(width, Math.round(fraction * width)));
   const bar = `${"█".repeat(filled)}${dim}${"░".repeat(width - filled)}${off}`;
 
-  return [
-    `  ${bold}Building ADCode${off}  ▐${bar}▌ ${percent}  ${dim}${time}${off}`,
-    `  ${dim}${label}${off}`,
-    `  ${dim}${quip}${off}`,
-  ];
+  return [`  ${bold}▐${bar}▌${off} ${percent}`];
 }
 
 /**

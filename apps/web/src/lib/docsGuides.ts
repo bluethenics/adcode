@@ -766,8 +766,8 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "Connect the models your agents will use in Connect a model.",
       "Open Assistant and its activity panel. Create an agent with a name, instructions, connection, and model; save it for reuse.",
-      "Create at least one more agent. For example, give one implementation instructions and another review instructions.",
-      "Select two to four saved agents, write the task in the composer, and choose Team. Review the plan and start it.",
+      "Create at least one more agent. For example, give one implementation instructions and another review instructions. Enable Run after teammates for the reviewer so it receives the builder's handoff first.",
+      "Select two to four saved agents, write the task in the composer, and choose Set up selected Team. Review the plan and start it.",
       "Watch each agent's task and state in the activity panel. Open its trace to inspect tool calls and results. Cancel the team if the task should stop.",
       "Review the combined changes before applying them to the project. Agents sharing a connection also share its requests-per-minute limit.",
     ],

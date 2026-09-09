@@ -91,3 +91,6 @@ export {
   type ChatRole,
   type ChatSession,
 } from "./sessions.ts";
+
+export * from "./connections.ts";
+export * from "./requestScheduler.ts";

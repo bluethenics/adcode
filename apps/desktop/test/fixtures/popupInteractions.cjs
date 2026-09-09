@@ -18,6 +18,32 @@ app.whenReady().then(async () => {
     const run = (code) => window.webContents.executeJavaScript(code);
     await run(`window.shellModule = (() => { const exports = {}; ${compiled("workbench/popupShell.ts")} return exports; })();
       window.helpModule = (() => { const exports = {}; ${compiled("help/helpPopover.ts")} return exports; })(); undefined;`);
+    await run(`window.backdropModule = (() => { const exports = {}; ${compiled("dialogs/backdropDismissal.ts")} return exports; })(); undefined;`);
+    await run(`window.promptModule = (() => { const exports = {}; const require = () => backdropModule; ${compiled("dialogs/promptDialog.ts")} return exports; })();
+      window.confirmModule = (() => { const exports = {}; const require = () => backdropModule; ${compiled("dialogs/confirmDialog.ts")} return exports; })(); undefined;`);
+    const prompts = await run(`(async () => {
+      const results = [];
+      for (const [module, factory] of [[promptModule, 'createPromptDialog'], [confirmModule, 'createConfirmDialog']]) {
+        const host = document.createElement('div'); document.body.append(host);
+        const api = module[factory](host);
+        void api.ask({ title: 'First' });
+        void api.ask({ title: 'Second' });
+        await new Promise(done => setTimeout(done, 60));
+        const replacementSurvives = api.isOpen();
+        void api.ask({ title: 'Drag' });
+        await new Promise(done => setTimeout(done, 60));
+        const dialog = host.querySelector('dialog');
+        dialog.querySelector('.result-card').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+        dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        const dragSurvives = api.isOpen();
+        dialog.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+        dialog.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        const backdropCloses = !api.isOpen();
+        results.push({ replacementSurvives, dragSurvives, backdropCloses });
+        dialog.close(); host.remove();
+      }
+      return results;
+    })()`);
     const labels = await run(`(() => {
       const shells = [0, 1].map(() => {
         const content = document.createElement('div');
@@ -31,6 +57,27 @@ app.whenReady().then(async () => {
       });
       shells.forEach(shell => shell.element.remove());
       return result;
+    })()`);
+    const dismissal = await run(`(() => {
+      const make = () => {
+        const shell = shellModule.createPopupShell({ id: 'settings', title: 'Settings', size: 'large',
+          modal: true, host: document.body, content: document.createElement('div'),
+          onRequestClose() { shell.close({ immediate: true }); } });
+        shell.open(); return shell;
+      };
+      const shell = make();
+      shell.element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      const openingClickSurvives = shell.isOpen();
+      shell.open();
+      shell.surface.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+      shell.element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      const dragSurvives = shell.isOpen();
+      shell.open();
+      shell.element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+      shell.element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      const backdropCloses = !shell.isOpen();
+      shell.close({ immediate: true }); shell.element.remove();
+      return { openingClickSurvives, dragSurvives, backdropCloses };
     })()`);
     const motion = await run(`(() => {
       const results = [];
@@ -57,6 +104,24 @@ app.whenReady().then(async () => {
         shell.close({ immediate: true }); shell.element.remove();
       }
       return results;
+    })()`);
+    const repeatedOpen = await run(`(async () => {
+      document.documentElement.dataset.reducedMotion = 'false';
+      const shell = shellModule.createPopupShell({ id: 'settings', title: 'Settings', size: 'large',
+        modal: true, host: document.body, content: document.createElement('div'), onRequestClose() {} });
+      const samples = [];
+      for (let i = 0; i < 4; i++) {
+        shell.open({ input: 'pointer' });
+        shell.surface.getAnimations().forEach(animation => animation.finish());
+        await Promise.resolve();
+        samples.push({ open: shell.isOpen(), opacity: getComputedStyle(shell.surface).opacity });
+        shell.close();
+        shell.surface.getAnimations().forEach(animation => animation.finish());
+        await Promise.resolve();
+        if (shell.surface.getAnimations().length !== 0) throw new Error('Closed popup retains an animation effect');
+      }
+      shell.element.remove();
+      return samples;
     })()`);
     const layeredClose = await run(`(async () => {
       const first = shellModule.createPopupShell({ id: 'settings', title: 'Settings', size: 'large',
@@ -113,7 +178,7 @@ app.whenReady().then(async () => {
       underlying.dispatchEvent(new PointerEvent('pointerup', { pointerId: 22, bubbles: true }));`);
     await click(point.x, point.y);
     const afterNoClickDrag = await run(`underlyingClicks`);
-    console.log("POPUP_RESULTS=" + JSON.stringify({ labels, motion, layeredClose, backdrop, nextPressCloses, inside, nextControlClick, afterCancelClick, afterNoClickDrag }));
+    console.log("POPUP_RESULTS=" + JSON.stringify({ prompts, labels, dismissal, motion, repeatedOpen, layeredClose, backdrop, nextPressCloses, inside, nextControlClick, afterCancelClick, afterNoClickDrag }));
   } finally {
     window.destroy(); app.quit();
   }

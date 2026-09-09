@@ -1,3 +1,5 @@
+import { bindBackdropDismissal } from "./backdropDismissal.ts";
+
 /**
  * A centred text prompt, with optional suggestions.
  *
@@ -91,10 +93,9 @@ export function createPromptDialog(host: HTMLElement): PromptDialog {
 
   // Escape closes natively; `close` is where every route out converges, so a dismissal
   // that never reached a button still resolves rather than leaking the promise.
-  dialog.addEventListener("close", () => finish(null));
-  dialog.addEventListener("click", (event) => {
-    if (!card.contains(event.target as Node)) finish(null);
-  });
+  // A queued close from the previous request must not dismiss its replacement.
+  dialog.addEventListener("close", () => { if (!dialog.open) finish(null); });
+  bindBackdropDismissal(dialog, card, () => { finish(null); });
 
   return {
     ask(request) {

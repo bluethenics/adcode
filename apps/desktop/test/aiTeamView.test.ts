@@ -7,6 +7,7 @@ import {
   extractTeamFileHints,
   formatAiTeamUsage,
   manualTeamSuggestion,
+  formatConnectionQueue,
 } from "../src/renderer/ai/aiTeamViewModel.ts";
 
 const team = (state: AiTeamView["state"]): AiTeamView => ({
@@ -35,6 +36,10 @@ const team = (state: AiTeamView["state"]): AiTeamView => ({
 });
 
 describe("AI Team presentation", () => {
+  it("shows shared request pacing without counting expired cooldowns", () => {
+    expect(formatConnectionQueue([{ queued: 2, cooldownUntil: 12_001 }, { queued: 1, cooldownUntil: 8_000 }], 10_000)).toBe("3 requests waiting · retry in 3s");
+    expect(formatConnectionQueue([{ queued: 0, cooldownUntil: 8_000 }], 10_000)).toBe("");
+  });
   it("uses plain state labels and counts reservations in visible usage", () => {
     expect(aiTeamStateLabel("configured")).toBe("Ready for confirmation");
     expect(aiTeamStateLabel("review")).toBe("Combined review ready");

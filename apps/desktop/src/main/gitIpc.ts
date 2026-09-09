@@ -6,7 +6,8 @@
  * reason - two layers, because a branch name that reaches `git` as an option is the kind
  * of mistake that only has to happen once.
  */
-import { ipcMain } from "electron";
+import { ipcMain, shell } from "electron";
+import { githubRepositoryUrl } from "../shared/githubRepository.ts";
 import { CHANNELS, type GitOutcome, type GitStatusView } from "../shared/api.ts";
 import { gitForWorkspace, invalidateFileCache, quickOpen, searchForWorkspace } from "./sourceControl.ts";
 
@@ -108,6 +109,19 @@ export function registerGitIpc(): void {
   );
 
   ipcMain.handle(CHANNELS.gitRemotes, async () => (await gitForWorkspace()?.remotes()) ?? []);
+
+  ipcMain.handle(CHANNELS.gitOpenGitHub, async (_event, name: unknown, destination: unknown): Promise<GitOutcome> => {
+    if (!isString(name) || !isString(destination)) return { ok: false, message: "Choose a repository and GitHub page." };
+    try {
+      const remote = (await gitForWorkspace()?.remotes())?.find((entry) => entry.name === name);
+      const url = remote === undefined ? null : githubRepositoryUrl(remote.url, destination);
+      if (url === null) return { ok: false, message: "This remote is not a supported github.com repository." };
+      await shell.openExternal(url);
+      return { ok: true, message: "Opened GitHub in your browser." };
+    } catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    }
+  });
 
   ipcMain.handle(CHANNELS.gitBranches, async () => (await gitForWorkspace()?.branches()) ?? []);
 

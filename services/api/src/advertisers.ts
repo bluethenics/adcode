@@ -305,8 +305,13 @@ export async function createCreative(
   if (!owned.ok) return owned;
 
   /*
-   * Submitted pending, never approved. Creatives are shown inside people's editors, and
-   * the only thing standing between an advertiser and that surface is this review step.
+   * Approved on submit - there is no review queue between an advertiser and serving.
+   *
+   * The gate is automated rather than human: `parseCreative` already enforces https-only
+   * links and logos, raster-only artwork (no SVG/HTML payloads that could carry script),
+   * size ceilings, and text limits before this function ever runs. Anything abusive that
+   * passes validation is handled after the fact - the account can be suspended and the
+   * creative rejected, both of which remove it from serving immediately.
    */
   const record: CreativeRecord = {
     // The client's `creativeId` pattern is [A-Za-z0-9_-]{1,64}; ids are generated to fit.
@@ -319,7 +324,7 @@ export async function createCreative(
     // Placeholders: the artwork is stored below, once the id above exists to key it by.
     logoLight: body.logoLight,
     logoDark: body.logoDark,
-    status: "pending",
+    status: "approved",
   };
 
   /*
@@ -333,6 +338,25 @@ export async function createCreative(
   record.logoDark = await hostLogo(deps, origin, record.creativeId, "dark", body.logoDark);
 
   await deps.store.putCreative(record);
+
+  /*
+   * Self-serve: a funded campaign goes live the moment its first card exists, with no
+   * admin step in between. The budget reservation inside `transitionCampaignCommitment`
+   * is what makes this safe - an unfunded campaign simply stays paused until credits
+   * arrive, and the portal's Set live button covers that path with one click.
+   */
+  if (owned.value.campaign.status === "paused") {
+    const spent = await deps.store.getSpend(body.campaignId);
+    await deps.store.transitionCampaignCommitment({
+      advertiserId: owned.value.advertiser.advertiserId,
+      campaignId: body.campaignId,
+      next: "active",
+      spentMicros: spent,
+    });
+    // Insufficient funds leaves it paused - the portal's Set live button finishes the
+    // job once credits arrive. Either way the card itself is ready.
+  }
+
   return ok(creativeView(record));
 }
 

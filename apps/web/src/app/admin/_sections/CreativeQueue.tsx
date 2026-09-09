@@ -5,11 +5,12 @@ import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES, type CreativeView } from "@/lib/api";
 
 /**
- * The creative review queue.
+ * The creative safety valve.
  *
- * This is the admin panel's home because it is the only screen with a queue that blocks
- * someone else: an advertiser cannot go live until a human looks at their card. Users,
- * feedback, and the blog can all wait; this cannot.
+ * Cards go live without human review - automated checks run on submit - so this queue
+ * is normally empty. It exists for the exception: a reported or abusive card can be
+ * rejected here, which pulls it out of serving immediately, and the decision is
+ * audited against the admin who made it.
  */
 export function ReviewQueue() {
   const { token } = useAuth();
