@@ -1,11 +1,17 @@
 /** Main-process creation and containment of isolated AI workspaces. */
 import { execFile as execFileCallback } from "node:child_process";
-import { cp, lstat, mkdir, readdir, realpath, rm } from "node:fs/promises";
+import * as nodeFs from "node:fs/promises";
+import { createRequire } from "node:module";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import type { AiSandboxRecord } from "@adcode/ai";
 
 const execFile = promisify(execFileCallback);
+// Electron's patched fs treats .asar files as directories. Sandbox snapshots must copy
+// archives as ordinary bytes, including incomplete packages left by a build.
+const { cp, lstat, mkdir, readdir, realpath, rm }: typeof nodeFs = process.versions.electron
+  ? (createRequire(import.meta.url)("original-fs") as typeof import("node:fs")).promises
+  : nodeFs;
 const TASK_ID = /^[a-z0-9][a-z0-9-]{2,63}$/;
 const TEAM_ID = /^[a-z][a-z0-9-]{2,63}$/;
 const GIT_REVISION = /^[a-f0-9]{40,64}$/i;
@@ -18,6 +24,7 @@ const SHADOW_EXCLUDES = new Set([
   "dist",
   "node_modules",
   "out",
+  "release",
 ]);
 
 function comparePath(path: string): string {

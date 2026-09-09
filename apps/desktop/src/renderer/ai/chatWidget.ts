@@ -26,6 +26,7 @@ import type {
 } from "../../shared/api.ts";
 import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
 import { createAgentLibrary } from "./agentLibrary.ts";
+import { attachChatLayout } from "./chatLayout.ts";
 import {
   aiWorkspaceActions,
   formatAiWorkspaceUsage,
@@ -108,7 +109,7 @@ export function dispatchChatSend(
   if (message.length === 0) return false;
 
   deps.showUser(message);
-  void deps.aiSend(message).catch(deps.onFailure);
+  void deps.aiSend(message).then((sent) => { if (!sent) deps.onFailure(); }).catch(deps.onFailure);
   return true;
 }
 
@@ -131,6 +132,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const title = document.createElement("span");
   title.className = "chat-title";
   title.textContent = "Assistant";
+  const brand = document.createElement("span");
+  brand.className = "chat-brand";
+  brand.textContent = "<$>";
+  brand.setAttribute("aria-hidden", "true");
 
   const modelLabel = document.createElement("button");
   modelLabel.type = "button";
@@ -215,7 +220,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     resetButton,
     closeButton,
   );
-  header.append(identity, queueLabel, headerActions);
+  header.append(brand, identity, queueLabel, headerActions);
 
   /* ── Transcript ───────────────────────────────────────────────────────── */
 
@@ -269,6 +274,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   function toggleHistory(): void {
     historyOpen = !historyOpen;
+    if (historyOpen && card.dataset["layout"] === "compact") inspectorOpen = false;
     applyDisclosures();
     if (historyOpen) void refreshHistory();
   }
@@ -612,6 +618,18 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const refreshWelcome = (): void => { welcome.hidden = transcript.childElementCount > 0; };
   new MutationObserver(refreshWelcome).observe(transcript, { childList: true });
   conversation.append(memory, welcome, transcript, composer);
+  const working = document.createElement("div");
+  working.className = "chat-working";
+  working.hidden = true;
+  working.setAttribute("role", "status");
+  const workingMark = document.createElement("span");
+  workingMark.className = "chat-working-mark";
+  workingMark.textContent = "<$>";
+  workingMark.setAttribute("aria-hidden", "true");
+  const workingText = document.createElement("span");
+  workingText.textContent = "Thinking";
+  working.append(workingMark, workingText);
+  composer.prepend(working);
 
   const agentLibrary = createAgentLibrary({
     prompt: () => input.value.trim(),
@@ -637,6 +655,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   body.className = "chat-body";
   body.append(history, conversation, inspector);
   card.append(header, body);
+  const updateLayout = attachChatLayout(card, body);
 
   function applyDisclosures(): void {
     card.dataset["historyOpen"] = String(historyOpen);
@@ -645,16 +664,19 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     inspector.hidden = !inspectorOpen;
     historyButton.setAttribute("aria-expanded", String(historyOpen));
     inspectorButton.setAttribute("aria-expanded", String(inspectorOpen));
+    updateLayout();
   }
 
   function toggleInspector(): void {
     inspectorOpen = !inspectorOpen;
+    if (inspectorOpen && card.dataset["layout"] === "compact") historyOpen = false;
     applyDisclosures();
   }
 
   function revealInspector(): void {
     if (inspectorOpen) return;
     inspectorOpen = true;
+    if (card.dataset["layout"] === "compact") historyOpen = false;
     applyDisclosures();
   }
 
@@ -1390,6 +1412,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /* ── Events from the agent ────────────────────────────────────────────── */
 
   function setSendMode(mode: "send" | "stop"): void {
+    working.hidden = mode !== "stop";
+    card.dataset["working"] = String(mode === "stop");
+    if (mode === "stop") workingText.textContent = "Thinking";
     sendButton.dataset["mode"] = mode;
     sendButton.disabled = false;
     if (mode === "stop") {
@@ -1408,6 +1433,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
     switch (event.kind) {
       case "text": {
+        workingText.textContent = "Writing response";
         // Append to the live bubble rather than creating one per delta.
         streamingBubble ??= bubble("assistant", "");
         streamingBubble.textContent = `${streamingBubble.textContent ?? ""}${String(event["text"])}`;
@@ -1416,17 +1442,20 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       }
 
       case "thinking":
+        workingText.textContent = "Thinking";
         trace("Thinking", String(event["text"]), "running");
         break;
 
       case "tool-call": {
         const call = event["call"] as { name: string; input: unknown };
+        workingText.textContent = `Using ${call.name}`;
         streamingBubble = null;
         trace(`Using ${call.name}`, JSON.stringify(call.input, null, 2), "running");
         break;
       }
 
       case "tool-result": {
+        workingText.textContent = "Reviewing results";
         const isError = event["isError"] === true;
         trace(
           `${isError ? "Failed" : "Result"}: ${String(event["name"])}`,

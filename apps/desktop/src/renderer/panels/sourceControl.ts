@@ -95,6 +95,7 @@ export function resolveSourceControlDrawers(
 }
 
 export interface SourceControlDeps {
+  readonly onStatus?: (status: GitStatusView | null) => void;
   /** Dismisses the workspace shell through the owning layer. */
   readonly onRequestClose: () => void;
   readonly openFile: (path: string) => void;
@@ -998,7 +999,9 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
 
 
     async refresh(): Promise<void> {
-      if (deps.workspaceRoot() === null) {
+      const requestedRoot = deps.workspaceRoot();
+      if (requestedRoot === null) {
+        deps.onStatus?.(null);
         element.dataset["scmState"] = "inactive";
         timeline.hidden = true;
         timelineList.replaceChildren();
@@ -1017,6 +1020,8 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       }
 
       const status = await window.adcode.git.status();
+      if (requestedRoot !== deps.workspaceRoot()) return;
+      deps.onStatus?.(status);
       workspaceSummary.textContent = status.isRepo
         ? `${status.branch ?? "Detached HEAD"} · ${status.entries.length} changed files · ${status.ahead} ahead · ${status.behind} behind`
         : "Track this project and connect a remote repository";

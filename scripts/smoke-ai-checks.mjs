@@ -22,7 +22,7 @@ export async function checkAi({ evaluate, send, waitFor, sleep, artifacts }) {
   const endpoint = `http://127.0.0.1:${server.address().port}/v1`;
   async function clickText(selector, text) {
     await evaluate(`(() => {
-      const button = [...document.querySelectorAll(${JSON.stringify(selector)})].find(el => el.textContent.trim() === ${JSON.stringify(text)});
+      const button = [...document.querySelectorAll(${JSON.stringify(selector)})].find(el => el.getClientRects().length && el.textContent.trim() === ${JSON.stringify(text)});
       if (!button) throw new Error('Missing button: ' + ${JSON.stringify(text)});
       button.click();
     })()`);
@@ -30,7 +30,7 @@ export async function checkAi({ evaluate, send, waitFor, sleep, artifacts }) {
   }
   async function field(label, value) {
     await evaluate(`(() => {
-      const el = document.querySelector('[aria-label=' + JSON.stringify(${JSON.stringify(label)}) + ']');
+      const el = [...document.querySelectorAll('[aria-label=' + JSON.stringify(${JSON.stringify(label)}) + ']')].find(el => el.getClientRects().length);
       if (!el) throw new Error('Missing field: ' + ${JSON.stringify(label)});
       el.value = ${JSON.stringify(value)};
       el.dispatchEvent(new Event('input', {bubbles:true}));
@@ -46,36 +46,40 @@ export async function checkAi({ evaluate, send, waitFor, sleep, artifacts }) {
     await evaluate("document.getElementById('ai-toggle').click()");
     await waitFor("document.querySelector('dialog[data-popup-id=chat]').open");
     await clickText('.chat-header button', 'Connect');
-    await waitFor("document.querySelector('.connect-row') !== null");
-    await clickText('.connect-panel button', 'Add API connection');
-    await clickText('.connect-profile-form button', 'Use NVIDIA NIM preset');
+    await waitFor("document.querySelector('dialog[open] .connect-row') !== null");
+    await clickText('dialog[open] .connect-panel button', 'Add API connection');
+    await clickText('dialog[open] .connect-profile-form button', 'Use NVIDIA NIM preset');
     assert.equal(await evaluate("document.querySelector('[aria-label=\"API base URL\"]').value"), 'https://integrate.api.nvidia.com/v1');
     await field('Connection name', 'Local smoke model');
     await field('API base URL', endpoint);
     await field('Model ID', 'smoke-model');
     await field('Requests per minute', '120');
-    await clickText('.connect-profile-form button', 'Save connection');
-    await waitFor("document.querySelector('.connect-detail').textContent.includes('120 requests/minute')");
+    await clickText('dialog[open] .connect-profile-form button', 'Save connection');
+    await waitFor("document.querySelector('dialog[open] .connect-detail').textContent.includes('120 requests/minute')");
     const connection = await evaluate("(async () => (await window.adcode.ai.status()).connections.find(c => c.name === 'Local smoke model'))()");
     assert.ok(connection?.id, 'Named connection persists through IPC');
     await field('Local smoke model key', 'local-smoke-key');
-    await clickText('.connect-detail button', 'Check and save');
-    await waitFor(`document.querySelector('.connect-row[data-selected="true"]')?.textContent.includes('In use')`);
+    await clickText('dialog[open] .connect-detail button', 'Check and save');
+    await waitFor(`document.querySelector('dialog[open] .connect-row[data-selected="true"]')?.textContent.includes('In use')`);
     const active = await evaluate("window.adcode.ai.status()");
     assert.equal(active.ready, true, 'Saving a checked key makes the assistant ready');
     assert.equal(active.activeProvider, connection.id, 'Saving a checked key activates its connection');
     assert.equal(active.activeModel, 'smoke-model', 'The assistant uses the saved connection model');
     await evaluate("window.adcode.settings.write('adcode.ai.provider', 'anthropic')");
     await sleep(1100);
-    await evaluate(`document.querySelector('.connect-row[data-selected="true"]').click()`);
-    await clickText('.connect-selection button', 'Use this model');
+    await evaluate(`(() => {
+      const row = [...document.querySelectorAll('dialog[open] .connect-row')].find(el => el.getClientRects().length && el.textContent.includes('Local smoke model'));
+      if (!row) throw new Error('Saved connection is not visible');
+      row.click();
+    })()`);
+    await clickText('dialog[open] .connect-selection button', 'Use this model');
     await waitFor(`(async () => (await window.adcode.ai.status()).activeProvider === ${JSON.stringify(connection.id)})()`);
-    await waitFor(`document.querySelector('.connect-row[data-selected="true"]')?.textContent.includes('In use')`);
+    await waitFor(`document.querySelector('dialog[open] .connect-row[data-selected="true"]')?.textContent.includes('In use')`);
     assert.equal((await evaluate("window.adcode.ai.status()")).activeProvider, connection.id,
       'A previously saved connection can be activated without entering its key again');
     assert.equal(requests[0]?.model, 'smoke-model', 'Key check uses the connection model, not another active model');
     await screenshot('ai-connect');
-    await clickText('.connect-panel button', 'Close');
+    await clickText('dialog[open] .connect-panel button', 'Close');
     if (!await evaluate("document.querySelector('.chat-card').dataset.inspectorOpen === 'true'")) {
       await evaluate("[...document.querySelectorAll('.chat-header button')].find(el => el.getAttribute('aria-expanded') !== null && el.textContent !== 'History').click()");
     }

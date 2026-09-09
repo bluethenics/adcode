@@ -118,7 +118,23 @@ try {
   await evaluate("window.adcode.settings.write('adcode.session.autoSave', false)");
   await evaluate("window.adcode.settings.write('adcode.formatting.formatOnSave', false)");
   await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
-  if (process.argv.includes("--ai")) {
+  if (process.argv.includes("--git-badge")) {
+    execFileSync("git", ["init", "--quiet", workspace]);
+    await waitFor("document.querySelector('#git-badge').hidden === false", 120);
+    assert.equal(await evaluate("document.querySelector('#git-badge').textContent"), "2");
+    assert.equal(await evaluate("document.querySelector('.activity[data-view=scm]').getAttribute('aria-label')"), "Source control: 2 uncommitted files");
+    execFileSync("git", ["-C", workspace, "add", "."]);
+    await sleep(5500);
+    assert.equal(await evaluate("document.querySelector('#git-badge').textContent"), "2", "Staging does not double-count files");
+    execFileSync("git", ["-C", workspace, "-c", "user.name=Badge Test", "-c", "user.email=badge@example.test", "commit", "--quiet", "-m", "Fixture"]);
+    await waitFor("document.querySelector('#git-badge').hidden === true", 120);
+    await writeFile(files[1], "/* external edit */\n");
+    await waitFor("document.querySelector('#git-badge').hidden === false && document.querySelector('#git-badge').textContent === '1'", 120);
+    assert.equal(await evaluate("document.querySelector('dialog[data-popup-id=source-control]').open"), false, "Badge updates without opening source control");
+    const shot = await send("Page.captureScreenshot", { format: "png" });
+    await writeFile(join(artifacts, "git-badge.png"), Buffer.from(shot.data, "base64"));
+    process.stdout.write("PASS: Git badge tracks untracked, staged, committed and externally edited files while the popup stays closed.\n");
+  } else if (process.argv.includes("--ai")) {
     await checkAi({ evaluate, send, waitFor, sleep, artifacts });
   } else if (process.argv.includes("--popups")) {
     await checkPopups({ evaluate, send, waitFor, sleep, artifacts });

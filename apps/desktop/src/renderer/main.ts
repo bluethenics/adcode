@@ -3351,6 +3351,7 @@ function registerProfileCommands(): void {
 }
 
 const sourceControl = createSourceControlPanel({
+  onStatus: paintGitBadge,
   onRequestClose: () => closePrimaryPopup("source-control"),
   openFile: (path) => void openFile(absolutePath(path)),
   workspaceRoot: () => workspaceRoot,
@@ -3398,6 +3399,40 @@ const sourceControlActivity = document.querySelector<HTMLButtonElement>(
 );
 if (sourceControlActivity === null)
   throw new Error("missing element: source-control activity");
+
+function paintGitBadge(status: GitStatusView | null): void {
+  const badge = document.getElementById("git-badge");
+  const launcher = document.querySelector<HTMLButtonElement>('.activity[data-view="scm"]');
+  if (!badge || !launcher) return;
+  const count = status?.isRepo ? new Set(status.entries.map((entry) => entry.path)).size : 0;
+  badge.hidden = count === 0;
+  badge.textContent = count > 99 ? "99+" : String(count);
+  const label = count > 0
+    ? `Source control: ${count} uncommitted ${count === 1 ? "file" : "files"}`
+    : "Source control";
+  launcher.setAttribute("aria-label", label);
+  launcher.title = `${label} (Ctrl+Shift+G)`;
+}
+
+let gitBadgeRefreshing = false;
+async function refreshGitBadge(): Promise<void> {
+  if (workspaceRoot === null) { paintGitBadge(null); return; }
+  if (gitBadgeRefreshing) return;
+  const root = workspaceRoot;
+  gitBadgeRefreshing = true;
+  try {
+    const status = await window.adcode.git.status();
+    if (root === workspaceRoot) paintGitBadge(status);
+  } catch {
+    if (root === workspaceRoot) paintGitBadge(null);
+  } finally {
+    gitBadgeRefreshing = false;
+  }
+}
+// Also notice commits and edits made outside the editor while the Git popup is closed.
+setInterval(() => { if (!document.hidden) void refreshGitBadge(); }, 5000);
+window.addEventListener("focus", () => void refreshGitBadge());
+void refreshGitBadge();
 
 function openSourceControlWorkspace(
   input: LayoutInput,

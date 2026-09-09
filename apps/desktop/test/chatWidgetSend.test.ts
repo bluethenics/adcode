@@ -17,6 +17,14 @@ type DispatchChatSend = (
 ) => boolean;
 
 describe("Chat composer dispatch", () => {
+  it("clears the busy state when the backend declines a send", async () => {
+    const onFailure = vi.fn();
+    chatWidget.dispatchChatSend("Explain this file", {
+      showUser: vi.fn(), aiSend: async () => false, onFailure,
+    });
+    await Promise.resolve();
+    expect(onFailure).toHaveBeenCalledOnce();
+  });
   it("shows the user message before dispatching a successful AI send", () => {
     const events: string[] = [];
     const showUser = vi.fn();

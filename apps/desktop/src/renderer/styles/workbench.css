@@ -301,6 +301,11 @@ select {
   background: var(--warning);
 }
 
+.activity-badge[data-tone="changes"] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
 .activity svg {
   width: 19px;
   height: 19px;

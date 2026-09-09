@@ -146,6 +146,9 @@ describe("AI sandbox creation", () => {
     await writeFile(join(root, "node_modules", "huge", "package.js"), "large", "utf8");
     await mkdir(join(root, "dist"), { recursive: true });
     await writeFile(join(root, "dist", "bundle.js"), "built", "utf8");
+    await mkdir(join(root, "release", "win-unpacked", "resources"), { recursive: true });
+    await writeFile(join(root, "release", "win-unpacked", "resources", "app.asar"), "incomplete package");
+    await writeFile(join(root, "fixture.asar"), "opaque archive bytes");
 
     const created = await createAiSandbox({
       userDataDirectory: userData,
@@ -157,6 +160,8 @@ describe("AI sandbox creation", () => {
 
     expect(created.record.kind).toBe("shadow-copy");
     expect(await readFile(join(created.root, "index.ts"), "utf8")).toBe("export {};\n");
+    expect(await readFile(join(created.root, "fixture.asar"), "utf8")).toBe("opaque archive bytes");
+    await expect(readFile(join(created.root, "release", "win-unpacked", "resources", "app.asar"))).rejects.toThrow();
     await expect(readFile(join(created.root, "dist", "bundle.js"), "utf8")).rejects.toThrow();
     await expect(
       readFile(join(created.root, "node_modules", "huge", "package.js"), "utf8"),
