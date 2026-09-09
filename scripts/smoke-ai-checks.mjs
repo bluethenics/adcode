@@ -65,6 +65,14 @@ export async function checkAi({ evaluate, send, waitFor, sleep, artifacts }) {
     assert.equal(active.ready, true, 'Saving a checked key makes the assistant ready');
     assert.equal(active.activeProvider, connection.id, 'Saving a checked key activates its connection');
     assert.equal(active.activeModel, 'smoke-model', 'The assistant uses the saved connection model');
+    await evaluate("window.adcode.settings.write('adcode.ai.provider', 'anthropic')");
+    await sleep(1100);
+    await evaluate(`document.querySelector('.connect-row[data-selected="true"]').click()`);
+    await clickText('.connect-selection button', 'Use this model');
+    await waitFor(`(async () => (await window.adcode.ai.status()).activeProvider === ${JSON.stringify(connection.id)})()`);
+    await waitFor(`document.querySelector('.connect-row[data-selected="true"]')?.textContent.includes('In use')`);
+    assert.equal((await evaluate("window.adcode.ai.status()")).activeProvider, connection.id,
+      'A previously saved connection can be activated without entering its key again');
     assert.equal(requests[0]?.model, 'smoke-model', 'Key check uses the connection model, not another active model');
     await screenshot('ai-connect');
     await clickText('.connect-panel button', 'Close');
