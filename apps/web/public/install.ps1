@@ -66,33 +66,21 @@ try {
     Fail "Download failed. Try again, or see what is published at $Site/versions"
 }
 
-# electron-builder publishes a latest.yml carrying the SHA-512 of each artifact. When it
-# is present the download is verified; when it is not, the script says so rather than
-# pretending it checked.
-$checksumAsset = $release.assets | Where-Object { $_.name -eq 'latest.yml' } | Select-Object -First 1
-
-if ($checksumAsset) {
-    try {
-        $meta = Invoke-WebRequest -Uri $checksumAsset.browser_download_url -UseBasicParsing
-        $expected = ([regex]::Match($meta.Content, 'sha512:\s*([A-Za-z0-9+/=]+)')).Groups[1].Value
-
-        if ($expected) {
-            $bytes = [System.IO.File]::ReadAllBytes($target)
-            $sha = [System.Security.Cryptography.SHA512]::Create()
-            $actual = [Convert]::ToBase64String($sha.ComputeHash($bytes))
-
-            if ($actual -ne $expected) {
-                Remove-Item $target -Force -ErrorAction SilentlyContinue
-                Fail "The download didn't match its published checksum, so it was deleted. This is worth reporting."
-            }
-            Write-Host "  Checksum verified."
-        }
-    } catch {
-        Write-Host "  Couldn't verify the checksum - continuing, but the download is unverified." -ForegroundColor Yellow
-    }
-} else {
-    Write-Host "  No checksum published for this release; the download is unverified." -ForegroundColor Yellow
+# Verify the selected asset against GitHub's SHA-256 digest before executing it.
+if ($asset.digest -notmatch '^sha256:([a-fA-F0-9]{64})$') {
+    Fail "This release has no valid checksum for the Windows installer. Nothing was installed."
 }
+$expected = $Matches[1]
+try {
+    $actual = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash
+} catch {
+    Fail "Couldn't calculate the download checksum. Nothing was installed."
+}
+if ($actual -ne $expected) {
+    Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue
+    Fail "The download didn't match its published checksum, so it was deleted. Nothing was installed."
+}
+Write-Host "  Checksum verified."
 
 Write-Host ""
 Write-Host "  Starting the installer..."

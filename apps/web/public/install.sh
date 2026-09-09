@@ -103,18 +103,22 @@ META_URL="$(printf '%s' "$RELEASE" \
   | sed 's/.*"browser_download_url": *"//; s/"$//' \
   | grep '/latest-linux.yml$' | head -n 1)"
 
-if [ -n "$META_URL" ] && command -v shasum >/dev/null 2>&1; then
-  EXPECTED="$(curl -fsSL "$META_URL" 2>/dev/null | grep -m1 -o 'sha512: *[A-Za-z0-9+/=]*' | sed 's/sha512: *//')"
-  if [ -n "$EXPECTED" ]; then
-    ACTUAL="$(shasum -a 512 -b "$WORKDIR/$FILE" | cut -d' ' -f1 | xxd -r -p | base64 | tr -d '\n' 2>/dev/null || true)"
-    if [ -n "$ACTUAL" ] && [ "$ACTUAL" != "$EXPECTED" ]; then
-      fail "The download didn't match its published checksum. Nothing was installed. This is worth reporting."
-    fi
-    [ -n "$ACTUAL" ] && say "Checksum verified."
-  fi
-else
-  printf '  %sChecksum not published for this release; the download is unverified.%s\n' "$YELLOW" "$RESET"
-fi
+[ -n "$META_URL" ] || fail "This release has no checksum manifest. Nothing was installed."
+need openssl
+META="$(curl -fsSL "$META_URL")" || fail "Couldn't download the checksum manifest. Nothing was installed."
+# A manifest contains multiple files. Match the selected filename before reading its hash.
+EXPECTED="$(printf '%s\n' "$META" | awk -v file="$FILE" '
+  $1 == "-" && $2 == "url:" { selected = ($3 == file) }
+  selected && $1 == "sha512:" { print $2; exit }
+' | tr -d '\r')"
+[ -n "$EXPECTED" ] || fail "No checksum found for $FILE. Nothing was installed."
+openssl dgst -sha512 -binary "$WORKDIR/$FILE" > "$WORKDIR/checksum.bin" \
+  || fail "Couldn't calculate the download checksum. Nothing was installed."
+ACTUAL="$(openssl base64 -A -in "$WORKDIR/checksum.bin")" \
+  || fail "Couldn't encode the download checksum. Nothing was installed."
+[ "$ACTUAL" = "$EXPECTED" ] \
+  || fail "The download didn't match its published checksum. Nothing was installed. This is worth reporting."
+say "Checksum verified."
 
 # Everything somebody installing from a terminal needs next, printed in the terminal.
 #
