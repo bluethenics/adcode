@@ -782,7 +782,9 @@ checks.messageLifecyclePersistence = await (async () => {
 
 checks.historyOpensInWorkspace = await (async () => {
   await openSourceControl();
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  // Real repository reads can exceed three seconds on a busy or removable volume.
+  // Wait for the rendered result, with a bounded budget for a failed operation.
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     const found = await evaluate(
       `document.querySelector('.scm-history-region .history-head') !== null`,
     );
@@ -792,7 +794,7 @@ checks.historyOpensInWorkspace = await (async () => {
   await evaluate(
     `document.querySelector('.scm-history-region .history-head')?.click(); true`,
   );
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     const detail = await evaluate(
       `document.querySelector('.scm-history-region .history-commit[data-open="true"] .history-detail') !== null`,
     );
@@ -973,7 +975,8 @@ async function rightClickAt(x, y) {
     buttons: 0,
   });
 
-  for (let attempt = 0; attempt < 40; attempt++) {
+  // Explorer menus fetch current Git status before exposing Stage/Unstage actions.
+  for (let attempt = 0; attempt < 150; attempt++) {
     if (
       await evaluate(
         "document.querySelector('.menu-panel[data-context] .menu-item') !== null",
@@ -6194,24 +6197,24 @@ checks.chatConnectLayeringEvidence = await evaluate(
      const stacked = chat?.open === true && connect?.open === true &&
        Number(getComputedStyle(document.getElementById('popup-dependent-host')).zIndex) >
          Number(getComputedStyle(document.getElementById('popup-primary-host')).zIndex);
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      const dependentClosed = connect?.open === false;
-     const chatStillOpen = chat?.open === true;
-     const connectButton = [...(chat?.querySelectorAll('.chat-header button') ?? [])]
-       .find((button) => button.textContent?.trim() === 'Connect');
-      const focusReturned = document.activeElement === connectButton;
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      await new Promise((resolve) => setTimeout(resolve, 250));
      return {
        stacked,
        closeGeometry,
        providerSelection: row !== null && providerSelected,
-       layeredEscape: dependentClosed && chatStillOpen,
-       focusReturn: focusReturned,
-       chatEscape: chat?.open === false && document.activeElement === document.getElementById('ai-toggle'),
      };
    })()`,
+);
+
+await pressEscape();
+Object.assign(checks.chatConnectLayeringEvidence, await evaluate(`(() => {
+  const chat = document.querySelector('#popup-primary-host dialog[data-popup-id="chat"]');
+  const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
+  const button = [...chat.querySelectorAll('.chat-header button')].find(x => x.textContent?.trim() === 'Connect');
+  return { layeredEscape: connect.open === false && chat.open === true, focusReturn: document.activeElement === button };
+})()`));
+await pressEscape();
+checks.chatConnectLayeringEvidence.chatEscape = await evaluate(
+  `document.querySelector('dialog[data-popup-id="chat"]').open === false && document.activeElement === document.getElementById('ai-toggle')`,
 );
 
 checks.chatConnectWorkspace =

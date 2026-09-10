@@ -1090,10 +1090,9 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
       empty.hidden = !status.isClean;
 
       syncResponsiveDrawers();
-      await renderTimeline();
-
-      // Last, and not awaited into the same failure: a slow `git log` should not stop the
-      // changes list - the part people look at first - from having already appeared.
+      // History can take much longer than status in a large repository. Neither history
+      // request should delay conflict checks or refreshing the stage/unstage controls.
+      void renderTimeline().catch(() => {});
       void history.refresh();
     },
 
