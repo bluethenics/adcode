@@ -3,7 +3,15 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
-## Unreleased
+## 1.0.0 — 2026-09-10
+
+### Release refresh
+
+- Consolidates the current desktop work and all branch histories into the 1.0.0 candidate.
+- Adds clickable code references in assistant replies and copying Markdown links to editor lines.
+- Updates terminal installation instructions and verifies the selected Windows or Linux package before installation.
+- Updates dependencies to address the reported critical and high-severity production advisories.
+- Requires typechecking, architecture checks, tests, and the production security audit before release builds.
 
 ### Every feature answers
 
@@ -39,7 +47,7 @@ everything else, leaving sixty-eight of eighty-six features with one route into 
 - The homepage prints the questions it has always been able to answer, and publishes the
   matching FAQ structured data from the same source.
 
-## 1.0.0 — 2026-08-30
+### Initial release contents (2026-08-30)
 
 The first release. Everything below is in the box on first launch — ADCode has no extension
 marketplace, so nothing here needs installing.
