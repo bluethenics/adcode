@@ -42,7 +42,7 @@ const alias = {
 };
 
 export default defineConfig({
-  resolve: { alias },
+  resolve: { alias, dedupe: ["react", "react-dom"] },
   test: {
     include: [
       "packages/**/test/**/*.test.ts",

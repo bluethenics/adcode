@@ -57,6 +57,15 @@ describe("listing files", () => {
     expect((await search.listFiles())[0]).toBe("src/deep/c.ts");
   });
 
+  it("excludes nested worktrees and deployment caches from search", async () => {
+    await write("src/main.ts", "needle");
+    await write(".worktrees/old/src/main.ts", "needle");
+    await write("apps/web/.open-next/server/index.ts", "needle");
+    await write("apps/web/.wrangler/cache/index.ts", "needle");
+    expect(await search.listFiles()).toEqual(["src/main.ts"]);
+    expect(await collect(search.search({ pattern: "needle" }))).toHaveLength(1);
+  });
+
   it("returns nothing for a directory that does not exist", async () => {
     const missing = createWorkspaceSearch({ root: join(dir, "nope") });
     expect(await missing.listFiles()).toEqual([]);

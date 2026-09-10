@@ -145,6 +145,9 @@ export const HIDDEN_DIRECTORIES: readonly string[] = [
   "dist",
   "out",
   ".next",
+  ".worktrees",
+  ".open-next",
+  ".wrangler",
   "target",
 ];
 

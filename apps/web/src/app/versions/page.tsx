@@ -34,6 +34,7 @@ export default async function VersionsPage() {
           <div>
             <strong>Install from a terminal</strong>
             <p>One command per platform. macOS is not published yet.</p>
+            <p>Windows installers are not code-signed yet. The install command verifies the downloaded file against its published checksum.</p>
           </div>
           <dl>
             <div>

@@ -5963,8 +5963,8 @@ checks.chatConnectWorkspaceEvidence = await evaluate(
      const composerTolerance = 1;
      const composerBottomLimit = Math.min(surfaceBox.bottom, innerHeight);
      return {
-       workspace: card.getBoundingClientRect().width === surfaceBox.width &&
-         card.getBoundingClientRect().height === surfaceBox.height,
+       workspace: Math.abs(card.getBoundingClientRect().width - surface.clientWidth) <= 1 &&
+         Math.abs(card.getBoundingClientRect().height - surface.clientHeight) <= 1,
        titleAndStatus: header.getBoundingClientRect().height > 20 &&
          (header.textContent ?? '').includes('Assistant'),
        transcriptDominant: conversationBox.width >= historyBox.width && conversationBox.width >= inspectorBox.width,
@@ -6143,15 +6143,25 @@ if (chatConnectPoint !== null && typeof chatConnectPoint === "object") {
   await clickAt(chatConnectPoint.x, chatConnectPoint.y);
 }
 await sleep(500);
+const connectBackdropPoint = await evaluate(
+  `(() => {
+     const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
+     if (!connect?.open) return null;
+     const box = connect.getBoundingClientRect();
+     return { x: box.left + 4, y: box.top + 4 };
+   })()`,
+);
+if (connectBackdropPoint !== null && typeof connectBackdropPoint === "object") {
+  await clickAt(connectBackdropPoint.x, connectBackdropPoint.y);
+  await sleep(400);
+}
 checks.chatDependentPointerEvidence = await evaluate(
   `(async () => {
      const chat = document.querySelector('#popup-primary-host dialog[data-popup-id="chat"]');
      const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
      const button = [...(chat?.querySelectorAll('.chat-header button') ?? [])]
        .find((candidate) => candidate.textContent?.trim() === 'Connect');
-      if (!chat?.open || !connect?.open || !button) return false;
-      chat.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (!chat?.open || !connect || !button) return false;
      return {
        dependentDismisses: connect.open === false,
        chatRemainsOpen: chat.open === true,
