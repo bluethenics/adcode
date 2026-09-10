@@ -17,7 +17,9 @@ function present(...paths: string[]): (candidate: string) => boolean {
 }
 
 const PATH = ["/usr/local/bin", "/usr/bin"].join(delimiter);
-const WIN_PATH = ["C:\\tools", "C:\\npm"].join(delimiter);
+// Host-native directories let every runner test extension lookup without treating a
+// Windows drive colon as a POSIX PATH delimiter.
+const WIN_PATH = ["/tools", "/npm"].join(delimiter);
 const PATHEXT = [".EXE", ".CMD", ".BAT"].join(delimiter);
 
 describe("resolveExecutable", () => {
@@ -46,10 +48,10 @@ describe("resolveExecutable", () => {
       "pyright-langserver",
       WIN_PATH,
       PATHEXT,
-      present("C:\\npm\\pyright-langserver.cmd"),
+      present("/npm/pyright-langserver.cmd"),
     );
 
-    expect(norm(found ?? "")).toBe(norm(join("C:\\npm", "pyright-langserver.cmd")));
+    expect(norm(found ?? "")).toBe(norm(join("/npm", "pyright-langserver.cmd")));
   });
 
   it("tries the extensions in the order PATHEXT gives them", () => {
@@ -57,10 +59,10 @@ describe("resolveExecutable", () => {
       "tool",
       WIN_PATH,
       PATHEXT,
-      present("C:\\tools\\tool.cmd", "C:\\tools\\tool.exe"),
+      present("/tools/tool.cmd", "/tools/tool.exe"),
     );
 
-    expect(norm(found ?? "")).toBe(norm(join("C:\\tools", "tool.exe")));
+    expect(norm(found ?? "")).toBe(norm(join("/tools", "tool.exe")));
   });
 
   it("prefers an exact name over one with an extension appended", () => {
@@ -69,10 +71,10 @@ describe("resolveExecutable", () => {
       "zls.exe",
       WIN_PATH,
       PATHEXT,
-      present("C:\\tools\\zls.exe", "C:\\tools\\zls.exe.exe"),
+      present("/tools/zls.exe", "/tools/zls.exe.exe"),
     );
 
-    expect(norm(found ?? "")).toBe(norm(join("C:\\tools", "zls.exe")));
+    expect(norm(found ?? "")).toBe(norm(join("/tools", "zls.exe")));
   });
 
   it("treats a command containing a separator as a path, not a name to look up", () => {
