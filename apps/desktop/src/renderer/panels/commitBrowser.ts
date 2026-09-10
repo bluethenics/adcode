@@ -66,6 +66,7 @@ export function createCommitBrowser(deps: CommitBrowserDeps): CommitBrowser {
   let openHash: string | null = null;
   /** Details are re-read only when asked for; a commit's contents cannot change. */
   const detailCache = new Map<string, GitCommitDetailView>();
+  const renderedCommits = new Map<string, HTMLElement>();
 
   more.addEventListener("click", () => {
     limit += PAGE;
@@ -205,6 +206,12 @@ export function createCommitBrowser(deps: CommitBrowserDeps): CommitBrowser {
       // The user may have closed it, or opened another, while this was in flight.
       if (openHash !== commit.hash) return;
 
+      // A status refresh can replace the rows while this detail is loading. Attach the
+      // result to the current row, rather than the detached row that started the read.
+      const current = renderedCommits.get(commit.hash);
+      if (current === undefined) return;
+      wrapper = current;
+
       if (detail === null) {
         deps.notify("Could not read that commit.");
         delete wrapper.dataset["open"];
@@ -223,6 +230,7 @@ export function createCommitBrowser(deps: CommitBrowserDeps): CommitBrowser {
       const commits = await window.adcode.git.log(limit).catch((): GitCommitView[] => []);
 
       list.replaceChildren();
+      renderedCommits.clear();
       empty.hidden = commits.length > 0;
       empty.textContent = "No commits yet.";
       more.hidden = commits.length < limit;
@@ -230,6 +238,7 @@ export function createCommitBrowser(deps: CommitBrowserDeps): CommitBrowser {
       for (const commit of commits) {
         const wrapper = document.createElement("div");
         wrapper.className = "history-commit";
+        renderedCommits.set(commit.hash, wrapper);
         if (openHash === commit.hash) wrapper.dataset["open"] = "true";
 
         const head = document.createElement("button");
