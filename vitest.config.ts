@@ -7,6 +7,11 @@ import { defineConfig } from "vitest/config";
  * with `tsconfig.json`'s `paths` and `apps/desktop/electron.vite.config.ts`.
  */
 const alias = {
+  // The web deployment has its own dependencies. Tests must use one React renderer
+  // and the matching Next.js copy, including Next's externalized runtime imports.
+  "react": resolve(import.meta.dirname, "node_modules/react"),
+  "react-dom": resolve(import.meta.dirname, "node_modules/react-dom"),
+  "next": resolve(import.meta.dirname, "node_modules/next"),
   "@adcode/ads": resolve(import.meta.dirname, "packages/ads/src/index.ts"),
   "@adcode/memory": resolve(import.meta.dirname, "packages/memory/src/index.ts"),
   "@adcode/settings": resolve(import.meta.dirname, "packages/settings/src/index.ts"),

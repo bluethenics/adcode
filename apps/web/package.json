@@ -14,5 +14,8 @@
   "devDependencies": {
     "@opennextjs/cloudflare": "^1.20.2",
     "wrangler": "^4.125.0"
+  },
+  "dependencies": {
+    "next": "^16.3.4"
   }
 }
