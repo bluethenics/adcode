@@ -73,7 +73,7 @@ select {
 }
 
 /*
- * The assistant, at the left edge of the bar.
+ * Compact actions at the edges of the title bar.
  *
  * A sibling of the drag regions for the same reason the menu bar is one: anything the OS
  * resolves as a caption drag swallows the press before the renderer sees it.

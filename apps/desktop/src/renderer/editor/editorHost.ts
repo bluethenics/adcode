@@ -469,7 +469,34 @@ export function createEditorHost(
     const path = active;
     if (line === undefined || path === null) return;
 
+    editor.setPosition({ lineNumber: line, column: 1 });
+    editor.revealLineInCenterIfOutsideViewport(line);
+    editor.focus();
     for (const listener of breakpointListeners) listener(path, line);
+  });
+
+  let breakpointHoverElement: HTMLElement | null = null;
+  editor.onMouseMove((event) => {
+    breakpointHoverElement?.removeAttribute("title");
+    breakpointHoverElement = null;
+    if (event.target.type !== monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) return;
+
+    const line = event.target.position?.lineNumber;
+    const path = active;
+    const target = event.target.element;
+    if (line === undefined || path === null || target === null) return;
+
+    const exists = breakpointsByFile.some(
+      (point) => point.path === path && point.line === line,
+    );
+    target.title = exists
+      ? `Remove breakpoint at line ${String(line)}`
+      : `Add breakpoint at line ${String(line)}`;
+    breakpointHoverElement = target;
+  });
+  editor.onMouseLeave(() => {
+    breakpointHoverElement?.removeAttribute("title");
+    breakpointHoverElement = null;
   });
 
   const definitions = createDefinitions({

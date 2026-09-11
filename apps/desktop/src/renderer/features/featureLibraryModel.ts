@@ -15,6 +15,8 @@ export interface FeatureLibraryFilter {
 export interface PresentedFeatureAction {
   readonly action: FeatureAction;
   readonly enabled: boolean;
+  readonly control: "button" | "switch";
+  readonly checked?: boolean;
   /**
    * What the button says.
    *
@@ -70,7 +72,12 @@ export function featureActionPresentation(
 ): FeatureActionPresentation {
   const presented = feature.actions.map((action): PresentedFeatureAction => {
     if (action.kind === "command") {
-      return { action, enabled: hasCommand(action.command), label: action.label };
+      return {
+        action,
+        enabled: hasCommand(action.command),
+        control: "button",
+        label: action.label,
+      };
     }
 
     if (action.kind === "toggle") {
@@ -78,11 +85,13 @@ export function featureActionPresentation(
       return {
         action,
         enabled: true,
+        control: "switch",
+        checked: current === true,
         label: current === undefined ? action.label : current ? "Turn off" : "Turn on",
       };
     }
 
-    return { action, enabled: true, label: action.label };
+    return { action, enabled: true, control: "button", label: action.label };
   });
 
   const availableAt = presented.findIndex((item) => item.enabled);

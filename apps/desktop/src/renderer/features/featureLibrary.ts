@@ -62,7 +62,8 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
 
   const sheet = document.createElement("section");
   sheet.className = "feature-library";
-  sheet.setAttribute("role", "region");
+  sheet.setAttribute("role", "dialog");
+  sheet.setAttribute("aria-modal", "true");
   sheet.setAttribute("aria-label", "All Features");
 
   const header = document.createElement("header");
@@ -137,10 +138,27 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
   ): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = primary
-      ? "feature-library-open"
-      : "feature-library-secondary";
-    button.textContent = presented.label;
+    if (presented.control === "switch") {
+      button.className = "feature-library-toggle";
+      button.setAttribute("role", "switch");
+      button.setAttribute("aria-checked", String(presented.checked === true));
+      button.setAttribute("aria-label", presented.label);
+      button.title = presented.label;
+
+      const state = document.createElement("span");
+      state.className = "feature-library-toggle-label";
+      state.textContent = presented.checked === true ? "On" : "Off";
+      const track = document.createElement("span");
+      track.className = "feature-library-toggle-track";
+      track.setAttribute("aria-hidden", "true");
+      track.append(document.createElement("span"));
+      button.append(state, track);
+    } else {
+      button.className = primary
+        ? "feature-library-open"
+        : "feature-library-secondary";
+      button.textContent = presented.label;
+    }
     button.disabled = !presented.enabled;
     if (button.disabled)
       button.title = "This feature is not available in this window.";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState, type FormEvent } from "react";
 import {
   authMessage,
   registerEmail,
@@ -9,27 +9,22 @@ import {
   signInGoogle,
 } from "@/lib/firebase";
 
-/**
- * Sign in, or create an account.
- *
- * One card with a mode toggle rather than two pages: the two forms differ by one button
- * label, and a separate route for each doubles the surface for no gain.
- *
- * The providers come first and the email form second, because the providers are one click
- * and the form is four fields and a password to remember. A card that leads with the slow
- * path teaches people to take it.
- *
- * The submit button says what it will do and keeps saying it while it works: a button that
- * turns into a spinner leaves you unsure what you pressed.
- */
+/** One responsive account surface shared by the dashboard, admin, and campaign flow. */
 export function SignInCard({ heading = "Sign in" }: { heading?: string }) {
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState<"google" | "github" | "email" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const panelId = useId();
+  const signInTabId = `${panelId}-sign-in`;
+  const createTabId = `${panelId}-create`;
 
-  const run = async (which: "google" | "github" | "email", action: () => Promise<void>) => {
+  const run = async (
+    which: "google" | "github" | "email",
+    action: () => Promise<void>,
+  ) => {
     setBusy(which);
     setError(null);
     try {
@@ -41,117 +36,156 @@ export function SignInCard({ heading = "Sign in" }: { heading?: string }) {
     }
   };
 
-  const submit = (event: React.FormEvent) => {
+  const submit = (event: FormEvent) => {
     event.preventDefault();
     if (busy !== null) return;
-
     if (password.length < 6 && mode === "up") {
       setError("Use a password of at least six characters.");
       return;
     }
-
     void run("email", () =>
       mode === "in" ? signInEmail(email, password) : registerEmail(email, password),
     );
   };
 
+  const chooseMode = (next: "in" | "up") => {
+    setMode(next);
+    setError(null);
+  };
+
   return (
-    <div className="ios-card auth-card">
-      <h1>{heading}</h1>
-      <p className="field-hint" style={{ marginBottom: 20 }}>
-        {mode === "in"
-          ? "One account covers your earnings and your campaigns."
-          : "Creating an account takes one step. No card required."}
-      </p>
-
-      {error !== null && (
-        <div className="notice" data-tone="error" role="alert">
-          {error}
+    <div className="ios-card auth-card auth-workspace">
+      <section className="auth-context" aria-labelledby={`${panelId}-heading`}>
+        <div className="auth-brand">
+          <span className="auth-brand-mark" aria-hidden="true">A/</span>
+          <span>ADCode</span>
         </div>
-      )}
+        <div className="auth-context-copy">
+          <h1 id={`${panelId}-heading`}>{heading}</h1>
+          <p>
+            {mode === "in"
+              ? "Return to your earnings, campaigns, and desktop account."
+              : "Create one identity for ADCode on the web and desktop."}
+          </p>
+        </div>
+        <ul className="auth-context-list">
+          <li><span aria-hidden="true">&#10003;</span>Earnings stay attached to you</li>
+          <li><span aria-hidden="true">&#10003;</span>Campaigns continue across devices</li>
+          <li><span aria-hidden="true">&#10003;</span>No payment card required</li>
+        </ul>
+        <p className="auth-context-note">Authentication is handled by Firebase.</p>
+      </section>
 
-      <div className="provider-stack">
-        <button
-          type="button"
-          className="btn btn-provider"
-          disabled={busy !== null}
-          onClick={() => void run("github", signInGithub)}
-        >
-          <GithubMark />
-          {busy === "github" ? "Opening GitHub…" : "Continue with GitHub"}
-        </button>
-
-        <button
-          type="button"
-          className="btn btn-provider"
-          disabled={busy !== null}
-          onClick={() => void run("google", signInGoogle)}
-        >
-          <GoogleMark />
-          {busy === "google" ? "Opening Google…" : "Continue with Google"}
-        </button>
-      </div>
-
-      <p className="auth-divider">
-        <span>or use an email address</span>
-      </p>
-
-      <form onSubmit={submit}>
-        <div className="field">
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            className="input"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+      <section
+        className="auth-form-panel"
+        id={panelId}
+        role="tabpanel"
+        aria-labelledby={mode === "in" ? signInTabId : createTabId}
+      >
+        <div className="auth-mode" role="tablist" aria-label="Account action">
+          <button
+            id={signInTabId}
+            type="button"
+            role="tab"
+            aria-controls={panelId}
+            aria-selected={mode === "in"}
+            onClick={() => chooseMode("in")}
+          >
+            Sign in
+          </button>
+          <button
+            id={createTabId}
+            type="button"
+            role="tab"
+            aria-controls={panelId}
+            aria-selected={mode === "up"}
+            onClick={() => chooseMode("up")}
+          >
+            Create account
+          </button>
         </div>
 
-        <div className="field">
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            className="input"
-            type="password"
-            autoComplete={mode === "in" ? "current-password" : "new-password"}
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+        {error !== null && (
+          <div className="notice auth-error" data-tone="error" role="alert">{error}</div>
+        )}
+
+        <div className="provider-stack">
+          <button
+            type="button"
+            className="btn btn-provider"
+            disabled={busy !== null}
+            onClick={() => void run("github", signInGithub)}
+          >
+            <GithubMark />
+            {busy === "github" ? "Opening GitHub..." : "Continue with GitHub"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-provider"
+            disabled={busy !== null}
+            onClick={() => void run("google", signInGoogle)}
+          >
+            <GoogleMark />
+            {busy === "google" ? "Opening Google..." : "Continue with Google"}
+          </button>
         </div>
 
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={busy !== null}
-          style={{ width: "100%" }}
-        >
-          {mode === "in" ? "Sign in" : "Create account"}
-        </button>
-      </form>
+        <p className="auth-divider"><span>or continue with email</span></p>
 
-      <p className="auth-alt">
-        {mode === "in" ? "No account yet? " : "Already have one? "}
-        <button
-          type="button"
-          onClick={() => {
-            setMode(mode === "in" ? "up" : "in");
-            setError(null);
-          }}
-        >
-          {mode === "in" ? "Create one" : "Sign in"}
-        </button>
-      </p>
+        <form className="auth-email-form" onSubmit={submit}>
+          <div className="field">
+            <label htmlFor={`${panelId}-email`}>Email</label>
+            <input
+              id={`${panelId}-email`}
+              className="input"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor={`${panelId}-password`}>Password</label>
+            <div className="auth-password-field">
+              <input
+                id={`${panelId}-password`}
+                className="input"
+                type={showPassword ? "text" : "password"}
+                autoComplete={mode === "in" ? "current-password" : "new-password"}
+                minLength={mode === "up" ? 6 : undefined}
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+              <button
+                type="button"
+                className="auth-password-toggle"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((shown) => !shown)}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" className="btn btn-primary auth-submit" disabled={busy !== null}>
+            {busy === "email"
+              ? mode === "in" ? "Signing in..." : "Creating account..."
+              : mode === "in" ? "Sign in" : "Create account"}
+          </button>
+        </form>
+        <p className="auth-privacy">Your password is sent directly to Firebase Authentication.</p>
+      </section>
     </div>
   );
 }
 
-/* The two marks, inline so the card makes no request to a logo CDN - the same rule the
-   fonts follow, and for the same reason: no third party learns who is signing in. */
-
+/* Inline provider marks avoid a logo-CDN request during authentication. */
 function GithubMark() {
   return (
     <svg viewBox="0 0 16 16" width="17" height="17" aria-hidden="true" fill="currentColor">
@@ -163,22 +197,10 @@ function GithubMark() {
 function GoogleMark() {
   return (
     <svg viewBox="0 0 18 18" width="17" height="17" aria-hidden="true">
-      <path
-        fill="#4285F4"
-        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"
-      />
-      <path
-        fill="#34A853"
-        d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33Z"
-      />
-      <path
-        fill="#EA4335"
-        d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"
-      />
+      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z" />
+      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z" />
+      <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33Z" />
+      <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z" />
     </svg>
   );
 }

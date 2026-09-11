@@ -73,12 +73,25 @@ describe("feature library model", () => {
   it("says which way a switch will go, when it knows where the switch is", () => {
     const minimap = featureFor("adcode.editing.minimap")!;
 
-    expect(featureActionPresentation(minimap, () => true, () => true).primary?.label).toBe(
-      "Turn off",
-    );
-    expect(featureActionPresentation(minimap, () => true, () => false).primary?.label).toBe(
-      "Turn on",
-    );
+    expect(featureActionPresentation(minimap, () => true, () => true).primary).toMatchObject({
+      label: "Turn off",
+      control: "switch",
+      checked: true,
+    });
+    expect(featureActionPresentation(minimap, () => true, () => false).primary).toMatchObject({
+      label: "Turn on",
+      control: "switch",
+      checked: false,
+    });
+  });
+
+  it("keeps commands and settings as buttons", () => {
+    const conflicts = featureFor("adcode.git.mergeConflict")!;
+    const presentation = featureActionPresentation(conflicts, () => true, () => false);
+
+    expect(presentation.primary?.control).toBe("button");
+    expect(presentation.secondary.find((item) => item.action.kind === "setting")?.control)
+      .toBe("button");
   });
 
   it("keeps the catalogue's own wording when no value is to hand", () => {

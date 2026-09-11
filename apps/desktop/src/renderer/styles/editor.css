@@ -78,6 +78,28 @@
  * A glyph from a font is a glyph that is missing on some machine, and a breakpoint that
  * silently renders as a box is worse than one that renders as nothing.
  */
+/* A quiet target appears in the glyph margin beside the line number. It is painted on
+   Monaco's existing visible-line node, so a large file does not need one decoration per
+   line merely to explain where a breakpoint can go. */
+.monaco-editor .margin-view-overlays > div:hover::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 7px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--danger);
+  border-radius: 999px;
+  opacity: 0.68;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.monaco-editor .margin-view-overlays > div:has(.breakpoint-glyph)::before {
+  opacity: 0;
+}
+
 .breakpoint-glyph {
   position: relative;
   cursor: pointer;

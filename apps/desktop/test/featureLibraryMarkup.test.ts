@@ -75,6 +75,36 @@ describe("All Features renderer contract", () => {
     expect(css).toContain("grid-template-columns: 220px minmax(0, 1fr)");
   });
 
+  it("exposes the popup as a modal dialog", () => {
+    expect(LIBRARY).toContain('sheet.setAttribute("role", "dialog")');
+    expect(LIBRARY).toContain('sheet.setAttribute("aria-modal", "true")');
+  });
+
+  it("keeps the results as the bounded scrolling region", () => {
+    const css = readFileSync(CSS_PATH, "utf8");
+
+    expect(css).toMatch(/\.feature-library-body\s*\{[^}]*overflow: hidden;/s);
+    expect(css).toMatch(/\.feature-library-workspace\s*\{[^}]*min-height: 0;[^}]*overflow: hidden;/s);
+    expect(css).toMatch(/\.feature-library-results\s*\{[^}]*overflow-y: auto;/s);
+    expect(css).toMatch(/\.feature-library-workspace-header\s*\{[^}]*position: sticky;/s);
+  });
+
+  it("renders boolean actions as accessible switches", () => {
+    expect(LIBRARY).toContain('button.className = "feature-library-toggle"');
+    expect(LIBRARY).toContain('button.setAttribute("role", "switch")');
+    expect(LIBRARY).toContain('button.setAttribute("aria-checked"');
+  });
+
+  it("places the Assistant launcher immediately below All Features", () => {
+    const featuresAt = HTML.indexOf('id="open-features"');
+    const assistantAt = HTML.indexOf('id="ai-toggle"');
+    const settingsAt = HTML.indexOf('id="open-settings"');
+
+    expect(assistantAt).toBeGreaterThan(featuresAt);
+    expect(settingsAt).toBeGreaterThan(assistantAt);
+    expect(HTML.slice(featuresAt, assistantAt)).toContain("</button>");
+  });
+
   it("does not position or dismiss its own overlay", () => {
     // The shared shell is the only owner of placement and document-level dismissal.
     expect(LIBRARY).not.toContain("positionPopover");
@@ -108,5 +138,11 @@ describe("All Features renderer contract", () => {
     expect(css).toContain("var(--text-primary)");
     expect(css).toContain("backdrop-filter");
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
+  });
+
+  it("keeps the focused search visible in Windows forced-colors mode", () => {
+    const css = readFileSync(CSS_PATH, "utf8");
+
+    expect(css).toMatch(/@media \(forced-colors: active\)[\s\S]*\.feature-library-search:focus[\s\S]*outline: 2px solid Highlight;/);
   });
 });

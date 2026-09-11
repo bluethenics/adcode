@@ -31,6 +31,8 @@ type Shape =
 interface IconSpec {
   readonly shape: Shape;
   readonly colour: string;
+  readonly mark?: string;
+  readonly tone?: string;
 }
 
 /* The palette is the languages' own conventional colours, which is what makes a tree
@@ -74,6 +76,12 @@ const BY_EXTENSION: Readonly<Record<string, IconSpec>> = {
   htm: { shape: "angle", colour: HTML },
   xml: { shape: "angle", colour: "#7b9e3f" },
   svg: { shape: "image", colour: "#ffb13b" },
+  vue: { shape: "angle", colour: "#42b883" },
+  svelte: { shape: "angle", colour: "#ff3e00" },
+  astro: { shape: "angle", colour: "#ff5d01" },
+  graphql: { shape: "braces", colour: "#e535ab" },
+  gql: { shape: "braces", colour: "#e535ab" },
+  prisma: { shape: "database", colour: "#5a67d8" },
   md: { shape: "book", colour: MD },
   markdown: { shape: "book", colour: MD },
   txt: { shape: "document", colour: MD },
@@ -132,6 +140,62 @@ const BY_NAME: Readonly<Record<string, IconSpec>> = {
   "readme.md": { shape: "book", colour: "#42a5f5" },
   license: { shape: "book", colour: LOCK },
   ".env": { shape: "lock", colour: "#e7b416" },
+  "astro.config.mjs": { shape: "angle", colour: "#ff5d01" },
+};
+
+/** Short, language-native marks make neighbouring source types distinct at 13â€“16px. */
+const MARK_BY_EXTENSION: Readonly<Record<string, { mark: string; tone: string }>> = {
+  ts: { mark: "TS", tone: "typescript" },
+  tsx: { mark: "TS", tone: "typescript" },
+  mts: { mark: "TS", tone: "typescript" },
+  cts: { mark: "TS", tone: "typescript" },
+  "d.ts": { mark: "dT", tone: "typescript" },
+  js: { mark: "JS", tone: "javascript" },
+  jsx: { mark: "JS", tone: "javascript" },
+  mjs: { mark: "JS", tone: "javascript" },
+  cjs: { mark: "JS", tone: "javascript" },
+  css: { mark: "#", tone: "css" },
+  scss: { mark: "S", tone: "scss" },
+  less: { mark: "L", tone: "less" },
+  html: { mark: "<>", tone: "html" },
+  htm: { mark: "<>", tone: "html" },
+  vue: { mark: "V", tone: "vue" },
+  svelte: { mark: "S", tone: "svelte" },
+  astro: { mark: "A", tone: "astro" },
+  py: { mark: "Py", tone: "python" },
+  rs: { mark: "Rs", tone: "rust" },
+  go: { mark: "Go", tone: "go" },
+  rb: { mark: "Rb", tone: "ruby" },
+  java: { mark: "J", tone: "java" },
+  kt: { mark: "K", tone: "kotlin" },
+  c: { mark: "C", tone: "c" },
+  h: { mark: "H", tone: "c" },
+  cpp: { mark: "C+", tone: "cpp" },
+  cc: { mark: "C+", tone: "cpp" },
+  hpp: { mark: "H+", tone: "cpp" },
+  cs: { mark: "C#", tone: "csharp" },
+  php: { mark: "php", tone: "php" },
+  swift: { mark: "Sw", tone: "swift" },
+  md: { mark: "M", tone: "markdown" },
+  markdown: { mark: "M", tone: "markdown" },
+  json: { mark: "{}", tone: "json" },
+  jsonc: { mark: "{}", tone: "json" },
+  yml: { mark: "Y", tone: "yaml" },
+  yaml: { mark: "Y", tone: "yaml" },
+  toml: { mark: "T", tone: "config" },
+  graphql: { mark: "G", tone: "graphql" },
+  gql: { mark: "G", tone: "graphql" },
+  prisma: { mark: "P", tone: "prisma" },
+};
+
+const MARK_BY_NAME: Readonly<Record<string, { mark: string; tone: string }>> = {
+  "package.json": { mark: "npm", tone: "npm" },
+  "package-lock.json": { mark: "npm", tone: "npm" },
+  "tsconfig.json": { mark: "TS", tone: "typescript" },
+  "astro.config.mjs": { mark: "A", tone: "astro" },
+  dockerfile: { mark: "D", tone: "docker" },
+  makefile: { mark: "M", tone: "make" },
+  "readme.md": { mark: "R", tone: "readme" },
 };
 
 const DEFAULT: IconSpec = { shape: "document", colour: "#8a8a8e" };
@@ -157,7 +221,7 @@ const SHAPES: Readonly<Record<Shape, string>> = {
 
 /** The icon for a filename, as an `<svg>` ready to insert. */
 export function fileIcon(filename: string): SVGElement {
-  return render(specFor(filename));
+  return render(fileIconSpecFor(filename));
 }
 
 /** The icon for a directory. */
@@ -187,11 +251,41 @@ function specFor(filename: string): IconSpec {
   return BY_EXTENSION[parts.at(-1) ?? ""] ?? DEFAULT;
 }
 
+export function fileIconSpecFor(filename: string): IconSpec & { mark: string; tone: string } {
+  const lower = filename.toLowerCase();
+  const parts = lower.split(".");
+  const compound = parts.length > 2 ? parts.slice(-2).join(".") : "";
+  const presentation = MARK_BY_NAME[lower]
+    ?? MARK_BY_EXTENSION[compound]
+    ?? MARK_BY_EXTENSION[parts.at(-1) ?? ""];
+  return {
+    ...specFor(filename),
+    mark: presentation?.mark ?? "",
+    tone: presentation?.tone ?? "file",
+  };
+}
+
 function render(spec: IconSpec): SVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 16 16");
   svg.setAttribute("class", "file-icon");
   svg.setAttribute("aria-hidden", "true");
+  svg.dataset["fileTone"] = spec.tone ?? spec.shape;
+
+  if (spec.mark !== undefined && spec.mark.length > 0) {
+    const mark = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    mark.setAttribute("x", "8");
+    mark.setAttribute("y", "11.25");
+    mark.setAttribute("text-anchor", "middle");
+    mark.setAttribute("fill", spec.colour);
+    mark.setAttribute("font-family", "system-ui, sans-serif");
+    mark.setAttribute("font-size", spec.mark.length > 2 ? "6.2" : "7.4");
+    mark.setAttribute("font-weight", "760");
+    mark.setAttribute("letter-spacing", "-0.25");
+    mark.textContent = spec.mark;
+    svg.append(mark);
+    return svg;
+  }
 
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
   path.setAttribute("d", SHAPES[spec.shape]);

@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { PortalActions } from "../src/components/PortalActions";
+import { SignInCard } from "../src/components/SignInCard";
 import { ALL_TERMINAL_ASSETS } from "../../../packages/release/src/downloadAssets.ts";
 import { buildSupportRequest } from "../src/lib/support";
 
@@ -61,5 +62,20 @@ describe("global portal actions", () => {
     expect(markup).toContain('href="/dashboard"');
     expect(markup).toContain("User portal");
     expect((markup.match(/class="glass-portal-button(?: glass-portal-button-primary)?"/g) ?? [])).toHaveLength(2);
+  });
+});
+
+describe("sign-in workspace", () => {
+  it("offers provider and email routes inside a responsive two-pane surface", () => {
+    const markup = renderToStaticMarkup(<SignInCard />);
+
+    expect(markup).toContain("auth-workspace");
+    expect(markup).toContain("auth-context");
+    expect(markup).toContain("auth-form-panel");
+    expect(markup).toContain('role="tablist"');
+    expect(markup).toContain('aria-selected="true"');
+    expect(markup).toContain("Continue with GitHub");
+    expect(markup).toContain("Continue with Google");
+    expect(markup).toContain('autoComplete="current-password"');
   });
 });
