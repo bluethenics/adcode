@@ -1,0 +1,120 @@
+/* Model connection workspace. Shared tokens and controls come from design-system.css. */
+.popup-shell[data-popup-id="connect"] .popup-shell-surface {
+  width: min(980px, calc(100vw - 32px));
+  height: min(760px, calc(100vh - 48px));
+}
+.connect-view { container-type: inline-size; }
+.connect-view .connect-panel {
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  background: var(--bg-elevated);
+}
+.connect-view .connect-header { padding: 22px 24px 8px; align-items: flex-start; gap: 16px; }
+.connect-heading-group { min-width: 0; }
+.connect-heading-group .settings-title { font-size: 23px; font-weight: 650; letter-spacing: -.035em; }
+.connect-heading-group > p { margin: 5px 0 0; color: var(--text-secondary); font-size: var(--text-sm); }
+.connect-header > button { flex: none; }
+.connect-view .connect-panel > .help-lede { padding: 0 24px 18px; font-size: var(--text-xs); }
+.connect-view .connect-toolbar { padding: 0 24px 20px; gap: 10px; }
+.connect-view .connect-toolbar .settings-search { min-height: 38px; border-radius: var(--radius-sm); padding: 8px 12px; }
+.connect-view .connect-toolbar > .btn { min-height: 38px; }
+
+.connect-view .connect-body {
+  padding: 0;
+  overflow: hidden;
+  grid-template-columns: 230px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  border-block: 1px solid var(--border-hairline);
+}
+.connect-rail { min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--bg-app); border-right: 1px solid var(--border-hairline); }
+.connect-rail-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 18px 18px 10px; color: var(--text-secondary); font-size: var(--text-xs); font-weight: 550; }
+.connect-rail-heading > span { padding: 1px 6px; border-radius: 5px; background: var(--bg-hover); font-variant-numeric: tabular-nums; }
+.connect-view .connect-list { flex: 1; min-height: 0; padding: 0 10px 12px; border: 0; gap: 5px; scrollbar-width: thin; }
+.connect-view .connect-row {
+  grid-template-columns: 34px minmax(0, 1fr);
+  padding: 11px 10px;
+  gap: 4px 10px;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: none;
+}
+.connect-view .connect-row:hover { background: var(--bg-hover); }
+.connect-view .connect-row[data-selected="true"] { background: var(--surface-sheen), var(--surface-selected); border-color: var(--border-hairline); box-shadow: var(--shadow-control); }
+.connect-view .connect-provider-avatar { width: 34px; height: 34px; font-size: 15px; background: var(--surface-control); color: var(--text-secondary); border: 1px solid var(--border-hairline); }
+.connect-view .connect-row[data-selected="true"] .connect-provider-avatar { background: var(--bg-selected); color: var(--accent); }
+.connect-view .connect-name { font-size: var(--text-sm); font-weight: 550; }
+.connect-view .connect-state { margin: 0; padding: 0; background: transparent; font-size: var(--text-xs); font-weight: 400; line-height: 1.4; }
+
+.connect-view .connect-detail { padding: 24px; background: var(--bg-elevated); scrollbar-width: thin; overscroll-behavior: contain; }
+.connect-detail-title { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 620; letter-spacing: -.03em; }
+.connect-detail-description { margin: 8px 0 0; font-size: var(--text-sm); line-height: 1.55; color: var(--text-secondary); }
+.connect-view .connect-selection { margin: 18px 0; padding: 14px; gap: 10px; background: var(--surface-sheen), var(--bg-app); border-radius: var(--radius-md); }
+.connect-view .connect-selection p { font-size: var(--text-xs); flex-basis: 180px; }
+.connect-key-section { padding: 16px; margin-block: 18px; background: var(--surface-sheen), var(--bg-app); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); }
+.connect-view .connect-subheading { font-size: var(--text-sm); font-weight: 580; margin: 22px 0 12px; }
+.connect-key-section > .connect-subheading { margin-top: 0; }
+.connect-key-section > summary.connect-subheading { margin: 0; cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.connect-key-section > summary::-webkit-details-marker { display: none; }
+.connect-key-section > summary::after { content: "⌄"; color: var(--text-secondary); }
+.connect-key-section[open] > summary::after { transform: rotate(180deg); }
+.connect-key-section > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; border-radius: 3px; }
+.connect-view .connect-selection .btn:disabled { background: var(--bg-selected); color: var(--text-secondary); box-shadow: none; opacity: 1; }
+.connect-key-section .settings-row-description { line-height: 1.6; overflow-wrap: anywhere; }
+.connect-view .connect-key-row { margin: 12px 0; gap: 6px; }
+.connect-view .connect-input { font-size: var(--text-xs); padding: 10px 12px; }
+.connect-view .connect-show-key { padding-inline: 10px; border-radius: var(--radius-sm); background: var(--surface-control); font-weight: 500; }
+.connect-show-key:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.connect-view .connect-actions { gap: 8px; margin: 0; }
+.connect-view .connect-result:empty { display: none; }
+.connect-view .connect-result:not(:empty) { padding: 10px 12px; margin-block: 10px; line-height: 1.5; border-radius: 8px; background: var(--bg-hover); overflow-wrap: anywhere; }
+.connect-view .connect-result[data-tone="error"] { background: color-mix(in srgb, var(--danger) 9%, var(--bg-app)); }
+.connect-view .connect-result[data-tone="ok"] { background: color-mix(in srgb, var(--success) 9%, var(--bg-app)); }
+
+.connect-view .connect-model-search { min-height: 36px; font-size: var(--text-xs); }
+.connect-model-count { margin: 8px 2px 12px; color: var(--text-secondary); font-size: var(--text-xs); }
+.connect-view .connect-models { border-radius: var(--radius-md); background: var(--bg-app); }
+.connect-view .connect-model { width: 100%; align-items: center; min-height: 60px; padding: 12px 14px; gap: 12px; }
+.connect-model-copy { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.connect-view .connect-model-name { font-weight: 550; font-size: var(--text-sm); }
+.connect-model-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 10px var(--font-mono); color: var(--text-secondary); }
+.connect-view .connect-model-marks { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 130px; }
+.connect-model-marks > span { padding: 3px 6px; border: 1px solid var(--border-hairline); border-radius: 5px; color: var(--text-secondary); background: var(--bg-hover); font-size: 10px; }
+.connect-view .connect-model[data-selected="true"] { background: var(--bg-selected); box-shadow: inset 3px 0 0 var(--accent); }
+.connect-view .connect-model:disabled { opacity: .55; cursor: wait; }
+.connect-view .connect-profile-form { margin-top: 22px; gap: 16px; }
+.connect-view .connect-profile-form label { font-size: var(--text-xs); color: var(--text-secondary); }
+.connect-view .connect-back { margin: -8px 0 14px -12px; min-height: 28px; font-size: var(--text-xs); box-shadow: none; }
+.connect-footer { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 20px; color: var(--text-secondary); font-size: var(--text-xs); background: var(--bg-app); }
+.connect-current { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.connect-current::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; background: var(--text-tertiary); }
+.connect-current[data-ready="true"]::before { background: var(--success); }
+.connect-footer > span:last-child { flex: none; }
+
+@container (max-width: 680px) {
+  .connect-view .connect-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 120px minmax(0, 1fr); }
+  .connect-rail { border-right: 0; border-bottom: 1px solid var(--border-hairline); }
+  .connect-rail-heading { padding: 10px 16px 6px; }
+  .connect-view .connect-list { display: flex; overflow-x: auto; padding: 0 10px 8px; }
+  .connect-view .connect-row { flex: 0 0 180px; width: 180px; }
+  .connect-view .connect-toolbar { flex-wrap: nowrap; padding: 0 16px 14px; }
+  .connect-view .connect-toolbar .settings-search { flex-basis: auto; }
+  .connect-view .connect-header { padding: 16px 16px 8px; }
+  .connect-view .connect-panel > .help-lede { padding: 0 16px 14px; }
+  .connect-view .connect-detail { padding: 18px 16px; }
+  .connect-footer { padding-inline: 16px; }
+  .connect-footer > span:last-child { display: none; }
+}
+@container (max-width: 440px) {
+  .connect-heading-group .settings-title { font-size: 20px; }
+  .connect-heading-group > p { font-size: var(--text-xs); }
+  .connect-view .connect-toolbar { flex-wrap: wrap; }
+  .connect-view .connect-toolbar .settings-search { flex-basis: 100%; }
+  .connect-view .connect-toolbar > .btn { min-height: 30px; }
+  .connect-view .connect-key-row { flex-wrap: wrap; }
+  .connect-key-row .connect-input { flex-basis: 100%; }
+  .connect-view .connect-show-key { min-height: 30px; }
+  .connect-view .connect-model { align-items: flex-start; flex-direction: column; }
+  .connect-view .connect-model-marks { max-width: none; }
+  .connect-model-copy { max-width: 100%; }
+}

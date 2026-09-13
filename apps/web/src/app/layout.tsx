@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
+import { WebsiteAnalytics } from "@/components/WebsiteAnalytics";
 import { Inter_Tight, JetBrains_Mono, Inter } from "next/font/google";
 import { SITE, VERIFICATION, url } from "@/lib/site";
 import { Nav } from "@/components/Nav";
@@ -7,6 +9,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { AuthProvider } from "@/components/AuthProvider";
 import { organisation, softwareApplication, webSite } from "@/lib/schema";
 import "./globals.css";
+import "./design-system.css";
 
 /*
  * Self-hosted through next/font, so the page makes no request to a font CDN. That keeps
@@ -126,6 +129,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Nav />
           <main id="main">{children}</main>
           <Footer />
+          <Suspense fallback={null}><WebsiteAnalytics /></Suspense>
         </AuthProvider>
       </body>
     </html>

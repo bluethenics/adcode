@@ -30,6 +30,7 @@
     "smoke": "node scripts/smoke.mjs",
     "smoke:ads": "node scripts/smoke-ads.mjs",
     "smoke:all": "node scripts/smoke.mjs && node scripts/smoke-ads.mjs",
+    "design:check": "node scripts/design-system-check.cjs",
     "release-note": "node scripts/release-note.mjs",
     "verify": "npm run typecheck && npm run firewall && npm run test",
     "icons": "electron scripts/make-icons.mjs",

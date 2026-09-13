@@ -60,7 +60,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   panel.className = "connect-panel";
 
   const header = document.createElement("header");
-  header.className = "settings-header";
+  header.className = "settings-header connect-header";
 
   const title = document.createElement("h1");
   title.className = "settings-title";
@@ -73,7 +73,12 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   done.title = "Close Connect a model";
   done.addEventListener("click", () => api.close());
 
-  header.append(title, done);
+  const headingGroup = document.createElement("div");
+  headingGroup.className = "connect-heading-group";
+  const subtitle = document.createElement("p");
+  subtitle.textContent = "Your assistant. Your choice of model.";
+  headingGroup.append(title, subtitle);
+  header.append(headingGroup, done);
 
   const search = document.createElement("input");
   search.className = "settings-search";
@@ -93,24 +98,51 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
 
   const list = document.createElement("div");
   list.className = "connect-list";
+  list.setAttribute("aria-label", "Model providers");
+  const rail = document.createElement("aside");
+  rail.className = "connect-rail";
+  const railHeading = document.createElement("h2");
+  railHeading.className = "connect-rail-heading";
+  railHeading.textContent = "Providers";
+  const providerCount = document.createElement("span");
+  railHeading.append(providerCount);
+  rail.append(railHeading, list);
 
   const detail = document.createElement("div");
   detail.className = "connect-detail";
 
-  body.append(list, detail);
+  body.append(rail, detail);
   const add = document.createElement("button");
   add.className = "btn btn-primary";
-  add.textContent = "Add API connection";
+  add.textContent = "+ Add connection";
   add.addEventListener("click", () => renderConnection());
   const toolbar = document.createElement("div");
   toolbar.className = "connect-toolbar";
   toolbar.append(search, add);
-  panel.append(header, lede, toolbar, body);
+  const footer = document.createElement("footer");
+  footer.className = "connect-footer";
+  const connectionStatus = document.createElement("span");
+  connectionStatus.className = "connect-current";
+  connectionStatus.setAttribute("role", "status");
+  const catalogueStatus = document.createElement("span");
+  footer.append(connectionStatus, catalogueStatus);
+  panel.append(header, lede, toolbar, body, footer);
   element.append(panel);
 
   function renderConnection(existing?: ConnectionProfile): void {
+    panel.dataset["mode"] = "profile";
+    renderProviders();
     detail.replaceChildren();
+    const back = document.createElement("button");
+    back.className = "ad-btn ad-btn-tertiary connect-back";
+    back.type = "button";
+    back.textContent = "Back to provider";
+    back.addEventListener("click", () => {
+      renderDetail();
+      renderProviders();
+    });
     const heading = document.createElement("h2");
+    heading.className = "connect-detail-title";
     heading.textContent = existing ? "Edit connection" : "New API connection";
     const form = document.createElement("form");
     form.className = "connect-profile-form";
@@ -158,7 +190,11 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     save.className = "btn btn-primary";
     save.textContent = "Save connection";
     form.append(preset, explanation, save, result);
-    detail.append(heading, form);
+    const description = document.createElement("p");
+    description.className = "connect-detail-description";
+    description.textContent = "Connect an OpenAI-compatible service or a model running locally.";
+    detail.append(back, heading, description, form);
+    name.focus();
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       void (async () => {
@@ -181,8 +217,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
           await deps.write("adcode.ai.connections", JSON.stringify(profiles));
           selected = profile.id;
           status = await deps.status();
-          renderProviders();
           renderDetail();
+          renderProviders();
         } catch (error) {
           result.textContent =
             error instanceof Error
@@ -210,6 +246,14 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   function renderProviders(): void {
     list.replaceChildren();
     if (status === null) return;
+    providerCount.textContent = String(status.providers.filter(matches).length);
+    const current = status.providers.find((provider) => provider.id === status?.activeProvider);
+    connectionStatus.textContent = status.ready
+      ? `${current?.displayName ?? status.activeProvider} · ${status.activeModel || "Default model"}`
+      : "Choose a provider to get started";
+    connectionStatus.dataset["ready"] = String(status.ready);
+    catalogueStatus.textContent = status.catalogueIsLive ? "Live model catalogue" : "Bundled model catalogue";
+    catalogueStatus.title = `Catalogue updated ${status.catalogueTakenOn}`;
 
     for (const provider of status.providers) {
       if (!matches(provider)) continue;
@@ -217,7 +261,9 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       const row = document.createElement("button");
       row.type = "button";
       row.className = "connect-row";
-      row.dataset["selected"] = String(provider.id === selected);
+      const isSelected = provider.id === selected && panel.dataset["mode"] !== "profile";
+      row.dataset["selected"] = String(isSelected);
+      row.setAttribute("aria-pressed", String(isSelected));
       row.dataset["active"] = String(provider.id === status.activeProvider);
 
       const avatar = document.createElement("span");
@@ -237,7 +283,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         : !provider.needsKey
         ? "no key needed"
         : provider.hasKey
-          ? "connected"
+          ? "key saved"
           : provider.transport === "unsupported"
             ? "needs an address"
             : "needs a key";
@@ -251,8 +297,10 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       row.append(avatar, name, state);
       row.addEventListener("click", () => {
         selected = provider.id;
-        renderProviders();
         renderDetail();
+        renderProviders();
+        // Rebuilding the list must not leave keyboard focus on a removed button.
+        list.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
       });
 
       list.append(row);
@@ -267,6 +315,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   }
 
   function renderDetail(): void {
+    panel.dataset["mode"] = "provider";
     detail.replaceChildren();
     if (status === null) return;
 
@@ -280,9 +329,17 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     }
 
     const heading = document.createElement("h2");
-    heading.className = "settings-group-title";
+    heading.className = "connect-detail-title";
     heading.textContent = provider.displayName;
     detail.append(heading);
+    const description = document.createElement("p");
+    description.className = "connect-detail-description";
+    description.textContent = provider.transport === "unsupported"
+      ? "Add an API connection with this provider's endpoint to get started."
+      : provider.needsKey
+        ? "Connect your account, then choose a model for your assistant."
+        : "Run your assistant with a local model. No API key required.";
+    detail.append(description);
     const selection = document.createElement("div");
     selection.className = "connect-selection";
     const selectionText = document.createElement("p");
@@ -385,6 +442,13 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     /* ── The key ──────────────────────────────────────────────────────── */
 
     if (provider.needsKey) {
+      const keySection = document.createElement("details");
+      keySection.className = "connect-key-section";
+      keySection.open = !provider.hasKey;
+      const keyHeading = document.createElement("summary");
+      keyHeading.className = "connect-subheading";
+      keyHeading.textContent = provider.hasKey ? "API key saved · Manage key" : "API key";
+      keySection.append(keyHeading);
       const keyRow = document.createElement("div");
       keyRow.className = "connect-key-row";
 
@@ -404,10 +468,12 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       showKey.textContent = "Show";
       showKey.title = "Show or hide the key";
       showKey.setAttribute("aria-label", "Show or hide the key");
+      showKey.setAttribute("aria-pressed", "false");
       showKey.addEventListener("click", () => {
         const showing = keyField.type === "text";
         keyField.type = showing ? "password" : "text";
         showKey.textContent = showing ? "Show" : "Hide";
+        showKey.setAttribute("aria-pressed", String(!showing));
         keyField.focus();
       });
 
@@ -438,6 +504,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
 
       const result = document.createElement("p");
       result.className = "connect-result";
+      result.setAttribute("role", "status");
+      result.setAttribute("aria-live", "polite");
 
       const check = document.createElement("button");
       check.className = "btn btn-primary";
@@ -447,10 +515,13 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         if (key.length === 0) {
           result.textContent = "Paste a key first.";
           result.dataset["tone"] = "warn";
+          keyField.focus();
           return;
         }
 
         check.disabled = true;
+        check.textContent = "Checking connection…";
+        keyRow.setAttribute("aria-busy", "true");
         result.dataset["tone"] = "";
         result.textContent = "Asking the provider…";
 
@@ -490,10 +561,15 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
           })
           .catch((error) => {
             check.disabled = false;
+            result.dataset["tone"] = "error";
             result.textContent =
               error instanceof Error
                 ? error.message
                 : "Connection check failed.";
+          }).finally(() => {
+            check.disabled = false;
+            check.textContent = "Check and save";
+            keyRow.removeAttribute("aria-busy");
           });
       });
 
@@ -503,30 +579,37 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         const forget = document.createElement("button");
         forget.className = "btn btn-outline";
         forget.textContent = "Forget key";
+        forget.dataset["danger"] = "true";
         forget.addEventListener("click", () => {
+          forget.disabled = true;
           void deps.clearKey(provider.id).then(async (next) => {
             status = next;
             renderProviders();
             renderDetail();
+          }).catch((error: unknown) => {
+            result.dataset["tone"] = "error";
+            result.textContent = error instanceof Error ? error.message : "Could not forget key.";
+            forget.disabled = false;
           });
         });
         actions.append(forget);
       }
 
-      detail.append(keyRow, actions, result);
+      keySection.append(keyRow, actions, result);
 
       const stored = document.createElement("p");
       stored.className = "settings-row-description";
       stored.textContent =
         "Keys are kept in this computer's own password store, never in a settings file, and are never sent anywhere except to the provider you chose.";
-      detail.append(stored);
+      keySection.append(stored);
 
       if (provider.doc !== null) {
         const link = document.createElement("p");
         link.className = "settings-row-description";
         link.textContent = `Where to get one: ${provider.doc}`;
-        detail.append(link);
+        keySection.append(link);
       }
+      detail.append(keySection);
     }
 
     /* ── The models ───────────────────────────────────────────────────── */
@@ -536,6 +619,19 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       modelsHeading.className = "connect-subheading";
       modelsHeading.textContent = "Models";
       detail.append(modelsHeading);
+
+      const modelSearch = document.createElement("input");
+      modelSearch.type = "search";
+      modelSearch.className = "ad-input connect-model-search";
+      modelSearch.placeholder = `Search ${provider.models.length} models…`;
+      modelSearch.setAttribute("aria-label", `Search ${provider.displayName} models`);
+      const modelCount = document.createElement("p");
+      modelCount.className = "connect-model-count";
+      modelCount.setAttribute("role", "status");
+      const modelFeedback = document.createElement("p");
+      modelFeedback.className = "connect-result";
+      modelFeedback.setAttribute("role", "status");
+      detail.append(modelSearch, modelCount, modelFeedback);
 
       const models = document.createElement("div");
       models.className = "connect-models";
@@ -548,24 +644,33 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
           provider.id === status.activeProvider &&
             model.id === status.activeModel,
         );
+        row.setAttribute("aria-pressed", row.dataset["selected"]!);
+        row.dataset["search"] = `${model.name} ${model.id}`.toLowerCase();
 
         const name = document.createElement("span");
         name.className = "connect-model-name";
         name.textContent = model.name;
+        const copy = document.createElement("span");
+        copy.className = "connect-model-copy";
+        const id = document.createElement("span");
+        id.className = "connect-model-id";
+        id.textContent = model.id;
+        copy.append(name, id);
 
         const marks = document.createElement("span");
         marks.className = "connect-model-marks";
         // Tool calls are the one capability that changes what this editor may do with a
         // model: without them the agent cannot read a file, and it is a chat box.
-        marks.textContent = [
-          model.toolCall ? "tools" : "no tools",
-          model.reasoning ? "reasoning" : "",
-        ]
-          .filter((mark) => mark.length > 0)
-          .join(" · ");
+        for (const capability of [model.toolCall ? "Tools" : "Chat only", ...(model.reasoning ? ["Reasoning"] : [])]) {
+          const badge = document.createElement("span");
+          badge.textContent = capability;
+          marks.append(badge);
+        }
 
-        row.append(name, marks);
+        row.append(copy, marks);
         row.addEventListener("click", () => {
+          row.disabled = true;
+          modelFeedback.textContent = `Selecting ${model.name}…`;
           void deps
             .write("adcode.ai.provider", provider.id)
             .then(() => deps.write("adcode.ai.model", model.id))
@@ -573,6 +678,10 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
               status = await deps.status();
               renderProviders();
               renderDetail();
+            }).catch((error: unknown) => {
+              row.disabled = false;
+              modelFeedback.dataset["tone"] = "error";
+              modelFeedback.textContent = error instanceof Error ? error.message : "Could not select this model.";
             });
         });
 
@@ -580,6 +689,17 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       }
 
       detail.append(models);
+      const filterModels = () => {
+        const needle = modelSearch.value.trim().toLowerCase();
+        let count = 0;
+        for (const row of models.querySelectorAll<HTMLElement>(".connect-model")) {
+          row.hidden = !row.dataset["search"]?.includes(needle);
+          if (!row.hidden) count++;
+        }
+        modelCount.textContent = count === 0 ? "No models match your search." : `${count} model${count === 1 ? "" : "s"} available`;
+      };
+      modelSearch.addEventListener("input", filterModels);
+      filterModels();
     } else if (provider.id === "custom") {
       const modelField = document.createElement("input");
       modelField.className = "input connect-input";
@@ -628,13 +748,34 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   }
 
   async function load(): Promise<void> {
-    status = await deps.status();
-    selected ??= status.activeProvider;
+    body.setAttribute("aria-busy", "true");
+    connectionStatus.textContent = "Loading providers…";
+    try {
+      status = await deps.status();
+      if (!open) return;
+      selected ??= status.activeProvider;
 
-    lede.textContent = "Choose the model your assistant uses. Connect a provider or add your own API endpoint.";
+      lede.textContent = "Choose the model your assistant uses. Connect a provider or add your own API endpoint.";
 
-    renderProviders();
-    renderDetail();
+      renderDetail();
+      renderProviders();
+    } catch (error) {
+      if (!open) return;
+      detail.replaceChildren();
+      const message = document.createElement("p");
+      message.className = "connect-result";
+      message.dataset["tone"] = "error";
+      message.setAttribute("role", "alert");
+      message.textContent = error instanceof Error ? error.message : "Could not load providers.";
+      const retry = document.createElement("button");
+      retry.className = "ad-btn";
+      retry.textContent = "Try again";
+      retry.addEventListener("click", () => { void load(); });
+      detail.append(message, retry);
+      connectionStatus.textContent = "Providers unavailable";
+    } finally {
+      body.removeAttribute("aria-busy");
+    }
   }
 
   const api: ConnectView = {

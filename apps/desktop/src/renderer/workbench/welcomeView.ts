@@ -89,11 +89,11 @@ export function createWelcomeView(deps: WelcomeViewDeps): WelcomeView {
 
   const title = document.createElement("h1");
   title.className = "welcome-title";
-  title.textContent = "ADCode";
+  title.textContent = "Welcome to Adcode";
 
   const tagline = document.createElement("p");
   tagline.className = "welcome-tagline";
-  tagline.textContent = "An ad-supported, AI-native editor.";
+  tagline.textContent = "Code. Build. Earn.";
 
   const version = document.createElement("p");
   version.className = "welcome-version";

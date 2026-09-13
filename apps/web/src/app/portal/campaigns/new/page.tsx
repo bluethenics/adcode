@@ -1,4 +1,5 @@
 "use client";
+import { trackWebsiteEvent } from "@/lib/websiteAnalytics";
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -126,6 +127,7 @@ export function NewCampaignForm() {
       return;
     }
 
+    if (account.ok) trackWebsiteEvent("advertiser_created");
     setStep("Creating the campaign…");
     const campaign = await apiFetch<CampaignView>({
       path: "/portal/campaigns",
@@ -146,6 +148,7 @@ export function NewCampaignForm() {
       return;
     }
 
+    trackWebsiteEvent("campaign_created");
     setStep("Publishing your card…");
     const creative = await apiFetch<CreativeView>({
       path: "/portal/creatives",

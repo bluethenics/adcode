@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { detectPlatform, installCommand, installRoute, type Platform } from "@/lib/platform";
 import { SITE } from "@/lib/site";
+import { trackWebsiteEvent } from "@/lib/websiteAnalytics";
 
 /**
  * The one thing the hero asks a visitor to do, chosen for the machine they are on.
@@ -42,6 +43,7 @@ export function HeroInstall() {
     if (command === null) return;
     try {
       await navigator.clipboard.writeText(command);
+      trackWebsiteEvent("install_copy");
       setCopied(true);
     } catch {
       // A denied clipboard permission, or an insecure origin. The command is selectable

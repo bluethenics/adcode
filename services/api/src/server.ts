@@ -99,6 +99,7 @@ import { PAYOUT_FIELD_KINDS } from "./payoutCorridors.ts";
 import { createMemoryStore } from "./memoryStore.ts";
 import { isSafeAssetKey } from "./assets.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
+import { parseWebsiteEvents, summarizeWebsiteEvents, type WebsiteAnalyticsStore } from "./websiteAnalytics.ts";
 
 export interface ApiServer {
   url: string;
@@ -214,6 +215,7 @@ function firstHeader(value: string | string[] | undefined): string | undefined {
 }
 
 export interface ApiOptions {
+  websiteAnalytics?: WebsiteAnalyticsStore;
   port?: number;
   store?: Store;
   verifier?: TokenVerifier;
@@ -478,6 +480,29 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
+    if (path === "/v1/website-events" && req.method === "POST") {
+      // Public collection, but browser submissions must come from the configured site.
+      if (req.headers.origin !== siteOrigin) {
+        send(res, 403, { error: "origin" }, cors);
+        return;
+      }
+      if (!options.websiteAnalytics) { send(res, 503, { error: "analytics-unavailable" }, cors); return; }
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const events = parseWebsiteEvents(raw, clock.now());
+      if (!events) { send(res, 400, { error: "malformed events" }, cors); return; }
+      // A shared, persistent ceiling bounds anonymous writes even if session IDs rotate.
+      const minute = Math.floor(clock.now() / 60000) * 60000;
+      if (await store.bumpRequestCount("website-analytics-global", minute) > 600 ||
+          await store.bumpRequestCount(`website-session:${events[0]!.session}`, minute) > 30) {
+        send(res, 429, { error: "rate-limited" }, { ...cors, "retry-after": "60" }); return;
+      }
+      if (events.some(e => e.session !== events[0]!.session)) { send(res, 400, { error: "mixed sessions" }, cors); return; }
+      await options.websiteAnalytics.append(events);
+      send(res, 200, { accepted: events.length }, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+
     const auth = await authenticate({ store, verifier, clock }, req.headers.authorization);
     if (!auth.ok) {
       // A ban is 403 rather than 401: the credentials are fine, the answer is still no,
@@ -540,6 +565,16 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       if (result.ok) send(res, 200, result.value, cors);
       else send(res, PAYOUT_STATUS[result.error], { error: result.error }, cors);
     };
+
+    if (path === "/v1/admin/website-analytics" && req.method === "GET") {
+      if (!options.websiteAnalytics) { send(res, 503, { error: "analytics-unavailable" }, cors); return; }
+      const days = Math.min(90, daysFrom(url, 30));
+      const end = Math.floor(clock.now() / 86400000) * 86400000 + 86400000;
+      const start = end - days * 86400000;
+      const result = await options.websiteAnalytics.read(start, end);
+      send(res, 200, summarizeWebsiteEvents(result.events, start, end, result.truncated), { ...cors, "cache-control": "no-store" });
+      return;
+    }
 
     if (path === "/v1/admin/overview" && req.method === "GET") {
       send(res, 200, await handleOverview({ store, clock }, auth.uid), cors);

@@ -102,7 +102,7 @@ describe("the admin rail", () => {
    */
   const items = ADMIN_NAV.flatMap((group) => group.items);
 
-  it("keeps thirteen destinations in six groups", () => {
+  it("includes website analytics alongside the existing destinations in six groups", () => {
     expect(ADMIN_NAV.map((group) => group.label)).toEqual([
       "Now",
       "Queues",
@@ -113,6 +113,7 @@ describe("the admin rail", () => {
     ]);
     expect(items.map((item) => item.href)).toEqual([
       "/admin",
+      "/admin/analytics",
       "/admin/review",
       "/admin/review?tab=feedback",
       "/admin/money",

@@ -12,6 +12,7 @@
  */
 import type {
   AgentEvent,
+  ImageBlock,
   Message,
   Provider,
   ProviderRequest,
@@ -57,18 +58,35 @@ export interface AgentDeps {
  * A deliberately conservative reservation estimate. It includes the maximum possible
  * output, current conversation, system instruction, and tool schemas before a provider
  * request begins. Provider-specific actual usage can later replace the reservation.
+ *
+ * Image bytes are counted as a flat per-image allowance, not as text: providers charge
+ * roughly a thousand-plus tokens per image, while the base64 itself would stringify to
+ * hundreds of thousands of "tokens" and make every reservation blow the budget.
  */
 export function estimateRequestTokens(request: ProviderRequest): number {
-  const context = JSON.stringify({
-    system: request.system,
-    messages: request.messages,
-    tools: request.tools,
-  });
-  return request.maxTokens + Math.ceil(context.length / 3) + 256;
+  const IMAGE_TOKENS = 1600;
+  let images = 0;
+  const messages = request.messages.map((message) => ({
+    ...message,
+    content: message.content.map((block) => {
+      if (block.type !== "image") return block;
+      images += 1;
+      return { type: "text", text: `[image ${(block as ImageBlock).data.length} bytes base64]` };
+    }),
+  }));
+  const context = JSON.stringify({ system: request.system, messages, tools: request.tools });
+  return request.maxTokens + Math.ceil(context.length / 3) + images * IMAGE_TOKENS + 256;
+}
+
+/** Extra turns input beyond the text. Everything optional, so old callers keep working. */
+export interface AgentSendOptions {
+  /** Images attached to this turn. Replay turns never carry them. */
+  readonly images?: readonly ImageBlock[];
+  readonly signal?: AbortSignal;
 }
 
 export interface Agent {
-  send(text: string, signal?: AbortSignal): AsyncIterable<AgentEvent>;
+  send(text: string, options?: AgentSendOptions): AsyncIterable<AgentEvent>;
   cancel(): void;
   history(): readonly Message[];
   reset(): void;
@@ -96,10 +114,11 @@ export function createAgent(deps: AgentDeps): Agent {
     }
   }
 
-  async function* send(text: string, externalSignal?: AbortSignal): AsyncIterable<AgentEvent> {
+  async function* send(text: string, options?: AgentSendOptions): AsyncIterable<AgentEvent> {
     controller?.abort();
     controller = new AbortController();
     const signal = controller.signal;
+    const externalSignal = options?.signal;
     const abortFromExternal = (): void => controller?.abort();
     if (externalSignal?.aborted === true) controller.abort();
     else externalSignal?.addEventListener("abort", abortFromExternal, { once: true });
@@ -109,7 +128,13 @@ export function createAgent(deps: AgentDeps): Agent {
         yield { kind: "cancelled" };
         return;
       }
-      messages.push({ role: "user", content: [{ type: "text", text }] });
+      // Images ride with the turn that attached them, ahead of the text - and only
+      // that turn. Follow-up tool-result replays are text-only, which keeps the
+      // image out of every subsequent request body in the loop.
+      messages.push({
+        role: "user",
+        content: [...(options?.images ?? []), { type: "text", text }],
+      });
 
       for (let turn = 0; turn < MAX_TURNS; turn++) {
       const assistantContent: Array<{ type: "text"; text: string } | ToolCallBlock> = [];

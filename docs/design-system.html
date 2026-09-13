@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adcode — Design system</title>
+  <link rel="stylesheet" href="../apps/desktop/src/renderer/styles/tokens.css">
+  <link rel="stylesheet" href="../apps/desktop/src/renderer/styles/design-system.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 28px; background: var(--surface-sheen), var(--bg-app); color: var(--text-primary); font: 13px/1.5 var(--font-ui); }
+    header, footer { display: flex; justify-content: space-between; align-items: center; gap: 20px; max-width: 1400px; margin: auto; }
+    h1 { margin: 0; font-size: 32px; font-weight: 650; letter-spacing: -.04em; }
+    h2 { margin: 0 0 18px; font-size: 15px; font-weight: 550; color: var(--text-secondary); }
+    p { margin: 0; color: var(--text-secondary); }
+    main { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; max-width: 1400px; margin: 24px auto; }
+    section { padding: 20px; min-width: 0; }
+    .stack { display: grid; gap: 12px; }
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .span-2 { grid-column: span 2; }
+    .large-title { font-size: 30px; line-height: 1.2; letter-spacing: -.03em; font-weight: 650; color: var(--text-primary); }
+    .ad-card-row { padding: 12px; }
+    .ad-menu { position: static; min-width: 0; box-shadow: none; }
+    .ad-menu[popover] { position: fixed; margin: auto; width: 220px; box-shadow: var(--shadow-floating); }
+    .meter { display: grid; grid-template-columns: 1fr 36px; align-items: center; gap: 12px; }
+    .meter .ad-progress { height: 9px; }
+    .ad-notif { align-items: center; }
+    .ad-notif .ad-icon-btn { width: 24px; height: 24px; border: 0; }
+    .sample-scroll { height: 94px; overflow: auto; }
+    .sample-scroll p { padding: 8px 0; }
+    .tip-wrap { position: relative; display: inline-flex; }
+    .tip-wrap .ad-tooltip { visibility: hidden; position: absolute; bottom: calc(100% + 8px); left: 0; width: 170px; }
+    .tip-wrap:is(:hover, :focus-within) .ad-tooltip { visibility: visible; }
+    .theme-select { width: 130px; }
+    svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    footer { font-size: 11px; color: var(--text-secondary); }
+    @media (max-width: 1050px) { main { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { body { padding: 16px; } main { grid-template-columns: 1fr; } .span-2 { grid-column: auto; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>adcode</h1><p>Design system · macOS / iOS inspired</p></div>
+    <label class="ad-field">Appearance<select class="ad-select theme-select" id="theme"><option value="dark">Dark</option><option value="light">Light</option><option value="midnight">Midnight</option></select></label>
+  </header>
+  <main>
+    <section class="ad-card"><h2>Buttons</h2><div class="stack">
+      <button class="ad-btn ad-btn-primary" data-demo="Primary action">Primary Button</button>
+      <button class="ad-btn" data-demo="Secondary action">Secondary Button</button>
+      <button class="ad-btn ad-btn-tertiary" data-demo="Tertiary action">Tertiary Button</button>
+      <button class="ad-btn ad-btn-destructive" data-demo="Destructive action preview">Destructive Button</button>
+      <button class="ad-btn" disabled>Disabled Button</button>
+      <div class="row"><button class="ad-icon-btn" aria-label="Favorite" aria-pressed="false" id="favorite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 5a5 5 0 0 0-8 1 5 5 0 0 0-8-1c-4 5 8 14 8 14S24 10 20 5Z"/></svg></button><button class="ad-icon-btn" popovertarget="actions" aria-label="More actions">···</button><span>Icon buttons</span></div>
+    </div></section>
+    <section class="ad-card"><h2>Toggles &amp; selection</h2><div class="stack">
+      <label class="ad-switch"><input type="checkbox" role="switch" checked> Enabled</label>
+      <label class="ad-switch"><input type="checkbox" role="switch"> Off</label>
+      <label class="ad-switch"><input type="checkbox" role="switch" disabled> Disabled</label>
+      <label class="ad-check"><input type="checkbox" checked> Checked</label>
+      <label class="ad-check"><input type="checkbox"> Unchecked</label>
+      <label class="ad-radio"><input type="radio" name="choice" checked> Selected</label>
+      <label class="ad-radio"><input type="radio" name="choice"> Alternative</label>
+    </div></section>
+    <section class="ad-card"><h2>Inputs</h2><div class="stack">
+      <label class="ad-field">Project name<input class="ad-input" placeholder="My project"></label>
+      <label class="ad-field">Search<span class="ad-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 5 5"/></svg><input type="search" placeholder="Search…"></span></label>
+      <label class="ad-field">Password<input class="ad-input" type="password" value="sample-password" autocomplete="off"></label>
+      <label class="ad-field">Environment<select class="ad-select"><option>Development</option><option>Preview</option><option>Production</option></select></label>
+      <label class="ad-field">Unavailable<input class="ad-input" value="Read-only example" disabled></label>
+    </div></section>
+    <section class="ad-card"><h2>Sliders &amp; progress</h2><div class="stack">
+      <label class="ad-field">Volume<div class="meter"><input class="ad-slider" type="range" value="50" aria-label="Volume"><output>50%</output></div></label>
+      <label class="ad-field">Brightness<div class="meter"><input class="ad-slider" type="range" value="75" aria-label="Brightness"><output>75%</output></div></label>
+      <label class="ad-field">Build progress<div class="meter"><progress class="ad-progress" value="70" max="100">70%</progress><span>70%</span></div></label>
+      <div class="meter"><div class="ad-progress" data-tone="success" role="progressbar" aria-label="Installation" aria-valuenow="42" aria-valuemin="0" aria-valuemax="100"><span style="width:42%"></span></div><span>42%</span></div>
+      <p>Illustrative progress values</p>
+    </div></section>
+    <section class="ad-card"><h2>Navigation &amp; menus</h2><nav class="ad-nav" aria-label="Sample navigation">
+      <a class="ad-nav-item" href="#overview" aria-current="page">⌂ &nbsp; Home</a>
+      <a class="ad-nav-item" href="#cards">▣ &nbsp; Projects</a>
+      <a class="ad-nav-item" href="#widgets">◷ &nbsp; Widgets</a>
+    </nav><hr style="border:0;border-top:1px solid var(--border-hairline);margin:18px 0"><div class="ad-menu">
+      <button class="ad-menu-item" data-demo="New file">New File <span class="ad-menu-kbd">⌘ N</span></button>
+      <button class="ad-menu-item" data-demo="Rename">Rename <span class="ad-menu-kbd">⌘ R</span></button>
+      <button class="ad-menu-item" data-demo="Delete preview" data-destructive="true">Delete</button>
+    </div></section>
+    <section class="ad-card span-2" id="overview"><h2>Tabs &amp; typography</h2>
+      <div class="ad-tabs" role="tablist" aria-label="Sample workspace">
+        <button class="ad-tab" id="overview-tab" role="tab" aria-controls="overview-panel" aria-selected="true">Overview</button>
+        <button class="ad-tab" id="files-tab" role="tab" aria-controls="files-panel" aria-selected="false" tabindex="-1">Files</button>
+        <button class="ad-tab" id="settings-tab" role="tab" aria-controls="settings-panel" aria-selected="false" tabindex="-1">Settings</button>
+      </div>
+      <div id="overview-panel" role="tabpanel" aria-labelledby="overview-tab" tabindex="0" class="stack" style="padding-top:24px"><p class="large-title">Build something great.</p><p>Clean type, quiet surfaces, and controls that feel familiar.</p><p>Code. Build. Earn.</p><div class="row"><button class="ad-btn ad-btn-primary" data-demo="Dialog">Open dialog</button><span class="tip-wrap"><button class="ad-icon-btn" aria-label="About tooltips" aria-describedby="tip">ⓘ</button><span class="ad-tooltip" id="tip" role="tooltip">Helpful context, on hover or keyboard focus.</span></span></div></div>
+      <div id="files-panel" role="tabpanel" aria-labelledby="files-tab" tabindex="0" hidden><p style="padding-top:24px">Your files appear here. This gallery contains sample controls only.</p></div>
+      <div id="settings-panel" role="tabpanel" aria-labelledby="settings-tab" tabindex="0" hidden><label class="ad-field" style="padding-top:24px">Notes<textarea class="ad-textarea" placeholder="Write a note…"></textarea></label></div>
+    </section>
+    <section class="ad-card"><h2>Notifications</h2><div class="stack" id="notifications">
+      <article class="ad-notif" data-tone="success"><span class="ad-notif-dot" aria-hidden="true">✓</span><div class="ad-notif-copy"><strong>Success</strong><p class="ad-notif-body">Your project has been built.</p></div><button class="ad-icon-btn" aria-label="Dismiss success">×</button></article>
+      <article class="ad-notif" data-tone="info"><span class="ad-notif-dot" aria-hidden="true">i</span><div class="ad-notif-copy"><strong>Information</strong><p class="ad-notif-body">An update is available.</p></div><button class="ad-icon-btn" aria-label="Dismiss information">×</button></article>
+      <article class="ad-notif" data-tone="warning"><span class="ad-notif-dot" aria-hidden="true">!</span><div class="ad-notif-copy"><strong>Warning</strong><p class="ad-notif-body">Check your configuration.</p></div><button class="ad-icon-btn" aria-label="Dismiss warning">×</button></article>
+      <article class="ad-notif" data-tone="error"><span class="ad-notif-dot" aria-hidden="true">×</span><div class="ad-notif-copy"><strong>Error</strong><p class="ad-notif-body">Build failed. View the logs.</p></div><button class="ad-icon-btn" aria-label="Dismiss error">×</button></article>
+    </div></section>
+    <section class="ad-card span-2" id="cards"><h2>Cards</h2><div class="stack">
+      <button class="ad-card-row" data-demo="Create faster"><span class="ad-card-icon">&lt;/&gt;</span><span class="ad-card-copy"><span class="ad-card-title">Create faster</span><span class="ad-card-sub">Smart tools for modern developers.</span></span><span class="ad-card-chevron">›</span></button>
+      <button class="ad-card-row" data-demo="Ship globally"><span class="ad-card-icon">◎</span><span class="ad-card-copy"><span class="ad-card-title">Ship globally</span><span class="ad-card-sub">Bring your ideas to life.</span></span><span class="ad-card-chevron">›</span></button>
+    </div></section>
+    <section class="ad-card" id="widgets"><h2>Widgets</h2><div class="stack"><div class="ad-widget ad-widget-weather"><p>Weather · example</p><p class="large-title">☁ 28°</p><p>Mostly cloudy</p></div><div class="ad-widget"><p>Local time</p><time id="clock" style="font-size:22px;font-variant-numeric:tabular-nums"></time></div></div></section>
+    <section class="ad-card"><h2>Scrolling &amp; density</h2><div class="stack"><label class="ad-field">Density<select class="ad-select" id="density"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label><div class="ad-scroll sample-scroll" tabindex="0" role="region" aria-label="Scrollable example"><p>Consistent spacing</p><p>Subtle borders</p><p>Layered surfaces</p><p>Visible keyboard focus</p><p>Reduced motion support</p><p>Native keyboard interaction</p></div><button class="ad-btn" id="restore">Restore notifications</button></div></section>
+  </main>
+  <footer><span>Adcode · Interactive component reference</span><span>Code. Build. Earn.</span></footer>
+  <div class="ad-menu" id="actions" popover><button class="ad-menu-item" data-demo="New file">New File</button><button class="ad-menu-item" data-demo="New folder">New Folder</button><button class="ad-menu-item" disabled>Unavailable action</button></div>
+  <dialog class="ad-dialog" id="dialog" aria-labelledby="dialog-title"><form method="dialog" class="stack"><h2 id="dialog-title">Action preview</h2><p id="dialog-copy">This is a component demonstration.</p><button class="ad-btn ad-btn-primary" autofocus>Done</button></form></dialog>
+  <script>
+    const byId = id => document.getElementById(id);
+    byId('theme').onchange = event => document.documentElement.dataset.theme = event.target.value;
+    byId('density').onchange = event => document.documentElement.dataset.density = event.target.value;
+    byId('favorite').onclick = event => { const button = event.currentTarget; button.setAttribute('aria-pressed', String(button.getAttribute('aria-pressed') !== 'true')); };
+    document.querySelectorAll('[data-demo]').forEach(button => button.onclick = () => {
+      byId('actions').hidePopover();
+      byId('dialog-title').textContent = button.dataset.demo;
+      byId('dialog').showModal();
+    });
+    document.querySelectorAll('.ad-slider').forEach(slider => {
+      const update = () => { slider.style.setProperty('--progress', slider.value + '%'); slider.nextElementSibling.value = slider.value + '%'; };
+      slider.oninput = update; update();
+    });
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    const selectTab = tab => tabs.forEach(item => { const selected = item === tab; item.setAttribute('aria-selected', String(selected)); item.tabIndex = selected ? 0 : -1; byId(item.getAttribute('aria-controls')).hidden = !selected; });
+    tabs.forEach((tab, index) => {
+      tab.onclick = () => selectTab(tab);
+      tab.onkeydown = event => {
+        const target = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : null;
+        if (target === null) return;
+        event.preventDefault(); selectTab(tabs[target]); tabs[target].focus();
+      };
+    });
+    byId('notifications').querySelectorAll('button').forEach(button => button.onclick = () => button.closest('article').hidden = true);
+    byId('restore').onclick = () => byId('notifications').querySelectorAll('article').forEach(item => item.hidden = false);
+    const updateTime = () => { const now = new Date(); byId('clock').dateTime = now.toISOString(); byId('clock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); };
+    updateTime(); setInterval(updateTime, 60000);
+  </script>
+</body>
+</html>

@@ -131,6 +131,16 @@ function defineThemes(): void {
       "editorIndentGuide.background1": "#0000000f",
       "editor.selectionBackground": "#007aff26",
       "editorCursor.foreground": "#007aff",
+      // The suggest widget is Monaco's surface, so without these it wears vs defaults
+      // that match no theme in this app - a grey box with an invisible selection.
+      "editorSuggestWidget.background": "#ffffff",
+      "editorSuggestWidget.border": "#0000001a",
+      "editorSuggestWidget.foreground": "#1c1c1e",
+      "editorSuggestWidget.selectedBackground": "#007aff1f",
+      "editorSuggestWidget.selectedForeground": "#1c1c1e",
+      "editorSuggestWidget.highlightForeground": "#007aff",
+      "editorSuggestWidget.focusHighlightForeground": "#007aff",
+      "editorSuggestWidgetStatus.foreground": "#6c6c70",
     },
   });
 
@@ -139,13 +149,23 @@ function defineThemes(): void {
     inherit: true,
     rules: SEMANTIC_RULES_DARK,
     colors: {
-      "editor.background": "#1e1e20",
+      "editor.background": "#0d1117",
       "editor.lineHighlightBackground": "#ffffff08",
-      "editorLineNumber.foreground": "#6c6c70",
-      "editorLineNumber.activeForeground": "#f5f5f7",
+      "editorLineNumber.foreground": "#636c76",
+      "editorLineNumber.activeForeground": "#eef1f5",
       "editorIndentGuide.background1": "#ffffff14",
-      "editor.selectionBackground": "#0a84ff33",
-      "editorCursor.foreground": "#0a84ff",
+      "editor.selectionBackground": "#2f81f733",
+      "editorCursor.foreground": "#2f81f7",
+      // Same widget, dark ground: the reference card surface with a blue selection,
+      // kept in step with the workbench palette in tokens.css.
+      "editorSuggestWidget.background": "#12161d",
+      "editorSuggestWidget.border": "#ffffff17",
+      "editorSuggestWidget.foreground": "#eef1f5",
+      "editorSuggestWidget.selectedBackground": "#2f81f738",
+      "editorSuggestWidget.selectedForeground": "#eef1f5",
+      "editorSuggestWidget.highlightForeground": "#6ea8fe",
+      "editorSuggestWidget.focusHighlightForeground": "#6ea8fe",
+      "editorSuggestWidgetStatus.foreground": "#9aa4b2",
     },
   });
 
@@ -169,6 +189,15 @@ function defineThemes(): void {
       "editorIndentGuide.background1": "#ffffff12",
       "editor.selectionBackground": "#ffffff26",
       "editorCursor.foreground": "#f1f3f3",
+      // Midnight has no blue: a greyscale selection, like the rest of the theme.
+      "editorSuggestWidget.background": "#131719",
+      "editorSuggestWidget.border": "#ffffff1c",
+      "editorSuggestWidget.foreground": "#f1f3f3",
+      "editorSuggestWidget.selectedBackground": "#ffffff24",
+      "editorSuggestWidget.selectedForeground": "#f1f3f3",
+      "editorSuggestWidget.highlightForeground": "#f1f3f3",
+      "editorSuggestWidget.focusHighlightForeground": "#ffffff",
+      "editorSuggestWidgetStatus.foreground": "#9aa4a6",
     },
   });
 }
@@ -347,7 +376,17 @@ export function createEditorHost(
   const editor = monaco.editor.create(container, {
     theme: "adcode-dark",
     automaticLayout: false,
-    fontFamily: "var(--font-mono)",
+    /*
+     * The literal stack behind `var(--font-mono)`, not the variable itself.
+     *
+     * The variable resolves fine wherever the browser paints text, but Monaco also
+     * hands this string to canvas measurement (`ctx.font = ...`), and canvas has no
+     * idea what a custom property is - the declaration is invalid, measurement falls
+     * back to the default font, and every metric derived from it (cursor placement,
+     * wrapping, the suggest widget's font) is computed for a font that is not on
+     * screen. Keep this list in step with `--font-mono` in tokens.css.
+     */
+    fontFamily: `"SF Mono", "JetBrains Mono", "Cascadia Code", ui-monospace, Consolas, monospace`,
     fontSize: 13,
     lineHeight: 20,
     fontLigatures: true,
@@ -384,6 +423,17 @@ export function createEditorHost(
     wordBasedSuggestions: "currentDocument",
     suggestSelection: "first",
     snippetSuggestions: "inline",
+    /*
+     * Pinned to the editor's own metrics rather than left to Monaco's fallback chain.
+     *
+     * Both default to 0, which means "use the editor font size / line height" - the
+     * same numbers, until a font-info mismatch makes them different things. The widget
+     * lays its rows out from these in JS while the row content paints from CSS, so any
+     * disagreement between the two is rows overlapping or gapping. Stating them keeps
+     * one source of truth on each side.
+     */
+    suggestFontSize: 13,
+    suggestLineHeight: 20,
     suggest: {
       showWords: true,
       showSnippets: true,

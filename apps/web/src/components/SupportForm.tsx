@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { trackWebsiteEvent } from "@/lib/websiteAnalytics";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { buildSupportRequest, type SupportKind } from "@/lib/support";
 import { useAuth } from "./AuthProvider";
@@ -39,6 +40,7 @@ export function SupportForm() {
     }
 
     setReportId(result.value.reportId);
+    trackWebsiteEvent("support_sent");
     setSubject("");
     setMessage("");
     setReference("");

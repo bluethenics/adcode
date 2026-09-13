@@ -23,8 +23,10 @@ import { createFetchHandler } from "@adcode/api/src/fetchHandler.ts";
 import { createSupabaseStore } from "@adcode/api/adapters/supabaseStore.ts";
 import { createFirebaseJwksVerifier } from "@adcode/api/adapters/firebaseJwks.ts";
 import { createDodoProvider } from "@adcode/api/adapters/dodoPayments.ts";
+import { createWebsiteAnalyticsStore } from "@adcode/api/adapters/websiteAnalyticsStore.ts";
 
 export const handleApiRequest = createFetchHandler({
+  websiteAnalytics: createWebsiteAnalyticsStore(),
   store: createSupabaseStore(),
   verifier: createFirebaseJwksVerifier(),
   payments: createDodoProvider(),

@@ -316,6 +316,12 @@ select {
   stroke-linejoin: round;
 }
 
+/* The Assistant is a primary action; its sparkle mark needs a little more presence. */
+.activity#ai-toggle svg {
+  width: 21px;
+  height: 21px;
+}
+
 /* ── Sidebar ──────────────────────────────────────────────────────────── */
 
 /*

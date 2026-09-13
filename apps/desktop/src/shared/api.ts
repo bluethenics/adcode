@@ -1050,6 +1050,21 @@ export interface AiCompletionInputView {
   readonly suffix: string;
 }
 
+/**
+ * One file attached to an assistant turn, as it crosses the IPC boundary.
+ *
+ * Images travel as base64 for the provider adapters; text documents travel as
+ * text so the main process never has to read the user's disk for them. Filenames
+ * ride along for labels and session markers - never paths, which would leak the
+ * shape of the user's filesystem into logs and session files.
+ */
+export interface AiAttachmentView {
+  readonly name: string;
+  readonly kind: "image" | "text";
+  readonly mediaType: string;
+  readonly data: string;
+}
+
 export interface AiAutomationView extends AiAutomationCreateInputView {
   readonly id: string;
   readonly state: "pending" | "delivering" | "missed" | "delivered" | "cancelled";
@@ -1479,8 +1494,13 @@ export interface AdcodeApi {
      * out when it is pasted is the point of the Connect screen.
      */
     checkKey(provider: string, key: string): Promise<AiKeyCheck>;
-    /** True when the turn reached a normal provider completion. */
-    send(text: string): Promise<boolean>;
+    /**
+     * True when the turn reached a normal provider completion.
+     *
+     * Attachments ride with this turn only: images as multimodal parts, text
+     * documents inlined as fenced context. History replays stay text-only.
+     */
+    send(text: string, attachments?: readonly AiAttachmentView[]): Promise<boolean>;
     complete(input: AiCompletionInputView): Promise<string | null>;
     cancelCompletion(requestId: number): void;
     cancel(): void;

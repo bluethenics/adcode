@@ -20,6 +20,9 @@ import "./styles/releases.css";
 import "./styles/editor.css";
 import "./styles/editorWorkspace.css";
 import "./styles/navigation.css";
+// Shared visual recipes follow feature layout rules; behavior stays in each component.
+import "./styles/design-system.css";
+import "./styles/connect.css";
 import "./ai/automationHost.ts";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
 import { createBreadcrumbs } from "./editor/breadcrumbs.ts";
@@ -300,6 +303,15 @@ function applySettings(values: Record<string, boolean | string>): void {
   problemsPanel.render(diagnosticsHost.current());
   sourceControl.setTimelineEnabled(values["adcode.git.fileTimeline"] !== false);
   void refreshGitOverlay();
+  /*
+   * The All Features library paints toggle positions from these same values, and a toggle
+   * write lands here asynchronously - after the click that caused it. Without a repaint
+   * the row keeps showing the old position until the popup is closed and reopened, which
+   * is what made the previous close-on-toggle behaviour feel load-bearing. `refresh` is a
+   * no-op while the library is shut, and `featureLibrary` is only ever touched here at
+   * runtime (boot runs at the bottom of this module), so the later declaration is safe.
+   */
+  featureLibrary.refresh();
 }
 
 /* ── Theme ────────────────────────────────────────────────────────────── */

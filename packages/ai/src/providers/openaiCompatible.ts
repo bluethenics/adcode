@@ -40,6 +40,7 @@ function toWireMessages(request: ProviderRequest): unknown[] {
 
   for (const message of request.messages) {
     const textParts = message.content.filter((b) => b.type === "text");
+    const imageParts = message.content.filter((b) => b.type === "image");
     const toolCalls = message.content.filter((b) => b.type === "tool-call");
     const toolResults = message.content.filter((b) => b.type === "tool-result");
 
@@ -69,8 +70,24 @@ function toWireMessages(request: ProviderRequest): unknown[] {
               })),
             }),
       });
-    } else {
+    } else if (imageParts.length === 0) {
       wire.push({ role: "user", content: textParts.map((b) => b.text).join("") });
+    } else {
+      // A multimodal turn: text plus one image part per attachment. Text-only
+      // turns keep the plain string shape above, which is what every existing
+      // server in the wild already accepts.
+      wire.push({
+        role: "user",
+        content: [
+          ...(textParts.length === 0
+            ? []
+            : [{ type: "text", text: textParts.map((b) => b.text).join("") }]),
+          ...imageParts.map((image) => ({
+            type: "image_url",
+            image_url: { url: `data:${image.mediaType};base64,${image.data}` },
+          })),
+        ],
+      });
     }
   }
 

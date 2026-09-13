@@ -48,7 +48,10 @@ export interface AdminNavGroup {
 export const ADMIN_NAV: AdminNavGroup[] = [
   {
     label: "Now",
-    items: [{ href: "/admin", label: "Overview", hint: "Every queue, at a glance", icon: "grid" }],
+    items: [
+      { href: "/admin", label: "Overview", hint: "Every queue, at a glance", icon: "grid" },
+      { href: "/admin/analytics", label: "Analytics", hint: "Website traffic and conversions", icon: "globe" },
+    ],
   },
   {
     label: "Queues",

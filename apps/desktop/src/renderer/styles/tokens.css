@@ -68,6 +68,21 @@ button {
   --bg-workbench: var(--bg-app);
   --bg-panel: var(--bg-elevated);
   --shadow-surface: 0 1px 3px color-mix(in srgb, var(--text-primary) 5%, transparent);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --control-height: 34px;
+  --surface-control: color-mix(in srgb, var(--bg-elevated) 90%, var(--text-secondary));
+  --surface-control-hover: color-mix(in srgb, var(--surface-control) 88%, var(--text-primary));
+  --surface-selected: color-mix(in srgb, var(--bg-elevated) 72%, var(--text-secondary));
+  --surface-sheen: linear-gradient(180deg, color-mix(in srgb, var(--text-primary) 4%, transparent), transparent);
+  --fill-primary: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, white), var(--accent));
+  --fill-danger: linear-gradient(180deg, var(--danger), color-mix(in srgb, var(--danger) 78%, black));
+  --shadow-control: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 7%, transparent), 0 2px 4px rgb(0 0 0 / 0.12);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
 
   /* Motion */
   --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
@@ -90,7 +105,7 @@ button {
 
   --text-primary: #1c1c1e;
   --text-secondary: #6c6c70;
-  --text-tertiary: #a1a1a6;
+  --text-tertiary: #727780;
   --text-on-accent: #ffffff;
 
   --border-hairline: rgba(0, 0, 0, 0.1);
@@ -102,55 +117,62 @@ button {
   --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-:root[data-theme="dark"],
-:root:not([data-theme="light"]) {
-  color-scheme: light dark;
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
+:root[data-theme="light"] { color-scheme: light; }
+
+/*
+ * Dark follows the adcode design system (macOS/iOS-inspired): a deep navy-black ground,
+ * one raised surface, hairline borders, and a restrained blue accent. Light and Midnight
+ * below are untouched - this block is the only theme that wears the reference palette.
+ */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg-app: #1c1c1e;
-    --bg-chrome: rgba(28, 28, 30, 0.72);
-    --bg-elevated: #2c2c2e;
-    --bg-editor: #1e1e20;
+    color-scheme: dark;
+    --bg-app: #0a0d13;
+    --bg-chrome: rgba(10, 13, 19, 0.78);
+    --bg-elevated: #12161d;
+    --bg-editor: #0d1117;
     --bg-hover: rgba(255, 255, 255, 0.06);
-    --bg-active: rgba(255, 255, 255, 0.1);
-    --bg-selected: rgba(10, 132, 255, 0.22);
+    --bg-active: rgba(255, 255, 255, 0.12);
+    --bg-selected: rgba(47, 129, 247, 0.22);
 
-    --text-primary: #f5f5f7;
-    --text-secondary: #a1a1a6;
-    --text-tertiary: #6c6c70;
+    --text-primary: #eef1f5;
+    --text-secondary: #9aa4b2;
+    --text-tertiary: #8492a4;
 
-    --border-hairline: rgba(255, 255, 255, 0.12);
-    --accent: #0a84ff;
-    --danger: #ff453a;
-    --success: #30d158;
-    --warning: #ff9f0a;
+    --border-hairline: rgba(255, 255, 255, 0.09);
+    --accent: #2f81f7;
+    --danger: #f85149;
+    --success: #3fb950;
+    --warning: #d29922;
 
-    --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg-app: #1c1c1e;
-  --bg-chrome: rgba(28, 28, 30, 0.72);
-  --bg-elevated: #2c2c2e;
-  --bg-editor: #1e1e20;
+  --bg-app: #0a0d13;
+  --bg-chrome: rgba(10, 13, 19, 0.78);
+  --bg-elevated: #12161d;
+  --bg-editor: #0d1117;
   --bg-hover: rgba(255, 255, 255, 0.06);
-  --bg-active: rgba(255, 255, 255, 0.1);
-  --bg-selected: rgba(10, 132, 255, 0.22);
+  --bg-active: rgba(255, 255, 255, 0.12);
+  --bg-selected: rgba(47, 129, 247, 0.22);
 
-  --text-primary: #f5f5f7;
-  --text-secondary: #a1a1a6;
-  --text-tertiary: #6c6c70;
+  --text-primary: #eef1f5;
+  --text-secondary: #9aa4b2;
+  --text-tertiary: #8492a4;
 
-  --border-hairline: rgba(255, 255, 255, 0.12);
-  --accent: #0a84ff;
-  --danger: #ff453a;
-  --success: #30d158;
-  --warning: #ff9f0a;
+  --border-hairline: rgba(255, 255, 255, 0.09);
+  --accent: #2f81f7;
+  --danger: #f85149;
+  --success: #3fb950;
+  --warning: #d29922;
 
-  --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 /*
@@ -185,7 +207,7 @@ button {
 
   --text-primary: #f1f3f3;
   --text-secondary: #9aa4a6;
-  --text-tertiary: #6b7577;
+  --text-tertiary: #899597;
   --text-on-accent: #0a0c0d;
 
   --border-hairline: rgba(255, 255, 255, 0.11);
@@ -198,6 +220,7 @@ button {
 }
 
 :root[data-density="compact"] {
+  --control-height: 28px;
   --density-row: 22px;
   --density-gap: 5px;
 }
@@ -248,12 +271,12 @@ button {
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg-chrome: #1c1c1e;
+      --bg-chrome: #0a0d13;
     }
   }
 
   :root[data-theme="dark"] {
-    --bg-chrome: #1c1c1e;
+    --bg-chrome: #0a0d13;
   }
 
   :root[data-theme="midnight"] {

@@ -123,6 +123,7 @@ import {
   aiTeamTraces,
   createAiTeamId,
 } from "./ai.ts";
+import { parseAiAttachments } from "./aiAttachmentsIpcValidation.ts";
 import { parseAiCompletionInput } from "./aiCompletionIpcValidation.ts";
 import {
   parseAiAutomationCreate,
@@ -950,9 +951,9 @@ export function registerIpc(): void {
     return clearProviderKey(provider);
   });
 
-  ipcMain.handle(CHANNELS.aiSend, (_event, text: unknown) => {
+  ipcMain.handle(CHANNELS.aiSend, (_event, text: unknown, attachments: unknown) => {
     if (!isString(text)) throw new Error("expected text");
-    return aiSend(text);
+    return aiSend(text, parseAiAttachments(attachments));
   });
 
   ipcMain.handle(CHANNELS.aiCompletion, (_event, input: unknown) =>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type FormEvent } from "react";
+import { trackWebsiteEvent } from "@/lib/websiteAnalytics";
 import {
   authMessage,
   registerEmail,
@@ -29,6 +30,7 @@ export function SignInCard({ heading = "Sign in" }: { heading?: string }) {
     setError(null);
     try {
       await action();
+      trackWebsiteEvent(which === "email" && mode === "up" ? "sign_up" : "sign_in");
     } catch (cause) {
       setError(authMessage(cause));
     } finally {

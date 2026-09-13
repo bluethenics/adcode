@@ -16,6 +16,7 @@
  * never with `left`/`top`, so dragging never triggers layout.
  */
 import type {
+  AiAttachmentView,
   AiAutomationView,
   AiTeamSuggestionView,
   AiTeamView,
@@ -24,6 +25,13 @@ import type {
   ChatSessionView,
   ProposedEditView,
 } from "../../shared/api.ts";
+import {
+  admitFiles,
+  fileToAttachment,
+  formatBytes,
+  type AttachmentSource,
+  type PendingAttachment,
+} from "./attachments.ts";
 import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
 import { codeReferenceParts, type CodeReference } from "../editor/codeReferences.ts";
 import { createAgentLibrary } from "./agentLibrary.ts";
@@ -102,16 +110,19 @@ export interface ChatWidgetDeps {
 export function dispatchChatSend(
   text: string,
   deps: {
-    readonly showUser: (text: string) => void;
-    readonly aiSend: (text: string) => Promise<boolean>;
+    readonly showUser: (text: string, attachments?: readonly AiAttachmentView[]) => void;
+    readonly aiSend: (text: string, attachments?: readonly AiAttachmentView[]) => Promise<boolean>;
     readonly onFailure: () => void;
   },
+  attachments: readonly AiAttachmentView[] = [],
 ): boolean {
   const message = text.trim();
-  if (message.length === 0) return false;
+  if (message.length === 0 && attachments.length === 0) return false;
 
-  deps.showUser(message);
-  void deps.aiSend(message).then((sent) => { if (!sent) deps.onFailure(); }).catch(deps.onFailure);
+  deps.showUser(message, attachments);
+  // No attachments keeps the exact historical call shape; attachments ride along.
+  const sent = attachments.length === 0 ? deps.aiSend(message) : deps.aiSend(message, attachments);
+  void sent.then((ok) => { if (!ok) deps.onFailure(); }).catch(deps.onFailure);
   return true;
 }
 
@@ -597,12 +608,129 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     input.focus();
   });
 
+  /* ── Attachments: picker, drag-drop and paste land on the same strip ── */
+
+  // Files waiting to ride the next turn. Cleared on send, kept on cancel - a
+  // stopped turn should not eat the screenshot it was about.
+  let pending: PendingAttachment[] = [];
+
+  const attachmentStrip = document.createElement("div");
+  attachmentStrip.className = "chat-attachments";
+  attachmentStrip.hidden = true;
+  attachmentStrip.setAttribute("aria-label", "Attached files");
+
+  const composerNotice = document.createElement("p");
+  composerNotice.className = "chat-composer-notice";
+  composerNotice.setAttribute("role", "status");
+  composerNotice.hidden = true;
+
+  function renderAttachments(): void {
+    attachmentStrip.replaceChildren();
+    attachmentStrip.hidden = pending.length === 0;
+    for (const item of pending) {
+      const chip = document.createElement("div");
+      chip.className = "chat-attachment";
+      chip.dataset["attachmentId"] = item.id;
+
+      if (item.kind === "image" && item.previewUrl.length > 0) {
+        const thumb = document.createElement("img");
+        thumb.className = "chat-attachment-thumb";
+        thumb.src = item.previewUrl;
+        thumb.alt = "";
+        chip.append(thumb);
+      } else {
+        const glyph = document.createElement("span");
+        glyph.className = "chat-attachment-glyph";
+        glyph.textContent = "≡";
+        glyph.setAttribute("aria-hidden", "true");
+        chip.append(glyph);
+      }
+
+      const meta = document.createElement("span");
+      meta.className = "chat-attachment-meta";
+      const name = document.createElement("span");
+      name.className = "chat-attachment-name";
+      name.textContent = item.name;
+      name.title = item.name;
+      const size = document.createElement("span");
+      size.className = "chat-attachment-size";
+      size.textContent = formatBytes(item.size);
+      meta.append(name, size);
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "chat-attachment-remove";
+      remove.textContent = "×";
+      remove.title = `Remove ${item.name}`;
+      remove.setAttribute("aria-label", `Remove ${item.name}`);
+      remove.addEventListener("click", () => {
+        pending = pending.filter((other) => other.id !== item.id);
+        renderAttachments();
+        input.focus();
+      });
+
+      chip.append(meta, remove);
+      attachmentStrip.append(chip);
+    }
+  }
+
+  function complain(message: string): void {
+    composerNotice.textContent = message;
+    composerNotice.hidden = false;
+    window.setTimeout(() => {
+      if (composerNotice.textContent === message) composerNotice.hidden = true;
+    }, 5000);
+  }
+
+  function clearAttachments(): void {
+    pending = [];
+    renderAttachments();
+  }
+
+  async function addFiles(sources: readonly AttachmentSource[]): Promise<void> {
+    if (sources.length === 0) return;
+    const { admitted, rejected } = admitFiles(
+      sources.map((file) => ({ name: file.name, type: file.type, size: file.size })),
+      pending.length,
+    );
+    for (const message of rejected) complain(message);
+    for (const index of admitted) {
+      const source = sources[index] as AttachmentSource;
+      try {
+        pending = [...pending, await fileToAttachment(source)];
+      } catch (error) {
+        complain(error instanceof Error ? error.message : `${source.name} could not be attached.`);
+      }
+    }
+    renderAttachments();
+  }
+
+  const attachButton = document.createElement("button");
+  attachButton.className = "chat-team-button";
+  attachButton.type = "button";
+  attachButton.textContent = "+ Attach";
+  attachButton.title = "Attach images or documents (or drag them in, or paste)";
+  attachButton.setAttribute("aria-label", "Attach images or documents");
+
+  const filePicker = document.createElement("input");
+  filePicker.type = "file";
+  filePicker.multiple = true;
+  filePicker.hidden = true;
+  // Images plus text documents; anything else is refused with an explanation.
+  filePicker.accept = "image/png,image/jpeg,image/webp,image/gif,.txt,.md,.markdown,.json,.jsonc,.csv,.tsv,.log,.yaml,.yml,.xml,.toml,.ini,.cfg,.conf,.sh,.js,.jsx,.ts,.tsx,.py,.java,.c,.h,.cpp,.hpp,.rs,.go,.rb,.php,.swift,.kt,.sql,.css,.scss";
+  filePicker.setAttribute("aria-hidden", "true");
+  filePicker.addEventListener("change", () => {
+    void addFiles([...filePicker.files ?? []]);
+    filePicker.value = "";
+  });
+  attachButton.addEventListener("click", () => filePicker.click());
+
   const toolbar = document.createElement("div");
   toolbar.className = "chat-toolbar";
   const spacer = document.createElement("span");
   spacer.className = "chat-toolbar-spacer";
-  toolbar.append(attachContext, manualTeam, scheduleMessage, spacer, modelLabel, sendButton);
-  composer.append(input, toolbar);
+  toolbar.append(attachButton, attachContext, manualTeam, scheduleMessage, spacer, modelLabel, sendButton);
+  composer.append(input, attachmentStrip, composerNotice, toolbar, filePicker);
 
   const conversation = document.createElement("main");
   conversation.className = "chat-conversation";
@@ -713,10 +841,38 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     transcript.scrollTop = transcript.scrollHeight;
   }
 
-  function bubble(role: "user" | "assistant", text: string): HTMLElement {
+  function bubble(
+    role: "user" | "assistant",
+    text: string,
+    attachments: readonly AiAttachmentView[] = [],
+  ): HTMLElement {
     const element = document.createElement("div");
     element.className = `chat-bubble chat-bubble-${role}`;
     if (role === "assistant" && text.length === 0) element.classList.add("is-streaming");
+    if (attachments.length > 0) {
+      const row = document.createElement("div");
+      row.className = "chat-bubble-attachments";
+      for (const attachment of attachments) {
+        const chip = document.createElement("span");
+        chip.className = "chat-bubble-attachment";
+        if (attachment.kind === "image") {
+          const thumb = document.createElement("img");
+          thumb.className = "chat-bubble-thumb";
+          thumb.alt = attachment.name;
+          thumb.title = attachment.name;
+          // Data URLs only: the bubble never points at the user's disk.
+          if (attachment.data.length > 0) {
+            thumb.src = `data:${attachment.mediaType};base64,${attachment.data}`;
+          }
+          chip.append(thumb);
+        } else {
+          chip.textContent = `≡ ${attachment.name}`;
+          chip.title = attachment.name;
+        }
+        row.append(chip);
+      }
+      element.append(row);
+    }
     renderMessage(element, text);
     transcript.append(element);
     scrollToEnd();
@@ -1535,29 +1691,76 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       return;
     }
     const text = input.value;
-    if (text.trim().length === 0) return;
+    if (text.trim().length === 0 && pending.length === 0) return;
 
     if (activeSuggestion !== null) {
       activeSuggestion = null;
       teamPanel.hidden = true;
     }
 
+    const payload: AiAttachmentView[] = pending.map((item) => ({
+      name: item.name,
+      kind: item.kind,
+      mediaType: item.mediaType,
+      data: item.data,
+    }));
+
     if (
-      !dispatchChatSend(text, {
-        showUser: (message) => bubble("user", message),
-        aiSend: (message) => window.adcode.ai.send(message),
-        onFailure: () => {
-          setSendMode("send");
+      !dispatchChatSend(
+        text,
+        {
+          showUser: (message, attachments) => bubble("user", message, attachments),
+          aiSend: (message, attachments) => window.adcode.ai.send(message, attachments),
+          onFailure: () => {
+            setSendMode("send");
+          },
         },
-      })
+        payload,
+      )
     ) {
       return;
     }
 
     input.value = "";
+    clearAttachments();
     setSendMode("stop");
     streamingBubble = null;
   }
+
+  /* Drag-drop and paste share the strip: whatever brought the file, it lands pending. */
+
+  function hasFiles(event: DragEvent): boolean {
+    return event.dataTransfer?.types.includes("Files") === true;
+  }
+
+  card.addEventListener("dragenter", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    card.dataset["drop"] = "true";
+  });
+  card.addEventListener("dragover", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  });
+  card.addEventListener("dragleave", (event) => {
+    if (event.relatedTarget !== null && card.contains(event.relatedTarget as Node)) return;
+    delete card.dataset["drop"];
+  });
+  card.addEventListener("drop", (event) => {
+    delete card.dataset["drop"];
+    if (!hasFiles(event) || event.dataTransfer === null) return;
+    event.preventDefault();
+    void addFiles([...event.dataTransfer.files]);
+  });
+
+  input.addEventListener("paste", (event) => {
+    const files = event.clipboardData === null ? [] : [...event.clipboardData.files];
+    if (files.length === 0) return;
+    // Pasting a screenshot must attach it, not dump binary into the prompt.
+    event.preventDefault();
+    void addFiles(files);
+  });
 
   composer.addEventListener("submit", (event) => {
     event.preventDefault();

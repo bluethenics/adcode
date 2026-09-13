@@ -124,6 +124,41 @@ describe("request shape", () => {
     expect(contents.every((c) => c["role"] !== "system")).toBe(true);
   });
 
+  it("sends attached images as inlineData parts", async () => {
+    let body: Record<string, unknown> = {};
+
+    const capturing = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      return sseFetch([candidate([], "STOP")])("", init);
+    }) as unknown as typeof fetch;
+
+    const provider = createGoogleProvider({ apiKey: "k", fetchImpl: capturing });
+    await collect(
+      provider.stream(
+        {
+          ...request,
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "image", mediaType: "image/jpeg", data: "aGVsbG8=" },
+                { type: "text", text: "what is this?" },
+              ],
+            },
+          ],
+        },
+        new AbortController().signal,
+      ),
+    );
+
+    const contents = body["contents"] as Array<Record<string, unknown>>;
+    const parts = contents[0]?.["parts"] as Array<Record<string, unknown>>;
+    expect(parts).toContainEqual({
+      inlineData: { mimeType: "image/jpeg", data: "aGVsbG8=" },
+    });
+    expect(parts).toContainEqual({ text: "what is this?" });
+  });
+
   it("renames the assistant role to model", async () => {
     let body: Record<string, unknown> = {};
 

@@ -1819,9 +1819,9 @@ body { background: var(--surface); }
   margin: 60px auto;
   padding: 0;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 24px;
-  background: #171b1d;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 20px;
+  background: #12161d;
   box-shadow: 0 36px 90px -42px rgba(0, 0, 0, 0.92), 0 12px 34px -22px #000;
 }
 
@@ -1831,7 +1831,7 @@ body { background: var(--surface); }
   min-width: 0;
   padding: 34px 30px 28px;
   border-right: 1px solid rgba(255, 255, 255, 0.09);
-  background: #0f1214;
+  background: #0d1117;
 }
 
 .auth-brand {
@@ -1954,8 +1954,26 @@ body { background: var(--surface); }
   transform: scale(0.97);
 }
 
+/* The reference's error notification: red icon, title-weight text, hairline card. */
 .auth-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   margin-bottom: 18px;
+}
+
+.auth-error::before {
+  content: "!";
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #f85149;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .auth-workspace .provider-stack {
@@ -1973,6 +1991,7 @@ body { background: var(--surface); }
 }
 
 .auth-workspace .btn-provider:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.085);
 }
 
@@ -2006,6 +2025,13 @@ body { background: var(--surface); }
   color: #636d70;
 }
 
+/* The reference's focused input: blue border with a soft blue ring. */
+.auth-workspace .input:focus-visible {
+  outline: none;
+  border-color: #2f81f7;
+  box-shadow: 0 0 0 3px rgba(47, 129, 247, 0.28);
+}
+
 .auth-password-field {
   position: relative;
 }
@@ -2033,13 +2059,22 @@ body { background: var(--surface); }
   color: #e8ecec;
 }
 
-.auth-submit {
+/* The reference's primary button: solid blue, white text, brightening on hover. */
+.auth-workspace .auth-submit {
   width: 100%;
   min-height: 45px;
   margin-top: 3px;
+  border-color: transparent;
   border-radius: 12px;
+  background: #2f81f7;
+  color: #ffffff;
   font-size: 13.5px;
   font-weight: 680;
+}
+
+.auth-workspace .auth-submit:hover:not(:disabled) {
+  background: #2f81f7;
+  filter: brightness(1.1);
 }
 
 .auth-privacy {

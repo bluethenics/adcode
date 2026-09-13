@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { trackWebsiteEvent } from "@/lib/websiteAnalytics";
 
 /**
  * The one-line install, with a copy button.
@@ -15,6 +16,7 @@ export function InstallCommand({ command, label }: { command: string; label?: st
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(command);
+      trackWebsiteEvent("install_copy");
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {

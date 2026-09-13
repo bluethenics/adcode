@@ -212,6 +212,65 @@ describe("message translation", () => {
     expect(messages.some((m) => m["role"] === "tool" && m["tool_call_id"] === "c1")).toBe(true);
   });
 
+  it("sends attached images as image_url parts beside the text", async () => {
+    let body: Record<string, unknown> = {};
+
+    const capturing = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      return sseFetch([`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`])(
+        "",
+        init,
+      );
+    }) as unknown as typeof fetch;
+
+    const provider = createOpenAiProvider("key", capturing);
+    await collect(
+      provider.stream(
+        {
+          ...request,
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "image", mediaType: "image/png", data: "aGVsbG8=" },
+                { type: "text", text: "what is this?" },
+              ],
+            },
+          ],
+        },
+        new AbortController().signal,
+      ),
+    );
+
+    const messages = body["messages"] as Array<Record<string, unknown>>;
+    const user = messages.find((m) => m["role"] === "user");
+    const content = user?.["content"] as Array<Record<string, unknown>>;
+    expect(content).toHaveLength(2);
+    expect(content[0]).toEqual({ type: "text", text: "what is this?" });
+    expect(content[1]).toEqual({
+      type: "image_url",
+      image_url: { url: "data:image/png;base64,aGVsbG8=" },
+    });
+  });
+
+  it("keeps text-only turns as a plain string", async () => {
+    let body: Record<string, unknown> = {};
+
+    const capturing = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      return sseFetch([`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`])(
+        "",
+        init,
+      );
+    }) as unknown as typeof fetch;
+
+    const provider = createOpenAiProvider("key", capturing);
+    await collect(provider.stream(request, new AbortController().signal));
+
+    const messages = body["messages"] as Array<Record<string, unknown>>;
+    expect(messages[1]?.["content"]).toBe("hi");
+  });
+
   it("marks an errored tool result so the model can see it failed", async () => {
     let body: Record<string, unknown> = {};
 

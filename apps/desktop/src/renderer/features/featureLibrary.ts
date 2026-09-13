@@ -19,6 +19,15 @@ export interface FeatureLibrary {
   shown(): void;
   hidden(): void;
   isOpen(): boolean;
+  /**
+   * Re-read the live setting values and repaint the rows without closing.
+   *
+   * A toggle write lands asynchronously (see `runFeatureAction` in main.ts), so the
+   * row still shows the old position until something repaints it. The coordinator
+   * calls this from `applySettings`, which keeps the library truthful while it is
+   * open instead of closing it and making the user reopen it to check.
+   */
+  refresh(): void;
 }
 
 export interface FeatureLibraryDeps {
@@ -122,14 +131,22 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
     return action.kind !== "command" || deps.hasCommand(action.command);
   }
 
-  function run(action: FeatureAction): void {
-    if (!available(action)) {
+  function run(presented: PresentedFeatureAction): void {
+    if (!available(presented.action)) {
       notice.textContent = "This feature is not available in this window.";
+      return;
+    }
+    if (presented.control === "switch") {
+      // A switch flips where it stands. Closing the library here is the bug that made
+      // every on/off toggle dismiss the whole popup: the write itself never needed to
+      // leave this surface, and the coordinator repaints the row via refresh() once the
+      // new value lands in applySettings.
+      deps.runAction(presented.action);
       return;
     }
     // Routing can open another primary surface, so the coordinator dismisses this one first.
     deps.onRequestClose();
-    deps.runAction(action);
+    deps.runAction(presented.action);
   }
 
   function actionButton(
@@ -162,7 +179,7 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
     button.disabled = !presented.enabled;
     if (button.disabled)
       button.title = "This feature is not available in this window.";
-    button.addEventListener("click", () => run(presented.action));
+    button.addEventListener("click", () => run(presented));
     return button;
   }
 
@@ -300,7 +317,7 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
             ).primary;
       if (primary?.enabled === true) {
         event.preventDefault();
-        run(primary.action);
+        run(primary);
       }
     }
   });
@@ -323,5 +340,8 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
       delete sheet.dataset["state"];
     },
     isOpen: () => open,
+    refresh(): void {
+      if (open) render();
+    },
   };
 }

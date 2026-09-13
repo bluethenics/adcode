@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createAgent, estimateRequestTokens, MAX_TURNS } from "../src/agent.ts";
 import type {
   AgentEvent,
+  Message,
   Provider,
   ProviderEvent,
   ToolCallBlock,
@@ -307,7 +308,7 @@ describe("cancellation", () => {
     const controller = new AbortController();
     controller.abort();
 
-    const events = await collect(agent.send("hi", controller.signal));
+    const events = await collect(agent.send("hi", { signal: controller.signal }));
     expect(provider.requests).toBe(0);
     expect(kinds(events)).toEqual(["cancelled"]);
   });
@@ -359,5 +360,52 @@ describe("conversation history", () => {
     agent.reset();
 
     expect(agent.history()).toHaveLength(0);
+  });
+
+  it("rides attached images with the turn that attached them, ahead of the text", async () => {
+    const seen: Message[] = [];
+    const provider: Provider = {
+      id: "anthropic",
+      displayName: "Recorder",
+      models: ["test-model"],
+      async *stream(request): AsyncIterable<ProviderEvent> {
+        seen.push(...request.messages);
+        yield { kind: "text", text: "ok" };
+        yield { kind: "stop", reason: "end-turn" };
+      },
+    };
+
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner() });
+    const image = { type: "image" as const, mediaType: "image/png" as const, data: "aGVsbG8=" };
+    await collect(agent.send("what is this?", { images: [image] }));
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.content).toEqual([image, { type: "text", text: "what is this?" }]);
+  });
+
+  it("counts image bytes as a flat allowance in the token estimate, not as text", async () => {
+    const provider = scriptedProvider([[{ kind: "text", text: "never" }]]);
+    let estimate = 0;
+    const agent = createAgent({
+      provider,
+      model: "test-model",
+      tools: [],
+      runner: runner(),
+      beforeRequest: (request) => {
+        estimate = estimateRequestTokens(request);
+        return "Task token budget reached. Increase it or start a new task.";
+      },
+    });
+
+    const image = {
+      type: "image" as const,
+      mediaType: "image/png" as const,
+      data: "a".repeat(3_000_000),
+    };
+    await collect(agent.send("look", { images: [image] }));
+
+    // Three megabytes of base64 as text would reserve a million tokens.
+    expect(estimate).toBeLessThan(50_000);
+    expect(estimate).toBeGreaterThanOrEqual(8_192);
   });
 });

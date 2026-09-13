@@ -42,10 +42,13 @@ import {
   withMessage,
   type CatalogueProvider,
   type ChatSession,
+  type ImageBlock,
+  type ImageMediaType,
   type Provider,
 } from "@adcode/ai";
 import {
   CHANNELS,
+  type AiAttachmentView,
   type AiKeyCheck,
   type AiWorkspaceActionView,
   type AiWorkspaceApplySelectionView,
@@ -669,7 +672,48 @@ export async function checkProviderKey(providerId: string, key: string): Promise
  * read, which command it ran, what it decided. This is what makes the AI legible instead
  * of magical."
  */
-export async function aiSend(text: string): Promise<boolean> {
+const IMAGE_MEDIA_TYPES: ReadonlySet<string> = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+]);
+
+/**
+ * Split validated attachments into provider image parts and inlined document text.
+ *
+ * Images become multimodal parts on the outgoing turn only. Text documents are
+ * fenced into the message itself, so they survive in history, replays and every
+ * provider - including ones with no image support - exactly like pasted text.
+ */
+function splitAttachments(attachments: readonly AiAttachmentView[]): {
+  images: ImageBlock[];
+  documentText: string;
+  names: string[];
+} {
+  const images: ImageBlock[] = [];
+  const documents: string[] = [];
+  const names: string[] = [];
+  for (const attachment of attachments) {
+    names.push(attachment.name);
+    if (attachment.kind === "image" && IMAGE_MEDIA_TYPES.has(attachment.mediaType)) {
+      images.push({
+        type: "image",
+        mediaType: attachment.mediaType as ImageMediaType,
+        data: attachment.data,
+      });
+    } else if (attachment.kind === "text") {
+      documents.push(`--- ${attachment.name} ---\n${attachment.data}`);
+    }
+  }
+  return {
+    images,
+    documentText: documents.length === 0 ? "" : `\n\n${documents.join("\n\n")}`,
+    names,
+  };
+}
+
+export async function aiSend(text: string, attachments: readonly AiAttachmentView[] = []): Promise<boolean> {
   if (sendInFlight) throw new Error("The built-in assistant is already handling a message");
   sendInFlight = true;
   currentTaskPrompt = text;
@@ -731,14 +775,22 @@ export async function aiSend(text: string): Promise<boolean> {
       agentEndpoint = baseUrlOf(providerId);
     }
 
+    // Attachments ride this turn only. The session keeps names, not bytes: image
+    // base64 in a session file would bloat history on disk and re-send stale
+    // pixels on every restore, while the names still tell the story.
+    const { images, documentText, names } = splitAttachments(attachments);
+    const turnText = `${text}${documentText}`;
+    const recordedText =
+      names.length === 0 ? text : `${text}\n[Attached: ${names.join(", ")}]`;
+
     session ??= startSession();
-    session = withMessage(session, { role: "user", text, at: Date.now() });
+    session = withMessage(session, { role: "user", text: recordedText, at: Date.now() });
 
     let answer = "";
     let turnSucceeded = true;
     let modelTraceRecorded = false;
 
-    for await (const event of agent.send(text)) {
+    for await (const event of agent.send(turnText, { images })) {
       broadcast(CHANNELS.aiEvent, event);
       if (activeTaskId !== null) {
         const workspaceService = await readyAiWorkspaceService();
@@ -946,7 +998,7 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
     });
     let answer = "";
     let failure: Error | null = null;
-    for await (const event of roleAgent.send(compactPrompt, input.signal)) {
+    for await (const event of roleAgent.send(compactPrompt, { signal: input.signal })) {
       const activity = agentEventTrace(event);
       if (activity !== null) await service.recordTrace(task.id, activity);
       if (event.kind === "text") answer += event.text;

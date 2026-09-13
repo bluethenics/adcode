@@ -378,11 +378,17 @@
   background: var(--bg-hover);
 }
 
+/*
+ * The same iOS switch the Settings sheet uses (see settings.css `.ios-switch`): a 51x31
+ * track, a 27px white knob, green when on. One switch in two places, not two switches -
+ * the library used to draw its own smaller blue variant, which read as a different
+ * control doing the same job.
+ */
 .feature-library-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  min-height: 28px;
+  gap: 8px;
+  min-height: 31px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -392,30 +398,33 @@
 }
 
 .feature-library-toggle-label {
-  min-width: 18px;
+  min-width: 20px;
   text-align: right;
 }
 
 .feature-library-toggle-track {
   position: relative;
-  width: 34px;
-  height: 20px;
+  flex: none;
+  box-sizing: border-box;
+  width: 51px;
+  height: 31px;
   padding: 2px;
-  border: 1px solid var(--border-hairline);
+  border: 0;
   border-radius: 999px;
   background: var(--bg-active);
-  transition: background-color 140ms var(--ease-sheet);
+  transition: background-color 220ms var(--ease-sheet);
 }
 
 .feature-library-toggle-track > span {
   display: block;
-  width: 14px;
-  height: 14px;
+  width: 27px;
+  height: 27px;
   border-radius: 999px;
-  background: var(--bg-elevated);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.28);
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  /* transform only - never `left` (§1). */
   transform: translateX(0);
-  transition: transform 160ms var(--ease-sheet);
+  transition: transform 220ms var(--ease-sheet);
 }
 
 .feature-library-toggle[aria-checked="true"] {
@@ -423,16 +432,20 @@
 }
 
 .feature-library-toggle[aria-checked="true"] .feature-library-toggle-track {
-  border-color: transparent;
-  background: var(--accent);
+  background: var(--success);
 }
 
 .feature-library-toggle[aria-checked="true"] .feature-library-toggle-track > span {
-  transform: translateX(14px);
+  transform: translateX(20px);
 }
 
-.feature-library-toggle:active .feature-library-toggle-track > span {
+.feature-library-toggle:active:not(:disabled) .feature-library-toggle-track > span {
   scale: 1.08 0.94;
+}
+
+.feature-library-toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .feature-library-toggle:focus-visible {

@@ -27,6 +27,8 @@ function toContents(request: ProviderRequest): unknown[] {
     for (const block of message.content) {
       if (block.type === "text") {
         parts.push({ text: block.text });
+      } else if (block.type === "image") {
+        parts.push({ inlineData: { mimeType: block.mediaType, data: block.data } });
       } else if (block.type === "tool-call") {
         parts.push({ functionCall: { name: block.name, args: block.input } });
       } else {

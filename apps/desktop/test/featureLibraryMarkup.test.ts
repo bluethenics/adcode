@@ -22,6 +22,14 @@ const CSS_PATH = join(
   import.meta.dirname,
   "../src/renderer/styles/features.css",
 );
+const WORKBENCH_CSS_PATH = join(
+  import.meta.dirname,
+  "../src/renderer/styles/workbench.css",
+);
+const MENUBAR_CSS_PATH = join(
+  import.meta.dirname,
+  "../src/renderer/styles/menubar.css",
+);
 
 describe("All Features renderer contract", () => {
   it("keeps All Features as a popup launcher and moves its host out of the structural sidebar", () => {
@@ -103,6 +111,22 @@ describe("All Features renderer contract", () => {
     expect(assistantAt).toBeGreaterThan(featuresAt);
     expect(settingsAt).toBeGreaterThan(assistantAt);
     expect(HTML.slice(featuresAt, assistantAt)).toContain("</button>");
+  });
+
+  it("uses a distinct sparkle launcher and comfortably sized file icons", () => {
+    const workbenchCss = readFileSync(WORKBENCH_CSS_PATH, "utf8");
+    const menubarCss = readFileSync(MENUBAR_CSS_PATH, "utf8");
+    const assistantAt = HTML.indexOf('id="ai-toggle"');
+    const assistantButton = HTML.slice(
+      assistantAt,
+      HTML.indexOf("</button>", assistantAt),
+    );
+
+    expect(assistantButton).toContain('aria-label="AI Assistant"');
+    expect(assistantButton).toContain('d="M12 3.25 13.8 8.2 18.75 10 13.8 11.8 12 16.75 10.2 11.8 5.25 10 10.2 8.2Z"');
+    expect(workbenchCss).toMatch(/\.activity#ai-toggle svg\s*\{[^}]*width: 21px;[^}]*height: 21px;/s);
+    expect(menubarCss).toMatch(/\.file-icon\s*\{[^}]*width: 17px;[^}]*height: 17px;/s);
+    expect(menubarCss).toMatch(/\.tab \.file-icon\s*\{[^}]*width: 15px;[^}]*height: 15px;/s);
   });
 
   it("does not position or dismiss its own overlay", () => {

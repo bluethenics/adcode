@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   alternates: { canonical: url("/privacy") },
 };
 
-const UPDATED = "2026-08-28";
+const UPDATED = "2026-09-13";
 /*
  * Written out rather than formatted, and kept beside the machine-readable date.
  *
@@ -19,7 +19,7 @@ const UPDATED = "2026-08-28";
  * document whose whole job is to record what was true and when, the date is the one field
  * that must not be able to disagree with itself.
  */
-const UPDATED_LABEL = "28 August 2026";
+const UPDATED_LABEL = "13 September 2026";
 
 /*
  * Written against what the code does, not against a template.
@@ -79,7 +79,13 @@ If you later choose to withdraw money, you can attach an email address to that s
 
 ## Cookies and analytics
 
-This website sets **no cookies** and runs **no third-party analytics or advertising scripts**. Fonts are served from this site's own domain rather than a font CDN, so loading a page does not disclose your address to another company.
+This website runs **no third-party analytics or advertising scripts**. Fonts are served from this site's own domain rather than a font CDN.
+
+If you allow website analytics, we send measurements to our own service: page paths without query strings, traffic source or referring hostname, campaign labels, broad device category, page speed, visible engagement time, scroll milestones, browser error counts, and actions such as copying an install command, signing in, or creating a campaign. We do not collect form contents, passwords, payment details, account identifiers, error messages, or session recordings through analytics. Admin pages are excluded.
+
+Your choice is saved in local storage. An anonymous session identifier and campaign attribution are saved in session storage, with a new session after 30 minutes of inactivity. Analytics sets no cookies. You can change your choice using **Analytics preferences** at the bottom of the site. Declining stops future collection and clears the session identifier; previously collected events are not linked to your account. We also respect Do Not Track and Global Privacy Control browser signals.
+
+Website measurements are stored in our Supabase database and shown as aggregate reports to authorised administrators. Our hosting infrastructure necessarily receives network requests; the analytics event records do not contain IP addresses or full user-agent strings.
 
 The signed-in areas — the dashboard, advertiser portal, and admin panel — use a session cookie strictly to keep you signed in.
 

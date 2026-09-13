@@ -394,15 +394,15 @@
 /* ── File icons ───────────────────────────────────────────────────────── */
 
 .file-icon {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
   flex: none;
 }
 
 /* In tabs the icon sits between the dirty dot and the label. */
 .tab .file-icon {
-  width: 13px;
-  height: 13px;
+  width: 15px;
+  height: 15px;
 }
 
 .quickopen-row .file-icon,

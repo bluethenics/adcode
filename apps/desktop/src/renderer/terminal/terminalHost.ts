@@ -56,10 +56,10 @@ function forShell(text: string): string {
 
 const THEMES = {
   dark: {
-    background: "#1c1c1e",
-    foreground: "#f5f5f7",
-    cursor: "#0a84ff",
-    selectionBackground: "#0a84ff44",
+    background: "#0d1117",
+    foreground: "#eef1f5",
+    cursor: "#2f81f7",
+    selectionBackground: "#2f81f744",
     black: "#1c1c1e",
     red: "#ff453a",
     green: "#30d158",

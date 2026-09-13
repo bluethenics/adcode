@@ -31,6 +31,26 @@ export interface TextBlock {
   readonly text: string;
 }
 
+/**
+ * One image attached to a user turn: a screenshot, a photo of a whiteboard, a
+ * mockup. Raw bytes as base64 - the adapters translate it to each provider's own
+ * image part, and anything that is not a user turn never carries one (tool calls
+ * and results stay text, which is what keeps traces readable and logs small).
+ */
+/**
+ * Image MIME types the assistant composer accepts. A closed set on purpose: every
+ * provider below types its own image part with these same literals, so an open
+ * string here would only move the rejection to the wire.
+ */
+export type ImageMediaType = "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+
+export interface ImageBlock {
+  readonly type: "image";
+  readonly mediaType: ImageMediaType;
+  /** Raw image bytes, base64-encoded. */
+  readonly data: string;
+}
+
 export interface ToolCallBlock {
   readonly type: "tool-call";
   readonly id: string;
@@ -45,7 +65,7 @@ export interface ToolResultBlock {
   readonly isError: boolean;
 }
 
-export type ContentBlock = TextBlock | ToolCallBlock | ToolResultBlock;
+export type ContentBlock = TextBlock | ImageBlock | ToolCallBlock | ToolResultBlock;
 
 export interface Message {
   readonly role: Role;
