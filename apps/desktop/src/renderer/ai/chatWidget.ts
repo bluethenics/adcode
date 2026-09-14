@@ -33,6 +33,7 @@ import {
   type PendingAttachment,
 } from "./attachments.ts";
 import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
+import { createIcon, ICON } from "../workbench/icons.ts";
 import type { CodeReference } from "../editor/codeReferences.ts";
 import {
   groupChatSessions,
@@ -271,6 +272,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     window.adcode.ai.reset();
     transcript.replaceChildren();
     streamingBubble = null;
+    activeSessionId = null;
     conversationTitle.textContent = "New conversation";
     renderMemory(null);
     void refreshHistory();
@@ -354,7 +356,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const connectBannerDismiss = document.createElement("button");
   connectBannerDismiss.type = "button";
   connectBannerDismiss.className = "ghost-button";
-  connectBannerDismiss.textContent = "×";
+  connectBannerDismiss.append(createIcon(ICON.close));
   connectBannerDismiss.setAttribute("aria-label", "Dismiss connect suggestion");
   connectBannerDismiss.addEventListener("click", () => {
     connectBanner.hidden = true;
@@ -414,13 +416,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   async function refreshHistory(): Promise<void> {
     saved = await window.adcode.chat.sessions();
-    if (activeSessionId === null) {
-      const current = await window.adcode.chat.current().catch(() => null);
-      if (current !== null) {
-        activeSessionId = current.id;
-        conversationTitle.textContent = current.messages.length === 0 ? "New conversation" : current.title;
-      }
-    }
+    const current = await window.adcode.chat.current().catch(() => null);
+    activeSessionId = current?.id ?? null;
+    conversationTitle.textContent = current === null || current.messages.length === 0
+      ? "New conversation"
+      : current.title;
     renderHistory();
   }
 
@@ -814,7 +814,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "chat-attachment-remove";
-      remove.textContent = "×";
+      remove.append(createIcon(ICON.close));
       remove.title = `Remove ${item.name}`;
       remove.setAttribute("aria-label", `Remove ${item.name}`);
       remove.addEventListener("click", () => {

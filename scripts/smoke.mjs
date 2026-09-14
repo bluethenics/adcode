@@ -6127,7 +6127,7 @@ checks.chatSendHistoryEvidence = await evaluate(
      const historyButton = [...(header?.querySelectorAll('button') ?? [])]
        .find((button) => button.textContent?.trim() === 'History');
      const reset = [...(header?.querySelectorAll('button') ?? [])]
-       .find((button) => button.textContent?.trim() === 'New');
+       .find((button) => button.getAttribute('aria-label') === 'Start a new conversation');
      if (!transcript || !history || !historyButton || !reset) return false;
      if (!history.hidden) historyButton.click();
      historyButton.click();
@@ -6159,6 +6159,8 @@ checks.chatSendHistoryEvidence = await evaluate(
      }
      return {
        resetClearsTranscript: transcript.childElementCount === 0,
+       resetClearsActiveHistory: history.querySelector('.chat-history-row[data-active="true"] .chat-history-open')?.textContent !== 'Smoke saved conversation',
+       resetShowsNewTitle: card.querySelector('.chat-conversation-title')?.textContent === 'New conversation',
        savedSessionPersists: persisted,
        historyRow: history.querySelector('.chat-history-open') !== null,
        resumeRestoresTranscript: resumed,
