@@ -62,6 +62,8 @@ describe("listing files", () => {
     await write(".worktrees/old/src/main.ts", "needle");
     await write("apps/web/.open-next/server/index.ts", "needle");
     await write("apps/web/.wrangler/cache/index.ts", "needle");
+    await write(".adcode-cache/tools/index.ts", "needle");
+    await write("apps/desktop/.adcode-cache/build/index.ts", "needle");
     expect(await search.listFiles()).toEqual(["src/main.ts"]);
     expect(await collect(search.search({ pattern: "needle" }))).toHaveLength(1);
   });

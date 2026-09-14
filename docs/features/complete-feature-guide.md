@@ -529,11 +529,11 @@ Access: `All Features → Tree-sitter highlighting`; `Turn on or off`; `Settings
 <!-- feature:adcode.ai.chatWidget -->
 ### AI chat workspace
 
-A spacious conversation workspace with searchable history and a panel for agents, tasks, and live activity.
+A spacious conversation workspace with searchable history, code blocks you can copy, and per-response Copy, Retry, and feedback.
 
 Why use it: Asking in the editor beats copying code into a browser, because the assistant can already see the project.
 
-How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. Use History to browse conversations and the activity panel to see agent work and review changes. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation.
+How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers Copy, Retry, and helpful or not helpful. Use History to browse conversations and the activity panel to see agent work and review changes. Share copies the conversation as markdown. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation.
 
 Access: `All Features → AI chat workspace`; `Turn on or off`; `Settings`.
 
@@ -573,22 +573,22 @@ Access: `All Features → AI workspace storage`; `Settings`.
 <!-- feature:ai.sessions -->
 ### Chat history and memory
 
-Every conversation is kept, so you can go back to one. A strip at the top shows exactly what the assistant is remembering right now, and a button clears it.
+Every conversation is kept in Today, Yesterday, and older groups, so you can go back to one. A strip at the top shows exactly what the assistant is remembering right now, and a button clears it.
 
 Why use it: Assistants that forget everything are frustrating, and assistants that remember invisibly are worse. Showing what is remembered makes clearing it something you can actually see work.
 
-How to use it: The list beside the chat holds your past conversations - search them, rename them, delete one, or clear them all. Conversations are stored on your own machine, per project, and are never uploaded.
+How to use it: The list beside the chat holds your past conversations grouped by recency - search them, rename them, delete one, or clear them all. The header shows the current conversation name and Share copies it as markdown. Conversations are stored on your own machine, per project, and are never uploaded.
 
 Access: `All Features → Chat history and memory`; `Open Assistant`.
 
 <!-- feature:ai.connect -->
 ### Connect a model
 
-Connect an AI provider or save several named API connections with a model, secure key, and requests-per-minute limit, including NVIDIA NIM.
+Connect an AI provider in three steps - choose a provider, check and save its key, pick a model - or save several named API connections with a requests-per-minute limit, including NVIDIA NIM.
 
 Why use it: A key that was pasted wrong should say so immediately, not silently fail the first time you ask a question.
 
-How to use it: Open Connect a model. Choose a provider or add a named connection with an OpenAI-compatible base URL and exact model ID. The NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system.
+How to use it: Open Connect a model and follow the three steps at the top. Choose a provider or add a named connection with an OpenAI-compatible base URL and exact model ID. The NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. When nothing is connected, the Assistant shows a banner that works directly with your codebase and opens Connect. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system.
 
 Access: `All Features → Connect a model`; `Connect`; `Settings`.
 

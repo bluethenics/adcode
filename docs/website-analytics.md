@@ -10,6 +10,32 @@ Reports live at `/admin/analytics`, using the existing verified administrator ac
 4. Verify the `website-analytics-retention` Supabase Cron job is active. The retention migration enables `pg_cron` and schedules `select public.purge_website_analytics();` daily at 03:17 GMT (08:47 India time). It deletes events older than 90 days and analytics rate-limit counters older than one day.
 5. In a separate non-admin page, allow analytics, navigate between pages, and copy an installation command. After three seconds, refresh the admin report. Decline analytics and verify no further event requests are sent.
 
+### Verify the production database
+
+Run these read-only queries in the linked Supabase project's SQL editor after applying
+the migrations. Both table names must be present and the retention job must be active.
+The existing `request_counts` table is required by analytics rate limiting and retention.
+
+```sql
+select to_regclass('public.website_events') as events_table,
+       to_regclass('public.request_counts') as rate_limits_table;
+
+select jobname, schedule, active
+from cron.job
+where jobname = 'website-analytics-retention';
+```
+
+The production origin is already set to `https://adcode.bluethenics.com` in
+`apps/web/wrangler.jsonc`. Confirm `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+exist as Worker secrets in that deployment; local public Firebase settings do not
+configure database access. Keep the service-role key out of all `NEXT_PUBLIC_*` variables.
+
+After deploying, open `https://adcode.bluethenics.com/admin/analytics` as a verified
+administrator. In browser developer tools, consenting visits should send batches to
+`/v1/website-events`. A successful `/v1/health` response alone does not prove analytics
+storage or retention works. Confirm the report contains the new visit and verify the
+Cron run history after its next scheduled execution.
+
 ## What the reports mean
 
 - Periods include today in UTC. 7, 30, and 90 days are available, with aggregate JSON export.

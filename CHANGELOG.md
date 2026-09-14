@@ -3,6 +3,16 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 1.0.1 — 2026-09-13
+
+- Update assistant messages with formatted code, copy actions, and grouped conversation history.
+- Pass the Google Desktop OAuth credential into release builds and stop packaging when it is missing.
+- Exclude ADCode's internal tool and build cache from workspace file and symbol searches.
+- Prevent hidden editor splitters from intercepting welcome-screen buttons after all files are closed.
+- Add terminal uninstall commands and production analytics verification instructions.
+- Wait for the restored editor before beginning desktop startup smoke assertions.
+- Make descriptive desktop smoke failures fail the run and update checks for the current editor panels.
+
 ## 1.0.0 — 2026-09-10
 
 ### Release refresh

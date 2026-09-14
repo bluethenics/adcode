@@ -147,6 +147,7 @@ jobs:
       - name: Build and package
         shell: bash
         env:
+          ADCODE_GOOGLE_CLIENT_SECRET: ${{ secrets.ADCODE_GOOGLE_CLIENT_SECRET }}
           # An absent secret interpolates to an empty string, and GitHub still puts the
           # variable in the environment. electron-builder does NOT read that as "not
           # configured" - it reads CSC_LINK as a certificate path, resolves the empty
@@ -167,6 +168,11 @@ jobs:
           ADCODE_RELEASE_DIR: ${{ github.workspace }}/release
         run: |
           set -o pipefail
+
+          if [ -z "${ADCODE_GOOGLE_CLIENT_SECRET//[[:space:]]/}" ]; then
+            echo "::error::Set the ADCODE_GOOGLE_CLIENT_SECRET repository secret before building a release. Google sign-in requires the Desktop OAuth client credential."
+            exit 1
+          fi
 
           # "Set but empty" and "not set" are different things to electron-builder, and
           # only the second one means unsigned. Drop the empties so an unconfigured secret

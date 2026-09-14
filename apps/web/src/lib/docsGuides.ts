@@ -713,8 +713,8 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ai-connect": {
     steps: [
-      "Open Connect a model from the Assistant or command palette.",
-      "Choose a provider, or add a named connection with its OpenAI-compatible base URL and exact model ID. Use the NVIDIA NIM preset for https://integrate.api.nvidia.com/v1.",
+      "Open Connect a model from the Assistant or command palette - or choose Connect on the banner that says ADCode works directly with your codebase.",
+      "Follow the three steps at the top: choose a provider, check and save its key, pick a model. Add a named connection with its OpenAI-compatible base URL and exact model ID for anything else. Use the NVIDIA NIM preset for https://integrate.api.nvidia.com/v1.",
       "Choose a requests-per-minute limit that fits your provider account and save the connection. All agents using that connection share the same queue.",
       "Paste your API key and choose Check and save. Keys are encrypted using this computer's operating-system credential store.",
       "Choose the model for chat, or assign the connection to a named agent. Waiting and cooldown status explain when a request is queued.",
@@ -749,9 +749,10 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "Open Assistant from the workbench or command palette.",
       "Ask about the code in front of you - the assistant can see the open project.",
+      "Read answers with labelled code blocks, inline commands, and numbered steps. Copy a block or the whole response, Retry the last message, or mark it helpful.",
       "Use History for past conversations and the activity panel for agents, tasks, and review controls. Toggle either panel for more writing space.",
       "Press Escape to dismiss it; the conversation survives dismissal.",
-      "Reopen later, or find older conversations in the history list beside it.",
+      "Reopen later, find older conversations grouped by recency, or choose Share to copy one as markdown.",
     ],
     benefits: [
       "No copy-pasting context into a browser window - it already has the project.",
@@ -811,8 +812,9 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ai-sessions": {
     steps: [
-      "Open the Assistant - every conversation you have had is in the history list.",
+      "Open the Assistant - every conversation you have had is grouped into Today, Yesterday, and older.",
       "Search past conversations, rename one to find it later, or delete one by one.",
+      "The header names the current conversation and Share copies it as markdown.",
       "The strip at the top shows exactly what the assistant is remembering right now, and clears it on demand.",
       "Everything is stored per project on your machine, never uploaded.",
     ],

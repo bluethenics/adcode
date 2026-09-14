@@ -80,6 +80,22 @@ describe("AI Chat workspace", () => {
       "showTeam: () => {\n          revealInspector();",
     );
   });
+
+  it("renders Claude-style rich responses, actions, and connect guidance", () => {
+    expect(source).toContain("renderChatMessageHtml");
+    expect(source).toContain("chat-codeblock-copy");
+    expect(source).toContain("chat-message-actions");
+    expect(source).toContain("chat-connect-banner");
+    expect(source).toContain("chat-conversation-title");
+    expect(source).toContain("Chats and tasks");
+    expect(source).toContain("chat-history-group");
+    expect(source).toContain("chat-disclaimer");
+    expect(connectSource).toContain("connect-steps");
+    expect(styles).toContain(".chat-codeblock");
+    expect(styles).toContain(".chat-message-actions");
+    expect(styles).toContain(".chat-connect-banner");
+    expect(styles).toContain(".connect-steps");
+  });
 });
 
 describe("Connect dialog content", () => {

@@ -5,7 +5,7 @@
 }
 .connect-view { container-type: inline-size; }
 .connect-view .connect-panel {
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
   background: var(--bg-elevated);
 }
 .connect-view .connect-header { padding: 22px 24px 8px; align-items: flex-start; gap: 16px; }

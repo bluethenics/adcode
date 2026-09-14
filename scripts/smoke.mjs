@@ -195,8 +195,18 @@ async function evaluate(expression) {
   return message.result?.result?.value;
 }
 
-// Past DOMContentLoaded, so Monaco has an editor and the session restore has finished.
-await sleep(4000);
+// CDP can attach before the first document has loaded. Wait for the restored editor
+// instead of assuming a fixed delay is enough on a cold or removable drive.
+const startupDeadline = Date.now() + 60_000;
+while (Date.now() < startupDeadline) {
+  const ready = await evaluate(`Boolean(
+    document.querySelector('.monaco-editor') &&
+    document.querySelector('#filetree .tree-row') &&
+    document.getElementById('status-workspace')?.textContent !== 'No folder'
+  )`);
+  if (ready === true) break;
+  await sleep(250);
+}
 
 const checks = {
   title: await evaluate("document.title"),
@@ -1513,8 +1523,10 @@ checks.titleBarNotInDragRegion = await evaluate(
        .filter((el) => getComputedStyle(el).getPropertyValue('-webkit-app-region').trim() === 'drag')
        .map((el) => ({ el, r: el.getBoundingClientRect() }));
 
+     // Adjacent fractional CSS rectangles can differ by floating-point rounding.
      const overlaps = (a, b) =>
-       a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+       Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.01 &&
+       Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.01;
 
      const controls = document.querySelectorAll('.menubar-item, .titlebar-action, .command-centre');
      if (controls.length === 0) return 'no title bar controls found';
@@ -2470,7 +2482,7 @@ checks.reportDialogOpens = await (async () => {
  */
 checks.dragSelectsWholeLine = await evaluate(
   `(() => {
-     const host = document.getElementById('editor-host');
+     const host = document.querySelector('.editor-file-panel[data-active="true"] .editor-file-content');
      const mode = host?.dataset?.columnSelection;
      if (mode === undefined) return 'the editor never reported its selection mode';
      return mode === 'false' ? true : 'the editor is in column-selection mode';
@@ -2842,7 +2854,7 @@ try {
     `(async () => {
        const first = document.querySelector('.history-commit .history-head');
        if (!first) return 'no commit row';
-       first.click();
+       if (first.closest('.history-commit')?.dataset.open !== 'true') first.click();
 
        for (let i = 0; i < 40 && !document.querySelector('.history-file'); i++) {
          await new Promise(r => setTimeout(r, 200));
@@ -2957,8 +2969,8 @@ try {
 
   const editorPoint = await evaluate(
     `(() => {
-       const r = document.getElementById('editor-host').getBoundingClientRect();
-       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 40) };
+       const r = document.querySelector('.editor-file-panel[data-active="true"] .monaco-editor').getBoundingClientRect();
+       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 20) };
      })()`,
   );
   await clickAt(editorPoint.x, editorPoint.y);
@@ -3343,6 +3355,8 @@ try {
   /* ── Terminal agent detection ─────────────────────────────────────────── */
 
   checks.terminalOffersSharedMemory = await (async () => {
+    await runCommand("new terminal");
+    await sleep(500);
     /*
      * A real click into the terminal, at real coordinates.
      *
@@ -3352,7 +3366,8 @@ try {
      */
     const terminalPoint = await evaluate(
       `(() => {
-         const surface = document.getElementById('terminal-surface');
+         const surface = [...document.querySelectorAll('.terminal-pane .xterm')]
+           .find((one) => one.getBoundingClientRect().width > 0);
          if (!surface) return null;
          const r = surface.getBoundingClientRect();
          if (r.width === 0) return null;
@@ -3392,7 +3407,7 @@ try {
 
     return await evaluate(
       `(() => {
-         const strip = document.querySelector('.agent-strip');
+         const strip = document.querySelector('.agent-strip:not(.team-strip)');
          if (!strip) return { stripInDom: false };
          if (strip.hidden) return { stripInDom: true, hidden: true };
          return {
@@ -3598,6 +3613,8 @@ try {
 
          return {
            hint: document.querySelector('.quickopen-symbols .quickopen-hint')?.textContent ?? '?',
+           query: input.value,
+           overlays: [...document.querySelectorAll('.quickopen-symbols')].map((one) => ({ hidden: one.hidden, query: one.querySelector('input')?.value })),
            found: rows.length > 0,
            // The real declaration, in the file that really declares it.
            namesTheSymbol: names.includes('createEditorHost'),
@@ -3667,7 +3684,8 @@ try {
            // No language server runs for TypeScript here, so it must be the name match.
            matchedByName: badge?.classList.contains('peek-badge-matched') === true,
            showsSource: (peek.querySelector('.peek-code')?.textContent ?? '').includes('alpha'),
-           namesTheFile: (peek.querySelector('.peek-title')?.textContent ?? '').includes('smoke-broken.ts'),
+           // Name matching can return another declaration; its source must still be named.
+           namesTheFile: /[^\\\\/]+\\.ts:\\d+$/.test(peek.querySelector('.peek-title')?.textContent ?? ''),
          };
        })()`,
     );
@@ -4080,7 +4098,16 @@ try {
   await pressEnter();
   await sleep(1200);
 
-  await clickAt(pageEditorPoint.x, pageEditorPoint.y);
+  const styleEditorPoint = await evaluate(
+    `(() => {
+       const panel = document.querySelector('.editor-file-panel[data-active="true"]');
+       if (!panel?.dataset.path?.endsWith('smoke-style.css')) return null;
+       const r = panel.querySelector('.monaco-editor')?.getBoundingClientRect();
+       return r ? { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 20) } : null;
+     })()`,
+  );
+  if (styleEditorPoint === null) throw new Error('The new stylesheet did not open in the active editor');
+  await clickAt(styleEditorPoint.x, styleEditorPoint.y);
 
   await send("Input.dispatchKeyEvent", {
     type: "keyDown",
@@ -4818,6 +4845,10 @@ checks.welcomeScreenIsUsable = await evaluate(
      const primary = inner.querySelector('.welcome-action-primary');
      if (!primary) return 'no primary action';
 
+     // Earlier panel-resize checks leave a short editor. The welcome card scrolls
+     // in that layout, so bring the action into view before testing its hit area.
+     primary.scrollIntoView({ block: 'nearest' });
+     await new Promise((r) => requestAnimationFrame(r));
      const box = primary.getBoundingClientRect();
      // What the pointer would actually reach at the button's centre.
      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
@@ -4828,6 +4859,9 @@ checks.welcomeScreenIsUsable = await evaluate(
        // What the pointer reached instead, when it is not the button. Without this the
        // failure is a bare false and every candidate looks equally likely.
        hitWas: hit === null ? null : hit.tagName + '.' + (hit.className || '(no class)'),
+       hitId: hit?.id,
+       hitBounds: hit?.getBoundingClientRect().toJSON(),
+       buttonBounds: box.toJSON(),
        // The version is on screen, because it is what a bug report asks for.
        showsVersion: /Version \\d/.test(inner.querySelector('.welcome-version')?.textContent ?? ''),
        marked: inner.querySelector('.welcome-mark svg') !== null,
@@ -5208,7 +5242,7 @@ checks.earningsSettingsButtonWorks = await evaluate(
      const result = {
        settingsOpened: settingsVisible,
        settingsSelected:
-         document.querySelector('.activity[data-sidebar-view="settings"]')?.ariaSelected === 'true',
+         document.querySelector('.activity[data-sidebar-view="settings"]')?.getAttribute('aria-pressed') === 'true',
      };
 
      // Put the window back.
@@ -6572,9 +6606,24 @@ for (const [name, value] of Object.entries(checks)) {
 process.stdout.write(`\n--- ${bad.length} suspicious log line(s) ---\n`);
 for (const line of bad) process.stdout.write(`  ${line}\n`);
 
+// These values are observations printed alongside assertions. Other strings are
+// failure explanations returned by checks and must not silently count as passes.
+const observations = new Set([
+  "title", "restoredWorkspace", "branch", "quickOpenRanks", "scmShowsBranch",
+  "conflictsSaysNone", "conflictsStatusLine", "paletteFinds", "multipleTerminals",
+  "terminalContextMenu", "problemsRowJumpsToTheColumn",
+]);
+const requiredEvidence = {
+  terminalOffersSharedMemory: ["shown", "namesTheAgent", "carriesTheCommand", "offersCopy"],
+  peekShowsTheDefinition: ["opened", "saysHowItWasFound", "matchedByName", "showsSource", "namesTheFile"],
+  welcomeScreenIsUsable: ["primaryClickable", "showsVersion", "marked"],
+  earningsSettingsButtonWorks: ["settingsOpened", "settingsSelected"],
+};
 const failed = Object.entries(checks).filter(
-  ([, value]) =>
-    value === false || value === undefined || String(value).startsWith("THREW"),
+  ([name, value]) =>
+    value === false || value === undefined || String(value).startsWith("THREW") ||
+    (typeof value === "string" && !observations.has(name)) ||
+    (requiredEvidence[name]?.some((key) => value?.[key] !== true) ?? false),
 );
 if (failed.length > 0)
   process.stdout.write(`\nfailed: ${failed.map(([n]) => n).join(", ")}\n`);

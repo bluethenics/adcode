@@ -116,6 +116,7 @@ Write-Host "  Looking after it" -ForegroundColor White
 Write-Host "    Updates           automatic; turn off in Settings, Updates"
 Write-Host "    Reinstall         run this same command again"
 Write-Host "    Uninstall         Settings, Apps, Installed apps, ADCode"
+Write-Host '    From terminal     winget uninstall --name ADCode'
 Write-Host ""
 Write-Host "  Help" -ForegroundColor White
 Write-Host "    In the editor     Help menu, Feature Guide - every feature, explained"

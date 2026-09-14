@@ -147,9 +147,9 @@ export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
     id: "ai.connect",
     title: "Connect a model",
     plain:
-      "Connect an AI provider or save several named API connections with a model, secure key, and requests-per-minute limit, including NVIDIA NIM.",
+      "Connect an AI provider in three steps - choose a provider, check and save its key, pick a model - or save several named API connections with a requests-per-minute limit, including NVIDIA NIM.",
     why: "A key that was pasted wrong should say so immediately, not silently fail the first time you ask a question.",
-    how: "Open Connect a model. Choose a provider or add a named connection with an OpenAI-compatible base URL and exact model ID. The NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system.",
+    how: "Open Connect a model and follow the three steps at the top. Choose a provider or add a named connection with an OpenAI-compatible base URL and exact model ID. The NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. When nothing is connected, the Assistant shows a banner that works directly with your codebase and opens Connect. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system.",
     group: "ai",
     settingIds: ["adcode.ai.connections"],
     related: ["adcode.ai.provider", "adcode.ai.model", "ai.sessions", "ai.team"],
@@ -158,9 +158,9 @@ export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
     id: "ai.sessions",
     title: "Chat history and memory",
     plain:
-      "Every conversation is kept, so you can go back to one. A strip at the top shows exactly what the assistant is remembering right now, and a button clears it.",
+      "Every conversation is kept in Today, Yesterday, and older groups, so you can go back to one. A strip at the top shows exactly what the assistant is remembering right now, and a button clears it.",
     why: "Assistants that forget everything are frustrating, and assistants that remember invisibly are worse. Showing what is remembered makes clearing it something you can actually see work.",
-    how: "The list beside the chat holds your past conversations - search them, rename them, delete one, or clear them all. Conversations are stored on your own machine, per project, and are never uploaded.",
+    how: "The list beside the chat holds your past conversations grouped by recency - search them, rename them, delete one, or clear them all. The header shows the current conversation name and Share copies it as markdown. Conversations are stored on your own machine, per project, and are never uploaded.",
     group: "ai",
     settingIds: [],
     related: ["adcode.ai.chatWidget", "adcode.ai.memoryCapture", "ai.connect"],

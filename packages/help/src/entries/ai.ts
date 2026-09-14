@@ -37,9 +37,9 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
   {
     id: "adcode.ai.chatWidget",
     title: "AI chat workspace",
-    plain: "A spacious conversation workspace with searchable history and a panel for agents, tasks, and live activity.",
+    plain: "A spacious conversation workspace with searchable history, code blocks you can copy, and per-response Copy, Retry, and feedback.",
     why: "Asking in the editor beats copying code into a browser, because the assistant can already see the project.",
-    how: "Open Assistant from the workbench or command palette. Write in the composer and send your request. Use History to browse conversations and the activity panel to see agent work and review changes. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation.",
+    how: "Open Assistant from the workbench or command palette. Write in the composer and send your request. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers Copy, Retry, and helpful or not helpful. Use History to browse conversations and the activity panel to see agent work and review changes. Share copies the conversation as markdown. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation.",
     group: "ai",
     settingIds: ["adcode.ai.chatWidget"],
     related: ["ai.sessions", "adcode.ai.inlineCompletion", "adcode.ai.memoryCapture"],

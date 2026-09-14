@@ -80,6 +80,23 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   headingGroup.append(title, subtitle);
   header.append(headingGroup, done);
 
+  // Guided 3-step affordance, mirroring the in-chat banner: choose, key, model.
+  const steps = document.createElement("ol");
+  steps.className = "connect-steps";
+  steps.setAttribute("aria-label", "How connecting works");
+  for (const [index, label] of ["Choose a provider", "Check and save its key", "Pick a model"].entries()) {
+    const step = document.createElement("li");
+    step.className = "connect-step";
+    const number = document.createElement("span");
+    number.className = "connect-step-number";
+    number.textContent = String(index + 1);
+    number.setAttribute("aria-hidden", "true");
+    const text = document.createElement("span");
+    text.textContent = label;
+    step.append(number, text);
+    steps.append(step);
+  }
+
   const search = document.createElement("input");
   search.className = "settings-search";
   search.type = "search";
@@ -126,7 +143,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   connectionStatus.setAttribute("role", "status");
   const catalogueStatus = document.createElement("span");
   footer.append(connectionStatus, catalogueStatus);
-  panel.append(header, lede, toolbar, body, footer);
+  panel.append(header, steps, lede, toolbar, body, footer);
   element.append(panel);
 
   function renderConnection(existing?: ConnectionProfile): void {

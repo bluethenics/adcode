@@ -25,6 +25,7 @@ const SKIP_DIRECTORIES = new Set([
   "target",
   "coverage",
   ".adcode",
+  ".adcode-cache",
   ".cache",
 ]);
 

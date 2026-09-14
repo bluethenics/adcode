@@ -31,7 +31,8 @@ import { shell } from "electron";
  * identifier, not a credential - Google's own guidance is that "installed apps are
  * distributed to individual devices, and it is assumed that these apps cannot keep
  * secrets", which is exactly why PKCE and the device flow exist. What must never be
- * committed is a client *secret*, and neither flow here needs one.
+ * committed is a client *secret*. Google's Desktop flow requires its client secret
+ * at token exchange; GitHub's device flow does not.
  *
  * Environment variables override these, for anyone testing against their own clients.
  */

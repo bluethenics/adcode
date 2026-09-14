@@ -33,7 +33,11 @@ import {
   type PendingAttachment,
 } from "./attachments.ts";
 import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
-import { codeReferenceParts, type CodeReference } from "../editor/codeReferences.ts";
+import type { CodeReference } from "../editor/codeReferences.ts";
+import {
+  groupChatSessions,
+  renderChatMessageHtml,
+} from "./chatMarkdown.ts";
 import { createAgentLibrary } from "./agentLibrary.ts";
 import { attachChatLayout } from "./chatLayout.ts";
 import {
@@ -131,24 +135,48 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   let streamingBubble: HTMLElement | null = null;
   const messageSources = new WeakMap<HTMLElement, string>();
 
+  function wireMessageButtons(scope: HTMLElement): void {
+    for (const copy of scope.querySelectorAll<HTMLButtonElement>(".chat-codeblock-copy")) {
+      copy.addEventListener("click", () => {
+        const code = copy.closest(".chat-codeblock")?.querySelector("code")?.textContent ?? "";
+        copy.disabled = true;
+        const done = (ok: boolean): void => {
+          copy.textContent = ok ? "Copied" : "Copy failed";
+          window.setTimeout(() => {
+            copy.textContent = "Copy";
+            copy.disabled = false;
+          }, 1400);
+        };
+        try {
+          const clipboard = navigator.clipboard;
+          if (!clipboard) throw new Error("no clipboard");
+          void clipboard.writeText(code).then(() => done(true), () => done(false));
+        } catch {
+          done(false);
+        }
+      });
+    }
+    if (deps.openCodeReference) {
+      const openReference = deps.openCodeReference;
+      for (const link of scope.querySelectorAll<HTMLButtonElement>(".chat-code-reference[data-path]")) {
+        link.title = `Open ${link.dataset["path"] ?? ""} at line ${link.dataset["line"] ?? "1"}`;
+        link.addEventListener("click", () => {
+          openReference({
+            path: link.dataset["path"] ?? "",
+            line: Number(link.dataset["line"] ?? 1),
+            column: Number(link.dataset["column"] ?? 1),
+          });
+        });
+      }
+    }
+  }
+
   function renderMessage(element: HTMLElement, text: string): void {
     messageSources.set(element, text);
-    const content = document.createDocumentFragment();
-    for (const part of codeReferenceParts(text)) {
-      if (!part.reference || !deps.openCodeReference) {
-        content.append(document.createTextNode(part.text));
-        continue;
-      }
-      const reference = part.reference;
-      const link = document.createElement("button");
-      link.type = "button";
-      link.className = "chat-code-reference";
-      link.textContent = part.text;
-      link.title = `Open ${reference.path} at line ${reference.line}, column ${reference.column}`;
-      link.addEventListener("click", () => deps.openCodeReference?.(reference));
-      content.append(link);
-    }
-    element.replaceChildren(content);
+    // Rich Claude-style HTML (escaped, code blocks, lists, inline code, file
+    // links). Buttons are wired after insert so copy and open-file work.
+    element.innerHTML = renderChatMessageHtml(text);
+    wireMessageButtons(element);
   }
 
   const card = document.createElement("section");
@@ -166,6 +194,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const title = document.createElement("span");
   title.className = "chat-title";
   title.textContent = "ADCode Assistant";
+
+  // Claude-style conversation title: the active chat's name, updated on
+  // resume / reset / history refresh. A plain label, not a menu - renaming
+  // already lives on each history row.
+  const conversationTitle = document.createElement("span");
+  conversationTitle.className = "chat-conversation-title";
+  conversationTitle.textContent = "New conversation";
+  conversationTitle.title = "Current conversation";
 
   const modelLabel = document.createElement("button");
   modelLabel.type = "button";
@@ -193,6 +229,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         : "Choose a provider and model (Connect)";
       queueLabel.textContent = formatConnectionQueue(status.connections ?? [], Date.now());
         queueLabel.hidden = !queueLabel.textContent;
+        let dismissed = false;
+        try {
+          dismissed = localStorage.getItem("adcode.chat.connectBannerDismissed") === "1";
+        } catch {
+          dismissed = false;
+        }
+        connectBanner.hidden = status.ready || dismissed;
         if (open && inspectorOpen) void refreshAgentActivity();
     } catch {
       modelLabel.textContent = "Connection status unavailable";
@@ -221,15 +264,58 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   const resetButton = document.createElement("button");
   resetButton.className = "ghost-button";
-  resetButton.textContent = "New";
+  resetButton.textContent = "+ New";
   resetButton.title = "Start a new conversation - the current one is kept in History";
+  resetButton.setAttribute("aria-label", "Start a new conversation");
   resetButton.addEventListener("click", () => {
     window.adcode.ai.reset();
     transcript.replaceChildren();
     streamingBubble = null;
+    conversationTitle.textContent = "New conversation";
     renderMemory(null);
     void refreshHistory();
   });
+
+  const shareButton = document.createElement("button");
+  shareButton.className = "ghost-button";
+  shareButton.textContent = "Share";
+  shareButton.title = "Copy this conversation as markdown";
+  shareButton.setAttribute("aria-label", "Copy conversation as markdown");
+  shareButton.addEventListener("click", () => {
+    const lines: string[] = [`# ${conversationTitle.textContent}`];
+    for (const [role, text] of transcriptMessages()) {
+      lines.push(role === "user" ? `## You\n${text}` : `## ADCode\n${text}`);
+    }
+    const markdown = lines.join("\n\n");
+    shareButton.disabled = true;
+    const done = (ok: boolean): void => {
+      shareButton.textContent = ok ? "Copied" : "Copy failed";
+      window.setTimeout(() => {
+        shareButton.textContent = "Share";
+        shareButton.disabled = false;
+      }, 1400);
+    };
+    try {
+      const clipboard = navigator.clipboard;
+      if (!clipboard) throw new Error("no clipboard");
+      void clipboard.writeText(markdown).then(() => done(true), () => done(false));
+    } catch {
+      done(false);
+    }
+  });
+
+  function transcriptMessages(): readonly (readonly ["user" | "assistant", string])[] {
+    const out: (readonly ["user" | "assistant", string])[] = [];
+    for (const child of transcript.children) {
+      if (!(child instanceof HTMLElement)) continue;
+      if (child.classList.contains("chat-bubble-user")) {
+        out.push(["user", messageSources.get(child) ?? ""] as const);
+      } else if (child.classList.contains("chat-bubble-assistant")) {
+        out.push(["assistant", messageSources.get(child) ?? ""] as const);
+      }
+    }
+    return out;
+  }
 
   const closeButton = document.createElement("button");
   closeButton.className = "ghost-button";
@@ -240,7 +326,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   const identity = document.createElement("div");
   identity.className = "chat-identity";
-  identity.append(title);
+  identity.append(title, conversationTitle);
   const headerActions = document.createElement("div");
   headerActions.className = "chat-header-actions";
   headerActions.append(
@@ -248,9 +334,37 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     connectButton,
     inspectorButton,
     resetButton,
+    shareButton,
     closeButton,
   );
   header.append(identity, queueLabel, headerActions);
+
+  // Claude-style connect banner: when no model is ready, the transcript top
+  // explains the assistant works with the open codebase and offers Connect.
+  const connectBanner = document.createElement("div");
+  connectBanner.className = "chat-connect-banner";
+  connectBanner.hidden = true;
+  const connectBannerText = document.createElement("span");
+  connectBannerText.textContent = "ADCode works directly with your codebase";
+  const connectBannerButton = document.createElement("button");
+  connectBannerButton.type = "button";
+  connectBannerButton.className = "chat-send";
+  connectBannerButton.textContent = "Connect";
+  connectBannerButton.addEventListener("click", () => deps.openConnect());
+  const connectBannerDismiss = document.createElement("button");
+  connectBannerDismiss.type = "button";
+  connectBannerDismiss.className = "ghost-button";
+  connectBannerDismiss.textContent = "×";
+  connectBannerDismiss.setAttribute("aria-label", "Dismiss connect suggestion");
+  connectBannerDismiss.addEventListener("click", () => {
+    connectBanner.hidden = true;
+    try {
+      localStorage.setItem("adcode.chat.connectBannerDismissed", "1");
+    } catch {
+      // Dismissal memory is optional.
+    }
+  });
+  connectBanner.append(connectBannerText, connectBannerButton, connectBannerDismiss);
 
   /* ── Transcript ───────────────────────────────────────────────────────── */
 
@@ -292,13 +406,21 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   const historyHeading = document.createElement("h2");
   historyHeading.className = "chat-section-heading";
-  historyHeading.textContent = "Conversations";
+  historyHeading.textContent = "Chats and tasks";
   history.append(historyHeading, historySearch, historyList, clearAll);
 
   let saved: readonly ChatSessionView[] = [];
+  let activeSessionId: string | null = null;
 
   async function refreshHistory(): Promise<void> {
     saved = await window.adcode.chat.sessions();
+    if (activeSessionId === null) {
+      const current = await window.adcode.chat.current().catch(() => null);
+      if (current !== null) {
+        activeSessionId = current.id;
+        conversationTitle.textContent = current.messages.length === 0 ? "New conversation" : current.title;
+      }
+    }
     renderHistory();
   }
 
@@ -307,6 +429,53 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (historyOpen && card.dataset["layout"] === "compact") inspectorOpen = false;
     applyDisclosures();
     if (historyOpen) void refreshHistory();
+  }
+
+  function renderHistoryRow(session: ChatSessionView): HTMLElement {
+    const row = document.createElement("div");
+    row.className = "chat-history-row";
+    if (session.id === activeSessionId) row.dataset["active"] = "true";
+
+    const openIt = document.createElement("button");
+    openIt.type = "button";
+    openIt.className = "chat-history-open";
+    openIt.textContent = session.title;
+    openIt.title = "Reopen this conversation";
+    openIt.setAttribute("aria-current", session.id === activeSessionId ? "true" : "false");
+    openIt.addEventListener("click", () => void resume(session.id));
+
+    const rename = document.createElement("button");
+    rename.type = "button";
+    rename.className = "chat-history-action";
+    rename.textContent = "Rename";
+    rename.setAttribute("aria-label", `Rename ${session.title}`);
+    rename.addEventListener("click", () => {
+      void deps.askForName(session.title).then(async (name) => {
+        if (name === null) return;
+        saved = await window.adcode.chat.rename(session.id, name);
+        if (session.id === activeSessionId) conversationTitle.textContent = name;
+        renderHistory();
+      });
+    });
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "chat-history-action";
+    remove.textContent = "Delete";
+    remove.setAttribute("aria-label", `Delete ${session.title}`);
+    remove.addEventListener("click", () => {
+      void window.adcode.chat.remove(session.id).then((sessions) => {
+        saved = sessions;
+        if (session.id === activeSessionId) {
+          activeSessionId = null;
+          conversationTitle.textContent = "New conversation";
+        }
+        renderHistory();
+      });
+    });
+
+    row.append(openIt, rename, remove);
+    return row;
   }
 
   function renderHistory(): void {
@@ -325,47 +494,29 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       const empty = document.createElement("p");
       empty.className = "chat-history-empty";
       empty.textContent =
-        saved.length === 0 ? "No conversations yet." : "Nothing matches that.";
+        saved.length === 0
+          ? "No chats yet. Start one below - it stays on this machine, per project."
+          : "Nothing matches that.";
       historyList.append(empty);
       return;
     }
 
-    for (const session of shown) {
-      const row = document.createElement("div");
-      row.className = "chat-history-row";
+    if (needle.length > 0) {
+      for (const session of [...shown].sort((a, b) => b.updatedAt - a.updatedAt)) {
+        historyList.append(renderHistoryRow(session));
+      }
+      return;
+    }
 
-      const openIt = document.createElement("button");
-      openIt.type = "button";
-      openIt.className = "chat-history-open";
-      openIt.textContent = session.title;
-      openIt.title = "Reopen this conversation";
-      openIt.addEventListener("click", () => void resume(session.id));
-
-      const rename = document.createElement("button");
-      rename.type = "button";
-      rename.className = "chat-history-action";
-      rename.textContent = "Rename";
-      rename.addEventListener("click", () => {
-        void deps.askForName(session.title).then(async (name) => {
-          if (name === null) return;
-          saved = await window.adcode.chat.rename(session.id, name);
-          renderHistory();
-        });
-      });
-
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "chat-history-action";
-      remove.textContent = "Delete";
-      remove.addEventListener("click", () => {
-        void window.adcode.chat.remove(session.id).then((sessions) => {
-          saved = sessions;
-          renderHistory();
-        });
-      });
-
-      row.append(openIt, rename, remove);
-      historyList.append(row);
+    for (const group of groupChatSessions(shown)) {
+      const heading = document.createElement("h3");
+      heading.className = "chat-history-group";
+      heading.textContent = group.label;
+      historyList.append(heading);
+      for (const entry of group.sessions) {
+        const full = shown.find((session) => session.id === entry.id);
+        if (full) historyList.append(renderHistoryRow(full));
+      }
     }
   }
 
@@ -376,12 +527,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
     transcript.replaceChildren();
     streamingBubble = null;
+    activeSessionId = session.id;
+    conversationTitle.textContent = session.title;
 
     for (const message of session.messages) {
       bubble(message.role === "user" ? "user" : "assistant", message.text);
     }
 
     renderMemory(session);
+    renderHistory();
     historyOpen = false;
     applyDisclosures();
   }
@@ -569,7 +723,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const input = document.createElement("textarea");
   input.className = "chat-input";
   input.rows = 2;
-  input.placeholder = "Ask about this project…";
+  input.placeholder = "Write a message…";
   input.setAttribute("aria-label", "Message the assistant");
 
   const sendButton = document.createElement("button");
@@ -725,12 +879,68 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   });
   attachButton.addEventListener("click", () => filePicker.click());
 
+  const voiceButton = document.createElement("button");
+  voiceButton.className = "chat-team-button";
+  voiceButton.type = "button";
+  voiceButton.textContent = "🎙";
+  voiceButton.title = "Dictate a message";
+  voiceButton.setAttribute("aria-label", "Dictate a message");
+  voiceButton.hidden = true;
+  const speechRecognition =
+    (window as unknown as { webkitSpeechRecognition?: new () => unknown }).webkitSpeechRecognition ??
+    (window as unknown as { SpeechRecognition?: new () => unknown }).SpeechRecognition;
+  if (typeof speechRecognition === "function") {
+    voiceButton.hidden = false;
+    voiceButton.addEventListener("click", () => {
+      try {
+        const recognition = new (speechRecognition as new () => {
+          lang: string;
+          interimResults: boolean;
+          onresult: ((event: { results: { transcript: string }[][] }) => void) | null;
+          onerror: (() => void) | null;
+          onend: (() => void) | null;
+          start: () => void;
+          stop: () => void;
+        })();
+        recognition.lang = navigator.language || "en-US";
+        recognition.interimResults = false;
+        voiceButton.disabled = true;
+        voiceButton.textContent = "●";
+        recognition.onresult = (event) => {
+          const heard = event.results
+            .map((result) => result[0]?.transcript ?? "")
+            .join(" ")
+            .trim();
+          if (heard.length > 0) input.value = `${input.value}${input.value.endsWith(" ") || input.value.length === 0 ? "" : " "}${heard}`;
+          input.focus();
+        };
+        recognition.onerror = () => {
+          voiceButton.disabled = false;
+          voiceButton.textContent = "🎙";
+        };
+        recognition.onend = () => {
+          voiceButton.disabled = false;
+          voiceButton.textContent = "🎙";
+        };
+        recognition.start();
+      } catch {
+        voiceButton.hidden = true;
+      }
+    });
+  }
+
   const toolbar = document.createElement("div");
   toolbar.className = "chat-toolbar";
   const spacer = document.createElement("span");
   spacer.className = "chat-toolbar-spacer";
-  toolbar.append(attachButton, attachContext, manualTeam, scheduleMessage, spacer, modelLabel, sendButton);
-  composer.append(input, attachmentStrip, composerNotice, toolbar, filePicker);
+  toolbar.append(attachButton, attachContext, manualTeam, scheduleMessage, voiceButton, spacer, modelLabel, sendButton);
+  const composerFooter = document.createElement("div");
+  composerFooter.className = "chat-composer-footer";
+  const disclaimer = document.createElement("span");
+  disclaimer.className = "chat-disclaimer";
+  disclaimer.textContent = "ADCode AI can make mistakes. Double-check responses.";
+  composerFooter.append(disclaimer);
+  composer.append(input, attachmentStrip, composerNotice, toolbar, composerFooter, filePicker);
 
   const conversation = document.createElement("main");
   conversation.className = "chat-conversation";
@@ -769,7 +979,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     conversation.dataset["empty"] = String(empty);
   };
   new MutationObserver(refreshWelcome).observe(transcript, { childList: true });
-  conversation.append(memory, welcome, transcript, composer, quickActions);
+  conversation.append(memory, connectBanner, welcome, transcript, composer, quickActions);
   refreshWelcome();
   const working = document.createElement("div");
   working.className = "chat-working";
@@ -841,6 +1051,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     transcript.scrollTop = transcript.scrollHeight;
   }
 
+  let lastUserPrompt = "";
+
   function bubble(
     role: "user" | "assistant",
     text: string,
@@ -848,6 +1060,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   ): HTMLElement {
     const element = document.createElement("div");
     element.className = `chat-bubble chat-bubble-${role}`;
+    if (role === "user" && text.trim().length > 0) lastUserPrompt = text;
     if (role === "assistant" && text.length === 0) element.classList.add("is-streaming");
     if (attachments.length > 0) {
       const row = document.createElement("div");
@@ -875,8 +1088,87 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
     renderMessage(element, text);
     transcript.append(element);
+    if (role === "assistant" && text.length > 0) transcript.append(messageActions(element));
     scrollToEnd();
     return element;
+  }
+
+  // Claude-style per-response actions: Copy, Retry, helpful / not helpful.
+  // Copy reads the stored source so code blocks copy exactly. Retry re-sends
+  // the last user prompt. Votes are local-only signals, toggled in place.
+  function messageActions(bubbleElement: HTMLElement): HTMLElement {
+    const bar = document.createElement("div");
+    bar.className = "chat-message-actions";
+    bar.setAttribute("aria-label", "Response actions");
+
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "chat-message-action";
+    copy.textContent = "Copy";
+    copy.title = "Copy response";
+    copy.setAttribute("aria-label", "Copy response");
+    copy.addEventListener("click", () => {
+      const source = messageSources.get(bubbleElement) ?? "";
+      copy.disabled = true;
+      const done = (ok: boolean): void => {
+        copy.textContent = ok ? "Copied" : "Failed";
+        window.setTimeout(() => {
+          copy.textContent = "Copy";
+          copy.disabled = false;
+        }, 1400);
+      };
+      try {
+        const clipboard = navigator.clipboard;
+        if (!clipboard) throw new Error("no clipboard");
+        void clipboard.writeText(source).then(() => done(true), () => done(false));
+      } catch {
+        done(false);
+      }
+    });
+
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "chat-message-action";
+    retry.textContent = "Retry";
+    retry.title = "Send the last message again";
+    retry.setAttribute("aria-label", "Retry last message");
+    retry.addEventListener("click", () => {
+      if (lastUserPrompt.trim().length === 0) return;
+      retry.disabled = true;
+      window.setTimeout(() => {
+        retry.disabled = false;
+      }, 2000);
+      void window.adcode.ai.send(lastUserPrompt).catch(() => undefined);
+      setSendMode("stop");
+      streamingBubble = null;
+    });
+
+    const good = document.createElement("button");
+    good.type = "button";
+    good.className = "chat-message-action";
+    good.textContent = "👍";
+    good.title = "Helpful (stored on this machine only)";
+    good.setAttribute("aria-label", "Mark helpful");
+    good.setAttribute("aria-pressed", "false");
+
+    const bad = document.createElement("button");
+    bad.type = "button";
+    bad.className = "chat-message-action";
+    bad.textContent = "👎";
+    bad.title = "Not helpful (stored on this machine only)";
+    bad.setAttribute("aria-label", "Mark not helpful");
+    bad.setAttribute("aria-pressed", "false");
+
+    const vote = (chosen: HTMLButtonElement, other: HTMLButtonElement): void => {
+      const pressed = chosen.getAttribute("aria-pressed") === "true";
+      chosen.setAttribute("aria-pressed", String(!pressed));
+      other.setAttribute("aria-pressed", "false");
+    };
+    good.addEventListener("click", () => vote(good, bad));
+    bad.addEventListener("click", () => vote(bad, good));
+
+    bar.append(copy, retry, good, bad);
+    return bar;
   }
 
   /**
@@ -1669,11 +1961,18 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         trace("Cancelled", "You stopped this turn.", "ok");
         break;
 
-      case "turn-end":
-        streamingBubble?.classList.remove("is-streaming");
+      case "turn-end": {
+        const finished = streamingBubble;
+        finished?.classList.remove("is-streaming");
         streamingBubble = null;
         setSendMode("send");
+        if (finished && !finished.nextElementSibling?.classList.contains("chat-message-actions")) {
+          finished.after(messageActions(finished));
+          scrollToEnd();
+        }
+        void refreshHistory();
         break;
+      }
     }
   });
 

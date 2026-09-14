@@ -53,6 +53,10 @@ npm run web             # the site, portal, dashboard and admin on :3000
 npm run test:emulator   # the Firestore adapter (needs firebase-tools and a JDK)
 ```
 
+For production setup, see [Google sign-in in releases](docs/google-sign-in-release.md)
+and [website analytics](docs/website-analytics.md). To remove an installation, see
+the [terminal uninstall commands](docs/uninstall.md).
+
 > After `npm install`, npm's allow-scripts policy blocks install scripts. Electron's
 > binary, node-pty's prebuilds, and esbuild all need theirs:
 > `npm approve-scripts electron node-pty esbuild`. If `node_modules/electron/dist` is
