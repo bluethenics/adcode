@@ -52,6 +52,27 @@ export default async function VersionsPage() {
           </dl>
         </section>
 
+        <section className="install-terminal glass-card" aria-label="Remove from a terminal">
+          <div>
+            <strong>Remove from a terminal</strong>
+            <p>Close ADCode first, then run the command for your installation in an external terminal. Your projects and your account are left alone.</p>
+          </div>
+          <dl>
+            <div>
+              <dt>Windows, in PowerShell</dt>
+              <dd><code>winget uninstall --name ADCode</code></dd>
+            </div>
+            <div>
+              <dt>Linux, from the Debian package</dt>
+              <dd><code>sudo apt remove adcode</code></dd>
+            </div>
+            <div>
+              <dt>Linux, AppImage installed by the command above</dt>
+              <dd><code>rm -- &quot;$HOME/.local/bin/adcode&quot;</code></dd>
+            </div>
+          </dl>
+        </section>
+
         <section className="release-history">
           <div className="release-history-head"><span className="glass-kicker">Release history</span><a href={`https://github.com/${GITHUB_REPO}/releases`} rel="noreferrer">View source releases ↗</a></div>
           {releases.length === 0 ? (

@@ -11,6 +11,7 @@ only public once its installers are attached to a GitHub release.
 - Exclude ADCode's internal tool and build cache from workspace file and symbol searches.
 - Prevent hidden editor splitters from intercepting welcome-screen buttons after all files are closed.
 - Add terminal uninstall commands and production analytics verification instructions.
+- Surface the terminal uninstall commands on the website's versions page.
 - Wait for the restored editor before beginning desktop startup smoke assertions.
 - Make descriptive desktop smoke failures fail the run and update checks for the current editor panels.
 

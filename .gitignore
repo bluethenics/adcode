@@ -31,6 +31,9 @@ apps/desktop/src/renderer/public/grammars/
 apps/web/.open-next/
 apps/web/.wrangler/
 
+# Local worker-bundle inspection output (Cloudflare build artefacts, not source).
+apps/web/.analytics-worker-check/
+
 # Agent skills installed locally. Tooling for whoever is editing, not part of the product.
 .agents/skills/
 .claude/skills/
