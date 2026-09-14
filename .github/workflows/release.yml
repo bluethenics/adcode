@@ -290,6 +290,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
           HAS_CERT: ${{ secrets.CSC_LINK != '' }}
+          RELEASE_COMMIT: ${{ github.sha }}
         run: |
           tag="v${VERSION}"
 
@@ -320,6 +321,7 @@ jobs:
           else
             gh release create "$tag" $assets \
               --draft \
+              --target "$RELEASE_COMMIT" \
               --title "ADCode ${VERSION}" \
               --notes "$notes"
           fi
