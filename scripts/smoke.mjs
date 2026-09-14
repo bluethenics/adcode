@@ -107,6 +107,10 @@ const child = spawn(
   [
     ...appArgs,
     "--enable-logging",
+    // Automation must keep painting even when the terminal or IDE covers the window.
+    "--disable-renderer-backgrounding",
+    "--disable-background-timer-throttling",
+    "--disable-backgrounding-occluded-windows",
     `--remote-debugging-port=${PORT}`,
     `--user-data-dir=${userData}`,
   ],
@@ -197,6 +201,7 @@ async function evaluate(expression) {
 
 // CDP can attach before the first document has loaded. Wait for the restored editor
 // instead of assuming a fixed delay is enough on a cold or removable drive.
+await send("Page.bringToFront", {});
 const startupDeadline = Date.now() + 60_000;
 while (Date.now() < startupDeadline) {
   const ready = await evaluate(`Boolean(
@@ -6616,6 +6621,7 @@ const observations = new Set([
   "terminalContextMenu", "problemsRowJumpsToTheColumn",
 ]);
 const requiredEvidence = {
+  treeSitterColoursByMeaning: ["painted", "foundBoth", "toldApart"],
   terminalOffersSharedMemory: ["shown", "namesTheAgent", "carriesTheCommand", "offersCopy"],
   peekShowsTheDefinition: ["opened", "saysHowItWasFound", "matchedByName", "showsSource", "namesTheFile"],
   welcomeScreenIsUsable: ["primaryClickable", "showsVersion", "marked"],

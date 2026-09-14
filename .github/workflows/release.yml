@@ -316,6 +316,11 @@ jobs:
             "${signed_note}")
 
           if gh release view "$tag" >/dev/null 2>&1; then
+            if [ "$(gh release view "$tag" --json isDraft --jq .isDraft)" != "true" ]; then
+              echo "::error::Release $tag is already published. Choose a new version."
+              exit 1
+            fi
+            gh release edit "$tag" --target "$RELEASE_COMMIT"
             echo "Release $tag exists; replacing its assets."
             gh release upload "$tag" $assets --clobber
           else

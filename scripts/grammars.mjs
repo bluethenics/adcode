@@ -28,6 +28,7 @@ const REPO = resolve(HERE, "..");
 const SOURCE = join(REPO, "node_modules", "tree-sitter-wasms", "out");
 const RUNTIME = join(REPO, "node_modules", "web-tree-sitter", "tree-sitter.wasm");
 const TARGET = join(REPO, "apps", "desktop", "src", "renderer", "public", "grammars");
+const STRICT = process.argv.includes("--strict");
 
 /**
  * The languages worth the bytes.
@@ -59,7 +60,8 @@ async function main() {
   try {
     await cp(RUNTIME, join(TARGET, "tree-sitter.wasm"));
     bytes += (await stat(RUNTIME)).size;
-  } catch {
+  } catch (error) {
+    if (STRICT) throw new Error("Release requires the tree-sitter runtime", { cause: error });
     process.stdout.write("grammars: web-tree-sitter runtime not found; highlighting stays on Monaco\n");
     return;
   }
@@ -67,14 +69,18 @@ async function main() {
   let available;
   try {
     available = new Set(await readdir(SOURCE));
-  } catch {
+  } catch (error) {
+    if (STRICT) throw new Error("Release requires the tree-sitter grammar pack", { cause: error });
     process.stdout.write("grammars: tree-sitter-wasms not installed; skipping\n");
     return;
   }
 
   for (const language of LANGUAGES) {
     const name = `tree-sitter-${language}.wasm`;
-    if (!available.has(name)) continue;
+    if (!available.has(name)) {
+      if (STRICT) throw new Error(`Release grammar is missing: ${name}`);
+      continue;
+    }
 
     const from = join(SOURCE, name);
     await cp(from, join(TARGET, name));

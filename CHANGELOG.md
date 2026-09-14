@@ -7,6 +7,7 @@ only public once its installers are attached to a GitHub release.
 
 - Update assistant messages with formatted code, copy actions, and grouped conversation history.
 - Pass the Google Desktop OAuth credential into release builds and stop packaging when it is missing.
+- Generate the syntax-highlighting runtime and grammars before packaging, including on clean CI runners.
 - Exclude ADCode's internal tool and build cache from workspace file and symbol searches.
 - Prevent hidden editor splitters from intercepting welcome-screen buttons after all files are closed.
 - Add terminal uninstall commands and production analytics verification instructions.

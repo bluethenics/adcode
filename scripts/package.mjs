@@ -28,6 +28,9 @@ const binOf = (pkg, ...parts) =>
 
 process.stdout.write("Building ADCode...\n");
 
+const grammars = await run(process.execPath, [join(REPO, "scripts", "grammars.mjs"), "--strict"]);
+if (grammars !== 0) process.exit(grammars);
+
 const build = await run(process.execPath, [binOf("electron-vite", "bin", "electron-vite.js"), "build"], {
   cwd: join(REPO, "apps", "desktop"),
 });
