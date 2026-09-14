@@ -154,6 +154,9 @@ app.whenReady().then(async () => {
       window.showHelp = () => { anchor.focus(); help.show(anchor, { title: 'Title', plain: 'Plain', why: 'Why', how: 'How' }); };
       showHelp();`);
     const click = async (x, y) => {
+      // showPopover/hidePopover changes the native top layer. Let Chromium commit
+      // that change before browser-process input arrives on Linux as well as Windows.
+      await run(`new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))`);
       window.webContents.sendInputEvent({ type: "mouseDown", x, y, button: "left", clickCount: 1 });
       window.webContents.sendInputEvent({ type: "mouseUp", x, y, button: "left", clickCount: 1 });
       await new Promise((done) => setTimeout(done, 200));
@@ -164,7 +167,7 @@ app.whenReady().then(async () => {
     await click(5, 5);
     const nextPressCloses = await run(`!shell.isOpen()`);
     await run(`shell.open(); showHelp();`);
-    const point = await run(`(() => { const r = underlying.getBoundingClientRect(); return { x: Math.round(r.right - 3), y: Math.round(r.bottom - 3) }; })()`);
+    const point = await run(`(() => { const r = underlying.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
     await click(point.x, point.y);
     const inside = await run(`({ helpClosed: !help.isOpen(), settingsOpen: shell.isOpen(), clicks: underlyingClicks })`);
     await click(point.x, point.y);
