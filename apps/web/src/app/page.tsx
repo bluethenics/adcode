@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { HeroInstall } from "@/components/HeroInstall";
 import { LandingBidBuilder } from "@/components/LandingBidBuilder";
 import { HeroCircuit } from "@/components/HeroCircuit";
-import { HeroCounter } from "@/components/HeroCounter";
 import { HomeFaq } from "@/components/HomeFaq";
 import { JsonLd } from "@/components/JsonLd";
 import { FAQ, faqPage } from "@/lib/schema";
@@ -54,7 +53,6 @@ export default function Home() {
               looking. Saying it twice cost the hero its only job.
             */}
             <p>A real editor, free. Half of every ad it shows pays you.</p>
-            <HeroCounter />
             {/*
               One offer, chosen for the machine the visitor is on. Every install is the
               terminal command, because it raises no SmartScreen dialog. See HeroInstall.

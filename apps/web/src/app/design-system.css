@@ -86,13 +86,12 @@ body { font-optical-sizing: auto; }
   box-shadow: var(--control-shadow);
   backdrop-filter: none;
 }
-:is(.app-side-item, .app-tab)[aria-current="page"] {
+.app-tab[aria-current="page"] {
   color: var(--text);
   background: var(--sheen), var(--selected);
   border-radius: var(--radius-sm);
   box-shadow: inset 0 0 0 1px var(--hairline);
 }
-.app-side-item[aria-current="page"] svg { color: var(--text); }
 .segmented { background: var(--control); border: 1px solid var(--hairline); }
 .segmented-pill { background: var(--selected); box-shadow: var(--control-shadow); }
 .segmented-option:has(input:checked) { color: var(--text); }
@@ -108,7 +107,7 @@ body { font-optical-sizing: auto; }
 :is(.notice, .glass-notice, .pill):is([data-tone="ok"], [data-tone="success"]) { --tone: var(--success); }
 .field-hint[data-tone="error"] { color: var(--danger); }
 
-:is(.app-rail, .admin-rail, .app-drawer-panel, .glass-mobile-sheet) {
+:is(.app-drawer-panel, .glass-mobile-sheet) {
   background-color: var(--ink-raised);
   border-color: var(--hairline);
 }
@@ -123,4 +122,43 @@ body { font-optical-sizing: auto; }
 }
 @media (prefers-contrast: more) {
   :root { --hairline: #9aadc4; --muted: #cbd7e5; --faint: #b4c5d9; }
+}
+
+/* Portals and admin stay iOS: large titles, translucent fills, 10px side rows,
+   red badges, 16/22px cards. This sheet loads after globals.css, so without
+   this the product theme above would flatten those app areas back into slate
+   cards and selected-row highlights. */
+:is(.app, .admin) :is(.ios-card) {
+  border-color: var(--ios-hairline);
+  border-radius: var(--radius-ios-lg);
+  background: var(--ios-raised);
+  box-shadow: none;
+}
+:is(.app, .admin) :is(.ios-tile, .admin-tile) {
+  border: 0;
+  border-radius: var(--radius-ios);
+  background: var(--ios-fill);
+  box-shadow: none;
+}
+:is(.app, .admin) .app-side-item[aria-current="page"] {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  border-color: var(--ios-hairline);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08), 0 6px 18px -10px rgba(0, 0, 0, 0.8);
+}
+:is(.app, .admin) .app-side-item[aria-current="page"] svg {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+:is(.app, .admin) .admin-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 18px;
 }

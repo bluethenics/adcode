@@ -4515,42 +4515,13 @@ body { color-scheme: dark; }
   .glass-mobile-sheet,.glass-portal-button,.glass-submit,.download-card,.glass-menu-trigger span { animation: none; transition: none; }
 }
 
-/* ── Hero counter, and the second install route ───────────────────────── */
-
-/* Fixed-width slots keep the illustrative count steady as individual digits change. */
-.hero-counter { margin: 24px auto 0; display: flex; flex-direction: column; align-items: center; gap: 6px; width: min(360px, 100%); padding: 16px 0; border-block: 1px solid rgba(136,193,161,.14); }
-.hero-counter-heading { display: flex; align-items: center; gap: 8px; color: #a3c6b3; font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
-.hero-counter-line { display: flex; align-items: center; justify-content: center; gap: 14px; }
-.hero-counter-number { display: inline-flex; color: #e5f5ec; font-family: var(--font-mono), monospace; font-size: clamp(30px, 7vw, 38px); font-weight: 500; line-height: 1.3; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
-.hero-counter-digit, .hero-counter-comma { display: inline-block; overflow: hidden; }
-.hero-counter-digit { width: 1ch; }
-.hero-counter-comma { width: .6ch; }
-.hero-counter-digit > span { display: block; animation: hero-counter-rise 200ms var(--ease, cubic-bezier(.23,1,.32,1)) both; }
-.hero-counter-toggle { min-width: 58px; min-height: 44px; padding: 0 8px; border: 1px solid rgba(163,198,179,.2); border-radius: 8px; color: #b7c8bf; background: rgba(163,198,179,.04); font: inherit; font-size: 11px; cursor: pointer; transition: color 160ms ease, border-color 160ms ease; }
-.hero-counter-toggle:focus-visible { outline: 2px solid var(--market-green, #3ad07a); outline-offset: 4px; }
-.hero-counter-toggle:disabled { opacity: .5; cursor: default; }
-.hero-counter-note { color: #97aaa0; font-size: 11px; line-height: 1.5; }
-.hero-counter-dot { display: none; flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: var(--market-green, #3ad07a); }
-.hero-counter[data-running="false"] .hero-counter-dot { background: #82928a; }
-@keyframes hero-counter-rise {
-  from { transform: translateY(35%); opacity: .3; }
-  to { transform: translateY(0); opacity: 1; }
-}
-@media (hover: hover) and (pointer: fine) {
-  .hero-counter-toggle:hover:not(:disabled) { color: #e5f5ec; border-color: #709d83; }
-}
+/* ── Hero install route ───────────────────────── */
 
 /* The installer, under the command that raises no warning. Stacked and quieter, because
    it is the second answer to the same question rather than a competing one. */
 .hero-install-or { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .hero-install-download { min-height: 44px; padding: 11px 18px; font-size: 14px; gap: 10px; }
 .hero-install-or .hero-install-note { text-align: center; max-width: 42ch; }
-
-/* The component also suspends automatic updates when reduced motion is requested. */
-@media (prefers-reduced-motion: reduce) {
-  .hero-counter-digit > span { animation: none; }
-  .hero-counter-toggle { transition: none; }
-}
 
 /* ── Footer: four link columns ──────────────────────────────────────────────
    The landing pages have no other route into them. `.marketplace-footer .marketplace-wrap`
