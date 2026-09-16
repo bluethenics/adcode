@@ -12,7 +12,7 @@ import DocsIndex from "../src/app/docs/page";
 import sitemap from "../src/app/sitemap";
 import { DocsSearch, docsSearchKeyAction } from "../src/components/DocsSearch";
 import { Nav } from "../src/components/Nav";
-import { allDocs, getDoc, type DocSection } from "../src/lib/docs";
+import { allDocs, getDoc, recentDocs, type DocSection } from "../src/lib/docs";
 
 const SEARCH_SECTIONS: DocSection[] = [
   {
@@ -162,5 +162,33 @@ describe("public documentation navigation", () => {
     expect(locations).toContainEqual(
       expect.stringMatching(/\/docs\/workbench-all-features$/),
     );
+  });
+
+  it("returns the newest authored docs first", async () => {
+    const recent = await recentDocs(4);
+
+    expect(recent.length).toBe(4);
+    expect(recent.every((page) => page.authored)).toBe(true);
+    expect(recent.map((page) => page.slug)).toEqual([
+      "first-commit-name-and-email",
+      "installing-adcode",
+      "every-feature-the-full-tour",
+      "adcode-vs-vs-code-vs-cursor",
+    ]);
+  });
+
+  it("shelves the newest docs ahead of the reference, newest first", async () => {
+    const markup = await renderDocsIndex();
+
+    expect(markup).toContain("New in the docs");
+    expect(markup).toContain("Sep 16, 2026");
+    // The sidebar links older pages earlier in the document, so compare positions
+    // inside the shelf itself rather than across the whole page.
+    const shelf = markup.slice(markup.indexOf("New in the docs"));
+    const first = shelf.indexOf("/docs/first-commit-name-and-email");
+    const installing = shelf.indexOf("/docs/installing-adcode");
+    expect(first).toBeGreaterThan(-1);
+    expect(installing).toBeGreaterThan(-1);
+    expect(first).toBeLessThan(installing);
   });
 });

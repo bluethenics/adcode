@@ -933,6 +933,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "git-stage-commit-ui": {
     steps: [
+      "First commit on this machine? Open the terminal and tell git who you are once - git config --global user.name \"Your Name\" and git config --global user.email \"you@example.com\" - then come back and commit as normal.",
       "Open the Source Control panel from the activity bar.",
       "Review the changed files; click any one to see its diff side by side.",
       "Tick the changes that belong together - that is staging.",

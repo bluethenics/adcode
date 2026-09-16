@@ -26,6 +26,8 @@ export interface DocPage {
   order: number;
   /** True when a person wrote it, false when it came out of the generator. */
   authored: boolean;
+  /** ISO day the piece was published. Only authored pages have one. */
+  published?: string;
   /** ISO day, for `dateModified`. Absent on seeded pages, which ship with the build. */
   updated?: string;
 }
@@ -155,6 +157,7 @@ const fromPost = (post: Post): DocPage => ({
   related: [...(post.related ?? [])],
   order: post.order ?? 0,
   authored: true,
+  published: post.published,
   ...(post.updated === undefined ? {} : { updated: post.updated }),
 });
 
@@ -171,6 +174,26 @@ export async function allDocs(): Promise<DocPage[]> {
 
 export async function getDoc(slug: string): Promise<DocPage | null> {
   return (await allDocs()).find((page) => page.slug === slug) ?? null;
+}
+
+/**
+ * The newest authored pages, newest first.
+ *
+ * Seeded reference pages have no publication date - they shipped with the build - so
+ * only written pieces can be "new". An admin page from the API carries its own date
+ * and joins in on equal terms, which is what makes this stay correct without edits.
+ */
+export async function recentDocs(limit = 4): Promise<Array<DocPage & { published: string }>> {
+  const pages = await allDocs();
+  return pages
+    .filter(
+      (page): page is DocPage & { published: string } =>
+        page.authored && page.published !== undefined,
+    )
+    .sort(
+      (a, b) => b.published.localeCompare(a.published) || a.title.localeCompare(b.title),
+    )
+    .slice(0, Math.max(0, limit));
 }
 
 export interface DocSection {

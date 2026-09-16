@@ -520,6 +520,55 @@ Background downloads applied on reopen, never mid-thought; release notes shown a
 Seventy-two pages later, the pattern should be visible: every feature ships on by default, every default has one switch, and every page says what it costs you. That is deliberate - an editor you can fully understand is an editor you can trust with your work.
 `,
   },
+  {
+    slug: "first-commit-name-and-email",
+    title: "Why your first commit asks for your name and email",
+    description:
+      "Your first commit in ADCode is refused with a message about a name and email. Nothing is broken: git signs every commit with its author, and your machine has never said who you are. Two commands, once, and it never asks again.",
+    published: "2026-09-16",
+    surface: "docs",
+    section: "Start here",
+    order: 3,
+    related: ["getting-started-with-adcode", "git-stage-commit-ui"],
+    body: `
+You connected a repository, staged your files, wrote a commit message, pressed Commit - and instead of a commit you got this:
+
+> Git needs a name and email before it can record who made this commit. Open the terminal and run: \`git config --global user.name "Your Name"\` and \`git config --global user.email "you@example.com"\`
+
+Nothing is broken, and nothing you did was wrong. Your commit did not happen, your files are untouched, and your message is still in the box. Git simply refused to record a commit without knowing who made it, and ADCode told you so in plain words rather than git's own four-paragraph lecture. This page is the whole story: why it asks, the two commands that answer it, and the two sibling messages you may meet next.
+
+## Why git wants to know who you are
+
+Every commit carries its author inside it - a name and an email, stamped at the moment it is recorded. That stamp is what makes everything downstream work: blame can say who wrote a line, history can say who made a change, and a hosting site can attach your commits to your profile. Git will not invent an author for you, and it will not record a commit without one. On a machine where git has never been configured - which is every machine on which nobody has committed before - the very first commit always stops here, in every editor and on the command line alike.
+
+## The fix: two commands, once per machine
+
+Open the terminal at the bottom of the ADCode window and run these two lines, with your real details:
+
+    git config --global user.name "Jane Doe"
+    git config --global user.email "jane@example.com"
+
+Use the same name and email as your GitHub account and your commits will link to your profile there automatically. Then go back to the Source Control panel and press Commit again. It will succeed.
+
+A few things worth knowing about those commands:
+
+- **They are per-machine, not per-project.** You do this once on each computer you work on, and every repository on that machine is covered. (One project needing a different identity - a work laptop splitting personal and job commits - is what plain \`git config user.name\`, without \`--global\`, inside that project's folder is for.)
+- **Check it stuck** with \`git config --global --list\`, which prints every global setting including the two lines you just set.
+- **\`--global\` is one word.** If the message reached you through a chat app, the two dashes may have arrived spaced apart as \`-- global\`, which git rejects as an unknown option. Retype it with no space.
+
+## The two messages you may meet next
+
+The identity check is one of three refusals ADCode answers before git gets involved, because git's own answers are written for a command line. If your next attempt still refuses, it is one of these:
+
+**"Nothing is staged yet. Tick the + beside a file to include it in this commit."** - the message was fine and the identity is fine, but no file was selected. Staging is the deliberate step of choosing which changes belong in this commit: click the + beside each file in the Source Control panel, then press Commit. Beginners hit this one constantly, because no other kind of saving asks you to pick files first.
+
+**"A commit needs a message."** - the Commit button was pressed with an empty message box. Write one line saying what this set of changes does; that line is what history shows for it ever after.
+
+## Why ADCode answers instead of git
+
+Git's own reply to a missing identity is four paragraphs ending in two commands - sound advice at a prompt, and close to useless in a window where the person reading it has no prompt in front of them. So ADCode checks with the same mechanism git itself uses, and when there is no identity it names the terminal the editor already ships with, because telling somebody to run a command they have no way to run would be the failure all over again. The commit button stays where it is, the message stays in its box, and the second attempt - two commands later - just works.
+`,
+  },
 ];
 
 /** Roughly 220 words a minute, rounded up, minimum one. */

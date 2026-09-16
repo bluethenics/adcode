@@ -3,7 +3,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { DocsSearch } from "@/components/DocsSearch";
 import { DocsSidebar } from "@/components/DocsSidebar";
 import { JsonLd } from "@/components/JsonLd";
-import { docsBySection } from "@/lib/docs";
+import { docsBySection, recentDocs } from "@/lib/docs";
 import { breadcrumbs } from "@/lib/schema";
 import { url } from "@/lib/site";
 
@@ -39,10 +39,43 @@ interface Props {
 const firstParam = (value: string | string[] | undefined): string =>
   Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 
+/*
+ * "Sep 16, 2026". Pinned to UTC so the shelf reads the same on every server and every
+ * reader - the stored value is a bare ISO day with no zone to interpret.
+ */
+const formatDay = (isoDay: string): string =>
+  new Date(`${isoDay}T00:00:00Z`).toLocaleDateString("en-US", {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
 export default async function DocsIndex({ searchParams }: Props) {
   const query = firstParam((await searchParams)["q"]).slice(0, 120);
   const sections = await docsBySection();
   const total = sections.reduce((count, section) => count + section.pages.length, 0);
+
+  /*
+   * The shelf of newest writing, ahead of the reference. It is a first-class search
+   * section rather than a separate block so it filters, counts, and clears with
+   * everything else - a second list with its own rules would drift from the first.
+   */
+  const fresh = await recentDocs(4);
+  const shelf =
+    fresh.length === 0
+      ? []
+      : [
+          {
+            title: "New in the docs",
+            pages: fresh.map((page) => ({
+              slug: page.slug,
+              title: page.title,
+              description: page.description,
+              meta: formatDay(page.published),
+            })),
+          },
+        ];
 
   return (
     <>
@@ -71,14 +104,17 @@ export default async function DocsIndex({ searchParams }: Props) {
 
             <DocsSearch
               initialQuery={query}
-              sections={sections.map((section) => ({
-                title: section.title,
-                pages: section.pages.map(({ slug, title, description }) => ({
-                  slug,
-                  title,
-                  description,
+              sections={[
+                ...shelf,
+                ...sections.map((section) => ({
+                  title: section.title,
+                  pages: section.pages.map(({ slug, title, description }) => ({
+                    slug,
+                    title,
+                    description,
+                  })),
                 })),
-              }))}
+              ]}
             />
           </main>
         </div>

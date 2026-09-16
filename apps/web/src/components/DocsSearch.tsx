@@ -9,6 +9,8 @@ export interface DocsSearchSection {
     slug: string;
     title: string;
     description: string;
+    /** Small trailing badge, e.g. the publication date on the "New" shelf. */
+    meta?: string;
   }>;
 }
 
@@ -128,7 +130,12 @@ export function DocsSearch({ sections, initialQuery = "" }: Props) {
                 {section.pages.map((page) => (
                   <li key={page.slug} className="docs-index-item">
                     <Link href={`/docs/${page.slug}`} className="docs-index-link">
-                      <span>{page.title}</span>
+                      <span>
+                        {page.title}
+                        {page.meta !== undefined && (
+                          <time className="docs-index-meta">{page.meta}</time>
+                        )}
+                      </span>
                       <span>{page.description}</span>
                     </Link>
                   </li>

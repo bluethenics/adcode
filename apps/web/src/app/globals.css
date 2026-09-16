@@ -1138,6 +1138,45 @@ body { background: var(--surface); }
 @media(max-width:480px){.docs-search-shell{margin-top:-14px;margin-bottom:30px}.docs-search-field{min-height:54px}.docs-search-field>svg{left:15px}.docs-search-field input{padding:15px 70px 15px 45px;font-size:15px}.docs-search-hint{display:none}.docs-search-field button{right:10px}.docs-index-groups{gap:30px}.docs-index-group ul{gap:8px}.docs-index-link{padding:14px 15px}.docs-index-link span:last-child{font-size:13px}.docs-related{margin-top:38px}.docs-related a{padding:12px 13px}}
 .docs-launch-note { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-top:20px; padding:11px 12px 11px 14px; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.045); color:#9ca6a8; font-size:13px; }.docs-launch-note code { flex:none; padding:5px 9px; border:1px solid rgba(255,255,255,.12); border-radius:8px; background:#0d0f10; color:#f1f3f3; font:600 12px var(--font-mono),monospace; }
 @media(max-width:480px) { .docs-launch-note { align-items:flex-start; flex-direction:column; } }
+/*
+ * Docs, iOS pass.
+ *
+ * The docs used to read as a list of links; the product reads as a shelf of cards.
+ * This closes the gap with the vocabulary the rest of the site already uses - frosted
+ * panels, 20px radii, one springy ease everywhere, and a press state on everything
+ * tappable - so the manual feels like the editor it documents.
+ *
+ * Greyscale throughout, per the rule at the top of this file: `--money` spends itself
+ * only on currency figures. Depth here comes from blur, radius, and motion, never from
+ * a new colour. The global reduced-motion rule above flattens all of this for people
+ * who asked for stillness.
+ */
+.docs-sidebar-primary{padding:12px;border:1px solid var(--ink-hairline);border-radius:var(--radius-lg);background:rgba(23,27,29,.72);box-shadow:0 18px 45px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.05);backdrop-filter:saturate(150%) blur(18px);-webkit-backdrop-filter:saturate(150%) blur(18px)}
+.docs-sidebar a{display:flex;align-items:center;min-height:38px;border-radius:12px;transition:background 200ms var(--ease),color 200ms var(--ease),transform 200ms var(--ease)}
+.docs-sidebar a:active{transform:scale(.98)}
+.docs-sidebar a[aria-current="page"]{font-weight:650;box-shadow:inset 0 0 0 1px rgba(232,236,236,.14)}
+.docs-sub a{min-height:0}
+.docs-index-group.rise{animation:rise-in 640ms var(--ease) both}
+.docs-index-group.rise:nth-child(2){animation-delay:60ms}
+.docs-index-group.rise:nth-child(3){animation-delay:120ms}
+.docs-index-group.rise:nth-child(4){animation-delay:180ms}
+.docs-index-group.rise:nth-child(n+5){animation-delay:240ms}
+.docs-index-link{border-radius:var(--radius-lg);transition:background 260ms var(--ease),border-color 260ms var(--ease),box-shadow 260ms var(--ease),transform 260ms var(--ease)}
+.docs-index-link:hover{transform:translateY(-3px);box-shadow:0 16px 38px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.04)}
+.docs-index-link:active{transform:translateY(-1px) scale(.985)}
+.docs-index-link span:first-child{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.docs-index-meta{flex:none;font:600 11px var(--font-mono),monospace;letter-spacing:.05em;color:var(--text);padding:4px 10px;border:1px solid rgba(232,236,236,.2);border-radius:999px;background:rgba(232,236,236,.07);box-shadow:inset 0 1px rgba(255,255,255,.06)}
+.docs-search-field{border-radius:var(--radius-lg);transition:border-color 240ms var(--ease),background 240ms var(--ease),box-shadow 240ms var(--ease)}
+.docs-index-link:focus-visible,.docs-sidebar a:focus-visible,.docs-search-field button:focus-visible,.docs-search-empty button:focus-visible{outline:2px solid rgba(232,236,236,.55);outline-offset:2px}
+.docs-page .prose h2,.docs-page .prose h3{scroll-margin-top:96px}
+.docs-related a{border-radius:var(--radius-md);transition:border-color 220ms var(--ease),background 220ms var(--ease),transform 220ms var(--ease)}
+.docs-related a:hover{transform:translateY(-2px)}
+.docs-related a:active{transform:scale(.985)}
+@media(max-width:760px){
+  .docs-sidebar-primary{padding:0;border:0;background:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;scroll-snap-type:x proximity}
+  .docs-sidebar a{scroll-snap-align:start}
+  .docs-sidebar a:active{transform:scale(.96)}
+}
 
 /* ── Desktop product preview ─────────────────────────────────────────────── */
 .desktop-mockup { color: #d9d9e1; background: #15151c; border: 1px solid rgba(255,255,255,.13); border-radius: 18px; overflow: hidden; box-shadow: 0 28px 72px -32px rgba(0,0,0,.85); font: 12px/1.4 var(--font-mono), ui-monospace, monospace; }
