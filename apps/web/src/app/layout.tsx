@@ -7,6 +7,7 @@ import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { JsonLd } from "@/components/JsonLd";
 import { AuthProvider } from "@/components/AuthProvider";
+import { CodeboxCopy } from "@/components/CodeboxCopy";
 import { organisation, softwareApplication, webSite } from "@/lib/schema";
 import "./globals.css";
 import "./design-system.css";
@@ -126,6 +127,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <JsonLd data={webSite()} />
         <JsonLd data={softwareApplication()} />
         <AuthProvider>
+          <CodeboxCopy />
           <Nav />
           <main id="main">{children}</main>
           <Footer />

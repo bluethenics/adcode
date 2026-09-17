@@ -22,7 +22,7 @@ import type {
   UserPage,
   UserStatus,
 } from "./store.ts";
-import { assetKey, assetUrl, isDataUrl, parseDataUrl } from "./assets.ts";
+import { assetKey, assetUrl, extensionFor, isDataUrl, parseDataUrl } from "./assets.ts";
 
 export interface AdminDeps {
   store: Store;
@@ -313,6 +313,50 @@ export async function handleListPosts(
 ): Promise<PostRecord[]> {
   await deps.store.writeAudit({ adminUid, action: "read-posts", subjectUid: "*", at: deps.clock.now() });
   return deps.store.listPosts({ publishedOnly: false });
+}
+
+/**
+ * Store one image for a blog or docs page and hand back its URL.
+ *
+ * The admin editor downsizes in the browser first, so what arrives here is already
+ * web-sized; this checks it is really one of the three raster types and puts the bytes
+ * on the same asset host (and serving path) as creative artwork. The key carries a
+ * generated id rather than anything from the request, so a filename cannot smuggle a
+ * path into storage - `isSafeAssetKey` holds on the read path regardless.
+ *
+ * Returns null for anything undecodable, which the route answers as a 400: an upload
+ * that is not an image is a malformed request, not a server failure.
+ */
+export function parsePostAsset(raw: unknown): { dataUrl: string } | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const dataUrl = (raw as Record<string, unknown>)["dataUrl"];
+  if (typeof dataUrl !== "string" || parseDataUrl(dataUrl) === null) return null;
+  return { dataUrl };
+}
+
+export async function handleSavePostAsset(
+  deps: AdminDeps & { ids: IdGen },
+  adminUid: string,
+  origin: string,
+  dataUrl: string,
+): Promise<{ url: string } | null> {
+  const parsed = parseDataUrl(dataUrl);
+  if (parsed === null) return null;
+
+  const extension = extensionFor(parsed.contentType);
+  if (extension === null) return null;
+
+  const key = `post-${deps.ids.next("pa")}.${extension}`;
+
+  await deps.store.writeAudit({
+    adminUid,
+    action: `post-asset:${key}`,
+    subjectUid: "*",
+    at: deps.clock.now(),
+  });
+
+  await deps.store.putAsset(key, parsed);
+  return { url: assetUrl(origin, key) };
 }
 
 

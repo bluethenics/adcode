@@ -228,6 +228,9 @@ export function BlogBody() {
             <label htmlFor="p-body">Body</label>
             <span className="field-hint">
               Markdown: ## headings, **bold**, `code`, - lists, [links](https://example.com).
+              Fenced blocks get a copy button — write ```prompt for a prompt box. Images
+              upload with the Image button; video is @[youtube](id-or-link) or
+              @[vimeo](id-or-link) on its own line.
             </span>
             <MarkdownEditor
               id="p-body"

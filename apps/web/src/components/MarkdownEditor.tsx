@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
 import { renderMarkdown } from "@/lib/markdown";
 
 /**
@@ -20,6 +22,10 @@ import { renderMarkdown } from "@/lib/markdown";
  * reason `markdown.ts` documents at length: it escapes every value before adding any
  * markup, and rejects any link scheme that is not http(s) or site-relative. That was
  * written precisely because a human would one day type into a form like this one.
+ *
+ * Images never paste as bytes. The image button downsizes in the browser, uploads to
+ * `POST /v1/admin/post-assets`, and inserts the returned URL - the post row keeps a
+ * short address while the bytes live on the asset host, which is what keeps reads fast.
  */
 type Wrap = { before: string; after: string };
 
@@ -44,6 +50,49 @@ export interface MarkdownEditorProps {
   softLimit?: number;
 }
 
+/** Browser-sized before it ever leaves the machine: 1600px on the long edge. */
+const MAX_IMAGE_DIM = 1600;
+const MAX_INPUT_BYTES = 8 * 1024 * 1024;
+/** Roughly the server's 512KB asset ceiling, measured in data-URL characters. */
+const MAX_DATA_URL_CHARS = 700_000;
+
+/**
+ * A file, as a data URL the asset endpoint accepts.
+ *
+ * PNG stays PNG so screenshots stay sharp; anything photographic goes to JPEG. An
+ * animated GIF arrives as its first frame - documentation has no use for animation,
+ * and a still is an honest answer where a silent failure would not be.
+ */
+async function toWebImage(file: File): Promise<{ dataUrl: string; name: string }> {
+  const bitmap = await createImageBitmap(file);
+
+  try {
+    const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+
+    const context = canvas.getContext("2d");
+    if (context === null) throw new Error("no 2d context");
+
+    context.imageSmoothingQuality = "high";
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+    const dataUrl =
+      file.type === "image/png"
+        ? canvas.toDataURL("image/png")
+        : canvas.toDataURL("image/jpeg", 0.82);
+    const name = file.name
+      .replace(/\.[a-z0-9]+$/i, "")
+      .replace(/[-_]+/g, " ")
+      .trim()
+      .slice(0, 80);
+    return { dataUrl, name: name.length > 0 ? name : "Image" };
+  } finally {
+    bitmap.close();
+  }
+}
+
 export function MarkdownEditor({
   id,
   value,
@@ -53,10 +102,104 @@ export function MarkdownEditor({
   softLimit,
 }: MarkdownEditorProps) {
   const area = useRef<HTMLTextAreaElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const { token } = useAuth();
   const [view, setView] = useState<"write" | "preview" | "split">("split");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const html = useMemo(() => renderMarkdown(value), [value]);
   const words = useMemo(() => value.trim().split(/\s+/).filter(Boolean).length, [value]);
+
+  /**
+   * Drop a block at the caret, breathing room included.
+   *
+   * Fences, figures, and embeds only read as blocks with blank lines around them, so
+   * the insertion trims the meeting edges and rejoins with exactly two newlines. The
+   * optional selection is relative to the inserted text - the video button uses it to
+   * leave the placeholder highlighted, ready to be pasted over.
+   */
+  const insertBlock = (text: string, select?: [number, number]): void => {
+    const node = area.current;
+    const start = node?.selectionStart ?? value.length;
+    const end = node?.selectionEnd ?? value.length;
+    const before = value.slice(0, start).replace(/\s+$/, "");
+    const after = value.slice(end).replace(/^\s+/, "");
+    const join = (left: string, right: string): string =>
+      left.length === 0 || right.length === 0 ? left + right : `${left}\n\n${right}`;
+
+    onChange(join(join(before, text), after));
+
+    const at = before.length === 0 ? 0 : before.length + 2;
+    const caret: [number, number] =
+      select === undefined ? [at + text.length, at + text.length] : [at + select[0], at + select[1]];
+    requestAnimationFrame(() => {
+      node?.focus();
+      node?.setSelectionRange(caret[0], caret[1]);
+    });
+  };
+
+  const insertCode = (): void => {
+    const node = area.current;
+    const selected = node === null ? "" : value.slice(node.selectionStart, node.selectionEnd);
+    if (selected.length > 0) {
+      const text = `\`\`\`\n${selected}\n\`\`\``;
+      insertBlock(text, [4, 4 + selected.length]);
+    } else {
+      insertBlock("```\n\n```", [4, 4]);
+    }
+  };
+
+  const insertVideo = (): void => {
+    const placeholder = "PASTE_VIDEO_ID_OR_LINK";
+    const text = `@[youtube](${placeholder})`;
+    insertBlock(text, [10, 10 + placeholder.length]);
+  };
+
+  const takeImage = async (file: File | undefined): Promise<void> => {
+    setUploadError(null);
+    if (file === undefined || uploading) return;
+
+    if (!file.type.startsWith("image/")) {
+      setUploadError("That isn't an image. PNG, JPEG, WebP, or GIF.");
+      return;
+    }
+    if (file.size > MAX_INPUT_BYTES) {
+      setUploadError("That file is very large. Try one under 8MB.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const image = await toWebImage(file);
+      if (image.dataUrl.length > MAX_DATA_URL_CHARS) {
+        setUploadError("That image is still too large after resizing. Try a smaller one.");
+        return;
+      }
+
+      const uploaded = await apiFetch<{ url: string }>({
+        path: "/admin/post-assets",
+        token: await token(),
+        method: "POST",
+        body: { dataUrl: image.dataUrl },
+      });
+
+      if (!uploaded.ok) {
+        setUploadError(
+          uploaded.error === "unauthenticated"
+            ? "Your session expired. Sign in again, then retry the upload."
+            : "The upload wasn't accepted. Try a smaller image.",
+        );
+        return;
+      }
+
+      insertBlock(`![${image.name}](${uploaded.value.url})`);
+    } catch {
+      setUploadError("Couldn't read that image. Try another file.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   /**
    * Apply a toolbar action to the current selection.
@@ -124,6 +267,48 @@ export function MarkdownEditor({
               {action.label}
             </button>
           ))}
+          <button
+            type="button"
+            className="md-action"
+            title="Code block - add a language after the opening fence, e.g. ```prompt for a full-width prompt box with a copy button"
+            aria-label="Code block"
+            onClick={insertCode}
+          >
+            {"{ }"}
+          </button>
+          <button
+            type="button"
+            className="md-action"
+            title={uploading ? "Uploading image…" : "Upload an image"}
+            aria-label="Upload an image"
+            aria-disabled={uploading ? "true" : undefined}
+            onClick={() => {
+              if (!uploading) picker.current?.click();
+            }}
+          >
+            Image
+          </button>
+          <button
+            type="button"
+            className="md-action"
+            title="Video embed - paste a YouTube or Vimeo id or link over the placeholder"
+            aria-label="Video embed"
+            onClick={insertVideo}
+          >
+            Video
+          </button>
+          <input
+            ref={picker}
+            type="file"
+            className="sr-only"
+            tabIndex={-1}
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            aria-hidden="true"
+            onChange={(event) => {
+              void takeImage(event.target.files?.[0]);
+              event.target.value = "";
+            }}
+          />
         </div>
 
         <div className="md-views" role="radiogroup" aria-label="Editor view">
@@ -171,6 +356,20 @@ export function MarkdownEditor({
           )}
         </div>
       </div>
+
+      {uploadError !== null && (
+        <p className="md-upload-error" role="alert">
+          {uploadError}
+          <button
+            type="button"
+            className="md-action"
+            aria-label="Dismiss upload error"
+            onClick={() => setUploadError(null)}
+          >
+            Dismiss
+          </button>
+        </p>
+      )}
 
       <div className="md-status">
         <span>

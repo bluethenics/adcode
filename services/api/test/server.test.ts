@@ -417,6 +417,7 @@ describe("admin surface", () => {
     expect((await get("/v1/admin/creatives")).status).toBe(403);
     expect((await get("/v1/admin/posts")).status).toBe(403);
     expect((await post("/v1/admin/test-serve", { uid: "u-1", creativeId: "c-1" })).status).toBe(403);
+    expect((await post("/v1/admin/post-assets", { dataUrl: "nope" })).status).toBe(403);
   });
 
   it("still requires a token before the admin check", async () => {
@@ -489,6 +490,28 @@ describe("admin surface", () => {
       status: "draft",
     });
     expect(bad.status).toBe(400);
+  });
+
+  it("stores a post image and serves its bytes publicly", async () => {
+    const saved = await adminPost("/v1/admin/post-assets", {
+      dataUrl:
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    });
+    expect(saved.status).toBe(200);
+    const body = (await saved.json()) as { url: string };
+    expect(body.url).toMatch(/^https?:\/\/[^/]+\/assets\/post-.*\.png$/);
+
+    // The URL from the upload is fetchable with no token, like any asset.
+    const key = body.url.slice(body.url.indexOf("/assets/") + "/assets/".length);
+    expect((await fetch(`${server.url}/assets/${key}`)).status).toBe(200);
+  });
+
+  it("400s a post image that is not an image", async () => {
+    expect((await adminPost("/v1/admin/post-assets", { dataUrl: "nope" })).status).toBe(400);
+    expect(
+      (await adminPost("/v1/admin/post-assets", { dataUrl: "data:image/svg+xml;base64,eA==" }))
+        .status,
+    ).toBe(400);
   });
 
   it("404s a test serve for a creative that does not exist", async () => {

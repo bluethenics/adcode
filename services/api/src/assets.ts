@@ -36,6 +36,11 @@ const EXTENSIONS: Readonly<Record<string, string>> = {
 /** Generous for a logo, and far under the client's 2 MB ceiling. */
 export const MAX_ASSET_BYTES = 512_000;
 
+/** The file extension a stored asset of this type gets. Null when it stores nothing. */
+export function extensionFor(contentType: string): string | null {
+  return EXTENSIONS[contentType] ?? null;
+}
+
 export interface ParsedAsset {
   readonly contentType: string;
   readonly bytes: Uint8Array;

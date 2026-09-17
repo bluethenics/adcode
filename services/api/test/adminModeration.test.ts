@@ -5,8 +5,10 @@ import {
   handleSetCreativeStatus,
   handleQueueTestServe,
   handleSavePost,
+  handleSavePostAsset,
   handleListPosts,
   parsePost,
+  parsePostAsset,
 } from "../src/admin.ts";
 import { handleServe } from "../src/serve.ts";
 import { handleReceipts } from "../src/receipts.ts";
@@ -269,5 +271,41 @@ describe("blog posts", () => {
     await handleSavePost(adminDeps(), "admin-1", post);
     const edited = await handleSavePost(adminDeps(), "admin-2", { ...post, title: "Edited" });
     expect(edited.authorUid).toBe("admin-1");
+  });
+});
+
+describe("post assets", () => {
+  // A 1x1 PNG, 68 bytes: the smallest thing the endpoint must accept.
+  const tinyPng =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+  const assetDeps = () => ({
+    ...adminDeps(),
+    ids: { next: (p: string) => `${p}-${++counter}` },
+  });
+
+  it("accepts a raster data URL", () => {
+    expect(parsePostAsset({ dataUrl: tinyPng })).toEqual({ dataUrl: tinyPng });
+  });
+
+  it("refuses anything that is not a raster data URL", () => {
+    expect(parsePostAsset({ dataUrl: "https://cdn.test/shot.png" })).toBeNull();
+    expect(parsePostAsset({ dataUrl: "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" })).toBeNull();
+    expect(parsePostAsset({})).toBeNull();
+    expect(parsePostAsset(null)).toBeNull();
+  });
+
+  it("stores the bytes under a generated key and hands back its URL", async () => {
+    const saved = await handleSavePostAsset(assetDeps(), "admin-1", "https://api.test", tinyPng);
+    expect(saved?.url).toBe("https://api.test/assets/post-pa-1.png");
+
+    // The bytes round-trip through the same read path the public site uses.
+    const stored = await store.getAsset("post-pa-1.png");
+    expect(stored?.contentType).toBe("image/png");
+    expect(stored?.bytes.byteLength).toBeGreaterThan(0);
+  });
+
+  it("returns null for undecodable input without writing anything", async () => {
+    expect(await handleSavePostAsset(assetDeps(), "admin-1", "https://api.test", "nope")).toBeNull();
   });
 });

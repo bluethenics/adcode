@@ -20,6 +20,8 @@ import {
   handleRehostAssets,
   handleReviewQueue,
   handleSavePost,
+  handleSavePostAsset,
+  parsePostAsset,
   handleSetCreativeStatus,
   handleSetUserStatus,
   handleListAdvertisers,
@@ -1032,6 +1034,35 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         return;
       }
       send(res, 200, await handleSavePost({ store, clock }, auth.uid, input), cors);
+      return;
+    }
+
+    /*
+     * POST /v1/admin/post-assets - one image for a blog or docs page.
+     *
+     * The editor uploads first and writes second: the bytes land on the asset host and
+     * the markdown keeps only the short URL, so post rows stay small and reads stay
+     * fast. Admin-gated like every other `/v1/admin/` route, audited like every write.
+     */
+    if (path === "/v1/admin/post-assets" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const input = parsePostAsset(raw);
+      if (input === null) {
+        send(res, 400, { error: "malformed asset" }, cors);
+        return;
+      }
+      const saved = await handleSavePostAsset(
+        { store, clock, ids },
+        auth.uid,
+        requestOrigin(req),
+        input.dataUrl,
+      );
+      if (saved === null) {
+        send(res, 400, { error: "malformed asset" }, cors);
+        return;
+      }
+      send(res, 200, saved, cors);
       return;
     }
 

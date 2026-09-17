@@ -15,52 +15,57 @@ interface Props {
 /**
  * Navigation for the written parts of the site.
  *
- * This used to be a hardcoded list of six links, three of which went to `/blog`. It now
- * reads the real documentation sections, so a page an admin files under a new section
- * appears here without anyone editing this file.
+ * Primer-shaped: grouped sections with a count, a chevron, and the pages
+ * underneath. Every group is a native `<details>` so expanding needs no
+ * JavaScript, stays keyboard-accessible, and animates with the same spring
+ * as the rest of the docs. The open group is the one holding the current
+ * page; on the index every group starts open so the whole manual is visible.
  *
- * Sections are listed rather than every page: a sidebar with seventy entries is a wall,
- * and `/docs` is itself a full index. A section links to its first page, which is what a
- * reader clicking "Editing" wants. The one exception is where you already are - the
- * section holding the open page unfolds its pages beneath it.
+ * Deliberately no `name` attribute: a shared name makes the groups a native
+ * exclusive accordion, and the browser then closes all but the first one while
+ * parsing the server HTML - which hydrates as a mismatch on every docs page.
+ * Independent groups stay exactly as rendered.
  */
 export async function DocsSidebar({ currentDoc, reading }: Props) {
   const sections = (await docsBySection()).filter((section) => section.pages.length > 0);
+  const onIndex = currentDoc === undefined && reading === undefined;
 
   return (
     <aside className="docs-sidebar" aria-label="Documentation navigation">
-      <section className="docs-sidebar-primary">
+      <div className="docs-sidebar-primary">
         <h2>Documentation</h2>
-        <Link href="/docs" aria-current={currentDoc === undefined && reading === undefined ? "page" : undefined}>
+        <Link href="/docs" aria-current={onIndex ? "page" : undefined} className="docs-nav-all">
           All pages
         </Link>
         {sections.map((section) => {
           const here = currentDoc !== undefined && section.pages.some((page) => page.slug === currentDoc);
           return (
-            <span key={section.title} style={{ display: "contents" }}>
-              <Link
-                href={`/docs/${section.pages[0]?.slug ?? ""}`}
-                className={here ? "is-here" : undefined}
-              >
-                {section.title}
-              </Link>
-              {here && (
-                <nav className="docs-sub" aria-label={`${section.title} pages`}>
-                  {section.pages.map((page) => (
-                    <Link
-                      href={`/docs/${page.slug}`}
-                      key={page.slug}
-                      aria-current={page.slug === currentDoc ? "page" : undefined}
-                    >
-                      {page.title}
-                    </Link>
-                  ))}
-                </nav>
-              )}
-            </span>
+            <details key={section.title} className="docs-nav-group" open={onIndex || here}>
+              <summary className={here ? "is-here" : undefined}>
+                <span className="docs-nav-title">{section.title}</span>
+                <span className="docs-nav-count" aria-label={`${section.pages.length} pages`}>
+                  {section.pages.length}
+                </span>
+                <svg aria-hidden="true" viewBox="0 0 12 12" className="docs-nav-chevron">
+                  <path d="M4.2 2.4 7.8 6l-3.6 3.6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </summary>
+              <nav className="docs-sub" aria-label={`${section.title} pages`}>
+                {section.pages.map((page) => (
+                  <Link
+                    href={`/docs/${page.slug}`}
+                    key={page.slug}
+                    aria-current={page.slug === currentDoc ? "page" : undefined}
+                    title={page.description}
+                  >
+                    {page.title}
+                  </Link>
+                ))}
+              </nav>
+            </details>
           );
         })}
-      </section>
+      </div>
 
       {/*
         Straight to the destination, not through a redirect.

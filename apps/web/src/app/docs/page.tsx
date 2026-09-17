@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { DocsFrameTopbar } from "@/components/DocsFrameTopbar";
 import { DocsSearch } from "@/components/DocsSearch";
 import { DocsSidebar } from "@/components/DocsSidebar";
 import { JsonLd } from "@/components/JsonLd";
@@ -85,38 +86,57 @@ export default async function DocsIndex({ searchParams }: Props) {
           { name: "Documentation", path: "/docs" },
         ])}
       />
-      <section className="docs-page band">
-        <div className="wrap docs-layout">
-          <DocsSidebar />
-          <main className="docs-content">
-            <Breadcrumbs items={[{ name: "Home", href: "/" }, { name: "Documentation" }]} />
-            <header className="docs-header">
-              <h1>Every feature, explained</h1>
-              <p className="lede">
-                {total} pages covering what ADCode does—the same explanations available
-                behind each <strong>?</strong> in the editor, with steps for getting started.
-              </p>
-              <p className="docs-launch-note">
-                <span>Start the complete editor from a terminal</span>
-                <code>adcode open .</code>
-              </p>
-            </header>
+      <section className="docs-stage">
+        <div className="docs-frame docs-frame-in">
+          <DocsFrameTopbar />
+          <div className="docs-frame-body">
+            <DocsSidebar />
+            <main className="docs-main">
+              <Breadcrumbs items={[{ name: "Home", href: "/" }, { name: "Documentation" }]} />
+              <header className="docs-hero">
+                <div className="docs-hero-art" aria-hidden="true">
+                  <i className="docs-blob docs-blob-a" />
+                  <i className="docs-blob docs-blob-b" />
+                  <i className="docs-blob docs-blob-c" />
+                  <i className="docs-hero-sheen" />
+                </div>
+                <div className="docs-hero-copy">
+                  <p className="docs-hero-eyebrow">ADCode Docs · {total} pages</p>
+                  <h1>
+                    Every feature,
+                    <br />
+                    explained
+                  </h1>
+                  <p className="docs-hero-version mono">
+                    <span aria-hidden="true">#</span> Same source as the editor&rsquo;s <strong>?</strong> help
+                  </p>
+                  <p className="lede docs-hero-lede">
+                    What ADCode does, why you would use it, and how to start — in plain
+                    language, with steps for getting going.
+                  </p>
+                  <p className="docs-launch-note">
+                    <span>Start the complete editor from a terminal</span>
+                    <code>adcode open .</code>
+                  </p>
+                </div>
+              </header>
 
-            <DocsSearch
-              initialQuery={query}
-              sections={[
-                ...shelf,
-                ...sections.map((section) => ({
-                  title: section.title,
-                  pages: section.pages.map(({ slug, title, description }) => ({
-                    slug,
-                    title,
-                    description,
+              <DocsSearch
+                initialQuery={query}
+                sections={[
+                  ...shelf,
+                  ...sections.map((section) => ({
+                    title: section.title,
+                    pages: section.pages.map(({ slug, title, description }) => ({
+                      slug,
+                      title,
+                      description,
+                    })),
                   })),
-                })),
-              ]}
-            />
-          </main>
+                ]}
+              />
+            </main>
+          </div>
         </div>
       </section>
     </>

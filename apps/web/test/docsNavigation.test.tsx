@@ -103,6 +103,16 @@ describe("public documentation navigation", () => {
     expect(markup).toContain('class="docs-index-item"');
   });
 
+  it("keeps sidebar groups independent so hydration matches the server HTML", async () => {
+    // A shared `name` makes <details> an exclusive native accordion: the browser
+    // closes all but the first open group while parsing, and React hydrates a
+    // mismatch on every docs page. Groups must carry no name.
+    const markup = await renderDocsIndex();
+
+    expect(markup).toContain("<details");
+    expect(markup).not.toContain('name="docs-section"');
+  });
+
   it("offers an accessible search for the documentation index", async () => {
     const markup = await renderDocsIndex();
 
