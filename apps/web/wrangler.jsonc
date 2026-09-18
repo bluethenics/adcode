@@ -29,6 +29,17 @@
    */
   "compatibility_flags": ["nodejs_compat"],
 
+  /*
+   * Server-side rendering plus the `/v1/*` API routinely needs more than the
+   * Workers Free plan's 10 ms CPU budget per request, which surfaces as
+   * Error 1102 ("Worker exceeded resource limits") even for a single visitor.
+   * This explicit 30 s budget requires the Workers Paid plan; on Free, either
+   * upgrade or remove this block and expect SSR routes to keep hitting 1102.
+   */
+  "limits": {
+    "cpu_ms": 30000
+  },
+
   /* The prerendered pages and static files Next produced. */
   "assets": {
     "directory": ".open-next/assets",
