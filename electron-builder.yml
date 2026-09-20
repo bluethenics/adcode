@@ -51,6 +51,9 @@ files:
 # from inside an asar archive.
 asarUnpack:
   - "**/node_modules/node-pty/**"
+  # Builder trims the app-directory prefix length from external file-set source paths.
+  # For our root node_modules mapping that removes node_modules/ from the match path.
+  - "**/node-pty/**"
 
 # Electron fuses: flags flipped in the binary itself, so they cannot be turned back on by
 # an environment variable or a command-line argument.
@@ -86,6 +89,11 @@ publish:
   repo: adcode
 
 win:
+  # Code signing is not declared here. `scripts/package.mjs` appends `win.azureSignOptions`
+  # when the ADCODE_AZURE_* identifiers and AZURE_* credentials are all present (see
+  # `scripts/azure-sign-args.mjs`), and the release workflow supplies them from repository
+  # Variables and secrets. Anything less than the full set builds exactly as before:
+  # CSC_LINK file signing, or unsigned with a warning.
   icon: build/icon.ico
   # The name of the .exe itself, and so the name in Task Manager's Details tab. It defaults
   # to productName, but stating it means a later change to productName cannot silently

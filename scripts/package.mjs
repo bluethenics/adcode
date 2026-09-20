@@ -8,6 +8,7 @@ import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import process from "node:process";
+import { azureCredentialsPresent, azureSignArgs } from "./azure-sign-args.mjs";
 import { releaseDirectory } from "./release-directory.mjs";
 
 const REPO = process.cwd();
@@ -52,10 +53,27 @@ if (output !== join(REPO, "release")) {
   );
 }
 
+// Azure Trusted Signing is opt-in per build: the four ADCODE_AZURE_* identifiers turn
+// on `win.azureSignOptions`, and the AZURE_* credentials must be there to back it -
+// otherwise the failure would arrive ten minutes into packaging as an auth error.
+const azureArgs = azureSignArgs(process.env);
+if (azureArgs.length > 0 && !azureCredentialsPresent(process.env)) {
+  process.stderr.write(
+    "\nAzure signing identifiers are set but AZURE_TENANT_ID, AZURE_CLIENT_ID and " +
+      "AZURE_CLIENT_SECRET are not all present. Unset the identifiers for an unsigned " +
+      "build, or provide the credentials.\n",
+  );
+  process.exit(1);
+}
+if (azureArgs.length > 0) {
+  process.stdout.write("\nSigning Windows builds with Azure Trusted Signing.\n");
+}
+
 process.exit(
   await run(process.execPath, [
     binOf("electron-builder", "cli.js"),
     `-c.directories.output=${output}`,
+    ...azureArgs,
     ...passthrough,
   ]),
 );

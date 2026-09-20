@@ -137,8 +137,25 @@ jobs:
         env:
           HAS_CERT: ${{ secrets.CSC_LINK != '' }}
           PLATFORM: ${{ matrix.platform }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ADCODE_AZURE_ENDPOINT: ${{ vars.ADCODE_AZURE_ENDPOINT }}
+          ADCODE_AZURE_ACCOUNT: ${{ vars.ADCODE_AZURE_ACCOUNT }}
+          ADCODE_AZURE_PROFILE: ${{ vars.ADCODE_AZURE_PROFILE }}
+          ADCODE_AZURE_PUBLISHER: ${{ vars.ADCODE_AZURE_PUBLISHER }}
         run: |
-          if [ "$HAS_CERT" = "true" ]; then
+          azure="false"
+          for name in AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET ADCODE_AZURE_ENDPOINT ADCODE_AZURE_ACCOUNT ADCODE_AZURE_PROFILE ADCODE_AZURE_PUBLISHER; do
+            eval "value=\${$name:-}"
+            if [ -z "${value//[[:space:]]/}" ]; then
+              azure="missing"
+              break
+            fi
+          done
+          if [ "$azure" = "false" ]; then
+            echo "Azure Trusted Signing is fully configured."
+          elif [ "$HAS_CERT" = "true" ]; then
             echo "Signing certificate present."
           else
             echo "::warning::No signing certificate for ${PLATFORM}. Building unsigned."
@@ -159,6 +176,18 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Azure Trusted Signing (Windows only; ignored on other platforms). The three
+          # AZURE_* credentials authenticate the app registration, and the four
+          # ADCODE_AZURE_* identifiers point at the signing account and certificate
+          # profile. All seven must be set or `scripts/package.mjs` signs nothing -
+          # identifiers live in repository Variables because none of them is a secret.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ADCODE_AZURE_ENDPOINT: ${{ vars.ADCODE_AZURE_ENDPOINT }}
+          ADCODE_AZURE_ACCOUNT: ${{ vars.ADCODE_AZURE_ACCOUNT }}
+          ADCODE_AZURE_PROFILE: ${{ vars.ADCODE_AZURE_PROFILE }}
+          ADCODE_AZURE_PUBLISHER: ${{ vars.ADCODE_AZURE_PUBLISHER }}
           # Without a certificate, stop electron-builder searching the keychain for one.
           # On macOS that search is what turns "unsigned build" into a failed build.
           CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
@@ -177,7 +206,7 @@ jobs:
           # "Set but empty" and "not set" are different things to electron-builder, and
           # only the second one means unsigned. Drop the empties so an unconfigured secret
           # cannot be mistaken for a certificate at a path that does not exist.
-          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET ADCODE_AZURE_ENDPOINT ADCODE_AZURE_ACCOUNT ADCODE_AZURE_PROFILE ADCODE_AZURE_PUBLISHER; do
             eval "value=\${$name:-}"
             if [ -z "$value" ]; then
               unset "$name"
@@ -291,6 +320,13 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
           HAS_CERT: ${{ secrets.CSC_LINK != '' }}
           RELEASE_COMMIT: ${{ github.sha }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ADCODE_AZURE_ENDPOINT: ${{ vars.ADCODE_AZURE_ENDPOINT }}
+          ADCODE_AZURE_ACCOUNT: ${{ vars.ADCODE_AZURE_ACCOUNT }}
+          ADCODE_AZURE_PROFILE: ${{ vars.ADCODE_AZURE_PROFILE }}
+          ADCODE_AZURE_PUBLISHER: ${{ vars.ADCODE_AZURE_PUBLISHER }}
         run: |
           tag="v${VERSION}"
 
@@ -306,8 +342,18 @@ jobs:
           fi
 
           echo "Attaching: $assets"
+          azure="true"
+          for name in AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET ADCODE_AZURE_ENDPOINT ADCODE_AZURE_ACCOUNT ADCODE_AZURE_PROFILE ADCODE_AZURE_PUBLISHER; do
+            eval "value=\${$name:-}"
+            if [ -z "${value//[[:space:]]/}" ]; then
+              azure="false"
+              break
+            fi
+          done
           signed_note="**These installers are not code-signed.** Windows SmartScreen will warn on download, and macOS Gatekeeper will refuse to open the app until it is signed and notarised."
-          if [ "$HAS_CERT" = "true" ]; then
+          if [ "$azure" = "true" ]; then
+            signed_note="Windows installers are signed with Azure Trusted Signing. macOS builds are still unsigned until they are signed and notarised."
+          elif [ "$HAS_CERT" = "true" ]; then
             signed_note="These installers are code-signed."
           fi
 
@@ -336,6 +382,13 @@ jobs:
         env:
           VERSION: ${{ needs.version.outputs.version }}
           HAS_CERT: ${{ secrets.CSC_LINK != '' }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ADCODE_AZURE_ENDPOINT: ${{ vars.ADCODE_AZURE_ENDPOINT }}
+          ADCODE_AZURE_ACCOUNT: ${{ vars.ADCODE_AZURE_ACCOUNT }}
+          ADCODE_AZURE_PROFILE: ${{ vars.ADCODE_AZURE_PROFILE }}
+          ADCODE_AZURE_PUBLISHER: ${{ vars.ADCODE_AZURE_PUBLISHER }}
         run: |
           {
             echo "## ADCode ${VERSION} drafted"
@@ -344,7 +397,18 @@ jobs:
             echo "the install scripts fetch from \`releases/latest/download\`,"
             echo "and GitHub does not treat a draft as latest."
             echo
-            if [ "$HAS_CERT" != "true" ]; then
+            azure="true"
+            for name in AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET ADCODE_AZURE_ENDPOINT ADCODE_AZURE_ACCOUNT ADCODE_AZURE_PROFILE ADCODE_AZURE_PUBLISHER; do
+              eval "value=\${$name:-}"
+              if [ -z "${value//[[:space:]]/}" ]; then
+                azure="false"
+                break
+              fi
+            done
+            if [ "$azure" = "true" ]; then
+              echo "Windows installers are signed with Azure Trusted Signing."
+              echo "macOS builds are still unsigned until they are signed and notarised."
+            elif [ "$HAS_CERT" != "true" ]; then
               echo "> **Unsigned.** Windows warns via SmartScreen; macOS refuses to open the app at all."
               echo "> Publishing this draft ships that experience to every downloader."
             fi
