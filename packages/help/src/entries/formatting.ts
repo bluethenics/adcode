@@ -21,7 +21,7 @@ export const FORMATTING_ENTRIES: readonly HelpEntry[] = [
     title: "Format on save",
     plain: "Every time you save, the file gets tidied first.",
     why: "So you never think about it again. Code that is formatted on every save is never messy, and nobody has to remember a shortcut.",
-    how: "On by default. Save as usual with Ctrl+S. If the formatter cannot handle that language, the file is saved exactly as you wrote it rather than mangled.",
+    how: "Off by default, so saving never rewrites your file unless you ask. Turn it on and save as usual with Ctrl+S. If the formatter cannot handle that language, the file is saved exactly as you wrote it rather than mangled.",
     group: "formatting",
     settingIds: ["adcode.formatting.formatOnSave"],
     shortcut: "CmdOrCtrl+S",

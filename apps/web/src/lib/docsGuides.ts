@@ -25,10 +25,10 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "editing-accept-on-enter": {
     steps: [
+      "Turn it on in Editing settings - it is off by default, so Enter always starts a new line.",
       "Type until the suggestion list appears, then keep typing to narrow it.",
       "Press Enter to take the highlighted suggestion at once.",
-      "If you actually wanted a new line there, press Escape first, then Enter.",
-      "Prefer Enter to always mean a new line? Turn this off in Editing settings - Tab still takes suggestions either way.",
+      "Tab still takes suggestions either way.",
     ],
     benefits: [
       "Fast typists stop paying an extra keystroke for every accepted suggestion.",
@@ -143,6 +143,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "editing-inline-error-lens": {
     steps: [
+      "Turn it on in Editing settings - it is off by default to keep the editor quiet.",
       "Write code - errors and warnings render their message at the end of the offending line.",
       "The text is dimmed and truncated so code always wins the space.",
       "The lens hides on the line you are typing on, and returns when you move away.",
@@ -172,10 +173,10 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "editing-minimap": {
     steps: [
-      "On by default - the right edge shows the file reduced to a thumbnail.",
+      "Turn it on in Editing settings - it is off by default.",
+      "The right edge shows the file reduced to a thumbnail.",
       "Click anywhere on the minimap to jump straight there.",
       "Drag the highlighted viewport box to scrub through the file.",
-      "Turn it off in Editing settings to reclaim the width.",
     ],
     benefits: [
       "You navigate by shape - 'the dense block near the top' - which is how you actually remember code.",
@@ -218,7 +219,8 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "editing-sticky-scroll": {
     steps: [
-      "On by default. Scroll down inside a long function.",
+      "Turn it on in Editing settings - it is off by default.",
+      "Scroll down inside a long function.",
       "The enclosing context - function, class, loop headers - stays pinned at the top.",
       "Click a stuck line to jump straight back to it.",
     ],
@@ -452,10 +454,11 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "formatting-format-on-save": {
     steps: [
+      "Turn it on in Formatting settings - it is off by default, so saves never rewrite your file uninvited.",
       "Open any file and edit it as usual.",
       "Save with Ctrl+S.",
       "The formatter tidies the file first; then the save lands.",
-      "Prefer to tidy manually? Press Shift+Alt+F any time, or turn format-on-save off in Formatting settings.",
+      "Prefer to tidy manually? Press Shift+Alt+F any time.",
     ],
     benefits: [
       "Your files never drift out of house style - nobody has to remember anything.",
@@ -463,7 +466,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "If a formatter cannot handle the language, the save proceeds untouched rather than mangling the file.",
     ],
     betterThan:
-      "Zero install is the difference. Most setups need a formatter extension, a config file, and a settings toggle before the first save formats anything. In ADCode the formatter is built in, defers to a language server when one exists, and works from the very first Ctrl+S.",
+      "Zero install is the difference. Most setups need a formatter extension, a config file, and a settings toggle before the first save formats anything. In ADCode the formatter is built in, defers to a language server when one exists, and formats on save once you opt in.",
   },
 
   "formatting-lint-diagnostics": {
@@ -732,6 +735,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "ai-inline-completion": {
     steps: [
       "Connect a model once (see Connect a model).",
+      "Turn inline completion on in AI settings - it is off by default.",
       "Type the start of a line or function - grey ghost text appears ahead of your cursor.",
       "Press Tab to accept the whole suggestion.",
       "Just keep typing to ignore it - it fades as soon as you diverge.",
@@ -749,6 +753,8 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "Open Assistant from the workbench or command palette.",
       "Ask about the code in front of you - the assistant can see the open project.",
+      "While it works, watch the activity block above the answer: the header names the current step with elapsed time, and thinking notes and tool calls stream in as rows.",
+      "When it finishes, the block collapses to Worked for Ns - select the header to expand the full trace again.",
       "Read answers with labelled code blocks, inline commands, and numbered steps. Copy a block or the whole response, Retry the last message, or mark it helpful.",
       "Use History for past conversations and the activity panel for agents, tasks, and review controls. Toggle either panel for more writing space.",
       "Press Escape to dismiss it; the conversation survives dismissal.",
@@ -1027,10 +1033,10 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "session-auto-save": {
     steps: [
-      "On by default - just stop typing, and the file saves itself after the pause.",
+      "Turn it on in Session settings - it is off by default.",
+      "Stop typing, and the file saves itself after the pause.",
       "The pause matters: it never writes mid-word.",
       "Ctrl+S still works whenever you want it to.",
-      "Turn it off in Session settings if you prefer fully manual saves.",
     ],
     benefits: [
       "Losing work to a crash, close, or power cut stops being possible in the normal case.",

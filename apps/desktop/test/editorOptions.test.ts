@@ -59,12 +59,15 @@ describe("editorOptionsFor", () => {
     expect(options.renderWhitespace).toBe("trailing");
   });
 
-  it("treats a missing value as the setting being on", () => {
+  it("treats a missing value as the schema default", () => {
     // `applySettings` is called with whatever the store returns, which on a fresh profile
-    // is missing every key. Reading that as "off" would ship an editor with no minimap,
-    // no folding, and no guides on first launch.
+    // is missing every key. Reading that as "off" would ship an editor with no folding
+    // and no guides on first launch - while the opt-in rows (minimap, sticky scroll,
+    // Enter-to-accept) must read missing as off, matching their defaults.
     const options = editorOptionsFor({});
-    expect(options.minimap.enabled).toBe(true);
+    expect(options.minimap.enabled).toBe(false);
+    expect(options.stickyScroll.enabled).toBe(false);
+    expect(options.acceptSuggestionOnEnter).toBe("smart");
     expect(options.folding).toBe(true);
     expect(options.columnSelection).toBe(false);
   });
@@ -124,12 +127,18 @@ describe("editorOptionsFor", () => {
 });
 
 describe("suggestions", () => {
-  it("suggests as you type, and takes it on Enter, out of the box", () => {
+  it("suggests as you type out of the box, with Enter left as a newline", () => {
     const options = editorOptionsFor({});
 
     expect(options.quickSuggestions).toBe(true);
-    expect(options.acceptSuggestionOnEnter).toBe("on");
+    expect(options.acceptSuggestionOnEnter).toBe("smart");
     expect(options.tabCompletion).toBe("on");
+  });
+
+  it("takes the suggestion on Enter only when the row is on", () => {
+    const options = editorOptionsFor({ "adcode.editing.acceptOnEnter": true });
+
+    expect(options.acceptSuggestionOnEnter).toBe("on");
   });
 
   it("degrades Enter to 'smart' rather than off", () => {

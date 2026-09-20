@@ -3,6 +3,13 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 1.0.2 — 2026-09-20
+
+- Quiet by default: format on save, auto-save, AI inline completion, the inline error
+  lens, sticky scroll, the minimap, and Enter-to-accept no longer switch on for a fresh
+  install. Saving never rewrites a file uninvited; Shift+Alt+F still formats on demand.
+- Help entries, guides, and generated docs now describe those seven as opt-in.
+
 ## 1.0.1 — 2026-09-13
 
 - Update assistant messages with formatted code, copy actions, and grouped conversation history.

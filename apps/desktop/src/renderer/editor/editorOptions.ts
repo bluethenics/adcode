@@ -38,9 +38,17 @@ export interface EditorOptions {
 const MANY_CURSORS = 10000;
 
 export function editorOptionsFor(values: Record<string, boolean | string>): EditorOptions {
-  // Missing reads as on: a fresh profile has no keys at all, and reading that as "off"
-  // would launch the editor with no minimap, no folding, and no guides.
-  const on = (id: string): boolean => values[id] !== false;
+  // Missing reads as on, except for the rows that default to off: a fresh profile has no
+  // keys at all, and reading that as "off" would launch the editor with no folding and
+  // no guides. The opt-in rows (minimap, sticky scroll, Enter-to-accept) read missing as
+  // off instead, matching their schema defaults.
+  const OFF_BY_DEFAULT = new Set([
+    "adcode.editing.minimap",
+    "adcode.editing.stickyScroll",
+    "adcode.editing.acceptOnEnter",
+  ]);
+  const on = (id: string): boolean =>
+    OFF_BY_DEFAULT.has(id) ? values[id] === true : values[id] !== false;
 
   return {
     minimap: { enabled: on("adcode.editing.minimap"), renderCharacters: false },

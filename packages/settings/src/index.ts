@@ -195,9 +195,9 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
 
   /* ── Editing (§4) ───────────────────────────────────────────────────── */
   bool("adcode.editing.bracketPairColorization", "editing", "Bracket pair colorization", "Colour matching brackets by depth.", true, true),
-  bool("adcode.editing.inlineErrorLens", "editing", "Inline error and warning lens", "Show diagnostics at the end of the line they belong to. One per line, and never on the line you are typing on.", true, true),
+  bool("adcode.editing.inlineErrorLens", "editing", "Inline error and warning lens", "Show diagnostics at the end of the line they belong to. One per line, and never on the line you are typing on.", false, true),
   bool("adcode.editing.inlineGitBlame", "editing", "Inline git blame", "Show the last author and commit beside the cursor's line.", false, true),
-  bool("adcode.editing.stickyScroll", "editing", "Sticky scroll", "Pin enclosing scopes to the top of the editor while scrolling.", true, true),
+  bool("adcode.editing.stickyScroll", "editing", "Sticky scroll", "Pin enclosing scopes to the top of the editor while scrolling.", false, true),
   bool("adcode.editing.indentGuides", "editing", "Indent guides", "Vertical rules showing indentation depth.", true, true),
   bool("adcode.editing.todoHighlighting", "editing", "TODO and FIXME highlighting", "Highlight TODO, FIXME, HACK, XXX and NOTE - inside comments only, never the word appearing in code.", true, true),
   bool("adcode.editing.spellCheck", "editing", "Check spelling in comments", "Underline misspelled words in comments and offer the fix. Only words with a known correction are flagged - an unfamiliar name, library, or abbreviation is left alone rather than underlined, so this never has to be switched off to stop the noise. Code is never checked; an identifier is named, not spelled.", false, true),
@@ -207,7 +207,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   bool("adcode.editing.autoRenamePairedTag", "editing", "Auto-rename paired tag", "Renaming an opening tag renames its closing tag, in the same undo step.", true, true),
   bool("adcode.editing.pathAutocomplete", "editing", "Path autocomplete", "Complete file paths inside strings and imports, from the files that are really there.", true, true),
   bool("adcode.editing.trailingWhitespace", "editing", "Render trailing whitespace", "Make trailing spaces visible.", false, true),
-  bool("adcode.editing.minimap", "editing", "Minimap", "The scaled overview down the right-hand edge.", true, true),
+  bool("adcode.editing.minimap", "editing", "Minimap", "The scaled overview down the right-hand edge.", false, true),
   bool("adcode.editing.codeFolding", "editing", "Code folding", "Collapse and expand regions.", true, true),
   bool("adcode.editing.multiCursor", "editing", "Multi-cursor", "Place more than one cursor with Ctrl+click, Ctrl+D, and Ctrl+Alt+Up/Down.", true, true),
   // Its own row rather than a rider on multi-cursor, and off by default, because column
@@ -225,13 +225,13 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
    * dislikes it needs to be able to switch off without losing suggestions entirely.
    */
   bool("adcode.editing.suggestions", "editing", "Suggestions as you type", "Offer completions while typing. Press Tab or Enter to take one.", true, true),
-  bool("adcode.editing.acceptOnEnter", "editing", "Accept suggestion with Enter", "Enter takes the highlighted suggestion. Turn off to make Enter always start a new line.", true, true),
+  bool("adcode.editing.acceptOnEnter", "editing", "Accept suggestion with Enter", "Enter takes the highlighted suggestion. Turn off to make Enter always start a new line.", false, true),
   bool("adcode.editing.wordSuggestions", "editing", "Suggest words already in the file", "The fallback for languages with no built-in intelligence.", true, true),
   bool("adcode.editing.plainEnglishErrors", "editing", "Explain errors in plain English", "Rewrite compiler messages in the Problems panel and on hover. The original wording is always kept underneath.", true, true),
 
   /* ── Formatting (§4) ────────────────────────────────────────────────── */
   bool("adcode.formatting.formatter", "formatting", "Built-in formatter", "Formatting with no extension to install. A language server is asked first where one is running; otherwise ADCode re-prints JSON and CSS, and fixes indentation and whitespace everywhere else.", true, true),
-  bool("adcode.formatting.formatOnSave", "formatting", "Format on save", "Run the formatter every time a file is saved. A language ADCode cannot format is saved exactly as you wrote it.", true, true),
+  bool("adcode.formatting.formatOnSave", "formatting", "Format on save", "Run the formatter every time a file is saved. A language ADCode cannot format is saved exactly as you wrote it.", false, true),
   bool("adcode.formatting.lintDiagnostics", "formatting", "Lint diagnostics", "Report problems in the Problems panel, the badge, and beside the line. Off silences all three without stopping the compiler.", true, true),
   bool("adcode.formatting.organizeImportsOnSave", "formatting", "Organize imports on save", "Sort the import block when saving, and drop an import nothing in the file uses. Off by default, because deleting a line you did not ask to delete deserves to be a choice.", false, true),
 
@@ -291,7 +291,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
 
   /* ── Session (§4) ───────────────────────────────────────────────────── */
   bool("adcode.session.workspaceRestore", "session", "Restore workspace", "Reopen the last folder and editors on launch.", true, true),
-  bool("adcode.session.autoSave", "session", "Auto-save after delay", "Save automatically once typing pauses.", true, true),
+  bool("adcode.session.autoSave", "session", "Auto-save after delay", "Save automatically once typing pauses.", false, true),
   bool("adcode.session.localFileHistory", "session", "Local file history", "Keep local versions of edited files.", true, true),
   bool("adcode.session.crashRecovery", "session", "Crash recovery", "Recover unsaved buffers after an unexpected exit.", true, true),
 
@@ -422,7 +422,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     ],
   },
   bool("adcode.ai.chatWidget", "ai", "Chat widget", "The floating chat card, summoned by keyboard shortcut.", true, true),
-  bool("adcode.ai.inlineCompletion", "ai", "Inline completion", "Cancellable ghost text after an idle pause, accepted with Tab or requested with Alt+\\.", true, true),
+  bool("adcode.ai.inlineCompletion", "ai", "Inline completion", "Cancellable ghost text after an idle pause, accepted with Tab or requested with Alt+\\.", false, true),
   bool("adcode.ai.terminalAgentDetection", "ai", "Terminal agent detection", "Recognise an AI agent started in the built-in terminal and offer to share this project's memory with it. Recognised from the command you typed - nothing else is inspected.", true, true),
   bool(
     "adcode.ai.autoContinue",

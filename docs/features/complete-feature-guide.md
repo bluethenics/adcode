@@ -83,7 +83,7 @@ With the suggestion list open, pressing Enter takes the suggestion instead of st
 
 Why use it: It is what makes suggestions fast. It is also the thing that annoys people who wanted a new line, which is why it is its own switch rather than part of suggestions.
 
-How to use it: On by default. Turn it off and Enter always starts a new line; Tab still takes the suggestion.
+How to use it: Off by default, so Enter always starts a new line. Turn it on and Enter takes the highlighted suggestion; Tab still takes the suggestion either way.
 
 Access: `All Features → Accept suggestion with Enter`; `Turn on or off`; `Settings`.
 
@@ -193,7 +193,7 @@ When a line has a mistake, the message about it sits right at the end of that li
 
 Why use it: Otherwise the message lives in a panel at the bottom, or inside a tooltip you have to hover to see. Both mean looking away from the line you are fixing.
 
-How to use it: On by default. The message is dimmed and shortened so it never covers your code, and it hides itself on the line your cursor is on while you type.
+How to use it: Off by default, so the editor stays quiet unless you ask. Turn it on and the message is dimmed and shortened so it never covers your code, and it hides itself on the line your cursor is on while you type.
 
 Access: `All Features → Inline error and warning lens`; `Turn on or off`; `Settings`.
 
@@ -215,7 +215,7 @@ A tiny picture of the whole file down the right-hand edge, that you can click to
 
 Why use it: You often remember roughly where something was - near the top, in that dense block - without remembering its name. The shape of the file is a real way to navigate.
 
-How to use it: On by default. Drag the highlighted box to scroll, or click anywhere on it to jump there.
+How to use it: Off by default. Turn it on, then drag the highlighted box to scroll, or click anywhere on it to jump there.
 
 Access: `All Features → Minimap`; `Turn on or off`; `Settings`.
 
@@ -270,7 +270,7 @@ As you scroll down inside a long function, its name stays stuck at the top of th
 
 Why use it: Two hundred lines into a file, the thing you most want to know is which function you are inside. Scrolling back up to check is how you lose your place.
 
-How to use it: On by default. Click a stuck line at the top to jump back to it.
+How to use it: Off by default. Turn it on, then click a stuck line at the top to jump back to it.
 
 Access: `All Features → Sticky scroll`; `Turn on or off`; `Settings`.
 
@@ -395,7 +395,7 @@ Every time you save, the file gets tidied first.
 
 Why use it: So you never think about it again. Code that is formatted on every save is never messy, and nobody has to remember a shortcut.
 
-How to use it: On by default. Save as usual with Ctrl+S. If the formatter cannot handle that language, the file is saved exactly as you wrote it rather than mangled.
+How to use it: Off by default, so saving never rewrites your file unless you ask. Turn it on and save as usual with Ctrl+S. If the formatter cannot handle that language, the file is saved exactly as you wrote it rather than mangled.
 
 Access: `All Features → Format on save`; `Turn on or off`; `Settings`; `Keyboard → Ctrl/Cmd+S`.
 
@@ -529,11 +529,11 @@ Access: `All Features → Tree-sitter highlighting`; `Turn on or off`; `Settings
 <!-- feature:adcode.ai.chatWidget -->
 ### AI chat workspace
 
-A spacious conversation workspace with searchable history, code blocks you can copy, and per-response Copy, Retry, and feedback.
+A spacious conversation workspace with searchable history, a live thinking-and-working block per answer, code blocks you can copy, and per-response Copy, Retry, and feedback.
 
 Why use it: Asking in the editor beats copying code into a browser, because the assistant can already see the project.
 
-How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers Copy, Retry, and helpful or not helpful. Use History to browse conversations and the activity panel to see agent work and review changes. Share copies the conversation as markdown. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation.
+How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. While it works, one activity block per answer shows the current step with elapsed time — thinking notes and tool calls stream in as rows, each tool gaining a checkmark when done. When it finishes the block collapses to Worked for Ns; select its header to expand it again. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers Copy, Retry, and helpful or not helpful. Use History to browse conversations and the activity panel to see agent work and review changes. Share copies the conversation as markdown. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation.
 
 Access: `All Features → AI chat workspace`; `Turn on or off`; `Settings`.
 
@@ -621,7 +621,7 @@ Grey text appears ahead of your cursor guessing the rest of what you are writing
 
 Why use it: For the lines that are boring and predictable, which is more of them than anybody likes to admit.
 
-How to use it: On by default. ADCode asks the selected model after you pause, without delaying a keystroke, and cancels the request as soon as the buffer changes. Press Tab to accept grey ghost text, keep typing to ignore it, or press Alt+\ to request a suggestion yourself. Local keyword and language-server suggestions continue to work separately.
+How to use it: Off by default. Turn it on and ADCode asks the selected model after you pause, without delaying a keystroke, and cancels the request as soon as the buffer changes. Press Tab to accept grey ghost text, keep typing to ignore it, or press Alt+\ to request a suggestion yourself. Local keyword and language-server suggestions continue to work separately.
 
 Access: `All Features → Inline completion`; `Suggest now`; `Turn on or off`; `Settings`; `Keyboard → Alt+\`.
 
@@ -766,7 +766,7 @@ Little coloured marks in the left margin show which lines you have changed since
 
 Why use it: It answers 'what have I actually touched here' without opening anything or comparing anything.
 
-How to use it: On by default. Green means you added the line, blue means you changed it, and a small triangle means you deleted something there. Click a mark to see what was there before, and to undo just that change.
+How to use it: On by default. Green means you added the line, amber means you changed it, and a small triangle means you deleted something there. Click a mark to see what was there before, and to undo just that change.
 
 Access: `All Features → Gutter diff decorations`; `Turn on or off`; `Settings`.
 
@@ -801,7 +801,7 @@ Stop typing for a moment and your file saves itself.
 
 Why use it: So losing work stops being possible, and so you stop pressing Ctrl+S out of habit every few seconds.
 
-How to use it: On by default. It waits until you pause, so it never saves a half-typed word. You can still save whenever you like with Ctrl+S.
+How to use it: Off by default. Turn it on and it waits until you pause, so it never saves a half-typed word. You can still save whenever you like with Ctrl+S.
 
 Access: `All Features → Auto-save after delay`; `Turn on or off`; `Settings`; `Keyboard → Ctrl/Cmd+S`.
 

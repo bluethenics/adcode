@@ -295,7 +295,7 @@ function applySettings(values: Record<string, boolean | string>): void {
   editorHost.applySettings({
     ...values,
     "adcode.editing.inlineErrorLens":
-      values["adcode.editing.inlineErrorLens"] !== false &&
+      values["adcode.editing.inlineErrorLens"] === true &&
       values["adcode.formatting.lintDiagnostics"] !== false,
   });
   // The panel caches nothing, but it only redraws on a marker change - so switching the
@@ -539,7 +539,7 @@ async function savePath(path: string): Promise<void> {
   if (settingsValues["adcode.formatting.organizeImportsOnSave"] === true) {
     editorHost.organizeImports(path);
   }
-  if (settingsValues["adcode.formatting.formatOnSave"] !== false) {
+  if (settingsValues["adcode.formatting.formatOnSave"] === true) {
     await editorHost.formatDocument(path);
   }
 
@@ -2741,7 +2741,7 @@ function scheduleAutoSave(path: string): void {
     }, DRAFT_MS),
   );
 
-  if (settingsValues["adcode.session.autoSave"] === false) return;
+  if (settingsValues["adcode.session.autoSave"] !== true) return;
 
   pendingSaves.set(
     path,

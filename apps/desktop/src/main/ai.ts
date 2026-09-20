@@ -880,7 +880,7 @@ export async function aiSend(text: string, attachments: readonly AiAttachmentVie
 
 /** A small, tool-free, cancellable request used only for Monaco ghost text. */
 export async function aiCompletion(input: AiCompletionInputView): Promise<string | null> {
-  if (currentSettings()["adcode.ai.inlineCompletion"] === false) return null;
+  if (currentSettings()["adcode.ai.inlineCompletion"] !== true) return null;
   if (sendInFlight || input.prefix.trim().length === 0) return null;
 
   completionInFlight?.controller.abort();

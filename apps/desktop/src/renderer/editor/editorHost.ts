@@ -390,8 +390,8 @@ export function createEditorHost(
     fontSize: 13,
     lineHeight: 20,
     fontLigatures: true,
-    minimap: { enabled: true, renderCharacters: false },
-    stickyScroll: { enabled: true },
+    minimap: { enabled: false, renderCharacters: false },
+    stickyScroll: { enabled: false },
     bracketPairColorization: { enabled: true },
     guides: { indentation: true, bracketPairs: true },
     smoothScrolling: true,
@@ -980,14 +980,14 @@ export function createEditorHost(
       commentTones.setEnabled(values["adcode.editing.commentTones"] === true);
       spellCheck.setEnabled(values["adcode.editing.spellCheck"] === true);
       pathComplete.setEnabled(values["adcode.editing.pathAutocomplete"] !== false);
-      aiInlineCompletion.setEnabled(values["adcode.ai.inlineCompletion"] !== false);
+      aiInlineCompletion.setEnabled(values["adcode.ai.inlineCompletion"] === true);
       formatting.setEnabled(values["adcode.formatting.formatter"] !== false);
       treeSitter.setEnabled(values["adcode.language.treeSitterHighlighting"] !== false);
 
       navigationEnabled = values["adcode.navigation.goToDefinition"] !== false;
       if (!navigationEnabled) peek.close();
 
-      errorLens.setEnabled(values["adcode.editing.inlineErrorLens"] !== false);
+      errorLens.setEnabled(values["adcode.editing.inlineErrorLens"] === true);
       // The lens shows the same rewritten wording the Problems panel does, so it follows
       // the same switch - one setting, one vocabulary, everywhere an error is worded.
       errorLens.setPlainEnglish(values["adcode.editing.plainEnglishErrors"] !== false);

@@ -42,7 +42,7 @@ describe("persistence", () => {
 
     expect(values["adcode.editing.minimap"]).toBe(false);
     expect(values["adcode.ads.frequency"]).toBe("light");
-    expect(values["adcode.editing.stickyScroll"]).toBe(true);
+    expect(values["adcode.editing.stickyScroll"]).toBe(false);
   });
 
   it("stamps the schema version so a later build can migrate", async () => {
@@ -94,7 +94,7 @@ describe("damaged files", () => {
     const values = await store.read();
 
     expect(values["adcode.editing.minimap"]).toBe(false);
-    expect(values["adcode.editing.stickyScroll"]).toBe(true);
+    expect(values["adcode.editing.stickyScroll"]).toBe(false);
     expect("adcode.nonexistent.setting" in values).toBe(false);
   });
 
@@ -130,7 +130,7 @@ describe("write validation", () => {
     const store = createSettingsStore(dir);
     const values = await store.write("adcode.editing.minimap", "yes");
 
-    expect(values["adcode.editing.minimap"]).toBe(true);
+    expect(values["adcode.editing.minimap"]).toBe(false);
   });
 
   it("ignores an out-of-range enum value", async () => {

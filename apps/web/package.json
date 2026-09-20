@@ -1,6 +1,6 @@
 {
   "name": "@adcode/web",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "adcode.dev - the marketing site, advertiser portal, user dashboard, and admin panel.",
   "scripts": {

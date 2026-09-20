@@ -19,7 +19,7 @@ export const SESSION_ENTRIES: readonly HelpEntry[] = [
     title: "Auto-save after delay",
     plain: "Stop typing for a moment and your file saves itself.",
     why: "So losing work stops being possible, and so you stop pressing Ctrl+S out of habit every few seconds.",
-    how: "On by default. It waits until you pause, so it never saves a half-typed word. You can still save whenever you like with Ctrl+S.",
+    how: "Off by default. Turn it on and it waits until you pause, so it never saves a half-typed word. You can still save whenever you like with Ctrl+S.",
     group: "session",
     settingIds: ["adcode.session.autoSave"],
     shortcut: "CmdOrCtrl+S",

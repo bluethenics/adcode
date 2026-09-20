@@ -18,20 +18,20 @@ describe("schema completeness", () => {
   // switch it off." Defaults below are quoted from §4 directly.
   const REQUIRED: ReadonlyArray<[string, boolean]> = [
     ["adcode.editing.bracketPairColorization", true],
-    ["adcode.editing.inlineErrorLens", true],
+    ["adcode.editing.inlineErrorLens", false],
     ["adcode.editing.inlineGitBlame", false],
-    ["adcode.editing.stickyScroll", true],
+    ["adcode.editing.stickyScroll", false],
     ["adcode.editing.indentGuides", true],
     ["adcode.editing.todoHighlighting", true],
     ["adcode.editing.autoRenamePairedTag", true],
     ["adcode.editing.pathAutocomplete", true],
     ["adcode.editing.trailingWhitespace", false],
-    ["adcode.editing.minimap", true],
+    ["adcode.editing.minimap", false],
     ["adcode.editing.codeFolding", true],
     ["adcode.editing.multiCursor", true],
 
     ["adcode.formatting.formatter", true],
-    ["adcode.formatting.formatOnSave", true],
+    ["adcode.formatting.formatOnSave", false],
     ["adcode.formatting.lintDiagnostics", true],
     ["adcode.formatting.organizeImportsOnSave", false],
 
@@ -54,12 +54,12 @@ describe("schema completeness", () => {
     ["adcode.language.treeSitterHighlighting", true],
 
     ["adcode.session.workspaceRestore", true],
-    ["adcode.session.autoSave", true],
+    ["adcode.session.autoSave", false],
     ["adcode.session.localFileHistory", true],
     ["adcode.session.crashRecovery", true],
 
     ["adcode.ai.chatWidget", true],
-    ["adcode.ai.inlineCompletion", true],
+    ["adcode.ai.inlineCompletion", false],
     ["adcode.ai.terminalAgentDetection", true],
     ["adcode.ai.memoryCapture", true],
     ["adcode.ai.mcpServer", true],
@@ -171,9 +171,9 @@ describe("defaultSettings", () => {
 
 describe("validateSettings", () => {
   it("fills missing keys from defaults", () => {
-    const result = validateSettings({ "adcode.editing.minimap": false });
-    expect(result["adcode.editing.minimap"]).toBe(false);
-    expect(result["adcode.editing.stickyScroll"]).toBe(true);
+    const result = validateSettings({ "adcode.editing.minimap": true });
+    expect(result["adcode.editing.minimap"]).toBe(true);
+    expect(result["adcode.editing.stickyScroll"]).toBe(false);
   });
 
   it("drops unknown keys rather than storing them", () => {
@@ -183,7 +183,7 @@ describe("validateSettings", () => {
 
   it("rejects a wrong type and falls back to the default", () => {
     const result = validateSettings({ "adcode.editing.minimap": "yes" });
-    expect(result["adcode.editing.minimap"]).toBe(true);
+    expect(result["adcode.editing.minimap"]).toBe(false);
   });
 
   it("rejects an out-of-range enum value", () => {
