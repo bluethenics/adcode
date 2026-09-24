@@ -9,6 +9,16 @@ only public once its installers are attached to a GitHub release.
   typechecks inside the task sandbox, and fetch documentation pages. Listing and search
   accept the workspace root in every spelling, large reads page, and the assistant does
   the work with sensible defaults instead of interviewing you first.
+- Task token budget is Unlimited by default, so tasks never pause for tokens; the strip
+  still counts spend, and a 25k/100k/250k cap stays one switch away. Hitting a cap you
+  set offers removing it, raising it, or starting fresh, right in the chat.
+- Every proposed file announces itself in the conversation with what changed and where
+  to apply it, so created files are never silently waiting in the task workspace.
+  Code mode raises its own review toast that opens the changes view.
+- Unsaved files no longer brick the assistant with a bare error: the block names the
+  files, and the chat offers saving them or answering anyway without file tools.
+- The assistant never claims it created or saved a file - proposals stay proposals
+  until you apply them.
 - Connect a model walks you through three live steps with a progress bar, pins popular
   providers first, marks the recommended model, and offers thinking effort (Auto to Max)
   for reasoning models from OpenAI and Anthropic. Custom endpoints get a numbered guide

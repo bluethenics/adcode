@@ -93,7 +93,8 @@ export interface StartAiWorkspaceInput {
   readonly prompt: string;
   /** Review is the safe default. Trusted remains isolated and checkpointed. */
   readonly reviewPolicy?: AiReviewPolicy;
-  readonly tokenLimit?: number;
+  /** Null means unlimited. Omitted means the default cap. */
+  readonly tokenLimit?: number | null;
   readonly costMicrosLimit?: number;
   /** Main-process-only Team ownership. Role tasks set reviewable false; combined reviews true. */
   readonly parentTeamId?: string;

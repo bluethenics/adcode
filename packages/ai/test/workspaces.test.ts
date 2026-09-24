@@ -117,6 +117,25 @@ describe("task budgets", () => {
     expect(before.usedTokens).toBe(0);
     expect(() => addUsage(before, { tokens: -1, costMicros: 0 })).toThrow(/usage/i);
   });
+
+  it("never pauses an unlimited task for tokens, but still caps cost", () => {
+    const unlimited = createAiWorkspaceTask({
+      id: "task-free",
+      workspaceId: "workspace-123",
+      workspaceRoot: "C:/project",
+      prompt: "Work without a token ceiling",
+      tokenLimit: null,
+      now: 1_000,
+    });
+
+    expect(unlimited.budget.tokenLimit).toBeNull();
+    expect(
+      canReserveUsage(unlimited.budget, { tokens: Number.MAX_SAFE_INTEGER, costMicros: 1 }),
+    ).toEqual({ ok: true });
+    expect(
+      canReserveUsage(unlimited.budget, { tokens: 1, costMicros: Number.MAX_SAFE_INTEGER }),
+    ).toEqual({ ok: false, reason: "cost-limit" });
+  });
 });
 
 describe("workspace changes and operational traces", () => {

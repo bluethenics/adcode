@@ -122,6 +122,8 @@ export interface ChatWidgetDeps {
   readonly openCodeReference?: (reference: CodeReference) => void;
   /** Open the Connect screen, which owns providers, keys and models. */
   readonly openConnect: () => void;
+  /** Save every open editor, so the isolated task can start from current files. */
+  readonly saveAllOpenFiles: () => void;
   /** The coordinator owns the workspace shell and all dismissal. */
   readonly requestOpen: () => void;
   readonly requestClose: () => void;
@@ -1341,8 +1343,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    * collapse: one assistant bubble explaining the miss, with a button that
    * opens Connect. Deduped so retries cannot stack the same card.
    */
-  function connectNudge(): void {
-    const last = transcript.lastElementChild;
+  function connectNudge(): void {    const last = transcript.lastElementChild;
     if (last instanceof HTMLElement && last.dataset["nudge"] === "connect") {
       scrollToEnd();
       return;
@@ -1358,6 +1359,104 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     action.textContent = "Connect a model";
     action.addEventListener("click", () => deps.openConnect());
     element.append(action);
+    scrollToEnd();
+  }
+
+  /*
+   * A task paused by its token cap ends with three ways forward, not a bare
+   * error line: remove the cap, raise it, or start fresh. Same deduped card
+   * shape as connectNudge, so retries cannot stack it.
+   */
+  function budgetNudge(): void {
+    const last = transcript.lastElementChild;
+    if (last instanceof HTMLElement && last.dataset["nudge"] === "budget") {
+      scrollToEnd();
+      return;
+    }
+    const element = bubble(
+      "assistant",
+      "This task paused at its token cap. Your key is fine and nothing is lost - pick how to continue.",
+    );
+    element.dataset["nudge"] = "budget";
+    const row = document.createElement("div");
+    row.className = "chat-nudge-row";
+    const choice = (
+      label: string,
+      title: string,
+      run: () => void,
+    ): HTMLButtonElement => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "chat-send chat-nudge-action";
+      option.textContent = label;
+      option.title = title;
+      option.addEventListener("click", run);
+      row.append(option);
+      return option;
+    };
+    choice("Remove limit", "Never pause tasks for tokens again", () => {
+      void window.adcode.settings.write("adcode.ai.taskTokenBudget", "unlimited").then(
+        () => void window.adcode.ai.send("Continue where you left off."),
+        () => undefined,
+      );
+    });
+    choice("Raise to 250k", "Keep a cap, but a larger one", () => {
+      void window.adcode.settings.write("adcode.ai.taskTokenBudget", "250000").then(
+        () => void window.adcode.ai.send("Continue where you left off."),
+        () => undefined,
+      );
+    });
+    choice("New task", "Start over with a fresh task workspace", () => {
+      resetButton.click();
+    });
+    element.append(row);
+    scrollToEnd();
+  }
+
+  /*
+   * A turn blocked by unsaved files ends with the actual choice: save them,
+   * or hear the answer anyway without file tools. Names the files so nobody
+   * hunts through tabs, and dedupes like every other nudge.
+   */
+  function draftNudge(): void {
+    const last = transcript.lastElementChild;
+    if (last instanceof HTMLElement && last.dataset["nudge"] === "drafts") {
+      scrollToEnd();
+      return;
+    }
+    const element = bubble(
+      "assistant",
+      "Unsaved files are holding this turn back - the isolated task must start from what you see on disk.",
+    );
+    element.dataset["nudge"] = "drafts";
+    const row = document.createElement("div");
+    row.className = "chat-nudge-row";
+    const choice = (
+      label: string,
+      title: string,
+      run: () => void,
+    ): void => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "chat-send chat-nudge-action";
+      option.textContent = label;
+      option.title = title;
+      option.addEventListener("click", run);
+      row.append(option);
+    };
+    choice("Save all files", "Save every open editor, then continue", () => {
+      deps.saveAllOpenFiles();
+      if (resend(lastUserPrompt)) {
+        element.dataset["nudge"] = "drafts-sent";
+      }
+    });
+    choice("Answer anyway", "Answer from the conversation only, without file tools", () => {
+      window.adcode.ai.answerAnyway();
+      if (resend(lastUserPrompt)) {
+        element.dataset["nudge"] = "drafts-sent";
+      }
+    });
+    element.append(row);
     scrollToEnd();
   }
 
@@ -2287,6 +2386,33 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   window.adcode.aiWorkspace.onChanged((task) => paintWorkspaceTask(task));
   void refreshWorkspaceTask();
 
+  /*
+   * A proposal that arrives silently is a file the user never finds: the
+   * change lives in the isolated task workspace, not the project, so nothing
+   * appears in the Explorer until it is applied. This notice says exactly
+   * that, right under the diff, and updates in place when the same file is
+   * proposed again instead of stacking.
+   */
+  const proposalNotices = new Map<string, HTMLElement>();
+
+  function proposalNotice(edit: ProposedEditView): void {
+    const key = `${edit.taskId} ${edit.relativePath}`;
+    const text =
+      `Proposed ${edit.hunks.length} change${edit.hunks.length === 1 ? "" : "s"} to ` +
+      `${edit.displayPath} — waiting in the isolated task workspace, not in your project yet. ` +
+      `Review the diff above and choose Apply selected; the file lands in your Explorer once applied.`;
+    const existing = proposalNotices.get(key);
+    if (existing !== undefined && existing.isConnected) {
+      messageSources.set(existing, text);
+      renderMessage(existing, text);
+      scrollToEnd();
+      return;
+    }
+    const element = bubble("assistant", text);
+    element.classList.add("chat-bubble-proposal");
+    proposalNotices.set(key, element);
+  }
+
   function inlineDiff(edit: ProposedEditView): void {
     const panel = document.createElement("div");
     panel.className = "diff-panel";
@@ -2508,6 +2634,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         if (/Connect a model|API key|custom endpoint|HTTP 40[1234]|credit|quota|not found/i.test(detail)) {
           connectNudge();
         }
+        // A capped task pauses: offer the ways forward as buttons.
+        if (/token budget|token-limit/i.test(detail)) {
+          budgetNudge();
+        }
+        // Unsaved files block file tools: name the way out as buttons.
+        if (/isolated task begins/i.test(detail)) {
+          draftNudge();
+        }
         break;
       }
 
@@ -2539,6 +2673,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     flushStream();
     streamingBubble = null;
     inlineDiff(edit);
+    proposalNotice(edit);
   });
 
   /* ── Sending ──────────────────────────────────────────────────────────── */

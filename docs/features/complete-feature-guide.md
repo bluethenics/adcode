@@ -694,11 +694,11 @@ Access: `All Features → Scheduled AI messages`; `Schedule`; `Turn on or off`; 
 <!-- feature:adcode.ai.taskTokenBudget -->
 ### Task token budget
 
-Sets a hard ceiling for one assistant task, checked before each new request can spend your key.
+Optionally sets a hard ceiling for one assistant task, checked before each new request can spend your key.
 
 Why use it: Long tool loops and repeated context can cost far more than the first question suggests. Checking the whole request before it starts is safer than warning after the tokens are gone.
 
-How to use it: The default is 100k. The task strip shows reserved tokens. ADCode pauses before the next request would cross the limit; raise it in Settings or start a new task when you want a fresh allowance.
+How to use it: Unlimited is the default, so tasks never pause for tokens. The task strip still counts what each task spends. Choose 25k, 100k, or 250k in Settings for a hard ceiling: ADCode pauses before the next request would cross it, and the chat offers removing the limit, raising it, or starting a new task.
 
 Access: `All Features → Task token budget`; `Settings`.
 

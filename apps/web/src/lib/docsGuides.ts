@@ -925,10 +925,10 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ai-task-token-budget": {
     steps: [
-      "Find the Task token budget setting - default 100k per task.",
-      "The task strip shows reserved tokens while a task runs.",
-      "When the next request would cross the limit, ADCode pauses first and asks instead of spending.",
-      "Raise the ceiling in Settings or start a new task for a fresh allowance.",
+      "Find the Task token budget setting - Unlimited by default, so tasks never pause for tokens.",
+      "The task strip still counts what each task spends.",
+      "Choose 25k, 100k, or 250k for a hard ceiling: when the next request would cross it, ADCode pauses first and the chat offers removing the limit, raising it, or starting a new task.",
+      "Runaway tool loops stop on their own instead of draining your key.",
     ],
     benefits: [
       "A hard pre-request ceiling beats any after-the-fact warning label.",

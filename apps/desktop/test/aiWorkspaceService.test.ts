@@ -82,6 +82,21 @@ describe("safe AI workspace service", () => {
     expect((await api.read(task.id))?.budget.usedTokens).toBe(60);
   });
 
+  it("tracks spend without ever pausing an unlimited task", async () => {
+    const api = service();
+    const task = await api.start({
+      workspaceRoot: project,
+      prompt: "Work freely",
+      tokenLimit: null,
+    });
+
+    const reserved = await api.reserveUsage(task.id, { tokens: 10_000_000, costMicros: 1 });
+
+    expect(reserved.ok).toBe(true);
+    expect(reserved.task.budget.tokenLimit).toBeNull();
+    expect(reserved.task.budget.usedTokens).toBe(10_000_000);
+  });
+
   it("creates a durable checkpoint before applying selected files", async () => {
     const api = service();
     const task = await api.start({ workspaceRoot: project, prompt: "Edit one" });

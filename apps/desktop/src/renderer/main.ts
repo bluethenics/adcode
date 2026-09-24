@@ -4296,6 +4296,9 @@ const chat = createChatWidget({
   openExternalPath: (path) => void openFile(/^(?:[a-z]:[\\/]|\/)/i.test(path) ? path : absolutePath(path)),
   openPreview: () => { if (!previewPane.isOpen()) void previewPane.toggle(); },
   openConnect: () => openConnectFromChat(),
+  saveAllOpenFiles: () => {
+    void commands.run("file.saveAll");
+  },
   requestOpen: () => openChat("keyboard"),
   requestClose: () => assistantDock?.isDocked() ? assistantDock.close() : closePrimaryPopup("chat"),
   togglePresentation: () => assistantDock?.togglePresentation(),
@@ -5794,6 +5797,20 @@ assistantDock = createAssistantDock({
   run: command => commands.run(command),
   projectRoot: () => workspaceRoot,
   layoutChanged: () => { renderWorkbenchLayout(); rememberSession(); },
+});
+
+/*
+ * The review box for code mode: a proposal lands in the isolated task
+ * workspace, invisible in the Explorer, so the editor says so out loud with
+ * a way in. One toast per proposal; it stays until dismissed or reviewed.
+ */
+window.adcode.ai.onProposedEdit((edit) => {
+  notifications.show({
+    title: "Review proposed changes",
+    body: `${edit.summary} — ${edit.displayPath}. Nothing in your project changed yet.`,
+    actions: [{ label: "Review changes", run: () => commands.run("workspace.changes") }],
+    tone: "info",
+  });
 });
 
 window.adcode.window.onCommand((command, arg) => commands.run(command, arg));

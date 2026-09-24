@@ -83,6 +83,7 @@ import { clearRecents, forgetRecent, recentFolders, rememberRecent } from "./rec
 import { collabFileChanged, disposeCollab, registerCollabIpc } from "./collabIpc.ts";
 import { invalidateFileCache } from "./sourceControl.ts";
 import {
+  aiAnswerAnyway,
   aiApplyHunks,
   aiCancel,
   aiCancelCompletion,
@@ -977,6 +978,7 @@ export function registerIpc(): void {
 
   ipcMain.on(CHANNELS.aiCancel, () => aiCancel());
   ipcMain.on(CHANNELS.aiReset, () => aiReset());
+  ipcMain.on(CHANNELS.aiAnswerAnyway, () => aiAnswerAnyway());
 
   ipcMain.handle(CHANNELS.aiApplyHunks, (_event, path: unknown, ids: unknown) => {
     if (!isString(path)) throw new Error("expected a path");

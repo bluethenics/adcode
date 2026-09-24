@@ -505,6 +505,7 @@ export const CHANNELS = {
   aiCancelCompletion: "ai:cancel-completion",
   aiCancel: "ai:cancel",
   aiReset: "ai:reset",
+  aiAnswerAnyway: "ai:answer-anyway",
   aiEvent: "ai:event",
   aiProposedEdit: "ai:proposed-edit",
   aiSessionChanged: "ai:session-changed",
@@ -1011,7 +1012,8 @@ export interface AiWorkspaceTaskView {
   readonly sandboxKind: "git-worktree" | "shadow-copy" | null;
   readonly changedPaths: readonly string[];
   readonly usedTokens: number;
-  readonly tokenLimit: number;
+  /** Null means unlimited: this task never pauses for tokens. */
+  readonly tokenLimit: number | null;
   readonly usedCostMicros: number;
   readonly costMicrosLimit: number;
   readonly checkpointPaths: readonly string[];
@@ -1519,6 +1521,8 @@ export interface AdcodeApi {
     cancelCompletion(requestId: number): void;
     cancel(): void;
     reset(): void;
+    /** Answer the next turn without file tools, once (see aiAnswerAnyway). */
+    answerAnyway(): void;
     /** The agent's workings, live - this is what the trace widget renders (§5.3). */
     onEvent(listener: (event: unknown) => void): () => void;
     onProposedEdit(listener: (edit: ProposedEditView) => void): () => void;

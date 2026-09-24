@@ -153,6 +153,7 @@ const api: AdcodeApi = {
     cancelCompletion: (requestId) => ipcRenderer.send(CHANNELS.aiCancelCompletion, requestId),
     cancel: () => ipcRenderer.send(CHANNELS.aiCancel),
     reset: () => ipcRenderer.send(CHANNELS.aiReset),
+    answerAnyway: () => ipcRenderer.send(CHANNELS.aiAnswerAnyway),
     onEvent: (listener) => subscribe(CHANNELS.aiEvent, listener),
     onProposedEdit: (listener) => subscribe(CHANNELS.aiProposedEdit, listener),
     applyHunks: (path, ids) => ipcRenderer.invoke(CHANNELS.aiApplyHunks, path, ids),

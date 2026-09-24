@@ -2920,6 +2920,23 @@ button.chat-setup-action {
   margin-top: 10px;
 }
 
+/* A proposal notice: the file is staged for review, not on disk yet. */
+.chat-bubble-proposal {
+  border-inline-start: 3px solid var(--accent);
+}
+
+/* The budget card offers three ways forward in one row, wrapping narrow. */
+.chat-nudge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.chat-nudge-row .chat-nudge-action {
+  margin-top: 8px;
+}
+
 /* ══ Message rhythm + action relayout ═════════════════════════════════
  *
  * The transcript breathes through one 18px gap, not stacked margins: bubbles

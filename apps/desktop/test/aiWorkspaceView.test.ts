@@ -73,6 +73,12 @@ describe("AI workspace task presentation", () => {
     );
   });
 
+  it("says plainly when a task has no token cap", () => {
+    expect(formatAiWorkspaceUsage({ ...task("review"), tokenLimit: null })).toBe(
+      "1.3k tokens · no cap · $0.25 / $2.00",
+    );
+  });
+
   it("maps operational outcomes to existing trace tones", () => {
     expect(traceTone("ok")).toBe("ok");
     expect(traceTone("pending")).toBe("running");

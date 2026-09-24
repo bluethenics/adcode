@@ -387,13 +387,14 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     group: "ai",
     kind: "enum",
     label: "Task token budget",
-    description: "Pause a task before its next model request would cross this limit.",
-    default: "100000",
+    description: "Pause a task before its next model request would cross this limit. Unlimited never pauses for tokens.",
+    default: "unlimited",
     available: true,
     options: [
+      { value: "unlimited", label: "Unlimited", detail: "Recommended" },
       { value: "25000", label: "25k", detail: "Small fixes" },
-      { value: "100000", label: "100k", detail: "Recommended" },
-      { value: "250000", label: "250k", detail: "Large tasks" },
+      { value: "100000", label: "100k", detail: "Large tasks" },
+      { value: "250000", label: "250k", detail: "Long runs" },
     ],
   },
   {

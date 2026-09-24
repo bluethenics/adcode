@@ -80,7 +80,7 @@ import { createAiWorkspaceService, type AiWorkspaceService } from "./aiWorkspace
 import { agentEventTrace } from "./aiEventTrace.ts";
 import { normalizeForCompare } from "./pathSafety.ts";
 import { recoverableDrafts } from "./history.ts";
-import { workspaceHasUnsavedDraft } from "./aiWorkspaceDrafts.ts";
+import { workspaceHasUnsavedDraft, summarizeUnsavedDrafts } from "./aiWorkspaceDrafts.ts";
 import {
   toAiWorkspaceActionView,
   toAiWorkspaceChangeViews,
@@ -166,6 +166,12 @@ let automationService: AiAutomationService | null = null;
 let automationRecovery: Promise<void> | null = null;
 let sendInFlight = false;
 let completionInFlight: { readonly id: number; readonly controller: AbortController } | null = null;
+/**
+ * One-shot escape hatch from the chat's "Answer anyway": the user accepted a
+ * possibly stale file snapshot for the next provider round-trip rather than
+ * saving first. Consumed by beforeRequest, never persisted.
+ */
+let bypassWorkspaceBlockOnce = false;
 
 function aiWorkspaceService(): AiWorkspaceService {
   if (taskService === null) {
@@ -319,9 +325,11 @@ async function ensureToolWorkspace() {
     taskWorkspaceUnavailableReason = "AI file tools are off because Isolate AI edits is disabled in Settings.";
     return null;
   }
-  if (workspaceHasUnsavedDraft(human, await recoverableDrafts())) {
+  const drafts = await recoverableDrafts();
+  if (workspaceHasUnsavedDraft(human, drafts)) {
+    const names = summarizeUnsavedDrafts(human, drafts);
     taskWorkspaceUnavailableReason =
-      "Save your open file changes before starting AI file tools, so the isolated task begins from what you see.";
+      `Save ${names} before starting AI file tools, so the isolated task begins from what you see.`;
     return null;
   }
 
@@ -355,8 +363,9 @@ function configuredEditPolicy(): "review" | "trusted" {
   return currentSettings()["adcode.ai.editPolicy"] === "trusted" ? "trusted" : "review";
 }
 
-function configuredTaskTokenBudget(): number {
+function configuredTaskTokenBudget(): number | null {
   const value = currentSettings()["adcode.ai.taskTokenBudget"];
+  if (value === "unlimited") return null;
   return value === "25000" || value === "250000" ? Number(value) : 100_000;
 }
 
@@ -757,11 +766,15 @@ export async function aiSend(text: string, attachments: readonly AiAttachmentVie
         effort: configuredEffort(),
         context: async () => {
           const root = currentWorkspace()?.root ?? null;
-          const blocker = currentSettings()["adcode.ai.isolatedWorkspaces"] === false
-            ? "Enable Isolate AI edits in Settings to use file tools."
-            : root !== null && workspaceHasUnsavedDraft(root, await recoverableDrafts())
-              ? "Save open file changes so the task can start from the current files."
-              : null;
+          let blocker: string | null = null;
+          if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
+            blocker = "Enable Isolate AI edits in Settings to use file tools.";
+          } else if (root !== null) {
+            const drafts = await recoverableDrafts();
+            if (workspaceHasUnsavedDraft(root, drafts)) {
+              blocker = `Save ${summarizeUnsavedDrafts(root, drafts)} so the task can start from the current files.`;
+            }
+          }
           return aiWorkspaceContext(root, blocker);
         },
         runner: withAssistantExtensions(toolRunner()),
@@ -769,6 +782,12 @@ export async function aiSend(text: string, attachments: readonly AiAttachmentVie
           // Chat without an open project remains available. With a project, every model
           // round-trip reserves a conservative maximum before it can spend the user's key.
           if (currentWorkspace() === null || currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
+            return null;
+          }
+          // One-shot escape hatch from the chat's "Answer anyway": the user accepted
+          // a possibly stale file snapshot for this turn rather than saving first.
+          if (bypassWorkspaceBlockOnce) {
+            bypassWorkspaceBlockOnce = false;
             return null;
           }
           const workspace = await ensureToolWorkspace();
@@ -1175,8 +1194,18 @@ export function createAiTeamId(): string {
   return `team-${randomUUID()}`;
 }
 
-export function aiCancel(): void {
-  completionInFlight?.controller.abort();
+/**
+ * Answer the next turn without file tools, once.
+ *
+ * The chat offers this when unsaved files block a turn: the user would rather
+ * have an answer from the conversation than save first. Tool calls stay
+ * guarded individually, so nothing writes from a stale snapshot.
+ */
+export function aiAnswerAnyway(): void {
+  bypassWorkspaceBlockOnce = true;
+}
+
+export function aiCancel(): void {  completionInFlight?.controller.abort();
   completionInFlight = null;
   agent?.cancel();
   if (activeTaskId !== null) {

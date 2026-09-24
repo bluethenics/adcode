@@ -33,7 +33,8 @@ export interface AiPermissionProfile {
 }
 
 export interface AiBudgetLedger {
-  readonly tokenLimit: number;
+  /** Null means unlimited: the task never pauses for tokens. Cost still caps. */
+  readonly tokenLimit: number | null;
   readonly costMicrosLimit: number;
   readonly usedTokens: number;
   readonly usedCostMicros: number;
@@ -90,7 +91,8 @@ export interface CreateAiWorkspaceTaskInput {
   readonly reviewable?: boolean;
   /** Defaults to review. Trusted must always be an explicit caller decision. */
   readonly reviewPolicy?: AiReviewPolicy;
-  readonly tokenLimit?: number;
+  /** Null means unlimited. Omitted means the default cap. */
+  readonly tokenLimit?: number | null;
   readonly costMicrosLimit?: number;
 }
 
@@ -145,7 +147,10 @@ export function createAiWorkspaceTask(input: CreateAiWorkspaceTaskInput): AiWork
     state: "preparing",
     permissions: { ...DEFAULT_AI_PERMISSIONS },
     budget: {
-      tokenLimit: positiveInteger(input.tokenLimit ?? DEFAULT_TASK_TOKEN_LIMIT, "Token limit"),
+      tokenLimit:
+        input.tokenLimit === null
+          ? null
+          : positiveInteger(input.tokenLimit ?? DEFAULT_TASK_TOKEN_LIMIT, "Token limit"),
       costMicrosLimit: positiveInteger(
         input.costMicrosLimit ?? DEFAULT_TASK_COST_MICROS_LIMIT,
         "Cost limit",
@@ -208,7 +213,7 @@ export type UsageReservation =
 
 export function canReserveUsage(budget: AiBudgetLedger, usage: AiUsage): UsageReservation {
   if (!validUsage(usage)) throw new Error("Invalid usage reservation");
-  if (budget.usedTokens + usage.tokens > budget.tokenLimit) {
+  if (budget.tokenLimit !== null && budget.usedTokens + usage.tokens > budget.tokenLimit) {
     return { ok: false, reason: "token-limit" };
   }
   if (budget.usedCostMicros + usage.costMicros > budget.costMicrosLimit) {

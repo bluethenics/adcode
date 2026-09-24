@@ -465,6 +465,7 @@ describe("conversation history", () => {
     expect(system).toContain("glob_files");
     expect(system).toContain("propose_edit");
     expect(system).toContain("Asking for anything you could");
+    expect(system).toContain("Never claim a file was created");
   });
 
   it("carries the chosen effort into the provider request, or nothing on Auto", async () => {

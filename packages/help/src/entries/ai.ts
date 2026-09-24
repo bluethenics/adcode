@@ -165,9 +165,9 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
   {
     id: "adcode.ai.taskTokenBudget",
     title: "Task token budget",
-    plain: "Sets a hard ceiling for one assistant task, checked before each new request can spend your key.",
+    plain: "Optionally sets a hard ceiling for one assistant task, checked before each new request can spend your key.",
     why: "Long tool loops and repeated context can cost far more than the first question suggests. Checking the whole request before it starts is safer than warning after the tokens are gone.",
-    how: "The default is 100k. The task strip shows reserved tokens. ADCode pauses before the next request would cross the limit; raise it in Settings or start a new task when you want a fresh allowance.",
+    how: "Unlimited is the default, so tasks never pause for tokens. The task strip still counts what each task spends. Choose 25k, 100k, or 250k in Settings for a hard ceiling: ADCode pauses before the next request would cross it, and the chat offers removing the limit, raising it, or starting a new task.",
     group: "ai",
     settingIds: ["adcode.ai.taskTokenBudget"],
     related: ["adcode.ai.isolatedWorkspaces", "adcode.ai.provider"],

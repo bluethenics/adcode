@@ -49,7 +49,10 @@ function compact(value: number): string {
 }
 
 export function formatAiWorkspaceUsage(task: AiWorkspaceTaskView): string {
-  const tokens = `${compact(task.usedTokens)} / ${compact(task.tokenLimit)} tokens`;
+  const tokens =
+    task.tokenLimit === null
+      ? `${compact(task.usedTokens)} tokens · no cap`
+      : `${compact(task.usedTokens)} / ${compact(task.tokenLimit)} tokens`;
   // Pricing is provider/model specific. Until a provider reports or the routing catalogue
   // supplies a reliable price, zero means unknown—not "free"—so do not display a fake $0.
   if (task.usedCostMicros === 0) return tokens;

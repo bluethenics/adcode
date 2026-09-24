@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
-import { workspaceHasUnsavedDraft } from "../src/main/aiWorkspaceDrafts.ts";
+import { summarizeUnsavedDrafts, workspaceHasUnsavedDraft } from "../src/main/aiWorkspaceDrafts.ts";
 
 describe("AI workspace unsaved-buffer guard", () => {
   const root = resolve("project");
@@ -18,5 +18,18 @@ describe("AI workspace unsaved-buffer guard", () => {
     expect(
       workspaceHasUnsavedDraft(root, [{ path: resolve(`${root}-private`, "file.ts"), text: "x" }]),
     ).toBe(false);
+  });
+
+  it("names the dirty files for the blocker message, capped and sorted", () => {
+    const drafts = [
+      { path: resolve(root, "b.ts") },
+      { path: resolve(root, "src", "a.ts") },
+      { path: resolve(root, "b.ts") },
+      { path: resolve("other", "z.ts") },
+    ];
+    expect(summarizeUnsavedDrafts(root, drafts)).toBe("b.ts, src/a.ts");
+    expect(summarizeUnsavedDrafts(root, drafts, 1)).toBe("b.ts, and 1 more");
+    expect(summarizeUnsavedDrafts(root, [])).toBe("");
+    expect(summarizeUnsavedDrafts(root, [{ path: resolve("other", "z.ts") }])).toBe("");
   });
 });
