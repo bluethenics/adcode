@@ -665,7 +665,7 @@ Which particular AI, from that company, answers you.
 
 Why use it: Bigger models are cleverer and slower; smaller ones are quick and cheap. Most people want a big one for hard questions and a small one for everything else.
 
-How to use it: Pick from the list, which shows the models your key can actually reach rather than a fixed set. Switching takes effect on your next message - it does not restart the conversation.
+How to use it: Pick from the list, which shows the models your key can actually reach rather than a fixed set. Switching takes effect on your next message - it does not restart the conversation. Thinking effort sets how hard reasoning models think: Auto lets the provider decide, higher efforts answer harder questions better and cost more.
 
 Access: `All Features → Model`; `Settings`.
 

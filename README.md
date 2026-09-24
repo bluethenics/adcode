@@ -16,6 +16,7 @@ paying users out.
 **Deploying it?** `SETUP.md` is the ordered list of everything that needs your account,
 your card, or a lawyer. Nothing in it is a coding task. The current public-release decision
 and exact blockers are in [the 2026-08-28 readiness report](docs/RELEASE-READINESS-2026-08-28.md).
+For a versioned desktop release, use the [release checklist](RELEASE-CHECKLIST.md).
 
 **AI work is isolated and observable.** The built-in assistant prepares file changes in a
 private task workspace and reaches the project only through overlap checks and a durable

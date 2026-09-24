@@ -3,6 +3,29 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.0.0 — 2026-09-24
+
+- Vibe assistant toolset: find files by pattern, outline a file's symbols, run tests and
+  typechecks inside the task sandbox, and fetch documentation pages. Listing and search
+  accept the workspace root in every spelling, large reads page, and the assistant does
+  the work with sensible defaults instead of interviewing you first.
+- Connect a model walks you through three live steps with a progress bar, pins popular
+  providers first, marks the recommended model, and offers thinking effort (Auto to Max)
+  for reasoning models from OpenAI and Anthropic. Custom endpoints get a numbered guide
+  and an explicit save. The bundled model catalogue is refreshed to 2026-09-24.
+- Clipboard copy and paste go through Electron first, so chat, settings, key paste, and
+  the preview inspector stop failing silently.
+- Vibe mode is restored after a restart, its sidebar drags wider or narrower, and
+  switching modes fades instead of jumping. History and Inspector float over the
+  conversation as popups with a click-to-dismiss dimming.
+- Code mode top bar, assistant dock, and composer refined: wrapping toolbar, visible
+  keyboard focus, an honest model pill with chevron and ready dot, and pill-shaped
+  starter actions.
+
+Known limitations: thinking effort applies to reasoning models from OpenAI and Anthropic
+only and is never sent to local Ollama; macOS builds remain unsupported; Claude Sonnet
+5.5 and Haiku 5.5 were announced but unreleased at preparation time.
+
 ## 1.0.4 — 2026-09-24
 
 - Make Check for Updates perform a fresh check, including when automatic checks are off, and report a downloaded update instead of incorrectly calling the installed version current.

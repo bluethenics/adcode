@@ -9,7 +9,7 @@
  */
 import type { Provider, ProviderEvent, ProviderRequest, ToolCallBlock } from "../types.ts";
 
-export const GOOGLE_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash"] as const;
+export const GOOGLE_MODELS = ["gemini-3.6-flash", "gemini-2.5-pro", "gemini-2.5-flash"] as const;
 export const GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 export interface GoogleProviderDeps {

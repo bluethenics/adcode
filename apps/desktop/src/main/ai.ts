@@ -360,6 +360,11 @@ function configuredTaskTokenBudget(): number {
   return value === "25000" || value === "250000" ? Number(value) : 100_000;
 }
 
+function configuredEffort(): "low" | "medium" | "high" | "max" | undefined {
+  const value = currentSettings()["adcode.ai.effort"];
+  return value === "low" || value === "medium" || value === "high" || value === "max" ? value : undefined;
+}
+
 function configuredStoragePolicy() {
   const values = currentSettings();
   const quota = values["adcode.ai.sandboxQuota"];
@@ -606,6 +611,7 @@ export async function aiStatus(): Promise<AiStatus> {
     customBaseUrl: customUrl ?? "",
     catalogueTakenOn: SNAPSHOT_TAKEN_ON,
     catalogueIsLive,
+    effort: configuredEffort() ?? "auto",
   };
 }
 
@@ -748,6 +754,7 @@ export async function aiSend(text: string, attachments: readonly AiAttachmentVie
         provider,
         model,
         tools: [...(memoryEnabled ? BUILT_IN_TOOLS : TOOLS_WITHOUT_MEMORY), OPEN_PREVIEW, ...ASSISTANT_EXTENSION_TOOLS],
+        effort: configuredEffort(),
         context: async () => {
           const root = currentWorkspace()?.root ?? null;
           const blocker = currentSettings()["adcode.ai.isolatedWorkspaces"] === false
@@ -994,6 +1001,7 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
       model: input.route.modelId,
       tools: TOOLS_WITHOUT_MEMORY,
       runner,
+      effort: configuredEffort(),
       system: [
         "You are one isolated role inside an explicitly confirmed ADCode Team.",
         `Role: ${input.context.role.label}`,

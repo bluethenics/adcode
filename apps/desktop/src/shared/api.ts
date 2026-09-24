@@ -946,6 +946,8 @@ export interface AiStatus {
   readonly catalogueTakenOn: string;
   /** True once a live catalogue has replaced the bundled one this session. */
   readonly catalogueIsLive: boolean;
+  /** Reasoning effort as chosen in Connect a model; absent means Auto. */
+  readonly effort?: string;
 }
 
 export interface ChatMessageView {

@@ -6073,14 +6073,32 @@ async function readChatDisclosureGeometry() {
          .find((button) => button.textContent?.trim() === 'History');
        const inspectorButton = [...(header?.querySelectorAll('button') ?? [])]
          .find((button) => button.textContent?.trim() === 'Inspector');
-       if (!card || !history || !conversation || !inspector || !historyButton || !inspectorButton) return false;
-       const snapshot = () => ({
-         width: conversation.getBoundingClientRect().width,
-         historyHidden: history.hidden,
-         inspectorHidden: inspector.hidden,
-         historyOpen: card.dataset.historyOpen,
-         inspectorOpen: card.dataset.inspectorOpen,
-       });
+        if (!card || !history || !conversation || !inspector || !historyButton || !inspectorButton) return false;
+        const cardBox = card.getBoundingClientRect();
+        const place = (element) => {
+          const rect = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          const probe = document.elementFromPoint(
+            rect.left + rect.width / 2,
+            rect.top + Math.min(rect.height / 2, 120),
+          );
+          return {
+            position: style.position,
+            inside:
+              rect.left >= cardBox.left - 1 && rect.top >= cardBox.top - 1 &&
+              rect.right <= cardBox.right + 1 && rect.bottom <= cardBox.bottom + 1,
+            onTop: !!probe && (element === probe || element.contains(probe)),
+          };
+        };
+        const snapshot = () => ({
+          width: conversation.getBoundingClientRect().width,
+          historyHidden: history.hidden,
+          inspectorHidden: inspector.hidden,
+          historyOpen: card.dataset.historyOpen,
+          inspectorOpen: card.dataset.inspectorOpen,
+          historyPlace: history.hidden ? null : place(history),
+          inspectorPlace: inspector.hidden ? null : place(inspector),
+        });
        if (card.dataset.historyOpen !== 'true') historyButton.click();
        if (card.dataset.inspectorOpen !== 'true') inspectorButton.click();
        const bothOpen = snapshot();
@@ -6123,17 +6141,24 @@ function disclosureGeometryPass(result, layout) {
   if (!states || ![bothOpen, historyCollapsed, bothCollapsed, inspectorCollapsed].every((entry) => entry.width > 0)) {
     return false;
   }
+  // Panels float over the conversation instead of squeezing it: the transcript
+  // keeps its full width in every state, and an open panel is an absolutely
+  // positioned card inside the card and on top of what it covers.
+  const overlay = (entry, historyOpen, inspectorOpen) =>
+    (!historyOpen || (entry.historyPlace?.position === "absolute" && entry.historyPlace.inside && entry.historyPlace.onTop)) &&
+    (!inspectorOpen || (entry.inspectorPlace?.position === "absolute" && entry.inspectorPlace.inside && entry.inspectorPlace.onTop));
+  const steady = [historyCollapsed, bothCollapsed, inspectorCollapsed].every(
+    (entry) => Math.abs(entry.width - bothOpen.width) < 4,
+  );
   if (layout === "wide") {
-    return viewport > 980 &&
-      historyCollapsed.width > bothOpen.width + 100 &&
-      bothCollapsed.width > bothOpen.width + 300 &&
-      inspectorCollapsed.width > bothOpen.width + 180;
+    return viewport > 980 && steady &&
+      overlay(bothOpen, true, true) && overlay(historyCollapsed, false, true) &&
+      overlay(bothCollapsed, false, false) && overlay(inspectorCollapsed, true, false);
   }
   if (layout === "medium") {
-    return viewport > 720 && viewport <= 980 &&
-      historyCollapsed.width > bothOpen.width + 100 &&
-      Math.abs(bothCollapsed.width - historyCollapsed.width) < 4 &&
-      Math.abs(inspectorCollapsed.width - bothOpen.width) < 4;
+    return viewport > 720 && viewport <= 980 && steady &&
+      overlay(bothOpen, true, true) && overlay(historyCollapsed, false, true) &&
+      overlay(bothCollapsed, false, false) && overlay(inspectorCollapsed, true, false);
   }
   return viewport <= 720 &&
     Math.abs(historyCollapsed.width - bothOpen.width) < 4 &&

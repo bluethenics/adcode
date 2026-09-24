@@ -365,6 +365,42 @@ export function createAssistantDock(deps: AssistantDockDeps) {
     if (mode === "vibe" || codeAssistantOpen) chat.shown(false);
     else chat.hidden();
   }
+  // The first setMode call below settles the restored mode before first paint;
+  // only later, user-initiated switches animate.
+  let modeSettled = false;
+
+  /**
+   * Ease the newly shown surface in after a mode switch.
+   *
+   * Swapping Vibe and Code reparents the live chat, flips the toolbar between a
+   * rail and a top bar, and shows and hides whole regions in one frame - that
+   * single-frame jump is the shutter. A short fade-and-rise over the incoming
+   * surface masks it. Transform and opacity only (§1), via the Web Animations
+   * API so there is no class to clean up and nothing to transition back.
+   */
+  function playModeEnter(next: WorkspaceMode): void {
+    try {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    } catch {
+      return;
+    }
+    const surface = next === "vibe" ? vibe : workbench.querySelector<HTMLElement>(":scope > .main");
+    const targets: readonly (HTMLElement | null)[] = [
+      document.querySelector<HTMLElement>(".project-toolbar"),
+      surface,
+    ];
+    for (const target of targets) {
+      if (target === null || typeof target.animate !== "function") continue;
+      target.animate(
+        [
+          { opacity: "0", transform: "translateY(6px)" },
+          { opacity: "1", transform: "translateY(0)" },
+        ],
+        { duration: 220, easing: "ease-out" },
+      );
+    }
+  }
+
   function setMode(next: WorkspaceMode, focus = false): void {
     if (!docked) { deps.closeExpanded(); docked = true; }
     const changed = mode !== next;
@@ -382,6 +418,8 @@ export function createAssistantDock(deps: AssistantDockDeps) {
     document.body.dataset["modeHint"] = String(!hint.hidden);
     try { localStorage.setItem(MODE_STORAGE_KEY, mode); } catch { /* Optional storage. */ }
     mountPresentation();
+    if (modeSettled && changed) playModeEnter(mode);
+    modeSettled = true;
     if (focus) requestAnimationFrame(() => {
       if (mode === "vibe") chat.element.querySelector<HTMLElement>(".chat-input")?.focus();
       else deps.focusEditor();

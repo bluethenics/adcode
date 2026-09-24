@@ -635,9 +635,9 @@ export const DOC_SEED: readonly DocSeed[] = [
     section: "The assistant",
     description: "Which particular AI, from that company, answers you.",
     why: "Bigger models are cleverer and slower; smaller ones are quick and cheap. Most people want a big one for hard questions and a small one for everything else.",
-    how: "Pick from the list, which shows the models your key can actually reach rather than a fixed set. Switching takes effect on your next message - it does not restart the conversation.",
+    how: "Pick from the list, which shows the models your key can actually reach rather than a fixed set. Switching takes effect on your next message - it does not restart the conversation. Thinking effort sets how hard reasoning models think: Auto lets the provider decide, higher efforts answer harder questions better and cost more.",
     keywords: ["Model", "The assistant"],
-    access: ["All Features → Model", "Settings → adcode.ai.model"],
+    access: ["All Features → Model", "Settings → adcode.ai.model", "Settings → adcode.ai.effort"],
     related: ["ai-provider", "ai-connect"],
   },
   {

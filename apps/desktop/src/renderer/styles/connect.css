@@ -5,7 +5,7 @@
 }
 .connect-view { container-type: inline-size; }
 .connect-view .connect-panel {
-  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
   background: var(--bg-elevated);
 }
 .connect-view .connect-header { padding: 22px 24px 8px; align-items: flex-start; gap: 16px; }
@@ -117,4 +117,89 @@
   .connect-view .connect-model { align-items: flex-start; flex-direction: column; }
   .connect-view .connect-model-marks { max-width: none; }
   .connect-model-copy { max-width: 100%; }
+}
+
+/* ── Animated guide: live steps, progress, arrivals ─────────────────── */
+
+/* Detail panels visibly arrive on every state change (transform/opacity only). */
+@keyframes connect-detail-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.connect-view .connect-detail.connect-anim-in { animation: connect-detail-in 180ms ease-out; }
+
+/* The 3-step guide tracks progress: done steps wear the accent. */
+.connect-view .connect-step[data-state="done"] { color: var(--text-primary); }
+.connect-view .connect-step[data-state="done"] .connect-step-number { background: var(--accent); color: var(--text-on-accent); }
+.connect-view .connect-step[data-state="active"] { color: var(--text-primary); }
+.connect-view .connect-step[data-state="active"] .connect-step-number {
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+}
+.connect-view .connect-step .connect-step-number { transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease; }
+
+.connect-progress { height: 3px; margin: 0 24px 14px; border-radius: 999px; background: var(--bg-hover); overflow: hidden; }
+.connect-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 240ms ease;
+}
+
+/* A checked key lands with a pop rather than appearing. */
+@keyframes connect-result-in {
+  from { opacity: 0; transform: translateY(4px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.connect-view .connect-result[data-tone="ok"]:not(:empty) { animation: connect-result-in 200ms ease-out; }
+
+/* The default model says so. */
+.connect-model-badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── Thinking effort: one segmented control, five honest options ────── */
+
+.connect-effort { margin: 18px 0 0; padding: 14px; background: var(--surface-sheen), var(--bg-app); border-radius: var(--radius-md); }
+.connect-effort-label { display: block; font-size: var(--text-xs); font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
+.connect-effort-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.connect-effort-option {
+  flex: 1 1 auto;
+  min-height: 30px;
+  padding: 5px 12px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.connect-effort-option:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.connect-effort-option[data-selected="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--text-primary); }
+.connect-effort-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.connect-effort-option:disabled { opacity: .6; cursor: wait; }
+.connect-effort .settings-row-description { margin: 8px 0 0; }
+
+/* ── Custom endpoint: numbered mini-guide plus an explicit save ──────── */
+
+.connect-custom-guide { margin: 12px 0 4px; padding-left: 22px; color: var(--text-secondary); font-size: var(--text-xs); line-height: 1.7; }
+.connect-save-endpoint { margin-top: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .connect-view .connect-detail.connect-anim-in,
+  .connect-view .connect-result[data-tone="ok"]:not(:empty) { animation: none; }
+  .connect-progress-fill { transition: none; }
 }

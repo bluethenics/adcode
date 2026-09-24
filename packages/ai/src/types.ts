@@ -22,6 +22,16 @@ export interface ModelChoice {
   readonly model: string;
 }
 
+/**
+ * How hard a reasoning model should think.
+ *
+ * Both vendors Priced the same way now: Anthropic's `effort` (on `output_config`)
+ * and OpenAI's `reasoning_effort` take low/medium/high up to max. Unset means
+ * Auto - the provider decides, and nothing extra is sent on the wire, so models
+ * that predate the parameter keep working exactly as before.
+ */
+export type Effort = "low" | "medium" | "high" | "max";
+
 /* ── Conversation ───────────────────────────────────────────────────────── */
 
 export type Role = "user" | "assistant";
@@ -128,6 +138,8 @@ export interface ProviderRequest {
   readonly messages: readonly Message[];
   readonly tools: readonly ToolDefinition[];
   readonly maxTokens: number;
+  /** Omitted (Auto) unless the user picked one in Connect a model. */
+  readonly effort?: Effort;
 }
 
 /** What a provider adapter yields. The agent loop turns these into `AgentEvent`s. */

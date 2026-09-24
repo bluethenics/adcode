@@ -77,4 +77,17 @@ describe("anthropic message mapping", () => {
     const content = messages[0]?.["content"] as Array<Record<string, unknown>>;
     expect(content).toEqual([{ type: "text", text: "hi" }]);
   });
+
+  it("sends no effort unless the user picked one", async () => {
+    const sent: { params?: Record<string, unknown> } = {};
+    const provider = createAnthropicProvider({ apiKey: "k", client: fakeClient(sent) });
+
+    await collect(provider.stream(base, new AbortController().signal));
+    expect(sent.params?.["output_config"]).toBeUndefined();
+
+    await collect(
+      provider.stream({ ...base, effort: "max" }, new AbortController().signal),
+    );
+    expect(sent.params?.["output_config"]).toEqual({ effort: "max" });
+  });
 });

@@ -406,3 +406,37 @@ describe("message translation", () => {
     expect(String(toolMessage?.["content"])).toContain("ERROR");
   });
 });
+
+describe("reasoning effort", () => {
+  const stop = [`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`];
+
+  function capturingBody(sent: { body?: Record<string, unknown> }): typeof fetch {
+    return (async (_url: string, init: RequestInit) => {
+      sent.body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      return sseFetch(stop)("", init);
+    }) as unknown as typeof fetch;
+  }
+
+  it("sends reasoning_effort only when the user picked one", async () => {
+    const sent: { body?: Record<string, unknown> } = {};
+    const provider = createOpenAiProvider("key", capturingBody(sent));
+
+    await collect(provider.stream(request, new AbortController().signal));
+    expect(sent.body?.["reasoning_effort"]).toBeUndefined();
+
+    await collect(
+      provider.stream({ ...request, effort: "high" }, new AbortController().signal),
+    );
+    expect(sent.body?.["reasoning_effort"]).toBe("high");
+  });
+
+  it("never sends effort to a local Ollama", async () => {
+    const sent: { body?: Record<string, unknown> } = {};
+    const provider = createOllamaProvider(undefined, capturingBody(sent));
+
+    await collect(
+      provider.stream({ ...request, effort: "max" }, new AbortController().signal),
+    );
+    expect(sent.body?.["reasoning_effort"]).toBeUndefined();
+  });
+});

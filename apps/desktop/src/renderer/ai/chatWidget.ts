@@ -1217,6 +1217,21 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   body.className = "chat-body";
   body.append(history, conversation, inspector);
   card.append(header, body);
+
+  // The panels float over the conversation instead of squeezing it, so an
+  // open panel dims what is behind it. One click on the dimming returns to
+  // the conversation - the same dismissal a popup offers.
+  const scrim = document.createElement("div");
+  scrim.className = "chat-scrim";
+  scrim.hidden = true;
+  scrim.setAttribute("aria-hidden", "true");
+  scrim.addEventListener("click", () => {
+    historyOpen = false;
+    inspectorOpen = false;
+    applyDisclosures();
+    input.focus();
+  });
+  body.prepend(scrim);
   const updateLayout = attachChatLayout(card, body, () => {
     historyOpen = false;
     card.dataset["historyOpen"] = "false";
@@ -1229,6 +1244,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     card.dataset["inspectorOpen"] = String(inspectorOpen);
     history.hidden = !externalHistory && !historyOpen;
     inspector.hidden = !inspectorOpen;
+    scrim.hidden = !((historyOpen && !externalHistory) || inspectorOpen);
     historyButton.setAttribute("aria-expanded", String(historyOpen));
     inspectorButton.setAttribute("aria-expanded", String(inspectorOpen));
     controlsButton.setAttribute("aria-expanded", String(inspectorOpen && !controls.element.hidden));

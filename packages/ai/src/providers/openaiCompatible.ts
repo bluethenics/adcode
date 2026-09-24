@@ -12,8 +12,8 @@
  */
 import type { Provider, ProviderEvent, ProviderId, ProviderRequest, ToolCallBlock } from "../types.ts";
 
-export const OPENAI_MODELS = ["gpt-5", "gpt-5-mini", "o4-mini"] as const;
-export const OLLAMA_MODELS = ["qwen2.5-coder", "llama3.1", "deepseek-coder-v2"] as const;
+export const OPENAI_MODELS = ["gpt-6-astra", "gpt-5.4", "gpt-5-mini"] as const;
+export const OLLAMA_MODELS = ["qwen3-coder:30b", "qwen3.6:27b", "deepseek-coder-v2:16b"] as const;
 
 export const OPENAI_BASE_URL = "https://api.openai.com/v1";
 export const OLLAMA_BASE_URL = "http://127.0.0.1:11434/v1";
@@ -153,6 +153,12 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
           stream: true,
           max_tokens: request.maxTokens,
           messages: toWireMessages(request),
+          // Reasoning effort, only where it belongs: OpenAI-family reasoning
+          // models read it, and a local Ollama mostly does not - sending an
+          // unknown field to a strict local server turns a good request bad.
+          ...(request.effort === undefined || deps.id === "ollama"
+            ? {}
+            : { reasoning_effort: request.effort }),
           ...(request.tools.length === 0
             ? {}
             : {

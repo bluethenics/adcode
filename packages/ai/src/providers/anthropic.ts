@@ -18,14 +18,15 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Provider, ProviderEvent, ProviderRequest, ToolCallBlock } from "../types.ts";
 
-/** Opus 5 is the current flagship; the rest are offered for cost and latency choices. */
+/** Opus 5.5 is the current flagship; the rest are offered for cost and latency choices. */
 export const ANTHROPIC_MODELS = [
+  "claude-opus-5-5",
   "claude-opus-5",
   "claude-sonnet-5",
   "claude-haiku-4-5",
 ] as const;
 
-export const DEFAULT_ANTHROPIC_MODEL = "claude-opus-5";
+export const DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5";
 
 export interface AnthropicProviderDeps {
   readonly apiKey: string;
@@ -56,6 +57,9 @@ export function createAnthropicProvider(deps: AnthropicProviderDeps): Provider {
           // Adaptive is the only on-mode, and `summarized` is what makes the trace
           // widget show anything at all.
           thinking: { type: "adaptive", display: "summarized" },
+          // Effort rides on output_config, and only when the user picked one:
+          // Auto sends nothing, so older models never see the parameter.
+          ...(request.effort === undefined ? {} : { output_config: { effort: request.effort } }),
           messages: request.messages.map((message) => ({
             role: message.role,
             content: message.content.map((block) => {

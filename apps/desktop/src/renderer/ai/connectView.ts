@@ -85,12 +85,15 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   header.append(headingGroup, done);
 
   // Guided 3-step affordance, mirroring the in-chat banner: choose, key, model.
+  // The steps are live: renderSteps() marks each done/active/todo as the
+  // connection progresses, and the progress bar fills alongside them.
   const steps = document.createElement("ol");
   steps.className = "connect-steps";
   steps.setAttribute("aria-label", "How connecting works");
   for (const [index, label] of ["Choose a provider", "Check and save its key", "Pick a model"].entries()) {
     const step = document.createElement("li");
     step.className = "connect-step";
+    step.dataset["state"] = "todo";
     const number = document.createElement("span");
     number.className = "connect-step-number";
     number.textContent = String(index + 1);
@@ -99,6 +102,36 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     text.textContent = label;
     step.append(number, text);
     steps.append(step);
+  }
+
+  const progress = document.createElement("div");
+  progress.className = "connect-progress";
+  progress.setAttribute("aria-hidden", "true");
+  const progressFill = document.createElement("div");
+  progressFill.className = "connect-progress-fill";
+  progress.append(progressFill);
+
+  function renderSteps(): void {
+    const states: Array<"done" | "active" | "todo"> = ["todo", "todo", "todo"];
+    if (status !== null) {
+      const provider = status.providers.find((one) => one.id === selected);
+      const keyed = provider !== undefined && (provider.hasKey || !provider.needsKey);
+      const using = status.ready && provider !== undefined && provider.id === status.activeProvider;
+      if (using) {
+        states[0] = "done"; states[1] = "done"; states[2] = "done";
+      } else if (keyed) {
+        states[0] = "done"; states[1] = "done"; states[2] = "active";
+      } else if (provider !== undefined) {
+        states[0] = "done"; states[1] = "active";
+      } else {
+        states[0] = "active";
+      }
+    }
+    [...steps.children].forEach((child, index) => {
+      if (child instanceof HTMLElement) child.dataset["state"] = states[index] ?? "todo";
+    });
+    const done = states.filter((state) => state === "done").length;
+    progressFill.style.width = `${String(Math.round((done / states.length) * 100))}%`;
   }
 
   const search = document.createElement("input");
@@ -147,8 +180,31 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   connectionStatus.setAttribute("role", "status");
   const catalogueStatus = document.createElement("span");
   footer.append(connectionStatus, catalogueStatus);
-  panel.append(header, steps, lede, toolbar, body, footer);
+  panel.append(header, steps, progress, lede, toolbar, body, footer);
   element.append(panel);
+
+  // Detail entrance replays only when the user moves somewhere new - a model
+  // pick or a saved key updates in place, and flashing the whole panel for an
+  // in-place update reads as a flicker, not feedback. Scroll is kept across
+  // in-place updates so the model list does not jump to the top.
+  let detailKey: string | null = null;
+
+  /** Replay the detail entrance so a real move visibly arrives. */
+  function animateDetail(): void {
+    const key = `${panel.dataset["mode"] ?? ""}:${selected ?? ""}`;
+    const moved = detailKey !== key;
+    detailKey = key;
+    if (!moved) return;
+    detail.classList.remove("connect-anim-in");
+    void detail.offsetWidth;
+    detail.classList.add("connect-anim-in");
+  }
+
+  function keepDetailScroll(rerender: () => void): void {
+    const top = detail.scrollTop;
+    rerender();
+    detail.scrollTop = top;
+  }
 
   function renderConnection(existing?: ConnectionProfile): void {
     panel.dataset["mode"] = "profile";
@@ -215,6 +271,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     description.className = "connect-detail-description";
     description.textContent = "Connect an OpenAI-compatible service or a model running locally.";
     detail.append(back, heading, description, form);
+    animateDetail();
     name.focus();
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -264,9 +321,37 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     );
   }
 
+  /** Providers people reach for first, pinned above the alphabetical rest. */
+  const PINNED_PROVIDERS = [
+    "anthropic",
+    "openai",
+    "google",
+    "ollama",
+    "openrouter",
+    "deepseek",
+    "groq",
+    "mistral",
+    "xai",
+    "custom",
+  ];
+
+  function orderedProviders(): AiProviderInfo[] {
+    if (status === null) return [];
+    const rank = new Map(PINNED_PROVIDERS.map((id, index) => [id, index]));
+    const fallback = PINNED_PROVIDERS.length;
+    return status.providers
+      .filter(matches)
+      .sort(
+        (a, b) =>
+          (rank.get(a.id) ?? fallback) - (rank.get(b.id) ?? fallback) ||
+          a.displayName.localeCompare(b.displayName),
+      );
+  }
+
   function renderProviders(): void {
     list.replaceChildren();
     if (status === null) return;
+    renderSteps();
     providerCount.textContent = String(status.providers.filter(matches).length);
     const current = status.providers.find((provider) => provider.id === status?.activeProvider);
     connectionStatus.textContent = status.ready
@@ -276,9 +361,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     catalogueStatus.textContent = status.catalogueIsLive ? "Live model catalogue" : "Bundled model catalogue";
     catalogueStatus.title = `Catalogue updated ${status.catalogueTakenOn}`;
 
-    for (const provider of status.providers) {
-      if (!matches(provider)) continue;
-
+    for (const provider of orderedProviders()) {
       const row = document.createElement("button");
       row.type = "button";
       row.className = "connect-row";
@@ -338,6 +421,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   function renderDetail(): void {
     panel.dataset["mode"] = "provider";
     detail.replaceChildren();
+    renderSteps();
     if (status === null) return;
 
     const provider = status.providers.find((one) => one.id === selected);
@@ -346,6 +430,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       hint.className = "empty-hint";
       hint.textContent = "Pick a provider to connect it.";
       detail.append(hint);
+      animateDetail();
       return;
     }
 
@@ -378,8 +463,10 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     use.addEventListener("click", () => {
       use.disabled = true;
       void activateProvider(provider).then(() => {
-        renderProviders();
-        renderDetail();
+        keepDetailScroll(() => {
+          renderProviders();
+          renderDetail();
+        });
       }).catch((error: unknown) => {
         selectionText.textContent = error instanceof Error ? error.message : "Could not select this model.";
         use.disabled = false;
@@ -387,6 +474,55 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     });
     selection.append(selectionText, use);
     detail.append(selection);
+
+    /* ── Thinking effort: how hard reasoning models think ─────────────── */
+
+    const effortWrap = document.createElement("div");
+    effortWrap.className = "connect-effort";
+    const effortLabel = document.createElement("span");
+    effortLabel.className = "connect-effort-label";
+    effortLabel.textContent = "Thinking effort";
+    const effortGroup = document.createElement("div");
+    effortGroup.className = "connect-effort-group";
+    effortGroup.setAttribute("role", "radiogroup");
+    effortGroup.setAttribute("aria-label", "Thinking effort");
+    const currentEffort = status.effort ?? "auto";
+    const effortOptions = [
+      ["auto", "Auto"],
+      ["low", "Low"],
+      ["medium", "Med"],
+      ["high", "High"],
+      ["max", "Max"],
+    ] as const;
+    for (const [value, label] of effortOptions) {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "connect-effort-option";
+      option.textContent = label;
+      option.title = value === "auto" ? "Let the provider decide" : `${label} reasoning effort`;
+      option.setAttribute("role", "radio");
+      option.setAttribute("aria-checked", String(currentEffort === value));
+      option.dataset["selected"] = String(currentEffort === value);
+      option.addEventListener("click", () => {
+        if ((status?.effort ?? "auto") === value) return;
+        option.disabled = true;
+        void deps.write("adcode.ai.effort", value).then(async () => {
+          status = await deps.status();
+          keepDetailScroll(() => {
+            renderProviders();
+            renderDetail();
+          });
+        }).catch(() => {
+          option.disabled = false;
+        });
+      });
+      effortGroup.append(option);
+    }
+    const effortHint = document.createElement("p");
+    effortHint.className = "settings-row-description";
+    effortHint.textContent = "How hard reasoning models think before answering. Higher efforts cost more.";
+    effortWrap.append(effortLabel, effortGroup, effortHint);
+    detail.append(effortWrap);
     const connection = status.connections?.find(
       (item) => item.id === provider.id,
     );
@@ -448,16 +584,53 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         "Any address that speaks the OpenAI format: a gateway, a hosted provider, or a model running on this machine.";
       detail.append(note);
 
+      const guide = document.createElement("ol");
+      guide.className = "connect-custom-guide";
+      for (const text of [
+        "Paste the endpoint address - it saves as you type.",
+        "Name the model exactly as the service spells it, below.",
+        "Check and save your API key in the key section.",
+      ]) {
+        const item = document.createElement("li");
+        item.textContent = text;
+        guide.append(item);
+      }
+      detail.append(guide);
+
       const address = document.createElement("input");
       address.className = "input connect-input";
       address.type = "url";
       address.placeholder = "https://openrouter.ai/api/v1";
       address.value = status.customBaseUrl;
       address.setAttribute("aria-label", "Endpoint address");
+      const saveAddress = async (): Promise<void> => {
+        await deps.write("adcode.ai.customBaseUrl", address.value.trim());
+        status = await deps.status();
+        renderProviders();
+      };
       address.addEventListener("blur", () => {
-        void deps.write("adcode.ai.customBaseUrl", address.value.trim());
+        void saveAddress().catch(() => undefined);
       });
-      detail.append(address);
+      const saveEndpoint = document.createElement("button");
+      saveEndpoint.type = "button";
+      saveEndpoint.className = "btn btn-primary connect-save-endpoint";
+      saveEndpoint.textContent = "Save endpoint";
+      saveEndpoint.addEventListener("click", () => {
+        saveEndpoint.disabled = true;
+        void saveAddress().then(
+          () => {
+            saveEndpoint.disabled = false;
+            saveEndpoint.textContent = "Saved";
+            window.setTimeout(() => {
+              saveEndpoint.textContent = "Save endpoint";
+            }, 1400);
+          },
+          () => {
+            saveEndpoint.disabled = false;
+          },
+        );
+      });
+      detail.append(address, saveEndpoint);
     }
 
     /* ── The key ──────────────────────────────────────────────────────── */
@@ -574,8 +747,10 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
             result.dataset["tone"] = "ok";
             result.textContent = outcome.detail ?? "Connected.";
 
-            renderProviders();
-            renderDetail();
+            keepDetailScroll(() => {
+              renderProviders();
+              renderDetail();
+            });
           })
           .catch((error) => {
             check.disabled = false;
@@ -604,8 +779,10 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
           forget.disabled = true;
           void deps.clearKey(provider.id).then(async (next) => {
             status = next;
-            renderProviders();
-            renderDetail();
+            keepDetailScroll(() => {
+              renderProviders();
+              renderDetail();
+            });
           }).catch((error: unknown) => {
             result.dataset["tone"] = "error";
             result.textContent = error instanceof Error ? error.message : "Could not forget key.";
@@ -656,7 +833,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       const models = document.createElement("div");
       models.className = "connect-models";
 
-      for (const model of provider.models) {
+      for (const [index, model] of provider.models.entries()) {
         const row = document.createElement("button");
         row.type = "button";
         row.className = "connect-model";
@@ -679,6 +856,13 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
 
         const marks = document.createElement("span");
         marks.className = "connect-model-marks";
+        // The first model is the default "Use this model" picks: say so.
+        if (index === 0) {
+          const recommended = document.createElement("span");
+          recommended.className = "connect-model-badge";
+          recommended.textContent = "Recommended";
+          marks.append(recommended);
+        }
         // Tool calls are the one capability that changes what this editor may do with a
         // model: without them the agent cannot read a file, and it is a chat box.
         for (const capability of [model.toolCall ? "Tools" : "Chat only", ...(model.reasoning ? ["Reasoning"] : [])]) {
@@ -698,8 +882,10 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
             .then(() => deps.write("adcode.ai.model", model.id))
             .then(async () => {
               status = await deps.status();
-              renderProviders();
-              renderDetail();
+              keepDetailScroll(() => {
+                renderProviders();
+                renderDetail();
+              });
             }).catch((error: unknown) => {
               row.disabled = false;
               modelFeedback.dataset["tone"] = "error";
@@ -737,6 +923,9 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       });
       detail.append(modelField);
     }
+
+    renderSteps();
+    animateDetail();
   }
 
   async function activateProvider(provider: AiProviderInfo): Promise<void> {

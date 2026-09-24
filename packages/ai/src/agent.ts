@@ -12,6 +12,7 @@
  */
 import type {
   AgentEvent,
+  Effort,
   ImageBlock,
   Message,
   Provider,
@@ -84,6 +85,8 @@ export interface AgentDeps {
   /** Fresh host context on every round-trip; never persisted as a user message. */
   readonly context?: () => string | Promise<string>;
   readonly maxTokens?: number;
+  /** Reasoning effort, or undefined for the provider's own default (Auto). */
+  readonly effort?: Effort | undefined;
   /** Return a user-facing reason to block this provider request, or null to allow it. */
   readonly beforeRequest?: (request: ProviderRequest) => string | null | Promise<string | null>;
 }
@@ -185,6 +188,7 @@ export function createAgent(deps: AgentDeps): Agent {
           messages,
           tools: deps.tools,
           maxTokens: deps.maxTokens ?? DEFAULT_MAX_TOKENS,
+          ...(deps.effort === undefined ? {} : { effort: deps.effort }),
         };
         const blocked = (await deps.beforeRequest?.(request)) ?? null;
         if (blocked !== null) {

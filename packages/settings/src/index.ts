@@ -324,11 +324,28 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     label: "Model",
     description:
       "Which model the built-in chat uses. Pick one in Connect a model rather than typing it here. Switching takes effect on your next message.",
-    default: "claude-opus-5",
+    default: "claude-opus-5-5",
     available: true,
-    placeholder: "claude-opus-5",
+    placeholder: "claude-opus-5-5",
     multiline: false,
     maxLength: 120,
+  },
+  {
+    id: "adcode.ai.effort",
+    group: "ai",
+    kind: "enum",
+    label: "Thinking effort",
+    description:
+      "How hard reasoning models think before answering. Auto lets the provider decide; higher efforts answer harder questions better and cost more. Applies to reasoning models from OpenAI and Anthropic.",
+    default: "auto",
+    available: true,
+    options: [
+      { value: "auto", label: "Auto", detail: "Provider decides" },
+      { value: "low", label: "Low", detail: "Fast, cheap" },
+      { value: "medium", label: "Medium", detail: "Balanced" },
+      { value: "high", label: "High", detail: "Harder questions" },
+      { value: "max", label: "Max", detail: "Strongest reasoning" },
+    ],
   },
   {
     id: "adcode.ai.customBaseUrl",

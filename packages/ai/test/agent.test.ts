@@ -466,4 +466,37 @@ describe("conversation history", () => {
     expect(system).toContain("propose_edit");
     expect(system).toContain("Asking for anything you could");
   });
+
+  it("carries the chosen effort into the provider request, or nothing on Auto", async () => {
+    const efforts: Array<string | undefined> = [];
+    const agent = createAgent({
+      provider: scriptedProvider([]),
+      model: "test-model",
+      tools: [],
+      runner: runner(),
+      effort: "high",
+      beforeRequest: (request) => {
+        efforts.push(request.effort);
+        return null;
+      },
+    });
+    await collect(agent.send("think hard"));
+
+    expect(efforts).toEqual(["high"]);
+
+    const plain: Array<string | undefined> = [];
+    const auto = createAgent({
+      provider: scriptedProvider([]),
+      model: "test-model",
+      tools: [],
+      runner: runner(),
+      beforeRequest: (request) => {
+        plain.push(request.effort);
+        return null;
+      },
+    });
+    await collect(auto.send("think normally"));
+
+    expect(plain).toEqual([undefined]);
+  });
 });

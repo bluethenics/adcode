@@ -717,10 +717,11 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "ai-connect": {
     steps: [
       "Open Connect a model from the Assistant or command palette - or choose Connect on the banner that says ADCode works directly with your codebase.",
-      "Follow the three steps at the top: choose a provider, check and save its key, pick a model. Add a named connection with its OpenAI-compatible base URL and exact model ID for anything else. Use the NVIDIA NIM preset for https://integrate.api.nvidia.com/v1.",
+      "Follow the three steps at the top: choose a provider, check and save its key, pick a model. The steps light up and the progress bar fills as you complete them. Add a named connection with its OpenAI-compatible base URL and exact model ID for anything else. Use the NVIDIA NIM preset for https://integrate.api.nvidia.com/v1.",
       "Choose a requests-per-minute limit that fits your provider account and save the connection. All agents using that connection share the same queue.",
       "Paste your API key and choose Check and save. Keys are encrypted using this computer's operating-system credential store.",
-      "Choose the model for chat, or assign the connection to a named agent. Waiting and cooldown status explain when a request is queued.",
+      "Choose the model for chat - the first one listed is the recommended default - or assign the connection to a named agent. Waiting and cooldown status explain when a request is queued.",
+      "Set thinking effort if you want reasoning models to think harder than their default: Auto lets the provider decide, Max costs the most. For a custom address, follow the three numbered hints and choose Save endpoint.",
       "If the provider still returns 429, allow its cooldown to finish. RPM pacing cannot override token quotas, account limits, or requests made outside ADCode.",
     ],
     benefits: [
