@@ -9,7 +9,7 @@ app.whenReady().then(async () => {
   try {
     await win.loadURL('about:blank');
     const renderer = resolve(__dirname, '../../src/renderer');
-    const css = ['tokens.css', 'ai.css'].map(file => readFileSync(resolve(renderer, 'styles', file), 'utf8')).join('\n');
+    const css = ['tokens.css', 'ai.css', 'vibeWorkspace.css'].map(file => readFileSync(resolve(renderer, 'styles', file), 'utf8')).join('\n');
     const compiled = ts.transpileModule(readFileSync(resolve(renderer, 'ai/chatLayout.ts'), 'utf8'), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
     }).outputText;
@@ -51,7 +51,19 @@ app.whenReady().then(async () => {
         const active = form.getBoundingClientRect();
         composerFits &&= active.bottom <= area.bottom && active.top > area.top + 100 && conversation.scrollWidth <= conversation.clientWidth;
       }
-      return { keyboard, conversationRoom, medium, compact, hidden, reset, spacious, composerFits };
+      document.body.classList.add('vibe-workspace');
+      const transcript = conversation.querySelector('.chat-transcript');
+      transcript.innerHTML = '<div class="chat-bubble chat-bubble-user">hi</div>';
+      const shortBubble = transcript.firstElementChild.getBoundingClientRect();
+      const transcriptBox = transcript.getBoundingClientRect();
+      const gutter = parseFloat(getComputedStyle(transcript).paddingRight);
+      const shortPromptFits = shortBubble.width < 100 &&
+        Math.abs(shortBubble.right - (transcriptBox.left + transcript.clientWidth - gutter)) < 2;
+      transcript.firstElementChild.textContent = 'A longer prompt '.repeat(60);
+      const longBubble = transcript.firstElementChild.getBoundingClientRect();
+      const longPromptWraps = longBubble.width <= transcript.clientWidth * .8 + 2 &&
+        longBubble.height > shortBubble.height;
+      return { keyboard, conversationRoom, medium, compact, hidden, reset, spacious, composerFits, shortPromptFits, longPromptWraps };
     })()`);
     console.log('CHAT_LAYOUT_RESULTS=' + JSON.stringify(result));
   } catch (error) { console.error(error); process.exitCode = 1; }

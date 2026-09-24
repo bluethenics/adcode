@@ -3,6 +3,7 @@ import { EditorGroups } from "./editorGroups.ts";
 import { ICON, iconButton } from "../workbench/icons.ts";
 import { createSplitter } from "../workbench/splitter.ts";
 import type { GitOverlay } from "./gitOverlay.ts";
+import { createFrameTask } from "../frameTask.ts";
 
 interface WorkspaceTab { readonly path: string; readonly name: string; readonly dirty: boolean }
 export interface EditorWorkspace extends EditorHost {
@@ -147,7 +148,8 @@ export function createEditorWorkspace(
   divider.addEventListener("keydown", (event) => {
     if (event.key === "Home") { ratio = 0.5; render(); layout(); }
   });
-  const observer = new ResizeObserver(layout);
+  const layoutFrame = createFrameTask(layout);
+  const observer = new ResizeObserver(() => layoutFrame.schedule());
   observer.observe(container);
   render();
 

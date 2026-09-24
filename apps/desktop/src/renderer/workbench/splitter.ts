@@ -17,6 +17,8 @@
  *     people cannot operate. Arrows nudge, Home resets, and the handle is focusable.
  */
 
+import { createFrameTask } from "../frameTask.ts";
+
 export interface SplitterDeps {
   /** The element the user grabs. */
   readonly element: HTMLElement;
@@ -28,7 +30,7 @@ export interface SplitterDeps {
   /** Called when a drag or a key press finishes, so the result can be persisted. */
   readonly commit: () => void;
   /** What double-click restores. */
-  readonly reset: number;
+  readonly reset: number | (() => number);
   /**
    * Which pointer direction makes the region larger.
    *
@@ -43,6 +45,7 @@ const KEY_STEP = 16;
 
 export function createSplitter(deps: SplitterDeps): void {
   const { element, axis } = deps;
+  const resetSize = (): number => typeof deps.reset === "function" ? deps.reset() : deps.reset;
 
   element.classList.add("splitter");
   element.dataset["axis"] = axis;
@@ -54,19 +57,23 @@ export function createSplitter(deps: SplitterDeps): void {
   let startPointer = 0;
   let startSize = 0;
   let dragging = false;
+  let pendingSize = 0;
+  const paint = createFrameTask(() => deps.apply(pendingSize));
 
   function onPointerMove(event: PointerEvent): void {
     if (!dragging) return;
 
     const position = axis === "x" ? event.clientX : event.clientY;
-    deps.apply(startSize + (position - startPointer) * deps.sign);
+    pendingSize = startSize + (position - startPointer) * deps.sign;
+    paint.schedule();
   }
 
   function stop(event: PointerEvent): void {
     if (!dragging) return;
+    paint.flush();
     dragging = false;
 
-    element.releasePointerCapture(event.pointerId);
+    if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
     delete element.dataset["dragging"];
     delete document.body.dataset["resizing"];
     deps.commit();
@@ -91,9 +98,10 @@ export function createSplitter(deps: SplitterDeps): void {
   element.addEventListener("pointermove", onPointerMove);
   element.addEventListener("pointerup", stop);
   element.addEventListener("pointercancel", stop);
+  element.addEventListener("lostpointercapture", stop);
 
   element.addEventListener("dblclick", () => {
-    deps.apply(deps.reset);
+    deps.apply(resetSize());
     deps.commit();
   });
 
@@ -112,7 +120,7 @@ export function createSplitter(deps: SplitterDeps): void {
 
     if (event.key === "Home") {
       event.preventDefault();
-      deps.apply(deps.reset);
+      deps.apply(resetSize());
       deps.commit();
     }
   });

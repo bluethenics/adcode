@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { createOllamaProvider, createOpenAiProvider } from "../src/providers/openaiCompatible.ts";
+import {
+  createOllamaProvider,
+  createOpenAiCompatibleProvider,
+  createOpenAiProvider,
+  providerErrorMessage,
+} from "../src/providers/openaiCompatible.ts";
 import type { ProviderEvent, ProviderRequest } from "../src/types.ts";
 
 /** Build a fetch that replays server-sent event lines. */
@@ -149,6 +154,104 @@ describe("stop reasons", () => {
   it("throws on a non-200 so the agent loop can report it", async () => {
     const provider = createOpenAiProvider("key", sseFetch([], 429));
     await expect(collect(provider.stream(request, new AbortController().signal))).rejects.toThrow(/429/);
+  });
+
+  it("reads provider error objects out of an otherwise-200 stream", async () => {
+    const provider = createOpenAiProvider(
+      "key",
+      sseFetch([
+        `: OPENROUTER PROCESSING`,
+        `data: ${JSON.stringify({ error: { message: "No endpoints found for model", code: 404 } })}`,
+      ]),
+    );
+    await expect(collect(provider.stream(request, new AbortController().signal))).rejects.toThrow(
+      /No endpoints found for model/,
+    );
+  });
+
+  it("includes the provider's own explanation on HTTP errors", async () => {
+    const failing = (async () =>
+      new Response(JSON.stringify({ error: { message: "Insufficient credits", code: 402 } }), {
+        status: 402,
+      })) as unknown as typeof fetch;
+    const provider = createOpenAiProvider("key", failing);
+    await expect(collect(provider.stream(request, new AbortController().signal))).rejects.toThrow(
+      /402.*Insufficient credits/,
+    );
+  });
+
+  it("announces a queued upstream once instead of waiting in silence", async () => {
+    const provider = createOpenAiProvider(
+      "key",
+      sseFetch([
+        ": OPENROUTER PROCESSING",
+        ": OPENROUTER PROCESSING",
+        `data: ${JSON.stringify({ choices: [{ delta: { content: "hi" } }] })}`,
+        `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`,
+      ]),
+    );
+    const events = await collect(provider.stream(request, new AbortController().signal));
+    const notes = events.filter((e) => e.kind === "thinking");
+    expect(notes).toHaveLength(1);
+    expect(JSON.stringify(notes[0])).toContain("waiting");
+  });
+
+  it("skips non-object data lines without failing", async () => {
+    const provider = createOpenAiProvider(
+      "key",
+      sseFetch([
+        `data: "just a string"`,
+        `data: ${JSON.stringify({ choices: [{ delta: { content: "ok" } }] })}`,
+        `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`,
+      ]),
+    );
+    const events = await collect(provider.stream(request, new AbortController().signal));
+    expect(events.some((e) => e.kind === "text")).toBe(true);
+  });
+});
+
+describe("provider error messages", () => {
+  it("reads object, string, and coded shapes", () => {
+    expect(providerErrorMessage({ error: { message: "boom", code: 500 } })).toContain("boom");
+    expect(providerErrorMessage({ error: "flat" })).toBe("flat");
+    expect(providerErrorMessage({ choices: [] })).toBeNull();
+    expect(providerErrorMessage(null)).toBeNull();
+  });
+});
+
+describe("OpenRouter identification", () => {
+  it("sends referer and title only to OpenRouter", async () => {
+    let seen: Record<string, string> = {};
+    const capturing = (async (_url: string, init: RequestInit) => {
+      seen = init.headers as Record<string, string>;
+      return sseFetch([`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`])(
+        "",
+        init,
+      );
+    }) as unknown as typeof fetch;
+
+    const routed = createOpenAiCompatibleProvider({
+      id: "openrouter",
+      displayName: "OpenRouter",
+      baseUrl: "https://openrouter.ai/api/v1",
+      apiKey: "key",
+      models: ["x"],
+      fetchImpl: capturing,
+    });
+    await collect(routed.stream(request, new AbortController().signal));
+    expect(seen["HTTP-Referer"]).toBe("https://adcode.dev");
+    expect(seen["X-Title"]).toBe("ADCode");
+
+    const other = createOpenAiCompatibleProvider({
+      id: "custom",
+      displayName: "Custom",
+      baseUrl: "https://example.com/v1",
+      apiKey: "key",
+      models: ["x"],
+      fetchImpl: capturing,
+    });
+    await collect(other.stream(request, new AbortController().signal));
+    expect(seen["HTTP-Referer"]).toBeUndefined();
   });
 });
 

@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { BrowserWindow, app, shell } from "electron";
 import { registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "./protocol.ts";
 import { registerIpc } from "./ipc.ts";
+import { closeAssistantControls } from "./assistantControls.ts";
 import { registerSupportIpc } from "./supportIpc.ts";
 import { registerActivityIpc } from "./activity.ts";
 import { registerOnboardingIpc } from "./onboarding.ts";
@@ -257,6 +258,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  void closeAssistantControls();
   disposeAllTerminals();
 
   // Language servers and a project's dev server are both children that outlive us if

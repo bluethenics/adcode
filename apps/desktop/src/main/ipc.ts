@@ -75,6 +75,7 @@ import {
   writeSetting,
 } from "./settings.ts";
 import { mcpConnection } from "./memory.ts";
+import { assistantControls } from "./assistantControls.ts";
 import { registerGitIpc } from "./gitIpc.ts";
 import { installApplicationMenu } from "./menu.ts";
 import { requiresTrustedEditConfirmation } from "./aiEditPolicy.ts";
@@ -940,6 +941,12 @@ export function registerIpc(): void {
   applyLanguageSettings(currentSettings());
 
   ipcMain.handle(CHANNELS.aiProviders, () => aiStatus());
+  ipcMain.handle(CHANNELS.aiControlsRead, () => assistantControls().snapshot());
+  ipcMain.handle(CHANNELS.aiControlsAction, (_event, input: unknown) => assistantControls().action(input));
+  ipcMain.handle(CHANNELS.aiControlsPreviewSkill, (_event, id: unknown) => {
+    if (typeof id !== "string" || id.length > 2048) throw new Error("Invalid skill ID.");
+    return assistantControls().previewSkill(id);
+  });
 
   ipcMain.handle(CHANNELS.aiSetKey, (_event, provider: unknown, key: unknown) => {
     if (!isString(provider) || !isString(key)) throw new Error("expected a provider and key");

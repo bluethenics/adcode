@@ -126,21 +126,21 @@ function defineThemes(): void {
     colors: {
       "editor.background": "#ffffff",
       "editor.lineHighlightBackground": "#00000008",
-      "editorLineNumber.foreground": "#a1a1a6",
-      "editorLineNumber.activeForeground": "#1c1c1e",
+      "editorLineNumber.foreground": "#a3a09a",
+      "editorLineNumber.activeForeground": "#1d1c1a",
       "editorIndentGuide.background1": "#0000000f",
-      "editor.selectionBackground": "#007aff26",
-      "editorCursor.foreground": "#007aff",
+      "editor.selectionBackground": "#26241f26",
+      "editorCursor.foreground": "#26241f",
       // The suggest widget is Monaco's surface, so without these it wears vs defaults
       // that match no theme in this app - a grey box with an invisible selection.
       "editorSuggestWidget.background": "#ffffff",
       "editorSuggestWidget.border": "#0000001a",
-      "editorSuggestWidget.foreground": "#1c1c1e",
-      "editorSuggestWidget.selectedBackground": "#007aff1f",
-      "editorSuggestWidget.selectedForeground": "#1c1c1e",
-      "editorSuggestWidget.highlightForeground": "#007aff",
-      "editorSuggestWidget.focusHighlightForeground": "#007aff",
-      "editorSuggestWidgetStatus.foreground": "#6c6c70",
+      "editorSuggestWidget.foreground": "#1d1c1a",
+      "editorSuggestWidget.selectedBackground": "#26241f14",
+      "editorSuggestWidget.selectedForeground": "#1d1c1a",
+      "editorSuggestWidget.highlightForeground": "#005ec4",
+      "editorSuggestWidget.focusHighlightForeground": "#005ec4",
+      "editorSuggestWidgetStatus.foreground": "#6f6c66",
     },
   });
 
@@ -149,23 +149,23 @@ function defineThemes(): void {
     inherit: true,
     rules: SEMANTIC_RULES_DARK,
     colors: {
-      "editor.background": "#0d1117",
+      "editor.background": "#151515",
       "editor.lineHighlightBackground": "#ffffff08",
-      "editorLineNumber.foreground": "#636c76",
-      "editorLineNumber.activeForeground": "#eef1f5",
+      "editorLineNumber.foreground": "#5f5d58",
+      "editorLineNumber.activeForeground": "#ebe8e1",
       "editorIndentGuide.background1": "#ffffff14",
-      "editor.selectionBackground": "#2f81f733",
-      "editorCursor.foreground": "#2f81f7",
-      // Same widget, dark ground: the reference card surface with a blue selection,
+      "editor.selectionBackground": "#ece9e233",
+      "editorCursor.foreground": "#ece9e2",
+      // Same widget, dark ground: the panel surface with a neutral selection,
       // kept in step with the workbench palette in tokens.css.
-      "editorSuggestWidget.background": "#12161d",
-      "editorSuggestWidget.border": "#ffffff17",
-      "editorSuggestWidget.foreground": "#eef1f5",
-      "editorSuggestWidget.selectedBackground": "#2f81f738",
-      "editorSuggestWidget.selectedForeground": "#eef1f5",
+      "editorSuggestWidget.background": "#1c1b19",
+      "editorSuggestWidget.border": "#2d2b28",
+      "editorSuggestWidget.foreground": "#ebe8e1",
+      "editorSuggestWidget.selectedBackground": "#ece9e226",
+      "editorSuggestWidget.selectedForeground": "#ebe8e1",
       "editorSuggestWidget.highlightForeground": "#6ea8fe",
-      "editorSuggestWidget.focusHighlightForeground": "#6ea8fe",
-      "editorSuggestWidgetStatus.foreground": "#9aa4b2",
+      "editorSuggestWidget.focusHighlightForeground": "#8ab4ff",
+      "editorSuggestWidgetStatus.foreground": "#8f8c85",
     },
   });
 
@@ -195,8 +195,8 @@ function defineThemes(): void {
       "editorSuggestWidget.foreground": "#f1f3f3",
       "editorSuggestWidget.selectedBackground": "#ffffff24",
       "editorSuggestWidget.selectedForeground": "#f1f3f3",
-      "editorSuggestWidget.highlightForeground": "#f1f3f3",
-      "editorSuggestWidget.focusHighlightForeground": "#ffffff",
+      "editorSuggestWidget.highlightForeground": "#6ea8fe",
+      "editorSuggestWidget.focusHighlightForeground": "#8ab4ff",
       "editorSuggestWidgetStatus.foreground": "#9aa4a6",
     },
   });
@@ -349,6 +349,7 @@ export function createEditorPair(
  * this file still knows nothing about the workbench that owns it.
  */
 export interface EditorHostDeps {
+  readonly askAssistant?: (prompt: string) => void;
   readonly activeFile: () => string | null;
   readonly workspaceRoot: () => string | null;
   readonly list: (directory: string) => Promise<readonly DirEntry[]>;
@@ -375,6 +376,9 @@ export function createEditorHost(
 
   const editor = monaco.editor.create(container, {
     theme: "adcode-dark",
+    // Use Monaco's established textarea input path. Electron's experimental
+    // EditContext can route typing to the first view after focusing a split editor.
+    editContext: false,
     automaticLayout: false,
     /*
      * The literal stack behind `var(--font-mono)`, not the variable itself.
@@ -625,6 +629,26 @@ export function createEditorHost(
   const models = store.models;
   const viewStates = new Map<string, monaco.editor.ICodeEditorViewState>();
   let active: string | null = null;
+  if (deps.askAssistant) {
+    for (const [id, label, request] of [
+      ["askSelection", "Ask ADCode about Selection or File", "Help me understand or change this code:"],
+      ["explainSelection", "ADCode: Explain This Code", "Explain this code, including its purpose and important dependencies:"],
+      ["refactorSelection", "ADCode: Refactor This Code", "Suggest a focused refactor of this code. Preserve its behavior and explain the changes:"],
+      ["testSelection", "ADCode: Write Tests", "Inspect the project's test setup and write meaningful tests for this code:"],
+      ["reviewSelection", "ADCode: Find Issues", "Review this code for concrete bugs and edge cases. Explain any findings before making changes:"],
+    ] as const) editor.addAction({
+      id: `adcode.${id}`, label, contextMenuGroupId: "8_adcode", contextMenuOrder: 1,
+      run: () => {
+        const model = editor.getModel();
+        const selection = editor.getSelection();
+        if (!active || !model) return;
+        const selected = selection && !selection.isEmpty() ? model.getValueInRange(selection) : "";
+        const source = selected || model.getValue();
+        const location = selected ? `:${selection!.startLineNumber}` : "";
+        deps.askAssistant?.(`${request}\n\nFile: ${deps.displayPath(active)}${location}\nCurrent editor ${selected ? "selection" : "buffer"}${source.length > 32000 ? " (excerpt)" : ""}:\n\n${source.slice(0, 32000)}`);
+      },
+    });
+  }
   editor.addAction({
     id: "adcode.copyMarkdownCodeLink",
     label: "Copy Markdown Link to Line",

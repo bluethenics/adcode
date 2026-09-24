@@ -69,7 +69,7 @@ describe("shared pop-up shell", () => {
     expect(source).toContain('dialog.dataset["input"]');
     expect(source).toContain('matchMedia("(prefers-reduced-motion: reduce)")');
     expect(source).toContain('document.documentElement.dataset["reducedMotion"] === "true"');
-    expect(source).toContain("duration: 220");
+    expect(source).toContain("duration: 180");
     expect(source).toContain("duration: 100");
     expect(source).toContain("surface.getAnimations().forEach");
   });

@@ -37,10 +37,11 @@ export async function checkPopups({ evaluate, send, waitFor, sleep, artifacts })
   await snapshot("structure");
   await send("Emulation.setDeviceMetricsOverride", { width: 760, height: 500, deviceScaleFactor: 1, mobile: false });
   await sleep(300);
-  assert.equal(await evaluate(`(() => {
+  const anchoredGeometry = await evaluate(`(() => {
     const box = document.querySelector('${shell("structure")} .popup-shell-surface').getBoundingClientRect();
-    return box.top >= 0 && box.bottom <= innerHeight;
-  })()`), true, "Anchored popup fits after window resizing");
+    return { top: box.top, bottom: box.bottom, viewport: innerHeight };
+  })()`);
+  assert.ok(anchoredGeometry.top >= 0 && anchoredGeometry.bottom <= anchoredGeometry.viewport, `Anchored popup fits after window resizing: ${JSON.stringify(anchoredGeometry)}`);
   await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
   await click('.activity[data-view="scm"]');
   await waitFor("document.querySelector('.scm-panel').dataset.scmState === 'repo'");
@@ -88,5 +89,16 @@ export async function checkPopups({ evaluate, send, waitFor, sleep, artifacts })
     await click(selector);
     await snapshot(`${name}-light`);
   }
-  process.stdout.write("PASS: Earnings/Structure/Git remain open, launchers switch in one click, tabs work, anchored resize fits, nested Git results preserve their parent.\n");
+  await click('.scm-close');
+  await click('#open-settings');
+  await waitFor("document.querySelector('.settings-row')?.getClientRects().length > 0");
+  await snapshot('settings-light');
+  await evaluate("window.adcode.settings.write('adcode.appearance.theme', 'dark')");
+  await sleep(200);
+  await snapshot('settings-dark');
+  await click('.settings-close');
+  await click('#open-features');
+  await waitFor("document.querySelector('.feature-library-row')?.getClientRects().length > 0");
+  await snapshot('features-dark');
+  process.stdout.write("PASS: Earnings/Structure/Git remain open, launchers switch in one click, tabs work, anchored resize fits, nested Git results preserve their parent, settings and feature library render.\n");
 }

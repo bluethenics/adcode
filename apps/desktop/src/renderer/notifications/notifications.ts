@@ -25,10 +25,11 @@ export interface Notification {
   /** Omit to leave it up until dismissed - the right default for anything with actions. */
   readonly autoDismissMs?: number;
   /**
-   * Visual weight. `warning` is for something currently wrong that the reader may need to
+   * Visual weight. `success` confirms something finished; `error` reports something
+   * failed; `warning` is for something currently wrong that the reader may need to
    * work around; the default reads as an FYI.
    */
-  readonly tone?: "info" | "warning";
+  readonly tone?: "info" | "success" | "warning" | "error";
 }
 
 export interface NotificationCentre {
@@ -69,6 +70,25 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
   // and un-hovering re-arms it with a fresh id, so a stored id goes stale the first time
   // the pointer crosses the toast.
   let live: { element: HTMLElement; creativeId: string; clearTimer: () => void } | null = null;
+
+  const railContainsCard = (card: HTMLElement, rail: Element): boolean => {
+    const cardBox = card.getBoundingClientRect();
+    const railBox = rail.getBoundingClientRect();
+    return cardBox.width > 0 && cardBox.top >= railBox.top && cardBox.bottom <= railBox.bottom;
+  };
+
+  const keepSponsoredVisible = (): void => {
+    const card = live?.element;
+    if (!card || card.parentElement?.id !== "vibe-sponsored-slot") return;
+    const slot = card.parentElement;
+    const rail = slot.closest(".project-toolbar");
+    if (document.body.dataset["workspaceMode"] !== "vibe" || !rail ||
+      getComputedStyle(slot).display === "none" || !railContainsCard(card, rail)) host.append(card);
+  };
+  window.addEventListener("resize", keepSponsoredVisible);
+  new MutationObserver(keepSponsoredVisible).observe(document.body, {
+    attributes: true, attributeFilter: ["data-workspace-mode"],
+  });
 
   function teardown(creativeId: string, notify: boolean): void {
     if (live === null || live.creativeId !== creativeId) return;
@@ -246,7 +266,18 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
         if (live !== null && live.creativeId === toast.creativeId && remaining > 0) arm();
       });
 
-      host.append(card);
+      // Vibe's sidebar has room for a quiet sponsored card. If the rail is too short
+      // to show it, use the normal notification layer so a hidden card cannot earn an
+      // impression. Code mode and narrow Vibe windows use that layer as before.
+      const vibeSlot = document.getElementById("vibe-sponsored-slot");
+      const rail = vibeSlot?.closest(".project-toolbar");
+      if (document.body.dataset["workspaceMode"] === "vibe" && vibeSlot && rail &&
+        getComputedStyle(vibeSlot).display !== "none") {
+        vibeSlot.append(card);
+        if (!railContainsCard(card, rail)) host.append(card);
+      } else {
+        host.append(card);
+      }
 
       // Lay the card out at its offscreen start position, then give the transition
       // something to animate from. Without the flush the browser coalesces both states
@@ -254,6 +285,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       reveal(card, "entered");
 
       window.setTimeout(() => {
+        keepSponsoredVisible();
         card.style.willChange = "auto";
         // Reporting paint is what lets the ad client count the impression at all -
         // it is one of the three conditions §1 requires, and the renderer is the

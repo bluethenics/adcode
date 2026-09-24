@@ -10,6 +10,26 @@ import type { HelpEntry } from "../types.ts";
 
 export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
   {
+    id: "workbench.modes",
+    title: "Vibe and Code modes",
+    plain: "Two ways to work with one project: conversation first in Vibe, editor first in Code.",
+    why: "Move between building with AI and editing directly while keeping your conversation, files, terminals and preview.",
+    how: "Use the Vibe / Code switch above the workspace. Vibe keeps the conversation in focus; files and search open Code. Code starts with your editor and file sidebar. Open AI on demand from More tools or the editor context menu. Vibe Context and More tools open project details, changes and saved tasks. Your conversation, unsaved files, terminal and preview stay with you.",
+    group: "workbench",
+    settingIds: [],
+    related: ["workbench.aiContext", "workbench.allFeatures"],
+  },
+  {
+    id: "workbench.aiContext",
+    title: "Ask AI about your code",
+    plain: "Send the current editor selection or buffer into your assistant's composer.",
+    why: "Ask about unsaved code, prepare a refactor, find issues or write tests without copying between tools.",
+    how: "Select code and choose Ask AI in the file header. Right-click for Explain, Refactor, Write Tests and Find Issues. Edit the prepared instructions, then send.",
+    group: "workbench",
+    settingIds: [],
+    related: ["workbench.modes"],
+  },
+  {
     id: "workbench.allFeatures",
     title: "All Features",
     plain: "A searchable library of everything ADCode can do, with an Open button and a plain explanation beside every feature.",
@@ -160,7 +180,7 @@ export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
     plain:
       "Every conversation is kept in Today, Yesterday, and older groups, so you can go back to one. A strip at the top shows exactly what the assistant is remembering right now, and a button clears it.",
     why: "Assistants that forget everything are frustrating, and assistants that remember invisibly are worse. Showing what is remembered makes clearing it something you can actually see work.",
-    how: "The list beside the chat holds your past conversations grouped by recency - search them, rename them, delete one, or clear them all. The header shows the current conversation name and Share copies it as markdown. Conversations are stored on your own machine, per project, and are never uploaded.",
+    how: "Choose History from the conversation's actions menu to open past conversations inside the chat. Search them, rename them, delete one, or clear them all. The header shows the current conversation name and Share copies it as markdown. Conversations are stored on your own machine, per project, and are never uploaded.",
     group: "ai",
     settingIds: [],
     related: ["adcode.ai.chatWidget", "adcode.ai.memoryCapture", "ai.connect"],

@@ -17,6 +17,7 @@ import { join, relative, sep } from "node:path";
 import { computeHunks, type AiFileChange, type ToolCallBlock, type ToolRunner } from "@adcode/ai";
 import type { NodeMemory } from "@adcode/memory";
 import { resolveSandboxPath } from "./aiSandbox.ts";
+import type { PreviewStatus } from "../shared/api.ts";
 
 const MAX_READ_BYTES = 400_000;
 const MAX_SEARCH_HITS = 60;
@@ -39,6 +40,7 @@ export interface AiToolWorkspace {
 }
 
 export interface AiToolDeps {
+  readonly openPreview?: () => Promise<PreviewStatus>;
   readonly workspace: () => Promise<AiToolWorkspace | null>;
   readonly workspaceUnavailableMessage?: () => string;
   /** Trusted still means sandbox first; only the successful turn's checkpointed apply is automatic. */
@@ -90,6 +92,14 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
       const input = call.input;
 
       switch (call.name) {
+        case "open_preview": {
+          if (!deps.openPreview) return fail("Live preview is unavailable in this agent.");
+          const status = await deps.openPreview();
+          return {
+            content: JSON.stringify({ type: "live-preview", status, note: "This preview shows saved/applied files. Pending proposals must be applied before they appear." }),
+            isError: status.error !== null,
+          };
+        }
         case "read_file": {
           const workspace = await deps.workspace();
           if (workspace === null) return unavailable();

@@ -92,6 +92,21 @@ export const ICON = {
    */
   earnings: "M10.5 6.1C10.5 5.1 9.4 4.5 8 4.5S5.5 5.1 5.5 6.1c0 1.2 1.2 1.6 2.5 1.9s2.5.7 2.5 1.9c0 1-1.1 1.6-2.5 1.6s-2.5-.6-2.5-1.6M8 3v10",
 
+  /* ── Chat composer and message actions ──────────────────────────────────── */
+
+  /**
+   * Dictation mic: capsule centred on x = 8, cradle arc and stem hanging below.
+   * Stroked like everything else here; the caller sets the stroke width.
+   */
+  mic: "M8 2.5a2 2 0 0 1 2 2v3a2 2 0 0 1-4 0v-3a2 2 0 0 1 2-2zM5.5 8a2.5 2.5 0 0 0 5 0M8 10.5V14M6.5 14h3",
+
+  /**
+   * Overflow: three micro-segments that read as dots under a round line cap.
+   * Paths only (no `<circle>` helper exists), symmetric about (8, 8) by
+   * construction — 4, 8, 12 on the horizontal centre line.
+   */
+  more: "M4 8h.01M8 8h.01M12 8h.01",
+
   /* ── Filtering ──────────────────────────────────────────────────────────── */
 
   /**

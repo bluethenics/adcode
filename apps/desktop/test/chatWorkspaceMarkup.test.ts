@@ -17,6 +17,10 @@ const styles = readFileSync(
   new URL("../src/renderer/styles/ai.css", import.meta.url),
   "utf8",
 );
+const dockSource = readFileSync(
+  new URL("../src/renderer/workbench/assistantDock.ts", import.meta.url),
+  "utf8",
+);
 const smoke = readFileSync(
   new URL("../../../scripts/smoke.mjs", import.meta.url),
   "utf8",
@@ -28,6 +32,13 @@ describe("AI Chat workspace", () => {
     expect(source).toContain('conversation.className = "chat-conversation"');
     expect(source).toContain('inspector.className = "chat-inspector"');
     expect(source).toContain("body.append(history, conversation, inspector)");
+  });
+
+  it("keeps Vibe navigation attached to the shared conversation", () => {
+    expect(dockSource).toContain('button.className = `vibe-nav-item vibe-rail-only');
+    expect(dockSource).toContain('(mode === "vibe" ? vibe : dock).append(chat.element)');
+    expect(source).toContain('welcomeMark.classList.add("chat-welcome-mark")');
+    expect(source).toContain('welcomeGreeting.textContent = hour < 5');
   });
 
   it("retires free-drag position persistence", () => {

@@ -140,6 +140,10 @@ const api: AdcodeApi = {
     connection: () => ipcRenderer.invoke(CHANNELS.memoryConnection),
   },
   ai: {
+    controls: () => ipcRenderer.invoke(CHANNELS.aiControlsRead),
+    control: (action) => ipcRenderer.invoke(CHANNELS.aiControlsAction, action),
+    previewSkill: (id) => ipcRenderer.invoke(CHANNELS.aiControlsPreviewSkill, id),
+    onControlsChanged: (listener) => subscribe(CHANNELS.aiControlsChanged, listener),
     status: () => ipcRenderer.invoke(CHANNELS.aiProviders),
     setKey: (provider, key) => ipcRenderer.invoke(CHANNELS.aiSetKey, provider, key),
     clearKey: (provider) => ipcRenderer.invoke(CHANNELS.aiClearKey, provider),

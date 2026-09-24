@@ -78,6 +78,62 @@ function renderBold(escaped: string): string {
   return escaped.replace(/\*\*([^*][^*]*?)\*\*/g, "<strong>$1</strong>");
 }
 
+/**
+ * Images the assistant itself produced, rendered as a rounded result card.
+ *
+ * Markdown `![alt](src)` is the only image syntax honoured — raw `<img>` HTML
+ * stays escaped, so a model can never inject an element or attribute. Sources
+ * are allow-listed (remote https, loopback http, image data URLs); anything
+ * else falls back to plain text.
+ */
+export function isSafeMarkdownImageSrc(src: string): boolean {
+  const value = src.trim();
+  if (/^data:image\/(png|jpeg|webp|gif);base64,/i.test(value)) return true;
+  if (/^https:\/\//i.test(value)) return true;
+  if (/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?\//i.test(value)) return true;
+  return false;
+}
+
+function renderResultFigure(alt: string, src: string): string {
+  const safeAlt = escapeHtml(alt.slice(0, 160));
+  const safeSrc = escapeAttribute(src);
+  const label = safeAlt.length > 0 ? safeAlt : "Generated preview";
+  return (
+    `<figure class="chat-result">` +
+    `<div class="chat-result-media"><img class="chat-result-image" src="${safeSrc}" alt="${safeAlt}" loading="lazy"></div>` +
+    `<figcaption class="chat-result-caption">${label}</figcaption></figure>`
+  );
+}
+
+/** Split a raw text block on markdown images; text chunks stay inline HTML. */
+function renderInlineWithImages(raw: string): string {
+  const pattern = /!\[([^\]\n]*)\]\(([^)\s]+)\)/g;
+  pattern.lastIndex = 0;
+  if (!pattern.test(raw)) {
+    return `<p class="chat-md-para">${renderChatInline(escapeHtml(raw.trim())).replace(/\n/g, "<br>")}</p>`;
+  }
+  pattern.lastIndex = 0;
+  const out: string[] = [];
+  let cursor = 0;
+  for (const match of raw.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    const before = raw.slice(cursor, index).trim();
+    if (before.length > 0) {
+      out.push(`<p class="chat-md-para">${renderChatInline(escapeHtml(before)).replace(/\n/g, "<br>")}</p>`);
+    }
+    const alt = match[1] ?? "";
+    const src = match[2] ?? "";
+    if (isSafeMarkdownImageSrc(src)) out.push(renderResultFigure(alt, src));
+    else out.push(`<p class="chat-md-para">${renderChatInline(escapeHtml(match[0] ?? ""))}</p>`);
+    cursor = index + (match[0] ?? "").length;
+  }
+  const after = raw.slice(cursor).trim();
+  if (after.length > 0) {
+    out.push(`<p class="chat-md-para">${renderChatInline(escapeHtml(after)).replace(/\n/g, "<br>")}</p>`);
+  }
+  return out.join("");
+}
+
 /** Inline code, bold, and file-reference buttons. Input must already be escaped. */
 export function renderChatInline(escaped: string): string {
   const parts = escaped.split(/(`[^`\n]*`)/g);
@@ -119,8 +175,7 @@ function renderTextBlock(block: string): string {
     return `<p class="chat-md-heading">${renderChatInline(escapeHtml(heading))}</p>`;
   }
 
-  const inline = renderChatInline(escapeHtml(block.trim()));
-  return `<p class="chat-md-para">${inline.replace(/\n/g, "<br>")}</p>`;
+  return renderInlineWithImages(block);
 }
 
 function renderCodeSegment(segment: ChatCodeSegment): string {

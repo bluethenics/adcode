@@ -31,6 +31,7 @@ export interface ConnectView {
 }
 
 export interface ConnectViewDeps {
+  readonly onStatusChanged?: (listener: () => void) => () => void;
   readonly status: () => Promise<AiStatus>;
   readonly checkKey: (
     provider: string,
@@ -51,6 +52,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   let selected: string | null = null;
   let query = "";
   let polling: ReturnType<typeof setInterval> | undefined;
+  let activityPending = false;
+  let unsubscribeStatus: (() => void) | undefined;
 
   const element = document.createElement("section");
   element.className = "connect-view";
@@ -537,10 +540,12 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         }
 
         check.disabled = true;
-        check.textContent = "Checking connection…";
+        check.textContent = "Checking…";
+        check.classList.add("is-busy");
+        keyField.disabled = true;
         keyRow.setAttribute("aria-busy", "true");
         result.dataset["tone"] = "";
-        result.textContent = "Asking the provider…";
+        result.textContent = "Asking the provider — this verifies the key with one real request…";
 
         void deps
           .checkKey(provider.id, key)
@@ -586,6 +591,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
           }).finally(() => {
             check.disabled = false;
             check.textContent = "Check and save";
+            check.classList.remove("is-busy");
+            keyField.disabled = false;
             keyRow.removeAttribute("aria-busy");
           });
       });
@@ -687,6 +694,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         row.append(copy, marks);
         row.addEventListener("click", () => {
           row.disabled = true;
+          row.classList.add("is-busy");
+          modelFeedback.dataset["tone"] = "";
           modelFeedback.textContent = `Selecting ${model.name}…`;
           void deps
             .write("adcode.ai.provider", provider.id)
@@ -764,9 +773,40 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     }
   }
 
+  async function refreshActivityStatus(): Promise<void> {
+    if (!open || document.hidden || activityPending) return;
+    activityPending = true;
+    try {
+      const next = await deps.status();
+      if (open) { status = next; renderActivity(); }
+    } catch { /* Keep the last usable status during a transient error. */ }
+    finally { activityPending = false; }
+  }
+
+  /** Shimmer rows so the panel never flashes empty while providers load. */
+  function renderSkeletons(): void {
+    list.replaceChildren();
+    for (let index = 0; index < 4; index++) {
+      const skeleton = document.createElement("div");
+      skeleton.className = "connect-row is-skeleton";
+      skeleton.setAttribute("aria-hidden", "true");
+      const avatar = document.createElement("span");
+      avatar.className = "connect-provider-avatar";
+      const name = document.createElement("span");
+      name.className = "connect-name";
+      const state = document.createElement("span");
+      state.className = "connect-state";
+      skeleton.append(avatar, name, state);
+      list.append(skeleton);
+    }
+  }
+
   async function load(): Promise<void> {
     body.setAttribute("aria-busy", "true");
     connectionStatus.textContent = "Loading providers…";
+    // Show the skeleton only on a cold open — a background refresh replacing
+    // the list underneath the pointer would feel like a flicker, not speed.
+    if (list.childElementCount === 0) renderSkeletons();
     try {
       status = await deps.status();
       if (!open) return;
@@ -807,16 +847,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       open = true;
 
       void load();
-      polling = setInterval(() => {
-        if (open)
-          void deps
-            .status()
-            .then((next) => {
-              status = next;
-              renderActivity();
-            })
-            .catch(() => undefined);
-      }, 1000);
+      unsubscribeStatus = deps.onStatusChanged?.(() => { void refreshActivityStatus(); });
+      polling = setInterval(() => { void refreshActivityStatus(); }, 3000);
 
       requestAnimationFrame(() => {
         search.focus();
@@ -826,6 +858,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     hidden(): void {
       open = false;
       clearInterval(polling);
+      unsubscribeStatus?.();
+      unsubscribeStatus = undefined;
     },
 
     close(): void {

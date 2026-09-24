@@ -176,6 +176,35 @@
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
+/*
+ * Readability guard for the completion popup.
+ *
+ * The widget inherits from the workbench (`font-family: var(--font-ui)` on `body`),
+ * and any inherited italic, transform, filter, letter-spacing or ligature would land
+ * here first - turning `#id` and `--var` suggestions into the smeared, unreadable
+ * rows in the bug report. Pin the text metrics to the same 13/20 the JS lays rows
+ * out from (`suggestFontSize` / `suggestLineHeight` in editorHost.ts) and neutralise
+ * everything that distorts glyphs. Never set height, padding or margin on rows here.
+ */
+.monaco-editor .suggest-widget .monaco-list-row,
+.monaco-editor .suggest-widget .monaco-list-row .contents,
+.monaco-editor .suggest-widget .monaco-list-row .main {
+  font-family: "SF Mono", "JetBrains Mono", "Cascadia Code", ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  line-height: 20px;
+  font-style: normal;
+  font-variant-ligatures: none;
+  letter-spacing: normal;
+  text-transform: none;
+  transform: none;
+  filter: none;
+  text-shadow: none;
+}
+
+.monaco-editor .suggest-widget .monaco-highlighted-label {
+  font-weight: 700;
+}
+
 /* ── Comment tones ────────────────────────────────────────────────────── */
 
 /*

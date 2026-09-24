@@ -23,6 +23,12 @@ import "./styles/navigation.css";
 // Shared visual recipes follow feature layout rules; behavior stays in each component.
 import "./styles/design-system.css";
 import "./styles/connect.css";
+import "./styles/interface.css";
+import "./styles/agentWorkbench.css";
+import "./styles/workspaceModes.css";
+import "./styles/vibeWorkspace.css";
+import "./styles/chatPreview.css";
+import { createFrameTask } from "./frameTask.ts";
 import "./ai/automationHost.ts";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
 import { createBreadcrumbs } from "./editor/breadcrumbs.ts";
@@ -88,6 +94,8 @@ import { misspellingsIn } from "@adcode/spell";
 import { getSetting } from "@adcode/settings";
 import { CHECKS, messageFor, type CheckSpec } from "./checks/checkReport.ts";
 import { createChatWidget } from "./ai/chatWidget.ts";
+import { createAssistantDock } from "./workbench/assistantDock.ts";
+import { createProjectContext } from "./workbench/projectContext.ts";
 import { createConnectView } from "./ai/connectView.ts";
 import { ICON, createIcon, iconButton } from "./workbench/icons.ts";
 import { createSettingsView } from "./settings/settingsView.ts";
@@ -173,6 +181,8 @@ let activePath: string | null = null;
 let workspaceRoot: string | null = null;
 let terminal: TerminalPanel | null = null;
 let theme: ThemeChoice = "dark";
+let assistantDock: ReturnType<typeof createAssistantDock> | undefined;
+let projectContext: ReturnType<typeof createProjectContext> | undefined;
 
 /*
  * Everything the editor needs from the shell.
@@ -183,6 +193,7 @@ let theme: ThemeChoice = "dark";
  * actually asks.
  */
 const editorHost = createEditorWorkspace(el("editor-host"), {
+  askAssistant: prompt => chat.draft(prompt),
   activeFile: () => activePath,
   workspaceRoot: () => workspaceRoot,
   list: (directory) => window.adcode.workspace.list(directory),
@@ -424,7 +435,9 @@ el("tabs").addEventListener(
 );
 
 function activateTab(path: string): void {
+  if (sessionReady && assistantDock?.mode() === "vibe") assistantDock.setMode("code");
   activePath = path;
+  projectContext?.refresh();
   editorHost.activate(path);
   el("editor-placeholder").dataset["visible"] = "false";
 
@@ -2319,7 +2332,7 @@ createSplitter({
   label: "Resize sidebar",
   sign: 1,
   reset: DEFAULT_SIDEBAR_WIDTH,
-  current: () => sidebarWidth,
+  current: () => el("sidebar").getBoundingClientRect().width || sidebarWidth,
   apply: (size) => {
     sidebarWidth = size;
     applyLayout();
@@ -3054,6 +3067,7 @@ const PIN_PROMPT_DELAY_MS = 1_200;
 const pinPromptCard = createPinPromptCard(document.body);
 
 const onboarding = createOnboardingSheet({
+  chooseMode: (mode) => assistantDock?.setMode(mode),
   read: () => window.adcode.settings.read(),
   write: (id, value) => window.adcode.settings.write(id, value),
   openAccount: () => el<HTMLButtonElement>("account-toggle").click(),
@@ -3413,6 +3427,9 @@ if (sourceControlActivity === null)
   throw new Error("missing element: source-control activity");
 
 function paintGitBadge(status: GitStatusView | null): void {
+  projectContext?.refresh();
+  const projectBranch = document.getElementById("project-toolbar-branch");
+  if (projectBranch) projectBranch.textContent = status?.branch ?? "Source control";
   const badge = document.getElementById("git-badge");
   const launcher = document.querySelector<HTMLButtonElement>('.activity[data-view="scm"]');
   if (!badge || !launcher) return;
@@ -3954,6 +3971,7 @@ const previewPane = createPreviewPane({
   onLayoutChange: () => {
     editorHost.layout();
     runButton.refresh();
+    assistantDock?.accommodatePreview();
   },
   notify: (text) => setStatus(text, 5000),
   reportProblem: (message) => {
@@ -4105,19 +4123,21 @@ function renderWorkbenchLayout(
   const workbench = el("workbench");
   const sidebar = el("sidebar");
   const active = layoutState.activeSidebarView;
+  // Vibe hides file navigation without changing the user's Code layout preference.
+  const sidebarVisible = layoutState.sidebarOpen && document.body.dataset["workspaceMode"] !== "vibe";
 
-  workbench.dataset["sidebarOpen"] = String(layoutState.sidebarOpen);
+  workbench.dataset["sidebarOpen"] = String(sidebarVisible);
   workbench.dataset["sidebarMode"] = layoutState.sidebarMode;
   workbench.dataset["layoutInput"] = input;
 
-  sidebar.inert = !layoutState.sidebarOpen;
-  sidebar.setAttribute("aria-hidden", String(!layoutState.sidebarOpen));
+  sidebar.inert = !sidebarVisible;
+  sidebar.setAttribute("aria-hidden", String(!sidebarVisible));
 
   for (const view of document.querySelectorAll<HTMLElement>(
     ".sidebar-view[data-sidebar-view]",
   )) {
     view.hidden =
-      !layoutState.sidebarOpen || view.dataset["sidebarView"] !== active;
+      !sidebarVisible || view.dataset["sidebarView"] !== active;
   }
 
   for (const activity of document.querySelectorAll<HTMLButtonElement>(
@@ -4126,7 +4146,7 @@ function renderWorkbenchLayout(
     if (!isSidebarView(activity.dataset["sidebarView"] ?? "")) continue;
 
     const selected =
-      layoutState.sidebarOpen && activity.dataset["sidebarView"] === active;
+      sidebarVisible && activity.dataset["sidebarView"] === active;
     activity.ariaSelected = String(selected);
     activity.setAttribute("aria-pressed", String(selected));
     activity.setAttribute("aria-expanded", String(selected));
@@ -4134,12 +4154,12 @@ function renderWorkbenchLayout(
 
   const copy = SIDEBAR_COPY[active];
   el("sidebar-title").textContent = copy.title;
-  if (active !== "explorer") el("sidebar-subtitle").textContent = copy.subtitle;
+  el("sidebar-subtitle").textContent = active === "explorer" ? (workspaceRoot === null ? "No folder opened" : basename(workspaceRoot)) : copy.subtitle;
   el("sidebar-actions-explorer").hidden =
     !layoutState.sidebarOpen || active !== "explorer";
 
   const overlayOpen =
-    layoutState.sidebarMode === "overlay" && layoutState.sidebarOpen;
+    layoutState.sidebarMode === "overlay" && sidebarVisible;
   el<HTMLButtonElement>("sidebar-scrim").hidden = !overlayOpen;
 
   editorHost.layout();
@@ -4152,6 +4172,7 @@ function showView(
   input: "pointer" | "keyboard" = "keyboard",
 ): void {
   if (!isSidebarView(view)) return;
+  if (assistantDock?.mode() === "vibe") assistantDock.setMode("code");
 
   layoutState = reduceWorkbenchLayout(layoutState, {
     type: "show-sidebar",
@@ -4170,6 +4191,7 @@ function toggleSidebarView(
   trigger?: HTMLElement,
 ): void {
   if (!isSidebarView(view)) return;
+  if (assistantDock?.mode() === "vibe") { showView(view, input); return; }
 
   if (trigger !== undefined) sidebarTrigger = trigger;
   layoutState = reduceWorkbenchLayout(layoutState, {
@@ -4261,15 +4283,18 @@ const chat = createChatWidget({
     const path = tabs.find(tab => tab.path.replace(/\\/g, "/") === resolved.replace(/\\/g, "/"))?.path ?? resolved;
     void openFile(path).then(() => {
       if (activePath !== path) return;
-      chat.close();
+      if (!assistantDock?.isDocked()) chat.close();
       editorHost.revealPosition(reference.line, reference.column);
     });
   },
   // Applying a proposal reopens the file so the user sees the result in the editor.
-  openExternalPath: (path) => void openFile(path),
+  openExternalPath: (path) => void openFile(/^(?:[a-z]:[\\/]|\/)/i.test(path) ? path : absolutePath(path)),
+  openPreview: () => { if (!previewPane.isOpen()) void previewPane.toggle(); },
   openConnect: () => openConnectFromChat(),
   requestOpen: () => openChat("keyboard"),
-  requestClose: () => closePrimaryPopup("chat"),
+  requestClose: () => assistantDock?.isDocked() ? assistantDock.close() : closePrimaryPopup("chat"),
+  togglePresentation: () => assistantDock?.togglePresentation(),
+  revealHistory: () => showView("explorer"),
   askForName: (current) =>
     promptDialog.ask({
       title: "Rename conversation",
@@ -4293,11 +4318,13 @@ const chatShell = createPopupShell({
 registerPrimaryPopup("chat", chatShell, chat);
 
 function openChat(input: LayoutInput): void {
-  openPrimaryPopup("chat", chatShell, chatLauncher, input);
+  if (assistantDock) assistantDock.open();
+  else openPrimaryPopup("chat", chatShell, chatLauncher, input);
 }
 
 function createConnectContent(requestOpen: () => void, requestClose: () => void) {
   return createConnectView({
+    onStatusChanged: listener => window.adcode.settings.onChanged(listener),
     status: () => window.adcode.ai.status(),
     checkKey: (provider, key) => window.adcode.ai.checkKey(provider, key),
     setKey: (provider, key) => window.adcode.ai.setKey(provider, key),
@@ -4328,6 +4355,7 @@ const connectShell = createPopupShell({
 registerDependentPopup("connect", connectShell, dependentConnectView);
 
 function openConnectFromChat(): void {
+  if (assistantDock?.isDocked()) { openIndependentConnect("pointer"); return; }
   openDependentPopup("connect", connectShell, chat.connectButton, "chat", "pointer");
 }
 
@@ -4369,6 +4397,7 @@ function openIndependentConnect(input: LayoutInput): void {
  * the first. Whoever adds the fourth consumer should only have to edit this function.
  */
 function setRendererWorkspace(root: string | null): void {
+  projectContext?.refresh();
   if (universalSearch.isOpen()) universalSearch.close(false);
   chat.setWorkspace(root);
   previewPane.setWorkspace(root);
@@ -4597,11 +4626,10 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !event.defaultPrevented) notifications.dismissAll();
 });
 
-const resizeObserver = new ResizeObserver(() => {
-  editorHost.layout();
-  terminal?.fit();
-});
-resizeObserver.observe(el("editor-host"));
+// EditorWorkspace owns its own observer. Avoid re-laying out both editors when
+// only the terminal changes, and merge resize bursts into one terminal fit.
+const terminalLayoutFrame = createFrameTask(() => terminal?.fit());
+const resizeObserver = new ResizeObserver(() => terminalLayoutFrame.schedule());
 resizeObserver.observe(el("terminal-surface"));
 
 /* ── Boot ─────────────────────────────────────────────────────────────── */
@@ -5007,6 +5035,7 @@ function registerCommands(): void {
     window.adcode.window.toggleFullScreen(),
   );
   add("view.toggleSidebar", "Toggle Side Bar", () => {
+    if (assistantDock?.mode() === "vibe") { showView(layoutState.activeSidebarView, "keyboard"); return; }
     if (layoutState.sidebarOpen) closeSidebar("keyboard");
     else showView(layoutState.activeSidebarView, "keyboard");
   });
@@ -5077,6 +5106,17 @@ function registerCommands(): void {
   );
   add("ai.team", "Set Up AI Team", () => chat.openTeamSetup());
   add("ai.schedule", "Schedule an AI Message", () => chat.openScheduleComposer());
+  add("ai.askSelection", "Ask AI about Selection or File", () => editorHost.runAction("adcode.askSelection"));
+  add("ai.explainSelection", "AI: Explain This Code", () => editorHost.runAction("adcode.explainSelection"));
+  add("ai.refactorSelection", "AI: Refactor This Code", () => editorHost.runAction("adcode.refactorSelection"));
+  add("ai.testSelection", "AI: Write Tests for This Code", () => editorHost.runAction("adcode.testSelection"));
+  add("ai.reviewSelection", "AI: Find Issues in This Code", () => editorHost.runAction("adcode.reviewSelection"));
+  add("workspace.vibe", "Switch to Vibe Mode", () => assistantDock?.setMode("vibe", true));
+  add("workspace.code", "Switch to Code Mode", () => assistantDock?.setMode("code", true));
+  add("workspace.project", "Show Workspace Project", () => assistantDock?.showContext("project"));
+  add("workspace.changes", "Show Workspace Changes", () => assistantDock?.showContext("changes"));
+  add("workspace.tasks", "Show Workspace Tasks", () => assistantDock?.showContext("tasks"));
+  add("workspace.preview", "Open Project Preview", () => { if (!previewPane.isOpen()) void previewPane.toggle(); });
   add("ai.terminalTeam", "Start an AI Team in the Terminal", () => void openTerminalTeamSetup());
   /*
    * A command rather than only a settings row, so the feature library, universal search and
@@ -5705,6 +5745,40 @@ openUniversalSearch = (seed = "") => universalSearch.open(seed);
 chat.onVisibilityChange((open) =>
   el("ai-toggle").setAttribute("aria-pressed", String(open)),
 );
+
+projectContext = createProjectContext({
+  root: () => workspaceRoot,
+  activeFile: () => activePath,
+  openFile: path => { void openFile(path); },
+  reviewGit: path => {
+    if (!path) { openSourceControlWorkspace("pointer"); return; }
+    void window.adcode.git.diff(path).then(diff => {
+      if (!diff.trim()) { void openFile(absolutePath(path)); return; }
+      const key = `adcode-diff:${path}`;
+      editorHost.open(key, diff, "diff");
+      editorHost.setReadOnly(key, true);
+      if (!tabs.some(tab => tab.path === key)) tabs.push({ path: key, name: `${basename(path)} · changes`, dirty: false });
+      activateTab(key);
+    }).catch(() => setStatus("Could not load this diff. Open Source Control to retry.", 4000));
+  },
+  reviewTask: task => chat.reviewTask(task),
+  ask: prompt => chat.ask(prompt),
+  run: command => commands.run(command),
+});
+assistantDock = createAssistantDock({
+  chat, workbench: el("workbench"), sidebar: el("sidebar"),
+  expandedHost: chatShell.surface,
+  openExpanded: () => openPrimaryPopup("chat", chatShell, document.querySelector<HTMLElement>(".project-tools") ?? chatLauncher, "keyboard"),
+  closeExpanded: () => { closePrimaryPopup("chat"); chatShell.close({ immediate: true, restoreFocus: false }); },
+  showFiles: () => showView("explorer"),
+  toggleTerminal: () => { void togglePanel(); },
+  context: projectContext,
+  focusEditor: () => { editorHost.layout(); editorHost.focus(); terminal?.fit(); },
+  openPreview: () => { void previewPane.toggle(); },
+  run: command => commands.run(command),
+  projectRoot: () => workspaceRoot,
+  layoutChanged: () => renderWorkbenchLayout(),
+});
 
 window.adcode.window.onCommand((command, arg) => commands.run(command, arg));
 

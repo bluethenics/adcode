@@ -448,7 +448,7 @@
 }
 
 .ad-notif[data-tone="success"] .ad-notif-dot { background: var(--success); }
-.ad-notif[data-tone="info"] .ad-notif-dot { background: var(--accent); }
+.ad-notif[data-tone="info"] .ad-notif-dot { background: var(--accent); color: var(--text-on-accent); }
 .ad-notif[data-tone="warning"] .ad-notif-dot { background: var(--warning); }
 .ad-notif[data-tone="error"] .ad-notif-dot { background: var(--danger); }
 

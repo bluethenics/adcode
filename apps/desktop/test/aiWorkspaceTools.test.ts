@@ -30,6 +30,18 @@ const call = (name: string, input: Record<string, unknown>): ToolCallBlock => ({
 });
 
 describe("sandboxed built-in AI tools", () => {
+  it("opens the saved project preview without allocating an edit sandbox", async () => {
+    const workspace = vi.fn(async () => null);
+    const status = { running: true, starting: false, root: human, url: "http://127.0.0.1:4000/", mode: "static" as const, label: null, error: null };
+    const runner = createAiToolRunner({
+      workspace, memory: () => null, writeSandboxFile: vi.fn(), onProposedEdit: vi.fn(),
+      openPreview: async () => status,
+    });
+    const result = await runner.run(call("open_preview", {}), new AbortController().signal);
+    expect(result.isError).toBe(false);
+    expect(JSON.parse(result.content)).toMatchObject({ type: "live-preview", status });
+    expect(workspace).not.toHaveBeenCalled();
+  });
   it("reads, lists, and searches the task sandbox instead of the human project", async () => {
     const runner = createAiToolRunner({
       workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),

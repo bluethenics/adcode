@@ -17,9 +17,9 @@ export const APPEARANCE_ENTRIES: readonly HelpEntry[] = [
   {
     id: "adcode.appearance.theme",
     title: "Appearance",
-    plain: "Light or dark. System means it matches whatever your computer is set to.",
+    plain: "Warm light, charcoal dark, or midnight. System follows your computer's appearance.",
     why: "Dark is easier at night, light is easier in daylight, and following the system means you never think about it.",
-    how: "System by default, which also picks up your computer's accent colour. Choose Light or Dark to override it.",
+    how: "Light is the default for new installs. Choose Dark, Midnight, or System in Settings. Your explicit preference stays selected across modes.",
     group: "appearance",
     settingIds: ["adcode.appearance.theme"],
     related: ["adcode.appearance.density"],

@@ -115,11 +115,21 @@ function resultPage(heading: string, detail: string, _ok: boolean): string {
    */
   const mark = `<svg viewBox="0 0 1024 1024" width="52" height="52" fill="none"
     stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M320 348L140 512L320 676" stroke-width="56"/>
-    <path d="M704 348L884 512L704 676" stroke-width="56"/>
-    <path d="M512 322V365" stroke-width="42"/>
-    <path d="M512 662V702" stroke-width="42"/>
-    <path d="M584 405C563 374 531 356 494 356C446 356 413 383 413 423C413 463 444 484 505 500C569 517 606 541 606 590C606 641 565 671 511 671C466 671 429 651 405 619" stroke-width="56"/>
+    <path d="M320 348L140 512L320 676" stroke-width="96"/>
+    <path d="M704 348L884 512L704 676" stroke-width="96"/>
+    <path d="M512 296V388" stroke-width="64"/>
+    <path d="M512 636V728" stroke-width="64"/>
+    <path d="M584 405C563 374 531 356 494 356C446 356 413 383 413 423C413 463 444 484 505 500C569 517 606 541 606 590C606 641 565 671 511 671C466 671 429 651 405 619" stroke-width="92"/>
+    <path d="M128 478L128 546L198 512Z" fill="#000" opacity=".32" stroke="none"/>
+    <path d="M896 478L896 546L826 512Z" fill="#000" opacity=".32" stroke="none"/>
+    <path d="M292 358L164 474" stroke="#fff" stroke-width="20" opacity=".26"/>
+    <path d="M732 358L860 474" stroke="#fff" stroke-width="20" opacity=".26"/>
+    <path d="M164 550L292 666" stroke="#000" stroke-width="20" opacity=".2"/>
+    <path d="M860 550L732 666" stroke="#000" stroke-width="20" opacity=".2"/>
+    <path d="M480 340L544 340L522 394L498 394Z" fill="#000" opacity=".3" stroke="none"/>
+    <path d="M480 630L544 630L522 684L498 684Z" fill="#000" opacity=".3" stroke="none"/>
+    <path d="M492 512Q560 536 512 576" stroke="#000" stroke-width="32" opacity=".22"/>
+    <path d="M440 400Q450 375 490 368" stroke="#fff" stroke-width="15" opacity=".24"/>
   </svg>`;
 
   return `<!doctype html>

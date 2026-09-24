@@ -39,6 +39,7 @@ export interface ReportInput {
 }
 
 import type { ActivityDelta } from "./activity.ts";
+import type { AssistantControlAction, AssistantControlsView } from "./assistantControls.ts";
 
 export type { ActivityDelta };
 
@@ -496,6 +497,10 @@ export const CHANNELS = {
   aiSetKey: "ai:set-key",
   aiClearKey: "ai:clear-key",
   aiSend: "ai:send",
+  aiControlsRead: "ai-controls:read",
+  aiControlsAction: "ai-controls:action",
+  aiControlsPreviewSkill: "ai-controls:preview-skill",
+  aiControlsChanged: "ai-controls:changed",
   aiCompletion: "ai:completion",
   aiCancelCompletion: "ai:cancel-completion",
   aiCancel: "ai:cancel",
@@ -1483,6 +1488,10 @@ export interface AdcodeApi {
     connection(): Promise<McpConnectionInfo>;
   };
   readonly ai: {
+    controls(): Promise<AssistantControlsView>;
+    control(action: AssistantControlAction): Promise<AssistantControlsView>;
+    previewSkill(id: string): Promise<string>;
+    onControlsChanged(listener: () => void): () => void;
     status(): Promise<AiStatus>;
     setKey(provider: string, key: string): Promise<AiStatus>;
     clearKey(provider: string): Promise<AiStatus>;

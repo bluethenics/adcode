@@ -180,8 +180,8 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     group: "appearance",
     kind: "enum",
     label: "Appearance",
-    description: "Follows the system by default. Midnight is the look the website wears.",
-    default: "system",
+    description: "Warm light by default. Choose Dark, Midnight, or follow your system.",
+    default: "light",
     available: true,
     options: [
       { value: "system", label: "System" },

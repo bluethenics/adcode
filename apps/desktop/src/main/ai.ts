@@ -69,9 +69,12 @@ import {
 import { recordAgentEdit } from "./activity.ts";
 import { createKeychainStore } from "./keychain.ts";
 import { createAiToolRunner, type ProposedEdit } from "./aiTools.ts";
+import { ASSISTANT_EXTENSION_TOOLS, withAssistantExtensions } from "./assistantControls.ts";
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings } from "./settings.ts";
 import { currentWorkspace } from "./workspace.ts";
+import { aiWorkspaceContext } from "./aiWorkspaceContext.ts";
+import { OPEN_PREVIEW, openAiPreview } from "./aiPreview.ts";
 import { clearSessions, deleteSession, readSessions, writeSession } from "./aiSessions.ts";
 import { createAiWorkspaceService, type AiWorkspaceService } from "./aiWorkspaceService.ts";
 import { agentEventTrace } from "./aiEventTrace.ts";
@@ -506,6 +509,7 @@ export async function buildProvider(id: string, offeredKey?: string): Promise<Pr
 
 function toolRunner() {
   return createAiToolRunner({
+    openPreview: () => openAiPreview(broadcast),
     workspace: ensureToolWorkspace,
     workspaceUnavailableMessage: () =>
       taskWorkspaceUnavailableReason ?? "No folder is open, so there is nothing to work on yet.",
@@ -743,8 +747,17 @@ export async function aiSend(text: string, attachments: readonly AiAttachmentVie
       agent = createAgent({
         provider,
         model,
-        tools: memoryEnabled ? BUILT_IN_TOOLS : TOOLS_WITHOUT_MEMORY,
-        runner: toolRunner(),
+        tools: [...(memoryEnabled ? BUILT_IN_TOOLS : TOOLS_WITHOUT_MEMORY), OPEN_PREVIEW, ...ASSISTANT_EXTENSION_TOOLS],
+        context: async () => {
+          const root = currentWorkspace()?.root ?? null;
+          const blocker = currentSettings()["adcode.ai.isolatedWorkspaces"] === false
+            ? "Enable Isolate AI edits in Settings to use file tools."
+            : root !== null && workspaceHasUnsavedDraft(root, await recoverableDrafts())
+              ? "Save open file changes so the task can start from the current files."
+              : null;
+          return aiWorkspaceContext(root, blocker);
+        },
+        runner: withAssistantExtensions(toolRunner()),
         beforeRequest: async (request) => {
           // Chat without an open project remains available. With a project, every model
           // round-trip reserves a conservative maximum before it can spend the user's key.
