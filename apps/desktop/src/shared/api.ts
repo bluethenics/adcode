@@ -650,6 +650,7 @@ export const CHANNELS = {
   pinPromptSettle: "pin:settle",
   pinPromptPin: "pin:pin",
   updateStatus: "update:status",
+  updateCheck: "update:check",
   serviceNotice: "notice:show",
   releaseAnnouncement: "release:announcement",
   releaseMarkSeen: "release:mark-seen",
@@ -1739,6 +1740,7 @@ export interface AdcodeApi {
   };
   readonly updates: {
     status(): Promise<UpdateStatus>;
+    check(): Promise<UpdateStatus>;
     onChanged(listener: (status: UpdateStatus) => void): () => void;
   };
   readonly support: {

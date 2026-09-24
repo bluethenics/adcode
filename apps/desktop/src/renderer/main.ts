@@ -2916,6 +2916,8 @@ function updateMessage(
     return "Could not reach the update service. Try again shortly.";
 
   switch (status.state) {
+    case "idle":
+      return "The update check has not run yet.";
     case "ready":
       return `Version ${status.version} is downloaded. Restart ADCode to apply it.`;
     case "downloading":
@@ -5355,7 +5357,8 @@ function registerCommands(): void {
   });
 
   add("updates.check", "Check for Updates", async () => {
-    const status = await window.adcode.updates.status().catch(() => null);
+    setStatus("Checking for updates…", 6000);
+    const status = await window.adcode.updates.check().catch(() => null);
     const info = await window.adcode.app.info().catch(() => null);
     setStatus(updateMessage(status, info?.version ?? null), 6000);
   });

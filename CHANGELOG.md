@@ -3,6 +3,10 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 1.0.4 — 2026-09-24
+
+- Make Check for Updates perform a fresh check, including when automatic checks are off, and report a downloaded update instead of incorrectly calling the installed version current.
+
 ## 1.0.3 — 2026-09-24
 
 - Show sponsored messages in the Vibe sidebar when there is room, with the existing notification placement as a fallback. The same local frequency limits and impression rules apply in both modes.

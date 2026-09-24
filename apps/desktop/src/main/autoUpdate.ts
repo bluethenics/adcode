@@ -20,6 +20,8 @@ const RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 let status: UpdateStatus = { state: "idle" };
 let listeners: ((next: UpdateStatus) => void)[] = [];
+let initialization: Promise<void> | null = null;
+let requestCheck: (() => Promise<void>) | null = null;
 
 function setStatus(next: UpdateStatus): void {
   status = next;
@@ -57,7 +59,12 @@ function updatable(): boolean {
   });
 }
 
-export async function startAutoUpdate(enabled: () => boolean): Promise<void> {
+export function startAutoUpdate(enabled: () => boolean): Promise<void> {
+  initialization = initializeAutoUpdate(enabled);
+  return initialization;
+}
+
+async function initializeAutoUpdate(enabled: () => boolean): Promise<void> {
   if (!updatable()) {
     setStatus({ state: "unsupported" });
     return;
@@ -90,19 +97,35 @@ export async function startAutoUpdate(enabled: () => boolean): Promise<void> {
     setStatus({ state: "failed" });
   });
 
-  const check = async (): Promise<void> => {
-    if (!enabled()) return;
-    try {
-      await updater.checkForUpdates();
-    } catch {
-      setStatus({ state: "failed" });
-    }
+  let activeCheck: Promise<void> | null = null;
+  const check = (): Promise<void> => {
+    if (status.state === "ready" || status.state === "downloading") return Promise.resolve();
+    if (activeCheck !== null) return activeCheck;
+    activeCheck = (async () => {
+      try {
+        await updater.checkForUpdates();
+      } catch {
+        setStatus({ state: "failed" });
+      } finally {
+        activeCheck = null;
+      }
+    })();
+    return activeCheck;
   };
+  requestCheck = check;
 
-  setTimeout(() => void check(), FIRST_CHECK_DELAY_MS);
-  setInterval(() => void check(), RECHECK_INTERVAL_MS);
+  setTimeout(() => { if (enabled()) void check(); }, FIRST_CHECK_DELAY_MS);
+  setInterval(() => { if (enabled()) void check(); }, RECHECK_INTERVAL_MS);
+}
+
+/** A menu request performs a check even when automatic checks are switched off. */
+export async function checkForUpdatesNow(): Promise<UpdateStatus> {
+  if (initialization !== null) await initialization;
+  if (requestCheck !== null) await requestCheck();
+  return status;
 }
 
 export function registerUpdateIpc(): void {
   ipcMain.handle(CHANNELS.updateStatus, () => currentUpdateStatus());
+  ipcMain.handle(CHANNELS.updateCheck, () => checkForUpdatesNow());
 }
