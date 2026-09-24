@@ -760,14 +760,57 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Use History for past conversations and the activity panel for agents, tasks, and review controls. Toggle either panel for more writing space.",
       "Press Escape to dismiss it; the conversation survives dismissal.",
       "Reopen later, find older conversations grouped by recency, or choose Share to copy one as markdown.",
+      "On an empty conversation, pick a starter - Build something, Fix an error, Explain this project, Review my changes, Write tests or Find bugs - to get going in one click.",
+      "If a long task stops at the step limit, choose Continue and the assistant picks up where it stopped with everything it already did.",
     ],
     benefits: [
-      "No copy-pasting context into a browser window - it already has the project.",
+      "No copy-pasting context into a browser window - it already has the project, the file you are on and what you selected.",
+      "Changes to existing files are exact replacements rather than full rewrites, so large files are edited quickly and nothing outside the change can be dropped.",
+      "Several files are read at once, and a single request can run up to 50 steps - reading, editing, running tests - before it needs you.",
       "Conversation history is saved per project on your machine. Prompts and relevant context go to your selected model provider when you send a request.",
       "The history is searchable, renameable, and clearable - including a single button that wipes memory.",
     ],
     betterThan:
       "Web AI chats know nothing about your files unless you paste them, which trains you to leak code into somebody else's logs. The widget answers in place, with the project as context, and shows you exactly what it remembers.",
+  },
+
+  "ai-inline-edit": {
+    steps: [
+      "Open a file in Code mode and select the lines you want changed. To generate new code instead, just put the cursor where it should go.",
+      "Press Ctrl+E, or right-click and choose ADCode: Edit with AI. A prompt bar opens right above the selection and pushes the code down rather than covering it.",
+      "Type what you want - \"add input validation\", \"convert this to async/await\", \"handle the empty list\" - and press Enter.",
+      "The rewrite lands in place, highlighted green, with the lines it replaced shown struck through above it so you can compare at a glance.",
+      "Press Ctrl+Enter or Accept to keep it. Press Esc or Reject to put the original back exactly.",
+      "Not quite right? Type a follow-up such as \"also log the error\" and press Enter to refine the result without starting over.",
+      "Save when you are happy. Until then it is an ordinary unsaved change, and Ctrl+Z undoes it.",
+    ],
+    benefits: [
+      "Small edits never leave the code: no conversation, no copy and paste, no switching panels.",
+      "You see exactly what changed before you keep it, and one key undoes it after.",
+      "Nothing reaches disk until you save, the same review-first promise the assistant makes for bigger work.",
+      "It uses whichever model you connected, including local ones, and sends only the selection plus the code around it.",
+    ],
+    betterThan:
+      "Inline edit is the feature people switch editors for, and elsewhere it is often a paid extra tied to one vendor's models. In ADCode it is built in, works with the model you already connected, and shows the replaced lines beside the rewrite instead of asking you to trust a silent swap. Unlike a chat answer you paste yourself, the change is exact, undoable and scoped to what you selected.",
+  },
+
+  "ai-composer-commands": {
+    steps: [
+      "Open the Assistant (Ctrl+I) and type / at the start of the composer to see every command.",
+      "Keep typing to filter - /re finds /review and /refactor - then press Enter or Tab. Arrow keys move through the list; Esc closes it.",
+      "Choose /review to attach your uncommitted changes and get a bug-focused review with file and line, or /commit for a ready-to-use commit message.",
+      "Choose /fix, /test, /plan, /refactor, /explain, /optimize, /security, /docs or /build to start a carefully worded request, then add your own details and send.",
+      "Type @ anywhere in a message to search your project's files. Pick one and it rides along as a chip; if it is open in the editor, its unsaved text is what gets sent.",
+      "In an empty composer, press the Up arrow to bring back what you sent before - handy for re-running a request after a fix.",
+    ],
+    benefits: [
+      "Common requests take two keystrokes, and each one asks for verification - tests run, typechecks pass - instead of an unchecked guess.",
+      "/review reads the real diff from git, including staged work and newly added files, so nothing gets reviewed from memory.",
+      "@ puts exactly the file you mean in front of the model, which saves a round of it searching for the wrong one.",
+      "Everything stays review-first: commands that change code still stage proposals you apply yourself.",
+    ],
+    betterThan:
+      "Most chat panels make you type the same careful instructions again and again, or keep them in a notes file. ADCode ships the good versions as commands, reads your diff for you, and lets you point at a file with @ instead of pasting it, so the prompt you send is the prompt an experienced engineer would write.",
   },
 
   "ai-team": {
@@ -1112,6 +1155,24 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     betterThan:
       "Editors usually give you either a chat panel bolted beside the code or a chat app that cannot see it. Two modes over one shared session means the conversation-first view and the editor-first view are the same project, not two tools pretending.",
+  },
+
+  "workbench-ai-context": {
+    steps: [
+      "Just ask. Every message already tells the assistant which file you are on, where your cursor is, what you have selected, which tabs are open and which errors the editor shows.",
+      "Say \"fix this\" or \"what does this function do\" and it answers about the code in front of you - no pasting, no file names.",
+      "To hand over a specific piece, select it and press Ctrl+L, or right-click and choose ADCode: Add Selection to Chat. It lands in the composer as a chip, so you can add a question before sending.",
+      "With nothing selected, Ctrl+L still selects the current line, exactly as it does in other editors.",
+      "Right-click for Explain, Refactor, Write Tests and Find Issues to start from a prepared request you can edit before sending.",
+    ],
+    benefits: [
+      "The assistant resolves \"this\", \"here\" and \"this file\" the way a colleague looking over your shoulder would.",
+      "Unsaved code counts: what it sees is the editor buffer, not the last saved file.",
+      "Errors the editor already found go along too, so \"fix the errors\" needs no further explanation.",
+      "In Vibe mode, where the editor is hidden, only file names and errors are shared - never a stale selection you cannot see.",
+    ],
+    betterThan:
+      "Browser chats and many plugins start every question blind, so you paste code, then paste the error, then explain which file it came from. ADCode sends that context with the message automatically and keeps Ctrl+L for when you want to point at something precisely.",
   },
 
   "workbench-all-features": {

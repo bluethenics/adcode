@@ -57,6 +57,7 @@ privacy rules, validation, and rollback guarantees.
 
 On macOS, use Command where a shortcut below says Ctrl.
 
+- Edit with AI: `Ctrl+E`
 - Inline completion: `Alt+\`
 - Multi-cursor: `Ctrl/Cmd+D`
 - Built-in formatter: `Shift+Alt+F`
@@ -66,6 +67,7 @@ On macOS, use Command where a shortcut below says Ctrl.
 - Symbol search: `Ctrl/Cmd+T`
 - Global search and replace: `Ctrl/Cmd+Shift+F`
 - Auto-save after delay: `Ctrl/Cmd+S`
+- Ask AI about your code: `Ctrl+L`
 - Command palette: `Ctrl/Cmd+Shift+P`
 - Selecting and moving files: `F2`
 
@@ -533,7 +535,7 @@ A spacious conversation workspace with searchable history, a live thinking-and-w
 
 Why use it: Asking in the editor beats copying code into a browser, because the assistant can already see the project.
 
-How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. While it works, one activity block per answer shows the current step with elapsed time — thinking notes and tool calls stream in as rows, each tool gaining a checkmark when done. When it finishes the block collapses to Worked for Ns; select its header to expand it again. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers Copy, Retry, and helpful or not helpful. Use History to browse conversations and the activity panel to see agent work and review changes. Share copies the conversation as markdown. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation.
+How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. While it works, one activity block per answer shows the current step with elapsed time — thinking notes and tool calls stream in as rows, each tool gaining a checkmark when done. When it finishes the block collapses to Worked for Ns; select its header to expand it again. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers Copy, Retry, and helpful or not helpful. Use History to browse conversations and the activity panel to see agent work and review changes. Share copies the conversation as markdown. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation. The assistant changes existing files with exact replacements instead of rewriting them, reads several files at once, and works through up to 50 steps per request; if it stops at a limit, Continue picks up where it left off. On an empty conversation, six starters - Build something, Fix an error, Explain this project, Review my changes, Write tests and Find bugs - get going in one click.
 
 Access: `All Features → AI chat workspace`; `Turn on or off`; `Settings`.
 
@@ -614,6 +616,17 @@ How to use it: Set Provider to Custom, paste the address, and give it your key. 
 
 Access: `All Features → Custom endpoint`; `Settings`.
 
+<!-- feature:ai.inlineEdit -->
+### Edit with AI
+
+Select code, press Ctrl+E and say what to change. The rewrite appears in place, highlighted green under the struck-out original, for you to accept or reject.
+
+Why use it: Small changes should not need a conversation. Adding error handling, renaming across a function or converting a loop happens where you are looking, and nothing reaches disk until you save.
+
+How to use it: In Code mode, select the lines to change - or put the cursor where new code should go - and press Ctrl+E, or right-click and choose ADCode: Edit with AI. Type an instruction such as "add input validation" and press Enter. The new code appears highlighted green with the lines it replaced shown struck through above it. Press Ctrl+Enter or Accept to keep it, Esc or Reject to put the original back, or type a follow-up to refine the result. An accepted edit is an ordinary unsaved change: Ctrl+Z undoes it, and it is saved only when you save. It uses the model chosen in Connect a model and sends only the selection and the code around it.
+
+Access: `All Features → Edit with AI`; `Edit with AI`; `Keyboard → Ctrl+E`.
+
 <!-- feature:adcode.ai.inlineCompletion -->
 ### Inline completion
 
@@ -690,6 +703,17 @@ Why use it: A reminder that can actually reach the assistant is useful for follo
 How to use it: Choose Schedule beside the chat composer, choose where to send the message and set a local time, then confirm. Built-in chat is always available. For a detected terminal AI, first choose Allow next schedule while its prompt is visibly waiting; later terminal activity removes that one-time permission. If ADCode, the project, or scheduled messages are unavailable at delivery time, the message is marked missed and waits for you to choose Run now.
 
 Access: `All Features → Scheduled AI messages`; `Schedule`; `Turn on or off`; `Settings`.
+
+<!-- feature:ai.composerCommands -->
+### Slash commands and @ files
+
+Type / in the assistant's composer for ready-made commands like /review and /test, or @ to put any project file in the conversation.
+
+Why use it: Typing is faster than hunting for a button, and each command asks the way an experienced engineer would - including checking its own work - so answers come back verified rather than guessed.
+
+How to use it: Type / at the start of the composer to list every command; keep typing to filter, then press Enter or Tab. /review and /commit attach your uncommitted changes and ask for a review or a commit message. /fix, /test, /plan, /refactor, /explain, /optimize, /security, /docs and /build write a careful prompt that you finish in your own words. /new, /history, /model, /preview, /team and /schedule act at once. Type @ anywhere to search the project's files and add one as a chip; a file open in the editor sends its unsaved text. In an empty composer, the Up arrow brings back your earlier prompts.
+
+Access: `All Features → Slash commands and @ files`; `Show commands`; `Add a file`.
 
 <!-- feature:adcode.ai.taskTokenBudget -->
 ### Task token budget
@@ -854,13 +878,13 @@ Access: `All Features → All Features`; `Open`; `Preferences`; `Full screen`; `
 <!-- feature:workbench.aiContext -->
 ### Ask AI about your code
 
-Send the current editor selection or buffer into your assistant's composer.
+The assistant already sees the file you are on, your cursor, your selection and the editor's errors. Ctrl+L adds a selection to the conversation as a chip.
 
-Why use it: Ask about unsaved code, prepare a refactor, find issues or write tests without copying between tools.
+Why use it: "Fix this" and "what does this function do" should just work. Ask about unsaved code, prepare a refactor, find issues or write tests without copying between tools.
 
-How to use it: Select code and choose Ask AI in the file header. Right-click for Explain, Refactor, Write Tests and Find Issues. Edit the prepared instructions, then send.
+How to use it: Nothing to switch on: every message carries the file you are looking at, the cursor line, any selected code, your open tabs and the errors and warnings the editor reports, so the assistant knows what "this" means. Select code and press Ctrl+L, or right-click and choose ADCode: Add Selection to Chat, to put it in the composer as a chip without sending - then ask your question. With nothing selected, Ctrl+L still selects the line as usual. Right-click for Explain, Refactor, Write Tests and Find Issues, which prepare instructions you edit before sending. In Vibe mode the editor is hidden, so only file names and errors are shared, never a stale selection.
 
-Access: `All Features → Ask AI about your code`; `Ask AI`; `Explain`; `Refactor`; `Write tests`; `Find issues`.
+Access: `All Features → Ask AI about your code`; `Add to chat`; `Ask AI`; `Explain`; `Refactor`; `Write tests`; `Find issues`; `Keyboard → Ctrl+L`.
 
 <!-- feature:workbench.terminal -->
 ### Built-in terminal

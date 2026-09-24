@@ -256,3 +256,53 @@
   text-decoration-skip-ink: none;
   text-underline-offset: 2px;
 }
+
+/* ── Ctrl+E: edit with AI, in place ───────────────────────────────────────
+   The prompt and the replaced text share one view zone above the rewrite, so
+   code is pushed down rather than covered. Green marks what the model wrote;
+   the struck red block above it is what it replaced. */
+.ai-inline-edit { box-sizing: border-box; padding: 4px 12px 4px 4px; font-family: var(--font-ui, inherit); }
+.ai-inline-edit-bar {
+  display: flex; align-items: center; gap: 8px; height: 34px; max-width: 760px; padding: 0 6px 0 8px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--bg-elevated);
+  box-shadow: var(--shadow-surface);
+}
+.ai-inline-edit:focus-within .ai-inline-edit-bar { border-color: var(--accent); }
+.ai-inline-edit-mark {
+  flex: none; padding: 1px 5px; border-radius: 4px; background: var(--accent); color: var(--bg-editor);
+  font-size: 10px; font-weight: 700; letter-spacing: .04em;
+}
+.ai-inline-edit-input {
+  flex: 1; min-width: 0; height: 26px; padding: 0 4px; border: 0; outline: none; background: transparent;
+  color: var(--text-primary); font: inherit; font-size: 13px;
+}
+.ai-inline-edit-input::placeholder { color: var(--text-tertiary); }
+.ai-inline-edit-status { flex: none; max-width: 40%; overflow: hidden; color: var(--text-secondary); font-size: var(--text-xs); white-space: nowrap; text-overflow: ellipsis; }
+.ai-inline-edit[data-state="working"] .ai-inline-edit-status::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border: 1.5px solid currentColor;
+  border-right-color: transparent; border-radius: 50%; vertical-align: -1px; animation: ai-inline-edit-spin .8s linear infinite;
+}
+@keyframes ai-inline-edit-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ai-inline-edit[data-state="working"] .ai-inline-edit-status::before { animation: none; } }
+.ai-inline-edit-actions { display: flex; flex: none; gap: 4px; }
+.ai-inline-edit-button {
+  height: 24px; padding: 0 10px; border: 1px solid var(--border-hairline); border-radius: 5px; background: transparent;
+  color: var(--text-primary); font: inherit; font-size: var(--text-xs); font-weight: 550; cursor: pointer;
+}
+.ai-inline-edit-button:hover { background: var(--bg-hover); }
+.ai-inline-edit-button.is-primary { border-color: var(--accent); background: var(--accent); color: var(--bg-editor); }
+.ai-inline-edit-button.is-primary:hover { opacity: .9; }
+.ai-inline-edit-button:focus-visible, .ai-inline-edit-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ai-inline-edit-removed {
+  margin-top: 6px; padding: 2px 0; overflow: hidden; border-left: 2px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  font-family: "SF Mono", "JetBrains Mono", "Cascadia Code", ui-monospace, Consolas, monospace; font-size: 13px;
+}
+.ai-inline-edit-removed[hidden] { display: none; }
+.ai-inline-edit-removed-line, .ai-inline-edit-removed-more {
+  height: 20px; padding-left: 10px; overflow: hidden; line-height: 20px; white-space: pre; text-overflow: ellipsis;
+  text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 55%, transparent); opacity: .85;
+}
+.ai-inline-edit-removed-more { color: var(--text-secondary); font-style: italic; text-decoration: none; }
+.monaco-editor .ai-inline-edit-added { background: color-mix(in srgb, var(--success) 13%, transparent); }
+.monaco-editor .ai-inline-edit-added-gutter { border-left: 3px solid var(--success); margin-left: 3px; }

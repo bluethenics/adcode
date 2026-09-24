@@ -503,6 +503,8 @@ export const CHANNELS = {
   aiControlsChanged: "ai-controls:changed",
   aiCompletion: "ai:completion",
   aiCancelCompletion: "ai:cancel-completion",
+  aiInlineEdit: "ai:inline-edit",
+  aiCancelInlineEdit: "ai:cancel-inline-edit",
   aiCancel: "ai:cancel",
   aiReset: "ai:reset",
   aiAnswerAnyway: "ai:answer-anyway",
@@ -1055,6 +1057,21 @@ export interface AiAutomationCreateInputView {
 }
 
 /** Bounded, path-free context for one cancellable ghost-text request. */
+/** Ctrl+E in the editor: rewrite the selection (or insert at the cursor) from one instruction. */
+export interface AiInlineEditInputView {
+  readonly instruction: string;
+  readonly languageId: string;
+  /** Workspace-relative display path, for the model's orientation only. */
+  readonly path: string;
+  readonly before: string;
+  readonly selection: string;
+  readonly after: string;
+}
+
+export type AiInlineEditResultView =
+  | { readonly ok: true; readonly text: string }
+  | { readonly ok: false; readonly error: string };
+
 export interface AiCompletionInputView {
   readonly requestId: number;
   readonly languageId: string;
@@ -1070,6 +1087,23 @@ export interface AiCompletionInputView {
  * ride along for labels and session markers - never paths, which would leak the
  * shape of the user's filesystem into logs and session files.
  */
+/**
+ * What the user is looking at when they send: the active file, where the cursor is, what is
+ * selected, and which other files are open. Rides with one send; the main process folds it
+ * into the per-turn host context so "this file" and "this function" mean something.
+ * Paths are workspace-relative display paths, never absolute ones.
+ */
+export interface AiEditorContextView {
+  readonly mode: "vibe" | "code";
+  readonly activeFile: string | null;
+  readonly languageId: string | null;
+  readonly cursorLine: number | null;
+  readonly selection: { readonly startLine: number; readonly endLine: number; readonly text: string } | null;
+  readonly openFiles: readonly string[];
+  /** Errors and warnings Monaco currently reports in the active file. */
+  readonly problems: readonly string[];
+}
+
 export interface AiAttachmentView {
   readonly name: string;
   readonly kind: "image" | "text";
@@ -1516,9 +1550,12 @@ export interface AdcodeApi {
      * Attachments ride with this turn only: images as multimodal parts, text
      * documents inlined as fenced context. History replays stay text-only.
      */
-    send(text: string, attachments?: readonly AiAttachmentView[]): Promise<boolean>;
+    send(text: string, attachments?: readonly AiAttachmentView[], editor?: AiEditorContextView | null): Promise<boolean>;
     complete(input: AiCompletionInputView): Promise<string | null>;
     cancelCompletion(requestId: number): void;
+    /** One tool-free rewrite of an editor selection; the result lands in the buffer for review. */
+    inlineEdit(input: AiInlineEditInputView): Promise<AiInlineEditResultView>;
+    cancelInlineEdit(): void;
     cancel(): void;
     reset(): void;
     /** Answer the next turn without file tools, once (see aiAnswerAnyway). */

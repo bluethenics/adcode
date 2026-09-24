@@ -22,12 +22,13 @@ export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
   {
     id: "workbench.aiContext",
     title: "Ask AI about your code",
-    plain: "Send the current editor selection or buffer into your assistant's composer.",
-    why: "Ask about unsaved code, prepare a refactor, find issues or write tests without copying between tools.",
-    how: "Select code and choose Ask AI in the file header. Right-click for Explain, Refactor, Write Tests and Find Issues. Edit the prepared instructions, then send.",
+    plain: "The assistant already sees the file you are on, your cursor, your selection and the editor's errors. Ctrl+L adds a selection to the conversation as a chip.",
+    why: "\"Fix this\" and \"what does this function do\" should just work. Ask about unsaved code, prepare a refactor, find issues or write tests without copying between tools.",
+    how: "Nothing to switch on: every message carries the file you are looking at, the cursor line, any selected code, your open tabs and the errors and warnings the editor reports, so the assistant knows what \"this\" means. Select code and press Ctrl+L, or right-click and choose ADCode: Add Selection to Chat, to put it in the composer as a chip without sending - then ask your question. With nothing selected, Ctrl+L still selects the line as usual. Right-click for Explain, Refactor, Write Tests and Find Issues, which prepare instructions you edit before sending. In Vibe mode the editor is hidden, so only file names and errors are shared, never a stale selection.",
     group: "workbench",
     settingIds: [],
-    related: ["workbench.modes"],
+    shortcut: "Ctrl+L",
+    related: ["workbench.modes", "ai.inlineEdit", "ai.composerCommands"],
   },
   {
     id: "workbench.allFeatures",

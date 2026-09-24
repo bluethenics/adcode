@@ -87,7 +87,9 @@ import {
   aiApplyHunks,
   aiCancel,
   aiCancelCompletion,
+  aiCancelInlineEdit,
   aiCompletion,
+  aiInlineEdit,
   aiReset,
   aiSend,
   aiStatus,
@@ -126,7 +128,8 @@ import {
   createAiTeamId,
 } from "./ai.ts";
 import { parseAiAttachments } from "./aiAttachmentsIpcValidation.ts";
-import { parseAiCompletionInput } from "./aiCompletionIpcValidation.ts";
+import { parseAiEditorContext } from "./aiWorkspaceContext.ts";
+import { parseAiCompletionInput, parseAiInlineEditInput } from "./aiCompletionIpcValidation.ts";
 import {
   parseAiAutomationCreate,
   validAiAutomationId,
@@ -962,9 +965,9 @@ export function registerIpc(): void {
     return clearProviderKey(provider);
   });
 
-  ipcMain.handle(CHANNELS.aiSend, (_event, text: unknown, attachments: unknown) => {
+  ipcMain.handle(CHANNELS.aiSend, (_event, text: unknown, attachments: unknown, editor: unknown) => {
     if (!isString(text)) throw new Error("expected text");
-    return aiSend(text, parseAiAttachments(attachments));
+    return aiSend(text, parseAiAttachments(attachments), parseAiEditorContext(editor));
   });
 
   ipcMain.handle(CHANNELS.aiCompletion, (_event, input: unknown) =>
@@ -975,6 +978,11 @@ export function registerIpc(): void {
       aiCancelCompletion(requestId as number);
     }
   });
+
+  ipcMain.handle(CHANNELS.aiInlineEdit, (_event, input: unknown) =>
+    aiInlineEdit(parseAiInlineEditInput(input)),
+  );
+  ipcMain.on(CHANNELS.aiCancelInlineEdit, () => aiCancelInlineEdit());
 
   ipcMain.on(CHANNELS.aiCancel, () => aiCancel());
   ipcMain.on(CHANNELS.aiReset, () => aiReset());

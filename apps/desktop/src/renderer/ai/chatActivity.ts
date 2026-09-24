@@ -85,10 +85,13 @@ export function toolHeaderLabel(toolName: string): string {
   if (clean === "discover_capabilities") return "Finding tools and skills";
   if (clean === "load_skill") return "Reading skill instructions";
   if (clean === "call_mcp") return "Using an MCP tool";
-  if (/^read/i.test(clean)) return "Reading project notes";
+  if (clean === "read_file") return "Reading files";
+  if (clean === "edit_file" || clean === "propose_edit") return "Editing files";
+  if (clean === "project_context" || /^memory/i.test(clean)) return "Reading project notes";
+  if (/^read/i.test(clean)) return "Reading files";
   if (/write|edit|apply|patch/i.test(clean)) return "Editing files";
   if (/search|grep|glob|find/i.test(clean)) return "Searching the project";
-  if (/outline|symbol/i.test(clean)) return "Reading project notes";
+  if (/outline|symbol/i.test(clean)) return "Outlining a file";
   if (/fetch|url/i.test(clean)) return "Reading the web";
   if (/run|exec|bash|terminal|command/i.test(clean)) return "Running a command";
   if (/preview|image|generate/i.test(clean)) return "Creating a preview";

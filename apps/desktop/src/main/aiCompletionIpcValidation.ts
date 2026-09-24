@@ -1,4 +1,4 @@
-import type { AiCompletionInputView } from "../shared/api.ts";
+import type { AiCompletionInputView, AiInlineEditInputView } from "../shared/api.ts";
 
 const MAX_PREFIX = 6_000;
 const MAX_SUFFIX = 2_000;
@@ -29,4 +29,28 @@ export function parseAiCompletionInput(value: unknown): AiCompletionInputView {
     throw new Error("AI completion suffix is too large");
   }
   return { requestId: requestId as number, languageId, prefix, suffix };
+}
+
+const MAX_INSTRUCTION = 4_000;
+const MAX_CONTEXT = 12_000;
+const MAX_SELECTION = 24_000;
+
+/** Ctrl+E's request. Bounded here, where the renderer's trimming becomes enforcement. */
+export function parseAiInlineEditInput(value: unknown): AiInlineEditInputView {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Inline edit request must be an object");
+  }
+  const input = value as Record<string, unknown>;
+  const { instruction, languageId, path, before, selection, after } = input;
+  if (typeof instruction !== "string" || instruction.trim().length === 0 || instruction.length > MAX_INSTRUCTION) {
+    throw new Error("Inline edit instruction is invalid");
+  }
+  if (typeof languageId !== "string" || !/^[a-z0-9+_.#-]{1,40}$/i.test(languageId)) {
+    throw new Error("Inline edit language is invalid");
+  }
+  if (typeof path !== "string" || path.length === 0 || path.length > 1024) throw new Error("Inline edit path is invalid");
+  if (typeof before !== "string" || before.length > MAX_CONTEXT) throw new Error("Inline edit context is too large");
+  if (typeof after !== "string" || after.length > MAX_CONTEXT) throw new Error("Inline edit context is too large");
+  if (typeof selection !== "string" || selection.length > MAX_SELECTION) throw new Error("Inline edit selection is too large");
+  return { instruction, languageId, path, before, selection, after };
 }

@@ -23,6 +23,8 @@ import {
   TOOLS_WITHOUT_MEMORY,
   applyHunks,
   baseUrlFor,
+  buildInlineEditRequest,
+  cleanInlineEditAnswer,
   computeHunks,
   createAgent,
   createAnthropicProvider,
@@ -64,6 +66,9 @@ import {
   type AiAutomationCreateInputView,
   type AiAutomationView,
   type AiCompletionInputView,
+  type AiInlineEditInputView,
+  type AiInlineEditResultView,
+  type AiEditorContextView,
   type ProposedEditView,
 } from "../shared/api.ts";
 import { recordAgentEdit } from "./activity.ts";
@@ -732,10 +737,18 @@ function splitAttachments(attachments: readonly AiAttachmentView[]): {
   };
 }
 
-export async function aiSend(text: string, attachments: readonly AiAttachmentView[] = []): Promise<boolean> {
+/** What the user was looking at when they last sent; folded into every round-trip of that turn. */
+let editorContext: AiEditorContextView | null = null;
+
+export async function aiSend(
+  text: string,
+  attachments: readonly AiAttachmentView[] = [],
+  editor: AiEditorContextView | null = null,
+): Promise<boolean> {
   if (sendInFlight) throw new Error("The built-in assistant is already handling a message");
   sendInFlight = true;
   currentTaskPrompt = text;
+  editorContext = editor;
   try {
     const providerId = activeProvider();
     const model = activeModel(providerId);
@@ -775,7 +788,7 @@ export async function aiSend(text: string, attachments: readonly AiAttachmentVie
               blocker = `Save ${summarizeUnsavedDrafts(root, drafts)} so the task can start from the current files.`;
             }
           }
-          return aiWorkspaceContext(root, blocker);
+          return aiWorkspaceContext(root, blocker, editorContext);
         },
         runner: withAssistantExtensions(toolRunner()),
         beforeRequest: async (request) => {
@@ -976,6 +989,52 @@ export async function aiCompletion(input: AiCompletionInputView): Promise<string
   } finally {
     if (completionInFlight?.id === input.requestId) completionInFlight = null;
   }
+}
+
+let inlineEditInFlight: AbortController | null = null;
+
+/**
+ * Ctrl+E: one tool-free rewrite of an editor selection.
+ *
+ * The answer goes back to the renderer, which puts it in the buffer as an undoable change
+ * with the old text shown beside it. Nothing touches disk: the user accepts or rejects in
+ * the editor and saves as they always would.
+ */
+export async function aiInlineEdit(input: AiInlineEditInputView): Promise<AiInlineEditResultView> {
+  inlineEditInFlight?.abort();
+  const controller = new AbortController();
+  inlineEditInFlight = controller;
+  try {
+    const providerId = activeProvider();
+    const provider = await buildProvider(providerId);
+    if (provider === null) return { ok: false, error: "Connect a model first: AI, then Connect a Model." };
+    const request = buildInlineEditRequest(activeModel(providerId), input, 8192);
+    let answer = "";
+    for await (const event of provider.stream(request, controller.signal)) {
+      if (controller.signal.aborted) return { ok: false, error: "Cancelled." };
+      if (event.kind === "text") answer += event.text;
+      if (event.kind === "stop" && event.reason === "refusal") return { ok: false, error: "The model declined this edit." };
+      if (event.kind === "stop" && event.reason === "max-tokens") {
+        return { ok: false, error: "The rewrite was longer than the model could return. Select less and try again." };
+      }
+    }
+    if (controller.signal.aborted) return { ok: false, error: "Cancelled." };
+    const text = cleanInlineEditAnswer(answer, input.selection);
+    if (text.trim().length === 0 && input.selection.trim().length === 0) {
+      return { ok: false, error: "The model returned nothing to insert. Try a more specific instruction." };
+    }
+    return { ok: true, text };
+  } catch (error) {
+    if (controller.signal.aborted) return { ok: false, error: "Cancelled." };
+    return { ok: false, error: error instanceof Error ? error.message : "The model could not make this edit." };
+  } finally {
+    if (inlineEditInFlight === controller) inlineEditInFlight = null;
+  }
+}
+
+export function aiCancelInlineEdit(): void {
+  inlineEditInFlight?.abort();
+  inlineEditInFlight = null;
 }
 
 export function aiCancelCompletion(requestId: number): void {

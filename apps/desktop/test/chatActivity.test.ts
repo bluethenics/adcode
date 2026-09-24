@@ -38,7 +38,10 @@ describe("ActivityBlock model (pure, no DOM)", () => {
   });
 
   it("maps tool names to step labels", () => {
-    expect(toolHeaderLabel("read_file")).toBe("Reading project notes");
+    expect(toolHeaderLabel("read_file")).toBe("Reading files");
+    expect(toolHeaderLabel("edit_file")).toBe("Editing files");
+    expect(toolHeaderLabel("project_context")).toBe("Reading project notes");
+    expect(toolHeaderLabel("get_outline")).toBe("Outlining a file");
     expect(toolHeaderLabel("propose_edit")).toBe("Editing files");
     expect(toolHeaderLabel("")).toBe("Working");
   });

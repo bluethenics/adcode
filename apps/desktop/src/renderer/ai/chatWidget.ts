@@ -17,6 +17,7 @@ import { createChatPreview } from "./chatPreview.ts";
 import type { PreviewStatus } from "../../shared/api.ts";
 import type {
   AiAttachmentView,
+  AiEditorContextView,
   AiAutomationView,
   AiTeamSuggestionView,
   AiTeamView,
@@ -29,9 +30,20 @@ import {
   admitFiles,
   fileToAttachment,
   formatBytes,
+  MAX_ATTACHMENTS,
+  MAX_TEXT_CHARS,
   type AttachmentSource,
   type PendingAttachment,
 } from "./attachments.ts";
+import {
+  createComposerMenu,
+  matchSlashCommands,
+  menuTriggerAt,
+  rememberPrompt,
+  replaceTrigger,
+  type MenuTrigger,
+  type SlashCommand,
+} from "./composerMenu.ts";
 import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
 import { createIcon, ICON } from "../workbench/icons.ts";
 import type { CodeReference } from "../editor/codeReferences.ts";
@@ -105,6 +117,13 @@ export interface ChatWidget {
    * own header already reads "No API key", which is the honest answer to why.
    */
   ask(question: string): void;
+  /**
+   * Put text in the composer as a context chip - a selection from the editor, say - and
+   * bring the composer forward. Never sends: the user adds their question first.
+   */
+  addContext(name: string, text: string): void;
+  /** Bring the composer forward with its `/` command menu or `@` file menu open. */
+  openComposerMenu(trigger: "/" | "@"): void;
   setWorkspace(root: string | null): void;
   /**
    * Fires whenever the card opens or closes.
@@ -131,6 +150,14 @@ export interface ChatWidgetDeps {
   readonly revealHistory?: () => void;
   /** Ask the user for a new name, or null if they changed their mind. */
   readonly askForName: (current: string) => Promise<string | null>;
+  /** What the user is looking at; rides with each send so "this file" means something. */
+  readonly editorContext?: () => AiEditorContextView | null;
+  /** Workspace files matching an `@` query, as workspace-relative paths. */
+  readonly mentionFiles?: (query: string) => Promise<readonly string[]>;
+  /** A mentioned file's text: the open buffer when there is one, so unsaved edits count. */
+  readonly readMention?: (relativePath: string) => Promise<string | null>;
+  /** Uncommitted changes as a unified diff for /review and /commit, "" when clean. */
+  readonly uncommittedDiff?: () => Promise<string>;
 }
 
 export function dispatchChatSend(
@@ -830,7 +857,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const input = document.createElement("textarea");
   input.className = "chat-input";
   input.rows = 2;
-  input.placeholder = "Describe what to build or change…";
+  input.placeholder = "Describe what to build or change… @ adds a file, / runs a command";
   input.setAttribute("aria-label", "Message the assistant");
 
   // Auto-growing composer, capped at ~140px per the Agent Chat reference.
@@ -864,20 +891,20 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   scheduleMessage.textContent = "Schedule";
   scheduleMessage.title = "Send this message later while ADCode is open";
 
-  // Vibe-coder context helper: no new backend, just Cursor-style `@` affordance
-  // that names the intent so the model answers about *this* project.
+  // `@` opens the file picker at the caret, exactly as typing it does. A chosen file rides
+  // the next turn as a chip, with the editor's unsaved text when it is open.
   const attachContext = document.createElement("button");
   attachContext.className = "chat-team-button";
   attachContext.type = "button";
   attachContext.textContent = "@ Files";
-  attachContext.title = "Mention the open project in your message";
-  attachContext.setAttribute("aria-label", "Mention the open project");
+  attachContext.title = "Add a project file to the conversation (or type @)";
+  attachContext.setAttribute("aria-label", "Add a project file to the conversation");
   attachContext.addEventListener("click", () => {
-    const prefix = "About my open project: ";
-    if (!input.value.startsWith(prefix)) {
-      input.value = `${prefix}${input.value}`;
-    }
+    const caret = input.selectionStart ?? input.value.length;
+    const needsSpace = caret > 0 && !/\s/.test(input.value[caret - 1] ?? "");
+    input.setRangeText(`${needsSpace ? " " : ""}@`, caret, input.selectionEnd ?? caret, "end");
     input.focus();
+    refreshComposerMenu();
   });
 
   /* ── Attachments: picker, drag-drop and paste land on the same strip ── */
@@ -957,6 +984,29 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   function clearAttachments(): void {
     pending = [];
     renderAttachments();
+  }
+
+  /** Add text as a context chip. Same limits as a dropped file; a repeat is a no-op. */
+  function addTextContext(name: string, text: string): boolean {
+    const data = text.length > MAX_TEXT_CHARS
+      ? `${text.slice(0, MAX_TEXT_CHARS)}\n[Truncated at ${MAX_TEXT_CHARS.toLocaleString()} characters - read the file for the rest]`
+      : text;
+    if (pending.some((item) => item.name === name && item.data === data)) return true;
+    if (pending.length >= MAX_ATTACHMENTS) {
+      complain(`Up to ${MAX_ATTACHMENTS} files per message. Remove one to add ${name}.`);
+      return false;
+    }
+    pending = [...pending, {
+      id: `context-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      name: name.length > 200 ? `…${name.slice(-199)}` : name,
+      kind: "text",
+      mediaType: "text/plain",
+      size: new Blob([data]).size,
+      previewUrl: "",
+      data,
+    }];
+    renderAttachments();
+    return true;
   }
 
   async function addFiles(sources: readonly AttachmentSource[]): Promise<void> {
@@ -1085,9 +1135,163 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   composerFooter.className = "chat-composer-footer";
   const disclaimer = document.createElement("span");
   disclaimer.className = "chat-disclaimer";
-  disclaimer.textContent = "Enter to send · Shift+Enter for a new line · Review proposed changes before applying";
+  disclaimer.textContent = "Enter to send · Shift+Enter new line · @ file · / command · ↑ last prompt · Review changes before applying";
   composerFooter.append(disclaimer);
   composer.append(input, attachmentStrip, composerNotice, toolbar, composerFooter, filePicker);
+
+  /* ── Typed menus: `/` runs a command, `@` adds a file ─────────────────── */
+
+  const composerMenu = createComposerMenu();
+  composer.append(composerMenu.element);
+  input.setAttribute("aria-controls", composerMenu.element.id);
+  let menuTrigger: MenuTrigger | null = null;
+  let mentionGeneration = 0;
+
+  /** Swap the typed `/query` or `@query` for `insert`, leaving the caret after it. */
+  function applyTrigger(insert: string): void {
+    if (menuTrigger === null) return;
+    const caret = input.selectionStart ?? input.value.length;
+    const next = replaceTrigger(input.value, caret, menuTrigger, insert);
+    input.value = next.text;
+    input.setSelectionRange(next.caret, next.caret);
+    menuTrigger = null;
+    composerMenu.hide();
+    autogrowComposer();
+    input.focus();
+  }
+
+  async function runSlashCommand(command: SlashCommand, autoSend = false): Promise<void> {
+    applyTrigger("");
+    switch (command.id) {
+      case "new": resetButton.click(); return;
+      case "history": historyButton.click(); return;
+      case "model": deps.openConnect(); return;
+      case "preview": void chatPreview.start(); return;
+      case "team": api.openTeamSetup(); return;
+      case "schedule": api.openScheduleComposer(); return;
+    }
+    if (command.kind === "diff") {
+      const diff = await (deps.uncommittedDiff?.() ?? Promise.resolve("")).catch(() => "");
+      if (diff.trim().length === 0) {
+        complain("No uncommitted changes to look at: git diff HEAD is empty.");
+        input.focus();
+        return;
+      }
+      if (!addTextContext("uncommitted-changes.diff", diff)) return;
+    }
+    const rest = input.value.trim();
+    input.value = `${command.prompt ?? ""}${rest}`;
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+    autogrowComposer();
+    input.focus();
+    if (autoSend) submit();
+  }
+
+  async function chooseMention(path: string): Promise<void> {
+    applyTrigger(`@${path} `);
+    const text = await (deps.readMention?.(path) ?? Promise.resolve(null)).catch(() => null);
+    if (text === null) {
+      complain(`${path} could not be read here; the assistant can still open it with its tools.`);
+      return;
+    }
+    addTextContext(path, text);
+  }
+
+  function refreshComposerMenu(): void {
+    const caret = input.selectionStart ?? input.value.length;
+    const trigger = input.selectionStart === input.selectionEnd ? menuTriggerAt(input.value, caret) : null;
+    menuTrigger = trigger;
+    if (trigger === null) {
+      composerMenu.hide();
+      return;
+    }
+    if (trigger.kind === "slash") {
+      composerMenu.show("Commands", matchSlashCommands(trigger.query).map((command) => ({
+        label: `/${command.id}`,
+        detail: command.hint,
+        run: () => void runSlashCommand(command),
+      })));
+      return;
+    }
+    const mentionFiles = deps.mentionFiles;
+    if (mentionFiles === undefined) {
+      composerMenu.hide();
+      return;
+    }
+    const generation = ++mentionGeneration;
+    void mentionFiles(trigger.query).then((files) => {
+      if (generation !== mentionGeneration || menuTrigger?.kind !== "mention") return;
+      composerMenu.show("Add a file to the conversation", files.slice(0, 8).map((path) => ({
+        label: path.split(/[\\/]/).pop() || path,
+        detail: path,
+        run: () => void chooseMention(path),
+      })));
+    }, () => composerMenu.hide());
+  }
+
+  input.addEventListener("input", refreshComposerMenu);
+  input.addEventListener("click", refreshComposerMenu);
+  input.addEventListener("keyup", (event) => {
+    if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) refreshComposerMenu();
+  });
+  input.addEventListener("blur", () => window.setTimeout(() => {
+    if (document.activeElement !== input) composerMenu.hide();
+  }, 150));
+
+  /* Prompt history: ↑ in an empty composer brings back what you sent before. */
+
+  const PROMPT_HISTORY_KEY = "adcode.chat.promptHistory";
+  let promptHistory: string[] = [];
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(PROMPT_HISTORY_KEY) ?? "[]");
+    if (Array.isArray(stored)) promptHistory = stored.filter((entry): entry is string => typeof entry === "string").slice(-50);
+  } catch {
+    // Recall is a convenience; an unreadable store starts it empty.
+  }
+  let historyIndex: number | null = null;
+  let draftBeforeRecall = "";
+  input.addEventListener("input", () => { historyIndex = null; });
+
+  function recallPrompt(direction: -1 | 1): boolean {
+    if (promptHistory.length === 0) return false;
+    if (historyIndex === null) {
+      if (direction === 1) return false;
+      draftBeforeRecall = input.value;
+      historyIndex = promptHistory.length;
+    }
+    const next = historyIndex + direction;
+    if (next < 0) return true;
+    if (next >= promptHistory.length) {
+      historyIndex = null;
+      input.value = draftBeforeRecall;
+    } else {
+      historyIndex = next;
+      input.value = promptHistory[next] ?? "";
+    }
+    autogrowComposer();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+    return true;
+  }
+
+  function rememberSent(text: string): void {
+    promptHistory = rememberPrompt(promptHistory, text);
+    historyIndex = null;
+    try {
+      localStorage.setItem(PROMPT_HISTORY_KEY, JSON.stringify(promptHistory));
+    } catch {
+      // Optional storage.
+    }
+  }
+
+  function currentEditorContext(): AiEditorContextView | null {
+    try {
+      return deps.editorContext?.() ?? null;
+    } catch {
+      return null;
+    }
+  }
 
   const conversation = document.createElement("main");
   conversation.className = "chat-conversation";
@@ -1150,10 +1354,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   setupSteps.append(setupConnectItem, setupAskItem);
   const quickActions = document.createElement("div");
   quickActions.className = "chat-quick-actions";
-  const starters: ReadonlyArray<{ label: string; hint: string; prompt: string }> = [
-    { label: "Build something", hint: "Describe it in plain words", prompt: "Build this for my open project: " },
-    { label: "Fix an error", hint: "Paste it or name the file", prompt: "Fix this error in my open project: " },
-    { label: "Explain this file", hint: "No jargon, step by step", prompt: "Explain what this file does, step by step: " },
+  // A starter that ends in ": " waits for the user's words; a complete one sends at once,
+  // and a slash starter runs its command (attaching the diff for a review, say).
+  const starters: ReadonlyArray<{ label: string; hint: string; prompt?: string; slash?: string }> = [
+    { label: "Build something", hint: "Describe it in plain words", prompt: "Build this in my project, end to end, and run the tests: " },
+    { label: "Fix an error", hint: "Paste it or name the file", prompt: "Find the root cause of this error and fix it, then verify the fix: " },
+    { label: "Explain this project", hint: "A five-minute tour", prompt: "Give me a five-minute tour of this project: what it does, how it is organised, the main entry points, and where the important code lives." },
+    { label: "Review my changes", hint: "Catch bugs before you commit", slash: "review" },
+    { label: "Write tests", hint: "With your test setup", prompt: "Find the most important untested code in this project, write focused tests for it with the existing test setup, and run them: " },
+    { label: "Find bugs", hint: "A careful read for problems", prompt: "Read the core of this project carefully and list the most likely real bugs, with file and line, most severe first. Do not change files yet." },
   ];
   for (const starter of starters) {
     const action = document.createElement("button");
@@ -1164,8 +1373,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     hint.textContent = starter.hint;
     action.append(hint);
     action.addEventListener("click", () => {
-      input.value = starter.prompt;
+      const slash = starter.slash === undefined ? undefined : matchSlashCommands(starter.slash)[0];
+      if (slash !== undefined) {
+        menuTrigger = null;
+        void runSlashCommand(slash, true);
+        return;
+      }
+      input.value = starter.prompt ?? "";
+      autogrowComposer();
       input.focus();
+      if (!input.value.endsWith(": ")) submit();
     });
     quickActions.append(action);
   }
@@ -1583,10 +1800,40 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   function resend(prompt: string): boolean {
     if (sendButton.dataset["mode"] === "stop") return false;
     if (prompt.trim().length === 0) return false;
-    void window.adcode.ai.send(prompt).catch(() => undefined);
+    void window.adcode.ai.send(prompt, undefined, currentEditorContext()).catch(() => undefined);
     setSendMode("stop");
     streamingBubble = null;
     return true;
+  }
+
+  /*
+   * A turn that ran out of steps or output tokens is not a failure of the work - the
+   * conversation holds everything done so far. One button picks it back up.
+   */
+  function continueNudge(): void {
+    const last = transcript.lastElementChild;
+    if (last instanceof HTMLElement && last.dataset["nudge"] === "continue") {
+      scrollToEnd();
+      return;
+    }
+    const element = bubble(
+      "assistant",
+      "I stopped at a limit before finishing. Everything so far is kept - continue and I'll pick up the remaining steps.",
+    );
+    element.dataset["nudge"] = "continue";
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "chat-send chat-nudge-action";
+    action.textContent = "Continue";
+    action.title = "Pick up where the assistant stopped";
+    action.addEventListener("click", () => {
+      if (resend("Continue from where you stopped and finish the remaining steps.")) {
+        element.dataset["nudge"] = "continue-sent";
+        action.disabled = true;
+      }
+    });
+    element.append(action);
+    scrollToEnd();
   }
 
   /*
@@ -2642,6 +2889,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         if (/isolated task begins/i.test(detail)) {
           draftNudge();
         }
+        // A step or output limit stops the turn, not the work: offer to continue.
+        if (/step limit|response limit/i.test(detail)) {
+          continueNudge();
+        }
         break;
       }
 
@@ -2708,13 +2959,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       mediaType: item.mediaType,
       data: item.data,
     }));
+    const editor = currentEditorContext();
+    composerMenu.hide();
 
     if (
       !dispatchChatSend(
         text,
         {
           showUser: (message, attachments) => bubble("user", message, attachments),
-          aiSend: (message, attachments) => window.adcode.ai.send(message, attachments),
+          aiSend: (message, attachments) => window.adcode.ai.send(message, attachments, editor),
           onFailure: () => {
             finishActivity();
             setSendMode("send");
@@ -2726,6 +2979,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       return;
     }
 
+    rememberSent(text);
     input.value = "";
     autogrowComposer();
     clearAttachments();
@@ -2777,6 +3031,23 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   });
 
   input.addEventListener("keydown", (event) => {
+    // A key that finishes an IME composition belongs to the IME, not to send.
+    if (event.isComposing) return;
+    // An open `/` or `@` menu owns arrows, Enter, Tab and Escape.
+    if (composerMenu.handleKey(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    const singleLine = !input.value.includes("\n");
+    if (event.key === "ArrowUp" && !event.shiftKey && singleLine && (input.value.length === 0 || historyIndex !== null)) {
+      if (recallPrompt(-1)) event.preventDefault();
+      return;
+    }
+    if (event.key === "ArrowDown" && !event.shiftKey && historyIndex !== null) {
+      if (recallPrompt(1)) event.preventDefault();
+      return;
+    }
     // Enter sends, Shift+Enter is a newline - the convention every chat surface uses.
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -2970,6 +3241,29 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => submit());
       });
+    },
+
+    addContext(name: string, text: string): void {
+      if (text.trim().length === 0) return;
+      api.open();
+      addTextContext(name, text);
+      requestAnimationFrame(() => requestAnimationFrame(() => input.focus()));
+    },
+
+    openComposerMenu(trigger): void {
+      api.open();
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        input.focus();
+        if (trigger === "/") {
+          // A command reads the rest of the composer as its detail, so `/` goes first.
+          if (!input.value.startsWith("/")) input.value = `/${input.value}`;
+          input.setSelectionRange(1, 1);
+        } else {
+          attachContext.click();
+          return;
+        }
+        refreshComposerMenu();
+      }));
     },
 
     setWorkspace(root: string | null): void {

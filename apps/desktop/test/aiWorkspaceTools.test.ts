@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFileChange, type ToolCallBlock } from "@adcode/ai";
-import { createAiToolRunner, type ProposedEdit } from "../src/main/aiTools.ts";
+import { applyReplacements, createAiToolRunner, type ProposedEdit } from "../src/main/aiTools.ts";
 
 let human: string;
 let sandbox: string;
@@ -297,5 +297,39 @@ describe("sandboxed built-in AI tools", () => {
 
     const nonsense = await runner.run(call("fetch_url", { url: "not a url" }), signal);
     expect(nonsense.isError).toBe(true);
+  });
+});
+
+describe("applyReplacements", () => {
+  it("replaces exact text and preserves CRLF files", () => {
+    expect(
+      applyReplacements("const x = 1;\r\nfoo();\r\n", [{ oldString: "foo();", newString: "bar();", replaceAll: false }], "a.ts"),
+    ).toEqual({ ok: true, text: "const x = 1;\r\nbar();\r\n" });
+  });
+
+  it("creates a missing file from an empty old_string", () => {
+    expect(
+      applyReplacements("", [{ oldString: "", newString: "new();\n", replaceAll: false }], "new.ts"),
+    ).toEqual({ ok: true, text: "new();\n" });
+    const refused = applyReplacements("full();\n", [{ oldString: "", newString: "x", replaceAll: false }], "a.ts");
+    expect(refused.ok).toBe(false);
+  });
+
+  it("refuses misses and ambiguity with somewhere to look", () => {
+    const miss = applyReplacements("aaa\n", [{ oldString: "zzz", newString: "y", replaceAll: false }], "a.ts");
+    expect(miss).toMatchObject({ ok: false });
+    const twice = applyReplacements("x\nx\n", [{ oldString: "x", newString: "y", replaceAll: false }], "a.ts");
+    expect(twice).toMatchObject({ ok: false });
+    expect(
+      applyReplacements("x\nx\n", [{ oldString: "x", newString: "y", replaceAll: true }], "a.ts"),
+    ).toEqual({ ok: true, text: "y\ny\n" });
+  });
+
+  it("applies several edits in order, all or nothing", () => {
+    const result = applyReplacements("a1\nb1\n", [
+      { oldString: "a1", newString: "a2", replaceAll: false },
+      { oldString: "zzz", newString: "nope", replaceAll: false },
+    ], "a.ts");
+    expect(result.ok).toBe(false);
   });
 });

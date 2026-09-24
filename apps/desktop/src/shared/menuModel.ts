@@ -367,6 +367,11 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
             { label: "&Assistant", command: "ai.toggle", accelerator: "CmdOrCtrl+I" },
             { label: "&Connect a Model…", command: "ai.connect" },
             { label: "&Suggest Code with AI", command: "ai.complete", accelerator: "Alt+\\" },
+            // Ctrl+E and Ctrl+L live on the editor itself rather than here: a menu
+            // accelerator is window-wide, and would take both keys from the terminal.
+            { label: "&Edit with AI (Ctrl+E in the editor)", command: "ai.inlineEdit" },
+            { label: "Add Selection to C&hat (Ctrl+L)", command: "ai.addSelectionToChat" },
+            { label: "Assistant C&ommands…", command: "ai.slashCommands" },
             { label: "Set Up &Team…", command: "ai.team" },
             { label: "Schedule a &Message…", command: "ai.schedule" },
           ],

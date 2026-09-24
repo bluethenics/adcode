@@ -19,6 +19,18 @@ only public once its installers are attached to a GitHub release.
   files, and the chat offers saving them or answering anyway without file tools.
 - The assistant never claims it created or saved a file - proposals stay proposals
   until you apply them.
+- The assistant changes existing files with exact replacements instead of rewriting
+  them, reads several files in one parallel step, and works up to 50 steps per request.
+  If a long task stops at a limit, a Continue button picks up where it stopped.
+- Code mode gains inline AI edit: select code, press Ctrl+E, describe the change, and
+  accept or reject the highlighted rewrite in place. Ctrl+L adds the selection to the
+  conversation as a chip.
+- The composer understands / commands (/review and /commit attach the real uncommitted
+  diff; /fix, /test, /plan, /refactor, /explain, /optimize, /security, /docs and /build
+  write the careful prompt for you) and @ file mentions with unsaved editor text.
+  Empty-composer Up arrow recalls earlier prompts.
+- Every message carries editor context: the file on screen, cursor, selection, open
+  tabs, and reported problems - so "fix this" just works.
 - Connect a model walks you through three live steps with a progress bar, pins popular
   providers first, marks the recommended model, and offers thinking effort (Auto to Max)
   for reasoning models from OpenAI and Anthropic. Custom endpoints get a numbered guide

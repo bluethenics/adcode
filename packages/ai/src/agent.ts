@@ -29,7 +29,7 @@ import type {
  * A model that keeps calling tools would otherwise loop until the user's key ran out of
  * credit. The bound is generous enough for real multi-step work and finite regardless.
  */
-export const MAX_TURNS = 24;
+export const MAX_TURNS = 50;
 
 const DEFAULT_MAX_TOKENS = 8192;
 
@@ -42,8 +42,14 @@ const DEFAULT_SYSTEM = [
   "You have tools for reading and changing this project. Prefer reading the code over",
   "asking about it. Every change you propose is shown to the user as a reviewable diff",
   "before it touches disk, so propose the whole change rather than describing it.",
-  "You never write to the human project: propose_edit stages into an isolated task",
-  "workspace, and only an Apply the user chooses moves anything into their files.",
+  "You never write to the human project: edit_file and propose_edit stage into an",
+  "isolated task workspace, and only an Apply the user chooses moves anything into",
+  "their files. To change an existing file, use edit_file with exact old and new text -",
+  "it is faster and cannot lose the rest of the file. Use propose_edit to create a file",
+  "or to rewrite a short one. Read a file before editing it, and batch several",
+  "replacements to one file into a single edit_file call with edits.",
+  "Independent reads (several read_file, search, or glob_files calls) can be requested",
+  "together in one turn; they run at the same time.",
   "Never claim a file was created, saved, written, or applied - say you proposed it",
   "and that it waits for their review. If they ask where the file is, explain it",
   "appears in their project the moment they apply it.",
@@ -57,6 +63,11 @@ const DEFAULT_SYSTEM = [
   "run_command for tests, typecheck, and lint inside the task workspace, and fetch_url",
   "for docs - never claim a test passed or a change was applied without a supporting",
   "tool result.",
+  "When the host context names the file the user is looking at or their selection,",
+  "resolve 'this', 'here', 'this file', and 'this function' against it without asking.",
+  "After proposing code changes, run the project's typecheck or tests with run_command",
+  "when it has them, and fix what fails before finishing. Close a task with a short",
+  "summary: what you changed, where, and anything the user should check.",
   "",
   "Do the work first; interview the user never. When the request names a job - create",
   "a file, list the images in a folder, fix the failing test - call the tools at once",
@@ -137,6 +148,9 @@ export interface Agent {
 export function createAgent(deps: AgentDeps): Agent {
   const messages: Message[] = [];
   const declared = new Set(deps.tools.map((tool) => tool.name));
+  const concurrentTools = new Set(
+    deps.tools.filter((tool) => tool.concurrent === true && !tool.mutating).map((tool) => tool.name),
+  );
   let controller: AbortController | null = null;
 
   async function runTool(call: ToolCallBlock, signal: AbortSignal): Promise<{ content: string; isError: boolean }> {
@@ -262,15 +276,26 @@ export function createAgent(deps: AgentDeps): Agent {
 
       // Run every call from this turn, then return all results in one user message -
       // splitting them across messages trains the model out of parallel tool use.
+      //
+      // A turn made only of pure reads runs them together: five files cost one file's
+      // latency. Anything that writes, runs, or reaches outside keeps the sequential path,
+      // so side effects stay in the order the model asked for them.
+      const concurrentBatch =
+        pendingCalls.length > 1 && pendingCalls.every((call) => concurrentTools.has(call.name));
+      const early = concurrentBatch
+        ? await Promise.all(pendingCalls.map((call) => runTool(call, signal)))
+        : null;
       const results = [];
       let repeatedFailure: string | null = null;
-      for (const call of pendingCalls) {
+      for (const [index, call] of pendingCalls.entries()) {
         // Three identical failures indicate no progress. Avoid spending an entire
         // turn budget on retries, or repeating external operations indefinitely.
         const signature = JSON.stringify([call.name, call.input]);
-        const result = repeatedFailure === null
-          ? await runTool(call, signal)
-          : { content: "Skipped because this turn repeatedly failed. Review the previous error before retrying.", isError: true };
+        const result = early !== null
+          ? early[index]!
+          : repeatedFailure === null
+            ? await runTool(call, signal)
+            : { content: "Skipped because this turn repeatedly failed. Review the previous error before retrying.", isError: true };
         if (result.isError) {
           const count = (failures.get(signature) ?? 0) + 1;
           failures.set(signature, count);

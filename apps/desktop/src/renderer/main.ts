@@ -194,6 +194,13 @@ let projectContext: ReturnType<typeof createProjectContext> | undefined;
  */
 const editorHost = createEditorWorkspace(el("editor-host"), {
   askAssistant: prompt => chat.draft(prompt),
+  addToChat: (context) => {
+    const path = relativePath(context.path) ?? context.path.split(/[\\/]/).pop() ?? context.path;
+    const whole = context.startLine === 1 && context.endLine >= (editorHost.text(context.path)?.split("\n").length ?? Infinity);
+    chat.addContext(whole ? path : `${path}:${context.startLine}-${context.endLine}`, context.text);
+  },
+  inlineEdit: (input) => window.adcode.ai.inlineEdit(input),
+  cancelInlineEdit: () => window.adcode.ai.cancelInlineEdit(),
   activeFile: () => activePath,
   workspaceRoot: () => workspaceRoot,
   list: (directory) => window.adcode.workspace.list(directory),
@@ -4309,6 +4316,49 @@ const chat = createChatWidget({
       value: current,
       confirmLabel: "Rename",
     }),
+  // What the user is looking at, sent with every message. Vibe hides the editor, so a
+  // selection left behind there is stale and stays out; the file and tabs still orient.
+  editorContext: () => {
+    const shorten = (path: string): string => relativePath(path) ?? path.split(/[\\/]/).pop() ?? path;
+    const mode = assistantDock?.mode() ?? "code";
+    const context = activePath === null ? null : editorHost.assistantContext();
+    return {
+      mode,
+      activeFile: activePath === null ? null : shorten(activePath),
+      languageId: context?.languageId ?? null,
+      cursorLine: mode === "code" ? context?.cursorLine ?? null : null,
+      selection: mode === "code" ? context?.selection ?? null : null,
+      openFiles: tabs.slice(0, 20).map((tab) => shorten(tab.path)),
+      problems: context?.problems ?? [],
+    };
+  },
+  mentionFiles: async (query) => {
+    if (workspaceRoot === null) return [];
+    const needle = query.toLowerCase();
+    const open = tabs
+      .map((tab) => relativePath(tab.path))
+      .filter((path): path is string => path !== null && path.toLowerCase().includes(needle));
+    const found = (await window.adcode.search.quickOpen(query)).map((hit) => hit.path.replace(/\\/g, "/"));
+    return [...new Set([...open, ...found])].slice(0, 8);
+  },
+  readMention: async (relative) => {
+    const absolute = absolutePath(relative);
+    const open = tabs.find((tab) => tab.path.replace(/\\/g, "/") === absolute.replace(/\\/g, "/"));
+    const buffered = open === undefined ? null : editorHost.text(open.path);
+    if (buffered !== null) return buffered;
+    return (await window.adcode.files.read(absolute))?.text ?? null;
+  },
+  uncommittedDiff: async () => {
+    const [diff, status] = await Promise.all([
+      window.adcode.git.diff().catch(() => ""),
+      window.adcode.git.status().catch(() => null),
+    ]);
+    const untracked = (status?.entries ?? [])
+      .filter((entry) => entry.staged === "?" || entry.worktree === "?")
+      .map((entry) => entry.path);
+    const extra = untracked.length === 0 ? "" : `\n# New files not yet tracked by git (read them with read_file):\n${untracked.slice(0, 50).map((path) => `#   ${path}`).join("\n")}\n`;
+    return diff.trim().length === 0 && extra.length === 0 ? "" : `${diff}${extra}`;
+  },
 });
 
 const chatLauncher = el<HTMLButtonElement>("ai-toggle");
@@ -5129,6 +5179,23 @@ function registerCommands(): void {
   add("ai.refactorSelection", "AI: Refactor This Code", () => editorHost.runAction("adcode.refactorSelection"));
   add("ai.testSelection", "AI: Write Tests for This Code", () => editorHost.runAction("adcode.testSelection"));
   add("ai.reviewSelection", "AI: Find Issues in This Code", () => editorHost.runAction("adcode.reviewSelection"));
+  add("ai.inlineEdit", "AI: Edit with AI (Inline)", () => {
+    if (assistantDock?.mode() === "vibe") assistantDock.setMode("code");
+    if (activePath === null) {
+      setStatus("Open a file, select the code to change, then press Ctrl+E.", 4000);
+      return;
+    }
+    editorHost.runAction("adcode.inlineEdit");
+  });
+  add("ai.addSelectionToChat", "AI: Add Selection to Chat", () => {
+    if (activePath === null) {
+      setStatus("Open a file and select code to add it to the conversation.", 4000);
+      return;
+    }
+    editorHost.runAction("adcode.addSelectionToChat");
+  });
+  add("ai.slashCommands", "AI: Show Assistant Commands", () => chat.openComposerMenu("/"));
+  add("ai.mentionFile", "AI: Add a File to the Conversation", () => chat.openComposerMenu("@"));
   add("workspace.vibe", "Switch to Vibe Mode", () => assistantDock?.setMode("vibe", true));
   add("workspace.code", "Switch to Code Mode", () => assistantDock?.setMode("code", true));
   add("workspace.project", "Show Workspace Project", () => assistantDock?.showContext("project"));

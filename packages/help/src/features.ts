@@ -44,8 +44,16 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     keywords: ["vibe mode", "code mode", "workspace", "build", "review", "task history"],
   },
   "workbench.aiContext": {
-    actions: [command("ai.askSelection", "Ask AI"), command("ai.explainSelection", "Explain"), command("ai.refactorSelection", "Refactor"), command("ai.testSelection", "Write tests"), command("ai.reviewSelection", "Find issues")],
-    keywords: ["selection", "assistant", "unsaved code", "AI context"],
+    actions: [command("ai.addSelectionToChat", "Add to chat"), command("ai.askSelection", "Ask AI"), command("ai.explainSelection", "Explain"), command("ai.refactorSelection", "Refactor"), command("ai.testSelection", "Write tests"), command("ai.reviewSelection", "Find issues")],
+    keywords: ["selection", "assistant", "unsaved code", "AI context", "ctrl+l", "add to chat", "editor context", "current file", "what the ai sees"],
+  },
+  "ai.inlineEdit": {
+    actions: [command("ai.inlineEdit", "Edit with AI")],
+    keywords: ["ctrl+e", "inline edit", "cmd+k", "ctrl+k", "rewrite selection", "inline chat", "edit in place", "ai refactor", "generate code here"],
+  },
+  "ai.composerCommands": {
+    actions: [command("ai.slashCommands", "Show commands"), command("ai.mentionFile", "Add a file")],
+    keywords: ["slash commands", "review my changes", "commit message", "write tests", "mention a file", "at mention", "@file", "prompt history", "previous prompt"],
   },
   "workbench.allFeatures": {
     actions: [

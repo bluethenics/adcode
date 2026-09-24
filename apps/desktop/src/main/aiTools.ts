@@ -187,9 +187,129 @@ function outlineOf(text: string): string[] {
   return found;
 }
 
+interface Replacement {
+  readonly oldString: string;
+  readonly newString: string;
+  readonly replaceAll: boolean;
+}
+
+/** Read `edit_file` input as a list of replacements, or explain what is wrong with it. */
+function replacementsOf(input: Record<string, unknown>): Replacement[] | string {
+  const one = (value: Record<string, unknown>, where: string): Replacement | string => {
+    const oldString = value["old_string"];
+    const newString = value["new_string"];
+    if (typeof oldString !== "string" || typeof newString !== "string") {
+      return `${where} needs old_string and new_string as text.`;
+    }
+    if (oldString === newString) return `${where} has identical old_string and new_string; nothing would change.`;
+    return { oldString, newString, replaceAll: value["replace_all"] === true };
+  };
+  if (Array.isArray(input["edits"]) && input["edits"].length > 0) {
+    if (input["edits"].length > 50) return "edit_file takes at most 50 edits per call.";
+    const list: Replacement[] = [];
+    for (const [index, value] of input["edits"].entries()) {
+      if (typeof value !== "object" || value === null) return `Edit ${index + 1} is not an object.`;
+      const parsed = one(value as Record<string, unknown>, `Edit ${index + 1}`);
+      if (typeof parsed === "string") return parsed;
+      list.push(parsed);
+    }
+    return list;
+  }
+  const single = one(input, "edit_file");
+  return typeof single === "string" ? single : [single];
+}
+
+function countOccurrences(text: string, needle: string): number {
+  let count = 0;
+  for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + needle.length)) count += 1;
+  return count;
+}
+
+/** The line a near-miss probably meant, so a failed match comes back with somewhere to look. */
+function closestLine(text: string, needle: string): number | null {
+  const probe = needle.split("\n").map((line) => line.trim()).find((line) => line.length >= 3);
+  if (probe === undefined) return null;
+  const index = text.split("\n").findIndex((line) => line.includes(probe));
+  return index === -1 ? null : index + 1;
+}
+
+/**
+ * Apply replacements to a file's text, in order, all or nothing.
+ *
+ * Line endings are normalised first. read_file shows a CRLF file's lines without their
+ * carriage returns, so a model copying text out of it sends bare newlines - and on Windows,
+ * where most checked-out files are CRLF, an exact matcher would miss nearly every edit.
+ */
+export function applyReplacements(
+  original: string,
+  replacements: readonly Replacement[],
+  relativePath: string,
+): { ok: true; text: string } | { ok: false; message: string } {
+  const crlf = original.includes("\r\n");
+  let text = crlf ? original.replaceAll("\r\n", "\n") : original;
+  for (const [index, replacement] of replacements.entries()) {
+    const label = replacements.length === 1 ? "old_string" : `Edit ${index + 1}'s old_string`;
+    const oldString = replacement.oldString.replaceAll("\r\n", "\n");
+    const newString = replacement.newString.replaceAll("\r\n", "\n");
+    if (oldString.length === 0) {
+      if (text.length > 0) return { ok: false, message: `${label} is empty, but ${relativePath} already has contents. Quote the text to replace, or use propose_edit to rewrite the file.` };
+      text = newString;
+      continue;
+    }
+    const count = countOccurrences(text, oldString);
+    if (count === 0) {
+      const near = closestLine(text, oldString);
+      return {
+        ok: false,
+        message: `${label} was not found in ${relativePath}. Copy it exactly from read_file output, without line numbers${near === null ? "" : ` - the closest match starts near line ${near}`}. Nothing was changed.`,
+      };
+    }
+    if (count > 1 && !replacement.replaceAll) {
+      return {
+        ok: false,
+        message: `${label} matches ${count} places in ${relativePath}. Add surrounding lines to make it unique, or pass replace_all: true. Nothing was changed.`,
+      };
+    }
+    text = replacement.replaceAll ? text.split(oldString).join(newString) : text.replace(oldString, () => newString);
+  }
+  return { ok: true, text: crlf ? text.replaceAll("\n", "\r\n") : text };
+}
+
 export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
   const unavailable = (): ReturnType<typeof fail> =>
     fail(deps.workspaceUnavailableMessage?.() ?? "No folder is open, so there is nothing to work on yet.");
+
+  /** Stage a whole-file proposal in the sandbox and hand its diff to the renderer. */
+  async function stageProposal(
+    workspace: AiToolWorkspace,
+    path: string,
+    proposed: string,
+    summary: unknown,
+  ): Promise<{ content: string; isError: boolean }> {
+    const relativePath = relative(workspace.sandboxRoot, path).split(sep).join("/");
+    const stored = await deps.writeSandboxFile(relativePath, proposed);
+    const original = stored.original ?? "";
+    const hunks = computeHunks(original, stored.proposed);
+
+    deps.onProposedEdit({
+      taskId: workspace.taskId,
+      relativePath,
+      path: join(workspace.humanRoot, ...relativePath.split("/")),
+      summary: typeof summary === "string" ? summary : "Proposed change",
+      original,
+      proposed: stored.proposed,
+      hunks,
+    });
+
+    // Written only to the sandbox. The model is told that plainly so it can read its
+    // own new version on the next tool call without assuming the human file changed.
+    return ok(
+      `Proposed ${hunks.length} change${hunks.length === 1 ? "" : "s"} to ${relativePath}. ` +
+        (deps.reviewPolicy?.() === "trusted"
+          ? "It is isolated now and will be auto-applied with a rollback checkpoint after this turn succeeds."
+          : "It is written only in the isolated task workspace and is waiting for human review."),
+    );
+  }
 
   async function walk(directory: string, root: string, hits: string[]): Promise<void> {
     if (hits.length >= 2000) return;
@@ -353,29 +473,36 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
             return ok("That file already has those contents; nothing to change.");
           }
 
-          const relativePath = relative(root, path).split(sep).join("/");
-          const stored = await deps.writeSandboxFile(relativePath, proposed);
-          const original = stored.original ?? "";
-          const hunks = computeHunks(original, stored.proposed);
+          return stageProposal(workspace, path, proposed, input["summary"]);
+        }
 
-          deps.onProposedEdit({
-            taskId: workspace.taskId,
-            relativePath,
-            path: join(workspace.humanRoot, ...relativePath.split("/")),
-            summary: typeof input["summary"] === "string" ? input["summary"] : "Proposed change",
-            original,
-            proposed: stored.proposed,
-            hunks,
-          });
+        case "edit_file": {
+          const workspace = await deps.workspace();
+          if (workspace === null) return unavailable();
+          const path = await resolveInWorkspace(workspace.sandboxRoot, input["path"]);
+          if (path === null) return fail("That path is outside the open workspace.");
+          const replacements = replacementsOf(input);
+          if (typeof replacements === "string") return fail(replacements);
+          const relativePath = relative(workspace.sandboxRoot, path).split(sep).join("/");
 
-          // Written only to the sandbox. The model is told that plainly so it can read its
-          // own new version on the next tool call without assuming the human file changed.
-          return ok(
-            `Proposed ${hunks.length} change${hunks.length === 1 ? "" : "s"} to ${relativePath}. ` +
-              (deps.reviewPolicy?.() === "trusted"
-                ? "It is isolated now and will be auto-applied with a rollback checkpoint after this turn succeeds."
-                : "It is written only in the isolated task workspace and is waiting for human review."),
-          );
+          let current = "";
+          let exists = true;
+          try {
+            const info = await stat(path);
+            if (!info.isFile()) return fail("That path is not a file.");
+            if (info.size > MAX_READ_BYTES) return fail(`That file is ${info.size} bytes, too large to edit here.`);
+            current = await readFile(path, "utf8");
+          } catch {
+            exists = false;
+          }
+          if (!exists && replacements.some((replacement) => replacement.oldString.length > 0)) {
+            return fail(`${relativePath} does not exist yet. Create it with an empty old_string, or with propose_edit.`);
+          }
+
+          const applied = applyReplacements(current, replacements, relativePath);
+          if (!applied.ok) return fail(applied.message);
+          if (applied.text === current) return ok("Those replacements leave the file unchanged; nothing to propose.");
+          return stageProposal(workspace, path, applied.text, input["summary"]);
         }
 
         case "glob_files": {

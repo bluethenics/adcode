@@ -39,6 +39,7 @@ export const READ_FILE: ToolDefinition = {
     required: ["path"],
   },
   mutating: false,
+  concurrent: true,
 };
 
 export const LIST_FILES: ToolDefinition = {
@@ -53,6 +54,7 @@ export const LIST_FILES: ToolDefinition = {
     },
   },
   mutating: false,
+  concurrent: true,
 };
 
 export const SEARCH: ToolDefinition = {
@@ -69,12 +71,13 @@ export const SEARCH: ToolDefinition = {
     required: ["pattern"],
   },
   mutating: false,
+  concurrent: true,
 };
 
 export const PROPOSE_EDIT: ToolDefinition = {
   name: "propose_edit",
   description:
-    "Write a proposed complete file into the isolated task workspace. The human project is unchanged until the user reviews and accepts hunks. Send the file's complete new contents, not a patch. Parent directories are created as needed.",
+    "Write a proposed complete file into the isolated task workspace. The human project is unchanged until the user reviews and accepts hunks. Send the file's complete new contents, not a patch. Parent directories are created as needed. Use this to create new files or rewrite small ones; to change part of an existing file, use edit_file instead.",
   inputSchema: {
     type: "object",
     properties: {
@@ -83,6 +86,33 @@ export const PROPOSE_EDIT: ToolDefinition = {
       summary: { type: "string", description: "One line describing what this change does" },
     },
     required: ["path", "contents"],
+  },
+  mutating: true,
+};
+
+const replacement = {
+  old_string: { type: "string", description: "Exact text to find, copied from read_file output without the line-number gutter. Include enough surrounding lines to make it unique." },
+  new_string: { type: "string", description: "Text to put in its place. Must differ from old_string." },
+  replace_all: { type: "boolean", description: "Replace every occurrence instead of requiring exactly one. Omit for a single, unique match." },
+};
+
+export const EDIT_FILE: ToolDefinition = {
+  name: "edit_file",
+  description:
+    "Change part of an existing file by exact text replacement, staged in the isolated task workspace for the user's review exactly like propose_edit. Prefer this over propose_edit for any change to an existing file: it sends only what changes, so it is faster, cheaper, and cannot drop the rest of the file. old_string must match the file exactly, including indentation, and be unique unless replace_all is true. Pass several replacements for one file at once with edits; they apply in order and all must succeed. An empty old_string creates the file when it does not exist yet.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      path: path("Workspace-relative path of the file to change"),
+      ...replacement,
+      edits: {
+        type: "array",
+        description: "Several replacements for this file, applied in order. Use instead of old_string/new_string.",
+        items: { type: "object", properties: replacement, required: ["old_string", "new_string"] },
+      },
+      summary: { type: "string", description: "One line describing what this change does" },
+    },
+    required: ["path"],
   },
   mutating: true,
 };
@@ -102,6 +132,7 @@ export const GLOB_FILES: ToolDefinition = {
     required: ["pattern"],
   },
   mutating: false,
+  concurrent: true,
 };
 
 export const GET_OUTLINE: ToolDefinition = {
@@ -114,6 +145,7 @@ export const GET_OUTLINE: ToolDefinition = {
     required: ["path"],
   },
   mutating: false,
+  concurrent: true,
 };
 
 export const RUN_COMMAND: ToolDefinition = {
@@ -141,6 +173,7 @@ export const FETCH_URL: ToolDefinition = {
     required: ["url"],
   },
   mutating: false,
+  concurrent: true,
 };
 
 /* ── Memory (§5.1) ──────────────────────────────────────────────────────── */
@@ -158,6 +191,7 @@ export const MEMORY_SEARCH: ToolDefinition = {
     required: ["query"],
   },
   mutating: false,
+  concurrent: true,
 };
 
 export const MEMORY_WRITE: ToolDefinition = {
@@ -183,6 +217,7 @@ export const PROJECT_CONTEXT: ToolDefinition = {
     "The digest of what this project already knows. Worth reading first on an unfamiliar task.",
   inputSchema: { type: "object", properties: {} },
   mutating: false,
+  concurrent: true,
 };
 
 export const BUILT_IN_TOOLS: readonly ToolDefinition[] = [
@@ -191,6 +226,7 @@ export const BUILT_IN_TOOLS: readonly ToolDefinition[] = [
   SEARCH,
   GLOB_FILES,
   GET_OUTLINE,
+  EDIT_FILE,
   PROPOSE_EDIT,
   RUN_COMMAND,
   FETCH_URL,
@@ -206,6 +242,7 @@ export const TOOLS_WITHOUT_MEMORY: readonly ToolDefinition[] = [
   SEARCH,
   GLOB_FILES,
   GET_OUTLINE,
+  EDIT_FILE,
   PROPOSE_EDIT,
   RUN_COMMAND,
   FETCH_URL,

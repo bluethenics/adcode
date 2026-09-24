@@ -46,6 +46,7 @@ export {
   MEMORY_WRITE,
   PROJECT_CONTEXT,
   PROPOSE_EDIT,
+  EDIT_FILE,
   READ_FILE,
   SEARCH,
   GLOB_FILES,
@@ -98,3 +99,11 @@ export {
 
 export * from "./connections.ts";
 export * from "./requestScheduler.ts";
+
+export {
+  buildInlineEditRequest,
+  cleanInlineEditAnswer,
+  INLINE_EDIT_CONTEXT_CHARS,
+  INLINE_EDIT_MAX_SELECTION,
+  type InlineEditInput,
+} from "./inlineEdit.ts";

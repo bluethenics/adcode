@@ -31,11 +31,12 @@ import { createDefinitions, symbolAt } from "./definitions.ts";
 import { installPeek } from "./peek.ts";
 import { installTreeSitterHighlight } from "./treeSitter.ts";
 import { organizeImports as organiseImportBlock, organizeSupported, DEFAULT_OPTIONS } from "@adcode/format";
-import type { BreakpointView, DirEntry, SearchHitView, ThemeChoice } from "../../shared/api.ts";
+import type { AiInlineEditInputView, AiInlineEditResultView, BreakpointView, DirEntry, SearchHitView, ThemeChoice } from "../../shared/api.ts";
 import { editorOptionsFor } from "./editorOptions.ts";
 import { createRemoteCursors, type RemoteCursors } from "../collab/remoteCursors.ts";
 import { installTagClosing } from "./autoCloseTags.ts";
 import { installAiInlineCompletion } from "./aiInlineCompletion.ts";
+import { installAiInlineEdit } from "./aiInlineEdit.ts";
 import { allowsAiCompletionForPath } from "./inlineCompletionContext.ts";
 // Re-exported rather than defined here: the table decides highlighting, completions, the
 // Structure view and the Run button, and it lives in a file with no Monaco import so it
@@ -266,6 +267,11 @@ export interface EditorHost {
   triggerInlineCompletion(): void;
   /** Current cursor line, for "go to line" and the status bar. */
   cursorLine(): number;
+  /**
+   * What the assistant should know about this view: the active buffer's language, cursor,
+   * selection, and the errors and warnings Monaco reports in it. Null with nothing open.
+   */
+  assistantContext(): EditorAssistantContext | null;
   applyTheme(theme: ThemeChoice): void;
   /**
    * Format one buffer, resolving once the text has settled.
@@ -348,8 +354,31 @@ export function createEditorPair(
  * project starts before `./` and `../` mean anything. Passed in rather than imported so
  * this file still knows nothing about the workbench that owns it.
  */
+/** The active buffer, as the assistant sees it. `path` is absolute; callers shorten it. */
+export interface EditorAssistantContext {
+  readonly path: string;
+  readonly languageId: string;
+  readonly cursorLine: number | null;
+  readonly selection: { readonly startLine: number; readonly endLine: number; readonly text: string } | null;
+  readonly problems: readonly string[];
+}
+
+/** A slice of a buffer headed for the assistant's composer as a context chip. */
+export interface EditorChatContext {
+  readonly path: string;
+  readonly languageId: string;
+  readonly startLine: number;
+  readonly endLine: number;
+  readonly text: string;
+}
+
 export interface EditorHostDeps {
   readonly askAssistant?: (prompt: string) => void;
+  /** Put a selection (or the file) in the assistant's composer without sending. */
+  readonly addToChat?: (context: EditorChatContext) => void;
+  /** Ctrl+E's one-shot rewrite. Absent means the action is not offered. */
+  readonly inlineEdit?: (input: AiInlineEditInputView) => Promise<AiInlineEditResultView>;
+  readonly cancelInlineEdit?: () => void;
   readonly activeFile: () => string | null;
   readonly workspaceRoot: () => string | null;
   readonly list: (directory: string) => Promise<readonly DirEntry[]>;
@@ -649,6 +678,55 @@ export function createEditorHost(
       },
     });
   }
+  if (deps.inlineEdit) {
+    const request = deps.inlineEdit;
+    const inlineEdit = installAiInlineEdit(editor, {
+      displayPath: () => active === null ? null : deps.displayPath(active),
+      request,
+      cancel: () => deps.cancelInlineEdit?.(),
+    });
+    editor.addAction({
+      id: "adcode.inlineEdit",
+      label: "ADCode: Edit with AI",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyE],
+      contextMenuGroupId: "8_adcode",
+      contextMenuOrder: 0,
+      run: () => {
+        if (active === null) return;
+        if (models.get(active)?.readOnly === true) return;
+        inlineEdit.start();
+      },
+    });
+  }
+  if (deps.addToChat) {
+    const addToChat = deps.addToChat;
+    editor.addAction({
+      id: "adcode.addSelectionToChat",
+      label: "ADCode: Add Selection to Chat",
+      // With a selection only: without one, Ctrl+L keeps selecting the line as it always has.
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL],
+      keybindingContext: "editorTextFocus && editorHasSelection",
+      contextMenuGroupId: "8_adcode",
+      contextMenuOrder: 0.5,
+      run: () => {
+        const model = editor.getModel();
+        if (active === null || model === null) return;
+        const selection = editor.getSelection();
+        const whole = selection === null || selection.isEmpty();
+        const startLine = whole ? 1 : selection.startLineNumber;
+        const endLine = whole
+          ? model.getLineCount()
+          : selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber
+            ? selection.endLineNumber - 1
+            : selection.endLineNumber;
+        const text = whole
+          ? model.getValue()
+          : model.getValueInRange(new monaco.Range(startLine, 1, endLine, model.getLineMaxColumn(endLine)));
+        if (text.trim().length === 0) return;
+        addToChat({ path: active, languageId: model.getLanguageId(), startLine, endLine, text });
+      },
+    });
+  }
   editor.addAction({
     id: "adcode.copyMarkdownCodeLink",
     label: "Copy Markdown Link to Line",
@@ -909,6 +987,31 @@ export function createEditorHost(
     },
 
     cursorLine: () => editor.getPosition()?.lineNumber ?? 1,
+
+    assistantContext() {
+      const model = editor.getModel();
+      if (active === null || model === null) return null;
+      const selection = editor.getSelection();
+      const selected = selection !== null && !selection.isEmpty() ? model.getValueInRange(selection) : "";
+      const problems = monaco.editor.getModelMarkers({ resource: model.uri })
+        .filter((marker) => marker.severity >= monaco.MarkerSeverity.Warning)
+        .sort((a, b) => b.severity - a.severity || a.startLineNumber - b.startLineNumber)
+        .slice(0, 20)
+        .map((marker) => {
+          const kind = marker.severity === monaco.MarkerSeverity.Error ? "error" : "warning";
+          const source = marker.source ? ` (${marker.source})` : "";
+          return `line ${marker.startLineNumber}: ${kind} ${marker.message.split("\n")[0] ?? ""}${source}`;
+        });
+      return {
+        path: active,
+        languageId: model.getLanguageId(),
+        cursorLine: editor.getPosition()?.lineNumber ?? null,
+        selection: selection !== null && selected.trim().length > 0
+          ? { startLine: selection.startLineNumber, endLine: selection.endLineNumber, text: selected.slice(0, 12_000) }
+          : null,
+        problems,
+      };
+    },
 
     revealLine(line) {
       const target = Math.max(1, Math.floor(line));

@@ -95,6 +95,13 @@ export interface ToolDefinition {
    * through the inline diff widget rather than straight to the filesystem.
    */
   readonly mutating: boolean;
+  /**
+   * Safe to run at the same time as other concurrent calls from the same turn.
+   *
+   * Only pure reads qualify. When every call a model makes in one turn is concurrent the
+   * loop runs them together, so reading five files costs one file's latency.
+   */
+  readonly concurrent?: boolean;
 }
 
 export interface ToolRunner {
