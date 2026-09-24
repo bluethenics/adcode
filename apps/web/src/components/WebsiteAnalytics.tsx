@@ -66,7 +66,7 @@ export function WebsiteAnalytics() {
         const target = new URL(anchor.href);
         if (!["http:", "https:"].includes(target.protocol)) return;
         if (anchor.hasAttribute("download") || /\.(exe|msi|dmg|deb|rpm|appimage|zip|tar\.gz)$/i.test(target.pathname)) trackWebsiteEvent("download_click", 0, pathname);
-        else if (target.origin === location.origin && (target.pathname === "/advertise" || target.hash === "#advertise" || target.pathname === "/portal/campaigns/new")) trackWebsiteEvent("advertise_click", 0, pathname);
+        else if (target.origin === location.origin && (target.pathname === "/advertise" || target.hash === "#advertise" || target.pathname === "/portal" || target.pathname === "/portal/campaigns/new")) trackWebsiteEvent("advertise_click", 0, pathname);
         else if (target.origin !== location.origin) trackWebsiteEvent("outbound_click", 0, pathname);
       } catch { /* invalid link */ }
     };

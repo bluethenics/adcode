@@ -7,6 +7,7 @@ import { signOutNow } from "@/lib/firebase";
 import { Mark } from "./Mark";
 import { useAuth } from "./AuthProvider";
 import { PortalActions } from "./PortalActions";
+import { ThemePicker } from "./ThemeProvider";
 
 export function Nav() {
   const pathname = usePathname();
@@ -43,6 +44,8 @@ export function Nav() {
 
   const secondaryLinks = (
     <>
+      <Link href="/#product" className="glass-nav-link">Product</Link>
+      <Link href="/portal" className="glass-nav-link nav-mobile-only">Advertiser portal</Link>
       <Link
         href="/docs"
         className="glass-nav-link"
@@ -51,7 +54,7 @@ export function Nav() {
         Docs
       </Link>
       <Link href="/support" className="glass-nav-link" aria-current={pathname === "/support" ? "page" : undefined}>Support</Link>
-      <Link href="/versions" className="glass-nav-link" aria-current={pathname === "/versions" ? "page" : undefined}>Versions</Link>
+      <Link href="/versions" className="glass-nav-link" aria-current={pathname === "/versions" ? "page" : undefined}>Install</Link>
       {isAdmin && <Link href="/admin" className="glass-nav-link">Admin</Link>}
       {!loading && (user === null ? (
         <Link href="/dashboard" className="glass-auth-control">Sign in</Link>
@@ -69,6 +72,7 @@ export function Nav() {
         <Link href="/" className="marketplace-brand" aria-label="ADCode home"><Mark /><span>ADCode</span></Link>
         <nav className="glass-nav" aria-label="Main navigation">
           <span className="glass-nav-secondary">{secondaryLinks}</span>
+          <ThemePicker />
           <PortalActions />
           <div className="glass-nav-mobile" ref={menu}>
             <button type="button" className="glass-menu-trigger" aria-label="Open navigation menu" aria-controls="glass-mobile-navigation" aria-expanded={open} onClick={() => setOpen((current) => !current)}>

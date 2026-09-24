@@ -8,9 +8,12 @@ import { Footer } from "@/components/Footer";
 import { JsonLd } from "@/components/JsonLd";
 import { AuthProvider } from "@/components/AuthProvider";
 import { CodeboxCopy } from "@/components/CodeboxCopy";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { THEME_SCRIPT } from "@/lib/theme";
 import { organisation, softwareApplication, webSite } from "@/lib/schema";
 import "./globals.css";
 import "./design-system.css";
+import "./redesign.css";
 
 /*
  * Self-hosted through next/font, so the page makes no request to a font CDN. That keeps
@@ -109,7 +112,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#000000",
+  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f7f7f4" }, { media: "(prefers-color-scheme: dark)", color: "#14120b" }],
   width: "device-width",
   initialScale: 1,
 };
@@ -121,18 +124,19 @@ export const viewport: Viewport = {
  */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${display.variable} ${body.variable} ${mono.variable}`}>
+      <head><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /></head>
       <body>
         <JsonLd data={organisation()} />
         <JsonLd data={webSite()} />
         <JsonLd data={softwareApplication()} />
-        <AuthProvider>
+        <ThemeProvider><AuthProvider>
           <CodeboxCopy />
           <Nav />
           <main id="main">{children}</main>
           <Footer />
           <Suspense fallback={null}><WebsiteAnalytics /></Suspense>
-        </AuthProvider>
+        </AuthProvider></ThemeProvider>
       </body>
     </html>
   );

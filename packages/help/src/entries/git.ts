@@ -14,7 +14,7 @@ export const GIT_ENTRIES: readonly HelpEntry[] = [
     plain:
       "Little coloured marks in the left margin show which lines you have changed since you last saved them into your project's history.",
     why: "It answers 'what have I actually touched here' without opening anything or comparing anything.",
-    how: "On by default. Green means you added the line, blue means you changed it, and a small triangle means you deleted something there. Click a mark to see what was there before, and to undo just that change.",
+    how: "On by default. Green means you added the line, amber means you changed it, and a small triangle means you deleted something there. Click a mark to see what was there before, and to undo just that change.",
     group: "git",
     settingIds: ["adcode.git.gutterDiff"],
     related: ["adcode.git.stageCommitUi", "adcode.git.fileTimeline"],

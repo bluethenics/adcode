@@ -14,7 +14,9 @@ export type Platform = "windows" | "macos" | "macos-intel" | "linux" | "unknown"
  * reported as an older Intel one is Apple silicon. Guessing wrong costs a person one click
  * on the install page; asking everyone to choose costs everyone one click.
  */
-export function detectPlatform(userAgent: string): Platform {
+export function detectPlatform(userAgent: string, maxTouchPoints = 0): Platform {
+  // Mobile browsers include desktop OS names; iPadOS can even report Macintosh.
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(userAgent) || (/Macintosh/.test(userAgent) && maxTouchPoints > 1)) return "unknown";
   if (/Win|WOW/.test(userAgent)) return "windows";
   if (/Mac/.test(userAgent)) {
     return /Intel Mac OS X 10_1[0-4]/.test(userAgent) ? "macos-intel" : "macos";
@@ -60,4 +62,10 @@ export function installCommand(platform: Platform, origin: string): string | nul
   if (platform === "windows") return `irm ${site}/install.ps1 | iex`;
   if (platform === "linux") return `curl -fsSL ${site}/install.sh | sh`;
   return null;
+}
+
+/** Only recognize our complete installer commands, never arbitrary copied code. */
+export function isInstallCommand(text: string, origin: string): boolean {
+  const command = text.trim();
+  return command === installCommand("windows", origin) || command === installCommand("linux", origin);
 }

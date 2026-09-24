@@ -36,6 +36,27 @@ describe("fenced code boxes", () => {
   });
 });
 
+describe("indented code boxes", () => {
+  it("makes installer blocks copyable even at the start of a document", () => {
+    const html = renderMarkdown("    curl -fsSL https://example.com/install.sh | sh\n\nWindows\n\n    irm https://example.com/install.ps1 | iex");
+    expect(html.match(/data-codebox-copy/g)).toHaveLength(2);
+    expect(html).toContain("<pre><code>curl -fsSL https://example.com/install.sh | sh</code></pre>");
+    expect(html).toContain("<p>Windows</p>");
+  });
+
+  it("preserves nested indentation and internal blank lines, and escapes code", () => {
+    const html = renderMarkdown("    if (ready) {\n        <script>\n\n        run();\n    }\n\n## Next");
+    expect(html).toContain("if (ready) {\n    &lt;script&gt;\n\n    run();\n}");
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("<h2>Next</h2>");
+  });
+
+  it("accepts a tab indent without turning paragraph continuations into code", () => {
+    expect(renderMarkdown("\tadcode open .")).toContain("<pre><code>adcode open .</code></pre>");
+    expect(renderMarkdown("A paragraph\n    continued on the next line")).toBe("<p>A paragraph continued on the next line</p>");
+  });
+});
+
 describe("images", () => {
   it("figures a lone https image with its alt as caption", () => {
     const html = renderMarkdown("![The editor at work](https://example.com/shot.png)");

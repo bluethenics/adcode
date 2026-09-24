@@ -39,6 +39,7 @@ export interface ReportInput {
 }
 
 import type { ActivityDelta } from "./activity.ts";
+import type { AssistantControlAction, AssistantControlsView } from "./assistantControls.ts";
 
 export type { ActivityDelta };
 
@@ -496,6 +497,10 @@ export const CHANNELS = {
   aiSetKey: "ai:set-key",
   aiClearKey: "ai:clear-key",
   aiSend: "ai:send",
+  aiControlsRead: "ai-controls:read",
+  aiControlsAction: "ai-controls:action",
+  aiControlsPreviewSkill: "ai-controls:preview-skill",
+  aiControlsChanged: "ai-controls:changed",
   aiCompletion: "ai:completion",
   aiCancelCompletion: "ai:cancel-completion",
   aiCancel: "ai:cancel",
@@ -645,6 +650,7 @@ export const CHANNELS = {
   pinPromptSettle: "pin:settle",
   pinPromptPin: "pin:pin",
   updateStatus: "update:status",
+  updateCheck: "update:check",
   serviceNotice: "notice:show",
   releaseAnnouncement: "release:announcement",
   releaseMarkSeen: "release:mark-seen",
@@ -853,6 +859,8 @@ export interface SessionStateView {
   readonly activeFile: string | null;
   /** Absent in sessions written before the layout was adjustable. */
   readonly layout?: LayoutView;
+  /** Absent in sessions written before the working mode was restored. */
+  readonly workspaceMode?: "vibe" | "code";
 }
 
 /**
@@ -1483,6 +1491,10 @@ export interface AdcodeApi {
     connection(): Promise<McpConnectionInfo>;
   };
   readonly ai: {
+    controls(): Promise<AssistantControlsView>;
+    control(action: AssistantControlAction): Promise<AssistantControlsView>;
+    previewSkill(id: string): Promise<string>;
+    onControlsChanged(listener: () => void): () => void;
     status(): Promise<AiStatus>;
     setKey(provider: string, key: string): Promise<AiStatus>;
     clearKey(provider: string): Promise<AiStatus>;
@@ -1730,6 +1742,7 @@ export interface AdcodeApi {
   };
   readonly updates: {
     status(): Promise<UpdateStatus>;
+    check(): Promise<UpdateStatus>;
     onChanged(listener: (status: UpdateStatus) => void): () => void;
   };
   readonly support: {

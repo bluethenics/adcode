@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import { isInstallCommand } from "@/lib/platform";
+import { SITE } from "@/lib/site";
+import { trackWebsiteEvent } from "@/lib/websiteAnalytics";
 
 /**
  * The hands behind every code box's Copy button.
@@ -13,7 +16,7 @@ import { useEffect } from "react";
  */
 export function CodeboxCopy() {
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timers = new Map<HTMLButtonElement, ReturnType<typeof setTimeout>>();
 
     const copyText = async (text: string): Promise<boolean> => {
       try {
@@ -22,18 +25,20 @@ export function CodeboxCopy() {
       } catch {
         // Clipboard permission denied, or an older browser. A temporary textarea and
         // `execCommand` still works where the async API does not.
+        const area = document.createElement("textarea");
+        const focused = document.activeElement;
         try {
-          const area = document.createElement("textarea");
           area.value = text;
           area.style.position = "fixed";
           area.style.opacity = "0";
           document.body.appendChild(area);
           area.select();
-          const ok = document.execCommand("copy");
-          area.remove();
-          return ok;
+          return document.execCommand("copy");
         } catch {
           return false;
+        } finally {
+          area.remove();
+          if (focused instanceof HTMLElement) focused.focus({ preventScroll: true });
         }
       }
     };
@@ -45,21 +50,25 @@ export function CodeboxCopy() {
       const code = button.closest(".codebox")?.querySelector("code");
       if (code === null || code === undefined) return;
 
-      void copyText(code.textContent ?? "").then((ok) => {
+      const text = code.textContent ?? "";
+      const path = location.pathname;
+      void copyText(text).then((ok) => {
+        if (ok && isInstallCommand(text, SITE.origin)) trackWebsiteEvent("install_copy", 0, path);
         button.textContent = ok ? "Copied" : "Copy failed";
         button.dataset.copied = ok ? "true" : "false";
-        if (timer !== undefined) clearTimeout(timer);
-        timer = setTimeout(() => {
+        clearTimeout(timers.get(button));
+        timers.set(button, setTimeout(() => {
           button.textContent = "Copy";
           delete button.dataset.copied;
-        }, 1600);
+          timers.delete(button);
+        }, 1600));
       });
     };
 
     document.addEventListener("click", onClick);
     return () => {
       document.removeEventListener("click", onClick);
-      if (timer !== undefined) clearTimeout(timer);
+      for (const timer of timers.values()) clearTimeout(timer);
     };
   }, []);
 

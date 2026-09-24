@@ -194,6 +194,7 @@ const checks = {};
 checks.signalsReported = await evaluate(
   `typeof window.adcode.ads.reportSignals === 'function'`,
 );
+checks.vibeModeActive = await evaluate(`document.body.dataset.workspaceMode === 'vibe'`);
 
 /*
  * Drive the ticks rather than wait them out.
@@ -250,6 +251,8 @@ const toast = await evaluate(
        // It is a notification in our own centre, not a bolted-on popup: same host, same
        // element type as an ordinary toast.
        insideNotificationCentre: card.matches('.toast'),
+       inVibeSidebar: card.parentElement?.id === 'vibe-sponsored-slot',
+       inFallbackLayer: card.parentElement?.id === 'toast-layer',
        ariaLabel: card.getAttribute('aria-label') ?? '',
      };
    })()`,
@@ -272,6 +275,10 @@ if (checks.toastAppeared) {
     : `logo scheme was ${toast.logoScheme}`;
   checks.hasDismissButton = toast.hasDismiss;
   checks.isAFirstClassNotification = toast.insideNotificationCentre;
+  checks.vibeAdVisible = toast.inVibeSidebar || toast.inFallbackLayer;
+  checks.vibeSidebarPlacement = toast.inVibeSidebar
+    ? true
+    : "sponsored card did not use the Vibe sidebar";
   checks.announcedToScreenReaders = toast.ariaLabel.includes(CREATIVE.advertiser)
     ? true
     : `aria-label read: ${toast.ariaLabel}`;

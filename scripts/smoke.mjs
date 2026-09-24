@@ -213,6 +213,22 @@ while (Date.now() < startupDeadline) {
   await sleep(250);
 }
 
+// The general IDE checks run in Code; the dedicated mode smoke exercises both modes.
+await evaluate("document.querySelector('.workspace-mode-switch [data-mode=code]')?.click()");
+await sleep(250);
+await evaluate("(() => { const dock = document.getElementById('assistant-dock'); if (dock && !dock.hidden) document.getElementById('ai-toggle').click(); })()");
+async function openExpandedAssistant() {
+  await evaluate(`(() => {
+    const dialog = document.querySelector('dialog[data-popup-id="chat"]');
+    if (dialog?.open) return;
+    const card = document.querySelector('.chat-card');
+    if (card?.closest('#assistant-dock')) {
+      if (document.getElementById('assistant-dock').hidden) document.getElementById('ai-toggle').click();
+      card.querySelector('.chat-presentation')?.click();
+    } else document.getElementById('ai-toggle')?.click();
+  })()`);
+  await sleep(300);
+}
 const checks = {
   title: await evaluate("document.title"),
   activities: await evaluate(
@@ -443,7 +459,7 @@ checks.anchoredToolsEvidence = await (async () => {
          structureOpen: document.querySelector('[data-popup-id="structure"]')?.open === true,
          sidebarWidth: sidebar?.width ?? -1,
          editorWidth: editor?.width ?? -1,
-         rounded: surface ? parseFloat(getComputedStyle(surface).borderRadius) >= 12 : false,
+         rounded: surface ? parseFloat(getComputedStyle(surface).borderRadius) >= 4 : false,
        };
      })()`,
   );
@@ -460,7 +476,7 @@ checks.anchoredToolsEvidence = await (async () => {
          structureOpen: document.querySelector('[data-popup-id="structure"]')?.open === true,
          sidebarWidth: sidebar?.width ?? -1,
          editorWidth: editor?.width ?? -1,
-         rounded: surface ? parseFloat(getComputedStyle(surface).borderRadius) >= 12 : false,
+         rounded: surface ? parseFloat(getComputedStyle(surface).borderRadius) >= 4 : false,
        };
      })()`,
   );
@@ -1096,8 +1112,8 @@ async function pressEnterInEditor() {
  */
 async function pressChord(key, { shift = false, alt = false } = {}) {
   const modifiers = 2 | (shift ? 8 : 0) | (alt ? 1 : 0);
-  const code = `Key${key.toUpperCase()}`;
-  const virtualKey = key.toUpperCase().charCodeAt(0);
+  const code = key === "Home" ? "Home" : `Key${key.toUpperCase()}`;
+  const virtualKey = key === "Home" ? 36 : key.toUpperCase().charCodeAt(0);
 
   await send("Input.dispatchKeyEvent", {
     type: "keyDown",
@@ -2332,7 +2348,7 @@ checks.altChordLeavesMenuShut = await (async () => {
   return focused === true ? true : `a bare Alt: ${focused}`;
 })();
 
-/* The assistant button and the command centre, clicked where they actually are. */
+/* On-demand assistant and command centre, clicked where they actually are. */
 checks.titleBarControlsWork = await (async () => {
   const pointOf = async (selector) =>
     evaluate(
@@ -2345,14 +2361,21 @@ checks.titleBarControlsWork = await (async () => {
        })()`,
     );
 
-  const ai = await pointOf("#ai-toggle");
-  if (ai === null) return "no assistant button";
-
+  const tools = await pointOf(".project-tools");
+  if (tools === null) return "no tools menu";
+  await clickAt(tools.x, tools.y);
+  const ai = await evaluate(`(() => {
+    const button = [...document.querySelectorAll('.menu-item')].find(b => b.textContent === 'AI assistant');
+    if (!button) return null;
+    const r = button.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  })()`);
+  if (ai === null) return "no assistant menu action";
   await clickAt(ai.x, ai.y);
   const chatOpen = await evaluate(
     "document.querySelector('.chat-card')?.hidden === false",
   );
-  if (!chatOpen) return "the assistant button did not open the chat";
+  if (!chatOpen) return "the assistant menu did not open the chat";
 
   const pressed = await evaluate(
     "document.getElementById('ai-toggle')?.getAttribute('aria-pressed')",
@@ -2360,7 +2383,7 @@ checks.titleBarControlsWork = await (async () => {
   if (pressed !== "true")
     return `aria-pressed is ${pressed} while the chat is open`;
 
-  await clickAt(ai.x, ai.y);
+  await evaluate("document.querySelector('[aria-label=\"Close Assistant\"]')?.click()");
   await sleep(300);
 
   const centre = await pointOf(".command-centre");
@@ -2432,7 +2455,7 @@ checks.reportDialogOpens = await (async () => {
        const b = button.getBoundingClientRect();
        const c = centre.getBoundingClientRect();
        if (b.width === 0) return 'the feedback button has no width';
-       if (b.left < c.right) return 'the feedback button is not after the command centre';
+       if (!button.closest('#titlebar') || !centre.closest('.project-toolbar')) return 'feedback and project search are not in their chrome rows';
        return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2) };
      })()`,
   );
@@ -2551,6 +2574,8 @@ try {
   // of zero size.
   await openSidebar("explorer");
   await sleep(500);
+  // This flow explicitly exercises auto-save; normal installs default to manual save.
+  await evaluate("window.adcode.settings.write('adcode.session.autoSave', true)");
 
   /*
    * Recomputed before every use, never cached.
@@ -2567,8 +2592,11 @@ try {
          const box = tree.getBoundingClientRect();
          const rows = tree.querySelectorAll('.tree-row');
          const last = rows[rows.length - 1]?.getBoundingClientRect();
-         const y = last ? Math.min(last.bottom + 40, box.bottom - 20) : box.top + 40;
-         return { x: Math.round(box.left + box.width / 2), y: Math.round(y) };
+         const visible = document.getElementById('sidebar-content').getBoundingClientRect();
+         const y = Math.max(visible.top + 8, Math.min(last ? last.bottom + 40 : box.top + 40, visible.bottom - 12));
+         // The tree's padding stays a root-level context target even when rows fill
+         // the viewport. Its full scroll height can extend well below the window.
+         return { x: Math.round(box.left + 2), y: Math.round(y) };
        })()`,
     );
 
@@ -2972,13 +3000,16 @@ try {
   await pressEnter();
   await sleep(1000);
 
-  const editorPoint = await evaluate(
-    `(() => {
-       const r = document.querySelector('.editor-file-panel[data-active="true"] .monaco-editor').getBoundingClientRect();
-       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 20) };
-     })()`,
-  );
-  await clickAt(editorPoint.x, editorPoint.y);
+  async function focusActiveEditor() {
+    const point = await evaluate(`(() => {
+      const panel = document.querySelector('.editor-file-panel[data-active="true"]');
+      const r = panel.querySelector('.view-lines').getBoundingClientRect();
+      const bounds = panel.getBoundingClientRect();
+      return { x: Math.round(r.left + 40), y: Math.round(Math.max(r.top, bounds.top + 50) + 10) };
+    })()`);
+    await clickAt(point.x, point.y);
+  }
+  await focusActiveEditor();
 
   /*
    * Select the whole buffer before typing.
@@ -3145,7 +3176,7 @@ try {
       await sleep(600);
     }
 
-    await clickAt(editorPoint.x, editorPoint.y);
+    await focusActiveEditor();
     await sleep(200);
     await pressChord("a");
     await sleep(150);
@@ -3153,6 +3184,7 @@ try {
   }
 
   checks.errorLensShowsTheMessage = await (async () => {
+    await evaluate("window.adcode.settings.write('adcode.editing.inlineErrorLens', true)");
     // The error stays on line 1 and the cursor ends on line 2, because the lens deliberately
     // says nothing about the line you are typing on.
     await retypeFile("let x: number = true;");
@@ -3641,19 +3673,16 @@ try {
 
   checks.peekShowsTheDefinition = await (async () => {
     // Put the cursor on `alpha` on the second line - the use, not the declaration.
-    await clickAt(editorPoint.x, editorPoint.y);
+    await focusActiveEditor();
     await sleep(200);
     /*
      * Land on `alpha` in `alpha;`, which is line 2.
      *
-     * Select-all then Right collapses to the very end of the buffer - and the buffer ends
-     * with a blank line, so that is line 3. A screenshot caught the cursor sitting at
-     * Ln 3, Col 1 with no symbol under it, which is why the peek found nothing.
+     * Navigate from the start so this works with either trailing-newline convention.
+     * Format-on-save can change the number of blank lines at the end of the file.
      */
-    await pressChord("a");
-    await sleep(100);
-    await pressKey("ArrowRight");
-    await pressKey("ArrowUp");
+    await pressChord("Home");
+    await pressKey("ArrowDown");
     await pressKey("Home");
     await pressKey("ArrowRight");
     await pressKey("ArrowRight");
@@ -3785,12 +3814,6 @@ try {
    * its edit to a microtask, and every way of getting that wrong produces a feature that is
    * silently absent rather than broken.
    */
-  const pageEditorPoint = await evaluate(
-    `(() => {
-       const r = document.getElementById('editor-host').getBoundingClientRect();
-       return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 40) };
-     })()`,
-  );
 
   /*
    * The file template, which wrote itself into this file when it was created.
@@ -3800,6 +3823,8 @@ try {
    * cannot be seen from the text alone.
    */
   // Long enough for the auto-save the template's edit scheduled.
+  await focusActiveEditor();
+  await pressChord("s");
   await sleep(1600);
 
   checks.newFileStartsFromATemplate = await evaluate(
@@ -3829,7 +3854,7 @@ try {
      })()`,
   );
 
-  await clickAt(pageEditorPoint.x, pageEditorPoint.y);
+  await focusActiveEditor();
   await typeText("<h1>");
   await sleep(400);
   await typeText("Hello");
@@ -3940,7 +3965,7 @@ try {
   await pressEnter();
   await sleep(1200);
 
-  await clickAt(pageEditorPoint.x, pageEditorPoint.y);
+  await focusActiveEditor();
 
   // Clear the template first. A `.ts` file is created with one now, and typing into it
   // would be testing the template's outline rather than the one being written here.
@@ -4584,6 +4609,7 @@ async function dragBy(handleId, dx, dy) {
     button: "left",
     buttons: 1,
   });
+  await sleep(80);
   await send("Input.dispatchMouseEvent", {
     type: "mouseReleased",
     x: from.x + dx,
@@ -4775,19 +4801,20 @@ checks.outputTabCarriesRealLogs = await evaluate(
 /*
  * The `<$>` mark is drawn, not typed, so it cannot fall back to a missing font.
  *
- * Five paths: the two brackets, the dollar's S, and its stem - which is two strokes rather
- * than one so the S is not crossed through the middle. The count is asserted rather than
- * just "some paths" because losing a stroke is exactly the kind of change that looks fine
- * at 16px and wrong at 64.
+ * Fifteen paths: the ribbon body (two brackets, the dollar's S, and its stem - which
+ * is two strokes rather than one so the S is not crossed through the middle) plus ten
+ * fold accents (tip faces, edge sheen/shade, stem twists, S shadow and sheen). The
+ * count is asserted rather than just "some paths" because losing a stroke is exactly
+ * the kind of change that looks fine at 16px and wrong at 64.
  */
 checks.brandMarkDrawn = await evaluate(
   `(() => {
-     const mark = document.querySelector('.welcome-mark .brand-mark');
-     if (!mark) return 'no mark on the welcome screen';
-     const paths = mark.querySelectorAll('path').length;
-     const box = mark.getBoundingClientRect();
-     return paths === 5 && box.width > 0 ? true : 'paths=' + paths + ' width=' + box.width;
-   })()`,
+      const mark = document.querySelector('.welcome-mark .brand-mark');
+      if (!mark) return 'no mark on the welcome screen';
+      const paths = mark.querySelectorAll('path').length;
+      const box = mark.getBoundingClientRect();
+      return paths === 15 && box.width > 0 ? true : 'paths=' + paths + ' width=' + box.width;
+    })()`,
 );
 
 /*
@@ -5973,7 +6000,7 @@ checks.settingsCloseButtonDismisses = await evaluate(
   })()`,
 );
 
-await evaluate("document.getElementById('ai-toggle')?.click(); true");
+await openExpandedAssistant();
 await sleep(400);
 checks.chatConnectWorkspaceEvidence = await evaluate(
   `(() => {
@@ -6081,6 +6108,13 @@ function hasDisclosureState(snapshot, historyOpen, inspectorOpen) {
 function disclosureGeometryPass(result, layout) {
   if (typeof result !== "object" || result === null) return false;
   const { viewport, bothOpen, historyCollapsed, bothCollapsed, inspectorCollapsed } = result;
+  if (layout === "compact") {
+    // Compact chat intentionally shows at most one secondary panel at a time.
+    return viewport <= 720 && [bothOpen, historyCollapsed, bothCollapsed, inspectorCollapsed].every(entry =>
+      entry.width > 0 && !(entry.historyOpen === 'true' && entry.inspectorOpen === 'true') &&
+      entry.historyHidden === (entry.historyOpen !== 'true') && entry.inspectorHidden === (entry.inspectorOpen !== 'true') &&
+      Math.abs(entry.width - bothOpen.width) < 4);
+  }
   const states =
     hasDisclosureState(bothOpen, true, true) &&
     hasDisclosureState(historyCollapsed, false, true) &&
@@ -6255,7 +6289,7 @@ Object.assign(checks.chatConnectLayeringEvidence, await evaluate(`(() => {
 })()`));
 await pressEscape();
 checks.chatConnectLayeringEvidence.chatEscape = await evaluate(
-  `document.querySelector('dialog[data-popup-id="chat"]').open === false && document.activeElement === document.getElementById('ai-toggle')`,
+  `document.querySelector('dialog[data-popup-id="chat"]').open === false && document.activeElement === document.querySelector('.project-tools')`,
 );
 
 checks.chatConnectWorkspace =
@@ -6517,9 +6551,9 @@ checks.dialogCloseAudit.chat = await auditRequiredClose(
     root: 'dialog[data-popup-id="chat"]',
     surface: 'dialog[data-popup-id="chat"] .popup-shell-surface',
     close: 'dialog[data-popup-id="chat"] [aria-label="Close Assistant"]',
-    restore: '#ai-toggle',
+    restore: '.project-tools',
   },
-  () => evaluate("document.getElementById('ai-toggle')?.click(); true"),
+  openExpandedAssistant,
 );
 checks.dialogCloseAudit.connect = await auditRequiredClose(
   {
@@ -6532,7 +6566,7 @@ checks.dialogCloseAudit.connect = await auditRequiredClose(
     restore: '#popup-primary-host dialog[data-popup-id="chat"] button[title="Choose a provider and model"]',
   },
   async () => {
-    await evaluate("document.getElementById('ai-toggle')?.click(); true");
+    await openExpandedAssistant();
     await sleep(300);
     await evaluate(
       `(() => {

@@ -1,0 +1,10 @@
+.chat-live-preview { flex: none; width: 100%; min-width: 0; margin-block: 16px; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 12px; background: var(--bg-elevated); }
+.chat-live-preview-header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border-hairline); }
+.chat-live-preview-header strong { font-size: var(--text-sm); }
+.chat-live-preview-address { flex: 1; min-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font: var(--text-xs) var(--font-mono); }
+.chat-live-preview-header button { min-height: 28px; font-size: var(--text-xs); }
+.chat-live-preview iframe { display: block; width: 100%; height: clamp(280px, 48vh, 520px); border: 0; background: white; }
+.chat-live-preview iframe[hidden] { display: none; }
+.chat-live-preview-status { padding: 28px 16px; color: var(--text-secondary); font-size: var(--text-sm); }
+.chat-live-preview > button { margin: 0 16px 16px; }
+.chat-live-preview-note { margin: 0; padding: 8px 12px; border-top: 1px solid var(--border-hairline); color: var(--text-secondary); font-size: var(--text-xs); }

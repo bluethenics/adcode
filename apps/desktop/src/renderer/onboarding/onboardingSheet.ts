@@ -17,6 +17,7 @@
  */
 import { getSetting, type EnumSetting } from "@adcode/settings";
 import { themePicker } from "../settings/themePicker.ts";
+import { MODE_DESCRIPTION, MODE_STORAGE_KEY, workspaceMode, type WorkspaceMode } from "../workbench/workspaceMode.ts";
 
 export interface OnboardingSheet {
   open(): void;
@@ -25,6 +26,7 @@ export interface OnboardingSheet {
 }
 
 export interface OnboardingDeps {
+  chooseMode?: (mode: WorkspaceMode) => void;
   /** Current settings, and how to change one. Same pair the settings sheet uses. */
   read: () => Promise<Record<string, boolean | string>>;
   write: (id: string, value: boolean | string) => Promise<Record<string, boolean | string>>;
@@ -112,7 +114,7 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
     render();
   });
   next.addEventListener("click", () => {
-    if (step >= 3) {
+    if (step >= 4) {
       finish();
       return;
     }
@@ -140,7 +142,7 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
 
   function renderTheme(): void {
     body.append(
-      heading("Make it yours", "Three looks, and the one the website wears. You can change this whenever you like."),
+      heading("Make it yours", "Warm light, charcoal dark, or midnight. You can change this whenever you like."),
       themePicker(
         (getSetting("adcode.appearance.theme") as EnumSetting | undefined)?.options ?? [],
         String(values["adcode.appearance.theme"] ?? "system"),
@@ -250,13 +252,14 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
   function render(): void {
     body.replaceChildren();
 
-    if (step === 0) renderTheme();
-    else if (step === 1) renderFrequency();
-    else if (step === 2) renderAccount();
+    if (step === 0) renderModes();
+    else if (step === 1) renderTheme();
+    else if (step === 2) renderFrequency();
+    else if (step === 3) renderAccount();
     else renderTips();
 
     dots.replaceChildren();
-    for (let index = 0; index < 4; index += 1) {
+    for (let index = 0; index < 5; index += 1) {
       const dot = document.createElement("span");
       dot.className = "onboarding-dot";
       if (index === step) dot.dataset["current"] = "true";
@@ -264,8 +267,30 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
     }
 
     back.hidden = step === 0;
-    skip.hidden = step === 3;
-    next.textContent = step === 3 ? "Start coding" : "Continue";
+    skip.hidden = step === 4;
+    next.textContent = step === 4 ? "Start building" : "Continue";
+  }
+
+  function renderModes(): void {
+    body.append(heading("Welcome to ADCode", "One project. Two ways to work. Switch whenever you need to."));
+    const choices = document.createElement("div");
+    choices.className = "onboarding-modes";
+    let current: WorkspaceMode = "vibe";
+    try { current = workspaceMode(localStorage.getItem(MODE_STORAGE_KEY)); } catch { /* Optional storage. */ }
+    for (const mode of ["vibe", "code"] as const) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "onboarding-mode";
+      button.setAttribute("aria-pressed", String(mode === current));
+      const title = document.createElement("strong");
+      title.textContent = mode === "vibe" ? "Vibe" : "Code";
+      const detail = document.createElement("span");
+      detail.textContent = MODE_DESCRIPTION[mode];
+      button.append(title, detail);
+      button.addEventListener("click", () => { deps.chooseMode?.(mode); render(); });
+      choices.append(button);
+    }
+    body.append(choices);
   }
 
   return {

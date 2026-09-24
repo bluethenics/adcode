@@ -19,6 +19,7 @@
  * script in `liveServer.ts` (`INSPECT_SCRIPT`) posts `adcode-inspect` messages
  * out and answers `adcode-preview` messages in. This file is the other end.
  */
+import { copyText } from "../clipboard.ts";
 
 export interface BoxEdges {
   readonly top: string;
@@ -316,11 +317,14 @@ export function createElementInspector(deps: ElementInspectorDeps): ElementInspe
     copy.className = "ghost-button device-action";
     copy.textContent = "Copy";
     copy.addEventListener("click", () => {
-      void navigator.clipboard?.writeText(box.html).catch(() => undefined);
-      copy.textContent = "Copied";
-      window.setTimeout(() => {
-        copy.textContent = "Copy";
-      }, 1200);
+      copy.disabled = true;
+      void copyText(box.html).then((ok) => {
+        copy.textContent = ok ? "Copied" : "Copy failed";
+        window.setTimeout(() => {
+          copy.textContent = "Copy";
+          copy.disabled = false;
+        }, 1200);
+      });
     });
     codeHead.append(codeLabel, copy);
 

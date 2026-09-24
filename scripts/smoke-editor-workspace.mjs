@@ -2,6 +2,7 @@
 import { spawn, execFileSync } from "node:child_process";
 import { checkPopups } from "./smoke-popups-checks.mjs";
 import { checkAi } from "./smoke-ai-checks.mjs";
+import { checkModes } from "./smoke-workspace-modes.mjs";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -15,8 +16,8 @@ const workspace = join(scratch, "project");
 const userData = join(scratch, "profile");
 const artifacts = resolve(root, "artifacts/editor-workspace");
 await Promise.all([mkdir(workspace), mkdir(userData), mkdir(artifacts, { recursive: true })]);
-const files = [join(workspace, "layout.html"), join(workspace, "styles.css")];
-await writeFile(files[0], '<main class="workspace">\n  <h1>Your workspace, your way</h1>\n  <p>Two files. One place to build.</p>\n</main>\n');
+const files = [join(workspace, process.argv.includes("--editor-intelligence") ? "intelligence.ts" : "layout.html"), join(workspace, "styles.css")];
+await writeFile(files[0], process.argv.includes("--editor-intelligence") ? 'const alpha = 1;\nalpha;\nlet invalid: number = true;\n' : '<main class="workspace">\n  <h1>Your workspace, your way</h1>\n  <p>Two files. One place to build.</p>\n</main>\n');
 await writeFile(files[1], '.workspace {\n  display: grid;\n  gap: 16px;\n  border-radius: 14px;\n}\n');
 if (process.argv.includes("--popups")) {
   execFileSync("git", ["init", "--quiet", workspace]);
@@ -25,7 +26,7 @@ if (process.argv.includes("--popups")) {
 await writeFile(join(userData, "session.json"), JSON.stringify({ state: {
   root: workspace, openFiles: files, activeFile: files[0],
 } }));
-await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: true, at: Date.now() }));
+await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: !process.argv.includes("--onboarding"), at: Date.now() }));
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 const port = Number(process.env.ADCODE_EDITOR_SMOKE_PORT ?? 9347);
@@ -88,8 +89,8 @@ try {
     process.stderr.write(JSON.stringify(await evaluate(`({focus: document.activeElement?.outerHTML.slice(0, 600), panels: [...document.querySelectorAll('.editor-file-panel')].map(panel => ({path: panel.dataset.path, active: panel.dataset.active, text: panel.textContent.slice(-600)}))})`)) + '\n');
     throw new Error(`Condition did not become true: ${expression}`);
   }
-  async function key(key, code, modifiers = 0) {
-    const windowsVirtualKeyCode = ({ End: 35, Home: 36, ArrowRight: 39 })[key] ?? key.toUpperCase().charCodeAt(0);
+  async function key(key, code, modifiers = 0, virtualKeyOverride) {
+    const windowsVirtualKeyCode = virtualKeyOverride ?? ({ End: 35, Home: 36, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40 })[key] ?? key.toUpperCase().charCodeAt(0);
     await send("Input.dispatchKeyEvent", { type: "keyDown", key, code, modifiers, windowsVirtualKeyCode });
     await send("Input.dispatchKeyEvent", { type: "keyUp", key, code, modifiers, windowsVirtualKeyCode });
   }
@@ -114,11 +115,54 @@ try {
     })()`);
   }
   await waitFor("document.querySelectorAll('.tab').length === 2");
-  await evaluate("document.querySelector('dialog.onboarding')?.close()");
+  if (!process.argv.includes("--onboarding")) await evaluate("document.querySelector('dialog.onboarding')?.close()");
   await evaluate("window.adcode.settings.write('adcode.session.autoSave', false)");
   await evaluate("window.adcode.settings.write('adcode.formatting.formatOnSave', false)");
   await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
-  if (process.argv.includes("--git-badge")) {
+  if (!process.argv.includes("--modes") && !process.argv.includes("--onboarding")) {
+    await evaluate("document.querySelector('.workspace-mode-switch [data-mode=code]')?.click()");
+    await sleep(150);
+  }
+  if (process.argv.includes("--onboarding")) {
+    await waitFor("document.querySelector('dialog.onboarding')?.open");
+    assert.equal(await evaluate("document.querySelectorAll('.onboarding-mode').length"), 2);
+    await evaluate("document.querySelectorAll('.onboarding-mode')[1].click()");
+    assert.equal(await evaluate("document.body.dataset.workspaceMode"), "code");
+    await evaluate("document.querySelectorAll('.onboarding-mode')[0].click()");
+    assert.equal(await evaluate("document.body.dataset.workspaceMode"), "vibe");
+    const shot = await send("Page.captureScreenshot", { format: "png" });
+    await writeFile(join(artifacts, "modes-onboarding.png"), Buffer.from(shot.data, "base64"));
+    await evaluate("document.querySelector('.onboarding-skip').click()");
+    await waitFor("!document.querySelector('dialog.onboarding').open");
+    assert.equal(await evaluate("window.adcode.onboarding.completed()"), true);
+    await evaluate("document.querySelector('[aria-label=\"Dismiss mode hint\"]').click()");
+    assert.equal(await evaluate("document.body.dataset.modeHint"), "false");
+    await evaluate("document.querySelector('.workspace-mode-switch [data-mode=code]').click()");
+    assert.equal(await evaluate("document.body.dataset.modeHint"), "true");
+    await evaluate("document.querySelector('.workspace-mode-switch [data-mode=vibe]').click()");
+    assert.equal(await evaluate("document.body.dataset.modeHint"), "false");
+    process.stdout.write("PASS: first-use mode choice, skip onboarding, persisted completion, independent dismissible mode hints.\n");
+  } else if (process.argv.includes("--editor-intelligence")) {
+    await evaluate("window.adcode.settings.write('adcode.editing.inlineErrorLens', true)");
+    await focusPanel(0);
+    await key('Home', 'Home', 2, 36);
+    await key('ArrowDown', 'ArrowDown', 0, 40);
+    await key('Home', 'Home', 0, 36);
+    await key('ArrowRight', 'ArrowRight', 0, 39);
+    await key('ArrowRight', 'ArrowRight', 0, 39);
+    await waitFor("document.querySelector('.error-lens')?.textContent.includes('number')", 120);
+    assert.match(await evaluate("document.getElementById('status-position').textContent"), /Ln 2, Col 3/, 'The caret is on the symbol reference');
+    await key('P', 'KeyP', 10, 80);
+    await waitFor("document.querySelector('.quickopen-input[aria-label=\"Command palette\"]')?.getClientRects().length > 0");
+    await evaluate("(() => { const input = document.querySelector('.quickopen-input[aria-label=\"Command palette\"]'); input.value = 'Peek Definition'; input.dispatchEvent(new Event('input', { bubbles: true })); })()");
+    await waitFor("document.querySelector('.palette-row')?.textContent.includes('Peek Definition')");
+    await evaluate("document.querySelector('.palette-row').click()");
+    await waitFor("document.querySelector('.peek-code')?.textContent.includes('alpha')", 120);
+    const shot = await send('Page.captureScreenshot', { format: 'png' });
+    await writeFile(join(artifacts, 'editor-intelligence.png'), Buffer.from(shot.data, 'base64'));
+    assert.ok(await evaluate("document.querySelector('.peek-badge').textContent.length > 0"), 'Peek states how the definition was found');
+    process.stdout.write('PASS: enabled inline error lens shows the real TypeScript diagnostic; keyboard Peek Definition finds and displays the actual declaration.\n');
+  } else if (process.argv.includes("--git-badge")) {
     execFileSync("git", ["init", "--quiet", workspace]);
     await waitFor("document.querySelector('#git-badge').hidden === false", 120);
     assert.equal(await evaluate("document.querySelector('#git-badge').textContent"), "2");
@@ -134,6 +178,8 @@ try {
     const shot = await send("Page.captureScreenshot", { format: "png" });
     await writeFile(join(artifacts, "git-badge.png"), Buffer.from(shot.data, "base64"));
     process.stdout.write("PASS: Git badge tracks untracked, staged, committed and externally edited files while the popup stays closed.\n");
+  } else if (process.argv.includes("--modes")) {
+    await checkModes({ evaluate, send, waitFor, sleep, artifacts });
   } else if (process.argv.includes("--ai")) {
     await checkAi({ evaluate, send, waitFor, sleep, artifacts });
   } else if (process.argv.includes("--popups")) {
@@ -145,8 +191,8 @@ try {
     const panels = [...document.querySelectorAll('.editor-file-panel')];
     const [left, right] = panels.map((panel) => panel.getBoundingClientRect());
     return left.width > 200 && right.width > 200 && right.left > left.right &&
-      panels.every((panel) => parseFloat(getComputedStyle(panel).borderRadius) >= 10);
-  })()`), true, "Two rounded, separate file surfaces");
+      panels.every((panel) => parseFloat(getComputedStyle(panel).borderRadius) === 0);
+  })()`), true, "Two flat file surfaces separated by a resize divider");
 
   // Real keystrokes must save to the focused file, leaving its neighbour untouched.
   const initialLeft = await readFile(files[0], "utf8");
@@ -202,18 +248,19 @@ try {
   await waitFor("document.querySelectorAll('.terminal-tab-body:not([hidden]) .terminal-pane .xterm').length === 1 && !document.getElementById('panel').hidden");
   await evaluate("document.getElementById('terminal-split').click()");
   await waitFor("document.querySelectorAll('.terminal-tab-body:not([hidden]) .terminal-pane .xterm').length === 2");
-  assert.equal(await evaluate(`[...document.querySelectorAll('.terminal-tab-body:not([hidden]) .terminal-pane')].every(pane => {
+  const terminalGeometry = await evaluate(`[...document.querySelectorAll('.terminal-tab-body:not([hidden]) .terminal-pane')].map(pane => {
     const style = getComputedStyle(pane);
-    return parseFloat(style.borderRadius) >= 10 && parseFloat(style.borderTopWidth) >= 1 && pane.clientHeight > 40;
-  })`), true, "Split terminal panes each have a complete rounded border");
+    return { radius: parseFloat(style.borderRadius), border: parseFloat(style.borderTopWidth), height: pane.clientHeight };
+  })`);
+  assert.ok(terminalGeometry.every(pane => pane.radius === 0 && pane.border === 0 && pane.height > 40), `Split terminals have usable space without nested frames: ${JSON.stringify(terminalGeometry)}`);
 
   for (const theme of ["dark", "light", "midnight"]) {
     await evaluate(`window.adcode.settings.write('adcode.appearance.theme', '${theme}')`);
     await sleep(200);
-    assert.equal(await evaluate(`['.sidebar', '.main', '.editor-file-panel', '.panel', '.terminal-tab-body:not([hidden]) .terminal-pane'].every(selector => {
+    assert.equal(await evaluate(`['.sidebar', '.main', '.editor-file-panel', '.terminal-tab-body:not([hidden]) .terminal-pane'].every(selector => {
       const style = getComputedStyle(document.querySelector(selector));
-      return parseFloat(style.borderRadius) >= 10 && parseFloat(style.borderTopWidth) >= 1;
-    })`), true, `Visible boxed surfaces in ${theme}`);
+      return parseFloat(style.borderRadius) === 0 && parseFloat(style.borderTopWidth) === 0;
+    })`), true, `Continuous workspace surfaces in ${theme}`);
     const screenshot = await send("Page.captureScreenshot", { format: "png" });
     await writeFile(join(artifacts, `${theme}.png`), Buffer.from(screenshot.data, "base64"));
   }
@@ -225,7 +272,7 @@ try {
     return workspace.width > 0 && merge.right <= innerWidth && merge.bottom < innerHeight;
   })()`), true, "Both panel controls remain reachable in a narrow window");
   assert.doesNotMatch(log, /Uncaught (?:TypeError|ReferenceError)|UnhandledPromiseRejection/);
-  process.stdout.write("PASS: split layout, focus/save routing, shared edits/undo, dirty merge, keyboard resize, boxed terminals, three themes, narrow layout.\n");
+  process.stdout.write("PASS: split layout, focus/save routing, shared edits/undo, dirty merge, keyboard resize, flat terminals, three themes, narrow layout.\n");
   }
 } finally {
   socket?.close();

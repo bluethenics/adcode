@@ -34,6 +34,38 @@ interface ToolCallAccumulator {
   args: string;
 }
 
+/**
+ * A provider-side failure, as OpenRouter and friends report it.
+ *
+ * OpenRouter answers failures as `{"error": {"message", "code"}}` — sometimes
+ * with a non-200 status, sometimes as a payload inside an otherwise-200
+ * stream. Either way it has no `choices`, so a parser that only reads choices
+ * ends the turn with zero text and zero error: the "worked for 5 minutes and
+ * said nothing" conversation. Anything this returns is thrown, never skipped.
+ */
+export function providerErrorMessage(payload: unknown): string | null {
+  if (typeof payload === "string") {
+    const text = payload.trim();
+    return text.length > 0 ? text.slice(0, 500) : null;
+  }
+  if (typeof payload !== "object" || payload === null) return null;
+  const error = (payload as Record<string, unknown>)["error"];
+  if (typeof error === "string") {
+    const text = error.trim();
+    return text.length > 0 ? text.slice(0, 500) : null;
+  }
+  if (typeof error === "object" && error !== null) {
+    const record = error as Record<string, unknown>;
+    const message = typeof record["message"] === "string" ? record["message"].trim() : "";
+    const code = record["code"];
+    const text = message.length > 0 ? message : JSON.stringify(error).slice(0, 500);
+    return typeof code === "string" || typeof code === "number"
+      ? `${text} (code ${String(code)})`.slice(0, 500)
+      : text.slice(0, 500);
+  }
+  return null;
+}
+
 /** Translate our neutral message shape into the chat-completions one. */
 function toWireMessages(request: ProviderRequest): unknown[] {
   const wire: unknown[] = [{ role: "system", content: request.system }];
@@ -103,6 +135,10 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
     models: deps.models,
 
     async *stream(request: ProviderRequest, signal: AbortSignal): AsyncIterable<ProviderEvent> {
+      // OpenRouter identifies integrations by referer + title, and keys locked
+      // to a referer fail without it. Sent only there — an arbitrary custom
+      // endpoint gets nothing beyond the bearer it was given.
+      const viaOpenRouter = deps.baseUrl.includes("openrouter.ai");
       const response = await doFetch(`${deps.baseUrl}/chat/completions`, {
         method: "POST",
         signal,
@@ -110,6 +146,7 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
           "content-type": "application/json",
           // A local Ollama needs no key; sending an empty bearer would be rejected.
           ...(deps.apiKey.length > 0 ? { authorization: `Bearer ${deps.apiKey}` } : {}),
+          ...(viaOpenRouter ? { "HTTP-Referer": "https://adcode.dev", "X-Title": "ADCode" } : {}),
         },
         body: JSON.stringify({
           model: request.model,
@@ -132,7 +169,26 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
       });
 
       if (!response.ok || response.body === null) {
-        throw Object.assign(new Error(`${deps.displayName} returned HTTP ${response.status}`), { status: response.status, retryAfter: response.headers.get("retry-after") });
+        // HTTP errors carry the provider's own explanation as JSON ("model not
+        // found", "insufficient credits", "does not support tool use"). A bare
+        // status leaves the user with nothing to act on.
+        let detail = "";
+        try {
+          const text = (await response.text()).trim().slice(0, 2000);
+          if (text.length > 0) {
+            try {
+              detail = providerErrorMessage(JSON.parse(text) as unknown) ?? text.slice(0, 500);
+            } catch {
+              detail = text.slice(0, 500);
+            }
+          }
+        } catch {
+          // A body that cannot be read has nothing to say.
+        }
+        throw Object.assign(
+          new Error(`${deps.displayName} returned HTTP ${response.status}${detail ? `: ${detail}` : ""}`),
+          { status: response.status, retryAfter: response.headers.get("retry-after") },
+        );
       }
 
       const reader = response.body.getReader();
@@ -141,6 +197,12 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
 
       let buffer = "";
       let finish: string | null = null;
+      // Providers holding a request upstream (OpenRouter sends `: OPENROUTER
+      // PROCESSING` keepalives while queued) say nothing for minutes. The first
+      // comment becomes one waiting note so a long queue reads as waiting, and
+      // only the first — a note per keepalive would flood the trace.
+      let sawData = false;
+      let queueAnnounced = false;
 
       while (!signal.aborted) {
         const { done, value } = await reader.read();
@@ -154,19 +216,35 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
           buffer = buffer.slice(newline + 1);
           newline = buffer.indexOf("\n");
 
+          if (line.startsWith(":")) {
+            if (!sawData && !queueAnnounced) {
+              queueAnnounced = true;
+              yield { kind: "thinking", text: "Queued at the provider — waiting for the first token…" };
+            }
+            continue;
+          }
           if (!line.startsWith("data:")) continue;
           const payload = line.slice(5).trim();
           if (payload === "[DONE]") continue;
 
-          let parsed: Record<string, unknown>;
+          let parsed: unknown;
           try {
-            parsed = JSON.parse(payload) as Record<string, unknown>;
+            parsed = JSON.parse(payload) as unknown;
           } catch {
             continue;
           }
+          if (typeof parsed !== "object" || parsed === null) continue;
+          sawData = true;
 
-          const choice = (parsed["choices"] as Array<Record<string, unknown>> | undefined)?.[0];
-          if (choice === undefined) continue;
+          const failure = providerErrorMessage(parsed);
+          if (failure !== null) {
+            throw new Error(`${deps.displayName}: ${failure}`);
+          }
+          const first = ((parsed as Record<string, unknown>)["choices"] as
+            | Array<Record<string, unknown>>
+            | undefined)?.[0];
+          if (first === undefined) continue;
+          const choice = first;
 
           if (typeof choice["finish_reason"] === "string") finish = choice["finish_reason"];
 

@@ -216,3 +216,27 @@ describe("layout", () => {
     expect((await store.load()).layout).toEqual({ sidebarWidth: 320, panelHeight: 400 });
   });
 });
+
+describe("workspace mode", () => {
+  it("round-trips the working mode the user left", async () => {
+    await store.save({ root: null, openFiles: [], activeFile: null, workspaceMode: "vibe" });
+    expect((await store.load()).workspaceMode).toBe("vibe");
+
+    await store.save({ root: null, openFiles: [], activeFile: null, workspaceMode: "code" });
+    expect((await store.load()).workspaceMode).toBe("code");
+  });
+
+  it("omits the mode for sessions written before it existed", async () => {
+    await store.save({ root: null, openFiles: [], activeFile: null });
+    expect((await store.load()).workspaceMode).toBeUndefined();
+  });
+
+  it("drops an unknown mode rather than restoring it", async () => {
+    await writeFile(
+      join(dir, "session.json"),
+      JSON.stringify({ state: { root: null, openFiles: [], activeFile: null, workspaceMode: "party" } }),
+      "utf8",
+    );
+    expect((await store.load()).workspaceMode).toBeUndefined();
+  });
+});

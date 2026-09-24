@@ -14,6 +14,29 @@ export default function AnalyticsPage() {
 function RankingTable({ title, rows, unit = "Page views" }: { title: string; rows: Ranking[]; unit?: string }) {
   return <section className="website-analytics-card"><h2>{title}</h2>{rows.length ? <table><thead><tr><th scope="col">{title}</th><th scope="col">{unit}</th></tr></thead><tbody>{rows.map(row => <tr key={row.label}><td>{row.label.replaceAll("_", " ")}</td><td>{row.count.toLocaleString()}</td></tr>)}</tbody></table> : <p className="website-analytics-note">No measurements yet.</p>}</section>;
 }
+function FunnelCard({ funnel }: { funnel: WebsiteAnalyticsReport["funnels"][number] }) {
+  const entries = funnel.steps[0]?.sessions ?? 0;
+  const completed = funnel.steps.at(-1)?.sessions ?? 0;
+  return <section className="website-analytics-card">
+    <h2>{funnel.label}</h2>
+    {funnel.label === "Install journey" && <p className="website-analytics-note">Sitewide intent includes docs readers and returning users. A session without an install action is not necessarily an abandoned installation.</p>}
+    {funnel.label === "Installation pages" && <p className="website-analytics-note">Starts with a visit to Versions &amp; install or the installation guide. Command copies from docs are measured from the tracking update onward.</p>}
+    <p className="website-analytics-note">{entries > 0
+      ? `${(completed / entries * 100).toFixed(1)}% reached the final step (${completed.toLocaleString()} of ${entries.toLocaleString()} sessions).`
+      : "No entry sessions measured in this period."}</p>
+    <table>
+      <thead><tr><th scope="col">Step</th><th scope="col">Sessions</th><th scope="col">Drop-off</th></tr></thead>
+      <tbody>{funnel.steps.map((step, index) => {
+        const previous = funnel.steps[index - 1]?.sessions ?? 0;
+        return <tr key={step.label}>
+          <td>{step.label}</td><td>{step.sessions.toLocaleString()}</td>
+          <td>{index === 0 || previous === 0 ? "—" : `${step.lost.toLocaleString()} (${(step.lost / previous * 100).toFixed(1)}%)`}</td>
+        </tr>;
+      })}</tbody>
+    </table>
+    <p className="website-analytics-note">Same-session steps in order. Drop-off shows sessions lost from the previous step. These actions do not confirm installation or payment.</p>
+  </section>;
+}
 function Reports() {
   const { token } = useAuth();
   const [days, setDays] = useState(30);
@@ -55,7 +78,7 @@ function Reports() {
       ].map(([label, value]) => <div className="admin-tile" key={label}><strong>{value}</strong><span>{label}</span></div>)}</div>
       <p className="website-analytics-note">Consenting visits only; admin pages are excluded. Sessions expire after 30 minutes of inactivity and are not unique people. Install intent means a session with a copied install command or download click, not a completed installation. Dates use UTC.</p>
       <section className="website-analytics-card"><h2>Traffic over time</h2><TimeChart days={report.daily.map(d => d.day)} series={[{ label: "Page views", color: "#78a9ff", values: report.daily.map(d => d.views) }, { label: "Sessions", color: "#55c9a2", values: report.daily.map(d => d.sessions) }]} summary={`Daily traffic: ${report.pageViews} page views and ${report.sessions} sessions in the selected period.`} /></section>
-      <div className="website-analytics-grid">{report.funnels.map(funnel => <section className="website-analytics-card" key={funnel.label}><h2>{funnel.label}</h2><table><thead><tr><th scope="col">Step</th><th scope="col">Sessions</th><th scope="col">Drop-off</th></tr></thead><tbody>{funnel.steps.map((step, index) => <tr key={step.label}><td>{step.label}</td><td>{step.sessions.toLocaleString()}</td><td>{index === 0 ? "—" : step.lost.toLocaleString()}</td></tr>)}</tbody></table><p className="website-analytics-note">Same-session steps in order within this period. Drop-off counts sessions that did not reach the next step.</p></section>)}</div>
+      <div className="website-analytics-grid">{report.funnels.map(funnel => <FunnelCard key={funnel.label} funnel={funnel} />)}</div>
       <div className="website-analytics-grid"><RankingTable title="Top pages" rows={report.pages} /><RankingTable title="Traffic sources" rows={report.sources} /><RankingTable title="Campaigns" rows={report.campaigns} /><RankingTable title="Devices" rows={report.devices} /><RankingTable title="Actions and conversions" rows={report.events} unit="Events" />
         <section className="website-analytics-card"><h2>Page performance</h2><table><thead><tr><th scope="col">Metric</th><th scope="col">Samples</th><th scope="col">75th percentile</th></tr></thead><tbody>{report.metrics.map(metric => <tr key={metric.name}><th scope="row">{metric.name}</th><td>{metric.samples}</td><td>{metric.p75 === null ? "—" : metric.name === "CLS" ? metric.p75.toFixed(3) : `${Math.round(metric.p75).toLocaleString()} ms`}</td></tr>)}</tbody></table><p className="website-analytics-note">LCP: main content loading. INP: interaction delay. CLS: layout movement. FCP: first content. TTFB: server response. Browser support and consent affect sample coverage.</p><p className="website-analytics-note">Visible engagement: {Math.round(report.engagementSeconds / 60).toLocaleString()} minutes.</p></section>
       </div>

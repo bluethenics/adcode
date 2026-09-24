@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { allReleases } from "@/lib/releases";
 import { GITHUB_REPO, url } from "@/lib/site";
+import { InstallCommand } from "@/components/InstallCommand";
 
 export const metadata: Metadata = {
   title: "Install on Windows and Linux",
@@ -39,11 +40,11 @@ export default async function VersionsPage() {
           <dl>
             <div>
               <dt>Windows, in PowerShell</dt>
-              <dd><code>irm https://adcode.bluethenics.com/install.ps1 | iex</code></dd>
+              <dd><InstallCommand command="irm https://adcode.bluethenics.com/install.ps1 | iex" /></dd>
             </div>
             <div>
               <dt>Linux</dt>
-              <dd><code>curl -fsSL https://adcode.bluethenics.com/install.sh | sh</code></dd>
+              <dd><InstallCommand command="curl -fsSL https://adcode.bluethenics.com/install.sh | sh" /></dd>
             </div>
             <div>
               <dt>macOS</dt>

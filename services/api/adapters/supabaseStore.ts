@@ -375,6 +375,19 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       return rows.map(toCampaign);
     },
 
+    async publicStats() {
+      const db = await lazy();
+      const results = await Promise.all([
+        db.from("receipts").select("*", { count: "exact", head: true }).gt("cost_micros", 0),
+        db.from("receipts").select("*", { count: "exact", head: true }).gt("cost_micros", 0).eq("outcome", "click"),
+        db.from("campaigns").select("*", { count: "exact", head: true }).eq("status", "active"),
+      ]);
+      for (const result of results) if (result.error) fail("publicStats", result.error);
+      const receipts = results[0]!.count ?? 0;
+      const clicks = results[1]!.count ?? 0;
+      return { impressions: receipts - clicks, clicks, activeCampaigns: results[2]!.count ?? 0 };
+    },
+
     async statsForCampaign(campaignId): Promise<CampaignStats> {
       // Aggregated in the database. The in-memory store folds every receipt in JavaScript,
       // which is correct for a test double and would mean shipping the whole receipts

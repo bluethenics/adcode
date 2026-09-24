@@ -164,6 +164,12 @@ export function createMemoryStore(): Store & { reset(): void } {
         .sort((a, b) => b.createdAt - a.createdAt);
     },
 
+    async publicStats() {
+      const paid = [...receipts.values()].filter((receipt) => receipt.costMicros > 0n);
+      const clicks = paid.filter((receipt) => receipt.outcome === "click").length;
+      return { impressions: paid.length - clicks, clicks, activeCampaigns: [...campaigns.values()].filter((campaign) => campaign.status === "active").length };
+    },
+
     async statsForCampaign(campaignId): Promise<CampaignStats> {
       let serveCount = 0;
       for (const s of serves.values()) if (s.campaignId === campaignId) serveCount += 1;

@@ -1,6 +1,6 @@
 {
   "name": "adcode",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "bin": {
     "adcode": "scripts/adcode.mjs"
   },
@@ -23,7 +23,7 @@
     "desktop": "npm --prefix apps/desktop run dev",
     "desktop:build": "npm --prefix apps/desktop run build",
     "firewall": "depcruise --config .dependency-cruiser.cjs packages mock-server apps services",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers 4",
     "test:watch": "vitest",
     "test:emulator": "firebase emulators:exec --only firestore --project adcode-test \"vitest run services/api/test/emulator\"",
     "mock-server": "node mock-server/src/cli.ts",

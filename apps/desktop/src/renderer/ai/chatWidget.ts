@@ -1,9 +1,7 @@
 /**
  * The chat, trace, and inline-diff widgets.
  *
- * Brief §5.3: "The AI surface is **floating widgets**, not a docked side panel. Panels
- * force a layout decision on every session; widgets appear where the work is and get out
- * of the way."
+ * The same live conversation can sit beside the editor or in an expanded workspace.
  *
  * - Chat: floating, draggable, resizable, summoned by shortcut, remembers its position
  *   per workspace, "dismisses on Escape without losing the conversation."
@@ -15,6 +13,8 @@
  * Only `transform` and `opacity` animate (§1) - the card is positioned with a translate,
  * never with `left`/`top`, so dragging never triggers layout.
  */
+import { createChatPreview } from "./chatPreview.ts";
+import type { PreviewStatus } from "../../shared/api.ts";
 import type {
   AiAttachmentView,
   AiAutomationView,
@@ -39,7 +39,17 @@ import {
   groupChatSessions,
   renderChatMessageHtml,
 } from "./chatMarkdown.ts";
+import {
+  createActivityBlock,
+  createResultImage,
+  formatFailedLabel,
+  summarizeToolInput,
+  toolHeaderLabel,
+  type ActivityBlockHandle,
+} from "./chatActivity.ts";
 import { createAgentLibrary } from "./agentLibrary.ts";
+import { createAssistantControls } from "./assistantControls.ts";
+import { createFrameTask } from "../frameTask.ts";
 import { attachChatLayout } from "./chatLayout.ts";
 import {
   aiWorkspaceActions,
@@ -47,6 +57,7 @@ import {
   summarizeAiWorkspaceTask,
   traceTone,
 } from "./aiWorkspaceViewModel.ts";
+import { copyText } from "../clipboard.ts";
 import {
   aiTeamActions,
   aiTeamStateLabel,
@@ -69,7 +80,12 @@ import {
 export interface ChatWidget {
   readonly element: HTMLElement;
   readonly connectButton: HTMLButtonElement;
-  shown(): void;
+  /** Inspect any persisted task without replacing or resetting the active conversation. */
+  reviewTask(task: AiWorkspaceTaskView): void;
+  /** Prepare editable instructions; never sends or interrupts a running turn. */
+  draft(question: string): void;
+  setDocked(docked: boolean, historyHost?: HTMLElement): void;
+  shown(focus?: boolean): void;
   hidden(): void;
   toggle(): void;
   open(): void;
@@ -101,6 +117,7 @@ export interface ChatWidget {
 }
 
 export interface ChatWidgetDeps {
+  readonly openPreview?: () => void;
   readonly openExternalPath: (path: string) => void;
   readonly openCodeReference?: (reference: CodeReference) => void;
   /** Open the Connect screen, which owns providers, keys and models. */
@@ -108,6 +125,8 @@ export interface ChatWidgetDeps {
   /** The coordinator owns the workspace shell and all dismissal. */
   readonly requestOpen: () => void;
   readonly requestClose: () => void;
+  readonly togglePresentation?: () => void;
+  readonly revealHistory?: () => void;
   /** Ask the user for a new name, or null if they changed their mind. */
   readonly askForName: (current: string) => Promise<string | null>;
 }
@@ -135,6 +154,22 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   let open = false;
   let streamingBubble: HTMLElement | null = null;
   const messageSources = new WeakMap<HTMLElement, string>();
+  window.adcode.settings.onChanged(() => { if (open) void refreshModelStatus(); });
+  const dirtyMessages = new Set<HTMLElement>();
+  const streamPaint = createFrameTask(() => {
+    for (const element of dirtyMessages) {
+      if (transcript.contains(element)) renderMessage(element, messageSources.get(element) ?? "");
+    }
+    dirtyMessages.clear();
+    scrollToEnd();
+  });
+  function flushStream(): void {
+    if (dirtyMessages.size) streamPaint.schedule();
+    streamPaint.flush();
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (open && !document.hidden && dirtyMessages.size) streamPaint.schedule();
+  });
 
   function wireMessageButtons(scope: HTMLElement): void {
     for (const copy of scope.querySelectorAll<HTMLButtonElement>(".chat-codeblock-copy")) {
@@ -148,13 +183,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
             copy.disabled = false;
           }, 1400);
         };
-        try {
-          const clipboard = navigator.clipboard;
-          if (!clipboard) throw new Error("no clipboard");
-          void clipboard.writeText(code).then(() => done(true), () => done(false));
-        } catch {
-          done(false);
-        }
+        void copyText(code).then(done, () => done(false));
       });
     }
     if (deps.openCodeReference) {
@@ -184,8 +213,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   card.className = "chat-card";
   card.setAttribute("aria-label", "Assistant workspace");
 
-  let historyOpen = window.innerWidth >= 720;
+  let historyOpen = false;
   let inspectorOpen = false;
+  let docked = false;
+  let externalHistory = false;
 
   /* ── Header ───────────────────────────────────────────────────────────── */
 
@@ -215,20 +246,36 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   queueLabel.setAttribute("role", "status");
   queueLabel.hidden = true;
   let statusTimer: number | null = null;
+  let statusRefreshInFlight = false;
   async function refreshModelStatus(): Promise<void> {
+    // Guard overlapping 2s polls: a slow status read must never stack up and
+    // flicker the pill. The pill keeps its last good value while refreshing.
+    if (statusRefreshInFlight) return;
+    statusRefreshInFlight = true;
     try {
       const status = await window.adcode.ai.status();
       const active = status.providers.find((provider) => provider.id === status.activeProvider);
       const saved = status.providers.some((provider) => provider.hasKey && provider.needsKey);
-      modelLabel.textContent = status.ready
+      const label = status.ready
         ? `${active?.displayName ?? status.activeProvider} / ${status.activeModel}`
         : saved ? "Select a saved connection" : "Connect a model to begin";
+      // No flicker: only touch the DOM when the label actually changed.
+      if (modelLabel.textContent !== label) modelLabel.textContent = label;
       connectButton.textContent = status.ready || saved ? "Models" : "Connect";
       modelLabel.dataset["ready"] = String(status.ready);
       modelLabel.title = status.ready
         ? `${status.activeModel} — change provider or model (Connect)`
         : "Choose a provider and model (Connect)";
-      queueLabel.textContent = formatConnectionQueue(status.connections ?? [], Date.now());
+      modelLabel.setAttribute("aria-label", status.ready
+        ? `Model: ${status.activeModel}. Change provider or model`
+        : "Choose a provider and model");
+      setupStatus.dataset["state"] = status.ready ? "ready" : "idle";
+      const setupLabel = status.ready
+        ? `Connected: ${active?.displayName ?? status.activeProvider} — you're set.`
+        : "Not connected yet — step 1 takes about a minute.";
+      if (setupStatus.textContent !== setupLabel) setupStatus.textContent = setupLabel;
+      const queued = formatConnectionQueue(status.connections ?? [], Date.now());
+      if (queueLabel.textContent !== queued) queueLabel.textContent = queued;
         queueLabel.hidden = !queueLabel.textContent;
         let dismissed = false;
         try {
@@ -239,25 +286,33 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         connectBanner.hidden = status.ready || dismissed;
         if (open && inspectorOpen) void refreshAgentActivity();
     } catch {
-      modelLabel.textContent = "Connection status unavailable";
+      if (modelLabel.textContent !== "Connection status unavailable") {
+        modelLabel.textContent = "Connection status unavailable";
+      }
+    } finally {
+      statusRefreshInFlight = false;
     }
   }
 
   const historyButton = document.createElement("button");
   historyButton.className = "ghost-button";
+  historyButton.dataset["chatAction"] = "history";
   historyButton.textContent = "History";
   historyButton.title = "Past conversations in this project";
   historyButton.setAttribute("aria-expanded", String(historyOpen));
+  historyButton.setAttribute("aria-controls", "chat-history-panel");
   historyButton.addEventListener("click", () => toggleHistory());
 
   const connectButton = document.createElement("button");
   connectButton.className = "ghost-button";
+  connectButton.dataset["chatAction"] = "models";
   connectButton.textContent = "Connect";
   connectButton.title = "Choose a provider and model";
   connectButton.addEventListener("click", () => deps.openConnect());
 
   const inspectorButton = document.createElement("button");
   inspectorButton.className = "ghost-button";
+  inspectorButton.dataset["chatAction"] = "inspector";
   inspectorButton.textContent = "Inspector";
   inspectorButton.title = "Show task, Team, and schedule details";
   inspectorButton.setAttribute("aria-expanded", String(inspectorOpen));
@@ -270,6 +325,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   resetButton.setAttribute("aria-label", "Start a new conversation");
   resetButton.addEventListener("click", () => {
     window.adcode.ai.reset();
+    resetActivity();
+    chatPreview.clear();
+    previewCalls.clear();
     transcript.replaceChildren();
     streamingBubble = null;
     activeSessionId = null;
@@ -280,6 +338,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   const shareButton = document.createElement("button");
   shareButton.className = "ghost-button";
+  shareButton.dataset["chatAction"] = "share";
   shareButton.textContent = "Share";
   shareButton.title = "Copy this conversation as markdown";
   shareButton.setAttribute("aria-label", "Copy conversation as markdown");
@@ -297,13 +356,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         shareButton.disabled = false;
       }, 1400);
     };
-    try {
-      const clipboard = navigator.clipboard;
-      if (!clipboard) throw new Error("no clipboard");
-      void clipboard.writeText(markdown).then(() => done(true), () => done(false));
-    } catch {
-      done(false);
-    }
+    void copyText(markdown).then(done, () => done(false));
   });
 
   function transcriptMessages(): readonly (readonly ["user" | "assistant", string])[] {
@@ -330,15 +383,45 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   identity.className = "chat-identity";
   identity.append(title, conversationTitle);
   const headerActions = document.createElement("div");
+  const controlsButton = document.createElement("button");
+  controlsButton.className = "ghost-button";
+  controlsButton.dataset["chatAction"] = "controls";
+  controlsButton.textContent = "Tools & skills";
+  controlsButton.title = "Manage MCP servers, tool access, and workspace skills";
+  controlsButton.addEventListener("click", () => {
+    revealInspector();
+    controls.element.hidden = false;
+    controlsButton.setAttribute("aria-expanded", "true");
+    controls.show();
+    controls.element.scrollIntoView({ block: "nearest" });
+  });
   headerActions.className = "chat-header-actions";
   headerActions.append(
     historyButton,
     connectButton,
+    controlsButton,
     inspectorButton,
     resetButton,
     shareButton,
     closeButton,
   );
+  const presentationButton = document.createElement("button");
+  presentationButton.className = "ghost-button chat-presentation";
+  presentationButton.textContent = "Expand";
+  presentationButton.addEventListener("click", () => deps.togglePresentation?.());
+  if (deps.togglePresentation) headerActions.insertBefore(presentationButton, closeButton);
+  const moreActions = document.createElement("details");
+  moreActions.className = "chat-more-actions";
+  moreActions.hidden = true;
+  const moreSummary = document.createElement("summary");
+  moreSummary.textContent = "•••";
+  moreSummary.setAttribute("aria-label", "Assistant actions");
+  const moreMenu = document.createElement("div");
+  moreMenu.className = "chat-more-menu";
+  moreActions.append(moreSummary, moreMenu);
+  headerActions.insertBefore(moreActions, closeButton);
+  const secondaryActions = [historyButton, connectButton, controlsButton, inspectorButton, shareButton];
+  for (const action of secondaryActions) action.addEventListener("click", () => { moreActions.open = false; });
   header.append(identity, queueLabel, headerActions);
 
   // Claude-style connect banner: when no model is ready, the transcript top
@@ -371,6 +454,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /* ── Transcript ───────────────────────────────────────────────────────── */
 
   const transcript = document.createElement("div");
+  const chatPreview = createChatPreview(transcript);
+  const previewCalls = new Set<string>();
   transcript.className = "chat-transcript";
   transcript.setAttribute("aria-live", "polite");
   transcript.setAttribute("role", "log");
@@ -382,6 +467,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   const history = document.createElement("aside");
   history.className = "chat-history";
+  history.id = "chat-history-panel";
   history.setAttribute("aria-label", "Past conversations");
 
   const historySearch = document.createElement("input");
@@ -425,6 +511,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   function toggleHistory(): void {
+    if (externalHistory) { deps.revealHistory?.(); historySearch.focus(); return; }
     historyOpen = !historyOpen;
     if (historyOpen && card.dataset["layout"] === "compact") inspectorOpen = false;
     applyDisclosures();
@@ -435,6 +522,20 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const row = document.createElement("div");
     row.className = "chat-history-row";
     if (session.id === activeSessionId) row.dataset["active"] = "true";
+    row.dataset["sessionId"] = session.id;
+
+    // Status icon: spinner while this chat works, branch for a renamed
+    // (user-owned) conversation, dot for idle. Purely presentational — the
+    // backend has no fork flag, so a custom title is the closest signal that
+    // the user took ownership of an auto-titled thread.
+    const status = document.createElement("span");
+    status.className = "chat-history-status";
+    status.setAttribute("aria-hidden", "true");
+    const isWorking = session.id === activeSessionId && card.dataset["working"] === "true";
+    const kind = isWorking ? "working" : session.renamed ? "forked" : "idle";
+    status.dataset["status"] = kind;
+    status.title = isWorking ? "Working" : session.renamed ? "Renamed" : "Idle";
+    row.append(status);
 
     const openIt = document.createElement("button");
     openIt.type = "button";
@@ -522,16 +623,20 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /** Draw a past conversation back into the transcript. */
   async function resume(id: string): Promise<void> {
+    if (docked) api.open();
     const session = await window.adcode.chat.resume(id);
     if (session === null) return;
 
+    resetActivity();
+    chatPreview.clear();
+    previewCalls.clear();
     transcript.replaceChildren();
     streamingBubble = null;
     activeSessionId = session.id;
     conversationTitle.textContent = session.title;
 
     for (const message of session.messages) {
-      bubble(message.role === "user" ? "user" : "assistant", message.text);
+      bubble(message.role === "user" ? "user" : "assistant", message.text, [], message.at);
     }
 
     renderMemory(session);
@@ -723,8 +828,19 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const input = document.createElement("textarea");
   input.className = "chat-input";
   input.rows = 2;
-  input.placeholder = "Write a message…";
+  input.placeholder = "Describe what to build or change…";
   input.setAttribute("aria-label", "Message the assistant");
+
+  // Auto-growing composer, capped at ~140px per the Agent Chat reference.
+  // Height is the only layout read here, on local keystrokes — never in an
+  // animation loop — so it cannot regress input latency (§1).
+  function autogrowComposer(): void {
+    input.style.height = "auto";
+    const next = Math.min(input.scrollHeight, 140);
+    input.style.height = `${String(next)}px`;
+    input.style.overflowY = input.scrollHeight > 140 ? "auto" : "hidden";
+  }
+  input.addEventListener("input", autogrowComposer);
 
   const sendButton = document.createElement("button");
   sendButton.className = "chat-send";
@@ -880,9 +996,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   attachButton.addEventListener("click", () => filePicker.click());
 
   const voiceButton = document.createElement("button");
-  voiceButton.className = "chat-team-button";
+  voiceButton.className = "chat-team-button chat-voice";
   voiceButton.type = "button";
-  voiceButton.textContent = "🎙";
+  voiceButton.append(createIcon(ICON.mic));
   voiceButton.title = "Dictate a message";
   voiceButton.setAttribute("aria-label", "Dictate a message");
   voiceButton.hidden = true;
@@ -905,7 +1021,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         recognition.lang = navigator.language || "en-US";
         recognition.interimResults = false;
         voiceButton.disabled = true;
-        voiceButton.textContent = "●";
+        voiceButton.dataset["recording"] = "true";
         recognition.onresult = (event) => {
           const heard = event.results
             .map((result) => result[0]?.transcript ?? "")
@@ -916,11 +1032,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         };
         recognition.onerror = () => {
           voiceButton.disabled = false;
-          voiceButton.textContent = "🎙";
+          delete voiceButton.dataset["recording"];
         };
         recognition.onend = () => {
           voiceButton.disabled = false;
-          voiceButton.textContent = "🎙";
+          delete voiceButton.dataset["recording"];
         };
         recognition.start();
       } catch {
@@ -929,16 +1045,45 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     });
   }
 
+  // Mode pill: decorative by design — the assistant always runs as an agent
+  // with tools here. It sits beside the live model pill so the composer reads
+  // the way the reference does (mode + model, send at right).
+  const modePill = document.createElement("span");
+  modePill.className = "chat-mode-pill";
+  modePill.textContent = "Agent";
+  modePill.title = "Agent mode — the assistant can read and propose changes";
+
   const toolbar = document.createElement("div");
   toolbar.className = "chat-toolbar";
   const spacer = document.createElement("span");
   spacer.className = "chat-toolbar-spacer";
-  toolbar.append(attachButton, attachContext, manualTeam, scheduleMessage, voiceButton, spacer, modelLabel, sendButton);
+  modelLabel.classList.add("chat-model-pill");
+  const composerTools = document.createElement("details");
+  composerTools.className = "composer-tools";
+  const toolsLabel = document.createElement("summary");
+  toolsLabel.textContent = "Tools";
+  const toolsMenu = document.createElement("div");
+  toolsMenu.className = "composer-tools-menu";
+  const livePreviewButton = document.createElement("button");
+  livePreviewButton.type = "button";
+  livePreviewButton.className = "chat-team-button";
+  livePreviewButton.textContent = "Live preview";
+  livePreviewButton.addEventListener("click", () => { void chatPreview.start(); });
+  toolsMenu.append(livePreviewButton, manualTeam, scheduleMessage, voiceButton);
+  composerTools.append(toolsLabel, toolsMenu);
+  toolsMenu.addEventListener("click", () => { composerTools.open = false; });
+  document.addEventListener("pointerdown", event => {
+    if (event.target instanceof Node && !composerTools.contains(event.target)) composerTools.open = false;
+  });
+  composerTools.addEventListener("keydown", event => {
+    if (event.key === "Escape" && composerTools.open) { event.stopPropagation(); composerTools.open = false; toolsLabel.focus(); }
+  });
+  toolbar.append(attachButton, attachContext, composerTools, spacer, modePill, modelLabel, sendButton);
   const composerFooter = document.createElement("div");
   composerFooter.className = "chat-composer-footer";
   const disclaimer = document.createElement("span");
   disclaimer.className = "chat-disclaimer";
-  disclaimer.textContent = "ADCode AI can make mistakes. Double-check responses.";
+  disclaimer.textContent = "Enter to send · Shift+Enter for a new line · Review proposed changes before applying";
   composerFooter.append(disclaimer);
   composer.append(input, attachmentStrip, composerNotice, toolbar, composerFooter, filePicker);
 
@@ -947,9 +1092,60 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const welcome = document.createElement("section");
   welcome.className = "chat-welcome";
   const welcomeTitle = document.createElement("h2");
-  welcomeTitle.textContent = "Build with ADCode";
+  const welcomeMark = createIcon("M8 1.5 9.4 6.6 14.5 8 9.4 9.4 8 14.5 6.6 9.4 1.5 8 6.6 6.6z");
+  welcomeMark.classList.add("chat-welcome-mark");
+  const welcomeGreeting = document.createElement("span");
+  const hour = new Date().getHours();
+  welcomeGreeting.textContent = hour < 5
+    ? "Working late"
+    : hour < 12
+      ? "Good morning"
+      : hour < 18
+        ? "Good afternoon"
+        : "Good evening";
+  welcomeTitle.append(welcomeMark, welcomeGreeting);
   const welcomeText = document.createElement("p");
-  welcomeText.textContent = "Ask a question or describe a change to your project.";
+  welcomeText.textContent = "What can I help you build or change in this project?";
+
+  /*
+   * Guided setup, not a feature list: every step is a button that does the
+   * thing. The status line mirrors the live connection pill, and the whole
+   * block lives inside the welcome section so it leaves with it once the
+   * first exchange lands.
+   */
+  const setupSteps = document.createElement("ol");
+  setupSteps.className = "chat-setup-steps";
+
+  const setupConnectItem = document.createElement("li");
+  setupConnectItem.className = "chat-setup-step";
+  const setupConnect = document.createElement("button");
+  setupConnect.type = "button";
+  setupConnect.className = "chat-send chat-setup-action";
+  setupConnect.textContent = "1 · Connect a model";
+  setupConnect.addEventListener("click", () => deps.openConnect());
+  const setupStatus = document.createElement("span");
+  setupStatus.className = "chat-setup-status";
+  setupStatus.setAttribute("role", "status");
+  setupStatus.textContent = "Checking connection…";
+  setupConnectItem.append(setupConnect, setupStatus);
+
+  const setupAskItem = document.createElement("li");
+  setupAskItem.className = "chat-setup-step";
+  const setupAsk = document.createElement("button");
+  setupAsk.type = "button";
+  setupAsk.className = "ghost-button chat-setup-action";
+  setupAsk.textContent = "2 · Ask your first question";
+  setupAsk.addEventListener("click", () => {
+    input.value = "What can you do with my project? ";
+    input.focus();
+    autogrowComposer();
+  });
+  const setupHint = document.createElement("span");
+  setupHint.className = "chat-setup-status";
+  setupHint.textContent = "Write below, Enter sends";
+  setupAskItem.append(setupAsk, setupHint);
+
+  setupSteps.append(setupConnectItem, setupAskItem);
   const quickActions = document.createElement("div");
   quickActions.className = "chat-quick-actions";
   const starters: ReadonlyArray<{ label: string; hint: string; prompt: string }> = [
@@ -971,7 +1167,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     });
     quickActions.append(action);
   }
-  welcome.append(welcomeTitle, welcomeText);
+  welcome.append(welcomeTitle, welcomeText, setupSteps);
   const refreshWelcome = (): void => {
     const empty = transcript.childElementCount === 0;
     welcome.hidden = !empty;
@@ -1004,25 +1200,38 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   const inspector = document.createElement("aside");
   inspector.className = "chat-inspector";
+  inspector.id = "chat-inspector-panel";
   inspector.setAttribute("aria-label", "AI task inspector");
   const inspectorHeading = document.createElement("h2");
   inspectorHeading.className = "chat-section-heading";
   inspectorHeading.textContent = "Agents & activity";
-  inspector.append(inspectorHeading, teamPanel, taskStrip, agentLibrary.element, automationPanel);
+  const controls = createAssistantControls();
+  controls.element.hidden = true;
+  const backToChat = document.createElement("button");
+  backToChat.className = "ghost-button chat-inspector-dismiss";
+  backToChat.textContent = "Back to chat";
+  backToChat.addEventListener("click", () => { inspectorOpen = false; applyDisclosures(); });
+  inspector.append(inspectorHeading, backToChat, controls.element, teamPanel, taskStrip, agentLibrary.element, automationPanel);
 
   const body = document.createElement("div");
   body.className = "chat-body";
   body.append(history, conversation, inspector);
   card.append(header, body);
-  const updateLayout = attachChatLayout(card, body);
+  const updateLayout = attachChatLayout(card, body, () => {
+    historyOpen = false;
+    card.dataset["historyOpen"] = "false";
+    history.hidden = true;
+    historyButton.setAttribute("aria-expanded", "false");
+  });
 
   function applyDisclosures(): void {
-    card.dataset["historyOpen"] = String(historyOpen);
+    card.dataset["historyOpen"] = String(!externalHistory && historyOpen);
     card.dataset["inspectorOpen"] = String(inspectorOpen);
-    history.hidden = !historyOpen;
+    history.hidden = !externalHistory && !historyOpen;
     inspector.hidden = !inspectorOpen;
     historyButton.setAttribute("aria-expanded", String(historyOpen));
     inspectorButton.setAttribute("aria-expanded", String(inspectorOpen));
+    controlsButton.setAttribute("aria-expanded", String(inspectorOpen && !controls.element.hidden));
     updateLayout();
   }
 
@@ -1033,7 +1242,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   function revealInspector(): void {
-    if (inspectorOpen) return;
     inspectorOpen = true;
     if (card.dataset["layout"] === "compact") historyOpen = false;
     applyDisclosures();
@@ -1053,13 +1261,159 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   let lastUserPrompt = "";
 
+  /* ── Agent activity: one collapsible block per assistant turn ──────────
+   *
+   * The backend already streams everything this needs — `thinking`, `tool-call`,
+   * `tool-result`, `text` — so the block is a pure presentation mapping. No new
+   * message model, no new IPC: thinking events become muted thought rows, tool
+   * calls become tool rows (spinner → green check), and the active tool's label
+   * becomes the header label. `trace()` below stays for persisted Team /
+   * workspace traces and for errors; live turns use this block instead.
+   */
+  let activeActivity: ActivityBlockHandle | null = null;
+  const activityToolRows = new Map<string, true>();
+
+  /** Create the turn's block in its default "Thinking" state, above the answer. */
+  function ensureActivity(): ActivityBlockHandle {
+    if (activeActivity !== null) return activeActivity;
+    // The activity block is the turn's status line — the legacy dot-pulse
+    // working row would read as a second, competing "Thinking" underneath it.
+    working.hidden = true;
+    working.remove();
+    const block = createActivityBlock({ label: "Thinking" });
+    // Above the final answer: before the live bubble when one exists,
+    // otherwise at the end (ahead of the working indicator, which
+    // scrollToEnd keeps last).
+    if (streamingBubble !== null && transcript.contains(streamingBubble)) {
+      transcript.insertBefore(block.element, streamingBubble);
+    } else {
+      transcript.append(block.element);
+    }
+    activeActivity = block;
+    scrollToEnd();
+    return block;
+  }
+
+  function finishActivity(label?: string): void {
+    if (activeActivity === null) return;
+    const elapsed = (Date.now() - activeActivity.startedAt) / 1000;
+    activeActivity.finalize(elapsed, label);
+    activeActivity = null;
+    activityToolRows.clear();
+    scrollToEnd();
+  }
+
+  /** Drop a live block without finalizing (reset / resume replace the transcript). */
+  function resetActivity(): void {
+    streamPaint.cancel();
+    dirtyMessages.clear();
+    if (activeActivity !== null) {
+      activeActivity.destroy();
+      activeActivity = null;
+    }
+    activityToolRows.clear();
+  }
+
+  /** A collapsed errored turn never claims it worked. */
+  function finishActivityFailed(): void {
+    if (activeActivity === null) return;
+    finishActivity(formatFailedLabel((Date.now() - activeActivity.startedAt) / 1000));
+  }
+
+  /*
+   * A send that never reached a model ends with a way forward, not a silent
+   * collapse: one assistant bubble explaining the miss, with a button that
+   * opens Connect. Deduped so retries cannot stack the same card.
+   */
+  function connectNudge(): void {
+    const last = transcript.lastElementChild;
+    if (last instanceof HTMLElement && last.dataset["nudge"] === "connect") {
+      scrollToEnd();
+      return;
+    }
+    const element = bubble(
+      "assistant",
+      "No answer came back — the assistant has no working model connection right now. Connecting takes about a minute.",
+    );
+    element.dataset["nudge"] = "connect";
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = "chat-send chat-nudge-action";
+    action.textContent = "Connect a model";
+    action.addEventListener("click", () => deps.openConnect());
+    element.append(action);
+    scrollToEnd();
+  }
+
+  /** Current-chat spinner in History without a full re-render (keeps scroll). */
+  function paintWorkingStatus(): void {
+    const working = card.dataset["working"] === "true";
+    for (const row of historyList.querySelectorAll<HTMLElement>(".chat-history-row[data-session-id]")) {
+      const icon = row.querySelector<HTMLElement>(".chat-history-status");
+      if (!icon) continue;
+      const isActive = row.dataset["sessionId"] === activeSessionId;
+      if (isActive && working) {
+        icon.dataset["status"] = "working";
+        icon.title = "Working";
+      } else if (isActive && row.dataset["active"] === "true") {
+        icon.dataset["status"] = "idle";
+        icon.title = "Current conversation";
+      }
+    }
+  }
+
+  /** Short clock time for a message ("14:32"), full date on hover. */
+  function formatMessageTime(at: number): { text: string; title: string } {
+    const date = new Date(at);
+    return {
+      text: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      title: date.toLocaleString([], {
+        weekday: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        day: "numeric",
+        month: "short",
+      }),
+    };
+  }
+
+  function messageTime(at: number): HTMLElement {
+    const formatted = formatMessageTime(at);
+    const time = document.createElement("span");
+    time.className = "chat-message-time";
+    time.textContent = formatted.text;
+    time.title = `Sent ${formatted.title}`;
+    return time;
+  }
+
+  /** One open overflow menu at a time; anything else (outside press, Escape, send) closes it. */
+  let openMenu: { menu: HTMLElement; button: HTMLButtonElement } | null = null;
+
+  function closeOpenMenu(refocus = false): void {
+    if (openMenu === null) return;
+    const { menu, button } = openMenu;
+    openMenu = null;
+    menu.hidden = true;
+    button.setAttribute("aria-expanded", "false");
+    if (refocus) button.focus();
+  }
+
+  document.addEventListener("pointerdown", (event) => {
+    if (openMenu !== null && !openMenu.menu.contains(event.target as Node) &&
+      !openMenu.button.contains(event.target as Node)) {
+      closeOpenMenu();
+    }
+  });
+
   function bubble(
     role: "user" | "assistant",
     text: string,
     attachments: readonly AiAttachmentView[] = [],
+    at: number = Date.now(),
   ): HTMLElement {
     const element = document.createElement("div");
     element.className = `chat-bubble chat-bubble-${role}`;
+    element.dataset["at"] = String(at);
     if (role === "user" && text.trim().length > 0) lastUserPrompt = text;
     if (role === "assistant" && text.length === 0) element.classList.add("is-streaming");
     if (attachments.length > 0) {
@@ -1089,17 +1443,47 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     renderMessage(element, text);
     transcript.append(element);
     if (role === "assistant" && text.length > 0) transcript.append(messageActions(element));
+    if (role === "user" && text.trim().length > 0) transcript.append(userMessageActions(element, text));
     scrollToEnd();
     return element;
   }
 
-  // Claude-style per-response actions: Copy, Retry, helpful / not helpful.
-  // Copy reads the stored source so code blocks copy exactly. Retry re-sends
-  // the last user prompt. Votes are local-only signals, toggled in place.
+  /** Copy the stored source so code blocks copy exactly, with timed feedback. */
+  function wireCopyButton(copy: HTMLButtonElement, bubbleElement: HTMLElement, label: string): void {
+    copy.addEventListener("click", () => {
+      const source = messageSources.get(bubbleElement) ?? "";
+      copy.disabled = true;
+      const done = (ok: boolean): void => {
+        copy.textContent = ok ? "Copied" : "Failed";
+        window.setTimeout(() => {
+          copy.textContent = label;
+          copy.disabled = false;
+        }, 1400);
+      };
+      void copyText(source).then(done, () => done(false));
+    });
+  }
+
+  /** Re-send a prompt, unless a turn is already running. */
+  function resend(prompt: string): boolean {
+    if (sendButton.dataset["mode"] === "stop") return false;
+    if (prompt.trim().length === 0) return false;
+    void window.adcode.ai.send(prompt).catch(() => undefined);
+    setSendMode("stop");
+    streamingBubble = null;
+    return true;
+  }
+
+  /*
+   * Per-message action bar: a slim row under the message with its sent time
+   * and hover-revealed actions (CSS). Primary acts stay inline — Copy, Retry —
+   * while votes live in the overflow popup so the transcript reads clean.
+   */
   function messageActions(bubbleElement: HTMLElement): HTMLElement {
     const bar = document.createElement("div");
     bar.className = "chat-message-actions";
     bar.setAttribute("aria-label", "Response actions");
+    bar.append(messageTime(Number(bubbleElement.dataset["at"] ?? Date.now())));
 
     const copy = document.createElement("button");
     copy.type = "button";
@@ -1107,24 +1491,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     copy.textContent = "Copy";
     copy.title = "Copy response";
     copy.setAttribute("aria-label", "Copy response");
-    copy.addEventListener("click", () => {
-      const source = messageSources.get(bubbleElement) ?? "";
-      copy.disabled = true;
-      const done = (ok: boolean): void => {
-        copy.textContent = ok ? "Copied" : "Failed";
-        window.setTimeout(() => {
-          copy.textContent = "Copy";
-          copy.disabled = false;
-        }, 1400);
-      };
-      try {
-        const clipboard = navigator.clipboard;
-        if (!clipboard) throw new Error("no clipboard");
-        void clipboard.writeText(source).then(() => done(true), () => done(false));
-      } catch {
-        done(false);
-      }
-    });
+    wireCopyButton(copy, bubbleElement, "Copy");
 
     const retry = document.createElement("button");
     retry.type = "button";
@@ -1133,41 +1500,123 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     retry.title = "Send the last message again";
     retry.setAttribute("aria-label", "Retry last message");
     retry.addEventListener("click", () => {
-      if (lastUserPrompt.trim().length === 0) return;
+      if (!resend(lastUserPrompt)) return;
       retry.disabled = true;
       window.setTimeout(() => {
         retry.disabled = false;
       }, 2000);
-      void window.adcode.ai.send(lastUserPrompt).catch(() => undefined);
-      setSendMode("stop");
-      streamingBubble = null;
     });
 
-    const good = document.createElement("button");
-    good.type = "button";
-    good.className = "chat-message-action";
-    good.textContent = "👍";
-    good.title = "Helpful (stored on this machine only)";
-    good.setAttribute("aria-label", "Mark helpful");
-    good.setAttribute("aria-pressed", "false");
+    const wrap = document.createElement("span");
+    wrap.className = "chat-message-more-wrap";
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "chat-message-action chat-message-more";
+    more.append(createIcon(ICON.more));
+    more.title = "More actions";
+    more.setAttribute("aria-label", "More response actions");
+    more.setAttribute("aria-haspopup", "menu");
+    more.setAttribute("aria-expanded", "false");
 
-    const bad = document.createElement("button");
-    bad.type = "button";
-    bad.className = "chat-message-action";
-    bad.textContent = "👎";
-    bad.title = "Not helpful (stored on this machine only)";
-    bad.setAttribute("aria-label", "Mark not helpful");
-    bad.setAttribute("aria-pressed", "false");
+    const menu = document.createElement("div");
+    menu.className = "chat-message-menu";
+    menu.setAttribute("role", "menu");
+    menu.hidden = true;
 
+    // Votes are local-only signals, toggled in place.
     const vote = (chosen: HTMLButtonElement, other: HTMLButtonElement): void => {
       const pressed = chosen.getAttribute("aria-pressed") === "true";
       chosen.setAttribute("aria-pressed", String(!pressed));
       other.setAttribute("aria-pressed", "false");
     };
-    good.addEventListener("click", () => vote(good, bad));
-    bad.addEventListener("click", () => vote(bad, good));
+    const menuItem = (label: string, pressed: boolean): HTMLButtonElement => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "chat-message-menu-item";
+      item.textContent = label;
+      item.setAttribute("role", "menuitem");
+      item.setAttribute("aria-pressed", String(pressed));
+      return item;
+    };
+    const good = menuItem("Mark helpful", false);
+    good.title = "Helpful (stored on this machine only)";
+    good.setAttribute("aria-label", "Mark helpful");
+    const bad = menuItem("Mark not helpful", false);
+    bad.title = "Not helpful (stored on this machine only)";
+    bad.setAttribute("aria-label", "Mark not helpful");
+    good.addEventListener("click", () => {
+      vote(good, bad);
+      closeOpenMenu();
+    });
+    bad.addEventListener("click", () => {
+      vote(bad, good);
+      closeOpenMenu();
+    });
+    menu.append(good, bad);
+    wrap.append(more, menu);
 
-    bar.append(copy, retry, good, bad);
+    more.addEventListener("click", () => {
+      if (openMenu?.menu === menu) {
+        closeOpenMenu();
+        return;
+      }
+      closeOpenMenu();
+      openMenu = { menu, button: more };
+      menu.hidden = false;
+      more.setAttribute("aria-expanded", "true");
+    });
+    menu.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        closeOpenMenu(true);
+      }
+    });
+
+    bar.append(copy, retry, wrap);
+    return bar;
+  }
+
+  /*
+   * Your own messages get Edit (back into the composer), Copy, and Retry for
+   * that exact prompt — plus the time it was sent.
+   */
+  function userMessageActions(bubbleElement: HTMLElement, text: string): HTMLElement {
+    const bar = document.createElement("div");
+    bar.className = "chat-message-actions is-user";
+    bar.setAttribute("aria-label", "Message actions");
+    bar.append(messageTime(Number(bubbleElement.dataset["at"] ?? Date.now())));
+
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "chat-message-action";
+    edit.textContent = "Edit";
+    edit.title = "Edit this message in the composer";
+    edit.setAttribute("aria-label", "Edit message");
+    edit.addEventListener("click", () => {
+      input.value = messageSources.get(bubbleElement) ?? text;
+      input.focus();
+      autogrowComposer();
+    });
+
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "chat-message-action";
+    copy.textContent = "Copy";
+    copy.title = "Copy message";
+    copy.setAttribute("aria-label", "Copy message");
+    wireCopyButton(copy, bubbleElement, "Copy");
+
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "chat-message-action";
+    retry.textContent = "Retry";
+    retry.title = "Send this message again";
+    retry.setAttribute("aria-label", "Resend message");
+    retry.addEventListener("click", () => {
+      resend(messageSources.get(bubbleElement) ?? text);
+    });
+
+    bar.append(edit, copy, retry);
     return bar;
   }
 
@@ -1640,12 +2089,20 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     heading.className = "diff-heading";
     heading.textContent = `Task change — ${change.path}`;
     panel.append(heading);
+    const openFile = document.createElement("button");
+    openFile.type = "button";
+    openFile.className = "ghost-button";
+    openFile.textContent = "Open project file";
+    openFile.title = "Open the current project copy in Code. Proposed changes are shown below.";
+    openFile.addEventListener("click", () => deps.openExternalPath(change.path));
+    panel.append(openFile);
 
     const accepted = new Set(change.hunks.map((hunk) => hunk.id));
     const apply = document.createElement("button");
     apply.type = "button";
     apply.className = "chat-send";
     apply.textContent = "Apply selected";
+    apply.hidden = !aiWorkspaceActions(task).review;
 
     for (const hunk of change.hunks) {
       const block = document.createElement("div");
@@ -1712,8 +2169,45 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     try {
       const changes = await window.adcode.aiWorkspace.changes(task.id);
       transcript.querySelectorAll(`[data-task-review="${task.id}"]`).forEach((node) => node.remove());
+      const summary = document.createElement("section");
+      summary.className = "task-review-summary";
+      summary.dataset["taskReview"] = task.id;
+      const title = document.createElement("h3");
+      title.textContent = task.prompt;
+      const state = document.createElement("p");
+      const hunks = changes.flatMap(change => change.hunks);
+      state.textContent = `${summarizeAiWorkspaceTask(task)} · +${hunks.reduce((n, h) => n + h.replacement.length, 0)} −${hunks.reduce((n, h) => n + h.original.length, 0)}`;
+      const actions = document.createElement("div");
+      actions.className = "task-review-actions";
+      const action = (label: string, run: () => void): HTMLButtonElement => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "ghost-button";
+        button.textContent = label;
+        button.addEventListener("click", run);
+        actions.append(button);
+        return button;
+      };
+      action("Work history", () => { void renderPersistedTrace(task).catch(() => { state.textContent = "Could not load work history. Try again."; }); });
+      action("Task actions", () => { paintWorkspaceTask(task); revealInspector(); });
+      if (deps.openPreview) action("Open preview", deps.openPreview);
+      if (aiWorkspaceActions(task).review && changes.length) {
+        const applyAll = action("Apply all changes", () => {
+          applyAll.disabled = true;
+          void window.adcode.aiWorkspace.apply(task.id, changes.map(change => ({ path: change.path, acceptedHunkIds: change.hunks.map(h => h.id) }))).then(result => {
+            paintWorkspaceTask(result.task);
+            state.textContent = result.message;
+            if (result.ok) {
+              for (const button of transcript.querySelectorAll<HTMLButtonElement>(`[data-task-review="${task.id}"] .diff-actions button`)) button.disabled = true;
+            } else applyAll.disabled = false;
+          }).catch(() => { state.textContent = "Could not apply changes. Your project may have changed; review and retry."; applyAll.disabled = false; });
+        });
+      }
+      summary.append(title, state, actions);
+      transcript.append(summary);
       if (changes.length === 0) {
-        taskNotice.textContent = "No pending file changes.";
+        state.textContent = `${summarizeAiWorkspaceTask(task)} · No pending file changes. Open work history for recorded commands and results.`;
+        scrollToEnd();
         return;
       }
       for (const change of changes) transcript.append(persistedDiff(task, change));
@@ -1892,7 +2386,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     card.dataset["working"] = String(mode === "stop");
     if (mode === "stop") workingText.textContent = "Thinking";
     sendButton.dataset["mode"] = mode;
+    // Cursor-style stop: while a turn runs the button stops it, so it stays
+    // enabled and wears a spinner ring (CSS) rather than going dead. New sends
+    // are what get disabled — Enter while running stops, never queues.
     sendButton.disabled = false;
+    sendButton.setAttribute("aria-busy", String(mode === "stop"));
+    input.setAttribute("aria-busy", String(mode === "stop"));
     if (mode === "stop") {
       sendButton.textContent = "■";
       sendButton.title = "Stop this turn";
@@ -1902,61 +2401,103 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       sendButton.title = "Send (Enter)";
       sendButton.setAttribute("aria-label", "Send message");
     }
+    paintWorkingStatus();
   }
 
   window.adcode.ai.onEvent((raw) => {
     const event = raw as { kind: string; [key: string]: unknown };
+    // Flush before tool boundaries, cancellation, and completion so no final text
+    // is stranded in a scheduled frame or attached to the next message.
+    if (event.kind !== "text") flushStream();
 
     switch (event.kind) {
       case "text": {
         workingText.textContent = "Writing response";
-        // Append to the live bubble rather than creating one per delta.
+        const block = ensureActivity();
+        if (activityToolRows.size === 0) block.setLabel("Writing response");
+        // Append to the live bubble rather than creating one per delta. The
+        // bubble streams with a blinking orange caret (CSS) until turn-end.
         streamingBubble ??= bubble("assistant", "");
-        renderMessage(streamingBubble, `${messageSources.get(streamingBubble) ?? ""}${String(event["text"])}`);
-        scrollToEnd();
+        // The activity block must stay above the final answer.
+        if (block.element.nextElementSibling !== streamingBubble && transcript.contains(block.element)) {
+          transcript.insertBefore(block.element, streamingBubble);
+        }
+        messageSources.set(streamingBubble, `${messageSources.get(streamingBubble) ?? ""}${String(event["text"])}`);
+        dirtyMessages.add(streamingBubble);
+        if (open && !document.hidden) streamPaint.schedule();
         break;
       }
 
-      case "thinking":
-        workingText.textContent = "Thinking";
-        trace("Thinking", String(event["text"]), "running");
+      case "thinking": {
+        workingText.textContent = "Planning next steps";
+        const block = ensureActivity();
+        block.setLabel("Planning next steps");
         break;
+      }
 
       case "tool-call": {
-        const call = event["call"] as { name: string; input: unknown };
-        workingText.textContent = `Using ${call.name}`;
+        const call = event["call"] as { id?: string; name: string; input: unknown };
+        if (call.name === "open_preview" && call.id) previewCalls.add(call.id);
+        const label = toolHeaderLabel(call.name);
+        workingText.textContent = label;
+        const block = ensureActivity();
+        block.setLabel(label);
+        const detail = summarizeToolInput(call.input);
+        const rowId = typeof call.id === "string" && call.id.length > 0 ? call.id : `${call.name}-${String(Date.now())}`;
+        block.addRow({ kind: "tool", text: detail.length > 0 ? `${call.name} · ${detail}` : call.name, status: "running", id: rowId, detail });
+        activityToolRows.set(rowId, true);
         streamingBubble = null;
-        trace(`Using ${call.name}`, JSON.stringify(call.input, null, 2), "running");
+        scrollToEnd();
         break;
       }
 
       case "tool-result": {
         workingText.textContent = "Reviewing results";
         const isError = event["isError"] === true;
-        trace(
-          `${isError ? "Failed" : "Result"}: ${String(event["name"])}`,
-          String(event["content"]).slice(0, 4000),
-          isError ? "error" : "ok",
-        );
+        const block = ensureActivity();
+        const toolCallId = typeof event["toolCallId"] === "string" ? event["toolCallId"] : null;
+        if (toolCallId !== null && previewCalls.delete(toolCallId)) {
+          try {
+            const result = JSON.parse(String(event["content"])) as { type?: string; status?: PreviewStatus };
+            if (result.type === "live-preview" && result.status) chatPreview.show(result.status);
+          } catch { /* A failed tool's text stays in the activity trace. */ }
+        }
+        if (toolCallId !== null && activityToolRows.has(toolCallId)) {
+          block.completeRow(toolCallId, !isError);
+        } else {
+          const latest = [...activityToolRows.keys()].pop();
+          if (latest !== undefined) block.completeRow(latest, !isError);
+        }
+        block.setLabel("Reviewing results");
+        scrollToEnd();
         break;
       }
 
       case "refusal":
         streamingBubble?.classList.remove("is-streaming");
         streamingBubble = null;
+        finishActivity("Declined");
         setSendMode("send");
         bubble("assistant", `The model declined this request. ${String(event["detail"] ?? "")}`.trim());
         break;
 
-      case "error":
+      case "error": {
         streamingBubble?.classList.remove("is-streaming");
         streamingBubble = null;
+        finishActivityFailed();
         setSendMode("send");
-        trace("Error", String(event["detail"] ?? "unknown"), "error");
+        const detail = String(event["detail"] ?? "unknown");
+        trace("Error", detail, "error");
+        // Key, quota, and model failures are all fixed in the same place.
+        if (/Connect a model|API key|custom endpoint|HTTP 40[1234]|credit|quota|not found/i.test(detail)) {
+          connectNudge();
+        }
         break;
+      }
 
       case "cancelled":
         streamingBubble = null;
+        finishActivity();
         setSendMode("send");
         trace("Cancelled", "You stopped this turn.", "ok");
         break;
@@ -1965,6 +2506,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         const finished = streamingBubble;
         finished?.classList.remove("is-streaming");
         streamingBubble = null;
+        // Collapse the block to "Worked for Ns" before the actions row lands.
+        finishActivity();
         setSendMode("send");
         if (finished && !finished.nextElementSibling?.classList.contains("chat-message-actions")) {
           finished.after(messageActions(finished));
@@ -1977,6 +2520,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   });
 
   window.adcode.ai.onProposedEdit((edit) => {
+    flushStream();
     streamingBubble = null;
     inlineDiff(edit);
   });
@@ -1984,6 +2528,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /* ── Sending ──────────────────────────────────────────────────────────── */
 
   function submit(): void {
+    closeOpenMenu();
     // Cursor-style stop: while a turn is running the send key stops it.
     if (sendButton.dataset["mode"] === "stop") {
       window.adcode.ai.cancel();
@@ -1991,6 +2536,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
     const text = input.value;
     if (text.trim().length === 0 && pending.length === 0) return;
+
+    // Explicitly not connected: printing the message into a turn that cannot
+    // run answers nothing. Say the true thing instead — how to start — with a
+    // button that does it. (Unknown status proceeds; the backend reports back.)
+    if (modelLabel.dataset["ready"] === "false") {
+      connectNudge();
+      input.focus();
+      return;
+    }
 
     if (activeSuggestion !== null) {
       activeSuggestion = null;
@@ -2011,6 +2565,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           showUser: (message, attachments) => bubble("user", message, attachments),
           aiSend: (message, attachments) => window.adcode.ai.send(message, attachments),
           onFailure: () => {
+            finishActivity();
             setSendMode("send");
           },
         },
@@ -2021,9 +2576,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
 
     input.value = "";
+    autogrowComposer();
     clearAttachments();
     setSendMode("stop");
     streamingBubble = null;
+    // Default "Thinking" state before the first backend event arrives.
+    resetActivity();
+    ensureActivity();
   }
 
   /* Drag-drop and paste share the strip: whatever brought the file, it lands pending. */
@@ -2143,25 +2702,63 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const api: ChatWidget = {
     element: card,
     connectButton,
+    draft(question): void {
+      api.open();
+      input.value = [input.value.trim(), question.trim()].filter(Boolean).join("\n\n");
+      autogrowComposer();
+      input.focus();
+    },
+    reviewTask(task): void {
+      api.open();
+      paintWorkspaceTask(task);
+      inspectorOpen = false;
+      applyDisclosures();
+      void renderPersistedReview(task).catch(() => { taskNotice.textContent = "Could not load task changes. Try Review again."; });
+    },
+
+    setDocked(next, historyHost): void {
+      docked = next;
+      externalHistory = next && !!historyHost;
+      card.dataset["docked"] = String(next);
+      presentationButton.textContent = next ? "↗" : "Dock";
+      presentationButton.title = next ? "Expand assistant workspace" : "Dock assistant beside editor";
+      presentationButton.setAttribute("aria-label", presentationButton.title);
+      resetButton.textContent = next ? "+" : "+ New";
+      if (next) closeButton.replaceChildren(createIcon(ICON.close));
+      else closeButton.textContent = "Close";
+      moreActions.hidden = !next;
+      moreActions.open = false;
+      for (const action of secondaryActions) {
+        if (next) moreMenu.append(action);
+        else headerActions.insertBefore(action, resetButton);
+      }
+      historyHeading.textContent = next ? "Sessions" : "Chats and tasks";
+      if (next && historyHost) historyHost.append(history);
+      else body.prepend(history);
+      applyDisclosures();
+      void refreshHistory();
+    },
 
     open(): void {
       deps.requestOpen();
     },
 
-    shown(): void {
+    shown(focus = true): void {
       if (open) return;
       open = true;
+      if (dirtyMessages.size) streamPaint.schedule();
       announce();
 
-      requestAnimationFrame(() => {
+      if (focus) requestAnimationFrame(() => {
         input.focus();
       });
 
       void refreshModelStatus();
-      statusTimer = window.setInterval(() => void refreshModelStatus(), 2_000);
+      statusTimer = window.setInterval(() => { if (!document.hidden) void refreshModelStatus(); }, 5_000);
       void refreshWorkspaceTask();
       void refreshTeam();
       void agentLibrary.refresh();
+      if (!controls.element.hidden) controls.show(false);
       if (!automationPanel.hidden) void refreshAutomations();
 
     },
@@ -2169,6 +2766,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     hidden(): void {
       if (!open) return;
       open = false;
+      controls.hide();
       if (statusTimer !== null) window.clearInterval(statusTimer);
       statusTimer = null;
       announce();
@@ -2224,6 +2822,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     },
 
     setWorkspace(root: string | null): void {
+      chatPreview.clear();
+      previewCalls.clear();
+      void refreshHistory();
       suggestionGeneration += 1;
       if (suggestionTimer !== null) {
         window.clearTimeout(suggestionTimer);

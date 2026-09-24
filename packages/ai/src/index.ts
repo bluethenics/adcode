@@ -48,6 +48,10 @@ export {
   PROPOSE_EDIT,
   READ_FILE,
   SEARCH,
+  GLOB_FILES,
+  GET_OUTLINE,
+  RUN_COMMAND,
+  FETCH_URL,
 } from "./tools.ts";
 
 export {

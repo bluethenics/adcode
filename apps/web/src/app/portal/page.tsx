@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AppShell, type SideNavGroup } from "@/components/AppShell";
+import { AppShell, SideIcon, type SideNavGroup } from "@/components/AppShell";
 import { useAuth } from "@/components/AuthProvider";
 import { Segmented } from "@/components/ios/Segmented";
 import { Donut } from "@/components/charts/Donut";
@@ -199,75 +199,78 @@ function PortalBody() {
           </div>
         </div>
       )}
-      <div className="ios-card hero-balance">
-        <span className="hero-balance-label">Available to commit</span>
-        <strong className="hero-figure money">{money(advertiser?.availableMicros ?? "0")}</strong>
-        <span className="hero-balance-sub">
-          {money(advertiser?.reservedMicros ?? "0")} committed to live campaigns ·{" "}
-          {money(advertiser?.fundedMicros ?? "0")} funded all time
-        </span>
-        <div className="actions" style={{ marginTop: 18 }}>
-          <a href="#new-campaign" className="btn btn-primary btn-small">New campaign</a>
-          <a href="#credits" className="btn btn-outline btn-small">Add credits</a>
+      <div className="portal-overview">
+        <div className="ios-card hero-balance portal-balance">
+          <span className="hero-balance-label">Available to commit</span>
+          <strong className="hero-figure money">{money(advertiser?.availableMicros ?? "0")}</strong>
+          <span className="hero-balance-sub">
+            {money(advertiser?.reservedMicros ?? "0")} committed to live campaigns ·{" "}
+            {money(advertiser?.fundedMicros ?? "0")} funded all time
+          </span>
+          <div className="actions" style={{ marginTop: 18 }}>
+            <a href="#new-campaign" className="btn btn-primary btn-small">New campaign</a>
+            <a href="#credits" className="btn btn-outline btn-small">Add credits</a>
+          </div>
         </div>
+
+        <div className="filter-row">
+          <Segmented label="Reporting window" value={window} options={WINDOWS} onChange={setWindow} />
+        </div>
+
+        <div className="ios-tiles">
+          <Tile label="Verified views" value={viewTotal.toLocaleString("en-US")} hint={`Last ${window} days`} />
+          <Tile
+            label="Clicks"
+            value={clickTotal.toLocaleString("en-US")}
+            hint={viewTotal === 0 ? "—" : `${((clickTotal / viewTotal) * 100).toFixed(2)}% of views`}
+          />
+          <Tile label="Spent" value={`$${spentTotal.toFixed(2)}`} hint={`Last ${window} days`} money />
+          <Tile label="Live campaigns" value={String(live)} hint={`${campaigns.length} total`} />
+        </div>
+
+        <section className="ios-card portal-activity">
+          <header className="ios-card-head">
+            <h2>Views and clicks</h2>
+            <p>Only verified views appear here, because only verified views bill.</p>
+          </header>
+          <TimeChart
+            days={days}
+            height={240}
+            summary={`Views and clicks per day over ${window} days: ${viewTotal} views, ${clickTotal} clicks.`}
+            series={[
+              { label: "Views", color: seriesColor(0), values: totals.views },
+              { label: "Clicks", color: seriesColor(1), values: totals.clicks },
+            ]}
+          />
+        </section>
+
+        {/*
+          Spend is a separate chart rather than a second axis on the one above. A dual axis
+          lets whoever drew it decide which line looks like it is winning, and views and
+          dollars are three orders of magnitude apart.
+        */}
+        <section className="ios-card portal-spend">
+          <header className="ios-card-head">
+            <h2>Spend</h2>
+            <p>Charged as receipts are verified. Serving stops the moment a budget is out.</p>
+          </header>
+          <TimeChart
+            days={days}
+            area
+            height={200}
+            summary={`Spend per day over ${window} days, totalling $${spentTotal.toFixed(2)}.`}
+            series={[
+              {
+                label: "Spent",
+                color: MONEY,
+                values: totals.spend,
+                format: (value) => `$${value.toFixed(2)}`,
+              },
+            ]}
+          />
+        </section>
+
       </div>
-
-      <div className="filter-row">
-        <Segmented label="Reporting window" value={window} options={WINDOWS} onChange={setWindow} />
-      </div>
-
-      <div className="ios-tiles">
-        <Tile label="Verified views" value={viewTotal.toLocaleString("en-US")} hint={`Last ${window} days`} />
-        <Tile
-          label="Clicks"
-          value={clickTotal.toLocaleString("en-US")}
-          hint={viewTotal === 0 ? "—" : `${((clickTotal / viewTotal) * 100).toFixed(2)}% of views`}
-        />
-        <Tile label="Spent" value={`$${spentTotal.toFixed(2)}`} hint={`Last ${window} days`} money />
-        <Tile label="Live campaigns" value={String(live)} hint={`${campaigns.length} total`} />
-      </div>
-
-      <section className="ios-card">
-        <header className="ios-card-head">
-          <h2>Views and clicks</h2>
-          <p>Only verified views appear here, because only verified views bill.</p>
-        </header>
-        <TimeChart
-          days={days}
-          height={240}
-          summary={`Views and clicks per day over ${window} days: ${viewTotal} views, ${clickTotal} clicks.`}
-          series={[
-            { label: "Views", color: seriesColor(0), values: totals.views },
-            { label: "Clicks", color: seriesColor(1), values: totals.clicks },
-          ]}
-        />
-      </section>
-
-      {/*
-        Spend is a separate chart rather than a second axis on the one above. A dual axis
-        lets whoever drew it decide which line looks like it is winning, and views and
-        dollars are three orders of magnitude apart.
-      */}
-      <section className="ios-card">
-        <header className="ios-card-head">
-          <h2>Spend</h2>
-          <p>Charged as receipts are verified. Serving stops the moment a budget is out.</p>
-        </header>
-        <TimeChart
-          days={days}
-          area
-          height={200}
-          summary={`Spend per day over ${window} days, totalling $${spentTotal.toFixed(2)}.`}
-          series={[
-            {
-              label: "Spent",
-              color: MONEY,
-              values: totals.spend,
-              format: (value) => `$${value.toFixed(2)}`,
-            },
-          ]}
-        />
-      </section>
 
       {campaigns.length === 0 ? (
         /* The rail's Campaigns item must land somewhere even before the list exists. */
@@ -424,6 +427,7 @@ function Tile({
 }) {
   return (
     <div className="ios-tile">
+      <span className="stat-icon"><SideIcon name={isMoney ? "card" : label === "Clicks" ? "send" : label === "Live campaigns" ? "target" : "chart"} /></span>
       <span className="ios-tile-label">{label}</span>
       <span className={`ios-tile-value${isMoney ? " money" : ""}`}>{value}</span>
       <span className="ios-tile-hint">{hint}</span>

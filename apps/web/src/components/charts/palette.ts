@@ -1,17 +1,16 @@
 /**
- * The neutral shades charts are allowed to use.
+ * Distinct category colors remain legible on both appearance modes.
  *
- * A descending lightness scale keeps every visual inside the product's strict
- * black-and-white system. Labels and legends remain present, so shade is not the only
+ * Labels and legends remain present, so color is not the only
  * carrier of meaning. Slot assignment is stable: an entity keeps its shade when its
  * value or rank changes.
  */
 
 /** Slot order. Assigned by index and never cycled. */
-export const SERIES = ["#f5f5f5", "#d4d4d4", "#b3b3b3", "#929292", "#737373", "#555555", "#404040"] as const;
+export const SERIES = ["#3976f6", "#26a881", "#9971e8", "#d89028", "#dd6b8c", "#36a5bc", "#8391a8"] as const;
 
-/** Spend, earnings, and balance use the brightest neutral. */
-export const MONEY = "#ffffff";
+/** Reserve a separate green for spend, earnings, and balance. */
+export const MONEY = "#218563";
 
 /** Everything folded into "Other", and the de-emphasised half of a sparkline. */
 export const NEUTRAL = "#6b7577";

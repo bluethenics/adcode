@@ -75,7 +75,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
   options.host.append(dialog);
 
   let restoreTarget: HTMLElement | null = null;
-  let sourceOffset = { x: 0, y: 10 };
+  let sourceOffset = { x: 0, y: 6 };
   let motionGeneration = 0;
   let surfaceMotion: Animation | undefined;
   let backdropPressed = false;
@@ -90,7 +90,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
     document.documentElement.dataset["reducedMotion"] === "true" ||
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const enterTiming = {
-    duration: 220,
+    duration: 180,
     easing: "cubic-bezier(.32,.72,0,1)",
   } satisfies KeyframeAnimationOptions;
   const reducedTiming = {
@@ -113,12 +113,12 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
   };
 
   const offsetFrom = (trigger: HTMLElement | undefined): { x: number; y: number } => {
-    if (trigger === undefined) return { x: 0, y: 10 };
+    if (trigger === undefined) return { x: 0, y: 6 };
     const origin = trigger.getBoundingClientRect();
     const destination = surface.getBoundingClientRect();
     return {
-      x: Math.max(-28, Math.min(28, origin.left + origin.width / 2 - (destination.left + destination.width / 2))),
-      y: Math.max(-28, Math.min(28, origin.top + origin.height / 2 - (destination.top + destination.height / 2))),
+      x: Math.max(-12, Math.min(12, origin.left + origin.width / 2 - (destination.left + destination.width / 2))),
+      y: Math.max(-12, Math.min(12, origin.top + origin.height / 2 - (destination.top + destination.height / 2))),
     };
   };
 
@@ -128,7 +128,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
     if (input === "keyboard") return;
 
     if (current === undefined) {
-      sourceOffset = options.size === "anchored" ? offsetFrom(trigger) : { x: 0, y: 10 };
+      sourceOffset = options.size === "anchored" ? offsetFrom(trigger) : { x: 0, y: 6 };
       surface.style.transformOrigin = options.size === "anchored"
         ? `left ${String(Math.max(0, Math.min(surface.clientHeight, (trigger?.getBoundingClientRect().top ?? 0) - surface.getBoundingClientRect().top)))}px`
         : "center";
@@ -137,7 +137,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
     const keyframes: Keyframe[] = reduce
       ? [{ opacity: current?.opacity ?? 0 }, { opacity: 1 }]
       : [
-          current ?? { opacity: 0, scale: 0.96, translate: `${String(sourceOffset.x)}px ${String(sourceOffset.y)}px` },
+          current ?? { opacity: 0, scale: 0.985, translate: `${String(sourceOffset.x)}px ${String(sourceOffset.y)}px` },
           { opacity: 1, scale: 1, translate: "0 0" },
         ];
     surfaceMotion = surface.animate(keyframes, reduce ? reducedTiming : enterTiming);
@@ -229,7 +229,7 @@ export function createPopupShell(options: PopupShellOptions): PopupShell {
         ? [{ opacity: current.opacity }, { opacity: 0 }]
         : [
             { opacity: current.opacity, scale: current.scale, translate: current.translate },
-            { opacity: 0, scale: 0.96, translate: `${String(sourceOffset.x)}px ${String(sourceOffset.y)}px` },
+            { opacity: 0, scale: 0.985, translate: `${String(sourceOffset.x)}px ${String(sourceOffset.y)}px` },
           ];
       const animation = surface.animate(keyframes, {
         duration,

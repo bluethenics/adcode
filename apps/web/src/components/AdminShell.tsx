@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 import { SignInCard } from "./SignInCard";
 import { SideIcon, SidebarGlyph, type SideNavIcon } from "./AppShell";
 import { apiFetch, type AdminOverviewView } from "@/lib/api";
+import { Mark } from "./Mark";
 
 /**
  * The admin panel's chrome.
@@ -252,7 +253,7 @@ export function AdminShell({
 
   if (user === null) {
     return (
-      <section className="band">
+      <section className="auth-screen">
         <div className="wrap">
           <SignInCard heading="Sign in to the admin panel" />
         </div>
@@ -379,7 +380,7 @@ export function AdminShell({
       )}
 
       <div className="admin-layout">
-        <aside className="admin-rail">{rail}</aside>
+        <aside className="admin-rail"><Link href="/" className="workspace-brand"><Mark size={28} /><span>ADCode<small>Administration</small></span></Link>{rail}</aside>
 
         {/*
           Keyed on the destination, so turning a page replays the entrance rather than

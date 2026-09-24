@@ -8,13 +8,25 @@ export function agentEventTrace(event: AgentEvent): AgentEventTrace | null {
     case "text":
     case "thinking":
       return null;
-    case "tool-call":
+    case "tool-call": {
+      const input = event.call.input;
+      const detail =
+        typeof input["path"] === "string"
+          ? input["path"]
+          : typeof input["pattern"] === "string"
+            ? input["pattern"]
+            : typeof input["command"] === "string"
+              ? String(input["command"]).slice(0, 96)
+              : typeof input["url"] === "string"
+                ? input["url"]
+                : "";
       return {
         kind: "tool-call",
         summary: `Called ${event.call.name}`,
-        detail: typeof event.call.input["path"] === "string" ? event.call.input["path"] : "",
+        detail,
         outcome: "pending",
       };
+    }
     case "tool-result":
       return {
         kind: "tool-result",

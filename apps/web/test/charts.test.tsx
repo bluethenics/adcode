@@ -16,14 +16,14 @@ function paths(markup: string): string[] {
 }
 
 describe("palette", () => {
-  it("keeps every chart mark inside the monochrome visual system", () => {
-    expect(SERIES).toEqual(["#f5f5f5", "#d4d4d4", "#b3b3b3", "#929292", "#737373", "#555555", "#404040"]);
-    expect(SERIES.every((color) => /^#([0-9a-f]{2})\1\1$/i.test(color))).toBe(true);
+  it("gives categories distinct colors in both appearance modes", () => {
+    expect(new Set(SERIES).size).toBe(SERIES.length);
+    expect(SERIES.every((color) => /^#[0-9a-f]{6}$/i.test(color))).toBe(true);
   });
 
-  it("renders money in white without sharing its slot with a category", () => {
+  it("reserves the money color without sharing its slot with a category", () => {
     expect(SERIES).not.toContain(MONEY);
-    expect(MONEY).toBe("#ffffff");
+    expect(MONEY).not.toBe(NEUTRAL);
   });
 
   it("gives an eighth series grey rather than starting the order again", () => {

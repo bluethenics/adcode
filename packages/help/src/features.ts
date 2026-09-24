@@ -39,6 +39,14 @@ const command = (commandId: string, label: string): FeatureCommandAction => ({
  * looking for the feature actually wants: Commit, not Fetch.
  */
 const METADATA: Readonly<Record<string, FeatureMetadata>> = {
+  "workbench.modes": {
+    actions: [command("workspace.vibe", "Vibe"), command("workspace.code", "Code"), command("workspace.project", "Project"), command("workspace.changes", "Changes"), command("workspace.tasks", "Tasks"), command("workspace.preview", "Preview")],
+    keywords: ["vibe mode", "code mode", "workspace", "build", "review", "task history"],
+  },
+  "workbench.aiContext": {
+    actions: [command("ai.askSelection", "Ask AI"), command("ai.explainSelection", "Explain"), command("ai.refactorSelection", "Refactor"), command("ai.testSelection", "Write tests"), command("ai.reviewSelection", "Find issues")],
+    keywords: ["selection", "assistant", "unsaved code", "AI context"],
+  },
   "workbench.allFeatures": {
     actions: [
       command("features.open", "Open"),

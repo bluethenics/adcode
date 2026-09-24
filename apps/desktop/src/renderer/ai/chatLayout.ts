@@ -1,5 +1,5 @@
 /** Panel sizes follow the actual popup, including while its outer edge is resized. */
-export function attachChatLayout(card: HTMLElement, body: HTMLElement): () => void {
+export function attachChatLayout(card: HTMLElement, body: HTMLElement, onCompactConflict?: () => void): () => void {
   const sizes = { history: 240, inspector: 320 };
   type Panel = keyof typeof sizes;
   const defaults = { ...sizes };
@@ -19,6 +19,7 @@ export function attachChatLayout(card: HTMLElement, body: HTMLElement): () => vo
     const compact = width <= 720;
     const overlayInspector = width <= 980;
     card.dataset["layout"] = compact ? "compact" : overlayInspector ? "medium" : "wide";
+    if (compact && card.dataset["historyOpen"] === "true" && card.dataset["inspectorOpen"] === "true") onCompactConflict?.();
     const historyOpen = card.dataset["historyOpen"] === "true";
     const inspectorOpen = card.dataset["inspectorOpen"] === "true";
     const historyLimit = compact ? width * .88 : width - 360 - (inspectorOpen && !overlayInspector ? 200 : 0);

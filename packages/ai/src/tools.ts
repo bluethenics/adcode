@@ -18,13 +18,24 @@ const path = (description: string) => ({
   description,
 });
 
+const optionalPath = (description: string) => ({
+  type: "string",
+  description,
+});
+
+const ROOT_ALIASES = "Omit path, or pass an empty string, '.', or '/', for the workspace root.";
+
 export const READ_FILE: ToolDefinition = {
   name: "read_file",
   description:
-    "Read a file from the open workspace. Prefer reading the code over asking the user about it. Returns the file's text with line numbers.",
+    "Read a file from the open workspace. Prefer reading the code over asking the user about it. Returns the file's text with line numbers. Use offset and limit to page through large files.",
   inputSchema: {
     type: "object",
-    properties: { path: path("Workspace-relative path, e.g. src/main.ts") },
+    properties: {
+      path: path("Workspace-relative path, e.g. src/main.ts"),
+      offset: { type: "integer", minimum: 1, description: "First line to return (1-based). Omit to start at the top." },
+      limit: { type: "integer", minimum: 1, maximum: 2000, description: "Most lines to return. Omit for the whole file." },
+    },
     required: ["path"],
   },
   mutating: false,
@@ -33,10 +44,13 @@ export const READ_FILE: ToolDefinition = {
 export const LIST_FILES: ToolDefinition = {
   name: "list_files",
   description:
-    "List the files and directories under a workspace path. Use this to orient yourself before reading.",
+    `List the files and directories under a workspace path. Use this to orient yourself before reading. ${ROOT_ALIASES} Pass recursive true to list everything below it (for example, to find all images).`,
   inputSchema: {
     type: "object",
-    properties: { path: path("Workspace-relative directory, or omit for the root") },
+    properties: {
+      path: optionalPath(`Workspace-relative directory. ${ROOT_ALIASES}`),
+      recursive: { type: "boolean", description: "List files in subdirectories too. Omit for one level." },
+    },
   },
   mutating: false,
 };
@@ -44,12 +58,13 @@ export const LIST_FILES: ToolDefinition = {
 export const SEARCH: ToolDefinition = {
   name: "search",
   description:
-    "Search the workspace for a regular expression and return matching lines with their paths. Faster than reading files one by one when you do not yet know where something lives.",
+    `Search the workspace for a regular expression and return matching lines with their paths. Faster than reading files one by one when you do not yet know where something lives. ${ROOT_ALIASES}`,
   inputSchema: {
     type: "object",
     properties: {
       pattern: { type: "string", description: "A regular expression" },
-      path: path("Optional workspace-relative directory to search within"),
+      path: optionalPath(`Optional workspace-relative directory to search within. ${ROOT_ALIASES}`),
+      include: { type: "string", description: "Optional glob to narrow files, e.g. **/*.{ts,tsx} or **/*.png" },
     },
     required: ["pattern"],
   },
@@ -59,7 +74,7 @@ export const SEARCH: ToolDefinition = {
 export const PROPOSE_EDIT: ToolDefinition = {
   name: "propose_edit",
   description:
-    "Write a proposed complete file into the isolated task workspace. The human project is unchanged until the user reviews and accepts hunks. Send the file's complete new contents, not a patch.",
+    "Write a proposed complete file into the isolated task workspace. The human project is unchanged until the user reviews and accepts hunks. Send the file's complete new contents, not a patch. Parent directories are created as needed.",
   inputSchema: {
     type: "object",
     properties: {
@@ -67,9 +82,65 @@ export const PROPOSE_EDIT: ToolDefinition = {
       contents: { type: "string", description: "The file's complete proposed contents" },
       summary: { type: "string", description: "One line describing what this change does" },
     },
-    required: ["path", "contents", "summary"],
+    required: ["path", "contents"],
   },
   mutating: true,
+};
+
+/* ── Unfair-advantage tools (still sandboxed, still review-first) ────────── */
+
+export const GLOB_FILES: ToolDefinition = {
+  name: "glob_files",
+  description:
+    `Find files by glob pattern, e.g. **/*.png to list every image, or src/**/*.{ts,tsx}. ${ROOT_ALIASES} Prefer this over list_files when you know the shape of what you want.`,
+  inputSchema: {
+    type: "object",
+    properties: {
+      pattern: { type: "string", description: "Glob with * (any run), ** (any depth), ? (one char), and {a,b} groups" },
+      path: optionalPath(`Optional workspace-relative directory to search under. ${ROOT_ALIASES}`),
+    },
+    required: ["pattern"],
+  },
+  mutating: false,
+};
+
+export const GET_OUTLINE: ToolDefinition = {
+  name: "get_outline",
+  description:
+    "List the symbols in one file - functions, classes, interfaces, types, enums, arrow-function values, Python defs, Markdown headings - with line numbers. Skim this before reading a long file.",
+  inputSchema: {
+    type: "object",
+    properties: { path: path("Workspace-relative file to outline") },
+    required: ["path"],
+  },
+  mutating: false,
+};
+
+export const RUN_COMMAND: ToolDefinition = {
+  name: "run_command",
+  description:
+    "Run a non-interactive command inside the isolated task workspace (tests, typecheck, lint, build) and return its output. File effects land in the sandbox, never the human project, and proposals still need review. Prefer this over describing what the user should run.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      command: { type: "string", description: "Shell line to run, e.g. npm test -- --runInBand" },
+      cwd: optionalPath(`Optional workspace-relative directory to run in. ${ROOT_ALIASES}`),
+    },
+    required: ["command"],
+  },
+  mutating: true,
+};
+
+export const FETCH_URL: ToolDefinition = {
+  name: "fetch_url",
+  description:
+    "Fetch an https URL (or a local loopback http URL) and return its text, truncated past 24,000 characters. Use for docs and API references. Never fetch credentials or private hosts.",
+  inputSchema: {
+    type: "object",
+    properties: { url: { type: "string", description: "The https URL to fetch" } },
+    required: ["url"],
+  },
+  mutating: false,
 };
 
 /* ── Memory (§5.1) ──────────────────────────────────────────────────────── */
@@ -118,7 +189,11 @@ export const BUILT_IN_TOOLS: readonly ToolDefinition[] = [
   READ_FILE,
   LIST_FILES,
   SEARCH,
+  GLOB_FILES,
+  GET_OUTLINE,
   PROPOSE_EDIT,
+  RUN_COMMAND,
+  FETCH_URL,
   PROJECT_CONTEXT,
   MEMORY_SEARCH,
   MEMORY_WRITE,
@@ -129,5 +204,9 @@ export const TOOLS_WITHOUT_MEMORY: readonly ToolDefinition[] = [
   READ_FILE,
   LIST_FILES,
   SEARCH,
+  GLOB_FILES,
+  GET_OUTLINE,
   PROPOSE_EDIT,
+  RUN_COMMAND,
+  FETCH_URL,
 ];

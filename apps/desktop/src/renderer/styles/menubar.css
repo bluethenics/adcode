@@ -109,7 +109,7 @@
 
 .menu-item:hover .menu-item-chevron,
 .menu-item:focus .menu-item-chevron {
-  color: #ffffffcc;
+  color: color-mix(in srgb, var(--text-on-accent) 80%, transparent);
 }
 
 /*
@@ -131,7 +131,7 @@
 
 .menu-item:hover .menu-item-detail,
 .menu-item:focus .menu-item-detail {
-  color: #ffffffcc;
+  color: color-mix(in srgb, var(--text-on-accent) 75%, transparent);
 }
 
 /*

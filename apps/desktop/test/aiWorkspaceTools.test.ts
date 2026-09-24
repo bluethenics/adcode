@@ -30,6 +30,18 @@ const call = (name: string, input: Record<string, unknown>): ToolCallBlock => ({
 });
 
 describe("sandboxed built-in AI tools", () => {
+  it("opens the saved project preview without allocating an edit sandbox", async () => {
+    const workspace = vi.fn(async () => null);
+    const status = { running: true, starting: false, root: human, url: "http://127.0.0.1:4000/", mode: "static" as const, label: null, error: null };
+    const runner = createAiToolRunner({
+      workspace, memory: () => null, writeSandboxFile: vi.fn(), onProposedEdit: vi.fn(),
+      openPreview: async () => status,
+    });
+    const result = await runner.run(call("open_preview", {}), new AbortController().signal);
+    expect(result.isError).toBe(false);
+    expect(JSON.parse(result.content)).toMatchObject({ type: "live-preview", status });
+    expect(workspace).not.toHaveBeenCalled();
+  });
   it("reads, lists, and searches the task sandbox instead of the human project", async () => {
     const runner = createAiToolRunner({
       workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
@@ -129,8 +141,7 @@ describe("sandboxed built-in AI tools", () => {
     expect(writeSandboxFile).not.toHaveBeenCalled();
   });
 
-  it("refuses read, list, and search paths redirected outside the sandbox", async () => {
-    await symlink(
+  it("refuses read, list, and search paths redirected outside the sandbox", async () => {    await symlink(
       join(human, "src"),
       join(sandbox, "src", "escape"),
       process.platform === "win32" ? "junction" : "dir",
@@ -161,5 +172,130 @@ describe("sandboxed built-in AI tools", () => {
     expect(read.content).not.toContain("human version");
     expect(list.content).not.toContain("file.ts");
     expect(search.content).not.toContain("human version");
+  });
+
+  it("treats empty, dot, and slash list/search paths as the workspace root", async () => {
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, null, contents),
+      onProposedEdit: () => undefined,
+    });
+    const signal = new AbortController().signal;
+
+    for (const path of ["", ".", "./", "/"]) {
+      const listed = await runner.run(call("list_files", { path }), signal);
+      expect(listed.isError).toBe(false);
+      expect(listed.content).toContain("src/");
+    }
+    const searched = await runner.run(call("search", { pattern: "sandbox", path: "" }), signal);
+    expect(searched.isError).toBe(false);
+    expect(searched.content).toContain("src/file.ts");
+  });
+
+  it("pages large reads with offset and limit", async () => {
+    await writeFile(join(sandbox, "long.txt"), "one\ntwo\nthree\nfour", "utf8");
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, null, contents),
+      onProposedEdit: () => undefined,
+    });
+    const signal = new AbortController().signal;
+
+    const page = await runner.run(call("read_file", { path: "long.txt", offset: 2, limit: 2 }), signal);
+    expect(page.isError).toBe(false);
+    expect(page.content).toContain("   2 two");
+    expect(page.content).toContain("   3 three");
+    expect(page.content).not.toContain("one");
+    expect(page.content).not.toContain("four");
+    expect(page.content).toContain("Showing lines 2-3 of 4");
+
+    const bad = await runner.run(call("read_file", { path: "long.txt", offset: 0 }), signal);
+    expect(bad.isError).toBe(true);
+  });
+
+  it("finds files by glob, including images in a folder", async () => {
+    await mkdir(join(sandbox, "assets"), { recursive: true });
+    await writeFile(join(sandbox, "assets", "logo.png"), "png", "utf8");
+    await writeFile(join(sandbox, "assets", "photo.jpg"), "jpg", "utf8");
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, null, contents),
+      onProposedEdit: () => undefined,
+    });
+    const signal = new AbortController().signal;
+
+    const images = await runner.run(call("glob_files", { pattern: "assets/*.{png,jpg}" }), signal);
+    expect(images.isError).toBe(false);
+    expect(images.content).toContain("assets/logo.png");
+    expect(images.content).toContain("assets/photo.jpg");
+
+    const everyPng = await runner.run(call("glob_files", { pattern: "**/*.png", path: "" }), signal);
+    expect(everyPng.content).toContain("assets/logo.png");
+    expect(everyPng.content).not.toContain("src/file.ts");
+
+    const filtered = await runner.run(
+      call("search", { pattern: "sandbox", include: "**/*.md" }),
+      signal,
+    );
+    expect(filtered.content).toBe("No matches.");
+  });
+
+  it("outlines symbols so long files can be skimmed first", async () => {
+    await writeFile(
+      join(sandbox, "src", "shapes.ts"),
+      "export function makeShape() {}\nexport class Circle {}\nconst x = 1;\n",
+      "utf8",
+    );
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, null, contents),
+      onProposedEdit: () => undefined,
+    });
+
+    const outline = await runner.run(
+      call("get_outline", { path: "src/shapes.ts" }),
+      new AbortController().signal,
+    );
+    expect(outline.isError).toBe(false);
+    expect(outline.content).toContain("function makeShape");
+    expect(outline.content).toContain("class Circle");
+  });
+
+  it("runs sandboxed commands and blocks destructive ones", async () => {
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, null, contents),
+      onProposedEdit: () => undefined,
+    });
+    const signal = new AbortController().signal;
+
+    const ok = await runner.run(call("run_command", { command: "echo tool-ok" }), signal);
+    expect(ok.isError).toBe(false);
+    expect(ok.content).toContain("tool-ok");
+
+    const blocked = await runner.run(call("run_command", { command: "rm -rf /" }), signal);
+    expect(blocked.isError).toBe(true);
+    expect(blocked.content).toMatch(/blocked/i);
+  });
+
+  it("refuses unsafe fetch URLs before touching the network", async () => {
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, null, contents),
+      onProposedEdit: () => undefined,
+    });
+    const signal = new AbortController().signal;
+
+    const plain = await runner.run(call("fetch_url", { url: "http://example.com/docs" }), signal);
+    expect(plain.isError).toBe(true);
+
+    const nonsense = await runner.run(call("fetch_url", { url: "not a url" }), signal);
+    expect(nonsense.isError).toBe(true);
   });
 });

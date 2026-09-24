@@ -15,6 +15,7 @@
  * misrepresent the build. Neither is worth doing to avoid an honest third state.
  */
 import { helpForSetting } from "@adcode/help";
+import { copyText } from "../clipboard.ts";
 import {
   GROUPS,
   searchSettings,
@@ -98,9 +99,13 @@ function connectionCard(
   copy.className = "ghost-button";
   copy.textContent = "Copy";
   copy.addEventListener("click", () => {
-    void navigator.clipboard.writeText(code.textContent ?? "").then(() => {
-      copy.textContent = "Copied";
-      window.setTimeout(() => (copy.textContent = "Copy"), 1400);
+    copy.disabled = true;
+    void copyText(code.textContent ?? "").then((ok) => {
+      copy.textContent = ok ? "Copied" : "Copy failed";
+      window.setTimeout(() => {
+        copy.textContent = "Copy";
+        copy.disabled = false;
+      }, 1400);
     });
   });
 

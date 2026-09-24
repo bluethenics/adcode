@@ -64,6 +64,23 @@ async function collect(stream: AsyncIterable<AgentEvent>): Promise<AgentEvent[]>
 const kinds = (events: readonly AgentEvent[]): string[] => events.map((e) => e.kind);
 
 describe("a plain turn", () => {
+  it("refreshes host context without persisting it in conversation history", async () => {
+    let context = "Open workspace: /first";
+    const systems: string[] = [];
+    const agent = createAgent({
+      provider: scriptedProvider([]), model: "test", tools: [], runner: runner(),
+      context: () => context,
+      beforeRequest: request => { systems.push(request.system); return null; },
+    });
+    await collect(agent.send("first"));
+    context = "Open workspace: /second";
+    await collect(agent.send("second"));
+    expect(systems[0]).toContain("Open workspace: /first");
+    expect(systems[1]).toContain("Open workspace: /second");
+    expect(systems[1]).not.toContain("Open workspace: /first");
+    expect(JSON.stringify(agent.history())).not.toContain("Open workspace:");
+    expect(systems[0]).toContain("coding assistant built into ADCode");
+  });
   it("streams text and ends", async () => {
     const provider = scriptedProvider([
       [
@@ -224,7 +241,28 @@ describe("tool use", () => {
     const events = await collect(agent.send("go"));
 
     expect(provider.requests).toBeLessThanOrEqual(MAX_TURNS);
-    expect(kinds(events)).toContain("turn-end");
+    expect(events.at(-1)).toMatchObject({ kind: "error" });
+    expect(kinds(events)).not.toContain("turn-end");
+  });
+  it("stops identical failed calls early and keeps their results in history", async () => {
+    const provider = scriptedProvider(Array.from({ length: 10 }, (_, i) => [
+      { kind: "tool-call" as const, call: call(String(i)) },
+      { kind: "stop" as const, reason: "tool-use" as const },
+    ]));
+    const tools = runner({ run: async () => ({ content: "Service is unavailable", isError: true }) });
+    const agent = createAgent({ provider, model: "test-model", tools: [echoTool], runner: tools });
+    const events = await collect(agent.send("go"));
+    expect(tools.calls).toHaveLength(3);
+    expect(provider.requests).toBe(3);
+    expect(events.at(-1)).toMatchObject({ kind: "error", detail: expect.stringContaining("three identical") });
+    expect(agent.history().at(-1)?.content[0]).toMatchObject({ type: "tool-result", isError: true });
+  });
+  it("does not report an output-token cutoff as a successful completion", async () => {
+    const provider = scriptedProvider([[{ kind: "text", text: "Partial answer" }, { kind: "stop", reason: "max-tokens" }]]);
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner() });
+    const events = await collect(agent.send("go"));
+    expect(events.at(-1)).toMatchObject({ kind: "error", detail: expect.stringContaining("response limit") });
+    expect(kinds(events)).not.toContain("turn-end");
   });
 });
 
@@ -407,5 +445,25 @@ describe("conversation history", () => {
     // Three megabytes of base64 as text would reserve a million tokens.
     expect(estimate).toBeLessThan(50_000);
     expect(estimate).toBeGreaterThanOrEqual(8_192);
+  });
+
+  it("tells the model to do the work with tools instead of interviewing the user", async () => {
+    let system = "";
+    const agent = createAgent({
+      provider: scriptedProvider([]),
+      model: "test-model",
+      tools: [],
+      runner: runner(),
+      beforeRequest: (request) => {
+        system = request.system;
+        return null;
+      },
+    });
+    await collect(agent.send("list the images in a folder into a file"));
+
+    expect(system).toContain("Do the work first");
+    expect(system).toContain("glob_files");
+    expect(system).toContain("propose_edit");
+    expect(system).toContain("Asking for anything you could");
   });
 });

@@ -179,7 +179,7 @@ export function createContextMenu(host: HTMLElement): ContextMenu {
  * Kept separate from `createContextMenu` so the listeners are registered a single time for
  * the application rather than per menu, and so a test can drive the menu without them.
  */
-export function attachContextMenuDismissal(menu: ContextMenu, restoreFocus: () => void): void {
+export function attachContextMenuDismissal(menu: ContextMenu, restoreFocus: () => void, closeOnScroll = true): void {
   document.addEventListener("pointerdown", (event) => {
     if (!menu.isOpen()) return;
 
@@ -191,7 +191,7 @@ export function attachContextMenuDismissal(menu: ContextMenu, restoreFocus: () =
   });
 
   // A menu anchored to a row that has scrolled away is pointing at the wrong thing.
-  window.addEventListener("scroll", () => menu.close(), true);
+  if (closeOnScroll) window.addEventListener("scroll", () => menu.close(), true);
   window.addEventListener("blur", () => menu.close());
   window.addEventListener("resize", () => menu.close());
 

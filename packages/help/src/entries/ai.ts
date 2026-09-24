@@ -144,7 +144,7 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     plain:
       "The assistant works in a separate copy of your project. Your real files change only after you review them, with a way back kept first.",
     why: "A model can make a useful mistake very quickly. Isolation lets it read its own edits and keep working without putting unfinished or conflicting changes into the project you are using.",
-    how: "On by default. The assistant shows the task state, changed files, and Review button. Accept individual hunks, discard the sandbox, or roll an applied task back. Turning this off keeps chat available but disables the built-in file tools.",
+    how: "On by default. The assistant shows the task state, changed files, and Review button. Accept individual hunks, discard the sandbox, or roll an applied task back. Turning this off keeps chat available but disables the built-in file tools. Beyond reading, listing, and searching files, the assistant can find files by pattern (for example every image), outline a file's symbols before reading it, run tests and typechecks inside the sandbox, and fetch documentation pages.",
     group: "ai",
     settingIds: ["adcode.ai.isolatedWorkspaces"],
     related: ["adcode.ai.chatWidget", "adcode.ai.taskTokenBudget"],

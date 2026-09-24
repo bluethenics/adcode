@@ -577,7 +577,7 @@ Every conversation is kept in Today, Yesterday, and older groups, so you can go 
 
 Why use it: Assistants that forget everything are frustrating, and assistants that remember invisibly are worse. Showing what is remembered makes clearing it something you can actually see work.
 
-How to use it: The list beside the chat holds your past conversations grouped by recency - search them, rename them, delete one, or clear them all. The header shows the current conversation name and Share copies it as markdown. Conversations are stored on your own machine, per project, and are never uploaded.
+How to use it: Choose History from the conversation's actions menu to open past conversations inside the chat. Search them, rename them, delete one, or clear them all. The header shows the current conversation name and Share copies it as markdown. Conversations are stored on your own machine, per project, and are never uploaded.
 
 Access: `All Features → Chat history and memory`; `Open Assistant`.
 
@@ -632,7 +632,7 @@ The assistant works in a separate copy of your project. Your real files change o
 
 Why use it: A model can make a useful mistake very quickly. Isolation lets it read its own edits and keep working without putting unfinished or conflicting changes into the project you are using.
 
-How to use it: On by default. The assistant shows the task state, changed files, and Review button. Accept individual hunks, discard the sandbox, or roll an applied task back. Turning this off keeps chat available but disables the built-in file tools.
+How to use it: On by default. The assistant shows the task state, changed files, and Review button. Accept individual hunks, discard the sandbox, or roll an applied task back. Turning this off keeps chat available but disables the built-in file tools. Beyond reading, listing, and searching files, the assistant can find files by pattern (for example every image), outline a file's symbols before reading it, run tests and typechecks inside the sandbox, and fetch documentation pages.
 
 Access: `All Features → Isolated AI edits`; `Turn on or off`; `Settings`.
 
@@ -851,6 +851,17 @@ How to use it: Choose the four-cell All Features button below Earnings, or open 
 
 Access: `All Features → All Features`; `Open`; `Preferences`; `Full screen`; `Toggle side bar`; `Toggle panel`; `Zoom in`; `Zoom out`; `Reset zoom`; `Problems`; `Output`; `Ports`; `Feature guide`; `About ADCode`.
 
+<!-- feature:workbench.aiContext -->
+### Ask AI about your code
+
+Send the current editor selection or buffer into your assistant's composer.
+
+Why use it: Ask about unsaved code, prepare a refactor, find issues or write tests without copying between tools.
+
+How to use it: Select code and choose Ask AI in the file header. Right-click for Explain, Refactor, Write Tests and Find Issues. Edit the prepared instructions, then send.
+
+Access: `All Features → Ask AI about your code`; `Ask AI`; `Explain`; `Refactor`; `Write tests`; `Find issues`.
+
 <!-- feature:workbench.terminal -->
 ### Built-in terminal
 
@@ -950,16 +961,27 @@ How to use it: Choose the title-bar search and type a name or goal. Use the arro
 
 Access: `All Features → Universal search`; `Search`.
 
+<!-- feature:workbench.modes -->
+### Vibe and Code modes
+
+Two ways to work with one project: conversation first in Vibe, editor first in Code.
+
+Why use it: Move between building with AI and editing directly while keeping your conversation, files, terminals and preview.
+
+How to use it: Use the Vibe / Code switch above the workspace. Vibe keeps the conversation in focus; files and search open Code. Code starts with your editor and file sidebar. Open AI on demand from More tools or the editor context menu. Vibe Context and More tools open project details, changes and saved tasks. Your conversation, unsaved files, terminal and preview stay with you. Your last mode is restored on launch, and the Vibe sidebar edge drags wider or narrower on wide screens.
+
+Access: `All Features → Vibe and Code modes`; `Vibe`; `Code`; `Project`; `Changes`; `Tasks`; `Preview`.
+
 ## Appearance
 
 <!-- feature:adcode.appearance.theme -->
 ### Appearance
 
-Light or dark. System means it matches whatever your computer is set to.
+Warm light, charcoal dark, or midnight. System follows your computer's appearance.
 
 Why use it: Dark is easier at night, light is easier in daylight, and following the system means you never think about it.
 
-How to use it: System by default, which also picks up your computer's accent colour. Choose Light or Dark to override it.
+How to use it: Light is the default for new installs. Choose Dark, Midnight, or System in Settings. Your explicit preference stays selected across modes.
 
 Access: `All Features → Appearance`; `Settings`.
 

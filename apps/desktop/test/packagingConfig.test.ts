@@ -1,10 +1,29 @@
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const repo = resolve(import.meta.dirname, "../../..");
 
 describe("desktop packaging dependency boundary", () => {
+  it("unpacks terminal binaries and helpers from the external dependency source", () => {
+    const require = createRequire(import.meta.url);
+    const { load } = require("js-yaml");
+    const { FileMatcher } = require("app-builder-lib/out/fileMatcher.js");
+    const config = load(readFileSync(resolve(repo, "electron-builder.yml"), "utf8"));
+    const matcher = new FileMatcher(
+      resolve(repo, "apps/desktop"),
+      resolve(repo, "release/win-unpacked/resources"),
+      (value: string) => value,
+      config.asarUnpack,
+    ).createFilter();
+    const file = { isDirectory: () => false };
+    for (const name of ["conpty.node", "conpty/conpty.dll", "conpty/OpenConsole.exe"]) {
+      expect(matcher(resolve(repo, "node_modules/node-pty/prebuilds/win32-x64", name), file)).toBe(true);
+    }
+    expect(matcher(resolve(repo, "apps/desktop/out/main/index.js"), file)).toBe(false);
+  });
+
   it("uses the desktop manifest and ships only node-pty", () => {
     const config = readFileSync(resolve(repo, "electron-builder.yml"), "utf8");
     const manifest = JSON.parse(readFileSync(resolve(repo, "apps/desktop/package.json"), "utf8")) as {

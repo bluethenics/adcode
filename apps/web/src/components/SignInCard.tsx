@@ -84,7 +84,7 @@ export function SignInCard({ heading = "Sign in" }: { heading?: string }) {
         role="tabpanel"
         aria-labelledby={mode === "in" ? signInTabId : createTabId}
       >
-        <div className="auth-mode" role="tablist" aria-label="Account action">
+        <div className="auth-mode" data-mode={mode} role="tablist" aria-label="Account action">
           <button
             id={signInTabId}
             type="button"

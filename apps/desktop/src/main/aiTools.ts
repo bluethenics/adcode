@@ -12,15 +12,38 @@
  * a model that has read a prompt-injected instruction is exactly the attacker that check
  * exists for.
  */
+import { execFile as execFileCallback } from "node:child_process";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
+import { promisify } from "node:util";
 import { computeHunks, type AiFileChange, type ToolCallBlock, type ToolRunner } from "@adcode/ai";
 import type { NodeMemory } from "@adcode/memory";
 import { resolveSandboxPath } from "./aiSandbox.ts";
+import type { PreviewStatus } from "../shared/api.ts";
+
+const execFile = promisify(execFileCallback);
 
 const MAX_READ_BYTES = 400_000;
 const MAX_SEARCH_HITS = 60;
+const MAX_GLOB_HITS = 500;
+const MAX_OUTLINE_SYMBOLS = 200;
+const MAX_OUTPUT_CHARS = 24_000;
+const RUN_TIMEOUT_MS = 30_000;
+const FETCH_TIMEOUT_MS = 10_000;
 const SKIP = new Set([".git", "node_modules", "dist", "out", ".next", "target", ".adcode"]);
+
+/** Commands that are never worth the risk, whatever the workspace. */
+const BLOCKED_COMMANDS = [
+  "rm -rf /",
+  "rm -rf ~",
+  "rm -rf c:",
+  "format c:",
+  "mkfs",
+  "shutdown",
+  "reboot",
+  ":(){:|:&};",
+  "del /f /s /q c:",
+];
 
 export interface ProposedEdit {
   readonly taskId: string;
@@ -39,6 +62,7 @@ export interface AiToolWorkspace {
 }
 
 export interface AiToolDeps {
+  readonly openPreview?: () => Promise<PreviewStatus>;
   readonly workspace: () => Promise<AiToolWorkspace | null>;
   readonly workspaceUnavailableMessage?: () => string;
   /** Trusted still means sandbox first; only the successful turn's checkpointed apply is automatic. */
@@ -60,6 +84,107 @@ async function resolveInWorkspace(root: string | null, input: unknown): Promise<
   } catch {
     return null;
   }
+}
+
+/**
+ * The root-path fix: models ask for the workspace root as "", ".", "./", or "/"
+ * far more often than as an omitted field. Treat every spelling as the root
+ * instead of failing with "outside the open workspace".
+ */
+function isRootAlias(input: unknown): boolean {
+  if (input === undefined || input === null) return true;
+  if (typeof input !== "string") return false;
+  const trimmed = input.trim().replaceAll("\\", "/");
+  return trimmed === "" || trimmed === "." || trimmed === "./" || trimmed === "/";
+}
+
+async function resolveDirOrRoot(root: string, input: unknown): Promise<string | null> {
+  if (isRootAlias(input)) return root;
+  return resolveInWorkspace(root, input);
+}
+
+const truncateOutput = (text: string): string =>
+  text.length > MAX_OUTPUT_CHARS
+    ? `${text.slice(0, MAX_OUTPUT_CHARS)}\n[Truncated at 24,000 characters. Narrow the query for more detail.]`
+    : text;
+
+/**
+ * A small glob (`*`, `**`, `?`, `{a,b}`) over workspace-relative posix paths.
+ * Enough for `**\/*.{png,jpg,svg}` without a dependency.
+ */
+function globToRegExp(glob: string): RegExp | null {
+  let source = "";
+  let i = 0;
+  const pattern = glob.replaceAll("\\", "/").trim();
+  if (pattern.length === 0 || pattern.length > 512) return null;
+  while (i < pattern.length) {
+    const char = pattern[i]!;
+    if (char === "*") {
+      if (pattern[i + 1] === "*") {
+        const after = pattern[i + 2];
+        if (after === "/") {
+          source += "(?:.*/)?";
+          i += 3;
+        } else {
+          source += ".*";
+          i += 2;
+        }
+      } else {
+        source += "[^/]*";
+        i += 1;
+      }
+    } else if (char === "?") {
+      source += "[^/]";
+      i += 1;
+    } else if (char === "{") {
+      const end = pattern.indexOf("}", i);
+      if (end === -1) return null;
+      const group = pattern
+        .slice(i + 1, end)
+        .split(",")
+        .map((part) => part.trim().replace(/[.+^${}()|[\]\\]/g, "\\$&"))
+        .join("|");
+      source += `(?:${group})`;
+      i = end + 1;
+    } else {
+      source += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+      i += 1;
+    }
+  }
+  try {
+    return new RegExp(`^(?:${source})$`, "i");
+  } catch {
+    return null;
+  }
+}
+
+const OUTLINE_PATTERNS: readonly (readonly [RegExp, string])[] = [
+  [/^\s*(?:export\s+)?(?:async\s+)?function\s+([\w$]+)/, "function"],
+  [/^\s*(?:export\s+)?(?:abstract\s+)?class\s+([\w$]+)/, "class"],
+  [/^\s*(?:export\s+)?interface\s+([\w$]+)/, "interface"],
+  [/^\s*(?:export\s+)?type\s+([\w$]+)\s*=/, "type"],
+  [/^\s*(?:export\s+)?enum\s+([\w$]+)/, "enum"],
+  [/^\s*(?:export\s+)?(?:const|let|var)\s+([\w$]+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[\w$]+)\s*=>/, "function"],
+  [/^\s*def\s+(\w+)\s*\(/, "function"],
+  [/^\s*class\s+(\w+)/, "class"],
+  [/^(#{1,6})\s+(.+?)\s*$/, "heading"],
+];
+
+function outlineOf(text: string): string[] {
+  const found: string[] = [];
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length && found.length < MAX_OUTLINE_SYMBOLS; i++) {
+    const line = lines[i]!;
+    for (const [pattern, kind] of OUTLINE_PATTERNS) {
+      const match = pattern.exec(line);
+      if (match === null) continue;
+      const name = (match[1] ?? "").trim().slice(0, 120);
+      if (name.length === 0) continue;
+      found.push(`${i + 1}: ${kind} ${name}`);
+      break;
+    }
+  }
+  return found;
 }
 
 export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
@@ -90,6 +215,14 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
       const input = call.input;
 
       switch (call.name) {
+        case "open_preview": {
+          if (!deps.openPreview) return fail("Live preview is unavailable in this agent.");
+          const status = await deps.openPreview();
+          return {
+            content: JSON.stringify({ type: "live-preview", status, note: "This preview shows saved/applied files. Pending proposals must be applied before they appear." }),
+            isError: status.error !== null,
+          };
+        }
         case "read_file": {
           const workspace = await deps.workspace();
           if (workspace === null) return unavailable();
@@ -105,12 +238,22 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
             }
 
             const text = await readFile(path, "utf8");
-            const numbered = text
-              .split("\n")
-              .map((line, index) => `${String(index + 1).padStart(4)} ${line}`)
+            const lines = text.split("\n");
+            const offsetRaw = input["offset"];
+            const limitRaw = input["limit"];
+            const offset = offsetRaw === undefined ? 1 : Math.floor(Number(offsetRaw));
+            const limit = limitRaw === undefined ? lines.length : Math.floor(Number(limitRaw));
+            if (!Number.isSafeInteger(offset) || offset < 1) return fail("read_file offset starts at line 1.");
+            if (!Number.isSafeInteger(limit) || limit < 1 || limit > 2000) {
+              return fail("read_file limit is between 1 and 2000 lines.");
+            }
+            const slice = lines.slice(offset - 1, offset - 1 + limit);
+            const numbered = slice
+              .map((line, index) => `${String(offset + index).padStart(4)} ${line}`)
               .join("\n");
+            const more = offset - 1 + slice.length < lines.length ? `\n[Showing lines ${offset}-${offset + slice.length - 1} of ${lines.length}. Pass offset ${offset + slice.length} to continue.]` : "";
 
-            return ok(numbered);
+            return ok(numbered + more);
           } catch (error) {
             return fail(error instanceof Error ? error.message : "could not read that file");
           }
@@ -120,10 +263,16 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           const workspace = await deps.workspace();
           if (workspace === null) return unavailable();
           const root = workspace.sandboxRoot;
-          const target = input["path"] === undefined ? root : await resolveInWorkspace(root, input["path"]);
+          const target = await resolveDirOrRoot(root, input["path"]);
           if (target === null) return fail("That path is outside the open workspace.");
 
           try {
+            if (input["recursive"] === true) {
+              const hits: string[] = [];
+              await walk(target, root, hits);
+              const listed = hits.sort().slice(0, MAX_GLOB_HITS);
+              return ok(listed.length === 0 ? "(empty)" : listed.join("\n"));
+            }
             const entries = await readdir(target, { withFileTypes: true });
             const listed = entries
               .filter((entry) => !SKIP.has(entry.name))
@@ -149,8 +298,14 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
             return fail("That pattern is not a valid regular expression.");
           }
 
-          const base = input["path"] === undefined ? root : await resolveInWorkspace(root, input["path"]);
+          const base = await resolveDirOrRoot(root, input["path"]);
           if (base === null) return fail("That path is outside the open workspace.");
+          let include: RegExp | null = null;
+          if (input["include"] !== undefined) {
+            if (typeof input["include"] !== "string") return fail("search include must be a glob.");
+            include = globToRegExp(input["include"]);
+            if (include === null) return fail("That include glob could not be read. Try **/*.ts.");
+          }
 
           const files: string[] = [];
           await walk(base, root, files);
@@ -158,6 +313,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           const found: string[] = [];
           for (const relativePath of files) {
             if (found.length >= MAX_SEARCH_HITS) break;
+            if (include !== null && !include.test(relativePath) && !include.test(relativePath.split("/").pop() ?? "")) continue;
 
             try {
               const info = await stat(join(root, relativePath));
@@ -220,6 +376,95 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
                 ? "It is isolated now and will be auto-applied with a rollback checkpoint after this turn succeeds."
                 : "It is written only in the isolated task workspace and is waiting for human review."),
           );
+        }
+
+        case "glob_files": {
+          const workspace = await deps.workspace();
+          if (workspace === null) return unavailable();
+          const root = workspace.sandboxRoot;
+          if (typeof input["pattern"] !== "string") return fail("glob_files needs a pattern.");
+          const matcher = globToRegExp(input["pattern"]);
+          if (matcher === null) return fail("That glob could not be read. Try **/*.png.");
+          const base = await resolveDirOrRoot(root, input["path"]);
+          if (base === null) return fail("That path is outside the open workspace.");
+
+          const files: string[] = [];
+          await walk(base, root, files);
+          const matched = files
+            .filter((relativePath) => matcher.test(relativePath) || matcher.test(relativePath.split("/").pop() ?? ""))
+            .sort()
+            .slice(0, MAX_GLOB_HITS);
+          return ok(matched.length === 0 ? "No files match that pattern." : matched.join("\n"));
+        }
+
+        case "get_outline": {
+          const workspace = await deps.workspace();
+          if (workspace === null) return unavailable();
+          const root = workspace.sandboxRoot;
+          const path = await resolveInWorkspace(root, input["path"]);
+          if (path === null) return fail("That path is outside the open workspace.");
+          try {
+            const info = await stat(path);
+            if (!info.isFile()) return fail("That path is not a file.");
+            if (info.size > MAX_READ_BYTES) return fail(`That file is ${info.size} bytes, too large to outline.`);
+            const text = await readFile(path, "utf8");
+            const symbols = outlineOf(text);
+            return ok(symbols.length === 0 ? "No symbols found in that file." : symbols.join("\n"));
+          } catch (error) {
+            return fail(error instanceof Error ? error.message : "could not outline that file");
+          }
+        }
+
+        case "run_command": {
+          const workspace = await deps.workspace();
+          if (workspace === null) return unavailable();
+          const root = workspace.sandboxRoot;
+          if (typeof input["command"] !== "string" || input["command"].trim().length === 0) {
+            return fail("run_command needs a command.");
+          }
+          const command = input["command"].trim();
+          if (command.length > 2000) return fail("That command is too long. Keep it under 2000 characters.");
+          const lowered = command.toLowerCase();
+          if (BLOCKED_COMMANDS.some((blocked) => lowered.includes(blocked))) {
+            return fail("That command is blocked. Ask the user to run destructive commands themselves.");
+          }
+          const cwd = await resolveDirOrRoot(root, input["cwd"]);
+          if (cwd === null) return fail("That working directory is outside the open workspace.");
+          try {
+            const shell = process.platform === "win32" ? (process.env["SystemRoot"] ?? "C:\\Windows") + "\\System32\\cmd.exe" : "/bin/sh";
+            const args = process.platform === "win32" ? ["/d", "/s", "/c", command] : ["-c", command];
+            const result = await execFile(shell, args, { cwd, timeout: RUN_TIMEOUT_MS, windowsHide: true, maxBuffer: 1024 * 1024 });
+            const output = truncateOutput(`${result.stdout}${result.stderr}`.trim());
+            return ok(output.length === 0 ? "(no output)" : `exit 0\n${output}`);
+          } catch (error) {
+            const failure = error as { stdout?: string; stderr?: string; message?: string; killed?: boolean };
+            if (failure.killed === true) return fail("That command timed out after 30s. Narrow it or run it in the terminal.");
+            const output = truncateOutput(`${failure.stdout ?? ""}${failure.stderr ?? ""}`.trim() || failure.message || "command failed");
+            return fail(output);
+          }
+        }
+
+        case "fetch_url": {
+          if (typeof input["url"] !== "string") return fail("fetch_url needs a URL.");
+          let url: URL;
+          try {
+            url = new URL(input["url"].trim());
+          } catch {
+            return fail("That is not a valid URL.");
+          }
+          const loopback = new Set(["localhost", "127.0.0.1", "[::1]"]);
+          if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback.has(url.hostname))) {
+            return fail("fetch_url needs an https URL (local servers may use http).");
+          }
+          if (url.username || url.password) return fail("fetch_url refuses URLs with credentials.");
+          try {
+            const response = await fetch(url.toString(), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+            if (!response.ok) return fail(`That URL answered ${response.status}.`);
+            const text = truncateOutput(await response.text());
+            return ok(text.length === 0 ? "(empty response)" : text);
+          } catch (error) {
+            return fail(error instanceof Error ? error.message : "could not fetch that URL");
+          }
         }
 
         case "project_context": {

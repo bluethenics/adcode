@@ -59,10 +59,10 @@ button {
   --text-2xl: 28px;
 
   /* Shape - continuous-curvature radii, not circles. */
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius-panel: 14px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-panel: 6px;
   --border-subtle: color-mix(in srgb, var(--text-primary) 14%, transparent);
   --border-strong: color-mix(in srgb, var(--text-primary) 22%, transparent);
   --bg-workbench: var(--bg-app);
@@ -79,8 +79,8 @@ button {
   --surface-control-hover: color-mix(in srgb, var(--surface-control) 88%, var(--text-primary));
   --surface-selected: color-mix(in srgb, var(--bg-elevated) 72%, var(--text-secondary));
   --surface-sheen: linear-gradient(180deg, color-mix(in srgb, var(--text-primary) 4%, transparent), transparent);
-  --fill-primary: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, white), var(--accent));
-  --fill-danger: linear-gradient(180deg, var(--danger), color-mix(in srgb, var(--danger) 78%, black));
+  --fill-primary: var(--accent);
+  --fill-danger: var(--danger);
   --shadow-control: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 7%, transparent), 0 2px 4px rgb(0 0 0 / 0.12);
   --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
 
@@ -94,27 +94,31 @@ button {
   --density-row: 26px;
   --density-gap: 8px;
 
-  /* Light palette */
-  --bg-app: #f2f2f7;
-  --bg-chrome: rgba(246, 246, 248, 0.72);
-  --bg-elevated: #ffffff;
+  /*
+   * Light palette: warm paper to match the dark side's charcoal. The accent is
+   * a warm near-black — off-white cannot carry a button on paper — so primary
+   * actions read as dark pills with white text, the inverse of dark mode.
+   */
+  --bg-app: #f3f1ec;
+  --bg-chrome: #f3f1ec;
+  --bg-elevated: #fbfaf7;
   --bg-editor: #ffffff;
   --bg-hover: rgba(0, 0, 0, 0.04);
   --bg-active: rgba(0, 0, 0, 0.08);
-  --bg-selected: rgba(0, 122, 255, 0.12);
+  --bg-selected: rgba(35, 32, 28, 0.1);
 
-  --text-primary: #1c1c1e;
-  --text-secondary: #6c6c70;
-  --text-tertiary: #727780;
+  --text-primary: #24231f;
+  --text-secondary: #69665f;
+  --text-tertiary: #77736b;
   --text-on-accent: #ffffff;
 
-  --border-hairline: rgba(0, 0, 0, 0.1);
-  --accent: #007aff;
-  --danger: #ff3b30;
-  --success: #34c759;
-  --warning: #ff9500;
+  --border-hairline: #ddd9d0;
+  --accent: #26241f;
+  --danger: #c24836;
+  --success: #3f8f62;
+  --warning: #b7791f;
 
-  --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-floating: 0 8px 24px rgb(36 35 31 / .12);
 }
 
 :root[data-theme="dark"] {
@@ -124,53 +128,56 @@ button {
 :root[data-theme="light"] { color-scheme: light; }
 
 /*
- * Dark follows the adcode design system (macOS/iOS-inspired): a deep navy-black ground,
- * one raised surface, hairline borders, and a restrained blue accent. Light and Midnight
- * below are untouched - this block is the only theme that wears the reference palette.
+ * Dark is the warm charcoal the Assistant introduced, now the app's own ground:
+ * near-black brown-grey surfaces, hairline borders, and an off-white accent.
+ * Monochrome like a professional IDE — colour is spent only on meaning
+ * (green success, red errors, amber warnings). Midnight below is untouched.
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg-app: #0a0d13;
-    --bg-chrome: rgba(10, 13, 19, 0.78);
-    --bg-elevated: #12161d;
-    --bg-editor: #0d1117;
+    --bg-app: #151515;
+    --bg-chrome: rgba(16, 15, 12, 0.78);
+    --bg-elevated: #1c1b19;
+    --bg-editor: #151515;
     --bg-hover: rgba(255, 255, 255, 0.06);
     --bg-active: rgba(255, 255, 255, 0.12);
-    --bg-selected: rgba(47, 129, 247, 0.22);
+    --bg-selected: rgba(236, 233, 226, 0.14);
 
-    --text-primary: #eef1f5;
-    --text-secondary: #9aa4b2;
-    --text-tertiary: #8492a4;
+    --text-primary: #ebe8e1;
+    --text-secondary: #8f8c85;
+    --text-tertiary: #5f5d58;
+    --text-on-accent: #1a1917;
 
-    --border-hairline: rgba(255, 255, 255, 0.09);
-    --accent: #2f81f7;
-    --danger: #f85149;
-    --success: #3fb950;
-    --warning: #d29922;
+    --border-hairline: #2d2b28;
+    --accent: #ece9e2;
+    --danger: #e0685c;
+    --success: #6fb98f;
+    --warning: #d9a03f;
 
     --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg-app: #0a0d13;
-  --bg-chrome: rgba(10, 13, 19, 0.78);
-  --bg-elevated: #12161d;
-  --bg-editor: #0d1117;
+  --bg-app: #151515;
+  --bg-chrome: rgba(16, 15, 12, 0.78);
+  --bg-elevated: #1c1b19;
+  --bg-editor: #151515;
   --bg-hover: rgba(255, 255, 255, 0.06);
   --bg-active: rgba(255, 255, 255, 0.12);
-  --bg-selected: rgba(47, 129, 247, 0.22);
+  --bg-selected: rgba(236, 233, 226, 0.14);
 
-  --text-primary: #eef1f5;
-  --text-secondary: #9aa4b2;
-  --text-tertiary: #8492a4;
+  --text-primary: #ebe8e1;
+  --text-secondary: #8f8c85;
+  --text-tertiary: #5f5d58;
+  --text-on-accent: #1a1917;
 
-  --border-hairline: rgba(255, 255, 255, 0.09);
-  --accent: #2f81f7;
-  --danger: #f85149;
-  --success: #3fb950;
-  --warning: #d29922;
+  --border-hairline: #2d2b28;
+  --accent: #ece9e2;
+  --danger: #e0685c;
+  --success: #6fb98f;
+  --warning: #d9a03f;
 
   --shadow-floating: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
 }
@@ -271,12 +278,12 @@ button {
 
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg-chrome: #0a0d13;
+      --bg-chrome: #100f0c;
     }
   }
 
   :root[data-theme="dark"] {
-    --bg-chrome: #0a0d13;
+    --bg-chrome: #100f0c;
   }
 
   :root[data-theme="midnight"] {

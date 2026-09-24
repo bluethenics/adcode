@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { SignInCard } from "./SignInCard";
+import { Mark } from "./Mark";
 
 /**
  * The gate and chrome shared by the portal, dashboard, and admin areas.
@@ -301,7 +302,7 @@ export function AppShell({
 
   if (user === null) {
     return (
-      <section className="band">
+      <section className="auth-screen">
         <div className="wrap">
           <SignInCard heading={`Sign in to ${title.toLowerCase()}`} />
         </div>
@@ -351,6 +352,7 @@ export function AppShell({
 
   const body = (
     <>
+      <div className="workspace-toolbar"><span>Workspace <span aria-hidden="true">/</span> {title}</span><Link href="/support">Help & support <span aria-hidden="true">↗</span></Link></div>
       <div className="app-head">
         <h1 className="large-title">{title}</h1>
         {subtitle !== undefined && <p className="large-title-sub">{subtitle}</p>}
@@ -435,7 +437,7 @@ export function AppShell({
       )}
 
       <div className="app-layout">
-        <aside className="app-rail">{rail}</aside>
+        <aside className="app-rail"><Link href="/" className="workspace-brand"><Mark size={28} /><span>ADCode<small>Your workspace</small></span></Link>{rail}<div className="workspace-rail-bottom"><Link href="/docs"><SideIcon name="doc" />Documentation</Link><Link href="/support"><SideIcon name="bubble" />Help & support</Link><div className="workspace-tip"><span>Built for your next big idea.</span><p>Keep building. We’ll handle the rest.</p><Link href="/versions">Open the editor <span aria-hidden="true">↗</span></Link></div></div></aside>
         <div className="app-content">{body}</div>
       </div>
     </section>

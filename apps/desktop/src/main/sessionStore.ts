@@ -30,11 +30,15 @@ export interface SessionLayout {
   readonly sidebarView?: SessionSidebarView;
 }
 
+export type SessionWorkspaceMode = "vibe" | "code";
+
 export interface SessionState {
   readonly root: string | null;
   readonly openFiles: readonly string[];
   readonly activeFile: string | null;
   readonly layout?: SessionLayout;
+  /** Absent in sessions written before the working mode was restored. */
+  readonly workspaceMode?: SessionWorkspaceMode;
 }
 
 export interface SessionStore {
@@ -75,6 +79,9 @@ const asSidebarView = (value: unknown): SessionSidebarView | undefined =>
     ? (value as SessionSidebarView)
     : undefined;
 
+const asWorkspaceMode = (value: unknown): SessionWorkspaceMode | undefined =>
+  value === "vibe" || value === "code" ? value : undefined;
+
 function asLayout(value: unknown): SessionLayout | undefined {
   if (typeof value !== "object" || value === null) return undefined;
 
@@ -112,9 +119,11 @@ export function createSessionStore(directory: string): SessionStore {
           openFiles?: unknown;
           activeFile?: unknown;
           layout?: unknown;
+          workspaceMode?: unknown;
         };
 
         const layout = asLayout(raw.layout);
+        const workspaceMode = asWorkspaceMode(raw.workspaceMode);
 
         return {
           root: asString(raw.root),
@@ -126,6 +135,7 @@ export function createSessionStore(directory: string): SessionStore {
             : [],
           activeFile: asString(raw.activeFile),
           ...(layout === undefined ? {} : { layout }),
+          ...(workspaceMode === undefined ? {} : { workspaceMode }),
         };
       } catch {
         return EMPTY;
@@ -134,12 +144,14 @@ export function createSessionStore(directory: string): SessionStore {
 
     async save(state: SessionState): Promise<void> {
       const layout = asLayout(state.layout);
+      const workspaceMode = asWorkspaceMode(state.workspaceMode);
 
       const trimmed: SessionState = {
         root: state.root,
         openFiles: state.openFiles.slice(0, MAX_REMEMBERED_EDITORS),
         activeFile: state.activeFile,
         ...(layout === undefined ? {} : { layout }),
+        ...(workspaceMode === undefined ? {} : { workspaceMode }),
       };
 
       try {

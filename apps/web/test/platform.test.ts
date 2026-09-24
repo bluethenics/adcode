@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   detectPlatform,
   installCommand,
+  isInstallCommand,
   installRoute,
   type Platform,
 } from "../src/lib/platform";
@@ -43,10 +44,14 @@ describe("reading the machine", () => {
     expect(detectPlatform("some crawler/1.0")).toBe("unknown");
   });
 
-  it("treats an iPhone as a Mac, which costs one click and never a wrong command", () => {
-    // It matches /Mac/, so it lands on "coming soon" and a link to the install page -
-    // which is the right destination for a phone anyway.
-    expect(installRoute(detectPlatform(UA.iphone))).toBe("soon");
+  it("offers desktop install options on phones and tablets, not commands for their reported OS", () => {
+    for (const ua of [UA.iphone, "Mozilla/5.0 (Linux; Android 14) Mobile", "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)"]) {
+      const platform = detectPlatform(ua);
+      expect(installRoute(platform)).toBe("choose");
+      expect(installCommand(platform, "https://example.com")).toBeNull();
+    }
+    expect(detectPlatform(UA.appleSilicon, 5)).toBe("unknown");
+    expect(detectPlatform(UA.appleSilicon, 0)).toBe("macos");
   });
 });
 
@@ -73,6 +78,14 @@ describe("how each platform should install", () => {
 
 describe("the command a visitor is asked to paste", () => {
   const origin = "https://adcode.bluethenics.com";
+
+  it("counts only complete installer commands as installation intent", () => {
+    expect(isInstallCommand(`  ${installCommand("windows", origin)}\n`, origin)).toBe(true);
+    expect(isInstallCommand(installCommand("linux", origin)!, origin)).toBe(true);
+    for (const command of ["adcode open .", "sudo apt remove adcode", "git config user.email private@example.com", "curl -fsSL https://other.example/install.sh | sh", `${installCommand("linux", origin)}\necho done`]) {
+      expect(isInstallCommand(command, origin)).toBe(false);
+    }
+  });
 
   it("matches the installer each platform actually has", () => {
     expect(installCommand("windows", origin)).toBe(

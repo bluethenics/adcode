@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { DocsFrameTopbar } from "@/components/DocsFrameTopbar";
 import { DocsSearch } from "@/components/DocsSearch";
@@ -88,7 +89,7 @@ export default async function DocsIndex({ searchParams }: Props) {
       />
       <section className="docs-stage">
         <div className="docs-frame docs-frame-in">
-          <DocsFrameTopbar />
+          <DocsFrameTopbar searchOnPage />
           <div className="docs-frame-body">
             <DocsSidebar />
             <main className="docs-main">
@@ -115,11 +116,21 @@ export default async function DocsIndex({ searchParams }: Props) {
                     language, with steps for getting going.
                   </p>
                   <p className="docs-launch-note">
-                    <span>Start the complete editor from a terminal</span>
+                    <span>Already installed? Open your project</span>
                     <code>adcode open .</code>
                   </p>
+                  <div className="docs-start-actions">
+                    <Link className="btn btn-primary" href="/versions">Install ADCode <span aria-hidden="true">↓</span></Link>
+                    <Link href="/docs/installing-adcode">Read the installation guide <span aria-hidden="true">→</span></Link>
+                  </div>
                 </div>
               </header>
+
+              {!query.trim() && <nav className="docs-quickstart" aria-label="Getting started">
+                <Link href="/docs/getting-started-with-adcode"><span>01</span><strong>Open your first project</strong><small>Get familiar with the editor.</small></Link>
+                <Link href="/docs/ai-connect"><span>02</span><strong>Connect your AI provider</strong><small>Set up your key and choose a model.</small></Link>
+                <Link href="/docs/first-commit-name-and-email"><span>03</span><strong>Make your first commit</strong><small>Set your Git name and email.</small></Link>
+              </nav>}
 
               <DocsSearch
                 initialQuery={query}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { LogoDrop } from "./LogoDrop";
 import { SignInCard } from "./SignInCard";
@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import { campaignNumbers, formatUsdMicros } from "@/lib/campaignPricing";
 import { AdPreviewMark } from "./AdPreviewMark";
+import { analyticsChoice, trackWebsiteEvent } from "@/lib/websiteAnalytics";
 
 const DEFAULT_LOGO =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -36,6 +37,20 @@ export function LandingBidBuilder() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preparedCampaignId, setPreparedCampaignId] = useState<string | null>(null);
+  const authPanel = useRef<HTMLDivElement>(null);
+  const entryTracked = useRef(false);
+
+  useEffect(() => {
+    if (!showAuth || user !== null) return;
+    authPanel.current?.focus();
+    authPanel.current?.scrollIntoView({ block: "nearest" });
+  }, [showAuth, user]);
+
+  const trackEntry = () => {
+    if (entryTracked.current || analyticsChoice() !== "accepted") return;
+    trackWebsiteEvent("advertise_click");
+    entryTracked.current = true;
+  };
 
   const numbers = useMemo(() => campaignNumbers(bid, blocks), [bid, blocks]);
 
@@ -46,7 +61,12 @@ export function LandingBidBuilder() {
   const validate = useCallback((): string | null => {
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return "Enter the email address for your receipt.";
     if (headline.trim().length < 3 || headline.trim().length > 60) return "Your ad line must be between 3 and 60 characters.";
-    if (!clickUrl.trim().startsWith("https://") || clickUrl.trim().length < 12) return "Use a complete https destination URL.";
+    try {
+      const destination = new URL(clickUrl.trim());
+      if (destination.protocol !== "https:" || !destination.hostname.includes(".")) return "Use a complete https destination URL.";
+    } catch {
+      return "Use a complete https destination URL.";
+    }
     if (!/^[A-Za-z]{2}$/.test(country.trim())) return "Enter your two-letter billing country, such as US or IN.";
     if (numbers === null) return "Bid at least $1.00 and choose one or more 500-impression blocks.";
     if (audience === "selected" && tags.length === 0) return "Select at least one developer context, or choose everyone.";
@@ -86,6 +106,7 @@ export function LandingBidBuilder() {
         setError(MESSAGES[account.error]);
         return;
       }
+      if (account.ok) trackWebsiteEvent("advertiser_created");
 
       setStatus("Creating your campaign…");
       const campaign = await apiFetch<CampaignView>({
@@ -106,6 +127,7 @@ export function LandingBidBuilder() {
         return;
       }
       campaignId = campaign.value.campaignId;
+      trackWebsiteEvent("campaign_created");
 
       setStatus("Submitting your ad for review…");
       const creative = await apiFetch<CreativeView>({
@@ -160,6 +182,7 @@ export function LandingBidBuilder() {
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
+    trackEntry();
     const validationError = validate();
     if (validationError !== null) {
       setError(validationError);
@@ -174,7 +197,7 @@ export function LandingBidBuilder() {
 
   return (
     <div className="landing-bid-shell">
-      <form className="landing-bid-form" onSubmit={submit} noValidate>
+      <form className="landing-bid-form" onSubmit={submit} onFocusCapture={trackEntry} noValidate>
         <div className="bid-form-head">
           <div><span className="market-kicker">Create an ad</span><h2>Bid in one screen.</h2></div>
           <p>Choose your maximum. The auction may charge less.</p>
@@ -206,11 +229,12 @@ export function LandingBidBuilder() {
         </div>
 
         <div className="bid-total"><span><small>Estimated maximum</small><strong>{numbers === null ? "—" : formatUsdMicros(numbers.budgetMicros)}</strong></span><p>Delivery depends on demand. Your creative is reviewed before it can run.</p></div>
-        <button className="bid-checkout" type="submit" disabled={busy}>{busy ? (status ?? "Preparing…") : "Continue to secure checkout"}<span aria-hidden="true">→</span></button>
+        <button className="bid-checkout" type="submit" disabled={busy || loading}>{busy ? (status ?? "Preparing…") : loading ? "Loading account…" : user === null ? "Sign in to continue" : "Continue to secure checkout"}<span aria-hidden="true">→</span></button>
+        {user === null && <p className="bid-provider">Sign in first, then review your payment at checkout. Your form stays filled in.</p>}
         <p className="bid-provider">Checkout by Dodo Payments · Credits are added only after a signed payment confirmation.</p>
       </form>
 
-      {showAuth && user === null && <div className="bid-auth"><SignInCard heading="Sign in to save this campaign" /></div>}
+      {showAuth && user === null && <div className="bid-auth" ref={authPanel} tabIndex={-1} role="region" aria-label="Sign in to continue your campaign"><p className="bid-provider">Your campaign details are ready. Sign in below to continue to checkout.</p><SignInCard heading="Sign in to save this campaign" /></div>}
     </div>
   );
 }

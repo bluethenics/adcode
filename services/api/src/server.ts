@@ -358,6 +358,15 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
+    if (path === "/v1/stats" && req.method === "GET") {
+      const stats = await store.publicStats();
+      send(res, 200, { ...stats, asOf: clock.now() }, {
+        ...cors,
+        "cache-control": "public, max-age=60, stale-while-revalidate=30",
+      });
+      return;
+    }
+
     if (path === "/v1/demand" && req.method === "GET") {
       const demand = await readDemand(store, clock.now());
       send(res, 200, demand, {

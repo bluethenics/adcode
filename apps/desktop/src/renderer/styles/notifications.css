@@ -209,14 +209,58 @@
 }
 
 /*
- * A warning notice carries a coloured edge - something is currently wrong and the reader
- * may need to work around it. Everything else stays visually quiet: a toast that shouts
- * for an FYI teaches people to dismiss toasts without reading them.
+ * Toned notices carry a coloured edge and a matching marker dot: green confirms,
+ * red reports a failure, amber warns. Info stays visually quiet — a toast that
+ * shouts for an FYI teaches people to dismiss toasts without reading them.
  */
+.toast[data-tone="success"],
+.toast[data-tone="warning"],
+.toast[data-tone="error"] {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.toast[data-tone="success"]::before,
+.toast[data-tone="warning"]::before,
+.toast[data-tone="error"]::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+}
+
+.toast[data-tone="success"] {
+  border-left: 3px solid var(--success);
+}
+
+.toast[data-tone="success"]::before {
+  background: var(--success);
+}
+
+.toast[data-tone="success"] .toast-title {
+  color: var(--success);
+}
+
 .toast[data-tone="warning"] {
-  border-left: 3px solid var(--warning, #ff9f0a);
+  border-left: 3px solid var(--warning);
+}
+
+.toast[data-tone="warning"]::before {
+  background: var(--warning);
 }
 
 .toast[data-tone="warning"] .toast-title {
-  color: var(--warning, #ff9f0a);
+  color: var(--warning);
+}
+
+.toast[data-tone="error"] {
+  border-left: 3px solid var(--danger);
+}
+
+.toast[data-tone="error"]::before {
+  background: var(--danger);
+}
+
+.toast[data-tone="error"] .toast-title {
+  color: var(--danger);
 }

@@ -30,4 +30,27 @@ describe("website analytics", () => {
     const complete = summarizeWebsiteEvents([entry, { ...conversion, receivedAt: 3000 }], 0, 86400000, false);
     expect(complete.funnels[1]?.steps[1]).toMatchObject({ sessions: 1, lost: 0 });
   });
+  it("includes homepage advertiser entry and counts each converting session once", () => {
+    const entry = parseWebsiteEvents([{ ...event, name: "advertise_click" }], 1000)![0]!;
+    const conversion = parseWebsiteEvents([{ ...event, id: "33333333-3333-4333-8333-333333333333", name: "campaign_created" }], 2000)![0]!;
+    const portal = { ...entry, id: "44444444-4444-4444-8444-444444444444", name: "page_view", path: "/portal/campaigns/new", receivedAt: 1500 };
+    const report = summarizeWebsiteEvents([conversion, portal, entry], 0, 86400000, false);
+    expect(report.funnels[1]?.steps.map(step => step.sessions)).toEqual([1, 1]);
+    expect(report.funnels[1]?.steps[1]?.lost).toBe(0);
+  });
+  it("separates installation-page visitors from general and returning traffic", () => {
+    const rows = [
+      { ...event, receivedAt: 1000, path: "/dashboard" },
+      { ...event, id: "2", session: "installer", receivedAt: 2000, path: "/docs/installing-adcode" },
+      { ...event, id: "3", session: "installer", receivedAt: 3000, path: "/docs/installing-adcode", name: "install_copy" },
+      { ...event, id: "4", session: "reader", receivedAt: 4000, path: "/docs" },
+    ];
+    const report = summarizeWebsiteEvents(rows, 0, 86400000, false);
+    expect(report.funnels[0]?.steps.map(step => step.sessions)).toEqual([3, 1]);
+    expect(report.funnels.find(funnel => funnel.label === "Installation pages")?.steps.map(step => step.sessions)).toEqual([1, 1]);
+  });
+  it("counts direct advertiser portal visits even before the campaign builder opens", () => {
+    const entry = { ...event, path: "/portal", receivedAt: 1000 };
+    expect(summarizeWebsiteEvents([entry], 0, 86400000, false).funnels[1]?.steps.map(step => step.sessions)).toEqual([1, 0]);
+  });
 });

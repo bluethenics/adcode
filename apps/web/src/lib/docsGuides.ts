@@ -849,16 +849,18 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "ai-isolated-workspaces": {
     steps: [
       "On by default - the assistant works in a private copy of your project.",
+      "Ask it to find things by pattern (for example, every image), outline a long file before reading it, or run the tests and typecheck inside its sandbox.",
       "Watch the task strip in chat for state, changed files, and the Review button.",
       "Review lets you accept individual files or hunks, discard the whole proposal, or roll back an applied one.",
       "Turn the feature off to keep chat while disabling all file tools.",
     ],
     benefits: [
       "An agent's bad idea never touches your real tree - you see it, in isolation, before it becomes true.",
+      "The assistant verifies its own work by running your tests instead of claiming they pass.",
       "A full checkpoint precedes every apply, and rollback refuses to clobber your own later edits.",
     ],
     betterThan:
-      "Editing in place means the first mistake is in your working copy before you have decided anything. An isolated sandbox makes review the gate it always should have been.",
+      "Editing in place means the first mistake is in your working copy before you have decided anything. An isolated sandbox makes review the gate it always should have been - and unlike assistants that can only read and write, this one can search by pattern, outline symbols, run commands, and fetch docs without leaving the sandbox.",
   },
 
   "ai-mcp-server": {
@@ -1093,6 +1095,23 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   },
 
   /* ── The workbench ───────────────────────────────────────────────────── */
+
+  "workbench-modes": {
+    steps: [
+      "Use the Vibe / Code switch above the workspace to pick how you work.",
+      "Stay in Vibe to build through conversation - the assistant reads files, proposes edits, runs tests, and shows the live preview there.",
+      "Open a file or run a search to step into Code, where the editor and sidebar lead and the assistant stays one click away.",
+      "On a wide screen, drag the Vibe sidebar's right edge to make the conversation narrower or wider; the size is remembered.",
+      "Quit and reopen: the mode you left is the mode you return to, with the same folder, tabs, and conversation.",
+    ],
+    benefits: [
+      "One project, two postures - no separate windows, no lost context when you switch.",
+      "Conversation, files, terminals, and preview travel with you in both directions.",
+      "Your layout choice survives a restart instead of resetting under you.",
+    ],
+    betterThan:
+      "Editors usually give you either a chat panel bolted beside the code or a chat app that cannot see it. Two modes over one shared session means the conversation-first view and the editor-first view are the same project, not two tools pretending.",
+  },
 
   "workbench-all-features": {
     steps: [

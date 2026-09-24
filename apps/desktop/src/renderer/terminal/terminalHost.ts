@@ -56,11 +56,13 @@ function forShell(text: string): string {
 
 const THEMES = {
   dark: {
-    background: "#0d1117",
-    foreground: "#eef1f5",
-    cursor: "#2f81f7",
-    selectionBackground: "#2f81f744",
-    black: "#1c1c1e",
+    background: "#151515",
+    foreground: "#ebe8e1",
+    cursor: "#ece9e2",
+    selectionBackground: "#ece9e244",
+    // `black` is lifted to visible charcoal: programs do print it, and pure
+    // near-black on this ground is unreadable.
+    black: "#3a3835",
     red: "#ff453a",
     green: "#30d158",
     yellow: "#ff9f0a",
@@ -68,20 +70,42 @@ const THEMES = {
     magenta: "#bf5af2",
     cyan: "#64d2ff",
     white: "#f5f5f7",
+    brightBlack: "#6e6c66",
+    brightRed: "#f07164",
+    brightGreen: "#7fc9a2",
+    brightYellow: "#e8b45a",
+    brightBlue: "#5b8def",
+    brightMagenta: "#c98ae0",
+    brightCyan: "#7cc7e0",
+    brightWhite: "#f5f5f7",
   },
+  /*
+   * Light: every ANSI colour must read on paper. Shells (notably PowerShell's
+   * highlighting) assume a dark ground and emit white and bright colours that
+   * vanish on white — so white becomes grey and the brights are explicit
+   * rather than xterm's near-white defaults.
+   */
   light: {
     background: "#ffffff",
-    foreground: "#1c1c1e",
-    cursor: "#007aff",
-    selectionBackground: "#007aff33",
-    black: "#1c1c1e",
-    red: "#ff3b30",
-    green: "#34c759",
-    yellow: "#ff9500",
-    blue: "#007aff",
-    magenta: "#af52de",
-    cyan: "#5ac8fa",
-    white: "#f2f2f7",
+    foreground: "#1d1c1a",
+    cursor: "#26241f",
+    selectionBackground: "#26241f33",
+    black: "#1d1c1a",
+    red: "#c24836",
+    green: "#2e7d4f",
+    yellow: "#8a5a17",
+    blue: "#2b5fc4",
+    magenta: "#8f2d9c",
+    cyan: "#1f7a8c",
+    white: "#6f6c66",
+    brightBlack: "#8f8c85",
+    brightRed: "#c24836",
+    brightGreen: "#3f8f62",
+    brightYellow: "#b7791f",
+    brightBlue: "#4a7dd4",
+    brightMagenta: "#a855b8",
+    brightCyan: "#2b8a9e",
+    brightWhite: "#a3a09a",
   },
   /*
    * Midnight. True black behind the shell, and a white cursor rather than a blue one -
@@ -125,7 +149,9 @@ export async function createTerminalHost(
   const terminal = new Terminal({
     fontFamily: '"SF Mono", "JetBrains Mono", "Cascadia Code", ui-monospace, Consolas, monospace',
     fontSize: 12,
-    lineHeight: 1.25,
+    // Roomy rows: dense output (traces, test runs, git status) stays scannable
+    // instead of collapsing into a wall of glyphs.
+    lineHeight: 1.5,
     cursorBlink: true,
     cursorStyle: "bar",
     allowProposedApi: true,

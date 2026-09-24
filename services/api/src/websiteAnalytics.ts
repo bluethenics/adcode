@@ -65,7 +65,8 @@ export function summarizeWebsiteEvents(input: WebsiteEvent[], start: number, end
   };
   const funnels = [
     funnel("Install journey", [{ label: "Visited website", matches: e => e.name === "page_view" }, { label: "Copied install or clicked download", matches: e => ["install_copy", "download_click"].includes(e.name) }]),
-    funnel("Advertiser journey", [{ label: "Opened campaign builder", matches: e => e.name === "page_view" && e.path === "/portal/campaigns/new" }, { label: "Created campaign", matches: e => e.name === "campaign_created" }]),
+    funnel("Advertiser journey", [{ label: "Entered advertiser flow", matches: e => e.name === "advertise_click" || (e.name === "page_view" && ["/portal", "/portal/campaigns/new"].includes(e.path)) }, { label: "Created campaign", matches: e => e.name === "campaign_created" }]),
+    funnel("Installation pages", [{ label: "Viewed install page or installation guide", matches: e => e.name === "page_view" && ["/versions", "/docs/installing-adcode"].includes(e.path) }, { label: "Copied install or clicked download", matches: e => ["install_copy", "download_click"].includes(e.name) }]),
   ];
   return { start, end, truncated, totalEvents: events.length, pageViews: views.length, sessions: sessions(views), installSessions,
     errorCount: events.filter(e => e.name === "js_error").length,

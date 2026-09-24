@@ -143,13 +143,13 @@ const VIDEO_LINE = /^@\[(youtube|vimeo)\]\(\s*([^)]+?)\s*\)$/i;
 const IMAGE_LINE = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)$/;
 
 export function renderMarkdown(source: string): string {
-  const lines = source.trim().split(/\r?\n/);
+  const lines = source.split(/\r?\n/);
   const out: string[] = [];
 
   let paragraph: string[] = [];
   let list: { kind: "ul" | "ol"; items: string[] } | null = null;
   let quote: string[] = [];
-  let fence: { language: string; lines: string[] } | null = null;
+  let fence: { language: string; lines: string[]; indented?: boolean } | null = null;
 
   const flushParagraph = (): void => {
     if (paragraph.length === 0) return;
@@ -194,8 +194,25 @@ export function renderMarkdown(source: string): string {
     // lines included. An unclosed fence still renders at the end of the document
     // rather than swallowing the page into nothing.
     if (fence !== null) {
-      if (trimmed === "```") flushFence();
-      else fence.lines.push(line.replace(/\s+$/, ""));
+      if (fence.indented) {
+        if (/^( {4}|\t)/.test(line) || trimmed.length === 0) {
+          fence.lines.push(line.replace(/^( {4}|\t)/, ""));
+          continue;
+        }
+        // End this block and process the following prose normally.
+        flushFence();
+      } else {
+        if (trimmed === "```") flushFence();
+        else fence.lines.push(line.replace(/\s+$/, ""));
+        continue;
+      }
+    }
+
+    // Existing guides use four-space code blocks as well as triple backticks.
+    // Indentation cannot interrupt a paragraph that is already in progress.
+    if (/^( {4}|\t)/.test(line) && trimmed.length > 0 && paragraph.length === 0) {
+      flushAll();
+      fence = { language: "", lines: [line.replace(/^( {4}|\t)/, "")], indented: true };
       continue;
     }
 
