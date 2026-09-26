@@ -107,7 +107,7 @@ export function createAssistantDock(deps: AssistantDockDeps) {
   new MutationObserver(() => {
     chatsButton.setAttribute("aria-expanded", chat.element.dataset["historyOpen"] ?? "false");
   }).observe(chat.element, { attributes: true, attributeFilter: ["data-history-open"] });
-  const tasksButton = railAction("Tasks & agents", "M3.5 3.5h9v9h-9zM6 1.5v4M10 1.5v4M6 7.5l1 1 2-2M6 11h4", () => deps.run("workspace.tasks"), "vibe-tasks-button");
+  const tasksButton = railAction("Tasks & agents", "M3.5 3.5h9v9h-9zM6 1.5v4M10 1.5v4M6 7.5l1 1 2-2M6 11h4", () => chat.openTasksPopup(), "vibe-tasks-button");
   const chatAction = (action: string): void => {
     chat.element.querySelector<HTMLButtonElement>(`[data-chat-action="${action}"]`)?.click();
   };

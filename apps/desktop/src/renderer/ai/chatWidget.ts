@@ -14,6 +14,9 @@
  * never with `left`/`top`, so dragging never triggers layout.
  */
 import { createChatPreview } from "./chatPreview.ts";
+import { createTaskDetailsDialog } from "./taskDetailsDialog.ts";
+import { createTaskReviewDialog } from "./taskReviewDialog.ts";
+import { createTasksPopupDialog } from "./tasksPopupDialog.ts";
 import type { PreviewStatus } from "../../shared/api.ts";
 import type {
   AiAttachmentView,
@@ -66,7 +69,9 @@ import { attachChatLayout } from "./chatLayout.ts";
 import {
   aiWorkspaceActions,
   formatAiWorkspaceUsage,
+  groupWorkspaceTraces,
   summarizeAiWorkspaceTask,
+  TRACE_PREVIEW_LIMIT,
   traceTone,
 } from "./aiWorkspaceViewModel.ts";
 import { copyText } from "../clipboard.ts";
@@ -94,6 +99,8 @@ export interface ChatWidget {
   readonly connectButton: HTMLButtonElement;
   /** Inspect any persisted task without replacing or resetting the active conversation. */
   reviewTask(task: AiWorkspaceTaskView): void;
+  /** Open the folder's tasks as a centered popup instead of a sidebar. */
+  openTasksPopup(): void;
   /** Prepare editable instructions; never sends or interrupts a running turn. */
   draft(question: string): void;
   setDocked(docked: boolean, historyHost?: HTMLElement): void;
@@ -150,6 +157,12 @@ export interface ChatWidgetDeps {
   readonly revealHistory?: () => void;
   /** Ask the user for a new name, or null if they changed their mind. */
   readonly askForName: (current: string) => Promise<string | null>;
+  /** Generic text prompt (custom token budget, folder names). Null when dismissed. */
+  readonly promptText?: (title: string, body: string, value: string) => Promise<string | null>;
+  /** Switch the open project folder. Wired to workspace.open in main. */
+  readonly switchFolder?: () => void;
+  /** Current open folder root, for the per-folder banner. Updated via setWorkspace. */
+  readonly currentFolder?: () => string | null;
   /** What the user is looking at; rides with each send so "this file" means something. */
   readonly editorContext?: () => AiEditorContextView | null;
   /** Workspace files matching an `@` query, as workspace-relative paths. */
@@ -480,6 +493,109 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   });
   connectBanner.append(connectBannerText, connectBannerButton, connectBannerDismiss);
 
+  /* Per-folder scope: chats and tasks belong to the open folder, never merged. */
+  let currentFolderRoot: string | null = deps.currentFolder?.() ?? null;
+  const folderBanner = document.createElement("div");
+  folderBanner.className = "chat-folder-banner";
+  folderBanner.setAttribute("aria-label", "Current project folder");
+  const folderName = document.createElement("button");
+  folderName.type = "button";
+  folderName.className = "chat-folder-name";
+  folderName.title = "Change the project folder";
+  const folderMeta = document.createElement("span");
+  folderMeta.className = "chat-folder-meta";
+  folderMeta.setAttribute("role", "status");
+  const folderTasksButton = document.createElement("button");
+  folderTasksButton.type = "button";
+  folderTasksButton.className = "ghost-button";
+  folderTasksButton.textContent = "Tasks";
+  folderTasksButton.title = "Show tasks for this folder";
+  const folderSwitchButton = document.createElement("button");
+  folderSwitchButton.type = "button";
+  folderSwitchButton.className = "ghost-button";
+  folderSwitchButton.textContent = "Switch…";
+  folderSwitchButton.title = "Open another folder or see all tasks";
+  folderBanner.append(folderName, folderMeta, folderTasksButton, folderSwitchButton);
+
+  const folderDialog = document.createElement("dialog");
+  folderDialog.className = "result-dialog folder-dialog";
+  const folderCard = document.createElement("div");
+  folderCard.className = "result-card";
+  const folderDialogTitle = document.createElement("h2");
+  folderDialogTitle.className = "result-title";
+  folderDialogTitle.textContent = "Project folder";
+  const folderDialogBody = document.createElement("p");
+  folderDialogBody.className = "result-summary";
+  const folderDialogButtons = document.createElement("div");
+  folderDialogButtons.className = "confirm-buttons";
+  const folderOpen = document.createElement("button");
+  folderOpen.type = "button";
+  folderOpen.className = "result-close";
+  folderOpen.textContent = "Open folder…";
+  const folderViewTasks = document.createElement("button");
+  folderViewTasks.type = "button";
+  folderViewTasks.className = "confirm-cancel";
+  folderViewTasks.textContent = "View tasks";
+  const folderNewChat = document.createElement("button");
+  folderNewChat.type = "button";
+  folderNewChat.className = "confirm-cancel";
+  folderNewChat.textContent = "New conversation";
+  const folderClose = document.createElement("button");
+  folderClose.type = "button";
+  folderClose.className = "confirm-cancel";
+  folderClose.textContent = "Close";
+  folderDialogButtons.append(folderOpen, folderViewTasks, folderNewChat, folderClose);
+  folderCard.append(folderDialogTitle, folderDialogBody, folderDialogButtons);
+  folderDialog.append(folderCard);
+  document.body.append(folderDialog);
+  const closeFolderDialog = (): void => {
+    if (folderDialog.open) folderDialog.close();
+  };
+  folderOpen.addEventListener("click", () => {
+    closeFolderDialog();
+    deps.switchFolder?.();
+  });
+  folderViewTasks.addEventListener("click", () => {
+    closeFolderDialog();
+    openTasksPopup();
+  });
+  folderNewChat.addEventListener("click", () => {
+    closeFolderDialog();
+    resetButton.click();
+  });
+  folderClose.addEventListener("click", closeFolderDialog);
+  folderDialog.addEventListener("click", (event) => {
+    if (event.target === folderDialog) closeFolderDialog();
+  });
+  const openFolderDialog = (): void => {
+    const name = currentFolderRoot?.split(/[\\/]/).pop() || "No folder";
+    folderDialogBody.textContent = currentFolderRoot === null
+      ? "No folder is open. Chats and tasks stay with the folder where they were created."
+      : `${name} — ${currentFolderRoot}. Chats and tasks shown here belong only to this folder.`;
+    if (!folderDialog.open) folderDialog.showModal();
+    folderClose.focus();
+  };
+  folderName.addEventListener("click", openFolderDialog);
+  folderSwitchButton.addEventListener("click", openFolderDialog);
+  folderTasksButton.addEventListener("click", () => openTasksPopup());
+
+  async function paintFolderBanner(): Promise<void> {
+    const short = currentFolderRoot?.split(/[\\/]/).pop() || "No folder";
+    folderName.textContent = `📁 ${short}`;
+    folderName.title = currentFolderRoot ?? "No folder is open — click to open one";
+    try {
+      const [tasks, sessions] = await Promise.all([
+        window.adcode.aiWorkspace.list().catch(() => []),
+        window.adcode.chat.sessions().catch(() => []),
+      ]);
+      folderMeta.textContent = currentFolderRoot === null
+        ? "open a folder to scope chats and tasks"
+        : `${tasks.length} task${tasks.length === 1 ? "" : "s"} · ${sessions.length} chat${sessions.length === 1 ? "" : "s"} · this folder only`;
+    } catch {
+      folderMeta.textContent = currentFolderRoot === null ? "" : "tasks and chats are per-folder";
+    }
+  }
+
   /* ── Transcript ───────────────────────────────────────────────────────── */
 
   const transcript = document.createElement("div");
@@ -489,6 +605,42 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   transcript.setAttribute("aria-live", "polite");
   transcript.setAttribute("role", "log");
   transcript.setAttribute("aria-label", "Conversation");
+
+  // Stick-to-bottom: the transcript follows the tail only while the user is
+  // already near the bottom. Scrolling up pins the view and reveals the
+  // floating "Jump to latest" button instead of yanking the user back down
+  // on every streamed token.
+  let stickToBottom = true;
+  let pendingUnread = 0;
+  let scrollButton: HTMLButtonElement | null = null;
+  let scrollButtonLabel: HTMLElement | null = null;
+
+  function isNearBottom(): boolean {
+    try {
+      const distance = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight;
+      return distance < 80;
+    } catch {
+      return true;
+    }
+  }
+
+  function updateScrollButton(): void {
+    if (scrollButton === null) return;
+    const near = isNearBottom();
+    stickToBottom = near;
+    if (near) pendingUnread = 0;
+    const hasContent = transcript.childElementCount > 0;
+    scrollButton.hidden = near || !hasContent;
+    if (scrollButtonLabel !== null) {
+      scrollButtonLabel.textContent = pendingUnread > 0 ? `Jump to latest · ${String(pendingUnread)} new` : "Jump to latest";
+    }
+    scrollButton.setAttribute(
+      "aria-label",
+      pendingUnread > 0
+        ? `Scroll to latest messages, ${String(pendingUnread)} new messages`
+        : "Scroll to latest messages",
+    );
+  }
 
   /* ── Composer ─────────────────────────────────────────────────────────── */
 
@@ -537,6 +689,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       ? "New conversation"
       : current.title;
     renderHistory();
+    void paintFolderBanner();
   }
 
   function toggleHistory(): void {
@@ -719,6 +872,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   taskReview.className = "ghost-button";
   taskReview.textContent = "Review";
 
+  const taskPreview = document.createElement("button");
+  taskPreview.type = "button";
+  taskPreview.className = "ghost-button";
+  taskPreview.textContent = "Preview";
+  taskPreview.title = "Preview AI edits with file details before accepting them";
+
   const taskTrace = document.createElement("button");
   taskTrace.type = "button";
   taskTrace.className = "ghost-button";
@@ -734,7 +893,113 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   taskRollback.className = "ghost-button";
   taskRollback.textContent = "Roll back";
 
-  taskStrip.append(taskState, taskUsage, taskNotice, taskReview, taskTrace, taskDiscard, taskRollback);
+  taskStrip.append(taskState, taskUsage, taskNotice, taskReview, taskPreview, taskTrace, taskDiscard, taskRollback);
+
+  /* Preview box: one modal per ready task, with file details and accept buttons. */
+  const reviewDialog = createTaskReviewDialog(document.body);
+  const reviewDialogShownFor = new Set<string>();
+
+  /* Task popup: the task as a box inside the chat, with Cancel and Delete. */
+  const detailsDialog = createTaskDetailsDialog(document.body, {
+    onCancel: (task) => {
+      window.adcode.ai.cancel();
+      taskNotice.textContent = `Cancelling "${task.prompt}" — the turn stops safely and the task is kept.`;
+    },
+    onDelete: async (task) => {
+      try {
+        const removed = await window.adcode.aiWorkspace.remove(task.id);
+        if (removed) {
+          if (activeWorkspaceTask?.id === task.id) paintWorkspaceTask(null);
+          taskNotice.textContent = `Deleted "${task.prompt}".`;
+          void refreshWorkspaceTask();
+          void paintFolderBanner();
+        } else {
+          taskNotice.textContent = "That task is already gone.";
+          void refreshWorkspaceTask();
+        }
+      } catch (error) {
+        taskNotice.textContent = error instanceof Error ? error.message : "Could not delete this task.";
+      }
+    },
+    onRollback: async (task) => {
+      try {
+        const result = await window.adcode.aiWorkspace.rollback(task.id);
+        paintWorkspaceTask(result.task);
+        taskNotice.textContent = result.message;
+      } catch {
+        taskNotice.textContent = "Could not roll back this task. Try again.";
+      }
+    },
+    onShowInChat: async (task) => {
+      paintWorkspaceTask(task);
+      try {
+        await renderPersistedReview(task);
+        await renderPersistedTrace(task);
+      } catch {
+        taskNotice.textContent = "Could not load task details. Try again.";
+      }
+      scrollToEnd(true);
+    },
+  });
+
+  /* Tasks popup: the folder's tasks as a centered list instead of a sidebar. */
+  const tasksPopup = createTasksPopupDialog(document.body, {
+    onOpenTask: (task) => {
+      paintWorkspaceTask(task);
+      detailsDialog.open(task);
+    },
+  });
+  function openTasksPopup(): void {
+    api.open();
+    tasksPopup.open();
+  }
+
+  async function openReviewDialog(task: AiWorkspaceTaskView): Promise<void> {
+    let changes: readonly AiWorkspaceChangeView[] = [];
+    try {
+      changes = await window.adcode.aiWorkspace.changes(task.id);
+    } catch {
+      taskNotice.textContent = "Could not load task changes. Try Review again.";
+      return;
+    }
+    reviewDialog.open(task, changes, {
+      onApplyAll: async () => {
+        try {
+          const result = await window.adcode.aiWorkspace.apply(
+            task.id,
+            changes.map((change) => ({ path: change.path, acceptedHunkIds: change.hunks.map((hunk) => hunk.id) })),
+          );
+          paintWorkspaceTask(result.task);
+          taskNotice.textContent = result.message;
+          if (result.ok) {
+            reviewDialog.close();
+            void renderPersistedReview(result.task).catch(() => undefined);
+          }
+        } catch {
+          taskNotice.textContent = "Could not apply changes. Your project may have changed; review and retry.";
+        }
+      },
+      onDiscard: async () => {
+        if (!window.confirm("Discard this isolated AI task and its pending changes?")) return;
+        try {
+          const discarded = await window.adcode.aiWorkspace.discard(task.id);
+          paintWorkspaceTask(discarded);
+          taskNotice.textContent = discarded === null ? "Task was not found." : "Sandbox changes discarded.";
+        } catch {
+          taskNotice.textContent = "Could not discard this task. Try again.";
+        }
+      },
+      onShowInChat: async () => {
+        paintWorkspaceTask(task);
+        try {
+          await renderPersistedReview(task);
+        } catch {
+          taskNotice.textContent = "Could not load task changes. Try Review again.";
+        }
+        transcript.scrollIntoView({ block: "end" });
+      },
+    });
+  }
 
   /* -- Team suggestion and progress ----------------------------------- */
 
@@ -1394,7 +1659,31 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     conversation.dataset["empty"] = String(empty);
   };
   new MutationObserver(refreshWelcome).observe(transcript, { childList: true });
-  conversation.append(memory, connectBanner, welcome, transcript, composer, quickActions);
+  // Floating "go to bottom" pill, anchored to the conversation above the
+  // composer. Hidden while the user is already at the tail; appears with an
+  // unread count when streamed content arrives while scrolled up.
+  scrollButton = document.createElement("button");
+  scrollButton.type = "button";
+  scrollButton.className = "chat-scroll-bottom";
+  scrollButton.hidden = true;
+  scrollButton.setAttribute("aria-label", "Scroll to latest messages");
+  const scrollArrow = document.createElement("span");
+  scrollArrow.className = "chat-scroll-bottom-arrow";
+  scrollArrow.textContent = "↓";
+  scrollArrow.setAttribute("aria-hidden", "true");
+  scrollButtonLabel = document.createElement("span");
+  scrollButtonLabel.className = "chat-scroll-bottom-label";
+  scrollButtonLabel.textContent = "Jump to latest";
+  const scrollDot = document.createElement("span");
+  scrollDot.className = "chat-scroll-bottom-mascot";
+  scrollDot.setAttribute("aria-hidden", "true");
+  scrollButton.append(scrollDot, scrollButtonLabel, scrollArrow);
+  scrollButton.addEventListener("click", () => {
+    scrollToEnd(true);
+    input.focus({ preventScroll: true });
+  });
+  transcript.addEventListener("scroll", () => updateScrollButton(), { passive: true });
+  conversation.append(memory, connectBanner, folderBanner, welcome, transcript, scrollButton, composer, quickActions);
   refreshWelcome();
   const working = document.createElement("div");
   working.className = "chat-working";
@@ -1489,9 +1778,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /* ── Rendering ────────────────────────────────────────────────────────── */
 
-  function scrollToEnd(): void {
+  function scrollToEnd(force = false): void {
     if (!working.hidden && transcript.lastElementChild !== working) transcript.append(working);
+    if (!force && !stickToBottom) {
+      pendingUnread += 1;
+      updateScrollButton();
+      return;
+    }
+    pendingUnread = 0;
+    stickToBottom = true;
     transcript.scrollTop = transcript.scrollHeight;
+    updateScrollButton();
   }
 
   let lastUserPrompt = "";
@@ -1623,6 +1920,31 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         () => undefined,
       );
     });
+    choice("Custom…", "Set any cap from 1,000 to 10,000,000 tokens", () => {
+      const prompt = deps.promptText ?? deps.askForName;
+      void prompt("Custom token budget", "Tokens per task, 1000 to 10000000. Empty clears the custom value.", "").then(
+        (raw) => {
+          if (raw === null) return;
+          const cleaned = raw.trim().replace(/[,_\s]/g, "");
+          if (cleaned.length === 0) {
+            void window.adcode.settings.write("adcode.ai.taskTokenBudgetCustom", "").then(
+              () => void window.adcode.ai.send("Continue where you left off."),
+              () => undefined,
+            );
+            return;
+          }
+          if (!/^\d{4,8}$/.test(cleaned) || Number(cleaned) < 1000 || Number(cleaned) > 10_000_000) {
+            bubble("assistant", "That custom budget needs to be a number from 1000 to 10000000.");
+            return;
+          }
+          void window.adcode.settings.write("adcode.ai.taskTokenBudgetCustom", cleaned).then(
+            () => void window.adcode.ai.send("Continue where you left off."),
+            () => undefined,
+          );
+        },
+        () => undefined,
+      );
+    });
     choice("New task", "Start over with a fresh task workspace", () => {
       resetButton.click();
     });
@@ -1694,18 +2016,28 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
   }
 
-  /** Short clock time for a message ("14:32"), full date on hover. */
-  function formatMessageTime(at: number): { text: string; title: string } {
+  /** Relative time for a message ("just now", "3m ago"), full date on hover. */
+  function formatMessageTime(at: number, now: number = Date.now()): { text: string; title: string } {
     const date = new Date(at);
+    const title = date.toLocaleString([], {
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "numeric",
+      month: "short",
+    });
+    const ageSeconds = Math.max(0, Math.floor((now - at) / 1000));
+    if (ageSeconds < 45) return { text: "just now", title };
+    if (ageSeconds < 90) return { text: "1m ago", title };
+    const minutes = Math.floor(ageSeconds / 60);
+    if (minutes < 60) return { text: `${String(minutes)}m ago`, title };
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24 && date.toDateString() === new Date(now).toDateString()) {
+      return { text: `${String(hours)}h ago`, title };
+    }
     return {
       text: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      title: date.toLocaleString([], {
-        weekday: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-        day: "numeric",
-        month: "short",
-      }),
+      title,
     };
   }
 
@@ -1776,7 +2108,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     transcript.append(element);
     if (role === "assistant" && text.length > 0) transcript.append(messageActions(element));
     if (role === "user" && text.trim().length > 0) transcript.append(userMessageActions(element, text));
-    scrollToEnd();
+    scrollToEnd(role === "user");
     return element;
   }
 
@@ -1785,7 +2117,22 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     copy.addEventListener("click", () => {
       const source = messageSources.get(bubbleElement) ?? "";
       copy.disabled = true;
+      const hasIcon = copy.querySelector("svg") !== null;
+      const originalTitle = copy.title;
       const done = (ok: boolean): void => {
+        if (hasIcon) {
+          // Icon buttons keep their ink; feedback lives in the tooltip.
+          copy.title = ok ? "Copied" : "Copy failed";
+          copy.setAttribute("aria-label", ok ? "Copied" : "Copy failed");
+          copy.dataset["copied"] = ok ? "true" : "false";
+          window.setTimeout(() => {
+            copy.title = originalTitle;
+            copy.setAttribute("aria-label", originalTitle);
+            delete copy.dataset["copied"];
+            copy.disabled = false;
+          }, 1400);
+          return;
+        }
         copy.textContent = ok ? "Copied" : "Failed";
         window.setTimeout(() => {
           copy.textContent = label;
@@ -1794,6 +2141,40 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       };
       void copyText(source).then(done, () => done(false));
     });
+  }
+
+  /** Read a response aloud. A second press stops it. */
+  function speakText(text: string, button: HTMLButtonElement): void {
+    try {
+      const synth = window.speechSynthesis;
+      if (!synth) return;
+      if (synth.speaking) {
+        synth.cancel();
+        button.setAttribute("aria-pressed", "false");
+        return;
+      }
+      const utterance = new SpeechSynthesisUtterance(text.slice(0, 2000));
+      utterance.onend = () => button.setAttribute("aria-pressed", "false");
+      utterance.onerror = () => button.setAttribute("aria-pressed", "false");
+      button.setAttribute("aria-pressed", "true");
+      synth.speak(utterance);
+    } catch {
+      // Speech is a convenience; silence is acceptable.
+    }
+  }
+
+  function iconActionButton(
+    icon: string,
+    label: string,
+    title: string,
+  ): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "chat-message-action chat-message-icon";
+    button.append(createIcon(icon));
+    button.title = title;
+    button.setAttribute("aria-label", label);
+    return button;
   }
 
   /** Re-send a prompt, unless a turn is already running. */
@@ -1837,9 +2218,65 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   /*
-   * Per-message action bar: a slim row under the message with its sent time
-   * and hover-revealed actions (CSS). Primary acts stay inline — Copy, Retry —
-   * while votes live in the overflow popup so the transcript reads clean.
+   * A stopped turn ends with a way forward, not a bare trace line: the
+   * Claude-style interrupted banner with Edit prompt and Try again. Deduped
+   * so repeated stops cannot stack the same card.
+   */
+  function interruptedBanner(): void {
+    const last = transcript.lastElementChild;
+    if (last instanceof HTMLElement && last.dataset["interrupted"] === "true") {
+      scrollToEnd(true);
+      return;
+    }
+    const banner = document.createElement("div");
+    banner.className = "chat-interrupted";
+    banner.dataset["interrupted"] = "true";
+    banner.setAttribute("role", "status");
+
+    const info = document.createElement("span");
+    info.className = "chat-interrupted-icon";
+    info.textContent = "i";
+    info.setAttribute("aria-hidden", "true");
+
+    const text = document.createElement("span");
+    text.className = "chat-interrupted-text";
+    text.textContent = "Response was interrupted.";
+
+    const editPrompt = document.createElement("button");
+    editPrompt.type = "button";
+    editPrompt.className = "chat-interrupted-button";
+    editPrompt.textContent = "Edit prompt";
+    editPrompt.title = "Edit your last message in the composer";
+    editPrompt.addEventListener("click", () => {
+      if (lastUserPrompt.trim().length > 0) {
+        input.value = lastUserPrompt;
+        autogrowComposer();
+      }
+      input.focus();
+    });
+
+    const tryAgain = document.createElement("button");
+    tryAgain.type = "button";
+    tryAgain.className = "chat-interrupted-button is-primary";
+    tryAgain.textContent = "Try again";
+    tryAgain.title = "Send the last message again";
+    tryAgain.addEventListener("click", () => {
+      if (resend(lastUserPrompt)) {
+        banner.dataset["interrupted"] = "retried";
+        tryAgain.disabled = true;
+      }
+    });
+
+    banner.append(info, text, editPrompt, tryAgain);
+    transcript.append(banner);
+    scrollToEnd(true);
+  }
+
+  /*
+   * Per-message action bar: Claude-style icon row under the message — copy,
+   * read aloud, helpful / not helpful, retry — with relative time and a
+   * single overflow menu kept for secondary acts. Hover-revealed on precise
+   * pointers (CSS), always visible on touch.
    */
   function messageActions(bubbleElement: HTMLElement): HTMLElement {
     const bar = document.createElement("div");
@@ -1847,20 +2284,28 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     bar.setAttribute("aria-label", "Response actions");
     bar.append(messageTime(Number(bubbleElement.dataset["at"] ?? Date.now())));
 
-    const copy = document.createElement("button");
-    copy.type = "button";
-    copy.className = "chat-message-action";
-    copy.textContent = "Copy";
-    copy.title = "Copy response";
-    copy.setAttribute("aria-label", "Copy response");
-    wireCopyButton(copy, bubbleElement, "Copy");
+    const copy = iconActionButton(ICON.copy, "Copy response", "Copy response");
+    wireCopyButton(copy, bubbleElement, "Copy response");
 
-    const retry = document.createElement("button");
-    retry.type = "button";
-    retry.className = "chat-message-action";
-    retry.textContent = "Retry";
-    retry.title = "Send the last message again";
-    retry.setAttribute("aria-label", "Retry last message");
+    const speaker = iconActionButton(ICON.speaker, "Read response aloud", "Read aloud");
+    speaker.setAttribute("aria-pressed", "false");
+    speaker.addEventListener("click", () => {
+      speakText(messageSources.get(bubbleElement) ?? "", speaker);
+    });
+
+    const vote = (chosen: HTMLButtonElement, other: HTMLButtonElement): void => {
+      const pressed = chosen.getAttribute("aria-pressed") === "true";
+      chosen.setAttribute("aria-pressed", String(!pressed));
+      other.setAttribute("aria-pressed", "false");
+    };
+    const good = iconActionButton(ICON.thumbUp, "Mark helpful", "Helpful (stored on this machine only)");
+    good.setAttribute("aria-pressed", "false");
+    const bad = iconActionButton(ICON.thumbDown, "Mark not helpful", "Not helpful (stored on this machine only)");
+    bad.setAttribute("aria-pressed", "false");
+    good.addEventListener("click", () => vote(good, bad));
+    bad.addEventListener("click", () => vote(bad, good));
+
+    const retry = iconActionButton(ICON.reload, "Retry last message", "Send the last message again");
     retry.addEventListener("click", () => {
       if (!resend(lastUserPrompt)) return;
       retry.disabled = true;
@@ -1885,12 +2330,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     menu.setAttribute("role", "menu");
     menu.hidden = true;
 
-    // Votes are local-only signals, toggled in place.
-    const vote = (chosen: HTMLButtonElement, other: HTMLButtonElement): void => {
-      const pressed = chosen.getAttribute("aria-pressed") === "true";
-      chosen.setAttribute("aria-pressed", String(!pressed));
-      other.setAttribute("aria-pressed", "false");
-    };
     const menuItem = (label: string, pressed: boolean): HTMLButtonElement => {
       const item = document.createElement("button");
       item.type = "button";
@@ -1900,21 +2339,23 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       item.setAttribute("aria-pressed", String(pressed));
       return item;
     };
-    const good = menuItem("Mark helpful", false);
-    good.title = "Helpful (stored on this machine only)";
-    good.setAttribute("aria-label", "Mark helpful");
-    const bad = menuItem("Mark not helpful", false);
-    bad.title = "Not helpful (stored on this machine only)";
-    bad.setAttribute("aria-label", "Mark not helpful");
-    good.addEventListener("click", () => {
+    const goodMenu = menuItem("Mark helpful", false);
+    goodMenu.title = "Helpful (stored on this machine only)";
+    goodMenu.setAttribute("aria-label", "Mark helpful");
+    const badMenu = menuItem("Mark not helpful", false);
+    badMenu.title = "Not helpful (stored on this machine only)";
+    badMenu.setAttribute("aria-label", "Mark not helpful");
+    goodMenu.addEventListener("click", () => {
       vote(good, bad);
+      vote(goodMenu, badMenu);
       closeOpenMenu();
     });
-    bad.addEventListener("click", () => {
+    badMenu.addEventListener("click", () => {
       vote(bad, good);
+      vote(badMenu, goodMenu);
       closeOpenMenu();
     });
-    menu.append(good, bad);
+    menu.append(goodMenu, badMenu);
     wrap.append(more, menu);
 
     more.addEventListener("click", () => {
@@ -1934,7 +2375,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       }
     });
 
-    bar.append(copy, retry, wrap);
+    bar.append(copy, speaker, good, bad, retry, wrap);
     return bar;
   }
 
@@ -1948,32 +2389,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     bar.setAttribute("aria-label", "Message actions");
     bar.append(messageTime(Number(bubbleElement.dataset["at"] ?? Date.now())));
 
-    const edit = document.createElement("button");
-    edit.type = "button";
-    edit.className = "chat-message-action";
-    edit.textContent = "Edit";
-    edit.title = "Edit this message in the composer";
-    edit.setAttribute("aria-label", "Edit message");
+    const edit = iconActionButton(ICON.edit, "Edit message", "Edit this message in the composer");
     edit.addEventListener("click", () => {
       input.value = messageSources.get(bubbleElement) ?? text;
       input.focus();
       autogrowComposer();
     });
 
-    const copy = document.createElement("button");
-    copy.type = "button";
-    copy.className = "chat-message-action";
-    copy.textContent = "Copy";
-    copy.title = "Copy message";
-    copy.setAttribute("aria-label", "Copy message");
-    wireCopyButton(copy, bubbleElement, "Copy");
+    const copy = iconActionButton(ICON.copy, "Copy message", "Copy message");
+    wireCopyButton(copy, bubbleElement, "Copy message");
 
-    const retry = document.createElement("button");
-    retry.type = "button";
-    retry.className = "chat-message-action";
-    retry.textContent = "Retry";
-    retry.title = "Send this message again";
-    retry.setAttribute("aria-label", "Resend message");
+    const retry = iconActionButton(ICON.reload, "Resend message", "Send this message again");
     retry.addEventListener("click", () => {
       resend(messageSources.get(bubbleElement) ?? text);
     });
@@ -2431,9 +2857,18 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
     const actions = aiWorkspaceActions(task);
     taskReview.hidden = !actions.review;
+    taskPreview.hidden = !actions.review;
     taskDiscard.hidden = !actions.discard;
     taskRollback.hidden = !actions.rollback;
     taskTrace.hidden = false;
+
+    // After AI edits: one preview box per ready task, plus the same review inline
+    // in chat. Backdrop/Close only dismisses the box; nothing is applied or lost.
+    if (actions.review && task.changedPaths.length > 0 && !reviewDialogShownFor.has(task.id)) {
+      reviewDialogShownFor.add(task.id);
+      void renderPersistedReview(task).catch(() => undefined);
+      void openReviewDialog(task).catch(() => undefined);
+    }
   }
 
   async function refreshWorkspaceTask(): Promise<void> {
@@ -2587,8 +3022,40 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         taskNotice.textContent = "No operational trace events yet.";
         return;
       }
-      for (const event of events) {
-        trace(event.summary, event.detail, traceTone(event.outcome));
+      // Long tool runs record a start and a finish per call. Pairing them keeps
+      // the history readable, and the cap keeps a 40-step task to one screen.
+      const grouped = groupWorkspaceTraces(events);
+      const visible = grouped.slice(0, TRACE_PREVIEW_LIMIT);
+      for (const row of visible) {
+        trace(
+          row.count > 1 ? `${row.summary} · ${traceTone(row.outcome) === "ok" ? "done" : row.outcome}` : row.summary,
+          row.detail,
+          traceTone(row.outcome),
+        );
+      }
+      if (grouped.length > visible.length) {
+        const remaining = grouped.length - visible.length;
+        const more = bubble(
+          "assistant",
+          `${remaining} more step${remaining === 1 ? "" : "s"} recorded for this task.`,
+        );
+        const show = document.createElement("button");
+        show.type = "button";
+        show.className = "chat-send chat-nudge-action";
+        show.textContent = `Show all ${grouped.length} steps`;
+        show.addEventListener("click", () => {
+          show.disabled = true;
+          for (const row of grouped.slice(visible.length)) {
+            trace(
+              row.count > 1 ? `${row.summary} · ${traceTone(row.outcome) === "ok" ? "done" : row.outcome}` : row.summary,
+              row.detail,
+              traceTone(row.outcome),
+            );
+          }
+          more.dataset["nudge"] = "trace-expanded";
+        });
+        more.append(show);
+        scrollToEnd();
       }
     } finally {
       taskTrace.disabled = false;
@@ -2597,6 +3064,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   taskReview.addEventListener("click", () => {
     if (activeWorkspaceTask !== null) void renderPersistedReview(activeWorkspaceTask);
+  });
+  taskPreview.addEventListener("click", () => {
+    if (activeWorkspaceTask !== null) void openReviewDialog(activeWorkspaceTask);
   });
   taskTrace.addEventListener("click", () => {
     if (activeWorkspaceTask !== null) void renderPersistedTrace(activeWorkspaceTask);
@@ -2630,8 +3100,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       });
   });
 
-  window.adcode.aiWorkspace.onChanged((task) => paintWorkspaceTask(task));
+  window.adcode.aiWorkspace.onChanged((task) => {
+    paintWorkspaceTask(task);
+    void paintFolderBanner();
+  });
   void refreshWorkspaceTask();
+  void paintFolderBanner();
 
   /*
    * A proposal that arrives silently is a file the user never finds: the
@@ -2900,7 +3374,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         streamingBubble = null;
         finishActivity();
         setSendMode("send");
-        trace("Cancelled", "You stopped this turn.", "ok");
+        interruptedBanner();
         break;
 
       case "turn-end": {
@@ -3133,9 +3607,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     reviewTask(task): void {
       api.open();
       paintWorkspaceTask(task);
-      inspectorOpen = false;
-      applyDisclosures();
-      void renderPersistedReview(task).catch(() => { taskNotice.textContent = "Could not load task changes. Try Review again."; });
+      detailsDialog.open(task);
+    },
+    openTasksPopup(): void {
+      openTasksPopup();
     },
 
     setDocked(next, historyHost): void {
@@ -3178,6 +3653,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       void refreshModelStatus();
       statusTimer = window.setInterval(() => { if (!document.hidden) void refreshModelStatus(); }, 5_000);
       void refreshWorkspaceTask();
+      void paintFolderBanner();
       void refreshTeam();
       void agentLibrary.refresh();
       if (!controls.element.hidden) controls.show(false);
@@ -3269,6 +3745,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     setWorkspace(root: string | null): void {
       chatPreview.clear();
       previewCalls.clear();
+      reviewDialog.close();
+      detailsDialog.close();
+      tasksPopup.close();
+      reviewDialogShownFor.clear();
+      currentFolderRoot = root;
+      paintFolderBanner();
       void refreshHistory();
       suggestionGeneration += 1;
       if (suggestionTimer !== null) {

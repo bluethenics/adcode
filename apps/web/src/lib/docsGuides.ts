@@ -754,9 +754,11 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "Open Assistant from the workbench or command palette.",
       "Ask about the code in front of you - the assistant can see the open project.",
-      "While it works, watch the activity block above the answer: the header names the current step with elapsed time, and thinking notes and tool calls stream in as rows.",
+      "While it works, watch the activity block above the answer: the blue mascot bounces as the header names the current step with elapsed time, and thinking notes and tool calls stream in as bordered rows. Hover the mascot and its eyes follow you; click it for a morale-boosting quip.",
       "When it finishes, the block collapses to Worked for Ns - select the header to expand the full trace again.",
-      "Read answers with labelled code blocks, inline commands, and numbered steps. Copy a block or the whole response, Retry the last message, or mark it helpful.",
+      "Scroll up mid-stream and the view stays pinned while a Jump to latest pill appears with a count of new messages - select it to return to the tail.",
+      "If you stop a turn, the interrupted banner offers Edit prompt (your last message back in the composer) and Try again.",
+      "Read answers with labelled code blocks, inline commands, and numbered steps. Use the icon row under each response to Copy, Read aloud, mark helpful or not helpful, or Retry - with relative time like just now.",
       "Use History for past conversations and the activity panel for agents, tasks, and review controls. Toggle either panel for more writing space.",
       "Press Escape to dismiss it; the conversation survives dismissal.",
       "Reopen later, find older conversations grouped by recency, or choose Share to copy one as markdown.",
@@ -892,19 +894,20 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ai-isolated-workspaces": {
     steps: [
-      "On by default - the assistant works in a private copy of your project.",
-      "Ask it to find things by pattern (for example, every image), outline a long file before reading it, or run the tests and typecheck inside its sandbox.",
-      "Watch the task strip in chat for state, changed files, and the Review button.",
-      "Review lets you accept individual files or hunks, discard the whole proposal, or roll back an applied one.",
+      "On by default - the assistant edits your project directly, and results land in your real files the moment the turn finishes.",
+      "Ask it to build, fix, create or change files; the Explorer refreshes to show what changed.",
+      "Reads never change anything. Unsaved files pause file edits until you save, and destructive shell commands stay blocked.",
+      "Opening any older task shows it as a popup in the chat with files and grouped activity: Cancel stops running work, Delete removes a finished task completely, Roll back undoes an applied one.",
+      "Long tool runs fold each call and its result into one row with a Show-all expander, in the popup, the chat history and the Tasks tab.",
       "Turn the feature off to keep chat while disabling all file tools.",
     ],
     benefits: [
-      "An agent's bad idea never touches your real tree - you see it, in isolation, before it becomes true.",
+      "Done means done in your folder - no review queue between the assistant and the result.",
       "The assistant verifies its own work by running your tests instead of claiming they pass.",
-      "A full checkpoint precedes every apply, and rollback refuses to clobber your own later edits.",
+      "Unsaved work is still protected: edits wait until you save rather than overwriting buffers.",
     ],
     betterThan:
-      "Editing in place means the first mistake is in your working copy before you have decided anything. An isolated sandbox makes review the gate it always should have been - and unlike assistants that can only read and write, this one can search by pattern, outline symbols, run commands, and fetch docs without leaving the sandbox.",
+      "Editing through an isolated sandbox means every change waits in a queue before it becomes true. Direct edits with a save-guard deliver the result immediately - and unlike assistants that can only read and write, this one can search by pattern, outline symbols, run commands, and fetch docs in the project itself.",
   },
 
   "ai-mcp-server": {
@@ -968,10 +971,9 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ai-task-token-budget": {
     steps: [
-      "Find the Task token budget setting - Unlimited by default, so tasks never pause for tokens.",
-      "The task strip still counts what each task spends.",
-      "Choose 25k, 100k, or 250k for a hard ceiling: when the next request would cross it, ADCode pauses first and the chat offers removing the limit, raising it, or starting a new task.",
-      "Runaway tool loops stop on their own instead of draining your key.",
+      "Paused while the assistant edits directly: with no isolated tasks created, there is nothing to cap.",
+      "Unlimited stays the default; the rows are disabled until caps return.",
+      "Runaway tool loops are still bounded by the per-turn step limit instead of draining your key.",
     ],
     benefits: [
       "A hard pre-request ceiling beats any after-the-fact warning label.",
@@ -1303,6 +1305,22 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     betterThan:
       "Task runners elsewhere want a config file describing your build. ADCode infers the boring case instantly and stays out of the way for custom setups - one button for the common path, a terminal for everything else.",
+  },
+
+  "workbench-image-preview": {
+    steps: [
+      "Open a folder that contains images - png, jpg, gif, webp, svg, ico, or bmp.",
+      "Click any image in the Explorer. It previews in the editor area with its file size and dimensions.",
+      "Switch tabs to move between images and code; previews are cached so going back is instant.",
+      "Use File > Open Image Preview or the command palette to pick an image directly.",
+    ],
+    benefits: [
+      "Images stop opening as garbage text - what you see is the picture itself.",
+      "File size and pixel dimensions are shown beside the name, so asset checks need no other tool.",
+      "Previews are read-only, so there is nothing to accidentally save over.",
+    ],
+    betterThan:
+      "Editors without this make you leave for the file manager or a browser to check an asset. ADCode previews images where your code is, in the same tab strip, with no setup and no plugins.",
   },
 
   /* ── Appearance ──────────────────────────────────────────────────────── */

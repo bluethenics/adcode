@@ -531,11 +531,11 @@ Access: `All Features → Tree-sitter highlighting`; `Turn on or off`; `Settings
 <!-- feature:adcode.ai.chatWidget -->
 ### AI chat workspace
 
-A spacious conversation workspace with searchable history, a live thinking-and-working block per answer, code blocks you can copy, and per-response Copy, Retry, and feedback.
+A conversation workspace with searchable history, a live working block per answer, copyable code blocks, per-response actions, a jump-to-latest pill, and an interrupted banner with Edit prompt and Try again.
 
-Why use it: Asking in the editor beats copying code into a browser, because the assistant can already see the project.
+Why use it: Asking in the editor beats copying code into a browser, because the assistant can already see the project. A playful mascot, a scroll pill that respects your place, and a clear way back from an interrupted turn keep long runs feeling alive instead of hung.
 
-How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. While it works, one activity block per answer shows the current step with elapsed time — thinking notes and tool calls stream in as rows, each tool gaining a checkmark when done. When it finishes the block collapses to Worked for Ns; select its header to expand it again. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers Copy, Retry, and helpful or not helpful. Use History to browse conversations and the activity panel to see agent work and review changes. Share copies the conversation as markdown. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation. The assistant changes existing files with exact replacements instead of rewriting them, reads several files at once, and works through up to 50 steps per request; if it stops at a limit, Continue picks up where it left off. On an empty conversation, six starters - Build something, Fix an error, Explain this project, Review my changes, Write tests and Find bugs - get going in one click.
+How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. While it works, one activity block per answer shows the current step with elapsed time — the blue mascot bounces while working, its eyes follow your pointer, and clicking it pops a morale-boosting quip. Thinking notes and tool calls stream in as bordered rows, each tool gaining a checkmark when done. When it finishes the block collapses to Worked for Ns; select its header to expand it again. Scroll up and the transcript stays pinned while a Jump to latest pill appears with a count of new messages; select it to return to the tail. If you stop a turn, an interrupted banner offers Edit prompt (your last message back in the composer) and Try again. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers icon actions for Copy, Read aloud, helpful or not helpful, and Retry, with relative time like just now. Use History to browse conversations and the activity panel to see agent work and review changes. Share copies the conversation as markdown. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation. The assistant changes existing files with exact replacements instead of rewriting them, reads several files at once, and works through up to 50 steps per request; if it stops at a limit, Continue picks up where it left off. On an empty conversation, six starters - Build something, Fix an error, Explain this project, Review my changes, Write tests and Find bugs - get going in one click.
 
 Access: `All Features → AI chat workspace`; `Turn on or off`; `Settings`.
 
@@ -549,6 +549,17 @@ Why use it: Review mode gives you hunk-by-hunk control. Trusted mode is faster f
 How to use it: Review every change is the default. Trusted auto-apply never writes during the model turn: ADCode first collects exact proposals in the sandbox, then checkpoints and applies them together. Switch back to Review every change at any time; the next task uses the safer policy. Use Rollback on an applied task to go back, unless later human edits overlap it.
 
 Access: `All Features → AI edit approval`; `Settings`.
+
+<!-- feature:adcode.ai.isolatedWorkspaces -->
+### AI file tools
+
+The assistant reads, edits and runs commands directly in your open project. What it does lands in your real files immediately.
+
+Why use it: Isolation kept edits safe but made simple work feel missing: proposals sat in a sandbox queue instead of reaching the folder. Direct edits deliver real results the moment the turn finishes.
+
+How to use it: On by default. Ask it to build, fix, create or change files and the result is in your project, with the Explorer refreshing to show it. Reads never change anything. Writes are still guarded: unsaved files pause file edits until you save, so nothing you have not saved gets overwritten, and destructive shell commands stay blocked — run those yourself in the terminal. Chats belong to the open folder only: the chat banner names the folder with its task and chat counts, and Switch opens the folder popup. Turning this off keeps chat available but disables the built-in file tools. Beyond reading, listing, and searching files, the assistant can find files by pattern (for example every image), outline a file's symbols before reading it, run tests and typechecks in the project, and fetch documentation pages.
+
+Access: `All Features → AI file tools`; `Turn on or off`; `Settings`.
 
 <!-- feature:ai.team -->
 ### AI Team
@@ -638,17 +649,6 @@ How to use it: Off by default. Turn it on and ADCode asks the selected model aft
 
 Access: `All Features → Inline completion`; `Suggest now`; `Turn on or off`; `Settings`; `Keyboard → Alt+\`.
 
-<!-- feature:adcode.ai.isolatedWorkspaces -->
-### Isolated AI edits
-
-The assistant works in a separate copy of your project. Your real files change only after you review them, with a way back kept first.
-
-Why use it: A model can make a useful mistake very quickly. Isolation lets it read its own edits and keep working without putting unfinished or conflicting changes into the project you are using.
-
-How to use it: On by default. The assistant shows the task state, changed files, and Review button. Accept individual hunks, discard the sandbox, or roll an applied task back. Turning this off keeps chat available but disables the built-in file tools. Beyond reading, listing, and searching files, the assistant can find files by pattern (for example every image), outline a file's symbols before reading it, run tests and typechecks inside the sandbox, and fetch documentation pages.
-
-Access: `All Features → Isolated AI edits`; `Turn on or off`; `Settings`.
-
 <!-- feature:adcode.ai.mcpServer -->
 ### MCP server
 
@@ -722,7 +722,7 @@ Optionally sets a hard ceiling for one assistant task, checked before each new r
 
 Why use it: Long tool loops and repeated context can cost far more than the first question suggests. Checking the whole request before it starts is safer than warning after the tokens are gone.
 
-How to use it: Unlimited is the default, so tasks never pause for tokens. The task strip still counts what each task spends. Choose 25k, 100k, or 250k in Settings for a hard ceiling: ADCode pauses before the next request would cross it, and the chat offers removing the limit, raising it, or starting a new task.
+How to use it: Paused while the assistant edits directly: with no isolated tasks created, there is nothing to cap, so these rows are disabled. Unlimited stays the default. When caps return, choose 25k, 100k, or 250k, or type any number from 1000 to 10000000 into Custom token budget.
 
 Access: `All Features → Task token budget`; `Settings`.
 
@@ -907,6 +907,17 @@ Why use it: There are hundreds of commands and no menu can hold them all. If you
 How to use it: Press Ctrl+Shift+P and start typing. The shortcut for each command is shown beside it, so it teaches you the keys as you use it.
 
 Access: `All Features → Command palette`; `Open`; `Keyboard → Ctrl/Cmd+Shift+P`.
+
+<!-- feature:workbench.imagePreview -->
+### Image preview
+
+Click an image file and it shows as a picture instead of text.
+
+Why use it: Opening a PNG as text shows garbage characters. A picture is what you actually want to check.
+
+How to use it: Click any png, jpg, gif, webp, svg, ico, or bmp file in the Explorer. It previews in the editor area with its file size and dimensions. Images cannot be edited here - they are preview-only. Use File > Open Image Preview or the command palette to pick one directly.
+
+Access: `All Features → Image preview`; `Open image preview`.
 
 <!-- feature:workbench.keybindings -->
 ### Keyboard shortcuts

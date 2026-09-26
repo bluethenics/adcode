@@ -104,6 +104,7 @@ import {
   aiWorkspaceApply,
   aiWorkspaceChanges,
   aiWorkspaceDiscard,
+  aiWorkspaceRemove,
   aiWorkspaceRollback,
   aiAutomationCreate,
   aiAutomationList,
@@ -157,6 +158,7 @@ import {
   openWorkspace,
   openWorkspaceAt,
   pickFileToOpen,
+  readImageFile,
   readTextFile,
   saveTextFileAs,
   setWorkspaceRoot,
@@ -464,6 +466,11 @@ export function registerIpc(): void {
   ipcMain.handle(CHANNELS.fsRead, (_event, filePath: unknown) => {
     if (!isString(filePath)) throw new Error("expected a path");
     return readTextFile(filePath);
+  });
+
+  ipcMain.handle(CHANNELS.fsReadImage, (_event, filePath: unknown) => {
+    if (!isString(filePath)) throw new Error("expected a path");
+    return readImageFile(filePath);
   });
 
   ipcMain.handle(CHANNELS.fsWrite, async (_event, filePath: unknown, text: unknown) => {
@@ -1016,6 +1023,10 @@ export function registerIpc(): void {
   ipcMain.handle(CHANNELS.aiWorkspaceDiscard, (_event, taskId: unknown) => {
     if (!validAiWorkspaceTaskId(taskId)) throw new Error("expected a task id");
     return aiWorkspaceDiscard(taskId);
+  });
+  ipcMain.handle(CHANNELS.aiWorkspaceRemove, (_event, taskId: unknown) => {
+    if (!validAiWorkspaceTaskId(taskId)) throw new Error("expected a task id");
+    return aiWorkspaceRemove(taskId);
   });
   ipcMain.handle(CHANNELS.aiWorkspaceRollback, (_event, taskId: unknown) => {
     if (!validAiWorkspaceTaskId(taskId)) throw new Error("expected a task id");

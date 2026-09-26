@@ -22,7 +22,7 @@ import type {
   UserPage,
   UserStatus,
 } from "./store.ts";
-import { assetKey, assetUrl, extensionFor, isDataUrl, parseDataUrl } from "./assets.ts";
+import { assetKey, assetUrl, extensionFor, isDataUrl, isSafeAssetKey, parseDataUrl } from "./assets.ts";
 
 export interface AdminDeps {
   store: Store;
@@ -109,16 +109,21 @@ export async function handleSetCreativeStatus(
 }
 
 /**
- * Move any artwork still stored inline onto the asset host.
+ * Move any artwork still stored inline onto the asset host, and canonicalise any
+ * artwork pointing at the wrong host.
  *
  * A repair tool, and it exists because the rows that need repairing were written before
- * `createCreative` learned to store artwork separately. Those rows are individually fatal
- * to serving: a `data:` logo makes the creatives read cost ~1,960ms of the editor's
- * 3,000ms budget, and the editor rejects the value anyway - one bad creative fails the
- * whole serve response, so a single unrepaired row takes every other creative with it.
+ * `createCreative` learned to store artwork separately - or were stored against the
+ * origin the submission reached (`requestOrigin`) while the desktop client validates
+ * against its own configured asset host. A `data:` logo makes the creatives read cost
+ * ~1,960ms of the editor's 3,000ms budget, and the editor rejects the value anyway; a
+ * wrong-host https logo is rejected by the client's exact-hostname check. Either shape
+ * used to fail the whole serve response, so a single unrepaired row took every other
+ * creative with it.
  *
- * Idempotent: a creative whose logos are already https URLs is skipped, so running it
- * twice costs two reads and changes nothing.
+ * Idempotent: a creative whose logos are already https URLs on the canonical host is
+ * skipped, so running it twice costs reads and changes nothing. Only creatives whose
+ * stored values actually change are written back and counted.
  */
 export async function handleRehostAssets(
   deps: AdminDeps,
@@ -137,13 +142,23 @@ export async function handleRehostAssets(
     ...(await deps.store.creativesByStatus("pending")),
   ];
 
+  const canonicalHost = hostnameOf(origin);
   let rehosted = 0;
 
   for (const creative of creatives) {
-    if (!isDataUrl(creative.logoLight) && !isDataUrl(creative.logoDark)) continue;
+    if (
+      !isDataUrl(creative.logoLight) &&
+      !isDataUrl(creative.logoDark) &&
+      !isWrongHost(creative.logoLight, canonicalHost) &&
+      !isWrongHost(creative.logoDark, canonicalHost)
+    ) {
+      continue;
+    }
 
-    const logoLight = await rehost(deps, origin, creative.creativeId, "light", creative.logoLight);
-    const logoDark = await rehost(deps, origin, creative.creativeId, "dark", creative.logoDark);
+    const logoLight = await rehost(deps, origin, canonicalHost, creative.creativeId, "light", creative.logoLight);
+    const logoDark = await rehost(deps, origin, canonicalHost, creative.creativeId, "dark", creative.logoDark);
+
+    if (logoLight === creative.logoLight && logoDark === creative.logoDark) continue;
 
     await deps.store.putCreative({ ...creative, logoLight, logoDark });
     rehosted += 1;
@@ -152,22 +167,72 @@ export async function handleRehostAssets(
   return { scanned: creatives.length, rehosted };
 }
 
-/** One logo. Anything already hosted, or undecodable, is left exactly as it is. */
+/** The hostname of a URL, or null when it is not a URL at all. */
+function hostnameOf(value: string): string | null {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether an https logo points somewhere other than the canonical asset origin.
+ *
+ * `data:` URLs are a different repair path (decoded and stored, not rewritten), and
+ * anything that is not a URL at all is left for the client to skip - this tool only
+ * canonicalises hosts. Exact-hostname equality, never suffix matching: the client's
+ * own check is exact, so anything looser here would "repair" one host into another
+ * the client still rejects.
+ */
+function isWrongHost(value: string, canonicalHost: string | null): boolean {
+  if (canonicalHost === null || isDataUrl(value)) return false;
+  const host = hostnameOf(value);
+  return host !== null && host !== canonicalHost;
+}
+
+/**
+ * One logo. Anything already on the canonical host, or undecodable, is left exactly
+ * as it is.
+ *
+ * A wrong-host `/assets/<key>` URL is rewritten onto the canonical origin with the
+ * same key: the asset bytes live in the shared store behind both hostnames, so no
+ * bytes need to move - only the hostname in the row. Any other wrong-host https URL
+ * (an external host, a non-asset path) is left alone; without the bytes there is
+ * nothing correct to rewrite it to, and the client now skips just that creative
+ * instead of discarding the whole batch.
+ */
 async function rehost(
   deps: AdminDeps,
   origin: string,
+  canonicalHost: string | null,
   creativeId: string,
   variant: "light" | "dark",
   value: string,
 ): Promise<string> {
-  if (!isDataUrl(value)) return value;
+  if (isDataUrl(value)) {
+    const parsed = parseDataUrl(value);
+    if (parsed === null) return value;
 
-  const parsed = parseDataUrl(value);
-  if (parsed === null) return value;
+    const key = assetKey(creativeId, variant, parsed.contentType);
+    await deps.store.putAsset(key, parsed);
+    return assetUrl(origin, key);
+  }
 
-  const key = assetKey(creativeId, variant, parsed.contentType);
-  await deps.store.putAsset(key, parsed);
-  return assetUrl(origin, key);
+  if (canonicalHost !== null) {
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      return value;
+    }
+    if (parsed.hostname !== canonicalHost && parsed.pathname.startsWith("/assets/")) {
+      const key = decodeURIComponent(parsed.pathname.slice("/assets/".length));
+      if (isSafeAssetKey(key)) return assetUrl(origin, key);
+    }
+  }
+
+  return value;
 }
 
 /* ── Test serves ────────────────────────────────────────────────────────── */

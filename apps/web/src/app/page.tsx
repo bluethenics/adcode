@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { HeroInstall } from "@/components/HeroInstall";
 import { LandingBidBuilder } from "@/components/LandingBidBuilder";
+import { DeveloperCounter } from "@/components/DeveloperCounter";
 import { HeroCounter } from "@/components/HeroCounter";
 import { AppShowcase } from "@/components/AppShowcase";
 import Link from "next/link";
@@ -51,7 +52,7 @@ export default function Home() {
       <p>An IDE that pays you 50% of ad revenue.</p>
       <HeroInstall />
       <small>Available for Windows and Linux. macOS coming soon.</small>
-      </div></div>
+      </div><DeveloperCounter /></div>
       <AppShowcase />
       <HeroCounter />
       </div>

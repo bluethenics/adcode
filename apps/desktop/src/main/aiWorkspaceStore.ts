@@ -4,7 +4,7 @@
  * Electron is intentionally absent: supplying userData is the caller's responsibility,
  * which keeps crash and corruption behavior testable without launching a window.
  */
-import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { atomicReplace } from "./atomicReplace.ts";
 import { join } from "node:path";
 import {
@@ -48,6 +48,8 @@ export interface AiWorkspaceStore {
   read(id: string): Promise<AiWorkspaceTask | null>;
   list(workspaceId: string): Promise<AiWorkspaceTask[]>;
   listAll(): Promise<AiWorkspaceTask[]>;
+  /** Delete the durable record and its trace log. Sandboxes and checkpoints are the service's job. */
+  remove(id: string): Promise<boolean>;
   recoverActive(now: number): Promise<AiWorkspaceTask[]>;
   appendTrace(event: OperationalTrace): Promise<void>;
   traces(taskId: string): Promise<OperationalTrace[]>;
@@ -100,6 +102,16 @@ export function createAiWorkspaceStore(userDataDirectory: string): AiWorkspaceSt
   return {
     save,
     read,
+
+    async remove(id): Promise<boolean> {
+      if (!TASK_ID.test(id)) return false;
+      try {
+        await rm(taskFolder(id), { recursive: true, force: true });
+        return true;
+      } catch {
+        return false;
+      }
+    },
 
     async list(workspaceId): Promise<AiWorkspaceTask[]> {
       return (await all())

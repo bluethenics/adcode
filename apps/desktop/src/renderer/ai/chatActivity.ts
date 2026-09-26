@@ -8,12 +8,17 @@
  *
  * Visual contract (see `styles/ai.css`, section "Agent activity"):
  * - One block per assistant turn, above the final answer.
- * - Header: animated 3-dot loader, status label, elapsed timer, chevron.
+ * - Header: interactive mascot (replacing the old 3-dot loader), status
+ *   label, elapsed timer, chevron. The mascot's eyes track the pointer,
+ *   it blinks, and clicking it pops a rotating quip so long runs stay alive.
  * - Body: bordered rounded rows; text rows are muted thoughts, tool rows carry
  *   a spinner while running and a green check when done; new rows fade in.
- * - Finished: loader hides, label becomes "Worked for Ns", body collapses
- *   with a grid-template-rows transition; header click toggles it again.
+ * - Finished: mascot settles to its done/error mood, label becomes
+ *   "Worked for Ns", body collapses with a grid-template-rows transition;
+ *   header click toggles it again.
  */
+
+import { createMascot, type MascotHandle, type MascotMood } from "./mascot.ts";
 
 export type ActivityRowKind = "text" | "tool";
 export type ActivityRowStatus = "running" | "done";
@@ -113,18 +118,28 @@ export function createActivityBlock(options?: {
   // are announced without the duplicate "Thinking" row.
   element.setAttribute("role", "status");
 
-  const header = document.createElement("button");
-  header.type = "button";
+  const header = document.createElement("div");
   header.className = "chat-activity-header";
   header.setAttribute("aria-expanded", "true");
-  header.setAttribute("aria-label", "Toggle assistant activity details");
 
+  // The mascot replaces the old three-dot wave. The wrapper keeps the
+  // `chat-activity-loader` class so existing theme hooks and tests keep
+  // holding; the three <i> dots are gone, the blob lives here instead.
+  // Header is a div (not a button) so the mascot button inside it is valid
+  // HTML — the inner toggle button owns the collapse behaviour.
   const loader = document.createElement("span");
   loader.className = "chat-activity-loader";
-  loader.setAttribute("aria-hidden", "true");
-  for (let index = 0; index < 3; index++) {
-    loader.append(document.createElement("i"));
-  }
+  const mascot: MascotHandle = createMascot({ mood: "thinking" });
+  // The loader wrapper is presentational; the mascot button inside carries
+  // its own accessible name.
+  loader.setAttribute("aria-hidden", "false");
+  loader.append(mascot.element);
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "chat-activity-toggle";
+  toggle.setAttribute("aria-expanded", "true");
+  toggle.setAttribute("aria-label", "Toggle assistant activity details");
 
   const label = document.createElement("span");
   label.className = "chat-activity-label";
@@ -139,7 +154,8 @@ export function createActivityBlock(options?: {
   chevron.className = "chat-activity-chevron";
   chevron.setAttribute("aria-hidden", "true");
 
-  header.append(loader, label, timer, chevron);
+  toggle.append(label, timer, chevron);
+  header.append(loader, toggle);
 
   const collapse = document.createElement("div");
   collapse.className = "chat-activity-collapse";
@@ -164,17 +180,32 @@ export function createActivityBlock(options?: {
   function setCollapsed(collapsed: boolean): void {
     element.dataset["collapsed"] = String(collapsed);
     header.setAttribute("aria-expanded", String(!collapsed));
+    toggle.setAttribute("aria-expanded", String(!collapsed));
   }
 
-  header.addEventListener("click", () => {
+  toggle.addEventListener("click", () => {
     setCollapsed(element.dataset["collapsed"] !== "true");
   });
+  // Poking the mascot must not collapse the block.
+  mascot.element.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
+  function moodForLabel(text: string): MascotMood {
+    if (/fail|error|declined|cancel/i.test(text)) return "error";
+    if (/writing|streaming|reviewing/i.test(text)) return "streaming";
+    if (/reading|editing|searching|running|using|working|planning|finding|creating|outlining/i.test(text)) {
+      return "working";
+    }
+    return "thinking";
+  }
 
   return {
     element,
     startedAt,
     setLabel(text: string): void {
       label.textContent = text;
+      if (element.dataset["state"] !== "done") mascot.setMood(moodForLabel(text));
     },
     addRow(row: ActivityRowInput): HTMLElement {
       const status: ActivityRowStatus = row.status ?? "running";
@@ -204,11 +235,17 @@ export function createActivityBlock(options?: {
       }
 
       body.append(item);
+      if (element.dataset["state"] !== "done") {
+        mascot.setMood(row.kind === "tool" ? "working" : "thinking");
+      }
       return item;
     },
     completeRow(id: string, ok = true): void {
       const item = rowsById.get(id);
-      if (!item) return;
+      if (!item) {
+        if (!ok && element.dataset["state"] !== "done") mascot.setMood("error");
+        return;
+      }
       item.classList.remove("is-running");
       item.classList.add("is-done");
       if (!ok) item.classList.add("is-error");
@@ -217,6 +254,7 @@ export function createActivityBlock(options?: {
         icon.textContent = ok ? "✓" : "!";
         icon.setAttribute("aria-label", ok ? "Done" : "Failed");
       }
+      if (!ok && element.dataset["state"] !== "done") mascot.setMood("error");
     },
     finalize(totalSeconds?: number, customLabel?: string): void {
       const elapsed = totalSeconds ?? (Date.now() - startedAt) / 1000;
@@ -233,12 +271,15 @@ export function createActivityBlock(options?: {
         const icon = item.querySelector(".chat-activity-row-icon");
         if (icon && icon.textContent === "") icon.textContent = "✓";
       }
-      label.textContent = customLabel ?? formatWorkedLabel(elapsed);
+      const finalLabel = customLabel ?? formatWorkedLabel(elapsed);
+      label.textContent = finalLabel;
       label.classList.add("is-final");
+      mascot.setMood(/fail|error|declined|cancel/i.test(finalLabel) ? "error" : "done");
       setCollapsed(true);
     },
     destroy(): void {
       window.clearInterval(interval);
+      mascot.destroy();
       element.remove();
       rowsById.clear();
     },

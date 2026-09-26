@@ -130,6 +130,10 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("collab.panel", "Open"), command("collab.leave", "Leave session")],
     keywords: ["share", "join", "pair", "live session"],
   },
+  "workbench.imagePreview": {
+    actions: [command("file.openImage", "Open image preview")],
+    keywords: ["image", "picture", "png", "jpg", "jpeg", "gif", "webp", "svg", "preview photo", "view image"],
+  },
   "account.earnings": {
     actions: [command("view.earnings", "Open")],
     keywords: ["ads", "money", "balance", "ledger"],

@@ -63,7 +63,21 @@ export interface AiToolWorkspace {
 
 export interface AiToolDeps {
   readonly openPreview?: () => Promise<PreviewStatus>;
+  /** File reads resolve here without creating anything. */
   readonly workspace: () => Promise<AiToolWorkspace | null>;
+  /**
+   * File edits and commands resolve here, starting the isolated task on first
+   * use. Falls back to `workspace` when unset (tests); the app always sets it,
+   * so a plain question stays chat while the first edit creates the task.
+   */
+  readonly writeWorkspace?: () => Promise<AiToolWorkspace | null>;
+  /**
+   * When true, edits apply straight to the project and the result says so.
+   * Team lanes leave this unset: their sandbox message stays accurate.
+   */
+  readonly directWrites?: boolean;
+  /** Fired after a command finishes, so the Explorer can refresh. */
+  readonly onCommandFinished?: () => void;
   readonly workspaceUnavailableMessage?: () => string;
   /** Trusted still means sandbox first; only the successful turn's checkpointed apply is automatic. */
   readonly reviewPolicy?: () => "review" | "trusted";
@@ -278,6 +292,8 @@ export function applyReplacements(
 export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
   const unavailable = (): ReturnType<typeof fail> =>
     fail(deps.workspaceUnavailableMessage?.() ?? "No folder is open, so there is nothing to work on yet.");
+  /** Edits and commands start the isolated task; reads never do. */
+  const writeWorkspace = deps.writeWorkspace ?? deps.workspace;
 
   /** Stage a whole-file proposal in the sandbox and hand its diff to the renderer. */
   async function stageProposal(
@@ -301,8 +317,12 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
       hunks,
     });
 
-    // Written only to the sandbox. The model is told that plainly so it can read its
-    // own new version on the next tool call without assuming the human file changed.
+    if (deps.directWrites === true) {
+      return ok(
+        `Updated ${relativePath} in your project (+${hunks.reduce((n, hunk) => n + hunk.replacement.length, 0)} −${hunks.reduce((n, hunk) => n + hunk.original.length, 0)}).`,
+      );
+    }
+    // Written only to the sandbox. The model is told that plainly so it can read its own new version on the next tool call without assuming the human file changed.
     return ok(
       `Proposed ${hunks.length} change${hunks.length === 1 ? "" : "s"} to ${relativePath}. ` +
         (deps.reviewPolicy?.() === "trusted"
@@ -454,7 +474,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
         }
 
         case "propose_edit": {
-          const workspace = await deps.workspace();
+          const workspace = await writeWorkspace();
           if (workspace === null) return unavailable();
           const root = workspace.sandboxRoot;
           const path = await resolveInWorkspace(root, input["path"]);
@@ -477,7 +497,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
         }
 
         case "edit_file": {
-          const workspace = await deps.workspace();
+          const workspace = await writeWorkspace();
           if (workspace === null) return unavailable();
           const path = await resolveInWorkspace(workspace.sandboxRoot, input["path"]);
           if (path === null) return fail("That path is outside the open workspace.");
@@ -543,7 +563,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
         }
 
         case "run_command": {
-          const workspace = await deps.workspace();
+          const workspace = await writeWorkspace();
           if (workspace === null) return unavailable();
           const root = workspace.sandboxRoot;
           if (typeof input["command"] !== "string" || input["command"].trim().length === 0) {
@@ -557,18 +577,21 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           }
           const cwd = await resolveDirOrRoot(root, input["cwd"]);
           if (cwd === null) return fail("That working directory is outside the open workspace.");
+          let result: { content: string; isError: boolean };
           try {
             const shell = process.platform === "win32" ? (process.env["SystemRoot"] ?? "C:\\Windows") + "\\System32\\cmd.exe" : "/bin/sh";
             const args = process.platform === "win32" ? ["/d", "/s", "/c", command] : ["-c", command];
-            const result = await execFile(shell, args, { cwd, timeout: RUN_TIMEOUT_MS, windowsHide: true, maxBuffer: 1024 * 1024 });
-            const output = truncateOutput(`${result.stdout}${result.stderr}`.trim());
-            return ok(output.length === 0 ? "(no output)" : `exit 0\n${output}`);
+            const executed = await execFile(shell, args, { cwd, timeout: RUN_TIMEOUT_MS, windowsHide: true, maxBuffer: 1024 * 1024 });
+            const output = truncateOutput(`${executed.stdout}${executed.stderr}`.trim());
+            result = ok(output.length === 0 ? "(no output)" : `exit 0\n${output}`);
           } catch (error) {
             const failure = error as { stdout?: string; stderr?: string; message?: string; killed?: boolean };
             if (failure.killed === true) return fail("That command timed out after 30s. Narrow it or run it in the terminal.");
             const output = truncateOutput(`${failure.stdout ?? ""}${failure.stderr ?? ""}`.trim() || failure.message || "command failed");
-            return fail(output);
+            result = fail(output);
           }
+          deps.onCommandFinished?.();
+          return result;
         }
 
         case "fetch_url": {
@@ -643,3 +666,4 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
     },
   };
 }
+

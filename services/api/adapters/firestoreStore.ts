@@ -196,12 +196,13 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
     async publicStats() {
       const database = await lazy();
       // Micros are stored as decimal strings; positive values sort after "0".
-      const [receipts, campaigns] = await Promise.all([
+      const [receipts, campaigns, developers] = await Promise.all([
         database.collection("receipts").where("costMicros", ">", "0").select("outcome").get(),
         database.collection("campaigns").where("status", "==", "active").count().get(),
+        database.collection("users").where("status", "==", "active").count().get(),
       ]);
       const clicks = receipts.docs.filter((doc) => doc.data()["outcome"] === "click").length;
-      return { impressions: receipts.size - clicks, clicks, activeCampaigns: campaigns.data().count };
+      return { impressions: receipts.size - clicks, clicks, activeCampaigns: campaigns.data().count, developers: developers.data().count };
     },
 
     async statsForCampaign(campaignId): Promise<CampaignStats> {

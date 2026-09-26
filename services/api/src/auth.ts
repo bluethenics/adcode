@@ -50,35 +50,50 @@ export async function authenticate(
   const verified = await deps.verifier.verify(token);
   if (verified === null) return { ok: false, failure: "bad-token" };
 
-  // First sight of an anonymous UID creates its record. Brief §8.4 promises first launch
-  // performs anonymous auth "with no UI and no wall", so there is no signup call in which
-  // to do this.
+  /*
+   * The user ensure and the admin check go out together. They touch different tables
+   * (`users` vs `admins`) and neither reads the other's result - the admin verdict
+   * comes from the token's verified claims, not from the user row - so sequencing
+   * them costs a round trip for nothing. Serve has to fit inside the editor's
+   * 3,000ms timeout and was measured at ~5,000ms with every read sequential.
+   */
+  const [user, isAdmin] = await Promise.all([ensureUser(deps, verified), adminFromEmail(deps, verified)]);
+
+  if (user.status === "banned") return { ok: false, failure: "banned" };
+
+  return { ok: true, uid: verified.uid, isAdmin };
+}
+
+/**
+ * First sight of an anonymous UID creates its record. Brief §8.4 promises first launch
+ * performs anonymous auth "with no UI and no wall", so there is no signup call in which
+ * to do this.
+ */
+async function ensureUser(deps: AuthDeps, verified: VerifiedToken): Promise<UserRecord> {
   let user = await deps.store.getUser(verified.uid);
   if (user === null) {
     user = { uid: verified.uid, status: "active", createdAt: deps.clock.now(), ...identityOf(verified) };
     await deps.store.putUser(user);
-  } else {
-    /*
-     * Keep the identity in step with the token.
-     *
-     * The admin panel could only ever show a uid, because a uid was the only thing stored.
-     * The token has carried the address and name all along - this is where that stops
-     * being thrown away.
-     *
-     * Written only when something actually changed. Every authenticated request passes
-     * through here, so an unconditional write would turn every read in the API into a
-     * read plus a write, on the busiest path there is.
-     */
-    const identity = identityOf(verified);
-    if (differs(user, identity)) {
-      user = { ...user, ...identity };
-      await deps.store.putUser(user);
-    }
+    return user;
   }
 
-  if (user.status === "banned") return { ok: false, failure: "banned" };
-
-  return { ok: true, uid: verified.uid, isAdmin: await adminFromEmail(deps, verified) };
+  /*
+   * Keep the identity in step with the token.
+   *
+   * The admin panel could only ever show a uid, because a uid was the only thing stored.
+   * The token has carried the address and name all along - this is where that stops
+   * being thrown away.
+   *
+   * Written only when something actually changed. Every authenticated request passes
+   * through here, so an unconditional write would turn every read in the API into a
+   * read plus a write, on the busiest path there is.
+   */
+  const identity = identityOf(verified);
+  if (differs(user, identity)) {
+    user = { ...user, ...identity };
+    await deps.store.putUser(user);
+  }
+  return user;
 }
 
 /**

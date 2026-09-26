@@ -273,6 +273,33 @@ describe("safe AI workspace service", () => {
     await expect(api.readSandboxFile(task.id, "one.txt")).rejects.toThrow();
   });
 
+  it("deletes a finished task completely, including its record and traces", async () => {
+    const api = service();
+    const task = await api.start({ workspaceRoot: project, prompt: "Delete me" });
+    await api.write(task.id, "one.txt", "one proposed\n");
+
+    expect(await api.remove(task.id)).toBe(true);
+    expect(await api.read(task.id)).toBeNull();
+    expect(await api.traces(task.id)).toEqual([]);
+    expect(await readFile(join(project, "one.txt"), "utf8")).toBe("one before\n");
+  });
+
+  it("reports a missing task as already gone instead of throwing", async () => {
+    expect(await service().remove("task-missing")).toBe(false);
+  });
+
+  it("refuses to delete running work or an applied rollback checkpoint", async () => {
+    const api = service();
+    const running = await api.start({ workspaceRoot: project, prompt: "Running" });
+    await expect(api.remove(running.id)).rejects.toThrow("cancel");
+
+    const task = await api.start({ workspaceRoot: project, prompt: "Apply me" });
+    await api.write(task.id, "one.txt", "one proposed\n");
+    await api.apply(task.id, [{ path: "one.txt", contents: "one proposed\n" }]);
+    await expect(api.remove(task.id)).rejects.toThrow("rollback");
+    expect((await api.read(task.id))?.state).toBe("applied");
+  });
+
   it("restores changed files and removes task-created files on rollback", async () => {
     const api = service();
     const task = await api.start({ workspaceRoot: project, prompt: "Edit and add" });

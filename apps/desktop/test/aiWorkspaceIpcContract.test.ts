@@ -12,6 +12,7 @@ it("uses distinct channels for every task command and notification", () => {
     CHANNELS.aiWorkspaceTraces,
     CHANNELS.aiWorkspaceApply,
     CHANNELS.aiWorkspaceDiscard,
+    CHANNELS.aiWorkspaceRemove,
     CHANNELS.aiWorkspaceRollback,
     CHANNELS.aiWorkspaceChanged,
   ];

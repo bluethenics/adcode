@@ -6,11 +6,11 @@
  * makes that concrete rather than theoretical: model output reaches these handlers.
  */
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, extname, join } from "node:path";
 import { dialog } from "electron";
 import { HIDDEN_DIRECTORIES } from "@adcode/structure";
 import { isInsideWorkspace } from "./pathSafety.ts";
-import type { DirEntry, FileContent, OpenedWorkspace, SaveResult } from "../shared/api.ts";
+import type { DirEntry, FileContent, FileImageContent, OpenedWorkspace, SaveResult } from "../shared/api.ts";
 
 /**
  * Directories never worth walking, and expensive enough to matter on a large repo.
@@ -167,6 +167,53 @@ export async function readTextFile(filePath: string): Promise<FileContent> {
   if (info.size > MAX_READ_BYTES) throw new Error("file is larger than 100MB");
 
   return { path: filePath, text: await readFile(filePath, "utf8"), mtimeMs: info.mtimeMs };
+}
+
+/**
+ * Read an image file for preview, as a `data:` URL.
+ *
+ * Text and bytes cannot share a channel: `readTextFile` decodes as UTF-8, which turns a
+ * PNG into replacement characters and can throw on lone surrogates. Images are read raw,
+ * capped lower (20MB - a preview must not hold a whole photo library in IPC), and named
+ * by extension from a closed list so a renamed executable never arrives as viewable bytes.
+ */
+const IMAGE_MEDIA_TYPES: Readonly<Record<string, string>> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".bmp": "image/bmp",
+};
+
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+
+export function imageMediaTypeFor(filePath: string): string | null {
+  return IMAGE_MEDIA_TYPES[extname(filePath).toLowerCase()] ?? null;
+}
+
+export async function readImageFile(filePath: string): Promise<FileImageContent> {
+  if (!isInsideWorkspace(workspaceRoot, filePath)) {
+    throw new Error("path is outside the opened workspace");
+  }
+
+  const mediaType = imageMediaTypeFor(filePath);
+  if (mediaType === null) throw new Error("not a supported image file");
+
+  const info = await stat(filePath);
+  if (!info.isFile()) throw new Error("not a file");
+  if (info.size > MAX_IMAGE_BYTES) throw new Error("image is larger than 20MB");
+
+  const bytes = await readFile(filePath);
+  return {
+    path: filePath,
+    dataUrl: `data:${mediaType};base64,${bytes.toString("base64")}`,
+    mediaType,
+    sizeBytes: info.size,
+    mtimeMs: info.mtimeMs,
+  };
 }
 
 export async function writeTextFile(filePath: string, text: string): Promise<SaveResult> {

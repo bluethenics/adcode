@@ -23,22 +23,22 @@ import {
  * The site's origin, not an `api.` subdomain: the service is served by the same Cloudflare
  * Worker as the marketing site, at `/v1/*`. One deployment, one hostname, one certificate.
  *
- * **This is the workers.dev hostname on purpose.** It used to be
- * `https://adcode.bluethenics.com`, which is the domain the site is *intended* to answer
- * on and does not resolve yet - the custom domain needs `bluethenics.com`'s nameservers
- * moved to Cloudflare, and a Workers custom domain cannot be a CNAME, so it cannot be
- * done from the registrar. Until then that hostname has no DNS record at all.
+ * This is the brand domain, because that is where creative artwork is stored: the portal
+ * calls the API same-origin, so `requestOrigin` is this host and `assetUrl` writes logos
+ * at `https://adcode.bluethenics.com/assets/...`. The ad client validates logos with
+ * exact-hostname equality against this origin's hostname, so pointing anywhere else
+ * rejects every real creative - and one bad creative used to fail the whole serve
+ * response, leaving the editor with no inventory at all.
  *
- * Every single thing this app does over the network went through it: ad serving,
- * receipts, the balance, account linking, notices, releases, activity, and the feedback
- * form - which is where it finally surfaced, as "Could not reach the server. Check your
- * connection." That message was accurate and pointed at the user's network instead of at
- * a hostname that has never existed.
+ * It used to be the `workers.dev` hostname while the custom domain had no DNS record
+ * (SETUP.md step 13). That record now exists and `/v1/health` answers `{"ok":true}` on
+ * both hostnames, so the client follows the canonical origin. Older packaged builds
+ * keep talking to `workers.dev`, which keeps serving - nothing breaks for them.
  *
- * Change this back the day step 13 of SETUP.md is done. It is read at build time, so a
- * packaged installer carries whatever was set when `npm run package` ran.
+ * It is read at build time, so a packaged installer carries whatever was set when
+ * `npm run package` ran.
  */
-export const DEFAULT_API_ORIGIN = "https://adcode.bluethenics01.workers.dev";
+export const DEFAULT_API_ORIGIN = "https://adcode.bluethenics.com";
 
 /**
  * The Firebase web API key for `adcode-idle`.

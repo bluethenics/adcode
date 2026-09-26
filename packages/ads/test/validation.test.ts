@@ -277,3 +277,56 @@ describe("parseServeResponse - the admin test flag", () => {
     }
   });
 });
+
+/*
+ * One bad creative must not empty the batch.
+ *
+ * Production failure: portal-stored logos lived on `adcode.bluethenics.com` while the
+ * desktop client validated against `adcode.bluethenics01.workers.dev`. The host check
+ * is exact-hostname equality (never endsWith/includes), and it used to fail the whole
+ * `parseServeResponse` on the first bad creative - so a single wrong-host logo hid
+ * every valid creative alongside it and the editor concluded it had no inventory.
+ */
+describe("parseServeResponse - one bad creative does not kill the batch", () => {
+  const good = (id: string): Record<string, unknown> =>
+    creative({ creativeId: id, logoLight: `https://${HOST}/${id}-light.png`, logoDark: `https://${HOST}/${id}-dark.png` });
+  const badHost = (id: string): Record<string, unknown> =>
+    creative({ creativeId: id, logoLight: "https://wrong.host/x-light.png", logoDark: `https://${HOST}/${id}-dark.png` });
+
+  it("skips a wrong-host creative and returns the valid one after it", () => {
+    const parsed = parseServeResponse(serve(badHost("cr-bad"), good("cr-good")), HOST);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.value.map((c) => c.creativeId)).toEqual(["cr-good"]);
+  });
+
+  it("skips a wrong-host creative and returns the valid one before it", () => {
+    const parsed = parseServeResponse(serve(good("cr-good"), badHost("cr-bad")), HOST);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.value.map((c) => c.creativeId)).toEqual(["cr-good"]);
+  });
+
+  it("skips a data: logo without accepting it", () => {
+    const parsed = parseServeResponse(
+      serve(creative({ creativeId: "cr-inline", logoLight: "data:image/png;base64,AAAA" }), good("cr-good")),
+      HOST,
+    );
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.value.map((c) => c.creativeId)).toEqual(["cr-good"]);
+      for (const c of parsed.value) {
+        expect(c.logoLight.startsWith("data:")).toBe(false);
+      }
+    }
+  });
+
+  it("still fails when nothing usable remains, reporting the first error", () => {
+    const parsed = parseServeResponse(serve(badHost("cr-bad")), HOST);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.error.field).toBe("creatives[0].logoLight");
+  });
+
+  it("still fails the whole response on a top-level shape error", () => {
+    expect(parseServeResponse('{"creatives":"not-an-array"}', HOST).ok).toBe(false);
+    expect(parseServeResponse("{not json", HOST).ok).toBe(false);
+  });
+});

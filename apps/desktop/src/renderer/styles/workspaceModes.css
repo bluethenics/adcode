@@ -70,7 +70,7 @@ body[data-agent-workbench="true"][data-mode-hint="true"] { grid-template-rows: 3
 body[data-workspace-mode="code"] .vibe-workspace { display: none; }
 body[data-workspace-mode="vibe"] .main > .tabs, body[data-workspace-mode="vibe"] .main > .breadcrumbs { display: none; }
 body[data-workspace-mode="vibe"] .main { grid-template-rows: minmax(0, 1fr) auto auto; }
-body[data-workspace-mode="vibe"] #editor-host, body[data-workspace-mode="vibe"] #editor-placeholder { visibility: hidden; pointer-events: none; }
+body[data-workspace-mode="vibe"] #editor-host, body[data-workspace-mode="vibe"] #editor-placeholder, body[data-workspace-mode="vibe"] .image-preview { visibility: hidden; pointer-events: none; }
 body[data-workspace-mode="vibe"] .editor-area { grid-row: 1; }
 body[data-workspace-mode="vibe"] #splitter-panel { grid-row: 2; }
 body[data-workspace-mode="vibe"] #panel { grid-row: 3; }

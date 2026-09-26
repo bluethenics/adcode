@@ -103,6 +103,7 @@ import {
   languageForFilename,
 } from "./editor/editorHost.ts";
 import { createEditorWorkspace } from "./editor/editorWorkspace.ts";
+import { createImagePreview, isImagePath } from "./editor/imagePreview.ts";
 import { startActivityTracker } from "./activity/activityTracker.ts";
 import { resolveTheme } from "./theme.ts";
 import {
@@ -174,10 +175,14 @@ interface OpenTab {
   readonly path: string;
   readonly name: string;
   dirty: boolean;
+  /** Images preview rather than edit: no Monaco model, nothing to save. */
+  readonly kind: "text" | "image";
 }
 
 const tabs: OpenTab[] = [];
 let activePath: string | null = null;
+/** Image bytes by path, so switching tabs does not re-read the file. Cleared on close. */
+const imageCache = new Map<string, { dataUrl: string; mediaType: string; sizeBytes: number }>();
 let workspaceRoot: string | null = null;
 let terminal: TerminalPanel | null = null;
 let theme: ThemeChoice = "dark";
@@ -223,6 +228,16 @@ const editorHost = createEditorWorkspace(el("editor-host"), {
       ? relative
       : `${workspaceRoot.replace(/[\/]+$/, "")}/${relative}`,
 }, (path) => activateTab(path));
+
+/*
+ * Image preview overlay, sibling to the Monaco host inside #editor-area.
+ *
+ * Monaco edits text; images preview here instead. Shown when the active tab is an
+ * image, hidden otherwise - the tab strip, placeholder rules, and session memory all
+ * stay the same, only the surface swaps.
+ */
+const imagePreview = createImagePreview();
+el("editor-area").append(imagePreview.element);
 
 /*
  * The editing counters.
@@ -445,12 +460,26 @@ function activateTab(path: string): void {
   if (sessionReady && assistantDock?.mode() === "vibe") assistantDock.setMode("code");
   activePath = path;
   projectContext?.refresh();
-  editorHost.activate(path);
-  el("editor-placeholder").dataset["visible"] = "false";
-
   const tab = tabs.find((t) => t.path === path);
-  el("status-language").textContent =
-    tab === undefined ? "" : languageForFilename(tab.name);
+  const isImage = tab?.kind === "image" || (tab === undefined && isImagePath(path));
+
+  if (isImage) {
+    const cached = imageCache.get(path);
+    if (cached !== undefined && tab !== undefined) {
+      imagePreview.show(path, tab.name, cached);
+    }
+    el("editor-host").style.visibility = "hidden";
+    el("editor-placeholder").dataset["visible"] = "false";
+    el("status-language").textContent = "Image";
+    el("status-position").textContent = "";
+  } else {
+    imagePreview.hide();
+    el("editor-host").style.visibility = "";
+    editorHost.activate(path);
+    el("editor-placeholder").dataset["visible"] = "false";
+    el("status-language").textContent =
+      tab === undefined ? "" : languageForFilename(tab.name);
+  }
 
   renderTabs();
   runButton.refresh();
@@ -475,15 +504,19 @@ function closeTab(path: string): void {
   const index = tabs.findIndex((t) => t.path === path);
   if (index === -1) return;
 
+  const closed = tabs[index]!;
   tabs.splice(index, 1);
+  imageCache.delete(path);
   // Before `editorHost.close`, which disposes the model the binding is listening to.
   collabSession.untrackFile(path);
-  editorHost.close(path);
+  if (closed.kind !== "image") editorHost.close(path);
 
   if (activePath === path) {
     const next = tabs[index] ?? tabs[index - 1];
     if (next === undefined) {
       activePath = null;
+      imagePreview.hide();
+      el("editor-host").style.visibility = "";
       el("editor-placeholder").dataset["visible"] = "true";
       el("status-language").textContent = "";
       el("status-position").textContent = "Ln 1, Col 1";
@@ -502,7 +535,32 @@ function closeTab(path: string): void {
 async function openFile(path: string): Promise<void> {
   const existing = tabs.find((t) => t.path === path);
   if (existing !== undefined) {
+    // An image tab holds cached bytes; a text tab holds a Monaco model. Either way,
+    // activating re-shows what is already open without re-reading.
+    if (existing.kind === "image" && !imageCache.has(path)) {
+      try {
+        const image = await window.adcode.files.readImage(path);
+        imageCache.set(path, { dataUrl: image.dataUrl, mediaType: image.mediaType, sizeBytes: image.sizeBytes });
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "could not open image");
+        return;
+      }
+    }
     activateTab(path);
+    return;
+  }
+
+  if (isImagePath(path)) {
+    try {
+      const image = await window.adcode.files.readImage(path);
+      const name = basename(path);
+      imageCache.set(path, { dataUrl: image.dataUrl, mediaType: image.mediaType, sizeBytes: image.sizeBytes });
+      tabs.push({ path, name, dirty: false, kind: "image" });
+      activateTab(path);
+      // Deliberately not tracked by collab: there is no text buffer to share.
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "could not open image");
+    }
     return;
   }
 
@@ -511,7 +569,7 @@ async function openFile(path: string): Promise<void> {
     const name = basename(path);
 
     editorHost.open(path, file.text, languageForFilename(name));
-    tabs.push({ path, name, dirty: false });
+    tabs.push({ path, name, dirty: false, kind: "text" });
     activateTab(path);
 
     // Joins the file to a running session, if there is one. A no-op otherwise, so this costs
@@ -524,6 +582,11 @@ async function openFile(path: string): Promise<void> {
 
 async function saveActive(): Promise<void> {
   if (activePath === null) return;
+
+  if (isImagePath(activePath)) {
+    setStatus("Images are preview-only and cannot be edited here.", 3000);
+    return;
+  }
 
   if (editorHost.isReadOnly(activePath)) {
     setStatus(
@@ -543,6 +606,7 @@ async function saveActive(): Promise<void> {
  * typed in, which is not necessarily the one the user is now looking at.
  */
 async function savePath(path: string): Promise<void> {
+  if (isImagePath(path)) return;
   if (editorHost.isReadOnly(path)) return;
 
   /*
@@ -752,7 +816,19 @@ function retitleTab(oldPath: string, newPath: string): void {
   const index = tabs.indexOf(tab);
   tabs[index] = { ...tab, path: newPath, name: baseName(newPath) };
 
-  editorHost.rename(oldPath, newPath);
+  if (tab.kind === "image") {
+    const cached = imageCache.get(oldPath);
+    if (cached !== undefined) {
+      imageCache.delete(oldPath);
+      imageCache.set(newPath, cached);
+    }
+    if (activePath === oldPath) {
+      activePath = newPath;
+      imagePreview.show(newPath, baseName(newPath), imageCache.get(newPath) ?? { dataUrl: "", mediaType: "", sizeBytes: 0 });
+    }
+  } else {
+    editorHost.rename(oldPath, newPath);
+  }
   if (activePath === oldPath) activePath = newPath;
 
   renderTabs();
@@ -989,6 +1065,7 @@ function insertTemplate(
   options: { readonly onlyIfEmpty?: boolean } = {},
 ): void {
   if (activePath === null) return;
+  if (isImagePath(activePath)) return;
 
   if (
     settingsValues["adcode.editing.fileTemplates"] === false &&
@@ -1327,6 +1404,20 @@ function attachRowDragAndDrop(row: HTMLElement, entry: DirEntry): void {
  * over the restored file on the next save.
  */
 async function reloadFile(path: string): Promise<boolean> {
+  if (isImagePath(path)) {
+    try {
+      const image = await window.adcode.files.readImage(path);
+      imageCache.set(path, { dataUrl: image.dataUrl, mediaType: image.mediaType, sizeBytes: image.sizeBytes });
+      if (path === activePath) {
+        const tab = tabs.find((t) => t.path === path);
+        if (tab !== undefined) imagePreview.show(path, tab.name, imageCache.get(path)!);
+      }
+      return true;
+    } catch {
+      setStatus("Could not re-read that image.", 3000);
+      return false;
+    }
+  }
   try {
     const file = await window.adcode.files.read(path);
     editorHost.replaceText(path, file.text);
@@ -2579,6 +2670,11 @@ function refreshBreadcrumbs(): void {
     return;
   }
 
+  if (isImagePath(activePath)) {
+    breadcrumbs.update(activePath, "image", "", 1);
+    return;
+  }
+
   const text = editorHost.text(activePath);
   const name = activePath.split(/[\/]/).pop() ?? activePath;
   breadcrumbs.update(
@@ -2647,6 +2743,11 @@ const styleHints = createStyleHints({
 
 function refreshStyleHints(): void {
   if (activePath === null) {
+    styleHints.refresh(null, "", "");
+    return;
+  }
+
+  if (isImagePath(activePath)) {
     styleHints.refresh(null, "", "");
     return;
   }
@@ -3529,7 +3630,7 @@ async function openLocalVersion(
 
   editorHost.open(key, text, languageForFilename(path));
   editorHost.setReadOnly(key, true);
-  tabs.push({ path: key, name, dirty: false });
+  tabs.push({ path: key, name, dirty: false, kind: "text" });
   activateTab(key);
 }
 
@@ -3560,7 +3661,7 @@ async function openRevision(
 
   editorHost.open(key, text, languageForFilename(path));
   editorHost.setReadOnly(key, true);
-  tabs.push({ path: key, name, dirty: false });
+  tabs.push({ path: key, name, dirty: false, kind: "text" });
   activateTab(key);
 }
 
@@ -3595,7 +3696,7 @@ async function openCommitDiff(
 
   editorHost.open(key, diff, "diff");
   editorHost.setReadOnly(key, true);
-  tabs.push({ path: key, name, dirty: false });
+  tabs.push({ path: key, name, dirty: false, kind: "text" });
   activateTab(key);
 }
 
@@ -3943,6 +4044,8 @@ const runButton = createRunButton({
   activeFile: () => {
     if (activePath === null) return null;
 
+    // Images preview; historical buffers are synthetic. Neither is anything anyone can run.
+    if (isImagePath(activePath)) return null;
     // Read-only historical buffers have synthetic paths and are not files anyone can run.
     if (editorHost.isReadOnly(activePath)) return null;
 
@@ -4258,6 +4361,14 @@ async function refreshGitOverlay(): Promise<void> {
     return;
   }
 
+  // Images have no gutter to decorate - but they are still files git tracks.
+  if (isImagePath(activePath)) {
+    overlay.setLineChanges([]);
+    overlay.setBlame(null);
+    sourceControl.setActiveFile(relative);
+    return;
+  }
+
   sourceControl.setActiveFile(relative);
 
   // §4: "gutter diff decorations `on`" and "blame `off`" - both are settings, so both ask
@@ -4316,12 +4427,17 @@ const chat = createChatWidget({
       value: current,
       confirmLabel: "Rename",
     }),
+  promptText: (title, body, value) =>
+    promptDialog.ask({ title, body, value, confirmLabel: "Save" }),
+  switchFolder: () => { void openFolder(); },
+  currentFolder: () => workspaceRoot,
   // What the user is looking at, sent with every message. Vibe hides the editor, so a
   // selection left behind there is stale and stays out; the file and tabs still orient.
   editorContext: () => {
     const shorten = (path: string): string => relativePath(path) ?? path.split(/[\\/]/).pop() ?? path;
     const mode = assistantDock?.mode() ?? "code";
-    const context = activePath === null ? null : editorHost.assistantContext();
+    // Images have no buffer, cursor, or diagnostics - but the file name still orients.
+    const context = activePath === null || isImagePath(activePath) ? null : editorHost.assistantContext();
     return {
       mode,
       activeFile: activePath === null ? null : shorten(activePath),
@@ -4343,6 +4459,7 @@ const chat = createChatWidget({
   },
   readMention: async (relative) => {
     const absolute = absolutePath(relative);
+    if (isImagePath(absolute)) return "[image file - preview only, not readable as text]";
     const open = tabs.find((tab) => tab.path.replace(/\\/g, "/") === absolute.replace(/\\/g, "/"));
     const buffered = open === undefined ? null : editorHost.text(open.path);
     if (buffered !== null) return buffered;
@@ -4901,7 +5018,7 @@ function registerCommands(): void {
     const key = `adcode-untitled:${++untitledCount}`;
 
     editorHost.open(key, "", "plaintext");
-    tabs.push({ path: key, name: `Untitled-${untitledCount}`, dirty: false });
+    tabs.push({ path: key, name: `Untitled-${untitledCount}`, dirty: false, kind: "text" });
     activateTab(key);
   });
   add("workspace.open", "Open Folder", () => openFolder());
@@ -4910,6 +5027,26 @@ function registerCommands(): void {
     void (async () => {
       const picked = await window.adcode.files.openDialog();
       if (picked !== null) await openPickedFile(picked);
+    })();
+  });
+
+  /*
+   * The discoverable route into image preview.
+   *
+   * Opening an image from the tree needs no command - it previews on its own. This
+   * exists so the feature library, the palette, and universal search have something to
+   * offer besides "click a PNG and see". It picks a file and says so when it is not an
+   * image, rather than opening text it was not asked for.
+   */
+  add("file.openImage", "Open Image Preview", () => {
+    void (async () => {
+      const picked = await window.adcode.files.openDialog();
+      if (picked === null) return;
+      if (!isImagePath(picked)) {
+        setStatus("That is not a supported image (png, jpg, gif, webp, svg, ico, bmp).", 4000);
+        return;
+      }
+      await openPickedFile(picked);
     })();
   });
 
@@ -5021,17 +5158,100 @@ function registerCommands(): void {
     "editor.action.formatDocument",
   );
 
-  // Clipboard reaches the focused control through Electron's native menu roles. From the
-  // keyboard Chromium already handles it; these exist so the ids resolve.
+  // Clipboard reaches the focused control through Electron's native menu roles for
+  // real keystrokes; these commands exist so menu, palette, and shortcut
+  // invocations do the same work instead of silently failing. A bare
+  // `document.execCommand("copy")` copies nothing without a copy-event handler
+  // (chat transcript, terminal selection), and paste was a no-op message.
+  function focusedTerminal(): boolean {
+    const active = document.activeElement;
+    return (
+      active instanceof HTMLElement && active.closest(".terminal-tab-body, .xterm") !== null
+    );
+  }
+  async function copySelection(): Promise<void> {
+    // xterm keeps its own selection off the DOM, so route there first.
+    if (focusedTerminal()) {
+      terminalPanel().copy();
+      return;
+    }
+    const text = window.getSelection()?.toString() ?? "";
+    if (text.length > 0) {
+      try {
+        await window.adcode.clipboard.writeText(text);
+        return;
+      } catch {
+        // Fall through to the legacy path below.
+      }
+    }
+    document.execCommand("copy");
+  }
+  async function cutSelection(): Promise<void> {
+    if (focusedTerminal()) {
+      terminalPanel().copy();
+      return;
+    }
+    const text = window.getSelection()?.toString() ?? "";
+    if (text.length === 0) {
+      document.execCommand("cut");
+      return;
+    }
+    try {
+      await window.adcode.clipboard.writeText(text);
+    } catch {
+      document.execCommand("copy");
+      return;
+    }
+    const active = document.activeElement;
+    if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) {
+      const start = active.selectionStart ?? 0;
+      const end = active.selectionEnd ?? 0;
+      active.setRangeText("", start, end, "end");
+      active.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    } else if (active instanceof HTMLElement && active.isContentEditable) {
+      document.execCommand("delete");
+    }
+    // A read-only selection (chat transcript) is copied above; there is
+    // nothing to delete, which is exactly what native Cut does there.
+  }
+  async function pasteIntoFocused(): Promise<void> {
+    if (focusedTerminal()) {
+      terminalPanel().paste();
+      return;
+    }
+    let text = "";
+    try {
+      text = await window.adcode.clipboard.readText();
+    } catch {
+      text = "";
+    }
+    if (text.length === 0) {
+      setStatus("Clipboard is empty.", 2500);
+      return;
+    }
+    const active = document.activeElement;
+    if (active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement) {
+      const start = active.selectionStart ?? active.value.length;
+      const end = active.selectionEnd ?? start;
+      active.setRangeText(text, start, end, "end");
+      active.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      return;
+    }
+    if (active instanceof HTMLElement && active.isContentEditable) {
+      document.execCommand("insertText", false, text);
+      return;
+    }
+    setStatus("Focus a text field or the terminal, then paste.", 3000);
+  }
   add("edit.cut", "Cut", () => {
-    document.execCommand("cut");
+    void cutSelection();
   });
   add("edit.copy", "Copy", () => {
-    document.execCommand("copy");
+    void copySelection();
   });
-  add("edit.paste", "Paste", () =>
-    setStatus("Press Ctrl+V - paste needs the real keystroke.", 3000),
-  );
+  add("edit.paste", "Paste", () => {
+    void pasteIntoFocused();
+  });
 
   /* Selection */
   commands.registerEditorAction(
@@ -5843,7 +6063,7 @@ projectContext = createProjectContext({
       const key = `adcode-diff:${path}`;
       editorHost.open(key, diff, "diff");
       editorHost.setReadOnly(key, true);
-      if (!tabs.some(tab => tab.path === key)) tabs.push({ path: key, name: `${basename(path)} · changes`, dirty: false });
+      if (!tabs.some(tab => tab.path === key)) tabs.push({ path: key, name: `${basename(path)} · changes`, dirty: false, kind: "text" });
       activateTab(key);
     }).catch(() => setStatus("Could not load this diff. Open Source Control to retry.", 4000));
   },
@@ -5878,6 +6098,36 @@ window.adcode.ai.onProposedEdit((edit) => {
     actions: [{ label: "Review changes", run: () => commands.run("workspace.changes") }],
     tone: "info",
   });
+});
+
+/*
+ * Applied edits land on disk outside the Explorer, so without this the tree
+ * keeps showing yesterday and a new or changed file looks missing. Refresh
+ * the folders that changed — expanding them so a new file is actually
+ * visible — plus git status. This covers AI task applies and rollbacks as
+ * well as direct AI edits and commands.
+ */
+async function refreshProjectDirs(relativePaths: readonly string[]): Promise<void> {
+  if (workspaceRoot === null) return;
+  const dirs = new Set<string>();
+  for (const relative of relativePaths) {
+    dirs.add(containingDirOf(absolutePath(relative)));
+  }
+  if (dirs.size === 0) dirs.add(workspaceRoot);
+  for (const dir of dirs) {
+    await expandDirectory(dir);
+    await refreshDirectory(dir);
+  }
+  void sourceControl.refresh();
+}
+window.adcode.aiWorkspace.onChanged((task) => {
+  if (task === null || (task.state !== "applied" && task.state !== "rolled-back")) return;
+  // Reserve and progress announcements carry other states and are ignored, so
+  // a long run does not re-render the tree per round-trip.
+  void refreshProjectDirs(task.checkpointPaths);
+});
+window.adcode.workspace.onFilesChanged((paths) => {
+  void refreshProjectDirs(paths);
 });
 
 window.adcode.window.onCommand((command, arg) => commands.run(command, arg));

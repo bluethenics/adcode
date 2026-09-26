@@ -231,4 +231,58 @@ describe("handleRehostAssets", () => {
 
     expect(second.rehosted).toBe(0);
   });
+
+  it("rewrites wrong-host asset URLs onto the canonical origin, keeping the key", async () => {
+    const campaignId = await campaign();
+    const OLD_ORIGIN = "https://old-host.test";
+    // Bytes live in the shared store behind both hostnames, so only the host moves.
+    await store.putAsset("cr-moved-light.png", parseDataUrl(PNG_DATA_URL)!);
+    await store.putAsset("cr-moved-dark.png", parseDataUrl(PNG_DATA_URL)!);
+    await store.putCreative({
+      creativeId: "cr-moved",
+      campaignId,
+      advertiser: "Acme",
+      headline: "Ship faster",
+      body: null,
+      clickUrl: "https://acme.test/",
+      logoLight: `${OLD_ORIGIN}/assets/cr-moved-light.png`,
+      logoDark: `${OLD_ORIGIN}/assets/cr-moved-dark.png`,
+      status: "approved",
+    });
+
+    const result = await handleRehostAssets(deps(), "admin-1", ORIGIN);
+    expect(result.rehosted).toBe(1);
+
+    const fixed = await store.getCreative("cr-moved");
+    expect(fixed?.logoLight).toBe(`${ORIGIN}/assets/cr-moved-light.png`);
+    expect(fixed?.logoDark).toBe(`${ORIGIN}/assets/cr-moved-dark.png`);
+
+    const second = await handleRehostAssets(deps(), "admin-1", ORIGIN);
+    expect(second.rehosted).toBe(0);
+  });
+
+  it("leaves an external wrong-host logo alone rather than rewriting it somewhere wrong", async () => {
+    const campaignId = await campaign();
+    await store.putCreative({
+      creativeId: "cr-external",
+      campaignId,
+      advertiser: "Acme",
+      headline: "Ship faster",
+      body: null,
+      clickUrl: "https://acme.test/",
+      logoLight: "https://cdn.test/light.png",
+      logoDark: `${ORIGIN}/assets/cr-external-dark.png`,
+      status: "approved",
+    });
+    await store.putAsset("cr-external-dark.png", parseDataUrl(PNG_DATA_URL)!);
+
+    // Nothing it can repair: the external file's bytes are not in the store, so
+    // inventing an /assets URL for them would point at a 404. The client skips
+    // just this creative instead of discarding the whole batch.
+    const result = await handleRehostAssets(deps(), "admin-1", ORIGIN);
+    expect(result.rehosted).toBe(0);
+
+    const kept = await store.getCreative("cr-external");
+    expect(kept?.logoLight).toBe("https://cdn.test/light.png");
+  });
 });

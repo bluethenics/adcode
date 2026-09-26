@@ -1,4 +1,5 @@
 import type { AiWorkspaceTaskView } from "../../shared/api.ts";
+import { groupWorkspaceTraces, TRACE_PREVIEW_LIMIT } from "../ai/aiWorkspaceViewModel.ts";
 import { createHelpPopover } from "../help/helpPopover.ts";
 
 export type ContextTab = "project" | "changes" | "tasks";
@@ -221,16 +222,33 @@ export function createProjectContext(deps: ContextDeps) {
                 const removed = change.hunks.reduce((n, h) => n + h.original.length, 0);
                 action(change.path, () => deps.reviewTask(task), activity, `+${added} −${removed} · Review proposed file`);
               }
+              // Each tool call is stored as a start and a finish event. Grouping
+              // them and capping the list keeps a 40-step task to one screen.
+              const grouped = groupWorkspaceTraces(events);
               if (!events.length) paragraph("No recorded commands or results for this task.", activity);
-              for (const event of events) {
-                const entry = document.createElement("details");
-                entry.className = "context-trace";
-                const label = document.createElement("summary");
-                label.textContent = `${event.outcome} · ${event.summary}`;
-                entry.append(label);
-                paragraph(event.detail, entry, "context-trace-detail");
-                activity.append(entry);
-              }
+              const list = document.createElement("div");
+              activity.append(list);
+              const paintSteps = (visible: number): void => {
+                list.replaceChildren();
+                for (const step of grouped.slice(0, visible)) {
+                  const entry = document.createElement("details");
+                  entry.className = "context-trace";
+                  const label = document.createElement("summary");
+                  label.textContent = `${step.outcome} · ${step.summary}`;
+                  entry.append(label);
+                  if (step.detail.length > 0) paragraph(step.detail, entry, "context-trace-detail");
+                  list.append(entry);
+                }
+                if (visible < grouped.length) {
+                  const more = document.createElement("button");
+                  more.type = "button";
+                  more.className = "context-action";
+                  more.textContent = `Show all ${grouped.length} steps`;
+                  more.addEventListener("click", () => paintSteps(grouped.length));
+                  list.append(more);
+                }
+              };
+              paintSteps(Math.min(TRACE_PREVIEW_LIMIT, grouped.length));
             }).catch(() => { activity.replaceChildren(); paragraph("Could not load task details. Close and reopen this task to retry.", activity); loaded = false; });
           });
           fragment.append(row);

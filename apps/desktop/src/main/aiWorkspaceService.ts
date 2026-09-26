@@ -122,6 +122,13 @@ export interface AiWorkspaceService {
   applyTrusted(taskId: string): Promise<AiWorkspaceActionResult>;
   reject(taskId: string, path: string): Promise<AiWorkspaceTask>;
   discard(taskId: string): Promise<AiWorkspaceTask | null>;
+  /**
+   * Delete a task completely: record, trace log, sandbox and checkpoints.
+   *
+   * Refuses active work (cancel it first) and applied tasks whose checkpoint is
+   * the only way back (roll back first). Returns false when the task is gone.
+   */
+  remove(taskId: string): Promise<boolean>;
   rollback(taskId: string): Promise<AiWorkspaceActionResult>;
   traces(taskId: string): Promise<OperationalTrace[]>;
   recordTrace(taskId: string, input: AiWorkspaceTraceInput): Promise<void>;
@@ -816,6 +823,26 @@ export function createAiWorkspaceService(options: AiWorkspaceServiceOptions): Ai
       await store.save(task);
       await trace(task.id, "state", "Discarded task workspace", "ok");
       return task;
+    },
+
+    async remove(taskId): Promise<boolean> {
+      const task = await store.read(taskId);
+      if (task === null) return false;
+      if (
+        task.state === "preparing" ||
+        task.state === "ready" ||
+        task.state === "running" ||
+        task.state === "applying" ||
+        task.state === "rolling-back"
+      ) {
+        throw new Error("Task is still working; cancel it before deleting.");
+      }
+      if (task.checkpoint !== null) {
+        throw new Error("Task has a rollback checkpoint; roll it back before deleting.");
+      }
+      await removeTaskSandbox(task);
+      await store.remove(taskId);
+      return true;
     },
 
     async rollback(taskId): Promise<AiWorkspaceActionResult> {

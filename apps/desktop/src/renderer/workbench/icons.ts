@@ -107,6 +107,29 @@ export const ICON = {
    */
   more: "M4 8h.01M8 8h.01M12 8h.01",
 
+  /* ── Chat message actions (Claude-style footer) ─────────────────────── */
+
+  /**
+   * Copy: two overlapping squares. Back square (3,3)-(11,11) centres at
+   * (7,7), front square (5,5)-(13,13) centres at (9,9) — the pair centres
+   * at (8, 8) by construction.
+   */
+  copy: "M3 3h8v8H3z M5 5h8v8H5z",
+
+  /**
+   * Speaker: box centred on x = 8, waves to the right. Vertical centre 8.
+   */
+  speaker: "M3 6.5v3h2.2L8 12.5v-9L5.2 6.5z M10 6a3.2 3.2 0 0 1 0 4 M11.8 4.2a5.6 5.6 0 0 1 0 7.6",
+
+  /** Thumbs up: fist with thumb rising. Ink centres near (8, 8). */
+  thumbUp: "M3.5 8.5v4H6v-4z M6 12.5V7l2.3-3.4c.8 0 1.2.7 1 1.5L8.8 7.2H13l-1 5.3z",
+
+  /** Thumbs down: vertical mirror of the up vote. */
+  thumbDown: "M3.5 3.5v4H6v-4z M6 3.5V9l2.3 3.4c.8 0 1.2-.7 1-1.5l-.5-1.9H13l-1-5.5z",
+
+  /** Pencil for Edit prompt. Diagonal, crossing near (8, 8). */
+  edit: "M4 12l1-4L11.5 2.5a1.4 1.4 0 0 1 2 2L7 11z M10.8 3.2l2 2",
+
   /* ── Filtering ──────────────────────────────────────────────────────────── */
 
   /**

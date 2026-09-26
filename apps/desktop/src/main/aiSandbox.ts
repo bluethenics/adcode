@@ -20,11 +20,23 @@ const SHADOW_EXCLUDES = new Set([
   ".worktrees",
   ".next",
   ".turbo",
+  ".open-next",
+  ".wrangler",
+  ".analytics-worker-check",
+  ".adcode-cache",
+  ".adcode",
+  "artifacts",
+  "build",
   "coverage",
   "dist",
   "node_modules",
   "out",
   "release",
+  // Belt-and-braces: even if a cache root is ever allowed, never copy
+  // packaged installer output (the EBUSY `app.asar` unlink came from
+  // `.adcode-cache/ci-release-artifacts/win-unpacked`).
+  "ci-release-artifacts",
+  "win-unpacked",
 ]);
 
 function comparePath(path: string): string {
@@ -43,6 +55,32 @@ async function exists(path: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+const TRANSIENT_REMOVE_CODES = new Set(["EBUSY", "EPERM", "EACCES", "ENOTEMPTY"]);
+
+function removeDelay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+/**
+ * Windows virus scanners, search indexers, and open handles briefly lock files
+ * inside a sandbox (historically a copied `app.asar`). A plain `rm` surfaces
+ * that as `EBUSY: resource busy or locked, unlink ...` and fails the discard.
+ * Retry transient lock errors with backoff; never delete anything outside the
+ * validated sandbox root to work around a lock.
+ */
+async function removePathWithRetry(path: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await rm(path, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | null)?.code;
+      if (attempt >= 5 || code === undefined || !TRANSIENT_REMOVE_CODES.has(code)) throw error;
+      await removeDelay(50 * 2 ** attempt);
+    }
   }
 }
 
@@ -123,7 +161,7 @@ async function createShadowCopyOrClean(source: string, target: string): Promise<
   try {
     await createShadowCopy(source, target);
   } catch (error) {
-    await rm(target, { recursive: true, force: true });
+    await removePathWithRetry(target);
     throw error;
   }
 }
@@ -199,7 +237,7 @@ export async function captureAiSandboxBase(
       if (cleaned) return;
       cleaned = true;
       if (!isWithin(teamsRoot, baseRoot)) throw new Error("Invalid Team shadow base path");
-      await rm(baseRoot, { recursive: true, force: true });
+      await removePathWithRetry(baseRoot);
     },
   };
 }
@@ -229,7 +267,7 @@ export async function removeAiSandbox(input: RemoveAiSandboxInput): Promise<void
   if (input.kind === "git-worktree") {
     await gitOutput(input.workspaceRoot, ["worktree", "remove", "--force", root]);
   }
-  await rm(root, { recursive: true, force: true });
+  await removePathWithRetry(root);
 }
 
 export async function createAiSandbox(input: CreateAiSandboxInput): Promise<CreatedAiSandbox> {
@@ -254,7 +292,7 @@ export async function createAiSandbox(input: CreateAiSandboxInput): Promise<Crea
     ]);
     if (added === null) {
       await gitOutput(workspace, ["worktree", "remove", "--force", root]);
-      await rm(root, { recursive: true, force: true });
+      await removePathWithRetry(root);
       throw new Error("Could not create a worktree at the captured revision");
     }
     kind = "git-worktree";
@@ -272,7 +310,7 @@ export async function createAiSandbox(input: CreateAiSandboxInput): Promise<Crea
     // A failed worktree command can leave a partial directory even though it returned an
     // error. It is safe to remove only because `root` was derived from the validated task
     // id and proved inside this store's registry above.
-    await rm(root, { recursive: true, force: true });
+    await removePathWithRetry(root);
     await createShadowCopyOrClean(workspace, root);
   }
 

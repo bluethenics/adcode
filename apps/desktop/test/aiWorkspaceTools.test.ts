@@ -60,6 +60,48 @@ describe("sandboxed built-in AI tools", () => {
     expect(search.content).toContain("src/file.ts:1: sandbox version");
   });
 
+  it("reads the live project without a task while edits go through the write workspace", async () => {
+    const workspace = vi.fn(async () => ({ taskId: "", sandboxRoot: human, humanRoot: human }));
+    const writeWorkspace = vi.fn(async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }));
+    const runner = createAiToolRunner({
+      workspace,
+      writeWorkspace,
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, "sandbox version\n", contents),
+      onProposedEdit: () => undefined,
+    });
+
+    const read = await runner.run(call("read_file", { path: "src/file.ts" }), new AbortController().signal);
+    expect(read.isError).toBe(false);
+    expect(read.content).toContain("human version");
+    expect(writeWorkspace).not.toHaveBeenCalled();
+
+    const edit = await runner.run(
+      call("propose_edit", { path: "src/file.ts", contents: "agent version\n" }),
+      new AbortController().signal,
+    );
+    expect(edit.isError).toBe(false);
+    expect(writeWorkspace).toHaveBeenCalled();
+  });
+
+  it("fails an edit cleanly when the write workspace is unavailable", async () => {
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "", sandboxRoot: human, humanRoot: human }),
+      writeWorkspace: async () => null,
+      workspaceUnavailableMessage: () => "Save a.ts before starting AI file tools.",
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, "", contents),
+      onProposedEdit: () => undefined,
+    });
+
+    const result = await runner.run(
+      call("propose_edit", { path: "src/file.ts", contents: "agent version\n" }),
+      new AbortController().signal,
+    );
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain("Save a.ts");
+  });
+
   it("writes a proposal into the sandbox and emits a diff addressed to the human file", async () => {
     let proposed: ProposedEdit | null = null;
     const writeSandboxFile = vi.fn(async (path: string, contents: string) => {
@@ -281,6 +323,39 @@ describe("sandboxed built-in AI tools", () => {
     const blocked = await runner.run(call("run_command", { command: "rm -rf /" }), signal);
     expect(blocked.isError).toBe(true);
     expect(blocked.content).toMatch(/blocked/i);
+  });
+
+  it("says plainly when an edit lands straight in the project", async () => {
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "", sandboxRoot: human, humanRoot: human }),
+      directWrites: true,
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, "human version\n", contents),
+      onProposedEdit: () => undefined,
+    });
+
+    const result = await runner.run(
+      call("propose_edit", { path: "src/file.ts", contents: "agent version\n" }),
+      new AbortController().signal,
+    );
+    expect(result.isError).toBe(false);
+    expect(result.content).toContain("in your project");
+    expect(result.content).not.toContain("isolated");
+  });
+
+  it("notifies when a command finishes so the Explorer can refresh", async () => {
+    const onCommandFinished = vi.fn();
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "", sandboxRoot: human, humanRoot: human }),
+      onCommandFinished,
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, null, contents),
+      onProposedEdit: () => undefined,
+    });
+
+    const result = await runner.run(call("run_command", { command: "echo tool-ok" }), new AbortController().signal);
+    expect(result.isError).toBe(false);
+    expect(onCommandFinished).toHaveBeenCalledTimes(1);
   });
 
   it("refuses unsafe fetch URLs before touching the network", async () => {

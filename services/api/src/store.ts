@@ -509,8 +509,8 @@ export interface WithdrawalPage {
 }
 
 export interface Store {
-  /** Anonymous lifetime totals. Excludes zero-cost test receipts; no account data. */
-  publicStats(): Promise<{ impressions: number; clicks: number; activeCampaigns: number }>;
+  /** Anonymous lifetime totals. Excludes zero-cost test receipts; counts active users only; no account data. */
+  publicStats(): Promise<{ impressions: number; clicks: number; activeCampaigns: number; developers: number }>;
   getUser(uid: string): Promise<UserRecord | null>;
   putUser(user: UserRecord): Promise<void>;
 

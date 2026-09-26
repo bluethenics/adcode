@@ -32,12 +32,14 @@ const api: AdcodeApi = {
     close: () => ipcRenderer.invoke(CHANNELS.workspaceClose),
     current: () => ipcRenderer.invoke(CHANNELS.workspaceCurrent),
     list: (dirPath) => ipcRenderer.invoke(CHANNELS.fsList, dirPath),
+    onFilesChanged: (listener) => subscribe(CHANNELS.workspaceFilesChanged, listener),
   },
   app: {
     info: () => ipcRenderer.invoke(CHANNELS.appInfo),
   },
   files: {
     read: (filePath) => ipcRenderer.invoke(CHANNELS.fsRead, filePath),
+    readImage: (filePath) => ipcRenderer.invoke(CHANNELS.fsReadImage, filePath),
     openDialog: () => ipcRenderer.invoke(CHANNELS.filesOpenDialog),
     write: (filePath, text) => ipcRenderer.invoke(CHANNELS.fsWrite, filePath, text),
     saveAs: (text, suggestedName) => ipcRenderer.invoke(CHANNELS.fsSaveAs, text, suggestedName),
@@ -168,6 +170,7 @@ const api: AdcodeApi = {
     apply: (taskId, selections) =>
       ipcRenderer.invoke(CHANNELS.aiWorkspaceApply, taskId, selections),
     discard: (taskId) => ipcRenderer.invoke(CHANNELS.aiWorkspaceDiscard, taskId),
+    remove: (taskId) => ipcRenderer.invoke(CHANNELS.aiWorkspaceRemove, taskId),
     rollback: (taskId) => ipcRenderer.invoke(CHANNELS.aiWorkspaceRollback, taskId),
     onChanged: (listener) => subscribe(CHANNELS.aiWorkspaceChanged, listener),
   },

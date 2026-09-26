@@ -128,7 +128,7 @@ describe("appearance", () => {
 });
 
 describe("AI workspace settings", () => {
-  it("defaults to isolated review with unbounded task tokens", () => {
+  it("edits the project directly with file tools on by default", () => {
     expect(byId.get("adcode.ai.isolatedWorkspaces" as SettingId)?.default).toBe(true);
     expect(byId.get("adcode.ai.autoContinue" as SettingId)?.default).toBe(false);
     expect(byId.get("adcode.ai.autoContinue" as SettingId)?.available).toBe(true);
@@ -138,7 +138,6 @@ describe("AI workspace settings", () => {
     const expected = new Map([
       ["adcode.ai.editPolicy", ["review", "trusted"]],
       ["adcode.ai.autoContinueRetries", ["1", "3", "5"]],
-      ["adcode.ai.taskTokenBudget", ["unlimited", "25000", "100000", "250000"]],
       ["adcode.ai.sandboxQuota", ["1gb", "5gb", "10gb"]],
       ["adcode.ai.sandboxRetention", ["1d", "7d", "30d"]],
       ["adcode.ai.checkpointRetention", ["7d", "30d", "90d"]],
@@ -149,6 +148,17 @@ describe("AI workspace settings", () => {
       if (setting?.kind === "enum") expect(setting.options.map((option) => option.value)).toEqual(options);
       expect(setting?.available).toBe(true);
     }
+
+    // Task budgets are paused while the assistant edits directly: no isolated
+    // tasks are created, so there is nothing to cap. The rows stay visible but
+    // disabled until Team task controls need them.
+    const budget = byId.get("adcode.ai.taskTokenBudget" as SettingId);
+    expect(budget?.kind).toBe("enum");
+    if (budget?.kind === "enum") {
+      expect(budget.options.map((option) => option.value)).toEqual(["unlimited", "25000", "100000", "250000"]);
+    }
+    expect(budget?.available).toBe(false);
+    expect(byId.get("adcode.ai.taskTokenBudgetCustom" as SettingId)?.available).toBe(false);
 
     expect(byId.get("adcode.ai.taskTokenBudget" as SettingId)?.default).toBe("unlimited");
     expect(byId.get("adcode.ai.editPolicy" as SettingId)?.default).toBe("review");

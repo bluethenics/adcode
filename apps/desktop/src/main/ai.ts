@@ -11,7 +11,8 @@
  * Nothing in this file throws into the window.
  */
 import { randomUUID } from "node:crypto";
-import { join, relative } from "node:path";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { app, BrowserWindow } from "electron";
 import {
   parseConnections,
@@ -28,10 +29,10 @@ import {
   computeHunks,
   createAgent,
   createAnthropicProvider,
+  createFileChange,
   createGoogleProvider,
   createOpenAiCompatibleProvider,
   createTeamHandoff,
-  estimateRequestTokens,
   mergeCatalogue,
   normalizeInlineCompletion,
   parseCatalogue,
@@ -39,6 +40,7 @@ import {
   suggestTeam,
   transportFor,
   type Agent,
+  type AiFileChange,
   type AiWorkspaceTask,
   titleFor,
   withMessage,
@@ -74,6 +76,7 @@ import {
 import { recordAgentEdit } from "./activity.ts";
 import { createKeychainStore } from "./keychain.ts";
 import { createAiToolRunner, type ProposedEdit } from "./aiTools.ts";
+import { resolveSandboxPath } from "./aiSandbox.ts";
 import { ASSISTANT_EXTENSION_TOOLS, withAssistantExtensions } from "./assistantControls.ts";
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings } from "./settings.ts";
@@ -160,7 +163,6 @@ function baseUrlOf(providerId: string): string | null {
 /** Proposals awaiting review, keyed by path. Nothing here has touched disk (§5.3). */
 const pendingEdits = new Map<string, ProposedEdit>();
 let activeTaskId: string | null = null;
-let currentTaskPrompt: string | null = null;
 let taskService: AiWorkspaceService | null = null;
 let taskRecovery: Promise<void> | null = null;
 let taskWorkspaceUnavailableReason: string | null = null;
@@ -317,7 +319,29 @@ async function currentWorkspaceTask(taskId: string): Promise<AiWorkspaceTask | n
   return task !== null && task.reviewable && belongsToCurrentWorkspace(task) ? task : null;
 }
 
-const REUSABLE_TASK_STATES = new Set(["ready", "running", "paused", "review", "conflict"]);
+function announceProjectFiles(paths: readonly string[]): void {
+  broadcast(CHANNELS.workspaceFilesChanged, [...paths]);
+}
+
+/**
+ * File tools work directly on the open project — no sandbox, no task, no
+ * review queue. Reads and writes resolve to the live folder; the only gates
+ * are an open folder, enabled file tools, and (for writes) no unsaved drafts
+ * that a write could clobber.
+ */
+async function resolveToolWorkspace() {
+  const human = currentWorkspace()?.root ?? null;
+  taskWorkspaceUnavailableReason = null;
+  if (human === null) {
+    taskWorkspaceUnavailableReason = "Open a folder before using AI file tools.";
+    return null;
+  }
+  if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
+    taskWorkspaceUnavailableReason = "AI file tools are off. Turn on AI file tools in Settings to let the assistant edit this project.";
+    return null;
+  }
+  return { taskId: "", sandboxRoot: human, humanRoot: human };
+}
 
 async function ensureToolWorkspace() {
   const human = currentWorkspace()?.root ?? null;
@@ -327,51 +351,28 @@ async function ensureToolWorkspace() {
     return null;
   }
   if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
-    taskWorkspaceUnavailableReason = "AI file tools are off because Isolate AI edits is disabled in Settings.";
+    taskWorkspaceUnavailableReason = "AI file tools are off. Turn on AI file tools in Settings to let the assistant edit this project.";
     return null;
   }
-  const drafts = await recoverableDrafts();
-  if (workspaceHasUnsavedDraft(human, drafts)) {
-    const names = summarizeUnsavedDrafts(human, drafts);
-    taskWorkspaceUnavailableReason =
-      `Save ${names} before starting AI file tools, so the isolated task begins from what you see.`;
-    return null;
+  // The chat's "Answer anyway" one-shot: the user accepted the risk of
+  // writing over unsaved work rather than saving first.
+  if (!bypassWorkspaceBlockOnce) {
+    const drafts = await recoverableDrafts();
+    if (workspaceHasUnsavedDraft(human, drafts)) {
+      const names = summarizeUnsavedDrafts(human, drafts);
+      taskWorkspaceUnavailableReason =
+        `Save ${names} before AI file edits, so nothing you have not saved gets overwritten.`;
+      return null;
+    }
+  } else {
+    bypassWorkspaceBlockOnce = false;
   }
 
-  const service = await readyAiWorkspaceService();
-  const reviewPolicy = configuredEditPolicy();
-  let task = activeTaskId === null ? null : await service.read(activeTaskId);
-  if (
-    task === null ||
-    normalizeForCompare(task.workspaceRoot) !== normalizeForCompare(human) ||
-    task.reviewPolicy !== reviewPolicy ||
-    !REUSABLE_TASK_STATES.has(task.state)
-  ) {
-    task = await service.start({
-      workspaceRoot: human,
-      prompt: currentTaskPrompt ?? "Continue the assistant task",
-      reviewPolicy,
-      tokenLimit: configuredTaskTokenBudget(),
-    });
-    activeTaskId = task.id;
-    announceWorkspaceTask(task);
-  }
-
-  return {
-    taskId: task.id,
-    sandboxRoot: join(app.getPath("userData"), "ai-workspaces", "sandboxes", task.id),
-    humanRoot: human,
-  };
+  return { taskId: "", sandboxRoot: human, humanRoot: human };
 }
 
 function configuredEditPolicy(): "review" | "trusted" {
   return currentSettings()["adcode.ai.editPolicy"] === "trusted" ? "trusted" : "review";
-}
-
-function configuredTaskTokenBudget(): number | null {
-  const value = currentSettings()["adcode.ai.taskTokenBudget"];
-  if (value === "unlimited") return null;
-  return value === "25000" || value === "250000" ? Number(value) : 100_000;
 }
 
 function configuredEffort(): "low" | "medium" | "high" | "max" | undefined {
@@ -529,38 +530,39 @@ export async function buildProvider(id: string, offeredKey?: string): Promise<Pr
 function toolRunner() {
   return createAiToolRunner({
     openPreview: () => openAiPreview(broadcast),
-    workspace: ensureToolWorkspace,
+    workspace: resolveToolWorkspace,
+    writeWorkspace: ensureToolWorkspace,
     workspaceUnavailableMessage: () =>
       taskWorkspaceUnavailableReason ?? "No folder is open, so there is nothing to work on yet.",
     reviewPolicy: configuredEditPolicy,
+    directWrites: true,
     memory: () => memoryForWorkspace(),
     writeSandboxFile: async (path, contents) => {
-      if (activeTaskId === null) throw new Error("Task workspace is unavailable");
-      const task = await (await readyAiWorkspaceService()).write(activeTaskId, path, contents);
-      announceWorkspaceTask(task);
-      const change = task.changes.find((item) => item.path === path);
-      if (change === undefined) throw new Error("Task change was not recorded");
-      return change;
+      const human = currentWorkspace()?.root ?? null;
+      if (human === null) throw new Error("No folder is open, so there is nothing to work on yet.");
+      const absolute = await resolveSandboxPath(human, path);
+      let original: string | null = null;
+      try {
+        original = await readFile(absolute, "utf8");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException | null)?.code !== "ENOENT") throw error;
+      }
+      await mkdir(dirname(absolute), { recursive: true });
+      const temporary = `${absolute}.adcode-${randomUUID()}.tmp`;
+      await writeFile(temporary, contents, "utf8");
+      try {
+        await rename(temporary, absolute);
+      } catch (error) {
+        await rm(temporary, { force: true }).catch(() => undefined);
+        throw error;
+      }
+      return createFileChange(path, original, contents);
     },
     onProposedEdit: (edit) => {
-      pendingEdits.set(edit.path, edit);
-
-      const root = currentWorkspace()?.root;
-      const view: ProposedEditView = {
-        taskId: edit.taskId,
-        relativePath: edit.relativePath,
-        path: edit.path,
-        displayPath: root === undefined ? edit.path : relative(root, edit.path),
-        summary: edit.summary,
-        hunks: edit.hunks.map((hunk) => ({
-          id: hunk.id,
-          startLine: hunk.startLine,
-          original: hunk.original,
-          replacement: hunk.replacement,
-        })),
-      };
-
-      broadcast(CHANNELS.aiProposedEdit, view);
+      announceProjectFiles([edit.relativePath]);
+    },
+    onCommandFinished: () => {
+      announceProjectFiles([]);
     },
   });
 }
@@ -747,7 +749,6 @@ export async function aiSend(
 ): Promise<boolean> {
   if (sendInFlight) throw new Error("The built-in assistant is already handling a message");
   sendInFlight = true;
-  currentTaskPrompt = text;
   editorContext = editor;
   try {
     const providerId = activeProvider();
@@ -781,45 +782,21 @@ export async function aiSend(
           const root = currentWorkspace()?.root ?? null;
           let blocker: string | null = null;
           if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
-            blocker = "Enable Isolate AI edits in Settings to use file tools.";
+            blocker = "Turn on AI file tools in Settings to use file tools.";
           } else if (root !== null) {
             const drafts = await recoverableDrafts();
             if (workspaceHasUnsavedDraft(root, drafts)) {
-              blocker = `Save ${summarizeUnsavedDrafts(root, drafts)} so the task can start from the current files.`;
+              blocker = `Save ${summarizeUnsavedDrafts(root, drafts)} before AI file edits, so nothing unsaved gets overwritten. Reading and answering work meanwhile.`;
             }
           }
           return aiWorkspaceContext(root, blocker, editorContext);
         },
         runner: withAssistantExtensions(toolRunner()),
-        beforeRequest: async (request) => {
-          // Chat without an open project remains available. With a project, every model
-          // round-trip reserves a conservative maximum before it can spend the user's key.
-          if (currentWorkspace() === null || currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
-            return null;
-          }
-          // One-shot escape hatch from the chat's "Answer anyway": the user accepted
-          // a possibly stale file snapshot for this turn rather than saving first.
-          if (bypassWorkspaceBlockOnce) {
-            bypassWorkspaceBlockOnce = false;
-            return null;
-          }
-          const workspace = await ensureToolWorkspace();
-          if (workspace === null) {
-            // A question-only chat still works before a task exists. Once a task exists,
-            // a new unsaved draft pauses its next provider turn instead of letting the
-            // agent continue from a stale filesystem snapshot.
-            return activeTaskId === null ? null : taskWorkspaceUnavailableReason;
-          }
-          const reserved = await (await readyAiWorkspaceService()).reserveUsage(workspace.taskId, {
-            tokens: estimateRequestTokens(request),
-            costMicros: 0,
-          });
-          announceWorkspaceTask(reserved.task);
-          return reserved.ok
-            ? null
-            : reserved.reason === "token-limit"
-              ? "Task token budget reached. Increase it in Settings or start a new task."
-              : "Task cost budget reached. Increase it in Settings or start a new task.";
+        beforeRequest: async () => {
+          // Direct edits apply immediately, so there is no task to create and
+          // no budget to reserve. The turn step limit remains the backstop
+          // against runaway tool loops.
+          return null;
         },
       });
       agentProvider = providerId;
@@ -925,7 +902,6 @@ export async function aiSend(
     });
     return false;
   } finally {
-    currentTaskPrompt = null;
     sendInFlight = false;
   }
 }
@@ -1410,6 +1386,16 @@ export async function aiWorkspaceDiscard(taskId: string): Promise<AiWorkspaceTas
   if (activeTaskId === taskId) activeTaskId = null;
   announceWorkspaceTask(task);
   return toAiWorkspaceTaskView(task);
+}
+
+export async function aiWorkspaceRemove(taskId: string): Promise<boolean> {
+  if ((await currentWorkspaceTask(taskId)) === null) return false;
+  const removed = await (await readyAiWorkspaceService()).remove(taskId);
+  if (!removed) return false;
+  if (activeTaskId === taskId) activeTaskId = null;
+  const current = await aiCurrentWorkspaceTask();
+  broadcast(CHANNELS.aiWorkspaceChanged, current);
+  return true;
 }
 
 export async function aiWorkspaceRollback(taskId: string): Promise<AiWorkspaceActionView> {

@@ -514,7 +514,19 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
-    const auth = await authenticate({ store, verifier, clock }, req.headers.authorization);
+    /*
+     * Authentication and the serving config go out together: neither depends on the
+     * other, and each costs a full database round trip. Serve has to fit inside the
+     * editor's 3,000ms timeout and was measured at ~5,000ms with every read
+     * sequential, so each spared round trip is ~500ms back.
+     *
+     * The ordering guarantees are unchanged: the rate counter is still per verified
+     * UID (it runs after this), and still gates every endpoint below.
+     */
+    const [auth, config] = await Promise.all([
+      authenticate({ store, verifier, clock }, req.headers.authorization),
+      store.getConfig(),
+    ]);
     if (!auth.ok) {
       // A ban is 403 rather than 401: the credentials are fine, the answer is still no,
       // and a client that retries auth on a 401 would loop forever.
@@ -525,7 +537,6 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
     // Spec §9. Applied after authentication so the counter is per verified UID rather
     // than per connection, and before any routing so no endpoint can be exempted by
     // accident.
-    const config = await store.getConfig();
     if (!(await checkRate(store, config, auth.uid, clock.now()))) {
       res.writeHead(429, {
         "content-type": "application/json",
@@ -1123,7 +1134,11 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         send(res, 400, { error: "malformed serve request" }, cors);
         return;
       }
-      send(res, 200, await handleServe({ store, clock, ids }, auth.uid, body), cors);
+      // `config` is passed through rather than re-read: it is the same row the rate
+      // limiter just used, and re-reading it would cost another round trip on the
+      // path with the tightest budget. Kill-switch timing is unchanged - this config
+      // was read milliseconds ago in this same request.
+      send(res, 200, await handleServe({ store, clock, ids }, auth.uid, body, config), cors);
       return;
     }
 

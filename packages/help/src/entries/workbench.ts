@@ -165,6 +165,16 @@ export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
     related: ["adcode.navigation.fuzzyFileOpen"],
   },
   {
+    id: "workbench.imagePreview",
+    title: "Image preview",
+    plain: "Click an image file and it shows as a picture instead of text.",
+    why: "Opening a PNG as text shows garbage characters. A picture is what you actually want to check.",
+    how: "Click any png, jpg, gif, webp, svg, ico, or bmp file in the Explorer. It previews in the editor area with its file size and dimensions. Images cannot be edited here - they are preview-only. Use File > Open Image Preview or the command palette to pick one directly.",
+    group: "workbench",
+    settingIds: [],
+    related: ["gestures.multiSelect", "adcode.navigation.fuzzyFileOpen"],
+  },
+  {
     id: "ai.connect",
     title: "Connect a model",
     plain:

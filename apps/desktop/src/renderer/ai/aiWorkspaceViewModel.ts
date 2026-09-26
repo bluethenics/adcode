@@ -67,3 +67,58 @@ export function traceTone(
   if (outcome === "pending") return "running";
   return outcome === "ok" ? "ok" : "error";
 }
+
+/** How many grouped activity rows show before a "Show all N" expander. */
+export const TRACE_PREVIEW_LIMIT = 8;
+
+export interface GroupedWorkspaceTrace {
+  readonly summary: string;
+  readonly detail: string;
+  readonly outcome: "pending" | "ok" | "blocked" | "failed";
+  /** How many raw events this row stands for. */
+  readonly count: number;
+}
+
+/**
+ * Fold the start/complete event pairs the agent records into one row per tool.
+ *
+ * Every tool call is stored as two events — `Called X` (pending) when it starts
+ * and `X completed` / `X failed` when it ends — so a long task reads as an
+ * endless alternating list. Pairing them halves the rows while keeping state
+ * changes, refusals, errors and anything unpaired exactly as recorded.
+ */
+export function groupWorkspaceTraces(
+  events: readonly {
+    readonly summary: string;
+    readonly detail: string;
+    readonly outcome: "pending" | "ok" | "blocked" | "failed";
+  }[],
+): GroupedWorkspaceTrace[] {
+  const grouped: GroupedWorkspaceTrace[] = [];
+  const pendingCalls = new Map<string, number>();
+  for (const event of events) {
+    const called = event.outcome === "pending" ? /^Called (.+)$/.exec(event.summary) : null;
+    if (called !== null) {
+      pendingCalls.set(called[1]!, grouped.length);
+      grouped.push({ summary: event.summary, detail: event.detail, outcome: event.outcome, count: 1 });
+      continue;
+    }
+    const finished = /^(.*) (completed|failed)$/.exec(event.summary);
+    if (finished !== null) {
+      const index = pendingCalls.get(finished[1]!);
+      if (index !== undefined) {
+        pendingCalls.delete(finished[1]!);
+        const start = grouped[index]!;
+        grouped[index] = {
+          summary: finished[1]!,
+          detail: start.detail,
+          outcome: event.outcome,
+          count: 2,
+        };
+        continue;
+      }
+    }
+    grouped.push({ summary: event.summary, detail: event.detail, outcome: event.outcome, count: 1 });
+  }
+  return grouped;
+}

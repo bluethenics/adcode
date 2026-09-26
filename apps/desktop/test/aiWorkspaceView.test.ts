@@ -5,6 +5,7 @@ import {
   aiWorkspaceActions,
   aiWorkspaceStateLabel,
   formatAiWorkspaceUsage,
+  groupWorkspaceTraces,
   summarizeAiWorkspaceTask,
   traceTone,
 } from "../src/renderer/ai/aiWorkspaceViewModel.ts";
@@ -84,6 +85,33 @@ describe("AI workspace task presentation", () => {
     expect(traceTone("pending")).toBe("running");
     expect(traceTone("blocked")).toBe("error");
     expect(traceTone("failed")).toBe("error");
+  });
+
+  it("pairs each tool start with its finish so long tasks read as one row per tool", () => {
+    expect(
+      groupWorkspaceTraces([
+        { summary: "Called read_file", detail: "src/a.ts", outcome: "pending" },
+        { summary: "read_file completed", detail: "", outcome: "ok" },
+        { summary: "Called read_file", detail: "src/b.ts", outcome: "pending" },
+        { summary: "read_file failed", detail: "", outcome: "failed" },
+      ]),
+    ).toEqual([
+      { summary: "read_file", detail: "src/a.ts", outcome: "ok", count: 2 },
+      { summary: "read_file", detail: "src/b.ts", outcome: "failed", count: 2 },
+    ]);
+  });
+
+  it("leaves state changes, refusals and unpaired events exactly as recorded", () => {
+    const events = [
+      { summary: "Reserved 13669 tokens", detail: "", outcome: "ok" as const },
+      { summary: "Called list_files", detail: "", outcome: "pending" as const },
+      { summary: "Provider turn failed", detail: "", outcome: "failed" as const },
+    ];
+    expect(groupWorkspaceTraces(events)).toEqual([
+      { summary: "Reserved 13669 tokens", detail: "", outcome: "ok", count: 1 },
+      { summary: "Called list_files", detail: "", outcome: "pending", count: 1 },
+      { summary: "Provider turn failed", detail: "", outcome: "failed", count: 1 },
+    ]);
   });
 
   it("keeps privileged workspace locations out of renderer trace views", () => {

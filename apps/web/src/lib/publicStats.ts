@@ -1,4 +1,4 @@
-export interface PublicStats { impressions: number; clicks: number; activeCampaigns: number; asOf: number }
+export interface PublicStats { impressions: number; clicks: number; activeCampaigns: number; developers: number; asOf: number }
 
 /**
  * Small early totals undermine the network story they are meant to tell, so the
@@ -15,7 +15,7 @@ export function meetsPublicStatsThreshold(stats: PublicStats): boolean {
 export function parsePublicStats(value: unknown): PublicStats | null {
   if (typeof value !== "object" || value === null) return null;
   const data = value as Record<string, unknown>;
-  const keys = ["impressions", "clicks", "activeCampaigns", "asOf"] as const;
+  const keys = ["impressions", "clicks", "activeCampaigns", "developers", "asOf"] as const;
   if (!keys.every((key) => typeof data[key] === "number" && Number.isSafeInteger(data[key]) && (data[key] as number) >= 0)) return null;
-  return { impressions: data.impressions as number, clicks: data.clicks as number, activeCampaigns: data.activeCampaigns as number, asOf: data.asOf as number };
+  return { impressions: data.impressions as number, clicks: data.clicks as number, activeCampaigns: data.activeCampaigns as number, developers: data.developers as number, asOf: data.asOf as number };
 }

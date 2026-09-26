@@ -167,7 +167,11 @@ export function createMemoryStore(): Store & { reset(): void } {
     async publicStats() {
       const paid = [...receipts.values()].filter((receipt) => receipt.costMicros > 0n);
       const clicks = paid.filter((receipt) => receipt.outcome === "click").length;
-      return { impressions: paid.length - clicks, clicks, activeCampaigns: [...campaigns.values()].filter((campaign) => campaign.status === "active").length };
+      return {
+        impressions: paid.length - clicks, clicks, activeCampaigns:
+          [...campaigns.values()].filter((campaign) => campaign.status === "active").length,
+        developers: [...users.values()].filter((user) => user.status === "active").length,
+      };
     },
 
     async statsForCampaign(campaignId): Promise<CampaignStats> {

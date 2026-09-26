@@ -252,11 +252,20 @@ export function parseServeResponse(
   if (list.length > MAX_CREATIVES) return fail("creatives", `more than ${MAX_CREATIVES}`);
 
   const out: Creative[] = [];
+  let firstError: ValidationError | null = null;
   for (let i = 0; i < list.length; i++) {
     const one = creative(list[i], i, assetHost);
-    if (!one.ok) return one;
+    if (!one.ok) {
+      // One bad creative must not discard the valid ones alongside it (§1 host
+      // check stays exact; only the blast radius changes). Invalid entries are
+      // skipped; the first error is remembered so a batch with nothing usable
+      // still fails loudly rather than looking like an empty inventory.
+      if (firstError === null) firstError = one.error;
+      continue;
+    }
     out.push(one.value);
   }
+  if (out.length === 0 && firstError !== null) return err(firstError);
   return ok(out);
 }
 

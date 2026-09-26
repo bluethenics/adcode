@@ -183,6 +183,21 @@ export interface FileContent {
   readonly mtimeMs: number;
 }
 
+/**
+ * An image file, read for preview.
+ *
+ * Text goes over `fs:read` as UTF-8; bytes cannot, so images travel as a `data:` URL
+ * the renderer can put straight into an `<img>`. The main process names the media type
+ * from the extension, and refuses anything it does not recognise.
+ */
+export interface FileImageContent {
+  readonly path: string;
+  readonly dataUrl: string;
+  readonly mediaType: string;
+  readonly sizeBytes: number;
+  readonly mtimeMs: number;
+}
+
 export interface SaveResult {
   readonly ok: boolean;
   readonly mtimeMs: number;
@@ -457,6 +472,7 @@ export const CHANNELS = {
   workspaceCurrent: "workspace:current",
   fsList: "fs:list",
   fsRead: "fs:read",
+  fsReadImage: "fs:read-image",
   fsWrite: "fs:write",
   fsCreateFile: "fs:create-file",
   fsCreateFolder: "fs:create-folder",
@@ -524,6 +540,7 @@ export const CHANNELS = {
   aiWorkspaceTraces: "ai-workspace:traces",
   aiWorkspaceApply: "ai-workspace:apply",
   aiWorkspaceDiscard: "ai-workspace:discard",
+  aiWorkspaceRemove: "ai-workspace:remove",
   aiWorkspaceRollback: "ai-workspace:rollback",
   aiWorkspaceChanged: "ai-workspace:changed",
   aiTeamSuggest: "ai-team:suggest",
@@ -640,6 +657,7 @@ export const CHANNELS = {
   collabReencodeInvite: "collab:reencode-invite",
   workspaceOpenPath: "workspace:open-path",
   workspaceRecents: "workspace:recents",
+  workspaceFilesChanged: "workspace:files-changed",
   workspaceForgetRecent: "workspace:forget-recent",
   workspaceClearRecents: "workspace:clear-recents",
   filesOpenDialog: "fs:open-dialog",
@@ -1346,6 +1364,8 @@ export interface AdcodeApi {
     recents(): Promise<readonly RecentFolderView[]>;
     forgetRecent(root: string): Promise<readonly RecentFolderView[]>;
     clearRecents(): Promise<void>;
+    /** Fired by direct AI edits and commands. Paths are workspace-relative; empty means "rescan the root". */
+    onFilesChanged(listener: (paths: readonly string[]) => void): () => void;
   };
   /** Version and runtime, for the welcome screen and the settings footer. */
   readonly app: {
@@ -1353,6 +1373,8 @@ export interface AdcodeApi {
   };
   readonly files: {
     read(filePath: string): Promise<FileContent>;
+    /** Read an image file as a `data:` URL for preview. Throws when not an image. */
+    readImage(filePath: string): Promise<FileImageContent>;
     /** Ask for a file to open; resolves to its path, or null if cancelled. */
     openDialog(): Promise<string | null>;
     write(filePath: string, text: string): Promise<SaveResult>;
@@ -1575,6 +1597,8 @@ export interface AdcodeApi {
       selections: readonly AiWorkspaceApplySelectionView[],
     ): Promise<AiWorkspaceActionView>;
     discard(taskId: string): Promise<AiWorkspaceTaskView | null>;
+    /** Delete a task completely. False when it is already gone. */
+    remove(taskId: string): Promise<boolean>;
     rollback(taskId: string): Promise<AiWorkspaceActionView>;
     onChanged(listener: (task: AiWorkspaceTaskView) => void): () => void;
   };

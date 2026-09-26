@@ -13,17 +13,19 @@ describe("public network statistics", () => {
     const campaign = { advertiserId: "private-advertiser", name: "Private", cpmMicros: 2000000n, budgetMicros: 10000000n, targetTags: [], createdAt: 1 };
     await store.putCampaign({ ...campaign, campaignId: "active", status: "active" });
     await store.putCampaign({ ...campaign, campaignId: "paused", status: "paused" });
+    await store.putUser({ uid: "active-developer", status: "active", createdAt: 1 });
+    await store.putUser({ uid: "banned-developer", status: "banned", createdAt: 1 });
     const handler = createFetchHandler({ store, verifier: { verify: async () => null } });
     const response = await handler(new Request("https://example.test/v1/stats"));
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toContain("max-age=60");
     const value = await response.json();
-    expect(value).toEqual({ impressions: 1, clicks: 1, activeCampaigns: 1, asOf: expect.any(Number) });
+    expect(value).toEqual({ impressions: 1, clicks: 1, activeCampaigns: 1, developers: 1, asOf: expect.any(Number) });
     expect(JSON.stringify(value)).not.toContain("private");
   });
   it("distinguishes empty data from an unavailable database", async () => {
     const store = createMemoryStore();
-    expect(await store.publicStats()).toEqual({ impressions: 0, clicks: 0, activeCampaigns: 0 });
+    expect(await store.publicStats()).toEqual({ impressions: 0, clicks: 0, activeCampaigns: 0, developers: 0 });
     store.publicStats = async () => { throw new Error("unavailable"); };
     const handler = createFetchHandler({ store, verifier: { verify: async () => null } });
     expect((await handler(new Request("https://example.test/v1/stats"))).status).toBe(500);
