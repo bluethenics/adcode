@@ -17,7 +17,6 @@
  */
 import { getSetting, type EnumSetting } from "@adcode/settings";
 import { themePicker } from "../settings/themePicker.ts";
-import { MODE_DESCRIPTION, MODE_STORAGE_KEY, workspaceMode, type WorkspaceMode } from "../workbench/workspaceMode.ts";
 
 export interface OnboardingSheet {
   open(): void;
@@ -26,7 +25,7 @@ export interface OnboardingSheet {
 }
 
 export interface OnboardingDeps {
-  chooseMode?: (mode: WorkspaceMode) => void;
+  openIde?: () => void;
   /** Current settings, and how to change one. Same pair the settings sheet uses. */
   read: () => Promise<Record<string, boolean | string>>;
   write: (id: string, value: boolean | string) => Promise<Record<string, boolean | string>>;
@@ -51,7 +50,7 @@ const TIPS: { title: string; body: string }[] = [
    */
   {
     title: "Ads arrive while you work",
-    body: "A sponsored card appears in the corner while you are coding - that is the point, and half of what it pays goes to you. It never interrupts a debugging session, never arrives while the window is in the background, and always leaves a gap between cards.",
+    body: "A sponsored card appears on the right while you are working - that is the point, and half of what it pays goes to you. It never interrupts a debugging session, never arrives while the window is in the background, and always leaves a gap between cards.",
   },
   {
     title: "Your earnings are a ledger",
@@ -59,7 +58,7 @@ const TIPS: { title: string; body: string }[] = [
   },
   {
     title: "Bring your own AI",
-    body: "Connect any provider and key you already have. Every change the agent proposes is shown as a diff you approve before it touches a file.",
+    body: "Connect any provider and key you already have. The assistant works on your project's files directly and tells you exactly what it changed, the way a teammate at your keyboard would.",
   },
 ];
 
@@ -272,23 +271,32 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
   }
 
   function renderModes(): void {
-    body.append(heading("Welcome to ADCode", "One project. Two ways to work. Switch whenever you need to."));
+    body.append(heading("Welcome to ADCode", "Start in Vibe. Open the IDE in its own window whenever you need code."));
     const choices = document.createElement("div");
     choices.className = "onboarding-modes";
-    let current: WorkspaceMode = "vibe";
-    try { current = workspaceMode(localStorage.getItem(MODE_STORAGE_KEY)); } catch { /* Optional storage. */ }
     for (const mode of ["vibe", "code"] as const) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "onboarding-mode";
-      button.setAttribute("aria-pressed", String(mode === current));
+      const card = document.createElement("div");
+      card.className = "onboarding-mode";
+      if (mode === "vibe") card.dataset["default"] = "true";
+      const tag = document.createElement("small");
+      tag.className = "onboarding-mode-tag";
+      tag.textContent = mode === "vibe" ? "Opens first" : "Its own window";
       const title = document.createElement("strong");
       title.textContent = mode === "vibe" ? "Vibe" : "Code";
       const detail = document.createElement("span");
-      detail.textContent = MODE_DESCRIPTION[mode];
-      button.append(title, detail);
-      button.addEventListener("click", () => { deps.chooseMode?.(mode); render(); });
-      choices.append(button);
+      detail.textContent = mode === "vibe"
+        ? "Build and change your project through conversation. The sidebar shows what is running and what is waiting for your review."
+        : "Edit files, run terminals and debug in the full IDE, beside Vibe on the same project.";
+      card.append(tag, title, detail);
+      if (mode === "code") {
+        const open = document.createElement("button");
+        open.type = "button";
+        open.className = "ghost-button onboarding-open-ide";
+        open.textContent = "Open IDE";
+        open.addEventListener("click", () => { dialog.close(); deps.openIde?.(); });
+        card.append(open);
+      }
+      choices.append(card);
     }
     body.append(choices);
   }

@@ -251,8 +251,15 @@ const toast = await evaluate(
        // It is a notification in our own centre, not a bolted-on popup: same host, same
        // element type as an ordinary toast.
        insideNotificationCentre: card.matches('.toast'),
-       inVibeSidebar: card.parentElement?.id === 'vibe-sponsored-slot',
-       inFallbackLayer: card.parentElement?.id === 'toast-layer',
+       inNotificationLayer: card.parentElement?.id === 'toast-layer',
+       // Vibe shows it on the right, and never over the composer the user is typing in.
+       onRight: box.left >= window.innerWidth / 2,
+       clearOfComposer: (() => {
+         const composer = document.querySelector('.vibe-workspace .chat-composer');
+         if (composer === null || composer.getClientRects().length === 0) return true;
+         const c = composer.getBoundingClientRect();
+         return box.right <= c.left || box.left >= c.right || box.bottom <= c.top || box.top >= c.bottom;
+       })(),
        ariaLabel: card.getAttribute('aria-label') ?? '',
      };
    })()`,
@@ -275,10 +282,13 @@ if (checks.toastAppeared) {
     : `logo scheme was ${toast.logoScheme}`;
   checks.hasDismissButton = toast.hasDismiss;
   checks.isAFirstClassNotification = toast.insideNotificationCentre;
-  checks.vibeAdVisible = toast.inVibeSidebar || toast.inFallbackLayer;
-  checks.vibeSidebarPlacement = toast.inVibeSidebar
+  checks.vibeAdVisible = toast.inNotificationLayer;
+  checks.vibeRightPlacement = toast.onRight
     ? true
-    : "sponsored card did not use the Vibe sidebar";
+    : "sponsored card was not on the right of the Vibe window";
+  checks.vibeAdClearOfComposer = toast.clearOfComposer
+    ? true
+    : "sponsored card covered the Vibe composer";
   checks.announcedToScreenReaders = toast.ariaLabel.includes(CREATIVE.advertiser)
     ? true
     : `aria-label read: ${toast.ariaLabel}`;

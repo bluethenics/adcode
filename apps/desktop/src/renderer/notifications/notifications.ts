@@ -12,7 +12,7 @@
  */
 import type { SponsoredToast } from "../../shared/api.ts";
 import { reveal } from "../motion.ts";
-import { ICON, iconButton } from "../workbench/icons.ts";
+import { ICON, createIcon, iconButton } from "../workbench/icons.ts";
 
 const ENTER_MS = 220;
 const EXIT_MS = 160;
@@ -36,6 +36,8 @@ export interface NotificationCentre {
   show(notification: Notification): void;
   showSponsored(toast: SponsoredToast): void;
   dismissAll(): void;
+  toggleInbox(): void;
+  onUnreadChanged(listener: (count: number) => void): () => void;
 }
 
 /**
@@ -66,29 +68,108 @@ function removeAfterExit(element: HTMLElement): void {
 }
 
 export function createNotificationCentre(host: HTMLElement): NotificationCentre {
+  type InboxEntry = { notification: Notification; time: number; read: boolean };
+  const inbox: InboxEntry[] = [];
+  const unreadListeners = new Set<(count: number) => void>();
+  const inboxPanel = document.createElement("section");
+  inboxPanel.className = "notification-inbox";
+  inboxPanel.hidden = true;
+  inboxPanel.setAttribute("role", "dialog");
+  inboxPanel.setAttribute("aria-label", "Notifications");
+  inboxPanel.setAttribute("aria-modal", "false");
+  inboxPanel.tabIndex = -1;
+  const inboxHeader = document.createElement("header");
+  inboxHeader.className = "notification-inbox-header";
+  const inboxTitle = document.createElement("h2");
+  inboxTitle.textContent = "Notifications";
+  const inboxClear = document.createElement("button");
+  inboxClear.type = "button";
+  inboxClear.className = "notification-inbox-clear";
+  inboxClear.textContent = "Clear all";
+  const inboxClose = iconButton("Close notifications", ICON.close, "notification-inbox-close");
+  inboxHeader.append(inboxTitle, inboxClear, inboxClose);
+  const inboxList = document.createElement("div");
+  inboxList.className = "notification-inbox-list";
+  inboxPanel.append(inboxHeader, inboxList);
+  document.body.append(inboxPanel);
+  let returnFocus: HTMLElement | null = null;
+  const unreadCount = (): number => inbox.reduce((count, entry) => count + Number(!entry.read), 0);
+  const notifyUnread = (): void => {
+    const count = unreadCount();
+    for (const listener of unreadListeners) listener(count);
+  };
+  const renderInbox = (): void => {
+    inboxList.replaceChildren();
+    inboxClear.hidden = inbox.length === 0;
+    if (inbox.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "notification-inbox-empty";
+      empty.textContent = "You're all caught up. Updates about your work will appear here.";
+      inboxList.append(empty);
+      return;
+    }
+    for (const entry of inbox) {
+      const item = document.createElement("article");
+      item.className = "notification-inbox-item";
+      item.dataset["tone"] = entry.notification.tone ?? "info";
+      const time = document.createElement("time");
+      time.dateTime = new Date(entry.time).toISOString();
+      time.textContent = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(entry.time);
+      const title = document.createElement("h3");
+      title.textContent = entry.notification.title;
+      item.append(time, title);
+      if (entry.notification.body) {
+        const body = document.createElement("p");
+        body.textContent = entry.notification.body;
+        item.append(body);
+      }
+      if (entry.notification.actions?.length) {
+        const actions = document.createElement("div");
+        actions.className = "notification-inbox-actions";
+        for (const action of entry.notification.actions) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = action.label;
+          button.addEventListener("click", () => {
+            action.run();
+            closeInbox();
+          });
+          actions.append(button);
+        }
+        item.append(actions);
+      }
+      inboxList.append(item);
+    }
+  };
+  function closeInbox(): void {
+    if (inboxPanel.hidden) return;
+    inboxPanel.hidden = true;
+    if (returnFocus?.isConnected) returnFocus.focus();
+    returnFocus = null;
+  }
+  function toggleInbox(): void {
+    if (!inboxPanel.hidden) { closeInbox(); return; }
+    returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    inboxPanel.hidden = false;
+    for (const entry of inbox) entry.read = true;
+    notifyUnread();
+    renderInbox();
+    inboxPanel.focus({ preventScroll: true });
+  }
+  inboxClose.addEventListener("click", closeInbox);
+  inboxClear.addEventListener("click", () => { inbox.length = 0; renderInbox(); notifyUnread(); });
+  inboxPanel.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.stopPropagation(); closeInbox(); }
+  });
+  document.addEventListener("pointerdown", (event) => {
+    const target = event.target;
+    if (!inboxPanel.hidden && target instanceof Node && !inboxPanel.contains(target) &&
+      !(target instanceof Element && target.closest(".vibe-notifications-button"))) closeInbox();
+  });
   // `clearTimer` is a closure rather than a timer id: hovering pauses the auto-dismiss
   // and un-hovering re-arms it with a fresh id, so a stored id goes stale the first time
   // the pointer crosses the toast.
   let live: { element: HTMLElement; creativeId: string; clearTimer: () => void } | null = null;
-
-  const railContainsCard = (card: HTMLElement, rail: Element): boolean => {
-    const cardBox = card.getBoundingClientRect();
-    const railBox = rail.getBoundingClientRect();
-    return cardBox.width > 0 && cardBox.top >= railBox.top && cardBox.bottom <= railBox.bottom;
-  };
-
-  const keepSponsoredVisible = (): void => {
-    const card = live?.element;
-    if (!card || card.parentElement?.id !== "vibe-sponsored-slot") return;
-    const slot = card.parentElement;
-    const rail = slot.closest(".project-toolbar");
-    if (document.body.dataset["workspaceMode"] !== "vibe" || !rail ||
-      getComputedStyle(slot).display === "none" || !railContainsCard(card, rail)) host.append(card);
-  };
-  window.addEventListener("resize", keepSponsoredVisible);
-  new MutationObserver(keepSponsoredVisible).observe(document.body, {
-    attributes: true, attributeFilter: ["data-workspace-mode"],
-  });
 
   function teardown(creativeId: string, notify: boolean): void {
     if (live === null || live.creativeId !== creativeId) return;
@@ -118,12 +199,23 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
 
   return {
     show(notification: Notification): void {
+      inbox.unshift({ notification, time: Date.now(), read: !inboxPanel.hidden });
+      if (inbox.length > 50) inbox.length = 50;
+      notifyUnread();
+      if (!inboxPanel.hidden) renderInbox();
       const card = document.createElement("article");
       card.className = "toast";
       card.dataset["state"] = "entering";
       if (notification.tone !== undefined) card.dataset["tone"] = notification.tone;
       card.style.willChange = "transform, opacity";
-      card.setAttribute("role", "status");
+      card.setAttribute("role", notification.tone === "error" ? "alert" : "status");
+
+      const marker = document.createElement("span");
+      marker.className = "toast-marker";
+      marker.setAttribute("aria-hidden", "true");
+      marker.append(createIcon(notification.tone === "error" ? ICON.severityError :
+        notification.tone === "warning" ? ICON.severityWarning :
+          notification.tone === "success" ? "M3.5 8l3 3 6-6" : ICON.severityInfo));
 
       const content = document.createElement("div");
       content.className = "toast-content";
@@ -162,7 +254,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       const close = iconButton("Dismiss", ICON.close, "toast-close");
       close.addEventListener("click", () => dismissPlain(card));
 
-      card.append(content, close);
+      card.append(marker, content, close);
       host.append(card);
       plain.add(card);
       // Uncapped stacking buries the editor under a column of stale FYIs. Evict the
@@ -218,9 +310,15 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
 
       const title = document.createElement("p");
       title.className = "toast-title";
-      title.textContent = `${toast.advertiser} — ${toast.headline}`;
+      const advertiser = document.createElement("span");
+      advertiser.className = "toast-advertiser";
+      advertiser.textContent = toast.advertiser;
+      const headline = document.createElement("span");
+      headline.className = "toast-headline";
+      headline.textContent = toast.headline;
+      title.append(advertiser, " ", headline);
 
-      content.append(label, title);
+      content.append(title);
 
       if (toast.body !== null) {
         const body = document.createElement("p");
@@ -229,17 +327,29 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
         content.append(body);
       }
 
+      const visit = document.createElement("button");
+      visit.type = "button";
+      visit.className = "toast-sponsored-cta";
+      visit.setAttribute("aria-label", `Visit ${toast.advertiser}'s website`);
+      visit.append("Visit site", createIcon(ICON.external));
+      content.append(visit);
+
       const close = iconButton("Dismiss", ICON.close, "toast-close");
       close.addEventListener("click", (event) => {
         event.stopPropagation();
         teardown(toast.creativeId, true);
       });
 
-      card.append(logo, content, close);
+      card.append(logo, label, close, content);
 
-      card.addEventListener("click", () => {
+      const openSponsor = (): void => {
         window.adcode.ads.clicked(toast.creativeId);
         teardown(toast.creativeId, false);
+      };
+      card.addEventListener("click", openSponsor);
+      visit.addEventListener("click", (event) => {
+        event.stopPropagation();
+        openSponsor();
       });
 
       // §1's 8s auto-dismiss, with the timer pausing on hover.
@@ -266,18 +376,10 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
         if (live !== null && live.creativeId === toast.creativeId && remaining > 0) arm();
       });
 
-      // Vibe's sidebar has room for a quiet sponsored card. If the rail is too short
-      // to show it, use the normal notification layer so a hidden card cannot earn an
-      // impression. Code mode and narrow Vibe windows use that layer as before.
-      const vibeSlot = document.getElementById("vibe-sponsored-slot");
-      const rail = vibeSlot?.closest(".project-toolbar");
-      if (document.body.dataset["workspaceMode"] === "vibe" && vibeSlot && rail &&
-        getComputedStyle(vibeSlot).display !== "none") {
-        vibeSlot.append(card);
-        if (!railContainsCard(card, rail)) host.append(card);
-      } else {
-        host.append(card);
-      }
+      // Always the notification layer, which is on the right in both windows. Vibe used to
+      // park the card in its left sidebar; it now sits top-right there (vibeSidebar.css),
+      // clear of the composer, like every other notification in that window.
+      host.append(card);
 
       // Lay the card out at its offscreen start position, then give the transition
       // something to animate from. Without the flush the browser coalesces both states
@@ -285,7 +387,6 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       reveal(card, "entered");
 
       window.setTimeout(() => {
-        keepSponsoredVisible();
         card.style.willChange = "auto";
         // Reporting paint is what lets the ad client count the impression at all -
         // it is one of the three conditions §1 requires, and the renderer is the
@@ -300,6 +401,12 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
     dismissAll(): void {
       if (live !== null) teardown(live.creativeId, true);
       for (const card of [...plain]) dismissPlain(card);
+    },
+    toggleInbox,
+    onUnreadChanged(listener): () => void {
+      unreadListeners.add(listener);
+      listener(unreadCount());
+      return () => unreadListeners.delete(listener);
     },
   };
 }

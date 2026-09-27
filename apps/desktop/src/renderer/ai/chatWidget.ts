@@ -13,6 +13,8 @@
  * Only `transform` and `opacity` animate (§1) - the card is positioned with a translate,
  * never with `left`/`top`, so dragging never triggers layout.
  */
+import { describeAiFailure } from "./aiFailure.ts";
+import { askThemed } from "../dialogs/confirmDialog.ts";
 import { createChatPreview } from "./chatPreview.ts";
 import { createTaskDetailsDialog } from "./taskDetailsDialog.ts";
 import { createTaskReviewDialog } from "./taskReviewDialog.ts";
@@ -49,6 +51,7 @@ import {
 } from "./composerMenu.ts";
 import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
 import { createIcon, ICON } from "../workbench/icons.ts";
+import { createContextMenu, attachContextMenuDismissal } from "../workbench/contextMenu.ts";
 import type { CodeReference } from "../editor/codeReferences.ts";
 import {
   groupChatSessions,
@@ -108,6 +111,8 @@ export interface ChatWidget {
   hidden(): void;
   toggle(): void;
   open(): void;
+  /** Start a fresh conversation - the current one stays in History - and focus the composer. */
+  newConversation(): void;
   /** Bring chat forward and open the existing, confirmed Team setup flow. */
   openTeamSetup(): void;
   /** Bring chat forward and open the existing local schedule composer. */
@@ -171,6 +176,8 @@ export interface ChatWidgetDeps {
   readonly readMention?: (relativePath: string) => Promise<string | null>;
   /** Uncommitted changes as a unified diff for /review and /commit, "" when clean. */
   readonly uncommittedDiff?: () => Promise<string>;
+  /** Open the report form, prefilled, with the debug log ticked. */
+  readonly reportProblem?: (prefill: { readonly title: string; readonly body: string }) => void;
 }
 
 export function dispatchChatSend(
@@ -312,9 +319,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         ? `Model: ${status.activeModel}. Change provider or model`
         : "Choose a provider and model");
       setupStatus.dataset["state"] = status.ready ? "ready" : "idle";
+      modelReady = status.ready;
+      paintSetup();
       const setupLabel = status.ready
         ? `Connected: ${active?.displayName ?? status.activeProvider} — you're set.`
-        : "Not connected yet — step 1 takes about a minute.";
+        : "Not connected yet — it takes about a minute.";
       if (setupStatus.textContent !== setupLabel) setupStatus.textContent = setupLabel;
       const queued = formatConnectionQueue(status.connections ?? [], Date.now());
       if (queueLabel.textContent !== queued) queueLabel.textContent = queued;
@@ -680,6 +689,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   let saved: readonly ChatSessionView[] = [];
   let activeSessionId: string | null = null;
+  const historyMenu = createContextMenu(document.body);
+  let historyMenuTrigger: HTMLButtonElement | null = null;
+  attachContextMenuDismissal(historyMenu, () => historyMenuTrigger?.focus());
 
   async function refreshHistory(): Promise<void> {
     saved = await window.adcode.chat.sessions();
@@ -723,41 +735,42 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     openIt.type = "button";
     openIt.className = "chat-history-open";
     openIt.textContent = session.title;
-    openIt.title = "Reopen this conversation";
+    openIt.title = session.title;
     openIt.setAttribute("aria-current", session.id === activeSessionId ? "true" : "false");
     openIt.addEventListener("click", () => void resume(session.id));
 
-    const rename = document.createElement("button");
-    rename.type = "button";
-    rename.className = "chat-history-action";
-    rename.textContent = "Rename";
-    rename.setAttribute("aria-label", `Rename ${session.title}`);
-    rename.addEventListener("click", () => {
-      void deps.askForName(session.title).then(async (name) => {
-        if (name === null) return;
-        saved = await window.adcode.chat.rename(session.id, name);
-        if (session.id === activeSessionId) conversationTitle.textContent = name;
-        renderHistory();
-      });
+    const options = document.createElement("button");
+    options.type = "button";
+    options.className = "chat-history-options";
+    options.append(createIcon(ICON.more));
+    options.title = `Options for ${session.title}`;
+    options.setAttribute("aria-label", options.title);
+    options.setAttribute("aria-haspopup", "menu");
+    options.setAttribute("aria-expanded", "false");
+    options.addEventListener("click", () => {
+      historyMenuTrigger = options;
+      options.setAttribute("aria-expanded", "true");
+      const rect = options.getBoundingClientRect();
+      historyMenu.open(rect.right, rect.bottom + 4, [
+        { label: "Rename conversation", run: async () => {
+          const name = await deps.askForName(session.title);
+          if (name === null) return;
+          saved = await window.adcode.chat.rename(session.id, name);
+          if (session.id === activeSessionId) conversationTitle.textContent = name;
+          renderHistory();
+        } },
+        { label: "Delete conversation", danger: true, run: async () => {
+          saved = await window.adcode.chat.remove(session.id);
+          if (session.id === activeSessionId) {
+            activeSessionId = null;
+            conversationTitle.textContent = "New conversation";
+          }
+          renderHistory();
+        } },
+      ], () => options.setAttribute("aria-expanded", "false"));
     });
 
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "chat-history-action";
-    remove.textContent = "Delete";
-    remove.setAttribute("aria-label", `Delete ${session.title}`);
-    remove.addEventListener("click", () => {
-      void window.adcode.chat.remove(session.id).then((sessions) => {
-        saved = sessions;
-        if (session.id === activeSessionId) {
-          activeSessionId = null;
-          conversationTitle.textContent = "New conversation";
-        }
-        renderHistory();
-      });
-    });
-
-    row.append(openIt, rename, remove);
+    row.append(openIt, options);
     return row;
   }
 
@@ -954,6 +967,19 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     tasksPopup.open();
   }
 
+  /**
+   * Main refuses to apply a task that is not this folder's to apply - a finished Team role,
+   * another project's task, or one already removed. That is not "retry": say what it is.
+   */
+  function isUnavailableTask(error: unknown): boolean {
+    return String(error instanceof Error ? error.message : error).includes("not in the open workspace");
+  }
+  function applyFailureMessage(error: unknown, fallback: string): string {
+    return isUnavailableTask(error)
+      ? "This task can't be applied here - it belongs to a project that isn't open, or it has already finished. Nothing in your project changed."
+      : fallback;
+  }
+
   async function openReviewDialog(task: AiWorkspaceTaskView): Promise<void> {
     let changes: readonly AiWorkspaceChangeView[] = [];
     try {
@@ -962,6 +988,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       taskNotice.textContent = "Could not load task changes. Try Review again.";
       return;
     }
+    // Main lists changes only for a task this folder can apply, under the same rule Apply
+    // enforces. Nothing listed means an Apply button here could only ever fail.
+    if (changes.length === 0) return;
     reviewDialog.open(task, changes, {
       onApplyAll: async () => {
         try {
@@ -975,12 +1004,32 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
             reviewDialog.close();
             void renderPersistedReview(result.task).catch(() => undefined);
           }
-        } catch {
-          taskNotice.textContent = "Could not apply changes. Your project may have changed; review and retry.";
+        } catch (error) {
+          taskNotice.textContent = applyFailureMessage(error, "Could not apply changes. Your project may have changed; review and retry.");
+          if (isUnavailableTask(error)) {
+            reviewDialog.close();
+            void refreshWorkspaceTask();
+          }
+        }
+      },
+      onAlwaysApply: async () => {
+        try {
+          const result = await window.adcode.aiWorkspace.apply(
+            task.id,
+            changes.map((change) => ({ path: change.path, acceptedHunkIds: change.hunks.map((hunk) => hunk.id) })),
+          );
+          paintWorkspaceTask(result.task);
+          taskNotice.textContent = result.message;
+          if (!result.ok) return;
+          reviewDialog.close();
+          void renderPersistedReview(result.task).catch(() => undefined);
+          setEditPolicy("trusted");
+        } catch (error) {
+          taskNotice.textContent = applyFailureMessage(error, "Could not apply changes. Your project may have changed; review and retry.");
         }
       },
       onDiscard: async () => {
-        if (!window.confirm("Discard this isolated AI task and its pending changes?")) return;
+        if (!await askThemed({ title: "Discard these changes?", body: "The staged task and its pending changes are thrown away. Your project files are not touched.", confirmLabel: "Discard", danger: true })) return;
         try {
           const discarded = await window.adcode.aiWorkspace.discard(task.id);
           paintWorkspaceTask(discarded);
@@ -1122,7 +1171,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const input = document.createElement("textarea");
   input.className = "chat-input";
   input.rows = 2;
-  input.placeholder = "Describe what to build or change… @ adds a file, / runs a command";
+  input.placeholder = "Plan, Build, / for skills, @ for context…";
   input.setAttribute("aria-label", "Message the assistant");
 
   // Auto-growing composer, capped at ~140px per the Agent Chat reference.
@@ -1362,13 +1411,86 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     });
   }
 
-  // Mode pill: decorative by design — the assistant always runs as an agent
-  // with tools here. It sits beside the live model pill so the composer reads
-  // the way the reference does (mode + model, send at right).
-  const modePill = document.createElement("span");
-  modePill.className = "chat-mode-pill";
-  modePill.textContent = "Agent";
-  modePill.title = "Agent mode — the assistant can read and propose changes";
+  /*
+   * The approval control: how the assistant's edits reach the project, and how much it
+   * may do on its own. It used to be a decorative "Agent" pill; "Review every change"
+   * existed only as a Settings row nobody would think to open mid-conversation. Here it
+   * is where the conversation is - Review or Auto - with the automation switches beside.
+   */
+  const modePill = document.createElement("button");
+  modePill.type = "button";
+  modePill.className = "chat-mode-pill chat-approval";
+  modePill.setAttribute("aria-haspopup", "menu");
+  modePill.setAttribute("aria-expanded", "false");
+  let editPolicy: "review" | "trusted" = "review";
+  let keepGoing = false;
+  const paintApproval = (): void => {
+    const auto = editPolicy === "trusted";
+    modePill.textContent = auto ? "Auto" : "Review";
+    modePill.dataset["mode"] = auto ? "auto" : "review";
+    modePill.title = auto
+      ? "Edits apply as the assistant works; undo any turn from the chat. Click to change."
+      : "Edits wait for your review before they reach your files. Click to change.";
+    modePill.setAttribute("aria-label", `AI edit approval: ${auto ? "Apply automatically" : "Review every change"}${keepGoing ? ", keep going until done" : ""}. Change`);
+  };
+  const adoptApproval = (values: Record<string, unknown>): void => {
+    editPolicy = values["adcode.ai.editPolicy"] === "trusted" ? "trusted" : "review";
+    keepGoing = values["adcode.ai.keepGoing"] === true;
+    paintApproval();
+  };
+  void window.adcode.settings.read().then(adoptApproval, () => paintApproval());
+  window.adcode.settings.onChanged((values) => adoptApproval(values));
+  const approvalMenu = createContextMenu(document.body);
+  attachContextMenuDismissal(approvalMenu, () => modePill.focus(), false);
+  function setEditPolicy(next: "review" | "trusted", announce = true): void {
+    if (next === editPolicy) return;
+    // Main may ask first (turning on automatic edits does), so the pill follows the
+    // setting as saved - never the click - and a declined switch stays on Review.
+    void window.adcode.settings.write("adcode.ai.editPolicy", next).then((values) => {
+      adoptApproval(values);
+      if (!announce || editPolicy !== next) return;
+      modeNote(next === "trusted"
+        ? "Edits now apply as the assistant works. Each turn that changes files gets an Undo button here."
+        : "Edits now wait for your review: the assistant stages them, and nothing reaches your files until you apply.");
+    }, () => undefined);
+  }
+  let approvalWasOpen = false;
+  modePill.addEventListener("pointerdown", () => { approvalWasOpen = approvalMenu.isOpen(); });
+  modePill.addEventListener("click", () => {
+    if (approvalWasOpen) { approvalWasOpen = false; return; }
+    const rect = modePill.getBoundingClientRect();
+    modePill.setAttribute("aria-expanded", "true");
+    approvalMenu.open(rect.left, rect.top - 4, [
+      { kind: "heading", label: "When the assistant edits files" },
+      { label: "Review every change", accelerator: editPolicy === "review" ? "✓" : "", run: () => setEditPolicy("review") },
+      { label: "Apply automatically · undo any turn", accelerator: editPolicy === "trusted" ? "✓" : "", run: () => setEditPolicy("trusted") },
+      { kind: "heading", label: "Automation" },
+      {
+        label: "Keep going until done",
+        accelerator: keepGoing ? "✓" : "",
+        run: () => {
+          keepGoing = !keepGoing;
+          paintApproval();
+          void window.adcode.settings.write("adcode.ai.keepGoing", keepGoing);
+          modeNote(keepGoing
+            ? "The assistant will carry on by itself at its step limit, up to five times in a row."
+            : "The assistant will stop at its step limit and wait for you.");
+        },
+      },
+      { label: "Schedule a message…", run: () => api.openScheduleComposer() },
+      { label: "Split the job across an AI team…", run: () => api.openTeamSetup() },
+    ], () => modePill.setAttribute("aria-expanded", "false"));
+  });
+  /** A one-line note in the conversation: what just changed about how the assistant works. */
+  function modeNote(text: string): void {
+    const note = document.createElement("p");
+    note.className = "chat-mode-note";
+    note.setAttribute("role", "status");
+    note.textContent = text;
+    transcript.append(note);
+    scrollToEnd(true);
+  }
+  paintApproval();
 
   const toolbar = document.createElement("div");
   toolbar.className = "chat-toolbar";
@@ -1566,14 +1688,18 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const welcomeMark = createIcon("M8 1.5 9.4 6.6 14.5 8 9.4 9.4 8 14.5 6.6 9.4 1.5 8 6.6 6.6z");
   welcomeMark.classList.add("chat-welcome-mark");
   const welcomeGreeting = document.createElement("span");
-  const hour = new Date().getHours();
-  welcomeGreeting.textContent = hour < 5
-    ? "Working late"
-    : hour < 12
-      ? "Good morning"
-      : hour < 18
-        ? "Good afternoon"
-        : "Good evening";
+  // Re-read on every empty conversation: the window may have been open since morning.
+  const paintGreeting = (): void => {
+    const hour = new Date().getHours();
+    welcomeGreeting.textContent = hour < 5
+      ? "Working late"
+      : hour < 12
+        ? "Good morning"
+        : hour < 18
+          ? "Good afternoon"
+          : "Good evening";
+  };
+  paintGreeting();
   welcomeTitle.append(welcomeMark, welcomeGreeting);
   const welcomeText = document.createElement("p");
   welcomeText.textContent = "What can I help you build or change in this project?";
@@ -1616,18 +1742,51 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   setupHint.textContent = "Write below, Enter sends";
   setupAskItem.append(setupAsk, setupHint);
 
-  setupSteps.append(setupConnectItem, setupAskItem);
+  const setupFolderItem = document.createElement("li");
+  setupFolderItem.className = "chat-setup-step chat-setup-folder";
+  const setupFolder = document.createElement("button");
+  setupFolder.type = "button";
+  setupFolder.className = "chat-send chat-setup-action";
+  setupFolder.textContent = "Open a project folder";
+  setupFolder.addEventListener("click", () => deps.switchFolder?.());
+  const setupFolderHint = document.createElement("span");
+  setupFolderHint.className = "chat-setup-status";
+  setupFolderHint.textContent = "Conversations, tasks and changes stay with the folder.";
+  setupFolderItem.append(setupFolder, setupFolderHint);
+
+  setupSteps.append(setupFolderItem, setupConnectItem, setupAskItem);
+  /*
+   * Which steps are still to do. Vibe shows the list only while something is missing -
+   * a returning user with a folder and a model should see the prompt, not a checklist -
+   * and the step numbers follow whatever is actually left.
+   */
+  let modelReady: boolean | null = null;
+  function paintSetup(): void {
+    const hasFolder = currentFolderRoot !== null;
+    setupFolderItem.hidden = hasFolder;
+    setupConnectItem.dataset["done"] = String(modelReady === true);
+    setupSteps.dataset["needed"] = String(!hasFolder || modelReady === false);
+    setupConnect.textContent = `${hasFolder ? "1" : "2"} · Connect a model`;
+    // One primary button: the next thing to do. Connecting waits behind opening a folder.
+    setupConnect.className = `${hasFolder ? "chat-send" : "ghost-button"} chat-setup-action`;
+    setupAsk.textContent = `${hasFolder ? "2" : "3"} · Ask your first question`;
+    setupFolder.textContent = "1 · Open a project folder";
+    welcomeText.textContent = hasFolder
+      ? "What can I help you build or change in this project?"
+      : "Open a project folder to build with its files, or ask a general question.";
+  }
+  paintSetup();
   const quickActions = document.createElement("div");
   quickActions.className = "chat-quick-actions";
   // A starter that ends in ": " waits for the user's words; a complete one sends at once,
   // and a slash starter runs its command (attaching the diff for a review, say).
-  const starters: ReadonlyArray<{ label: string; hint: string; prompt?: string; slash?: string }> = [
-    { label: "Build something", hint: "Describe it in plain words", prompt: "Build this in my project, end to end, and run the tests: " },
+  const starters: ReadonlyArray<{ label: string; hint: string; prompt?: string; slash?: string; run?: () => void }> = [
+    { label: "Explain this project", hint: "A tour of the codebase", prompt: "Give me a short tour of this project: what it does, how the code is organised, how to run it, and where a newcomer should start reading." },
+    { label: "Plan new idea", hint: "Scope it before building", prompt: "Plan this idea for my project. Identify the files, risks, and a way to verify the result: " },
     { label: "Fix an error", hint: "Paste it or name the file", prompt: "Find the root cause of this error and fix it, then verify the fix: " },
-    { label: "Explain this project", hint: "A five-minute tour", prompt: "Give me a five-minute tour of this project: what it does, how it is organised, the main entry points, and where the important code lives." },
-    { label: "Review my changes", hint: "Catch bugs before you commit", slash: "review" },
-    { label: "Write tests", hint: "With your test setup", prompt: "Find the most important untested code in this project, write focused tests for it with the existing test setup, and run them: " },
-    { label: "Find bugs", hint: "A careful read for problems", prompt: "Read the core of this project carefully and list the most likely real bugs, with file and line, most severe first. Do not change files yet." },
+    { label: "Review changes", hint: "Catch bugs before commit", slash: "review" },
+    { label: "Verify changes", hint: "Tests and evidence", prompt: "Inspect my uncommitted changes, run the relevant checks, and report exactly what passed, failed, or could not be checked. Do not change files." },
+    { label: "Multitask", hint: "Set up an AI team", run: () => api.openTeamSetup() },
   ];
   for (const starter of starters) {
     const action = document.createElement("button");
@@ -1638,6 +1797,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     hint.textContent = starter.hint;
     action.append(hint);
     action.addEventListener("click", () => {
+      if (starter.run) { starter.run(); return; }
       const slash = starter.slash === undefined ? undefined : matchSlashCommands(starter.slash)[0];
       if (slash !== undefined) {
         menuTrigger = null;
@@ -1654,6 +1814,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   welcome.append(welcomeTitle, welcomeText, setupSteps);
   const refreshWelcome = (): void => {
     const empty = transcript.childElementCount === 0;
+    if (empty) paintGreeting();
     welcome.hidden = !empty;
     quickActions.hidden = !empty;
     conversation.dataset["empty"] = String(empty);
@@ -2178,6 +2339,26 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   /** Re-send a prompt, unless a turn is already running. */
+  const KEEP_GOING_LIMIT = 5;
+  let keptGoing = 0;
+  /**
+   * Send once the turn that just ended has fully returned. The step-limit error arrives
+   * while main is still finishing that turn, and a send in that moment is refused.
+   */
+  function continueWhenIdle(prompt: string, attempts = 12): void {
+    setSendMode("stop");
+    streamingBubble = null;
+    void window.adcode.ai.send(prompt, undefined, currentEditorContext()).then((ok) => {
+      if (!ok) setSendMode("send");
+    }, (error: unknown) => {
+      if (attempts > 0 && /already handling/i.test(String(error))) {
+        window.setTimeout(() => continueWhenIdle(prompt, attempts - 1), 400);
+        return;
+      }
+      setSendMode("send");
+    });
+  }
+
   function resend(prompt: string): boolean {
     if (sendButton.dataset["mode"] === "stop") return false;
     if (prompt.trim().length === 0) return false;
@@ -2215,6 +2396,96 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     });
     element.append(action);
     scrollToEnd();
+  }
+
+  /*
+   * A failed turn says why, where the user is looking.
+   *
+   * It used to collapse to "Failed after 34s" with the reason only in the inspector's
+   * trace, so a rate limit, a rejected key and a broken tool call all looked the same:
+   * like the assistant simply not working. The card names the problem, says what to do,
+   * offers those actions as buttons, and keeps the provider's exact words one click away.
+   */
+  function failureCard(detail: string): void {
+    const failure = describeAiFailure(detail);
+    const last = transcript.lastElementChild;
+    if (last instanceof HTMLElement && last.dataset["failureDetail"] === failure.detail) {
+      scrollToEnd(true);
+      return;
+    }
+    const card = document.createElement("section");
+    card.className = "chat-failure";
+    card.dataset["failure"] = failure.kind;
+    card.dataset["failureDetail"] = failure.detail;
+    card.setAttribute("role", "alert");
+
+    const icon = document.createElement("span");
+    icon.className = "chat-failure-icon";
+    icon.textContent = "!";
+    icon.setAttribute("aria-hidden", "true");
+
+    const body = document.createElement("div");
+    body.className = "chat-failure-body";
+    const heading = document.createElement("h3");
+    heading.className = "chat-failure-title";
+    heading.textContent = failure.title;
+    const text = document.createElement("p");
+    text.className = "chat-failure-text";
+    text.textContent = failure.explanation;
+
+    const actions = document.createElement("div");
+    actions.className = "chat-failure-actions";
+    const action = (label: string, run: () => void, primary = false): HTMLButtonElement => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `chat-failure-button${primary ? " is-primary" : ""}`;
+      button.textContent = label;
+      button.addEventListener("click", run);
+      actions.append(button);
+      return button;
+    };
+    failure.actions.forEach((kind, index) => {
+      const primary = index === 0;
+      if (kind === "retry") {
+        const retry = action("Try again", () => { if (resend(lastUserPrompt)) retry.disabled = true; }, primary);
+        retry.disabled = lastUserPrompt.trim().length === 0;
+      } else if (kind === "models") {
+        action("Switch model", () => deps.openConnect(), primary);
+      } else if (kind === "new-conversation") {
+        // A fresh conversation carries no history, which is the fix; the request comes along.
+        action("Start fresh with this request", () => {
+          const request = lastUserPrompt;
+          api.newConversation();
+          input.value = request;
+          autogrowComposer();
+        }, primary);
+      } else if (kind === "report") {
+        action("Report problem", () => reportFailure(failure.title, failure.detail), primary);
+      }
+    });
+    if (!failure.actions.includes("report") && deps.reportProblem !== undefined) {
+      action("Report problem", () => reportFailure(failure.title, failure.detail));
+    }
+
+    const details = document.createElement("details");
+    details.className = "chat-failure-detail";
+    const summary = document.createElement("summary");
+    summary.textContent = "Details";
+    const code = document.createElement("code");
+    code.textContent = failure.detail;
+    details.append(summary, code);
+
+    body.append(heading, text, actions, details);
+    card.append(icon, body);
+    transcript.append(card);
+    scrollToEnd(true);
+  }
+
+  function reportFailure(title: string, detail: string): void {
+    deps.reportProblem?.({
+      title: `Assistant: ${title}`.slice(0, 120),
+      body: `What I asked for:\n\nWhat happened: ${detail.slice(0, 600)}`,
+    });
   }
 
   /*
@@ -2687,9 +2958,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   teamConflict.addEventListener("click", () => {
     if (activeTeam !== null) renderTeamConflicts(activeTeam);
   });
-  teamCancel.addEventListener("click", () => {
+  teamCancel.addEventListener("click", async () => {
     const team = activeTeam;
-    if (team === null || !window.confirm("Cancel this Team? Isolated proposals remain unavailable to the project.")) {
+    if (team === null || !await askThemed({ title: "Cancel this Team?", body: "The Team stops, and its isolated proposals will not reach your project.", confirmLabel: "Cancel Team", cancelLabel: "Keep going", danger: true })) {
       return;
     }
     teamCancel.disabled = true;
@@ -2765,8 +3036,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         run.type = "button";
         run.className = "chat-send";
         run.textContent = "Run now";
-        run.addEventListener("click", () => {
-          if (!window.confirm("Run this missed AI message now?")) return;
+        run.addEventListener("click", async () => {
+          if (!await askThemed({ title: "Run this missed message now?", body: "It was scheduled while ADCode was closed. Sending it now starts the assistant on it.", confirmLabel: "Run now" })) return;
           run.disabled = true;
           void window.adcode.aiAutomation.confirmMissed(item.id).then(() => refreshAutomations());
         });
@@ -2892,7 +3163,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     openFile.textContent = "Open project file";
     openFile.title = "Open the current project copy in Code. Proposed changes are shown below.";
     openFile.addEventListener("click", () => deps.openExternalPath(change.path));
-    panel.append(openFile);
+    // A new file is not in the project yet; opening it could only fail.
+    if (!change.isNew) panel.append(openFile);
+    else heading.textContent = `New file — ${change.path}`;
 
     const accepted = new Set(change.hunks.map((hunk) => hunk.id));
     const apply = document.createElement("button");
@@ -2951,9 +3224,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           if (result.ok) actions.remove();
           else apply.disabled = false;
         })
-        .catch(() => {
-          heading.textContent = `Could not apply ${change.path}`;
-          apply.disabled = false;
+        .catch((error: unknown) => {
+          heading.textContent = applyFailureMessage(error, `Could not apply ${change.path}`);
+          // A task that is not applicable here stays that way; a live button would only
+          // invite the same refusal again.
+          if (isUnavailableTask(error)) actions.remove();
+          else apply.disabled = false;
         });
     });
     actions.append(apply);
@@ -2997,7 +3273,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
             if (result.ok) {
               for (const button of transcript.querySelectorAll<HTMLButtonElement>(`[data-task-review="${task.id}"] .diff-actions button`)) button.disabled = true;
             } else applyAll.disabled = false;
-          }).catch(() => { state.textContent = "Could not apply changes. Your project may have changed; review and retry."; applyAll.disabled = false; });
+          }).catch((error: unknown) => {
+            state.textContent = applyFailureMessage(error, "Could not apply changes. Your project may have changed; review and retry.");
+            applyAll.disabled = isUnavailableTask(error);
+          });
         });
       }
       summary.append(title, state, actions);
@@ -3071,9 +3350,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   taskTrace.addEventListener("click", () => {
     if (activeWorkspaceTask !== null) void renderPersistedTrace(activeWorkspaceTask);
   });
-  taskDiscard.addEventListener("click", () => {
+  taskDiscard.addEventListener("click", async () => {
     const task = activeWorkspaceTask;
-    if (task === null || !window.confirm("Discard this isolated AI task and its pending changes?")) return;
+    if (task === null || !await askThemed({ title: "Discard these changes?", body: "The staged task and its pending changes are thrown away. Your project files are not touched.", confirmLabel: "Discard", danger: true })) return;
     taskDiscard.disabled = true;
     void window.adcode.aiWorkspace
       .discard(task.id)
@@ -3120,8 +3399,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const key = `${edit.taskId} ${edit.relativePath}`;
     const text =
       `Proposed ${edit.hunks.length} change${edit.hunks.length === 1 ? "" : "s"} to ` +
-      `${edit.displayPath} — waiting in the isolated task workspace, not in your project yet. ` +
-      `Review the diff above and choose Apply selected; the file lands in your Explorer once applied.`;
+      `${edit.displayPath} — staged for your review, not in your project yet. ` +
+      `Review the diff above and choose Apply selected; the file lands in your Explorer once applied. ` +
+      // The way out of reviewing, said where the reviewing happens.
+      `Rather have edits land as the assistant works? Switch Review to Auto below - you can undo any turn.`;
     const existing = proposalNotices.get(key);
     if (existing !== undefined && existing.isConnected) {
       messageSources.set(existing, text);
@@ -3212,9 +3493,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
             apply.disabled = false;
           }
         })
-        .catch(() => {
-          heading.textContent = `Could not apply ${edit.displayPath}`;
-          apply.disabled = false;
+        .catch((error: unknown) => {
+          heading.textContent = applyFailureMessage(error, `Could not apply ${edit.displayPath}`);
+          if (isUnavailableTask(error)) actions.remove();
+          else apply.disabled = false;
         });
     });
 
@@ -3291,6 +3573,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         break;
       }
 
+      case "status": {
+        // Host progress, not model reasoning: "Waiting 21s for Groq's rate limit" is
+        // shown live, so a wait never reads as a hang.
+        const text = String(event["text"] ?? "");
+        workingText.textContent = text;
+        ensureActivity().setLabel(text);
+        break;
+      }
+
       case "thinking": {
         workingText.textContent = "Planning next steps";
         const block = ensureActivity();
@@ -3309,6 +3600,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         const rowId = typeof call.id === "string" && call.id.length > 0 ? call.id : `${call.name}-${String(Date.now())}`;
         block.addRow({ kind: "tool", text: detail.length > 0 ? `${call.name} · ${detail}` : call.name, status: "running", id: rowId, detail });
         activityToolRows.set(rowId, true);
+        // That bubble is finished: without this its streaming caret blinked forever.
+        streamingBubble?.classList.remove("is-streaming");
         streamingBubble = null;
         scrollToEnd();
         break;
@@ -3350,23 +3643,33 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         finishActivityFailed();
         setSendMode("send");
         const detail = String(event["detail"] ?? "unknown");
-        trace("Error", detail, "error");
-        // Key, quota, and model failures are all fixed in the same place.
-        if (/Connect a model|API key|custom endpoint|HTTP 40[1234]|credit|quota|not found/i.test(detail)) {
-          connectNudge();
-        }
         // A capped task pauses: offer the ways forward as buttons.
         if (/token budget|token-limit/i.test(detail)) {
+          trace("Error", detail, "error");
           budgetNudge();
+          break;
         }
         // Unsaved files block file tools: name the way out as buttons.
         if (/isolated task begins/i.test(detail)) {
+          trace("Error", detail, "error");
           draftNudge();
+          break;
         }
-        // A step or output limit stops the turn, not the work: offer to continue.
+        // A step or output limit stops the turn, not the work: offer to continue -
+        // or, with Keep going until done on, continue without asking (five times at most).
         if (/step limit|response limit/i.test(detail)) {
+          trace("Error", detail, "error");
+          if (keepGoing && /step limit/i.test(detail) && keptGoing < KEEP_GOING_LIMIT) {
+            keptGoing += 1;
+            modeNote(`Reached the step limit - keeping going (${keptGoing} of ${KEEP_GOING_LIMIT}).`);
+            continueWhenIdle("Continue from where you stopped and finish the remaining steps.");
+            break;
+          }
           continueNudge();
+          break;
         }
+        // Everything else says what went wrong, in the conversation, with the way out.
+        failureCard(detail);
         break;
       }
 
@@ -3394,6 +3697,83 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
   });
 
+  /*
+   * What an automatic-mode turn changed, with Undo.
+   *
+   * The safety net for "Apply automatically": the files the turn touched, each one a way
+   * into the editor, and one button that puts them all back. Undo refuses to overwrite
+   * edits the user made afterwards until they say so.
+   */
+  window.adcode.ai.onCheckpoint((checkpoint) => {
+    const card = document.createElement("section");
+    card.className = "chat-checkpoint";
+    card.dataset["checkpointId"] = checkpoint.id;
+    const icon = document.createElement("span");
+    icon.className = "chat-checkpoint-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "✓";
+    const body = document.createElement("div");
+    body.className = "chat-checkpoint-body";
+    const heading = document.createElement("strong");
+    heading.className = "chat-checkpoint-title";
+    const count = checkpoint.files.length;
+    heading.textContent = count === 1 ? `Changed ${checkpoint.files[0]?.path ?? "1 file"}` : `Changed ${count} files`;
+    const list = document.createElement("div");
+    list.className = "chat-checkpoint-files";
+    for (const file of checkpoint.files.slice(0, 8)) {
+      const open = document.createElement("button");
+      open.type = "button";
+      open.className = "chat-checkpoint-file";
+      open.textContent = `${file.created ? "+ " : ""}${file.path}`;
+      open.title = `${file.created ? "Created" : "Changed"} ${file.path} - open it`;
+      open.addEventListener("click", () => deps.openExternalPath(file.path));
+      list.append(open);
+    }
+    if (count > 8) {
+      const more = document.createElement("span");
+      more.className = "chat-checkpoint-more";
+      more.textContent = `+${count - 8} more`;
+      list.append(more);
+    }
+    const status = document.createElement("p");
+    status.className = "chat-checkpoint-status";
+    status.setAttribute("role", "status");
+    status.hidden = true;
+    const undo = document.createElement("button");
+    undo.type = "button";
+    undo.className = "chat-checkpoint-undo";
+    undo.textContent = "Undo";
+    undo.title = "Put these files back as they were before this turn";
+    let force = false;
+    undo.addEventListener("click", () => {
+      undo.disabled = true;
+      void window.adcode.ai.undoCheckpoint(checkpoint.id, force).then((result) => {
+        status.hidden = false;
+        status.textContent = result.message;
+        if (result.ok) {
+          card.dataset["state"] = "undone";
+          undo.hidden = true;
+          heading.textContent = count === 1 ? `Undid the change to ${checkpoint.files[0]?.path ?? "1 file"}` : `Undid changes to ${count} files`;
+          return;
+        }
+        if (result.conflicts.length > 0) {
+          force = true;
+          undo.textContent = "Undo anyway";
+          undo.title = `Overwrite your later edits to ${result.conflicts.join(", ")}`;
+        }
+        undo.disabled = false;
+      }, () => {
+        status.hidden = false;
+        status.textContent = "Could not undo this turn. Try again.";
+        undo.disabled = false;
+      });
+    });
+    body.append(heading, list, status);
+    card.append(icon, body, undo);
+    transcript.append(card);
+    scrollToEnd();
+  });
+
   window.adcode.ai.onProposedEdit((edit) => {
     flushStream();
     streamingBubble = null;
@@ -3405,6 +3785,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   function submit(): void {
     closeOpenMenu();
+    // A person stepping in resets Keep going's count, whether to stop or to redirect.
+    keptGoing = 0;
     // Cursor-style stop: while a turn is running the send key stops it.
     if (sendButton.dataset["mode"] === "stop") {
       window.adcode.ai.cancel();
@@ -3443,7 +3825,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           showUser: (message, attachments) => bubble("user", message, attachments),
           aiSend: (message, attachments) => window.adcode.ai.send(message, attachments, editor),
           onFailure: () => {
-            finishActivity();
+            // A send that returned false failed, whichever of this and the error event
+            // arrives first - the block must never read "Worked for" after a failure.
+            finishActivityFailed();
             setSendMode("send");
           },
         },
@@ -3670,6 +4054,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       announce();
     },
 
+    newConversation(): void {
+      api.open();
+      resetButton.click();
+      requestAnimationFrame(() => requestAnimationFrame(() => input.focus()));
+    },
+
     openTeamSetup(): void {
       runChatWidgetIntent("team", {
         open: () => api.open(),
@@ -3751,6 +4141,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       reviewDialogShownFor.clear();
       currentFolderRoot = root;
       paintFolderBanner();
+      paintSetup();
       void refreshHistory();
       suggestionGeneration += 1;
       if (suggestionTimer !== null) {

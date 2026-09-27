@@ -2,9 +2,13 @@
  * The tool surface the built-in agent is given.
  *
  * Definitions only - pure data. The implementations live in the main process, because
- * they touch the filesystem and the memory store, and because §5.3 requires every
- * mutating result to pass through an isolated task workspace and the inline diff widget
- * rather than reaching the human project directly.
+ * they touch the filesystem and the memory store.
+ *
+ * The descriptions say what a tool does, never where its writes land: the assistant edits
+ * the live project while a Team role edits an isolated copy, and one shared definition
+ * that claimed either would be wrong for the other. Each agent's own instructions state
+ * which it is. (They used to say "isolated, awaits review" while the assistant's host
+ * context said "applies directly" - a contradiction weaker models visibly stumbled on.)
  *
  * The set is deliberately small. Brief §5.2 says of the MCP tools "expose exactly these
  * tools, and resist adding more", and the same reasoning applies here - every extra tool
@@ -77,12 +81,12 @@ export const SEARCH: ToolDefinition = {
 export const PROPOSE_EDIT: ToolDefinition = {
   name: "propose_edit",
   description:
-    "Write a proposed complete file into the isolated task workspace. The human project is unchanged until the user reviews and accepts hunks. Send the file's complete new contents, not a patch. Parent directories are created as needed. Use this to create new files or rewrite small ones; to change part of an existing file, use edit_file instead.",
+    "Write a complete file: create a new one or rewrite a short one. Send the whole new contents, not a patch; parent directories are created as needed. To change part of an existing file, use edit_file instead.",
   inputSchema: {
     type: "object",
     properties: {
       path: path("Workspace-relative path of the file to change"),
-      contents: { type: "string", description: "The file's complete proposed contents" },
+      contents: { type: "string", description: "The file's complete new contents" },
       summary: { type: "string", description: "One line describing what this change does" },
     },
     required: ["path", "contents"],
@@ -99,7 +103,7 @@ const replacement = {
 export const EDIT_FILE: ToolDefinition = {
   name: "edit_file",
   description:
-    "Change part of an existing file by exact text replacement, staged in the isolated task workspace for the user's review exactly like propose_edit. Prefer this over propose_edit for any change to an existing file: it sends only what changes, so it is faster, cheaper, and cannot drop the rest of the file. old_string must match the file exactly, including indentation, and be unique unless replace_all is true. Pass several replacements for one file at once with edits; they apply in order and all must succeed. An empty old_string creates the file when it does not exist yet.",
+    "Change part of an existing file by exact text replacement - prefer this to propose_edit for any existing file: it sends only what changes, so it is faster and cannot drop the rest of the file. old_string must match exactly, including indentation, and be unique unless replace_all is true. For several changes to one file, pass edits; they apply in order and all must succeed.",
   inputSchema: {
     type: "object",
     properties: {
@@ -117,7 +121,7 @@ export const EDIT_FILE: ToolDefinition = {
   mutating: true,
 };
 
-/* ── Unfair-advantage tools (still sandboxed, still review-first) ────────── */
+/* ── Unfair-advantage tools ────────────────────────────────────────────── */
 
 export const GLOB_FILES: ToolDefinition = {
   name: "glob_files",
@@ -151,7 +155,7 @@ export const GET_OUTLINE: ToolDefinition = {
 export const RUN_COMMAND: ToolDefinition = {
   name: "run_command",
   description:
-    "Run a non-interactive command inside the isolated task workspace (tests, typecheck, lint, build) and return its output. File effects land in the sandbox, never the human project, and proposals still need review. Prefer this over describing what the user should run.",
+    "Run a non-interactive command in the workspace (tests, typecheck, lint, build) and return its output. Prefer this over telling the user what to run.",
   inputSchema: {
     type: "object",
     properties: {

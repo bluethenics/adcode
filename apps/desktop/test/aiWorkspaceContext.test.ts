@@ -135,3 +135,21 @@ describe("embedded preview URL boundary", () => {
     expect(localPreviewUrl(url)).toBeNull();
   });
 });
+
+describe("where the assistant's edits land", () => {
+  it("says once, and truly, that edits apply to the live project", () => {
+    const context = aiWorkspaceContext("/project", null);
+    expect(context).toContain("Your edits apply directly");
+    // The old contradiction: a review-first line beside an applies-directly line.
+    expect(context).not.toMatch(/isolated task workspace|require review|unapplied proposals/i);
+  });
+});
+
+describe("review mode context", () => {
+  it("tells the model its edits are staged and wait for the user", () => {
+    const context = aiWorkspaceContext("/project", null, null, "review");
+    expect(context).toContain("staged for the user's review");
+    expect(context).toContain("waiting for review");
+    expect(context).not.toContain("Your edits apply directly");
+  });
+});

@@ -1,0 +1,517 @@
+/*
+ * The Vibe sidebar (vibeSidebar.ts).
+ *
+ * Driven by two attributes on <body> rather than media queries, because Ctrl+B can collapse
+ * a rail that the window is wide enough for:
+ *   data-vibe-rail="docked"   a fixed, resizable rail beside the conversation;
+ *   data-vibe-rail="compact"  a slim top bar, with the same sidebar as a slide-in drawer;
+ *   data-vibe-drawer="open"   the drawer is showing (compact only).
+ * Tokens only, so every theme (light, dark, midnight) follows without overrides here.
+ */
+
+/* A step marked hidden is done: `.chat-setup-step`'s own display would otherwise win. */
+.chat-setup-step[hidden] { display: none; }
+
+.vibe-topbar, .vibe-drawer-scrim { display: none; }
+
+
+/* ── Frame ─────────────────────────────────────────────────────────────── */
+
+body[data-agent-workbench="true"][data-workspace-mode="vibe"][data-vibe-rail="docked"] {
+  grid-template-rows: var(--ui-chrome-height) 0 0 minmax(0, 1fr) var(--ui-status-height);
+}
+body[data-agent-workbench="true"][data-workspace-mode="vibe"][data-vibe-rail="compact"] {
+  grid-template-rows: var(--ui-chrome-height) 44px 0 minmax(0, 1fr) var(--ui-status-height);
+}
+body[data-workspace-mode="vibe"][data-vibe-rail="docked"] .project-toolbar {
+  position: fixed;
+  z-index: 19;
+  inset: var(--ui-chrome-height) auto var(--ui-status-height) 0;
+  width: var(--vibe-rail-width, 272px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 12px 10px 10px;
+  overflow: hidden;
+  border: 0;
+  border-right: 1px solid var(--border-hairline);
+  background: var(--bg-chrome);
+}
+body[data-workspace-mode="vibe"][data-vibe-rail="docked"] .workbench,
+body[data-workspace-mode="vibe"][data-vibe-rail="docked"] .workspace-first-hint { margin-left: var(--vibe-rail-width, 272px); }
+body[data-workspace-mode="vibe"][data-vibe-rail="docked"] #vibe-rail-splitter {
+  display: block;
+  position: fixed;
+  z-index: 20;
+  top: var(--ui-chrome-height);
+  bottom: var(--ui-status-height);
+  left: calc(var(--vibe-rail-width, 272px) - 3px);
+  width: 6px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: ew-resize;
+}
+body[data-workspace-mode="vibe"] #vibe-rail-splitter:hover,
+body[data-workspace-mode="vibe"] #vibe-rail-splitter[data-dragging="true"],
+body[data-workspace-mode="vibe"] #vibe-rail-splitter:focus-visible {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  outline: none;
+}
+
+/* Compact: the toolbar is a top bar; the sidebar waits off-canvas. */
+body[data-workspace-mode="vibe"][data-vibe-rail="compact"] .project-toolbar {
+  gap: 8px;
+  padding: 0 10px;
+  min-width: 0;
+}
+body[data-workspace-mode="vibe"][data-vibe-rail="compact"] .vibe-topbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+body[data-workspace-mode="vibe"][data-vibe-rail="compact"] .vibe-sidebar {
+  position: fixed;
+  z-index: 45;
+  top: var(--ui-chrome-height);
+  bottom: var(--ui-status-height);
+  left: 0;
+  width: min(296px, calc(100vw - 48px));
+  padding: 12px 10px 10px;
+  border-right: 1px solid var(--border-hairline);
+  background: var(--bg-chrome);
+  box-shadow: var(--shadow-floating);
+  transform: translateX(-104%);
+  visibility: hidden;
+  transition: transform 220ms cubic-bezier(.2, .8, .2, 1), visibility 0s linear 220ms;
+}
+body[data-workspace-mode="vibe"][data-vibe-rail="compact"][data-vibe-drawer="open"] .vibe-sidebar {
+  transform: none;
+  visibility: visible;
+  transition: transform 220ms cubic-bezier(.2, .8, .2, 1), visibility 0s;
+}
+body[data-workspace-mode="vibe"][data-vibe-rail="compact"][data-vibe-drawer="open"] .vibe-drawer-scrim {
+  display: block;
+  position: fixed;
+  z-index: 44;
+  inset: var(--ui-chrome-height) 0 var(--ui-status-height) 0;
+  background: rgb(0 0 0 / .32);
+  animation: vibe-scrim-in 180ms ease-out;
+}
+@keyframes vibe-scrim-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  body[data-workspace-mode="vibe"] .vibe-sidebar,
+  body[data-workspace-mode="vibe"][data-vibe-drawer="open"] .vibe-sidebar { transition: none; }
+  body[data-workspace-mode="vibe"] .vibe-drawer-scrim { animation: none; }
+}
+:root[data-reduced-motion="true"] body[data-workspace-mode="vibe"] .vibe-sidebar { transition: none; }
+
+/* ── Sidebar ───────────────────────────────────────────────────────────── */
+
+body[data-workspace-mode="vibe"] .vibe-sidebar {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+body[data-workspace-mode="vibe"] .vibe-rail-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+body[data-workspace-mode="vibe"] .vibe-rail-main::-webkit-scrollbar { display: none; }
+body[data-workspace-mode="vibe"] .vibe-sidebar-head { display: flex; flex-direction: column; gap: 6px; }
+
+body[data-workspace-mode="vibe"] .vibe-sidebar button { font: inherit; cursor: pointer; }
+body[data-workspace-mode="vibe"] .vibe-sidebar svg,
+body[data-workspace-mode="vibe"] .vibe-topbar svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+body[data-workspace-mode="vibe"] .vibe-sidebar :is(button, input):focus-visible,
+body[data-workspace-mode="vibe"] .vibe-topbar button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Rows. */
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: left;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-nav-item[aria-pressed="true"] { background: var(--bg-selected); color: var(--text-primary); }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-nav-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-badge {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-badge[hidden] { display: none; }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-badge[data-attention="true"] {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-weight: 650;
+}
+/* A task still running gets a quiet pulse on its icon rather than a spinner in the list. */
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-tasks-button[data-working="true"] svg { color: var(--accent); animation: vibe-working 1.6s ease-in-out infinite; }
+@keyframes vibe-working { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-tasks-button[data-working="true"] svg { animation: none; } }
+
+/* Start. */
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-new-button {
+  min-height: 38px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-new-button:hover { border-color: var(--border-strong); background: var(--bg-elevated); }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-shortcut {
+  flex: none;
+  padding: 1px 5px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 5px;
+  color: var(--text-tertiary);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 500;
+}
+body[data-workspace-mode="vibe"] .vibe-search-host:empty { display: none; }
+body[data-workspace-mode="vibe"] .vibe-search-host .command-centre-slot { width: 100%; min-width: 0; margin: 0; }
+body[data-workspace-mode="vibe"] .vibe-search-host .command-centre {
+  width: 100%;
+  height: 34px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  background: var(--bg-app);
+}
+
+/* Project switcher. */
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-project-card {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px 10px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 10px;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  text-align: left;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-project-card:hover,
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-project-card[aria-expanded="true"] { border-color: var(--border-strong); background: var(--bg-hover); }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-project-card[data-empty="true"] { border-style: dashed; }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-project-card[data-empty="true"] .vibe-project-name { color: var(--accent); }
+body[data-workspace-mode="vibe"] .vibe-project-text { display: grid; gap: 2px; min-width: 0; }
+body[data-workspace-mode="vibe"] .vibe-project-name,
+body[data-workspace-mode="vibe"] .vibe-project-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body[data-workspace-mode="vibe"] .vibe-project-name { font-size: 13px; font-weight: 650; }
+body[data-workspace-mode="vibe"] .vibe-project-meta { color: var(--text-tertiary); font-size: 11px; }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-project-card .vibe-project-chevron { width: 14px; height: 14px; color: var(--text-tertiary); }
+
+body[data-workspace-mode="vibe"] .vibe-nav { display: flex; flex-direction: column; gap: 1px; margin-top: 10px; }
+
+/* Conversations. */
+body[data-workspace-mode="vibe"] .vibe-conversations {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 180px;
+  margin-top: 14px;
+}
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-nav-label {
+  margin: 0 0 6px;
+  padding: 0 10px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .03em;
+}
+body[data-workspace-mode="vibe"] .vibe-history-host { display: flex; flex: 1; min-height: 0; }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+}
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-section-heading,
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-clear { display: none; }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-search {
+  width: auto;
+  min-height: 30px;
+  margin: 0 2px 6px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: var(--bg-app);
+}
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-list { padding: 0; scrollbar-width: thin; }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-group {
+  display: block;
+  margin: 12px 10px 3px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-group:first-child { margin-top: 2px; }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row {
+  min-height: 32px;
+  gap: 4px;
+  margin: 1px 0;
+  padding: 3px 4px 3px 10px;
+  border-radius: 8px;
+}
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row:hover { background: var(--bg-hover); }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row[data-active="true"] { background: var(--bg-selected); }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row[data-active="true"] .chat-history-open { color: var(--text-primary); }
+/* Only "working" means anything to a Vibe user; a dot per row or a branch glyph for a
+   renamed chat is noise in a list this narrow. */
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-status:not([data-status="working"]) { display: none; }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-open {
+  display: -webkit-box;
+  padding: 4px 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.35;
+}
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row:hover .chat-history-open { color: var(--text-primary); }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-options { width: 24px; height: 24px; opacity: 0; transition: opacity 120ms ease; }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row:is(:hover, :focus-within) .chat-history-options,
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-options[aria-expanded="true"] { opacity: 1; }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-empty { padding: 6px 10px; line-height: 1.5; }
+
+/* Footer. */
+body[data-workspace-mode="vibe"] .vibe-rail-footer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-hairline);
+}
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-ide-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-ide-button:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-elevated)); }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-ide-button .vibe-ide-external { width: 13px; height: 13px; margin-left: auto; color: var(--text-tertiary); }
+body[data-workspace-mode="vibe"] .vibe-footer-row { display: flex; align-items: center; gap: 2px; }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-footer-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 34px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-footer-button:hover,
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-footer-button[aria-expanded="true"] { background: var(--bg-hover); color: var(--text-primary); }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-earnings-button { margin-right: auto; }
+body[data-workspace-mode="vibe"] .vibe-earnings-amount { color: var(--success); font-variant-numeric: tabular-nums; font-weight: 600; }
+body[data-workspace-mode="vibe"] .vibe-earnings-amount:empty { display: none; }
+body[data-workspace-mode="vibe"] .vibe-sidebar .project-tools { font-size: 18px; line-height: 1; }
+body[data-workspace-mode="vibe"] .vibe-sidebar .project-tools::after { content: none; }
+body[data-workspace-mode="vibe"] .vibe-unread-count {
+  position: absolute;
+  top: 3px;
+  right: 2px;
+  display: inline-grid;
+  place-items: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+body[data-workspace-mode="vibe"] .vibe-unread-count[hidden] { display: none; }
+
+/*
+ * Notifications, sponsored cards included, arrive top-right in Vibe.
+ *
+ * The IDE's bottom-right corner would put a 380px card over Vibe's composer and its Send
+ * button, which sit at the bottom centre. Top-right, under the conversation header, only
+ * ever covers the edge of text that scrolls. When the Tasks or Review panel is open on the
+ * right, cards move left of it so the panel stays readable.
+ */
+body[data-workspace-mode="vibe"] .toast-layer {
+  top: calc(var(--ui-chrome-height) + 60px);
+  right: 20px;
+  bottom: auto;
+}
+body[data-workspace-mode="vibe"][data-vibe-rail="compact"] .toast-layer { top: calc(var(--ui-chrome-height) + 104px); }
+@media (min-width: 1280px) {
+  body[data-workspace-mode="vibe"]:has(#workbench[data-context-open="true"]) .toast-layer {
+    right: calc(min(max(300px, var(--context-width, 320px)), 40vw) + 20px);
+  }
+}
+@media (max-width: 1279px) {
+  body[data-workspace-mode="vibe"]:has(#workbench[data-context-open="true"]) .toast-layer { right: 380px; }
+}
+
+/* Notifications open beside the bell rather than across the room from it. */
+body[data-workspace-mode="vibe"][data-vibe-rail="docked"] .notification-inbox {
+  right: auto;
+  left: calc(var(--vibe-rail-width, 272px) + 12px);
+  bottom: calc(var(--ui-status-height) + 12px);
+}
+
+/* ── Compact top bar ───────────────────────────────────────────────────── */
+
+body[data-workspace-mode="vibe"] .vibe-topbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+}
+body[data-workspace-mode="vibe"] .vibe-topbar button:hover,
+body[data-workspace-mode="vibe"] .vibe-topbar button[aria-pressed="true"],
+body[data-workspace-mode="vibe"] .vibe-topbar button[aria-expanded="true"] { background: var(--bg-hover); color: var(--text-primary); }
+body[data-workspace-mode="vibe"] .vibe-topbar .vibe-sidebar-toggle { width: 32px; padding: 0; justify-content: center; }
+body[data-workspace-mode="vibe"] .vibe-topbar .vibe-topbar-project { max-width: 220px; color: var(--text-primary); font-size: 13px; font-weight: 650; }
+body[data-workspace-mode="vibe"] .vibe-topbar .vibe-topbar-project span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+body[data-workspace-mode="vibe"] .vibe-topbar .vibe-topbar-project svg:last-child { width: 13px; height: 13px; color: var(--text-tertiary); }
+body[data-workspace-mode="vibe"] .vibe-topbar-search { flex: 1; min-width: 36px; display: flex; justify-content: center; }
+body[data-workspace-mode="vibe"] .vibe-topbar-search .command-centre-slot { width: min(100%, 520px); min-width: 0; flex: none; }
+body[data-workspace-mode="vibe"] .vibe-topbar-search .command-centre {
+  width: 100%;
+  height: 30px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  background: var(--bg-app);
+}
+body[data-workspace-mode="vibe"] .vibe-topbar .vibe-topbar-ide { border: 1px solid var(--border-subtle); border-radius: 999px; color: var(--text-primary); }
+body[data-workspace-mode="vibe"] .vibe-topbar .vibe-topbar-ide:hover { border-color: var(--accent); }
+@media (max-width: 760px) {
+  body[data-workspace-mode="vibe"] .vibe-topbar .vibe-topbar-preview,
+  body[data-workspace-mode="vibe"] .vibe-topbar .vibe-topbar-ide { width: 32px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
+  body[data-workspace-mode="vibe"] .vibe-topbar .vibe-topbar-project { max-width: 140px; }
+  body[data-workspace-mode="vibe"] .vibe-topbar-search .command-centre-label,
+  body[data-workspace-mode="vibe"] .vibe-topbar-search .command-centre-shortcut { display: none; }
+}
+
+/* ── Conversation canvas in Vibe ───────────────────────────────────────── */
+
+/* The sidebar owns project and window switching; the header keeps only chat actions. */
+body[data-workspace-mode="vibe"] .vibe-workspace .chat-presentation,
+body[data-workspace-mode="vibe"] .vibe-workspace .chat-folder-banner { display: none; }
+
+/* First run: the steps that are still missing, as one calm card under the greeting. */
+body[data-workspace-mode="vibe"] .vibe-workspace .chat-card .chat-setup-steps[data-needed="true"] {
+  display: grid;
+  gap: 8px;
+  margin: 20px 0 0;
+}
+body[data-workspace-mode="vibe"] .vibe-workspace .chat-card .chat-setup-step[data-done="true"] { display: none; }
+body[data-workspace-mode="vibe"] .vibe-workspace .chat-card .chat-setup-step {
+  padding: 10px 12px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+body[data-workspace-mode="vibe"] .vibe-workspace .chat-card .chat-setup-step .ghost-button.chat-setup-action {
+  border: 1px solid var(--border-subtle);
+}
+
+/* ── Onboarding: the two windows, as equal cards ───────────────────────── */
+
+/* Top-aligned, so the shorter card does not float its text in the middle of the row. */
+.onboarding-mode { align-content: start; }
+.onboarding-mode .onboarding-mode-tag {
+  justify-self: start;
+  padding: 2px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+.onboarding-mode[data-default="true"] .onboarding-mode-tag {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+}
+
+/* Vibe has no visible editor, so a caret position or language there describes nothing. */
+body[data-workspace-mode="vibe"] :is(#status-position, #status-language, #status-dirty) { display: none; }

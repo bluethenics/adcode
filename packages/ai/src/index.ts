@@ -18,6 +18,7 @@ export * from "./terminalTeam.ts";
 export * from "./adapter.ts";
 
 export {
+  closeOpenToolCalls,
   createAgent,
   estimateRequestTokens,
   MAX_TURNS,
@@ -99,6 +100,7 @@ export {
 
 export * from "./connections.ts";
 export * from "./requestScheduler.ts";
+export * from "./requestSize.ts";
 
 export {
   buildInlineEditRequest,

@@ -7,6 +7,7 @@ export function agentEventTrace(event: AgentEvent): AgentEventTrace | null {
   switch (event.kind) {
     case "text":
     case "thinking":
+    case "status":
       return null;
     case "tool-call": {
       const input = event.call.input;

@@ -52,6 +52,8 @@ export function registerGitIpc(): void {
         staged: entry.staged,
         worktree: entry.worktree,
         isConflicted: entry.isConflicted,
+        added: entry.added,
+        removed: entry.removed,
       })),
     };
   });

@@ -35,7 +35,7 @@ export const GIT_ENTRIES: readonly HelpEntry[] = [
     plain:
       "Pick which of your changes to keep as a set, write a note about them, and save that set into your project's history.",
     why: "This is the point of source control: your work gets saved in labelled steps you can go back to, rather than as one big pile of edits.",
-    how: "On by default. Open the Source Control panel in the activity bar. Tick the changes you want in this set - that is 'staging' - write a short note saying what you did, and press Commit.",
+    how: "On by default. Open the Source Control panel in the activity bar. Tick the changes you want in this set - that is 'staging' - write a short note saying what you did, and press Commit. The Context pane's Changes tab shows the same work Cursor-style: an Uncommitted +added −removed total, one row per file with its own count or a New badge, a diff preview inside each row, and a Commit & Push box that stages, commits, and pushes in one go.",
     group: "git",
     settingIds: ["adcode.git.stageCommitUi"],
     related: ["adcode.git.gutterDiff", "adcode.git.branchSwitcher"],

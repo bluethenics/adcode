@@ -122,6 +122,8 @@ export type AgentEvent =
   | { readonly kind: "text"; readonly text: string }
   /** A summary of the model's reasoning, where the provider exposes one. */
   | { readonly kind: "thinking"; readonly text: string }
+  /** Transient progress to show, never to keep: "waiting out a rate limit". */
+  | { readonly kind: "status"; readonly text: string }
   | { readonly kind: "tool-call"; readonly call: ToolCallBlock }
   | {
       readonly kind: "tool-result";
@@ -153,6 +155,8 @@ export interface ProviderRequest {
 export type ProviderEvent =
   | { readonly kind: "text"; readonly text: string }
   | { readonly kind: "thinking"; readonly text: string }
+  /** Host-side progress (the request scheduler waiting), passed through, never recorded. */
+  | { readonly kind: "status"; readonly text: string }
   | { readonly kind: "tool-call"; readonly call: ToolCallBlock }
   | { readonly kind: "stop"; readonly reason: StopReason; readonly detail?: string };
 

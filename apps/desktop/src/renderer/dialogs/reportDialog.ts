@@ -14,8 +14,17 @@ import { bindBackdropDismissal } from "./backdropDismissal.ts";
  */
 import type { ReportInput, ReportKind, ReportResult } from "../../shared/api.ts";
 
+/** What to start the form with - the Help menu and a failed assistant turn both prefill it. */
+export interface ReportPrefill {
+  readonly kind?: ReportKind;
+  readonly title?: string;
+  readonly body?: string;
+  /** Tick "Include debug log" from the start. The user can still untick it. */
+  readonly includeDebugLog?: boolean;
+}
+
 export interface ReportDialog {
-  open(): void;
+  open(prefill?: ReportPrefill): void;
   isOpen(): boolean;
 }
 
@@ -56,9 +65,19 @@ const CHOICES: readonly Choice[] = [
 const TITLE_MAX = 120;
 const BODY_MAX = 4000;
 
+const FOOTNOTE =
+  "Sends your message with the app version and your operating system. Never your files, paths, or project names.";
+const FOOTNOTE_WITH_LOG =
+  "Sends your message, the app version, your operating system and the debug log above. Never your keys, files, paths, or project names.";
+
+/** Keeps the debug log apart from what the user wrote, in the one text field the server takes. */
+const LOG_DIVIDER = "\n\n--- Debug log ---\n";
+
 export function createReportDialog(
   host: HTMLElement,
   submit: (input: ReportInput) => Promise<ReportResult>,
+  /** The redacted debug log summary, at most `maxChars` long. Absent means no option. */
+  debugSummary?: (maxChars: number) => Promise<string>,
 ): ReportDialog {
   const dialog = document.createElement("dialog");
   dialog.className = "result-dialog report-dialog";
@@ -122,6 +141,44 @@ export function createReportDialog(
   detail.rows = 7;
   detail.setAttribute("aria-label", "Details");
 
+  /*
+   * The debug log option. Shown, not described: the summary that would be attached is
+   * right there under the checkbox, so nobody has to take the footnote's word for it.
+   */
+  const logOption = document.createElement("div");
+  logOption.className = "report-log";
+  logOption.hidden = debugSummary === undefined;
+  const logLabel = document.createElement("label");
+  logLabel.className = "report-log-label";
+  const logCheck = document.createElement("input");
+  logCheck.type = "checkbox";
+  logCheck.className = "report-log-check";
+  const logText = document.createElement("span");
+  logText.textContent = "Include debug log - recent errors, app version and the selected model";
+  logLabel.append(logCheck, logText);
+  const logPreview = document.createElement("details");
+  logPreview.className = "report-log-preview";
+  const logPreviewSummary = document.createElement("summary");
+  logPreviewSummary.textContent = "See exactly what is included";
+  const logPreviewText = document.createElement("pre");
+  logPreviewText.className = "report-log-text";
+  logPreview.append(logPreviewSummary, logPreviewText);
+  logOption.append(logLabel, logPreview);
+  let logSummary = "";
+  const refreshLog = (): void => {
+    if (debugSummary === undefined) return;
+    const room = Math.max(0, BODY_MAX - detail.value.trim().length - LOG_DIVIDER.length);
+    void debugSummary(Math.max(300, room)).then((text) => {
+      logSummary = text;
+      logPreviewText.textContent = text;
+    }, () => { logSummary = ""; logPreviewText.textContent = "The debug log could not be read."; });
+  };
+  logCheck.addEventListener("change", () => {
+    logPreview.hidden = !logCheck.checked;
+    footnote.textContent = logCheck.checked ? FOOTNOTE_WITH_LOG : FOOTNOTE;
+    if (logCheck.checked) refreshLog();
+  });
+
   const status = document.createElement("p");
   status.className = "report-status";
   status.setAttribute("role", "status");
@@ -129,8 +186,7 @@ export function createReportDialog(
 
   const footnote = document.createElement("p");
   footnote.className = "report-footnote";
-  footnote.textContent =
-    "Sends your message with the app version and your operating system. Never your files, paths, or project names.";
+  footnote.textContent = FOOTNOTE;
 
   /* ── Buttons ──────────────────────────────────────────────────────────── */
 
@@ -148,7 +204,7 @@ export function createReportDialog(
   send.textContent = "Send";
 
   buttons.append(cancel, send);
-  form.append(kinds, summary, detail, status, footnote, buttons);
+  form.append(kinds, summary, detail, logOption, status, footnote, buttons);
   card.append(title, form);
   dialog.append(card);
   host.append(dialog);
@@ -170,10 +226,16 @@ export function createReportDialog(
     status.dataset["tone"] = tone;
   }
 
-  function reset(): void {
-    select(CHOICES[0] as Choice);
-    summary.value = "";
-    detail.value = "";
+  function reset(prefill: ReportPrefill = {}): void {
+    select(CHOICES.find((choice) => choice.kind === prefill.kind) ?? (CHOICES[0] as Choice));
+    summary.value = (prefill.title ?? "").slice(0, TITLE_MAX);
+    detail.value = (prefill.body ?? "").slice(0, BODY_MAX);
+    logCheck.checked = prefill.includeDebugLog === true && debugSummary !== undefined;
+    logPreview.hidden = !logCheck.checked;
+    logPreview.open = false;
+    footnote.textContent = logCheck.checked ? FOOTNOTE_WITH_LOG : FOOTNOTE;
+    logSummary = "";
+    if (logCheck.checked) refreshLog();
     setStatus(null);
     sending = false;
     send.disabled = false;
@@ -205,7 +267,11 @@ export function createReportDialog(
     send.textContent = "Sending…";
     setStatus(null);
 
-    void submit({ kind: selected.kind, title: trimmedTitle, body: trimmedBody }).then(
+    // The log rides in the body, after what the user wrote, cut to whatever room is left.
+    const withLog = logCheck.checked && logSummary.length > 0
+      ? `${trimmedBody}${LOG_DIVIDER}${logSummary}`.slice(0, BODY_MAX)
+      : trimmedBody;
+    void submit({ kind: selected.kind, title: trimmedTitle, body: withLog }).then(
       (result) => {
         if (result.ok) {
           // Closing on success is the confirmation; a toast follows from the caller.
@@ -237,11 +303,11 @@ export function createReportDialog(
   reset();
 
   return {
-    open() {
+    open(prefill) {
       if (dialog.open) return;
-      reset();
+      reset(prefill);
       dialog.showModal();
-      summary.focus();
+      (summary.value.length === 0 ? summary : detail).focus();
     },
     isOpen: () => dialog.open,
   };

@@ -1,4 +1,8 @@
 import type { Provider } from "./types.ts";
+import { isRequestTooLarge } from "./requestSize.ts";
+
+/** How providers say the model produced a tool call they could not parse. */
+const TOOL_CALL_GARBLED = /tool_use_failed|failed to call a function|invalid tool call|failed_generation/i;
 /** One FIFO lane per connection; only request starts are serialized, not streams. */
 interface State {
   nextStartAt: number;
@@ -92,8 +96,19 @@ export class RequestScheduler {
               status?: number;
               retryAfter?: string | null;
               headers?: Headers;
+              message?: string;
             };
-            if (e.status !== 429 || signal.aborted) throw error;
+            if (signal.aborted) throw error;
+            // A garbled tool call (Groq's `tool_use_failed`) is a coin the model flipped
+            // badly, not a limit: the provider's own advice is to ask again. Once, at
+            // once, and only before anything streamed - replaying text would repeat it.
+            if (e.status !== 429) {
+              if (!emitted && attempt === 0 && TOOL_CALL_GARBLED.test(e.message ?? "")) continue;
+              throw error;
+            }
+            // "Requested 9120, limit 6000 per minute" never fits, however long we wait:
+            // fail at once so the agent can resend a leaner request instead.
+            if (isRequestTooLarge(e.message ?? "")) throw error;
             const raw = e.retryAfter ?? e.headers?.get("retry-after");
             const seconds =
               raw === undefined || raw === null ? NaN : Number(raw);
@@ -102,14 +117,17 @@ export class RequestScheduler {
               : raw
                 ? Date.parse(raw) - Date.now()
                 : NaN;
-            scheduler.cooldown(
-              id,
-              Number.isFinite(ms)
-                ? Math.max(0, ms)
-                : Math.min(60000, 1000 * 2 ** attempt),
-            );
+            const wait = Number.isFinite(ms)
+              ? Math.max(0, ms)
+              : Math.min(60000, 1000 * 2 ** attempt);
+            scheduler.cooldown(id, wait);
             // Never replay a partial response (including tool calls).
             if (emitted || attempt >= 2) throw error;
+            // Say so: a silent half-minute wait reads as the assistant having hung.
+            yield {
+              kind: "status",
+              text: `Waiting ${Math.max(1, Math.ceil(wait / 1000))}s for ${provider.displayName}'s rate limit`,
+            };
           }
         }
       },

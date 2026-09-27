@@ -7,6 +7,7 @@
  */
 import { stat } from "node:fs/promises";
 import { BrowserWindow, app, clipboard, dialog, ipcMain, shell } from "electron";
+import { isInsideWorkspace } from "./pathSafety.ts";
 import {
   detectPreviewProject,
   previewLog,
@@ -34,6 +35,7 @@ import {
 } from "./lsp.ts";
 import { parseCustomServers } from "@adcode/lsp";
 import { restoreSession, saveSession } from "./session.ts";
+import type { SessionState } from "./sessionStore.ts";
 import {
   clearDraft,
   recordSave,
@@ -57,7 +59,7 @@ import {
   stopDebug,
   toggleBreakpoint,
 } from "./debug.ts";
-import { CHANNELS, type PreviewStatus, type RuntimeCheckView } from "../shared/api.ts";
+import { CHANNELS, IDE_VIEW_COMMANDS, type IdeView, type PreviewStatus, type RuntimeCheckView } from "../shared/api.ts";
 import { downloadUrlFor, installCommandFor, runtimeById, runtimeFor } from "../shared/runtimes.ts";
 import {
   onKeybindingsChanged,
@@ -79,12 +81,14 @@ import { assistantControls } from "./assistantControls.ts";
 import { registerGitIpc } from "./gitIpc.ts";
 import { installApplicationMenu } from "./menu.ts";
 import { requiresTrustedEditConfirmation } from "./aiEditPolicy.ts";
+import { confirmInWindow } from "./themedConfirm.ts";
 import { clearRecents, forgetRecent, recentFolders, rememberRecent } from "./recents.ts";
 import { collabFileChanged, disposeCollab, registerCollabIpc } from "./collabIpc.ts";
 import { invalidateFileCache } from "./sourceControl.ts";
 import {
   aiAnswerAnyway,
   aiApplyHunks,
+  aiUndoCheckpoint,
   aiCancel,
   aiCancelCompletion,
   aiCancelInlineEdit,
@@ -262,7 +266,8 @@ const previewEvents = {
 const previewChannel = (status: PreviewStatus) =>
   status.mode === "project" ? "dev-server" : "live-server";
 
-export function registerIpc(): void {
+export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, command?: string) => void): void {
+  let ideSession: SessionState | null = null;
   // Output produced before this point is still recorded; it is replayed by `output:history`
   // when a panel first opens.
   setOutputSink((line) => broadcast(CHANNELS.outputAppend, line));
@@ -280,6 +285,7 @@ export function registerIpc(): void {
    */
   onWorkspaceRootChanged(() => {
     void disposeCollab();
+    ideSession = null;
   });
 
   /*
@@ -314,13 +320,16 @@ export function registerIpc(): void {
     rebuildMenu();
   };
 
-  ipcMain.handle(CHANNELS.workspaceOpen, async () => {
+  ipcMain.handle(CHANNELS.workspaceOpen, async (event) => {
     const opened = await openWorkspace();
-    if (opened !== null) await remember(opened.root);
+    if (opened !== null) {
+      await remember(opened.root);
+      for (const window of BrowserWindow.getAllWindows()) if (window.webContents !== event.sender) window.webContents.send(CHANNELS.workspaceChanged, opened);
+    }
     return opened;
   });
 
-  ipcMain.handle(CHANNELS.workspaceOpenPath, async (_event, root: unknown) => {
+  ipcMain.handle(CHANNELS.workspaceOpenPath, async (event, root: unknown) => {
     if (!isString(root)) throw new Error("expected a folder path");
 
     /*
@@ -336,7 +345,10 @@ export function registerIpc(): void {
     }
 
     const opened = openWorkspaceAt(root);
-    if (opened !== null) await remember(opened.root);
+    if (opened !== null) {
+      await remember(opened.root);
+      for (const window of BrowserWindow.getAllWindows()) if (window.webContents !== event.sender) window.webContents.send(CHANNELS.workspaceChanged, opened);
+    }
     return opened;
   });
 
@@ -363,8 +375,9 @@ export function registerIpc(): void {
     isString(text) && isString(suggestedName) ? saveTextFileAs(text, suggestedName) : null,
   );
 
-  ipcMain.handle(CHANNELS.workspaceClose, async () => {
+  ipcMain.handle(CHANNELS.workspaceClose, async (event) => {
     setWorkspaceRoot(null);
+    for (const window of BrowserWindow.getAllWindows()) if (window.webContents !== event.sender) window.webContents.send(CHANNELS.workspaceChanged, null);
     // The quick-open index and the git handle were both bound to the old root. The
     // language servers were too, and `onWorkspaceRootChanged` above has already heard.
     invalidateFileCache();
@@ -377,6 +390,7 @@ export function registerIpc(): void {
 
   ipcMain.handle(CHANNELS.sessionRestore, async () => {
     const restored = await restoreSession();
+    ideSession ??= restored;
 
     /*
      * A restored folder counts as recently opened.
@@ -411,6 +425,16 @@ export function registerIpc(): void {
     event.sender.setZoomLevel(Math.max(-3, Math.min(4, next)));
   });
 
+  ipcMain.handle(CHANNELS.windowOpenIde, (_event, file: unknown, view: unknown) => {
+    const root = currentWorkspace()?.root ?? null;
+    const safeFile = typeof file === "string" && isInsideWorkspace(root, file) ? file : undefined;
+    const command = typeof view === "string" && Object.hasOwn(IDE_VIEW_COMMANDS, view)
+      ? IDE_VIEW_COMMANDS[view as IdeView]
+      : undefined;
+    openWindow("ide", safeFile, command);
+  });
+  ipcMain.handle(CHANNELS.windowOpenVibe, () => openWindow("vibe"));
+
   ipcMain.handle(CHANNELS.historyVersions, (_event, path: unknown) =>
     typeof path === "string" ? historyVersions(path) : [],
   );
@@ -429,7 +453,7 @@ export function registerIpc(): void {
     if (typeof path === "string") void clearDraft(path);
   });
 
-  ipcMain.on(CHANNELS.sessionSave, (_event, state: unknown) => {
+  ipcMain.on(CHANNELS.sessionSave, (event, state: unknown) => {
     const raw = (state ?? {}) as Record<string, unknown>;
     const asString = (value: unknown): string | null =>
       typeof value === "string" && value.length > 0 ? value : null;
@@ -438,15 +462,14 @@ export function registerIpc(): void {
     // clamps it to the real window - neither of which this layer can judge.
     const layout = raw["layout"];
 
-    void saveSession({
-      root: asString(raw["root"]),
+    const root = currentWorkspace()?.root ?? null;
+    const parsed: SessionState = {
+      root,
       openFiles: Array.isArray(raw["openFiles"])
-        ? raw["openFiles"].filter((value): value is string => typeof value === "string")
+        ? raw["openFiles"].filter((value): value is string => typeof value === "string" && isInsideWorkspace(root, value))
         : [],
-      activeFile: asString(raw["activeFile"]),
-      ...(raw["workspaceMode"] === "vibe" || raw["workspaceMode"] === "code"
-        ? { workspaceMode: raw["workspaceMode"] }
-        : {}),
+      activeFile: isInsideWorkspace(root, asString(raw["activeFile"]) ?? "") ? asString(raw["activeFile"]) : null,
+      workspaceMode: "vibe",
       ...(typeof layout === "object" && layout !== null
         ? {
             layout: {
@@ -455,6 +478,14 @@ export function registerIpc(): void {
             },
           }
         : {}),
+    };
+    const fromIde = event.sender.getURL().endsWith("#/ide");
+    if (fromIde) ideSession = parsed;
+    const editorState = !fromIde && ideSession?.root === root ? ideSession : parsed;
+    void saveSession({
+      ...editorState,
+      root,
+      workspaceMode: "vibe",
     });
   });
 
@@ -891,23 +922,15 @@ export function registerIpc(): void {
     if (!isString(id)) throw new Error("expected a setting id");
     if (typeof value !== "boolean" && !isString(value)) throw new Error("expected a value");
     if (requiresTrustedEditConfirmation(id, value, currentSettings()[id])) {
-      const parent = BrowserWindow.fromWebContents(event.sender);
-      const options = {
-        type: "warning" as const,
-        title: "Enable Trusted AI edits?",
-        message: "Trusted tasks can apply AI file changes automatically.",
-        detail:
-          "ADCode still uses an isolated workspace, checks for overlapping human edits, and creates a rollback checkpoint. Review every change is safer.",
-        buttons: ["Enable Trusted mode", "Keep Review mode"],
-        defaultId: 1,
-        cancelId: 1,
-        noLink: true,
-      };
-      const result =
-        parent === null
-          ? await dialog.showMessageBox(options)
-          : await dialog.showMessageBox(parent, options);
-      if (result.response !== 0) return readSettings();
+      // Asked in the app's own themed dialog, in the window that asked for the change.
+      const approved = await confirmInWindow(BrowserWindow.fromWebContents(event.sender), {
+        title: "Apply AI edits automatically?",
+        body:
+          "The assistant will change your project's files as it works, without asking first. Each turn that changes files gets an Undo button in the chat, and Undo asks before overwriting anything you edit afterwards. Changes made by commands the assistant runs are not undoable. You can switch back to Review every change at any time.",
+        confirmLabel: "Apply automatically",
+        cancelLabel: "Keep reviewing",
+      });
+      if (!approved) return readSettings();
     }
     return writeSetting(id, value);
   });
@@ -994,6 +1017,12 @@ export function registerIpc(): void {
   ipcMain.on(CHANNELS.aiCancel, () => aiCancel());
   ipcMain.on(CHANNELS.aiReset, () => aiReset());
   ipcMain.on(CHANNELS.aiAnswerAnyway, () => aiAnswerAnyway());
+
+  ipcMain.handle(CHANNELS.aiCheckpointUndo, (_event, id: unknown, force: unknown) =>
+    typeof id === "string"
+      ? aiUndoCheckpoint(id, force === true)
+      : { ok: false, restored: [], conflicts: [], message: "Nothing to undo." },
+  );
 
   ipcMain.handle(CHANNELS.aiApplyHunks, (_event, path: unknown, ids: unknown) => {
     if (!isString(path)) throw new Error("expected a path");

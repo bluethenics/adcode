@@ -180,8 +180,8 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     group: "appearance",
     kind: "enum",
     label: "Appearance",
-    description: "Warm light by default. Choose Dark, Midnight, or follow your system.",
-    default: "light",
+    description: "Dark by default. Choose Light, Midnight, or follow your system.",
+    default: "dark",
     available: true,
     options: [
       { value: "system", label: "System" },
@@ -374,14 +374,22 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     kind: "enum",
     label: "AI edit approval",
     description:
-      "Review each proposal, or let trusted tasks apply exact sandbox changes after creating a rollback checkpoint.",
+      "Review each change before it reaches your files, or let the assistant apply edits as it works and undo any turn from the chat.",
     default: "review",
     available: true,
     options: [
       { value: "review", label: "Review every change", detail: "Recommended" },
-      { value: "trusted", label: "Trusted auto-apply", detail: "Rollback checkpoint kept" },
+      { value: "trusted", label: "Apply automatically", detail: "Undo any turn" },
     ],
   },
+  bool(
+    "adcode.ai.keepGoing",
+    "ai",
+    "Keep going until done",
+    "When the assistant stops at its step limit, continue automatically - up to five times - instead of waiting for you.",
+    false,
+    true,
+  ),
   {
     id: "adcode.ai.taskTokenBudget",
     group: "ai",

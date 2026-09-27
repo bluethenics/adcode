@@ -10,7 +10,7 @@ import { app } from "electron";
 import { createSessionStore, type SessionState, type SessionStore } from "./sessionStore.ts";
 import { launchSessionFromArguments } from "./launchIntent.ts";
 import { currentSettings } from "./settings.ts";
-import { setWorkspaceRoot } from "./workspace.ts";
+import { currentWorkspace, setWorkspaceRoot } from "./workspace.ts";
 
 let store: SessionStore | null = null;
 
@@ -27,6 +27,16 @@ function get(): SessionStore {
  */
 export async function restoreSession(): Promise<SessionState> {
   const empty: SessionState = { root: null, openFiles: [], activeFile: null };
+
+  // A second window joins the workspace already open in this process. Reading an older
+  // session must never replace the live project when the IDE is launched from Vibe.
+  const liveRoot = currentWorkspace()?.root;
+  if (liveRoot !== undefined) {
+    const saved = await get().load();
+    return saved.root === liveRoot
+      ? saved
+      : { root: liveRoot, openFiles: [], activeFile: null, ...(saved.layout === undefined ? {} : { layout: saved.layout }) };
+  }
 
   // An explicit `adcode open <path>` is a user action, so it wins over both the previous
   // session and the restore preference. It still returns the ordinary session shape: the
@@ -54,6 +64,11 @@ export async function restoreSession(): Promise<SessionState> {
   return state;
 }
 
+let saveQueue: Promise<void> = Promise.resolve();
+
 export function saveSession(state: SessionState): Promise<void> {
-  return get().save(state);
+  // Two windows may save in the same frame. Serialize the temp-file/rename pair so
+  // neither writer can collide with the other's temporary file.
+  saveQueue = saveQueue.then(() => get().save(state));
+  return saveQueue;
 }

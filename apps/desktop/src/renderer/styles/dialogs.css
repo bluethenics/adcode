@@ -718,3 +718,27 @@
   opacity: 0.5;
   cursor: default;
 }
+
+/* The debug log option: a checkbox, and the exact text it would attach. */
+.report-log { display: grid; gap: 6px; }
+.report-log[hidden] { display: none; }
+.report-log-label { display: flex; align-items: center; gap: 8px; color: var(--text-primary); font-size: var(--text-sm); cursor: pointer; }
+.report-log-check { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+.report-log-preview { margin-left: 23px; color: var(--text-secondary); font-size: var(--text-xs); }
+.report-log-preview[hidden] { display: none; }
+.report-log-preview summary { width: fit-content; cursor: pointer; }
+.report-log-text {
+  max-height: 180px;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  background: var(--bg-app);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

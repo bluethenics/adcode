@@ -21,6 +21,18 @@ export interface OpenedWorkspace {
   readonly name: string;
 }
 
+/**
+ * An IDE surface another window may ask it to reveal, and the command that reveals it.
+ *
+ * A closed list rather than any command name: one window must not be able to run arbitrary
+ * commands in another, only point it at a view.
+ */
+export const IDE_VIEW_COMMANDS = {
+  explorer: "view.explorer",
+  search: "view.search",
+} as const;
+export type IdeView = keyof typeof IDE_VIEW_COMMANDS;
+
 /** A folder this editor has opened before, newest first. */
 export interface RecentFolderView {
   readonly path: string;
@@ -534,6 +546,8 @@ export const CHANNELS = {
   aiClearSessions: "ai:clear-sessions",
   aiCheckKey: "ai:check-key",
   aiApplyHunks: "ai:apply-hunks",
+  aiCheckpoint: "ai:checkpoint",
+  aiCheckpointUndo: "ai:checkpoint-undo",
   aiWorkspaceList: "ai-workspace:list",
   aiWorkspaceCurrent: "ai-workspace:current",
   aiWorkspaceChanges: "ai-workspace:changes",
@@ -603,6 +617,10 @@ export const CHANNELS = {
   windowFullScreen: "window:full-screen",
   windowDevTools: "window:dev-tools",
   windowZoom: "window:zoom",
+  windowOpenIde: "window:open-ide",
+  windowOpenVibe: "window:open-vibe",
+  windowRendererReady: "window:renderer-ready",
+  workspaceChanged: "workspace:changed",
   previewStart: "preview:start",
   previewStop: "preview:stop",
   previewStatus: "preview:status",
@@ -663,6 +681,14 @@ export const CHANNELS = {
   filesOpenDialog: "fs:open-dialog",
   appInfo: "app:info",
   supportSubmitReport: "support:submit-report",
+  dialogConfirmRequest: "dialog:confirm-request",
+  dialogConfirmAnswer: "dialog:confirm-answer",
+  dialogConfirmCancel: "dialog:confirm-cancel",
+  debugRecord: "debug:record",
+  debugReport: "debug:report",
+  debugSummary: "debug:summary",
+  debugCopy: "debug:copy",
+  debugSave: "debug:save",
   activityReport: "activity:report",
   onboardingState: "onboarding:state",
   onboardingComplete: "onboarding:complete",
@@ -786,6 +812,10 @@ export interface GitStatusView {
     readonly staged: string;
     readonly worktree: string;
     readonly isConflicted: boolean;
+    /** Uncommitted added lines, staged and worktree combined; null means New or binary. */
+    readonly added: number | null;
+    /** Uncommitted removed lines, staged and worktree combined; null means New or binary. */
+    readonly removed: number | null;
   }>;
 }
 
@@ -999,6 +1029,30 @@ export interface DiffHunkView {
   readonly replacement: readonly string[];
 }
 
+/** A yes/no the main process asks through the window's own themed dialog (main/themedConfirm.ts). */
+export interface ThemedConfirmRequest {
+  readonly title: string;
+  readonly body?: string;
+  readonly confirmLabel?: string;
+  readonly cancelLabel?: string;
+  readonly danger?: boolean;
+}
+
+/** One automatic-mode turn's edits, undoable from the chat. Paths are workspace-relative. */
+export interface AiCheckpointView {
+  readonly id: string;
+  readonly createdAt: number;
+  readonly files: ReadonlyArray<{ readonly path: string; readonly created: boolean }>;
+}
+
+export interface AiUndoResultView {
+  readonly ok: boolean;
+  readonly restored: readonly string[];
+  /** Files edited since the turn; nothing was changed when this is non-empty. */
+  readonly conflicts: readonly string[];
+  readonly message: string;
+}
+
 export interface ProposedEditView {
   readonly taskId: string;
   readonly relativePath: string;
@@ -1043,6 +1097,8 @@ export interface AiWorkspaceTaskView {
 
 export interface AiWorkspaceChangeView {
   readonly path: string;
+  /** The file does not exist in the project until this change is applied. */
+  readonly isNew: boolean;
   readonly hunks: readonly DiffHunkView[];
 }
 
@@ -1366,6 +1422,7 @@ export interface AdcodeApi {
     clearRecents(): Promise<void>;
     /** Fired by direct AI edits and commands. Paths are workspace-relative; empty means "rescan the root". */
     onFilesChanged(listener: (paths: readonly string[]) => void): () => void;
+    onChanged(listener: (workspace: OpenedWorkspace | null) => void): () => void;
   };
   /** Version and runtime, for the welcome screen and the settings footer. */
   readonly app: {
@@ -1586,6 +1643,9 @@ export interface AdcodeApi {
     onEvent(listener: (event: unknown) => void): () => void;
     onProposedEdit(listener: (edit: ProposedEditView) => void): () => void;
     applyHunks(path: string, acceptedHunkIds: readonly string[]): Promise<boolean>;
+    /** A turn in "Apply automatically" mode changed files; `undoCheckpoint` puts them back. */
+    onCheckpoint(listener: (checkpoint: AiCheckpointView) => void): () => void;
+    undoCheckpoint(id: string, force: boolean): Promise<AiUndoResultView>;
   };
   readonly aiWorkspace: {
     list(): Promise<readonly AiWorkspaceTaskView[]>;
@@ -1600,7 +1660,11 @@ export interface AdcodeApi {
     /** Delete a task completely. False when it is already gone. */
     remove(taskId: string): Promise<boolean>;
     rollback(taskId: string): Promise<AiWorkspaceActionView>;
-    onChanged(listener: (task: AiWorkspaceTaskView) => void): () => void;
+    /**
+     * A task in the open folder changed. Null means there is no task to show - the last
+     * one was removed, or the change was to a task this window cannot act on.
+     */
+    onChanged(listener: (task: AiWorkspaceTaskView | null) => void): () => void;
   };
   readonly aiTeam: {
     suggest(input: AiTeamSuggestionInputView): Promise<AiTeamSuggestionView | null>;
@@ -1755,6 +1819,18 @@ export interface AdcodeApi {
     toggleDevTools(): void;
     /** `+1`, `-1`, or `0` to reset. */
     zoom(direction: number): void;
+    /**
+     * Open the full IDE in a separate OS window.
+     *
+     * The launcher stays in Vibe-first Agents view; the new window is the same
+     * workspace with the editor first, so both stay live on one project.
+     *
+     * `view` is the IDE surface to reveal once the window is ready. Without it, Vibe's
+     * "Search in files" would open the IDE on whatever it last showed and drop the request.
+     */
+    openIde(file?: string, view?: IdeView): Promise<void>;
+    openVibe(): Promise<void>;
+    ready(): void;
   };
   readonly history: {
     versions(path: string): Promise<HistoryEntryView[]>;
@@ -1815,6 +1891,27 @@ export interface AdcodeApi {
   readonly support: {
     /** Never rejects: a failure comes back as `{ ok: false, message }` to show the user. */
     submitReport(input: ReportInput): Promise<ReportResult>;
+  };
+  /**
+   * The redacted debug log (main/debugLog.ts): recent errors from the assistant, the app
+   * and its windows, with no keys, paths, prompts or file contents.
+   */
+  /** Questions from the main process, drawn in the app's themed dialog instead of a native box. */
+  readonly dialogs: {
+    onConfirmRequest(listener: (id: string, request: ThemedConfirmRequest) => void): () => void;
+    onConfirmCancel(listener: (id: string) => void): () => void;
+    answerConfirm(id: string, answer: boolean): void;
+  };
+  readonly debugLog: {
+    /** Add a renderer-side event. Rate limited in main. */
+    record(level: "error" | "warn" | "info", source: string, message: string): void;
+    /** The whole log as text. */
+    report(): Promise<string>;
+    /** Environment plus recent problems, at most `maxChars` long, for the report form. */
+    summary(maxChars: number): Promise<string>;
+    copy(): Promise<boolean>;
+    /** Ask where to save it; the path written, or null if cancelled. */
+    save(): Promise<string | null>;
   };
   readonly onboarding: {
     /** True once this machine has been welcomed. False on a fresh install. */

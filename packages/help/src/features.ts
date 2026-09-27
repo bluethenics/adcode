@@ -43,6 +43,18 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("workspace.vibe", "Vibe"), command("workspace.code", "Code"), command("workspace.project", "Project"), command("workspace.changes", "Changes"), command("workspace.tasks", "Tasks"), command("workspace.preview", "Preview")],
     keywords: ["vibe mode", "code mode", "workspace", "build", "review", "task history"],
   },
+  "workbench.openIde": {
+    actions: [command("workspace.openIde", "Open IDE in a separate window")],
+    keywords: ["separate window", "second window", "open ide", "pop out editor", "ide arrow", "vibe launcher", "editor first"],
+  },
+  "workbench.debugLog": {
+    actions: [command("help.report", "Report a problem"), command("help.copyDebugLog", "Copy debug log"), command("help.saveDebugLog", "Save debug log")],
+    keywords: ["bug report", "report a bug", "debug log", "logs", "diagnostics", "send logs", "support", "something is broken", "ai not working", "error details", "crash"],
+  },
+  "workbench.vibeSidebar": {
+    actions: [command("workspace.vibeSidebar", "Show or hide")],
+    keywords: ["sidebar", "rail", "drawer", "switch project", "recent projects", "project switcher", "badges", "waiting for you", "ctrl+b", "hide sidebar", "vibe navigation"],
+  },
   "workbench.aiContext": {
     actions: [command("ai.addSelectionToChat", "Add to chat"), command("ai.askSelection", "Ask AI"), command("ai.explainSelection", "Explain"), command("ai.refactorSelection", "Refactor"), command("ai.testSelection", "Write tests"), command("ai.reviewSelection", "Find issues")],
     keywords: ["selection", "assistant", "unsaved code", "AI context", "ctrl+l", "add to chat", "editor context", "current file", "what the ai sees"],
@@ -169,8 +181,8 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     keywords: ["api key", "provider", "model", "local ai", "NVIDIA NIM", "custom endpoint", "connections", "requests per minute", "RPM", "rate limit", "429"],
   },
   "ai.sessions": {
-    actions: [command("ai.toggle", "Open Assistant")],
-    keywords: ["chat history", "conversation", "memory"],
+    actions: [command("ai.toggle", "Open Assistant"), command("ai.newConversation", "New conversation")],
+    keywords: ["chat history", "conversation", "memory", "new chat", "ctrl+shift+n", "start over"],
   },
   "ai.team": {
     actions: [command("ai.team", "Set up Team")],

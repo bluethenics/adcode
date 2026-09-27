@@ -169,6 +169,34 @@ export function createGit(deps: GitDeps): Git {
     },
 
     async status(): Promise<GitStatus> {
+      /*
+       * Per-file line counts, for change lists that read `+110` rather than `M`.
+       *
+       * `--numstat -z` prints `added\tremoved\tpath\0` per file, with `-` for
+       * binary files and no row at all for untracked ones. `--no-renames` keeps
+       * a rename as one row under its current path (the same precedent as
+       * `commitDetail` below), and `-z` means quoted C-style paths never appear,
+       * so splitting on NUL is exact - including for paths with spaces.
+       */
+      async function numstat(cached: boolean): Promise<Map<string, { added: number; removed: number }>> {
+        const counts = new Map<string, { added: number; removed: number }>();
+        const args = cached
+          ? ["diff", "--no-renames", "--cached", "--numstat", "-z"]
+          : ["diff", "--no-renames", "--numstat", "-z"];
+        const output = await run(...args);
+        if (output.code !== 0) return counts;
+        for (const record of output.stdout.split("\0")) {
+          if (record.length === 0) continue;
+          const [addedRaw, removedRaw, path] = record.split("\t");
+          if (path === undefined || path.length === 0) continue;
+          const added = Number(addedRaw);
+          const removed = Number(removedRaw);
+          if (!Number.isFinite(added) || !Number.isFinite(removed)) continue;
+          counts.set(path, { added, removed });
+        }
+        return counts;
+      }
+
       // `-z` makes the record separator NUL, which is the only way a path containing a
       // space, a quote, or a newline survives parsing intact.
       const result = await run("status", "--porcelain=v2", "--branch", "-z");
@@ -223,6 +251,8 @@ export function createGit(deps: GitDeps): Git {
             staged: "none",
             worktree: "untracked",
             isConflicted: false,
+            added: null,
+            removed: null,
           });
           continue;
         }
@@ -239,6 +269,8 @@ export function createGit(deps: GitDeps): Git {
             staged: toFileChange(xy[0] ?? "."),
             worktree: toFileChange(xy[1] ?? "."),
             isConflicted: false,
+            added: null,
+            removed: null,
           });
 
           // A rename record is followed by its original path as its own record.
@@ -253,16 +285,36 @@ export function createGit(deps: GitDeps): Git {
             staged: "modified",
             worktree: "modified",
             isConflicted: true,
+            added: null,
+            removed: null,
           });
         }
       }
+
+      /*
+       * Fold the two numstat runs into the rows. Staged and worktree counts
+       * add up to the file's total uncommitted change; a side git cannot
+       * number (untracked, binary, conflicted) stays null and the UI shows
+       * New or nothing instead of a fabricated zero.
+       */
+      const [cachedCounts, worktreeCounts] = await Promise.all([numstat(true), numstat(false)]);
+      const counted = entries.map((entry) => {
+        const staged = cachedCounts.get(entry.path);
+        const worktree = worktreeCounts.get(entry.path);
+        if (staged === undefined && worktree === undefined) return entry;
+        return {
+          ...entry,
+          added: (staged?.added ?? 0) + (worktree?.added ?? 0),
+          removed: (staged?.removed ?? 0) + (worktree?.removed ?? 0),
+        };
+      });
 
       return {
         branch,
         upstream,
         ahead,
         behind,
-        entries,
+        entries: counted,
         isClean: entries.length === 0,
         hasConflicts: entries.some((entry) => entry.isConflicted),
       };

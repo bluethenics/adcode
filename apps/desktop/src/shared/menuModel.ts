@@ -365,6 +365,7 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
           label: "AI Tas&ks",
           items: [
             { label: "&Assistant", command: "ai.toggle", accelerator: "CmdOrCtrl+I" },
+            { label: "&New Conversation", command: "ai.newConversation", accelerator: "CmdOrCtrl+Shift+N" },
             { label: "&Connect a Model…", command: "ai.connect" },
             { label: "&Suggest Code with AI", command: "ai.complete", accelerator: "Alt+\\" },
             // Ctrl+E and Ctrl+L live on the editor itself rather than here: a menu
@@ -506,6 +507,13 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
         { label: "&What’s New", command: "help.whatsNew" },
         { label: "&Keyboard Shortcuts", command: "help.shortcuts" },
         { label: "Check for &Updates", command: "updates.check" },
+        separator,
+        // Together, because the second and third exist for the first: a report is most
+        // useful with the log, and the log can go anywhere a report cannot.
+        { label: "&Report a Problem…", command: "help.report" },
+        { label: "&Copy Debug Log", command: "help.copyDebugLog" },
+        { label: "Save Debug &Log…", command: "help.saveDebugLog" },
+        separator,
         {
           label: "Toggle &Developer Tools",
           command: "help.devTools",

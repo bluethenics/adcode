@@ -1,15 +1,28 @@
 import type { AiEditorContextView } from "../shared/api.ts";
 
 /** Host facts are separate from project content and remain current across turns. */
-export function aiWorkspaceContext(root: string | null, blocker: string | null, editor: AiEditorContextView | null = null): string {
+export function aiWorkspaceContext(
+  root: string | null,
+  blocker: string | null,
+  editor: AiEditorContextView | null = null,
+  /** The user's AI edit approval choice: "direct" is Apply automatically. */
+  edits: "direct" | "review" = "direct",
+): string {
   if (root === null) return "Workspace status: no folder is open. Ask the user to open or create a project folder in ADCode before creating files. Pasting a path does not open a workspace.";
   return [
     `Open workspace root (JSON string): ${JSON.stringify(root)}.`,
     "The workspace is already selected. Do not ask the user for its path. Use list_files with no path (or an empty string) to inspect its root; use relative paths with read_file, edit_file and propose_edit. Change existing files with edit_file (exact old/new text); create new files with propose_edit.",
     "To list images or files by shape, use glob_files (e.g. **/*.png). Skim long files with get_outline, page reads with offset/limit, run tests with run_command, and fetch docs with fetch_url.",
-    blocker === null ? "File tools are available in the isolated task workspace. Proposals require review before they reach the user's project." : `File tools are temporarily unavailable: ${blocker}`,
-    "Reads (read_file, list_files, search, glob_files, get_outline) inspect the live project, and edits and commands apply to it directly — a plain question is just chat, and file work lands in the real folder the moment it runs.",
-    "For a web app, use open_preview to show the actual local live server in the conversation. It previews saved/applied project files; unapplied proposals are not visible. Do not claim a desktop Python GUI can run inside a web preview.",
+    // One statement of where edits land, matching the user's approval setting. The two
+    // used to sit side by side, and models reported finished work as unreviewed proposals.
+    blocker !== null
+      ? `File tools are temporarily unavailable: ${blocker}`
+      : edits === "direct"
+        ? "Your edits apply directly: edit_file, propose_edit and run_command change the user's real project folder the moment they run, and the user can undo a whole turn afterwards. Say what you changed, not what you propose."
+        : "Your edits are staged for the user's review: edit_file, propose_edit and run_command work in an isolated copy of the project, and reads show your staged version. Nothing reaches the user's files until they apply it, so say you proposed the changes and that they are waiting for review.",
+    edits === "direct"
+      ? "For a web app, use open_preview to show the actual local live server in the conversation; it serves the project's files as they are on disk. Do not claim a desktop Python GUI can run inside a web preview."
+      : "For a web app, use open_preview to show the actual local live server in the conversation; it serves the applied project, so staged changes appear once the user applies them. Do not claim a desktop Python GUI can run inside a web preview.",
     ...editorContextLines(editor),
   ].join("\n");
 }

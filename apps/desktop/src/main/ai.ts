@@ -12,7 +12,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { app, BrowserWindow } from "electron";
 import {
   parseConnections,
@@ -77,9 +77,11 @@ import { recordAgentEdit } from "./activity.ts";
 import { createKeychainStore } from "./keychain.ts";
 import { createAiToolRunner, type ProposedEdit } from "./aiTools.ts";
 import { resolveSandboxPath } from "./aiSandbox.ts";
+import { createCheckpointStore, type UndoResult } from "./aiCheckpoints.ts";
 import { ASSISTANT_EXTENSION_TOOLS, withAssistantExtensions } from "./assistantControls.ts";
 import { memoryForWorkspace } from "./memory.ts";
 import { currentSettings } from "./settings.ts";
+import { describeDebugContext, recordDebug } from "./debugLog.ts";
 import { currentWorkspace } from "./workspace.ts";
 import { aiWorkspaceContext } from "./aiWorkspaceContext.ts";
 import { OPEN_PREVIEW, openAiPreview } from "./aiPreview.ts";
@@ -163,6 +165,15 @@ function baseUrlOf(providerId: string): string | null {
 /** Proposals awaiting review, keyed by path. Nothing here has touched disk (§5.3). */
 const pendingEdits = new Map<string, ProposedEdit>();
 let activeTaskId: string | null = null;
+/** The request that started the current review task, used as its title. */
+let currentTaskPrompt: string | null = null;
+/** Task states a review-mode turn keeps adding to rather than starting afresh. */
+const REUSABLE_TASK_STATES: ReadonlySet<string> = new Set(["ready", "running", "paused", "review", "conflict"]);
+/** Undo for "Apply automatically": one checkpoint per turn that wrote files. */
+const checkpoints = createCheckpointStore({
+  directory: () => join(app.getPath("userData"), "ai-checkpoints"),
+  resolve: resolveSandboxPath,
+});
 let taskService: AiWorkspaceService | null = null;
 let taskRecovery: Promise<void> | null = null;
 let taskWorkspaceUnavailableReason: string | null = null;
@@ -305,8 +316,23 @@ export async function aiAutomationMarkDueMissed(): Promise<void> {
   );
 }
 
+/**
+ * Tell the windows a task changed - but only hand them a task they can act on.
+ *
+ * Every window treats a broadcast task as the one to show, and one in review opens a
+ * Review dialog with Apply. A Team role task (never reviewable on its own) or a task
+ * from a folder that is not open would offer an Apply that `aiWorkspaceApply` must
+ * refuse, and did: "Task is not in the open workspace", once per click. For those the
+ * windows still hear that something changed, with the task they can act on instead.
+ */
 function announceWorkspaceTask(task: Parameters<typeof toAiWorkspaceTaskView>[0]): void {
-  broadcast(CHANNELS.aiWorkspaceChanged, toAiWorkspaceTaskView(task));
+  if (task.reviewable && belongsToCurrentWorkspace(task)) {
+    broadcast(CHANNELS.aiWorkspaceChanged, toAiWorkspaceTaskView(task));
+    return;
+  }
+  void aiCurrentWorkspaceTask()
+    .then((current) => broadcast(CHANNELS.aiWorkspaceChanged, current))
+    .catch(() => undefined);
 }
 
 function belongsToCurrentWorkspace(task: AiWorkspaceTask): boolean {
@@ -340,7 +366,45 @@ async function resolveToolWorkspace() {
     taskWorkspaceUnavailableReason = "AI file tools are off. Turn on AI file tools in Settings to let the assistant edit this project.";
     return null;
   }
+  // Review mode with a task under way: read the staged copy, so the model sees its own
+  // edits. Reading never starts a task - a plain question stays a plain question.
+  if (configuredEditPolicy() === "review" && activeTaskId !== null) {
+    const task = await (await readyAiWorkspaceService()).read(activeTaskId);
+    if (task !== null && REUSABLE_TASK_STATES.has(task.state) && normalizeForCompare(task.workspaceRoot) === normalizeForCompare(human)) {
+      return { taskId: task.id, sandboxRoot: taskSandboxRoot(task.id), humanRoot: human };
+    }
+  }
   return { taskId: "", sandboxRoot: human, humanRoot: human };
+}
+
+const taskSandboxRoot = (taskId: string): string => join(app.getPath("userData"), "ai-workspaces", "sandboxes", taskId);
+
+/**
+ * The review task this turn's edits are staged in: the one under way, or a new one.
+ *
+ * "Review every change" had lost its plumbing when direct writes arrived - the setting
+ * existed and did nothing. This is that plumbing back: edits land in an isolated copy,
+ * the chat shows them as proposals, and nothing reaches the project until Apply.
+ */
+async function reviewWorkspace(human: string) {
+  const service = await readyAiWorkspaceService();
+  let task = activeTaskId === null ? null : await service.read(activeTaskId);
+  if (
+    task === null ||
+    normalizeForCompare(task.workspaceRoot) !== normalizeForCompare(human) ||
+    task.reviewPolicy !== "review" ||
+    !REUSABLE_TASK_STATES.has(task.state)
+  ) {
+    task = await service.start({
+      workspaceRoot: human,
+      prompt: currentTaskPrompt ?? "Continue the assistant task",
+      reviewPolicy: "review",
+      tokenLimit: null,
+    });
+    activeTaskId = task.id;
+    announceWorkspaceTask(task);
+  }
+  return { taskId: task.id, sandboxRoot: taskSandboxRoot(task.id), humanRoot: human };
 }
 
 async function ensureToolWorkspace() {
@@ -368,12 +432,26 @@ async function ensureToolWorkspace() {
     bypassWorkspaceBlockOnce = false;
   }
 
+  if (configuredEditPolicy() === "review") return reviewWorkspace(human);
   return { taskId: "", sandboxRoot: human, humanRoot: human };
 }
 
 function configuredEditPolicy(): "review" | "trusted" {
   return currentSettings()["adcode.ai.editPolicy"] === "trusted" ? "trusted" : "review";
 }
+
+// The debug log names the selected provider and model - ids only, never keys.
+describeDebugContext({
+  aiSelection: () => {
+    const provider = activeProvider();
+    return {
+      provider,
+      model: activeModel(provider),
+      effort: configuredEffort() ?? "auto",
+      fileTools: currentSettings()["adcode.ai.isolatedWorkspaces"] !== false,
+    };
+  },
+});
 
 function configuredEffort(): "low" | "medium" | "high" | "max" | undefined {
   const value = currentSettings()["adcode.ai.effort"];
@@ -535,9 +613,17 @@ function toolRunner() {
     workspaceUnavailableMessage: () =>
       taskWorkspaceUnavailableReason ?? "No folder is open, so there is nothing to work on yet.",
     reviewPolicy: configuredEditPolicy,
-    directWrites: true,
+    directWrites: () => configuredEditPolicy() === "trusted",
     memory: () => memoryForWorkspace(),
     writeSandboxFile: async (path, contents) => {
+      if (configuredEditPolicy() === "review") {
+        if (activeTaskId === null) throw new Error("The review task is unavailable. Try again.");
+        const task = await (await readyAiWorkspaceService()).write(activeTaskId, path, contents);
+        announceWorkspaceTask(task);
+        const change = task.changes.find((item) => item.path === path);
+        if (change === undefined) throw new Error("The staged change was not recorded");
+        return change;
+      }
       const human = currentWorkspace()?.root ?? null;
       if (human === null) throw new Error("No folder is open, so there is nothing to work on yet.");
       const absolute = await resolveSandboxPath(human, path);
@@ -556,10 +642,26 @@ function toolRunner() {
         await rm(temporary, { force: true }).catch(() => undefined);
         throw error;
       }
+      checkpoints.record(path, original, contents);
       return createFileChange(path, original, contents);
     },
     onProposedEdit: (edit) => {
-      announceProjectFiles([edit.relativePath]);
+      if (configuredEditPolicy() !== "review") {
+        announceProjectFiles([edit.relativePath]);
+        return;
+      }
+      // Staged, not applied: the chat shows the diff with Apply, and nothing on disk moved.
+      pendingEdits.set(edit.path, edit);
+      const root = currentWorkspace()?.root;
+      const view: ProposedEditView = {
+        taskId: edit.taskId,
+        relativePath: edit.relativePath,
+        path: edit.path,
+        displayPath: root === undefined ? edit.path : relative(root, edit.path),
+        summary: edit.summary,
+        hunks: edit.hunks.map((hunk) => ({ id: hunk.id, startLine: hunk.startLine, original: hunk.original, replacement: hunk.replacement })),
+      };
+      broadcast(CHANNELS.aiProposedEdit, view);
     },
     onCommandFinished: () => {
       announceProjectFiles([]);
@@ -750,6 +852,7 @@ export async function aiSend(
   if (sendInFlight) throw new Error("The built-in assistant is already handling a message");
   sendInFlight = true;
   editorContext = editor;
+  currentTaskPrompt = text.slice(0, 200);
   try {
     const providerId = activeProvider();
     const model = activeModel(providerId);
@@ -768,6 +871,7 @@ export async function aiSend(
             : `No API key for ${name}. Add one in Connect a model.`;
 
         broadcast(CHANNELS.aiEvent, { kind: "error", detail });
+        recordDebug("error", "ai", detail);
         return false;
       }
 
@@ -789,7 +893,7 @@ export async function aiSend(
               blocker = `Save ${summarizeUnsavedDrafts(root, drafts)} before AI file edits, so nothing unsaved gets overwritten. Reading and answering work meanwhile.`;
             }
           }
-          return aiWorkspaceContext(root, blocker, editorContext);
+          return aiWorkspaceContext(root, blocker, editorContext, configuredEditPolicy() === "review" ? "review" : "direct");
         },
         runner: withAssistantExtensions(toolRunner()),
         beforeRequest: async () => {
@@ -818,9 +922,20 @@ export async function aiSend(
     let answer = "";
     let turnSucceeded = true;
     let modelTraceRecorded = false;
+    const turnStarted = Date.now();
+    let toolCalls = 0;
+    // Automatic mode writes as it goes; this turn's writes become one undoable checkpoint.
+    const turnRoot = currentWorkspace()?.root ?? null;
+    if (turnRoot !== null && configuredEditPolicy() === "trusted") checkpoints.begin(turnRoot);
+    recordDebug("info", "ai", `Turn started: ${providerId} / ${model}`);
 
     for await (const event of agent.send(turnText, { images })) {
       broadcast(CHANNELS.aiEvent, event);
+      // What the debug log keeps of a turn: which tools failed and why, and how it ended.
+      // Never the prompt, the answer, or a file's contents.
+      if (event.kind === "tool-call") toolCalls += 1;
+      if (event.kind === "tool-result" && event.isError) recordDebug("warn", "ai:tool", `${event.name} failed: ${event.content.slice(0, 200)}`);
+      if (event.kind === "error") recordDebug("error", "ai", `${providerId} / ${model}: ${event.detail}`);
       if (activeTaskId !== null) {
         const workspaceService = await readyAiWorkspaceService();
         if (!modelTraceRecorded) {
@@ -885,6 +1000,16 @@ export async function aiSend(
 
     await writeSession(currentWorkspace()?.root ?? null, session);
     broadcast(CHANNELS.aiSessionChanged, session);
+    const checkpoint = await checkpoints.finish().catch(() => null);
+    if (checkpoint !== null) {
+      broadcast(CHANNELS.aiCheckpoint, {
+        id: checkpoint.id,
+        createdAt: checkpoint.createdAt,
+        files: checkpoint.files.map((file) => ({ path: file.path, created: file.before === null })),
+      });
+      recordDebug("info", "ai", `Turn changed ${checkpoint.files.length} file${checkpoint.files.length === 1 ? "" : "s"} (undo available)`);
+    }
+    recordDebug("info", "ai", `Turn ${turnSucceeded ? "finished" : "ended early"} after ${((Date.now() - turnStarted) / 1000).toFixed(1)}s with ${toolCalls} tool call${toolCalls === 1 ? "" : "s"}`);
     return turnSucceeded;
   } catch (error) {
     // §9: a failure here costs an answer, never the editor.
@@ -896,14 +1021,35 @@ export async function aiSend(
         outcome: "failed",
       });
     }
-    broadcast(CHANNELS.aiEvent, {
-      kind: "error",
-      detail: error instanceof Error ? error.message : "the assistant failed",
-    });
+    const detail = error instanceof Error ? error.message : "the assistant failed";
+    recordDebug("error", "ai", `Turn failed: ${detail}`);
+    // Whatever the turn wrote before failing is still undoable.
+    const checkpoint = await checkpoints.finish().catch(() => null);
+    if (checkpoint !== null) {
+      broadcast(CHANNELS.aiCheckpoint, {
+        id: checkpoint.id,
+        createdAt: checkpoint.createdAt,
+        files: checkpoint.files.map((file) => ({ path: file.path, created: file.before === null })),
+      });
+    }
+    broadcast(CHANNELS.aiEvent, { kind: "error", detail });
     return false;
   } finally {
+    currentTaskPrompt = null;
     sendInFlight = false;
   }
+}
+
+/** Put back what an automatic-mode turn changed. `force` overrides the user's later edits. */
+export async function aiUndoCheckpoint(id: string, force: boolean): Promise<UndoResult> {
+  const root = currentWorkspace()?.root ?? null;
+  if (root === null) return { ok: false, restored: [], conflicts: [], message: "Open the project this change was made in to undo it." };
+  const result = await checkpoints.undo(id, root, force);
+  if (result.ok) {
+    announceProjectFiles(result.restored);
+    recordDebug("info", "ai", `Undid a turn: ${result.restored.length} file(s) restored`);
+  }
+  return result;
 }
 
 /** A small, tool-free, cancellable request used only for Monaco ghost text. */

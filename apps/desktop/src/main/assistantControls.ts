@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow } from "electron";
 import { homedir } from "node:os";
 import type { ToolRunner } from "@adcode/ai";
 import { CHANNELS } from "../shared/api.ts";
@@ -6,6 +6,7 @@ import { currentWorkspace, onWorkspaceRootChanged } from "./workspace.ts";
 import { connectAssistantMcp } from "./assistantMcp.ts";
 import { installedSkillRoots } from "./assistantSkills.ts";
 import { createAssistantControlsService, ASSISTANT_EXTENSION_TOOLS } from "./assistantControlsService.ts";
+import { confirmInWindow } from "./themedConfirm.ts";
 
 export { ASSISTANT_EXTENSION_TOOLS };
 let service: ReturnType<typeof createAssistantControlsService> | null = null;
@@ -20,12 +21,9 @@ export function assistantControls() {
       installedSkills: installedSkillRoots(homedir(), process.env["CODEX_HOME"]),
       connect: connectAssistantMcp,
       changed: announce,
-      confirm: async (message, detail, signal) => {
-        const options = { type: "question" as const, message, detail, buttons: ["Cancel", "Allow once"], defaultId: 0, cancelId: 0, noLink: true, ...(signal ? { signal } : {}) };
-        const parent = BrowserWindow.getFocusedWindow();
-        const answer = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options);
-        return answer.response === 1;
-      },
+      // An external tool call waits for the user's yes, asked in the app's themed dialog.
+      confirm: (message, detail, signal) =>
+        confirmInWindow(BrowserWindow.getFocusedWindow(), { title: message, body: detail, confirmLabel: "Allow once", cancelLabel: "Cancel" }, signal),
     });
     onWorkspaceRootChanged(() => { announce(); });
   }

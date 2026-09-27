@@ -127,7 +127,7 @@ describe("sandboxed built-in AI tools", () => {
     );
 
     expect(result.isError).toBe(false);
-    expect(result.content).toContain("isolated task workspace");
+    expect(result.content).toContain("staged in an isolated copy of the project");
     expect(writeSandboxFile).toHaveBeenCalledWith("src/file.ts", "agent version\n");
     expect(proposed).toMatchObject({
       taskId: "task-tools",

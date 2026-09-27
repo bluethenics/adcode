@@ -166,3 +166,48 @@ describe("rate-limit recovery", () => {
     expect(scheduler.status("a").queued).toBe(0);
   });
 });
+describe("garbled tool-call recovery", () => {
+  const garbled = (attemptsBeforeSuccess: number, emitFirst = false) => {
+    const state = { attempts: 0 };
+    const provider: Provider = {
+      id: "groq",
+      displayName: "Groq",
+      models: [],
+      async *stream() {
+        state.attempts++;
+        if (state.attempts <= attemptsBeforeSuccess) {
+          if (emitFirst) yield { kind: "text", text: "Let me look." };
+          throw Object.assign(new Error("Groq returned HTTP 400: Failed to call a function. Please adjust your prompt. (code tool_use_failed)"), { status: 400 });
+        }
+        yield { kind: "stop", reason: "end-turn" };
+      },
+    };
+    return { provider, state };
+  };
+
+  it("asks again once when the model garbles a tool call before streaming anything", async () => {
+    const { provider, state } = garbled(1);
+    await consume(new RequestScheduler().wrap(provider, "groq", () => 6000));
+    expect(state.attempts).toBe(2);
+  });
+
+  it("gives up after one retry, and never retries once output has streamed", async () => {
+    const twice = garbled(2);
+    await expect(consume(new RequestScheduler().wrap(twice.provider, "groq", () => 6000))).rejects.toThrow(/tool_use_failed/);
+    expect(twice.state.attempts).toBe(2);
+
+    const streamed = garbled(1, true);
+    await expect(consume(new RequestScheduler().wrap(streamed.provider, "groq", () => 6000))).rejects.toThrow(/tool_use_failed/);
+    expect(streamed.state.attempts).toBe(1);
+  });
+
+  it("does not retry other request errors", async () => {
+    let attempts = 0;
+    const provider: Provider = {
+      id: "groq", displayName: "Groq", models: [],
+      async *stream() { attempts++; throw Object.assign(new Error("Groq returned HTTP 401: Invalid API Key"), { status: 401 }); },
+    };
+    await expect(consume(new RequestScheduler().wrap(provider, "groq", () => 6000))).rejects.toThrow(/401/);
+    expect(attempts).toBe(1);
+  });
+});

@@ -1,3 +1,4 @@
+import { askThemed } from "../dialogs/confirmDialog.ts";
 import type {
   AiWorkspaceChangeView,
   AiWorkspaceTaskView,
@@ -114,10 +115,10 @@ export function createTaskDetailsDialog(
     finish();
     if (task !== null) void Promise.resolve(actions.onCancel(task));
   });
-  remove.addEventListener("click", () => {
+  remove.addEventListener("click", async () => {
     const task = current;
     if (task === null) return;
-    if (!window.confirm(`Delete "${task.prompt}"? Its sandbox and history are removed for good.`)) return;
+    if (!await askThemed({ title: "Delete this task?", body: `"${task.prompt}" - its staged copy and history are removed for good.`, confirmLabel: "Delete", danger: true })) return;
     finish();
     void Promise.resolve(actions.onDelete(task));
   });

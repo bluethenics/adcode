@@ -148,7 +148,7 @@ async function findTarget() {
 }
 
 const target = await findTarget();
-const socket = new WebSocket(target.webSocketDebuggerUrl);
+let socket = new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((resolve, reject) => {
   socket.addEventListener("open", resolve, { once: true });
   socket.addEventListener("error", reject, { once: true });
@@ -157,14 +157,15 @@ await new Promise((resolve, reject) => {
 let nextId = 1;
 const pending = new Map();
 
-socket.addEventListener("message", (event) => {
+const onSocketMessage = (event) => {
   const message = JSON.parse(event.data);
   const settle = pending.get(message.id);
   if (settle !== undefined) {
     pending.delete(message.id);
     settle(message);
   }
-});
+};
+socket.addEventListener("message", onSocketMessage);
 
 function send(method, params) {
   const id = nextId++;
@@ -205,6 +206,7 @@ await send("Page.bringToFront", {});
 const startupDeadline = Date.now() + 60_000;
 while (Date.now() < startupDeadline) {
   const ready = await evaluate(`Boolean(
+    document.body.dataset.sessionReady === 'true' &&
     document.querySelector('.monaco-editor') &&
     document.querySelector('#filetree .tree-row') &&
     document.getElementById('status-workspace')?.textContent !== 'No folder'
@@ -213,9 +215,108 @@ while (Date.now() < startupDeadline) {
   await sleep(250);
 }
 
-// The general IDE checks run in Code; the dedicated mode smoke exercises both modes.
-await evaluate("document.querySelector('.workspace-mode-switch [data-mode=code]')?.click()");
+// The IDE is a second OS window. Keep Vibe open and attach to the new renderer.
+const vibeModeBefore = await evaluate("document.body.dataset.workspaceMode");
+const vibeNavigation = await evaluate(`(() => {
+  const visible = selector => {
+    const element = document.querySelector(selector);
+    return !!element && getComputedStyle(element).display !== 'none' && element.getBoundingClientRect().width > 0;
+  };
+  const hostedHistory = document.querySelector('.vibe-history-host > .chat-history');
+  const historyRow = hostedHistory?.querySelector('.chat-history-row');
+  const historyOptions = historyRow?.querySelector('.chat-history-options');
+  const titleStyle = historyRow ? getComputedStyle(historyRow.querySelector('.chat-history-open')) : null;
+  historyOptions?.click();
+  const historyMenu = document.querySelector('.menu-panel[data-context]')?.textContent ?? '';
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  document.querySelector('.project-tools')?.click();
+  const toolsMenu = document.querySelector('.menu-panel[data-context]')?.textContent ?? '';
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  const notificationButton = document.querySelector('.vibe-notifications-button');
+  notificationButton?.click();
+  const inboxOpened = !document.querySelector('.notification-inbox')?.hidden;
+  document.querySelector('.notification-inbox-close')?.click();
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  // The everyday workflows are sidebar rows, not entries in an overflow menu.
+  const reviewLabel = document.querySelector('.vibe-review-button')?.getAttribute('aria-label') ?? '';
+  const card = document.querySelector('.vibe-project-card');
+  return {
+    docked: document.body.dataset.vibeRail === 'docked',
+    automations: visible('.vibe-automations-button'),
+    customize: visible('.vibe-customize-button'),
+    tools: visible('.project-tools'),
+    tasks: visible('.vibe-tasks-button'),
+    review: visible('.vibe-review-button') && reviewLabel.startsWith('Review changes - '),
+    preview: visible('.vibe-preview-nav'),
+    team: toolsMenu.includes('Set up AI team'),
+    projectCard: visible('.vibe-project-card') && card?.querySelector('.vibe-project-name')?.textContent === ${JSON.stringify(REPO.split(/[\\/]/).pop())},
+    openIde: visible('.vibe-ide-button') && document.querySelector('.vibe-header-ide-button') === null,
+    // Sponsored cards arrive on the right with other notifications, not in the sidebar.
+    noSidebarAdSlot: document.getElementById('vibe-sponsored-slot') === null,
+    history: !!hostedHistory,
+    historyOptions: !historyRow || !!historyOptions && historyMenu.includes('Rename conversation') && historyMenu.includes('Delete conversation'),
+    readableTitles: !titleStyle || titleStyle.whiteSpace === 'normal' && titleStyle.webkitLineClamp === '2',
+    inboxOpened,
+    inboxClosed: document.querySelector('.notification-inbox')?.hidden === true,
+  };
+})()`);
+const windowScreenshotPaths = [];
+if (process.argv.includes("--visual-only")) {
+  const response = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
+  if (typeof response.result?.data === "string") {
+    const path = join(tmpdir(), "adcode-vibe-window.png");
+    await writeFile(path, Buffer.from(response.result.data, "base64"));
+    windowScreenshotPaths.push(path);
+  }
+  await evaluate("document.querySelector('.vibe-notifications-button')?.click()");
+  const inboxShot = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
+  if (typeof inboxShot.result?.data === "string") {
+    const path = join(tmpdir(), "adcode-notification-inbox.png");
+    await writeFile(path, Buffer.from(inboxShot.result.data, "base64"));
+    windowScreenshotPaths.push(path);
+  }
+  await evaluate("document.querySelector('.notification-inbox-close')?.click()");
+}
+await evaluate("window.adcode.window.openIde()");
+let ideTarget;
+for (let attempt = 0; attempt < 80; attempt++) {
+  const response = await fetch(`http://127.0.0.1:${PORT}/json/list`).catch(() => null);
+  const targets = response === null ? [] : await response.json();
+  ideTarget = targets.find((candidate) => candidate.type === "page" && candidate.url?.includes("#/ide") && candidate.webSocketDebuggerUrl);
+  if (ideTarget !== undefined) break;
+  await sleep(250);
+}
+if (ideTarget === undefined) throw new Error("Open IDE did not create a renderer window");
+const vibeSocket = socket;
+socket = new WebSocket(ideTarget.webSocketDebuggerUrl);
+await new Promise((resolve, reject) => {
+  socket.addEventListener("open", resolve, { once: true });
+  socket.addEventListener("error", reject, { once: true });
+});
+socket.addEventListener("message", onSocketMessage);
+await send("Page.bringToFront", {});
+for (let attempt = 0; attempt < 240; attempt++) {
+  if (await evaluate("Boolean(document.body.dataset.sessionReady === 'true' && document.body.dataset.workspaceMode === 'code' && document.getElementById('status-workspace')?.textContent !== 'No folder' && document.querySelector('.monaco-editor') && document.querySelector('#filetree .tree-row') && document.querySelector('#tabs .tab'))") === true) break;
+  await sleep(250);
+}
 await sleep(250);
+const ideSocket = socket;
+const ideMode = await evaluate("document.body.dataset.workspaceMode");
+await evaluate("window.adcode.window.openIde()");
+const rendererCount = (await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json())
+  .filter((candidate) => candidate.type === "page" && candidate.url?.includes("index.html")).length;
+socket = vibeSocket;
+const vibeModeAfter = await evaluate("document.body.dataset.workspaceMode");
+socket = ideSocket;
+vibeSocket.close();
+if (process.argv.includes("--visual-only")) {
+  const response = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
+  if (typeof response.result?.data === "string") {
+    const path = join(tmpdir(), "adcode-code-window.png");
+    await writeFile(path, Buffer.from(response.result.data, "base64"));
+    windowScreenshotPaths.push(path);
+  }
+}
 await evaluate("(() => { const dock = document.getElementById('assistant-dock'); if (dock && !dock.hidden) document.getElementById('ai-toggle').click(); })()");
 async function openExpandedAssistant() {
   await evaluate(`(() => {
@@ -230,6 +331,8 @@ async function openExpandedAssistant() {
   await sleep(300);
 }
 const checks = {
+  separateWindows: vibeModeBefore === "vibe" && vibeModeAfter === "vibe" && ideMode === "code" && rendererCount === 2,
+  vibeNavigation: Object.values(vibeNavigation).every(Boolean),
   title: await evaluate("document.title"),
   activities: await evaluate(
     "document.querySelectorAll('.activity[data-view]').length",
@@ -1772,6 +1875,7 @@ const commandCentrePoint = await evaluate(
 
 let baseUniversalGroups = [];
 let symbolUniversalGroup = false;
+let universalSearchDebug = null;
 if (commandCentrePoint !== null) {
   await clickAt(commandCentrePoint.x, commandCentrePoint.y);
   await sleep(1800);
@@ -1790,7 +1894,7 @@ if (commandCentrePoint !== null) {
   );
   // Workspace symbol discovery scans real project content. A cold antivirus/file-cache
   // run can take several seconds, so poll the state instead of treating one timing as API.
-  for (let attempt = 0; attempt < 20 && !symbolUniversalGroup; attempt += 1) {
+  for (let attempt = 0; attempt < 45 && !symbolUniversalGroup; attempt += 1) {
     await sleep(1000);
     symbolUniversalGroup =
       (await evaluate(
@@ -1798,11 +1902,18 @@ if (commandCentrePoint !== null) {
           .some((one) => one.textContent === 'Symbols')`,
       )) === true;
   }
+  universalSearchDebug = await evaluate(`({
+    query: document.querySelector('.universal-search-input')?.value,
+    status: document.querySelector('.universal-search-status')?.textContent,
+    groups: [...document.querySelectorAll('.universal-search-group-title')].map((one) => one.textContent),
+    rows: [...document.querySelectorAll('.universal-search-row')].slice(0, 6).map((one) => one.textContent),
+  })`);
 }
 
 checks.universalSearchEvidence = {
   baseGroups: baseUniversalGroups,
   symbols: symbolUniversalGroup,
+  debug: universalSearchDebug,
 };
 checks.universalSearchSources =
   Array.isArray(baseUniversalGroups) &&
@@ -1870,7 +1981,17 @@ await openSidebar("explorer");
 await sleep(300);
 
 if (process.argv.includes("--visual-only")) {
-  const screenshotPaths = [];
+  const screenshotPaths = [...windowScreenshotPaths];
+  const codeBoot = await evaluate(`(async () => ({
+    ready: document.readyState,
+    mode: document.body.dataset.workspaceMode,
+    current: await window.adcode.workspace.current(),
+    session: await window.adcode.session.restore(),
+    status: document.getElementById('status-workspace')?.textContent,
+    tabs: document.querySelectorAll('#tabs .tab').length,
+    tree: document.querySelectorAll('#filetree .tree-row').length,
+    monaco: document.querySelectorAll('.monaco-editor').length,
+  }))()`);
 
   async function captureFeatureLibrary(name) {
     const path = join(tmpdir(), `adcode-feature-library-${name}.png`);
@@ -2029,10 +2150,12 @@ if (process.argv.includes("--visual-only")) {
   await sleep(500);
   await rm(userData, { recursive: true, force: true }).catch(() => {});
   process.stdout.write(
-    `${JSON.stringify({ visual, screenshotPaths }, null, 2)}\n`,
+    `${JSON.stringify({ visual, vibeNavigation, separateWindows: checks.separateWindows, universalSearch: checks.universalSearchEvidence, codeBoot, screenshotPaths, logs: output.slice(-3000) }, null, 2)}\n`,
   );
 
   const visualPassed =
+    checks.separateWindows === true &&
+    checks.vibeNavigation === true &&
     visual.lightComfortable?.theme === "light" &&
     visual.lightComfortable?.density === "comfortable" &&
     visual.lightComfortable?.open === true &&

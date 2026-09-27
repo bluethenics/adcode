@@ -18,6 +18,8 @@ export interface TaskReviewDialog {
       onApplyAll: () => void | Promise<void>;
       onDiscard: () => void | Promise<void>;
       onShowInChat: () => void | Promise<void>;
+      /** Apply these, and let future edits apply without asking. Hidden when absent. */
+      onAlwaysApply?: () => void | Promise<void>;
     },
   ): void;
   close(): void;
@@ -58,6 +60,14 @@ export function createTaskReviewDialog(host: HTMLElement): TaskReviewDialog {
   showInChat.className = "confirm-cancel";
   showInChat.textContent = "Show in chat";
 
+  // The way out of reviewing, offered where the reviewing happens: one click applies
+  // these and switches to Apply automatically, with undo from the chat from then on.
+  const always = document.createElement("button");
+  always.type = "button";
+  always.className = "confirm-cancel task-review-always";
+  always.textContent = "Always apply automatically";
+  always.title = "Apply these changes, and let future edits apply as the assistant works - you can undo any turn from the chat";
+
   const discard = document.createElement("button");
   discard.type = "button";
   discard.className = "confirm-cancel";
@@ -69,7 +79,7 @@ export function createTaskReviewDialog(host: HTMLElement): TaskReviewDialog {
   close.className = "confirm-cancel";
   close.textContent = "Close";
 
-  buttons.append(apply, showInChat, discard, close);
+  buttons.append(apply, always, showInChat, discard, close);
   card.append(title, summary, files, hint, buttons);
   dialog.append(card);
   host.append(dialog);
@@ -78,6 +88,7 @@ export function createTaskReviewDialog(host: HTMLElement): TaskReviewDialog {
     onApplyAll: () => void | Promise<void>;
     onDiscard: () => void | Promise<void>;
     onShowInChat: () => void | Promise<void>;
+    onAlwaysApply?: () => void | Promise<void>;
   } | null = null;
 
   const finish = (): void => {
@@ -89,6 +100,12 @@ export function createTaskReviewDialog(host: HTMLElement): TaskReviewDialog {
     apply.disabled = true;
     void Promise.resolve(currentActions?.onApplyAll()).finally(() => {
       apply.disabled = false;
+    });
+  });
+  always.addEventListener("click", () => {
+    always.disabled = true;
+    void Promise.resolve(currentActions?.onAlwaysApply?.()).finally(() => {
+      always.disabled = false;
     });
   });
   showInChat.addEventListener("click", () => {
@@ -113,6 +130,7 @@ export function createTaskReviewDialog(host: HTMLElement): TaskReviewDialog {
     open(task, changes, actions) {
       if (dialog.open) dialog.close();
       currentActions = actions;
+      always.hidden = actions.onAlwaysApply === undefined;
       const totalAdded = changes.reduce(
         (n, change) => n + change.hunks.reduce((m, hunk) => m + hunk.replacement.length, 0),
         0,

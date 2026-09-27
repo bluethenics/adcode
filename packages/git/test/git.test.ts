@@ -123,6 +123,40 @@ describe("status", () => {
     const status = await git.status();
     expect(status.branch).not.toBeNull();
   });
+
+  it("counts added and removed lines per file", async () => {
+    await write("a.txt", "one\ntwo\nthree\n");
+    await git.stage(["a.txt"]);
+    await git.commit("first");
+
+    await write("a.txt", "one\nTWO\nthree\nfour\n");
+
+    const entry = (await git.status()).entries.find((e) => e.path === "a.txt");
+    expect(entry?.added).toBe(2);
+    expect(entry?.removed).toBe(1);
+  });
+
+  it("combines staged and worktree counts", async () => {
+    await write("a.txt", "one\n");
+    await git.stage(["a.txt"]);
+    await git.commit("first");
+
+    await write("a.txt", "one\ntwo\n");
+    await git.stage(["a.txt"]);
+    await write("a.txt", "one\ntwo\nthree\n");
+
+    const entry = (await git.status()).entries.find((e) => e.path === "a.txt");
+    expect(entry?.added).toBe(2);
+    expect(entry?.removed).toBe(0);
+  });
+
+  it("leaves untracked files uncounted", async () => {
+    await write("new.txt", "hello\n");
+
+    const entry = (await git.status()).entries.find((e) => e.path === "new.txt");
+    expect(entry?.added).toBeNull();
+    expect(entry?.removed).toBeNull();
+  });
 });
 
 describe("staging", () => {

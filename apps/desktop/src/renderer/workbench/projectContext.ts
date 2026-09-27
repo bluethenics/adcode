@@ -1,6 +1,7 @@
 import type { AiWorkspaceTaskView } from "../../shared/api.ts";
 import { groupWorkspaceTraces, TRACE_PREVIEW_LIMIT } from "../ai/aiWorkspaceViewModel.ts";
 import { createHelpPopover } from "../help/helpPopover.ts";
+import { fileIcon } from "./fileIcons.ts";
 
 export type ContextTab = "project" | "changes" | "tasks";
 interface ContextDeps {
@@ -175,17 +176,179 @@ export function createProjectContext(deps: ContextDeps) {
         if (!pending.length) paragraph("No pending proposals. New AI changes will appear here for review.", aiSection);
         for (const task of pending) action(task.prompt, () => deps.reviewTask(task), aiSection, `${task.changedPaths.length} files · ${task.state.replaceAll("-", " ")}`);
         const working = section(git.isRepo ? `${git.entries.length} working-tree changes` : "Source control", fragment);
-        paragraph(git.isRepo ? `${git.branch ?? "Detached HEAD"}${git.hasConflicts ? " · Conflicts need attention" : ""}` : "Use Source Control to create or connect a Git repository.", working);
-        if (git.isRepo && !git.entries.length) paragraph("Your working tree is clean. Saved edits appear here.", working);
-        for (const entry of git.entries) {
-          const row = document.createElement("div");
-          row.className = "context-change-row";
-          action(entry.path, () => deps.reviewGit(entry.path), row, entry.isConflicted ? "Conflict · Open file changes" : `${entry.staged !== " " && entry.staged !== "?" ? "Staged · " : ""}Review changes`);
-          const open = action("Open", () => deps.openFile(`${root.replace(/[\\/]+$/, "")}/${entry.path}`), row);
-          open.title = `Open ${entry.path} in Code`;
-          working.append(row);
+        if (!git.isRepo) {
+          paragraph("Use Source Control to create or connect a Git repository.", working);
+          action("Open Source Control", deps.reviewGit, working);
+        } else {
+          // Cursor-style header: totals, branch, and one Commit & Push.
+          const head = document.createElement("div");
+          head.className = "context-changes-head";
+          const totals = document.createElement("p");
+          totals.className = "context-change-totals";
+          const added = git.entries.reduce((n, entry) => n + (entry.added ?? 0), 0);
+          const removed = git.entries.reduce((n, entry) => n + (entry.removed ?? 0), 0);
+          const scope = document.createElement("span");
+          scope.textContent = git.entries.length === 0 ? "Nothing uncommitted" : "Uncommitted";
+          totals.append(scope);
+          if (git.entries.length > 0) {
+            const plus = document.createElement("span");
+            plus.className = "context-change-added";
+            plus.textContent = `+${added}`;
+            const minus = document.createElement("span");
+            minus.className = "context-change-removed";
+            minus.textContent = `−${removed}`;
+            totals.append(document.createTextNode(" "), plus, document.createTextNode(" "), minus);
+          }
+          const branch = document.createElement("button");
+          branch.type = "button";
+          branch.className = "context-branch";
+          branch.textContent = git.branch ?? "Detached HEAD";
+          branch.title = git.hasConflicts ? "Conflicts need attention — open Source Control" : "Open Source Control";
+          branch.addEventListener("click", () => deps.reviewGit());
+          head.append(totals, branch);
+          working.append(head);
+          if (git.hasConflicts) {
+            paragraph("Conflicts need attention. Resolve them in Source Control before committing.", working);
+          }
+          if (!git.entries.length) {
+            paragraph("Your working tree is clean. Saved edits appear here.", working);
+          }
+          for (const entry of git.entries) {
+            const row = document.createElement("div");
+            row.className = "context-change-row";
+            const icon = fileIcon(entry.path);
+            icon.setAttribute("aria-hidden", "true");
+            const name = document.createElement("button");
+            name.type = "button";
+            name.className = "context-change-name";
+            name.title = `${entry.path} — show diff`;
+            const label = document.createElement("span");
+            label.textContent = entry.path;
+            name.append(label);
+            name.setAttribute("aria-expanded", "false");
+            const count = document.createElement("span");
+            if (entry.isConflicted) {
+              count.className = "context-change-conflict";
+              count.textContent = "Conflict";
+            } else if (entry.worktree === "untracked" && entry.staged === "none") {
+              count.className = "context-change-new";
+              count.textContent = "New";
+            } else if (entry.added !== null || entry.removed !== null) {
+              count.className = "context-change-count";
+              count.textContent = `+${entry.added ?? 0} −${entry.removed ?? 0}`;
+            } else {
+              count.className = "context-change-count";
+              count.textContent = "Binary";
+            }
+            const toggle = document.createElement("button");
+            toggle.type = "button";
+            const staged = entry.staged !== "none" && entry.worktree === "none";
+            toggle.className = "context-change-stage";
+            toggle.setAttribute("aria-pressed", String(staged));
+            toggle.title = entry.worktree !== "none" ? `Stage ${entry.path}` : `Unstage ${entry.path}`;
+            toggle.setAttribute("aria-label", toggle.title);
+            toggle.textContent = staged ? "✓" : "+";
+            toggle.addEventListener("click", () => {
+              const call = entry.worktree !== "none"
+                ? window.adcode.git.stage([entry.path])
+                : window.adcode.git.unstage([entry.path]);
+              void call.then(() => { void refresh(); });
+            });
+            row.append(icon, name, count, toggle);
+            const preview = document.createElement("div");
+            preview.className = "context-change-diff";
+            preview.hidden = true;
+            let loaded = false;
+            name.addEventListener("click", () => {
+              const open = preview.hidden;
+              preview.hidden = !open;
+              name.setAttribute("aria-expanded", String(open));
+              name.title = open ? `${entry.path} — hide diff` : `${entry.path} — show diff`;
+              if (!open || loaded) return;
+              loaded = true;
+              const note = document.createElement("p");
+              note.className = "context-caption";
+              note.textContent = "Loading diff…";
+              preview.append(note);
+              void window.adcode.git.diff(entry.path).then((text) => {
+                preview.replaceChildren();
+                if (text.trim().length === 0) {
+                  paragraph(entry.worktree === "untracked" ? "New file — its contents join the commit when staged." : "No text diff. Open in Source Control for the full picture.", preview);
+                  return;
+                }
+                const lines = text.split("\n");
+                const body = lines.length > 400 ? `${lines.slice(0, 400).join("\n")}\n… diff truncated — open in Source Control for the rest.` : text;
+                const pre = document.createElement("pre");
+                pre.className = "context-diff-text";
+                pre.textContent = body.length > 30000 ? `${body.slice(0, 30000)}\n… diff truncated — open in Source Control for the rest.` : body;
+                preview.append(pre);
+              }).catch(() => {
+                preview.replaceChildren();
+                paragraph("Could not load the diff. Open in Source Control instead.", preview);
+              });
+            });
+            working.append(row, preview);
+          }
+          // One Commit & Push beside the list: stages what is unstaged, commits
+          // the message, then pushes — each step reported where the eye is.
+          if (!git.hasConflicts && git.entries.length > 0) {
+            const form = document.createElement("form");
+            form.className = "context-commit-form";
+            const box = document.createElement("input");
+            box.type = "text";
+            box.className = "context-commit-box";
+            box.placeholder = "Commit message";
+            box.setAttribute("aria-label", "Commit message");
+            const send = document.createElement("button");
+            send.type = "submit";
+            send.className = "context-commit-send";
+            send.textContent = "Commit & Push";
+            const status = document.createElement("p");
+            status.className = "context-caption";
+            status.setAttribute("role", "status");
+            form.append(box, send);
+            form.addEventListener("submit", (event) => {
+              event.preventDefault();
+              const text = box.value.trim();
+              if (text.length === 0) {
+                status.textContent = "A commit needs a message.";
+                box.focus();
+                return;
+              }
+              send.disabled = true;
+              status.textContent = "Committing…";
+              void (async () => {
+                try {
+                  const fresh = await window.adcode.git.status();
+                  const unstaged = fresh.entries.filter((entry) => entry.worktree !== "none" && !entry.isConflicted).map((entry) => entry.path);
+                  if (unstaged.length > 0) {
+                    const staged = await window.adcode.git.stage(unstaged);
+                    if (!staged.ok) {
+                      status.textContent = staged.message;
+                      return;
+                    }
+                  }
+                  const committed = await window.adcode.git.commit(text);
+                  if (!committed.ok) {
+                    status.textContent = committed.message;
+                    return;
+                  }
+                  box.value = "";
+                  status.textContent = "Committed — pushing…";
+                  const pushed = await window.adcode.git.push();
+                  status.textContent = pushed.ok ? "Committed and pushed." : `Committed. Push needs attention: ${pushed.message}`;
+                } catch {
+                  status.textContent = "Could not commit. Open Source Control and try there.";
+                } finally {
+                  send.disabled = false;
+                  void refresh();
+                }
+              })();
+            });
+            working.append(form, status);
+          }
+          action("Open Source Control", deps.reviewGit, working);
         }
-        action("Open Source Control", deps.reviewGit, working);
       } else {
         const tasks = await window.adcode.aiWorkspace.list();
         signature += JSON.stringify(tasks);
@@ -282,5 +445,10 @@ export function createProjectContext(deps: ContextDeps) {
   window.adcode.aiWorkspace.onChanged(schedule);
   window.adcode.settings.onChanged(schedule);
   window.addEventListener("focus", schedule);
-  return { element, show, refresh: schedule, setVisible(value: boolean): void { visible = value; if (value) show(selected); else generation++; } };
+  return {
+    element, show, refresh: schedule,
+    /** The tab last shown, so a sidebar row can tell whether it would open or close it. */
+    selected: (): ContextTab => selected,
+    setVisible(value: boolean): void { visible = value; if (value) show(selected); else generation++; },
+  };
 }

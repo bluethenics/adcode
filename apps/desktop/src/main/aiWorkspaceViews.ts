@@ -30,6 +30,7 @@ export function toAiWorkspaceTaskView(task: AiWorkspaceTask): AiWorkspaceTaskVie
 export function toAiWorkspaceChangeViews(task: AiWorkspaceTask): AiWorkspaceChangeView[] {
   return task.changes.map((change) => ({
     path: change.path,
+    isNew: change.original === null,
     hunks: computeHunks(change.original ?? "", change.proposed).map((hunk) => ({
       id: hunk.id,
       startLine: hunk.startLine,

@@ -26,6 +26,15 @@ export interface GitStatusEntry {
   /** What has changed since staging. */
   readonly worktree: FileChange;
   readonly isConflicted: boolean;
+  /**
+   * Uncommitted added/removed line counts, staged and worktree combined.
+   *
+   * Null where git reports no number: untracked files (shown as New instead)
+   * and binary files (numstat prints `-`). A file the user has not touched is
+   * never listed, so null never means "zero".
+   */
+  readonly added: number | null;
+  readonly removed: number | null;
 }
 
 export interface GitStatus {

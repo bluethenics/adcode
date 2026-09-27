@@ -465,7 +465,8 @@ describe("conversation history", () => {
     expect(system).toContain("glob_files");
     expect(system).toContain("propose_edit");
     expect(system).toContain("Asking for anything you could");
-    expect(system).toContain("Never claim a file was created");
+    // Claims about files need evidence, whichever way the host applies edits.
+    expect(system).toContain("Report a file as created or changed only when a tool result confirms it");
   });
 
   it("carries the chosen effort into the provider request, or nothing on Auto", async () => {
@@ -499,5 +500,54 @@ describe("conversation history", () => {
     await collect(auto.send("think normally"));
 
     expect(plain).toEqual([undefined]);
+  });
+});
+
+describe("a turn that fails mid tool call", () => {
+  it("answers the open call before the next message, so the conversation stays usable", async () => {
+    const seen: Message[][] = [];
+    let attempt = 0;
+    const provider: Provider = {
+      id: "groq",
+      displayName: "Flaky",
+      models: ["test-model"],
+      async *stream(request): AsyncIterable<ProviderEvent> {
+        seen.push([...request.messages]);
+        attempt += 1;
+        if (attempt === 1) {
+          yield { kind: "text", text: "Let me look at the folder." };
+          yield { kind: "tool-call", call: call("open-1") };
+          throw new Error("Groq returned HTTP 429: Rate limit reached");
+        }
+        yield { kind: "text", text: "Done." };
+        yield { kind: "stop", reason: "end-turn" };
+      },
+    };
+    const agent = createAgent({ provider, model: "test-model", tools: [echoTool], runner: runner() });
+
+    const first = await collect(agent.send("make a website"));
+    expect(first.some((event) => event.kind === "error")).toBe(true);
+
+    const second = await collect(agent.send("try again"));
+    expect(second.at(-1)).toMatchObject({ kind: "turn-end" });
+
+    // The retry carries a result for the call the failure left open, ahead of the new text.
+    const retry = seen[1]!;
+    const opener = retry.at(-2)!;
+    expect(opener.role).toBe("assistant");
+    expect(opener.content.some((block) => block.type === "tool-call" && block.id === "open-1")).toBe(true);
+    const next = retry.at(-1)!;
+    expect(next.role).toBe("user");
+    expect(next.content[0]).toMatchObject({ type: "tool-result", toolCallId: "open-1", isError: true });
+    expect(next.content.at(-1)).toMatchObject({ type: "text", text: "try again" });
+  });
+
+  it("adds nothing when the last turn finished normally", async () => {
+    const provider = scriptedProvider([[{ kind: "text", text: "hi" }, { kind: "stop", reason: "end-turn" }]]);
+    const agent = createAgent({ provider, model: "test-model", tools: [echoTool], runner: runner() });
+    await collect(agent.send("hello"));
+    await collect(agent.send("again"));
+    const last = agent.history().filter((message) => message.role === "user").at(-1)!;
+    expect(last.content).toEqual([{ type: "text", text: "again" }]);
   });
 });

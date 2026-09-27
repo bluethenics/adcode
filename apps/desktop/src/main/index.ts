@@ -11,8 +11,10 @@
  * be granted a permission, and can only reach the disk through handlers that confine
  * every path to the opened workspace.
  */
+// First, so its ipcMain.handle wrapper is in place before any module registers a handler.
+import { describeDebugContext, registerDebugLogIpc } from "./debugLog.ts";
 import { join } from "node:path";
-import { BrowserWindow, app, shell } from "electron";
+import { BrowserWindow, app, ipcMain, shell } from "electron";
 import { registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "./protocol.ts";
 import { registerIpc } from "./ipc.ts";
 import { closeAssistantControls } from "./assistantControls.ts";
@@ -35,6 +37,7 @@ import { windowIconPath } from "./windowIcon.ts";
 import { CHANNELS } from "../shared/api.ts";
 import { launchSessionFromArguments } from "./launchIntent.ts";
 import type { SessionState } from "./sessionStore.ts";
+import { currentWorkspace } from "./workspace.ts";
 
 /**
  * Whether to load from Vite's dev server.
@@ -53,18 +56,22 @@ if (!hasInstanceLock) {
 }
 
 let pendingOpenIntent: SessionState | null = null;
+let appReadyForWindows = false;
+const readyWindows = new Set<number>();
+const pendingFileIntents = new Map<number, SessionState>();
+/** A view to reveal in a window that was still loading when it was asked for. */
+const pendingCommandIntents = new Map<number, string>();
 
 async function handleSecondInstance(commandLine: string[], workingDirectory: string): Promise<void> {
-  const window = BrowserWindow.getAllWindows()[0];
-  if (window !== undefined && !window.isDestroyed()) {
-    if (window.isMinimized()) window.restore();
-    window.show();
-    window.focus();
-  }
-
   const intent = await launchSessionFromArguments(commandLine, workingDirectory);
+  if (!appReadyForWindows) {
+    if (intent !== null) pendingOpenIntent = intent;
+    return;
+  }
+  openWindow("vibe");
+  const window = windows.vibe;
   if (intent === null) return;
-  if (window === undefined || window.isDestroyed() || window.webContents.isLoading()) {
+  if (window === undefined || window.isDestroyed() || !readyWindows.has(window.webContents.id)) {
     pendingOpenIntent = intent;
     return;
   }
@@ -133,7 +140,10 @@ function hardenWebContents(contents: Electron.WebContents): void {
   contents.session.setPermissionCheckHandler(() => false);
 }
 
-function createWindow(): BrowserWindow {
+type WindowRole = "vibe" | "ide";
+const windows: Partial<Record<WindowRole, BrowserWindow>> = {};
+
+function createWindow(role: WindowRole = "vibe"): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -146,7 +156,7 @@ function createWindow(): BrowserWindow {
      * process spawn and the renderer's <title> landing, which is exactly the moment a new
      * user is looking hardest.
      */
-    title: "ADCode",
+    title: role === "vibe" ? "ADCode" : "ADCode IDE",
     // Painting the frame before the renderer is ready is what produces the white flash
     // every Electron app is recognised by. §7 budgets first paint under 1s; showing
     // late but correct beats showing early and blank.
@@ -166,14 +176,17 @@ function createWindow(): BrowserWindow {
       spellcheck: false,
     },
   });
+  windows[role] = window;
+  const contentsId = window.webContents.id;
+  window.webContents.on("did-start-loading", () => readyWindows.delete(contentsId));
+  window.on("closed", () => {
+    if (windows[role] === window) delete windows[role];
+    readyWindows.delete(contentsId);
+    pendingFileIntents.delete(contentsId);
+    pendingCommandIntents.delete(contentsId);
+  });
 
   hardenWebContents(window.webContents);
-
-  window.webContents.on("did-finish-load", () => {
-    if (pendingOpenIntent === null) return;
-    window.webContents.send(CHANNELS.sessionOpenIntent, pendingOpenIntent);
-    pendingOpenIntent = null;
-  });
 
   window.once("ready-to-show", () => window.show());
 
@@ -193,18 +206,68 @@ function createWindow(): BrowserWindow {
   window.on("leave-full-screen", () => getAdRuntime().setSuppressed(false));
 
   if (useDevServer && devUrl !== undefined) {
-    void window.loadURL(devUrl);
+    void window.loadURL(role === "ide" ? `${devUrl}#/ide` : devUrl);
   } else {
-    void window.loadURL(`${RENDERER_ORIGIN}/index.html`);
+    void window.loadURL(`${RENDERER_ORIGIN}/index.html${role === "ide" ? "#/ide" : ""}`);
   }
 
   return window;
 }
 
+/**
+ * Open or focus a window, optionally with a file to show and a command to run in it.
+ *
+ * `command` is already vetted by the caller (see `IDE_VIEW_COMMANDS`). It waits for the
+ * renderer's ready signal like a file does: sent any earlier, a new IDE window would drop
+ * it before its command registry exists.
+ */
+function openWindow(role: WindowRole, file?: string, command?: string): void {
+  let window = windows[role];
+  const created = window === undefined || window.isDestroyed();
+  if (created) window = createWindow(role);
+  if (window === undefined) return;
+  if (window.isMinimized()) window.restore();
+  if (created) window.once("ready-to-show", () => window?.focus());
+  else { window.show(); window.focus(); }
+  if (role !== "ide") return;
+  const ready = readyWindows.has(window.webContents.id);
+  const root = currentWorkspace()?.root;
+  if (file !== undefined && root !== undefined) {
+    const intent: SessionState = { root, openFiles: [file], activeFile: file };
+    if (ready) window.webContents.send(CHANNELS.sessionOpenIntent, intent);
+    else pendingFileIntents.set(window.webContents.id, intent);
+  }
+  if (command !== undefined) {
+    if (ready) window.webContents.send(CHANNELS.menuCommand, command);
+    else pendingCommandIntents.set(window.webContents.id, command);
+  }
+}
+
 void app.whenReady().then(() => {
   registerAppProtocol(useDevServer);
-  registerIpc();
+  registerIpc(openWindow);
+  ipcMain.on(CHANNELS.windowRendererReady, (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window === null || window.isDestroyed()) return;
+    readyWindows.add(event.sender.id);
+    if (windows.vibe === window && pendingOpenIntent !== null) {
+      event.sender.send(CHANNELS.sessionOpenIntent, pendingOpenIntent);
+      pendingOpenIntent = null;
+    }
+    const fileIntent = pendingFileIntents.get(event.sender.id);
+    if (fileIntent !== undefined) {
+      pendingFileIntents.delete(event.sender.id);
+      if (currentWorkspace()?.root === fileIntent.root) event.sender.send(CHANNELS.sessionOpenIntent, fileIntent);
+    }
+    const commandIntent = pendingCommandIntents.get(event.sender.id);
+    if (commandIntent !== undefined) {
+      pendingCommandIntents.delete(event.sender.id);
+      event.sender.send(CHANNELS.menuCommand, commandIntent);
+    }
+  });
   registerSupportIpc();
+  registerDebugLogIpc();
+  describeDebugContext({ projectRoot: () => currentWorkspace()?.root ?? null });
   registerActivityIpc();
   registerOnboardingIpc();
   registerPinPromptIpc();
@@ -236,7 +299,8 @@ void app.whenReady().then(() => {
     .catch(() => undefined)
     .then(() => installApplicationMenu());
 
-  createWindow();
+  appReadyForWindows = true;
+  createWindow("vibe");
 
   // Settings first, so the ad service's very first tick reads the user's real choices
   // rather than defaults. Still not awaited by window creation: §9 requires the ad
@@ -246,7 +310,7 @@ void app.whenReady().then(() => {
     .catch(() => undefined);
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    openWindow("vibe");
   });
 });
 

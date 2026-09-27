@@ -48,13 +48,20 @@ describe("renderer-safe AI workspace views", () => {
         prompt: "Fix it",
         now: 1,
       }),
-      changes: [createFileChange("src/file.ts", "before\n", "after\n")],
+      changes: [createFileChange("src/file.ts", "before\n", "after\n"), createFileChange("src/new.ts", null, "fresh\n")],
     };
 
     expect(toAiWorkspaceChangeViews(task)).toEqual([
       {
         path: "src/file.ts",
+        isNew: false,
         hunks: [{ id: "h0", startLine: 0, original: ["before"], replacement: ["after"] }],
+      },
+      {
+        // A new file has nothing in the project to open until it is applied.
+        path: "src/new.ts",
+        isNew: true,
+        hunks: [{ id: "h0", startLine: 0, original: [], replacement: ["fresh"] }],
       },
     ]);
   });

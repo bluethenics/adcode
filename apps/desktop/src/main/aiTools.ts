@@ -72,10 +72,11 @@ export interface AiToolDeps {
    */
   readonly writeWorkspace?: () => Promise<AiToolWorkspace | null>;
   /**
-   * When true, edits apply straight to the project and the result says so.
+   * When true, edits apply straight to the project and the result says so. A function is
+   * read on every edit, so switching approval mode mid-conversation takes effect at once.
    * Team lanes leave this unset: their sandbox message stays accurate.
    */
-  readonly directWrites?: boolean;
+  readonly directWrites?: boolean | (() => boolean);
   /** Fired after a command finishes, so the Explorer can refresh. */
   readonly onCommandFinished?: () => void;
   readonly workspaceUnavailableMessage?: () => string;
@@ -317,7 +318,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
       hunks,
     });
 
-    if (deps.directWrites === true) {
+    if (deps.directWrites === true || (typeof deps.directWrites === "function" && deps.directWrites())) {
       return ok(
         `Updated ${relativePath} in your project (+${hunks.reduce((n, hunk) => n + hunk.replacement.length, 0)} −${hunks.reduce((n, hunk) => n + hunk.original.length, 0)}).`,
       );
@@ -327,7 +328,7 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
       `Proposed ${hunks.length} change${hunks.length === 1 ? "" : "s"} to ${relativePath}. ` +
         (deps.reviewPolicy?.() === "trusted"
           ? "It is isolated now and will be auto-applied with a rollback checkpoint after this turn succeeds."
-          : "It is written only in the isolated task workspace and is waiting for human review."),
+          : "It is staged in an isolated copy of the project and waits for the user to review and apply it."),
     );
   }
 

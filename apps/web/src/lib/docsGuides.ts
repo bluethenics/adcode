@@ -758,11 +758,12 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "When it finishes, the block collapses to Worked for Ns - select the header to expand the full trace again.",
       "Scroll up mid-stream and the view stays pinned while a Jump to latest pill appears with a count of new messages - select it to return to the tail.",
       "If you stop a turn, the interrupted banner offers Edit prompt (your last message back in the composer) and Try again.",
+      "If a turn fails, a card in the conversation names the problem - a rate limit, a request too large for the model, a rejected key, a broken tool call or a network problem - with Try again, Switch model, Start fresh or Report problem, and the provider’s exact message under Details.",
       "Read answers with labelled code blocks, inline commands, and numbered steps. Use the icon row under each response to Copy, Read aloud, mark helpful or not helpful, or Retry - with relative time like just now.",
       "Use History for past conversations and the activity panel for agents, tasks, and review controls. Toggle either panel for more writing space.",
       "Press Escape to dismiss it; the conversation survives dismissal.",
       "Reopen later, find older conversations grouped by recency, or choose Share to copy one as markdown.",
-      "On an empty conversation, pick a starter - Build something, Fix an error, Explain this project, Review my changes, Write tests or Find bugs - to get going in one click.",
+      "On an empty conversation, pick a starter - Explain this project, Plan new idea, Fix an error, Review changes, Verify changes or Multitask - to get going in one click. In Vibe, a short checklist above the composer shows anything still missing, such as opening a project folder or connecting a model.",
       "If a long task stops at the step limit, choose Continue and the assistant picks up where it stopped with everything it already did.",
     ],
     benefits: [
@@ -834,17 +835,35 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ai-edit-policy": {
     steps: [
-      "Open Settings and find AI edit approval.",
-      "Review every change (default) holds each AI edit for your approval, hunk by hunk.",
-      "Trusted auto-apply commits the model's changes automatically after a completed task - chosen projects and agents only.",
-      "Either way, every applied task keeps a rollback checkpoint - Rollback walks it back unless you have edited the same files since.",
+      "In the chat's composer, open the approval menu - it reads Review or Auto - or find AI edit approval in Settings.",
+      "Review every change (the default): the assistant stages its edits in an isolated copy of your project, the chat shows each diff, and nothing moves until you choose Apply. Discard throws the staged copy away.",
+      "Apply automatically: the assistant writes your files as it works. When a turn changes files, the chat lists them with an Undo button.",
+      "Undo puts every file back as it was before that turn and removes files the turn created. If you have edited one of them since, it asks before overwriting your change.",
+      "Changed your mind mid-review? The review window's Always apply automatically button applies what is there and switches mode in one click.",
     ],
     benefits: [
-      "You pick the trust level per project instead of one global gamble.",
-      "Review mode is the default, so the first task of any new agent is observed, not hoped.",
+      "Start careful on a project you care about, then let the assistant build uninterrupted once you trust it.",
+      "Automatic mode never leaves you stranded: one click takes a whole turn back.",
+      "The assistant is told which mode you are in, so it describes its work truthfully - proposed and waiting, or done.",
     ],
     betterThan:
-      "All-or-nothing auto-apply is how AI editors burn trust on the first mistake. A per-project policy - with rollback either way - lets caution and speed both exist.",
+      "Cursor and Devin make you choose between approving every edit and hoping for the best. ADCode lets you switch in the chat itself, and its automatic mode keeps a per-turn undo that refuses to overwrite your own later edits without asking.",
+  },
+
+  "ai-keep-going": {
+    steps: [
+      "Open the approval menu in the chat's composer and tick Keep going until done - or turn it on in Settings.",
+      "Give the assistant a big job: a whole site, a refactor across the project, a feature with tests.",
+      "If it reaches its step limit, ADCode sends Continue for it, up to five times in a row, and notes each one in the conversation.",
+      "Your own message or Stop resets the count, so you can always step in.",
+      "For work that runs without you, combine it with Apply automatically and schedule the job in Automations.",
+    ],
+    benefits: [
+      "Long jobs finish instead of pausing at a step limit while you are away.",
+      "A hard cap of five continuations keeps a confused run from going on forever.",
+    ],
+    betterThan:
+      "Agents that stop at a step limit and wait for a human turn an overnight job into a morning of pressing Continue. ADCode carries on by itself, within a limit you can see.",
   },
 
   "ai-workspace-storage": {
@@ -864,8 +883,9 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ai-sessions": {
     steps: [
-      "Open the Assistant - every conversation you have had is grouped into Today, Yesterday, and older.",
-      "Search past conversations, rename one to find it later, or delete one by one.",
+      "Press Ctrl+Shift+N, or choose New conversation, to start fresh - the conversation you were in is kept.",
+      "In Vibe, every conversation is listed in the sidebar, grouped into Today, Yesterday, and older. In the IDE, open the Assistant and choose History.",
+      "Search past conversations by title or by anything said in them, rename one to find it later, or delete one by one.",
       "The header names the current conversation and Share copies it as markdown.",
       "The strip at the top shows exactly what the assistant is remembering right now, and clears it on demand.",
       "Everything is stored per project on your machine, never uploaded.",
@@ -988,11 +1008,11 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "git-stage-commit-ui": {
     steps: [
       "First commit on this machine? Open the terminal and tell git who you are once - git config --global user.name \"Your Name\" and git config --global user.email \"you@example.com\" - then come back and commit as normal.",
-      "Open the Source Control panel from the activity bar.",
-      "Review the changed files; click any one to see its diff side by side.",
-      "Tick the changes that belong together - that is staging.",
-      "Write a short message saying what this set does.",
-      "Press Commit. The set enters your project's history as one labelled step you can return to.",
+      "Open the Context pane's Changes tab for the Cursor-style review: an Uncommitted +added −removed total, one row per file with its own count or a New badge, and a diff preview inside each row.",
+      "Tick rows to stage exactly the set that belongs together - untracked files join when staged.",
+      "Write the commit message in the Commit & Push box and press it once: ADCode stages what is left, commits, and pushes, reporting each step where you can see it.",
+      "Prefer the full panel? Open Source Control from the activity bar for the same list with side-by-side diffs, staging, and a separate push.",
+      "The set enters your project's history as one labelled step you can return to, and the push result is reported in the same place.",
     ],
     benefits: [
       "History becomes readable steps instead of one pile of edits.",
@@ -1144,19 +1164,74 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "workbench-modes": {
     steps: [
-      "Use the Vibe / Code switch above the workspace to pick how you work.",
+      "Start in Vibe, the default conversation window, and choose Open IDE at the bottom of its sidebar to open the Code window.",
       "Stay in Vibe to build through conversation - the assistant reads files, proposes edits, runs tests, and shows the live preview there.",
-      "Open a file or run a search to step into Code, where the editor and sidebar lead and the assistant stays one click away.",
-      "On a wide screen, drag the Vibe sidebar's right edge to make the conversation narrower or wider; the size is remembered.",
-      "Quit and reopen: the mode you left is the mode you return to, with the same folder, tabs, and conversation.",
+      "Open a file, Browse files in the IDE, or Search in files from Vibe, and the IDE opens on exactly that; use Vibe in the IDE toolbar to return to the conversation window.",
+      "Drag the Vibe sidebar's right edge to make the conversation narrower or wider, or press Ctrl+B to hide it; both are remembered.",
+      "Quit and reopen: Vibe opens first, and Open IDE restores your Code tabs on the same project.",
     ],
     benefits: [
-      "One project, two postures - no separate windows, no lost context when you switch.",
-      "Conversation, files, terminals, and preview travel with you in both directions.",
-      "Your layout choice survives a restart instead of resetting under you.",
+      "Vibe and Code stay visible in separate windows on one project.",
+      "Files and searches started from Vibe arrive in the IDE window, not lost on the way.",
+      "Your editor tabs and window layout survive a restart.",
     ],
     betterThan:
-      "Editors usually give you either a chat panel bolted beside the code or a chat app that cannot see it. Two modes over one shared session means the conversation-first view and the editor-first view are the same project, not two tools pretending.",
+      "The conversation and editor have their own windows while both follow the same project, so you can keep the conversation visible as you edit.",
+  },
+
+  "workbench-open-ide": {
+    steps: [
+      "Start in Vibe, the default: a centered prompt reading Plan, Build, / for skills, @ for context.",
+      "Choose Open IDE at the bottom of the Vibe sidebar, or in the top bar when the window is narrow.",
+      "The new window always lands editor-first on the same folder; the launcher stays conversation-first.",
+      "Work both sides at once: ask and review in Vibe, edit and run in the IDE window.",
+      "Close the IDE window when done - the conversation, files, and tasks stay exactly where they were.",
+    ],
+    benefits: [
+      "Planning and building get their own screen shapes instead of fighting over one panel.",
+      "No re-opening folders or re-sending context: both windows share the same workspace.",
+      "Vibe stays the default front door, so the editor never swallows a newcomer whole.",
+    ],
+    betterThan:
+      "Cursor's Agents Window can show the IDE beside the chat, but its paywalled usage limits stop heavy sessions cold with an Upgrade to Pro wall. ADCode is ad-supported, so the frontier models stay reachable and your earnings ledger shows the trade openly instead of a blocked prompt.",
+  },
+
+  "workbench-debug-log": {
+    steps: [
+      "When something goes wrong, choose Help > Report a Problem. If the assistant failed, the error card's Report problem button opens the same form, already filled in.",
+      "Describe what you were doing and what happened.",
+      "Keep Include debug log ticked, and select See exactly what is included to read the text that will be attached.",
+      "Choose Send. The report goes with your message, the app version, your operating system and that log summary.",
+      "To share the whole log somewhere else - an e-mail, a chat, an issue - choose Help > Copy Debug Log and paste it, or Help > Save Debug Log to save it as a text file.",
+    ],
+    benefits: [
+      "Problems get fixed from one report: the log names the failing part, the exact error, the version and the model in use.",
+      "Assistant failures carry the provider's own error message, so a rate limit, a rejected key and a broken tool call are told apart immediately.",
+      "Nothing private goes with it: keys, prompts, answers, file contents, paths and project names are removed before anything is written.",
+      "Nothing is uploaded automatically - the log only leaves your machine when you send it.",
+    ],
+    betterThan:
+      "Most editors ask you to find a log folder, zip it and attach it, then hope nothing sensitive was inside. ADCode's log is redacted as it is written, previewed before it is sent, and attached from the same Help menu you would open anyway.",
+  },
+
+  "workbench-vibe-sidebar": {
+    steps: [
+      "Open ADCode - the Vibe window's sidebar is on the left. Choose New conversation, or press Ctrl+Shift+N, to start fresh.",
+      "Select the project card under the search box to switch to a recent project, open a folder, clone a repository, or see the project overview. The card shows the branch and how many files have changed.",
+      "Watch the badges: Tasks counts agent work in progress, Review changes counts AI proposals and uncommitted files. A blue badge means something is waiting for you.",
+      "Select Tasks or Review changes to open that panel beside the conversation; select it again to close it.",
+      "Use Preview to see the running app, Automations to schedule messages, and Agents & tools for saved agents, MCP tools and skills.",
+      "Pick up an earlier conversation from the Conversations list, grouped by day; type in its search box to find one by anything said in it.",
+      "Drag the sidebar's right edge to resize it, or press Ctrl+B to hide it. On a narrow window it becomes a drawer: open it with the menu button at the top left or Ctrl+B, and close it with Escape.",
+    ],
+    benefits: [
+      "You find out an agent finished, or that changes need review, without opening a panel to check.",
+      "Every everyday workflow has one visible row - nothing important hides in an overflow menu.",
+      "Switching between projects is two clicks, with the branch and change count in view before you switch.",
+      "The same sidebar works at any window size, from a full monitor to half a laptop screen.",
+    ],
+    betterThan:
+      "Chat-first coding tools tend to show a list of conversations and little else, so you poll the diff view to learn whether anything happened. The Vibe sidebar puts project, branch, running work and pending review in one glance, next to the conversation that caused them.",
   },
 
   "workbench-ai-context": {

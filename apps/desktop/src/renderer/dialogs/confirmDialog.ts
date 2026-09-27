@@ -23,7 +23,22 @@ export interface ConfirmRequest {
 
 export interface ConfirmDialog {
   ask(request: ConfirmRequest): Promise<boolean>;
+  /** Close an open question as a no - its asker withdrew it. */
+  cancel(): void;
   isOpen(): boolean;
+}
+
+let shared: ConfirmDialog | null = null;
+
+/**
+ * The app-wide themed yes/no, for code that has no dialog of its own to hand.
+ *
+ * Replaces `window.confirm`, which draws an unthemed system box in Electron - when it draws
+ * anything at all.
+ */
+export function askThemed(request: ConfirmRequest): Promise<boolean> {
+  shared ??= createConfirmDialog(document.body);
+  return shared.ask(request);
 }
 
 export function createConfirmDialog(host: HTMLElement): ConfirmDialog {
@@ -92,6 +107,10 @@ export function createConfirmDialog(host: HTMLElement): ConfirmDialog {
       return new Promise<boolean>((resolve) => {
         settle = resolve;
       });
+    },
+
+    cancel(): void {
+      finish(false);
     },
 
     isOpen: () => dialog.open,

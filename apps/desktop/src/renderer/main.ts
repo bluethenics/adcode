@@ -28,6 +28,8 @@ import "./styles/agentWorkbench.css";
 import "./styles/workspaceModes.css";
 import "./styles/vibeWorkspace.css";
 import "./styles/chatPreview.css";
+import "./styles/professionalShell.css";
+import "./styles/vibeSidebar.css";
 import { createFrameTask } from "./frameTask.ts";
 import "./ai/automationHost.ts";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
@@ -150,6 +152,7 @@ import type {
   GitOutcome,
   GitStatusView,
   OpenedWorkspace,
+  SessionStateView,
   TerminalProfile,
   ThemeChoice,
   UpdateStatus,
@@ -533,6 +536,10 @@ function closeTab(path: string): void {
 }
 
 async function openFile(path: string): Promise<void> {
+  if (sessionReady && !isIdeWindow) {
+    await window.adcode.window.openIde(path);
+    return;
+  }
   const existing = tabs.find((t) => t.path === path);
   if (existing !== undefined) {
     // An image tab holds cached bytes; a text tab holds a Monaco model. Either way,
@@ -1903,6 +1910,22 @@ async function adoptWorkspace(opened: OpenedWorkspace): Promise<void> {
   syncRootCreateButtons();
 }
 
+async function clearWorkspaceView(): Promise<void> {
+  await closeAllTabs();
+  workspaceRoot = null;
+  void refreshRootFiles();
+  setRendererWorkspace(null);
+  el("sidebar-subtitle").textContent = "No folder opened";
+  setStatusWorkspace(null);
+  commandCentre.setWorkspace(null);
+  el("filetree").replaceChildren(hint("Open a folder to get started."));
+  syncRootCreateButtons();
+  void welcome.refresh();
+  editorHost.git.clear();
+  rememberSession();
+  void sourceControl.refresh();
+}
+
 async function openFolder(): Promise<void> {
   const opened = await window.adcode.workspace.open();
   if (opened === null) return;
@@ -1928,7 +1951,13 @@ async function openFolderAt(root: string): Promise<void> {
   await adoptWorkspace(opened);
 }
 
-window.adcode.session.onOpenIntent((state) => {
+window.adcode.workspace.onChanged((opened) => {
+  if (!sessionReady || sameWorkspacePath(workspaceRoot, opened?.root ?? null)) return;
+  void (opened === null ? clearWorkspaceView() : adoptWorkspace(opened));
+});
+
+let pendingOpenIntent: SessionStateView | null = null;
+function applyOpenIntent(state: SessionStateView): void {
   void (async () => {
     if (state.root === null) return;
     if (!sameWorkspacePath(workspaceRoot, state.root))
@@ -1941,6 +1970,10 @@ window.adcode.session.onOpenIntent((state) => {
       activateTab(state.activeFile);
     }
   })();
+}
+window.adcode.session.onOpenIntent((state) => {
+  if (!sessionReady) { pendingOpenIntent = state; return; }
+  applyOpenIntent(state);
 });
 
 /* ── Terminal ─────────────────────────────────────────────────────────── */
@@ -3065,6 +3098,7 @@ function localVersionLabel(savedAt: string): string {
 /* ── Session (§4) ─────────────────────────────────────────────────────── */
 
 let sessionReady = false;
+const isIdeWindow = window.location.hash === "#/ide";
 
 /** Record the folder and the open editors, so the next launch can reopen them. */
 function rememberSession(): void {
@@ -3132,6 +3166,22 @@ const refuse = (action: string, message: string): void =>
 /* Anything that destroys work asks first, through here. */
 const confirmDialog = createConfirmDialog(document.body);
 
+/*
+ * Questions from the main process - turning on automatic AI edits, allowing an external
+ * tool call - drawn here, themed, instead of in a white native Windows box.
+ */
+let mainConfirmId: string | null = null;
+window.adcode.dialogs.onConfirmRequest((id, request) => {
+  mainConfirmId = id;
+  void confirmDialog.ask(request).then((answer) => {
+    if (mainConfirmId === id) mainConfirmId = null;
+    window.adcode.dialogs.answerConfirm(id, answer);
+  });
+});
+window.adcode.dialogs.onConfirmCancel((id) => {
+  if (mainConfirmId === id) confirmDialog.cancel();
+});
+
 /* The replacement for `window.prompt`, which Electron does not implement. */
 const promptDialog = createPromptDialog(document.body);
 
@@ -3141,10 +3191,28 @@ const promptDialog = createPromptDialog(document.body);
  * The dialog does the round trip itself so it can stay open and show why a send failed;
  * the toast here only fires on success, once there is a report id to point at.
  */
-const reportDialog = createReportDialog(document.body, async (input) => {
-  const result = await window.adcode.support.submitReport(input);
-  if (result.ok) setStatus("Thanks - your report was sent.", 5000);
-  return result;
+const reportDialog = createReportDialog(
+  document.body,
+  async (input) => {
+    const result = await window.adcode.support.submitReport(input);
+    if (result.ok) setStatus("Thanks - your report was sent.", 5000);
+    return result;
+  },
+  (maxChars) => window.adcode.debugLog.summary(maxChars),
+);
+
+/*
+ * Anything this window throws goes to the debug log, so "it just stopped working" can be
+ * sent with Help > Report a Problem instead of reproduced over a call. Main redacts and
+ * rate-limits; this only says what happened and where.
+ */
+window.addEventListener("error", (event) => {
+  const where = event.filename ? ` (${event.filename.split("/").pop()}:${event.lineno})` : "";
+  window.adcode.debugLog.record("error", "window", `${event.message}${where}`);
+});
+window.addEventListener("unhandledrejection", (event) => {
+  const reason: unknown = event.reason;
+  window.adcode.debugLog.record("error", "promise", reason instanceof Error ? reason.stack ?? reason.message : String(reason));
 });
 
 el<HTMLButtonElement>("report-toggle").addEventListener("click", () =>
@@ -3180,7 +3248,7 @@ const PIN_PROMPT_DELAY_MS = 1_200;
 const pinPromptCard = createPinPromptCard(document.body);
 
 const onboarding = createOnboardingSheet({
-  chooseMode: (mode) => assistantDock?.setMode(mode),
+  openIde: () => void window.adcode.window.openIde(),
   read: () => window.adcode.settings.read(),
   write: (id, value) => window.adcode.settings.write(id, value),
   openAccount: () => el<HTMLButtonElement>("account-toggle").click(),
@@ -4287,7 +4355,11 @@ function showView(
   input: "pointer" | "keyboard" = "keyboard",
 ): void {
   if (!isSidebarView(view)) return;
-  if (assistantDock?.mode() === "vibe") assistantDock.setMode("code");
+  if (assistantDock?.mode() === "vibe") {
+    // Vibe has no explorer of its own; the IDE window reveals the view once it is ready.
+    void window.adcode.window.openIde(undefined, view);
+    return;
+  }
 
   layoutState = reduceWorkbenchLayout(layoutState, {
     type: "show-sidebar",
@@ -4420,7 +4492,8 @@ const chat = createChatWidget({
   requestOpen: () => openChat("keyboard"),
   requestClose: () => assistantDock?.isDocked() ? assistantDock.close() : closePrimaryPopup("chat"),
   togglePresentation: () => assistantDock?.togglePresentation(),
-  revealHistory: () => showView("explorer"),
+  // Vibe keeps conversations in its sidebar (or its drawer on a narrow window).
+  revealHistory: () => assistantDock?.revealHistory(),
   askForName: (current) =>
     promptDialog.ask({
       title: "Rename conversation",
@@ -4465,6 +4538,7 @@ const chat = createChatWidget({
     if (buffered !== null) return buffered;
     return (await window.adcode.files.read(absolute))?.text ?? null;
   },
+  reportProblem: (prefill) => reportDialog.open({ kind: "bug", ...prefill, includeDebugLog: true }),
   uncommittedDiff: async () => {
     const [diff, status] = await Promise.all([
       window.adcode.git.diff().catch(() => ""),
@@ -4842,9 +4916,7 @@ async function boot(): Promise<void> {
   reduceMotion.addEventListener("change", syncMotion);
   syncMotion();
 
-  terminalProfiles = await window.adcode.terminal.profiles();
-  defaultProfileId = terminalProfiles[0]?.id ?? "";
-  registerProfileCommands();
+  const profilesRequest = window.adcode.terminal.profiles().catch(() => [] as TerminalProfile[]);
 
   // §4: "Restore workspace" reopens the folder in the main process, so the workspace is
   // already set by the time this asks for it.
@@ -4879,8 +4951,9 @@ async function boot(): Promise<void> {
     await renderTree(existing.root);
   }
 
-  for (const file of restored.openFiles) await openFile(file);
+  if (isIdeWindow) for (const file of restored.openFiles) await openFile(file);
   if (
+    isIdeWindow &&
     restored.activeFile !== null &&
     tabs.some((tab) => tab.path === restored.activeFile)
   ) {
@@ -4898,9 +4971,14 @@ async function boot(): Promise<void> {
   syncRootCreateButtons();
   void welcome.refresh();
 
+  terminalProfiles = await profilesRequest;
+  defaultProfileId = terminalProfiles[0]?.id ?? "";
+  registerProfileCommands();
+
   // Only start recording once the restore is done, so a failed reopen cannot save an
   // empty session over a good one.
   sessionReady = true;
+  document.body.dataset["sessionReady"] = "true";
 
   await offerRecovery();
 
@@ -4910,10 +4988,15 @@ async function boot(): Promise<void> {
    * switch to Code and immediately persist it. So the saved mode is applied last,
    * after every launch-time file open, and then recorded as the baseline.
    */
-  if ((restored.workspaceMode === "vibe" || restored.workspaceMode === "code") && assistantDock !== undefined) {
-    assistantDock.setMode(restored.workspaceMode);
-  }
+  // Window roles are fixed. A saved editor session cannot turn Vibe into an IDE.
+  assistantDock?.setMode(isIdeWindow ? "code" : "vibe", isIdeWindow);
   rememberSession();
+  window.adcode.window.ready();
+  if (pendingOpenIntent !== null) {
+    const intent = pendingOpenIntent;
+    pendingOpenIntent = null;
+    applyOpenIntent(intent);
+  }
 }
 
 /* ── Commands, shortcuts, and the menu bar (§3) ───────────────────────── */
@@ -5097,22 +5180,7 @@ function registerCommands(): void {
   add("workspace.clone", "Clone Repository", () => void cloneRepository());
   add("workspace.close", "Close Folder", async () => {
     await window.adcode.workspace.close();
-
-    await closeAllTabs();
-
-    workspaceRoot = null;
-    void refreshRootFiles();
-    setRendererWorkspace(null);
-    el("sidebar-subtitle").textContent = "No folder opened";
-    setStatusWorkspace(null);
-    commandCentre.setWorkspace(null);
-    el("filetree").replaceChildren(hint("Open a folder to get started."));
-    syncRootCreateButtons();
-    void welcome.refresh();
-
-    editorHost.git.clear();
-    rememberSession();
-    void sourceControl.refresh();
+    await clearWorkspaceView();
   });
   add("file.saveAs", "Save As", () => saveActiveAs());
   add("file.save", "Save", () => saveActive());
@@ -5323,7 +5391,7 @@ function registerCommands(): void {
     window.adcode.window.toggleFullScreen(),
   );
   add("view.toggleSidebar", "Toggle Side Bar", () => {
-    if (assistantDock?.mode() === "vibe") { showView(layoutState.activeSidebarView, "keyboard"); return; }
+    if (assistantDock?.mode() === "vibe") { assistantDock.toggleVibeSidebar(); return; }
     if (layoutState.sidebarOpen) closeSidebar("keyboard");
     else showView(layoutState.activeSidebarView, "keyboard");
   });
@@ -5392,6 +5460,7 @@ function registerCommands(): void {
   add("ai.complete", "Suggest Code with AI", () =>
     editorHost.triggerInlineCompletion(),
   );
+  add("ai.newConversation", "New Conversation", () => chat.newConversation());
   add("ai.team", "Set Up AI Team", () => chat.openTeamSetup());
   add("ai.schedule", "Schedule an AI Message", () => chat.openScheduleComposer());
   add("ai.askSelection", "Ask AI about Selection or File", () => editorHost.runAction("adcode.askSelection"));
@@ -5416,8 +5485,13 @@ function registerCommands(): void {
   });
   add("ai.slashCommands", "AI: Show Assistant Commands", () => chat.openComposerMenu("/"));
   add("ai.mentionFile", "AI: Add a File to the Conversation", () => chat.openComposerMenu("@"));
-  add("workspace.vibe", "Switch to Vibe Mode", () => assistantDock?.setMode("vibe", true));
-  add("workspace.code", "Switch to Code Mode", () => assistantDock?.setMode("code", true));
+  add("workspace.vibe", "Open Vibe Window", () => void window.adcode.window.openVibe());
+  add("workspace.code", "Open Code Window", () => void window.adcode.window.openIde());
+  add("workspace.openIde", "Open IDE in a Separate Window", () => void window.adcode.window.openIde());
+  add("workspace.vibeSidebar", "Show or Hide the Vibe Sidebar", () => {
+    if (assistantDock?.mode() === "vibe") assistantDock.toggleVibeSidebar();
+    else void window.adcode.window.openVibe();
+  });
   add("workspace.project", "Show Workspace Project", () => assistantDock?.showContext("project"));
   add("workspace.changes", "Show Workspace Changes", () => assistantDock?.showContext("changes"));
   add("workspace.tasks", "Show Workspace Tasks", () => assistantDock?.showContext("tasks"));
@@ -5807,6 +5881,15 @@ function registerCommands(): void {
       .then((announcement) => whatsNewSheet.open(announcement));
   });
   add("help.shortcuts", "Keyboard Shortcuts", () => showShortcuts());
+  add("help.report", "Report a Problem", () => reportDialog.open({ kind: "bug", includeDebugLog: true }));
+  add("help.copyDebugLog", "Copy Debug Log", async () => {
+    const copied = await window.adcode.debugLog.copy().catch(() => false);
+    setStatus(copied ? "Debug log copied - paste it into an e-mail or message to support." : "Could not copy the debug log.", 5000);
+  });
+  add("help.saveDebugLog", "Save Debug Log", async () => {
+    const path = await window.adcode.debugLog.save().catch(() => null);
+    if (path !== null) setStatus(`Debug log saved to ${baseName(path)}.`, 5000);
+  });
   add("help.devTools", "Toggle Developer Tools", () =>
     window.adcode.window.toggleDevTools(),
   );
@@ -6081,9 +6164,13 @@ assistantDock = createAssistantDock({
   context: projectContext,
   focusEditor: () => { editorHost.layout(); editorHost.focus(); terminal?.fit(); },
   openPreview: () => { void previewPane.toggle(); },
-  run: command => commands.run(command),
+  run: (command, arg) => commands.run(command, arg),
   projectRoot: () => workspaceRoot,
   layoutChanged: () => { renderWorkbenchLayout(); rememberSession(); },
+  openNotifications: () => notifications.toggleInbox(),
+  onUnreadNotifications: listener => { notifications.onUnreadChanged(listener); },
+  // A cached mirror of the server's figure, like the status bar's; never computed here.
+  onEarnings: listener => { window.adcode.ads.onEarnings(earnings => listener(earnings.hasServerBalance ? earnings.availableLabel : "")); },
 });
 
 /*

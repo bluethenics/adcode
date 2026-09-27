@@ -33,6 +33,7 @@ const api: AdcodeApi = {
     current: () => ipcRenderer.invoke(CHANNELS.workspaceCurrent),
     list: (dirPath) => ipcRenderer.invoke(CHANNELS.fsList, dirPath),
     onFilesChanged: (listener) => subscribe(CHANNELS.workspaceFilesChanged, listener),
+    onChanged: (listener) => subscribe(CHANNELS.workspaceChanged, listener),
   },
   app: {
     info: () => ipcRenderer.invoke(CHANNELS.appInfo),
@@ -161,6 +162,8 @@ const api: AdcodeApi = {
     onEvent: (listener) => subscribe(CHANNELS.aiEvent, listener),
     onProposedEdit: (listener) => subscribe(CHANNELS.aiProposedEdit, listener),
     applyHunks: (path, ids) => ipcRenderer.invoke(CHANNELS.aiApplyHunks, path, ids),
+    onCheckpoint: (listener) => subscribe(CHANNELS.aiCheckpoint, listener),
+    undoCheckpoint: (id, force) => ipcRenderer.invoke(CHANNELS.aiCheckpointUndo, id, force),
   },
   aiWorkspace: {
     list: () => ipcRenderer.invoke(CHANNELS.aiWorkspaceList),
@@ -244,6 +247,9 @@ const api: AdcodeApi = {
     toggleFullScreen: () => ipcRenderer.send(CHANNELS.windowFullScreen),
     toggleDevTools: () => ipcRenderer.send(CHANNELS.windowDevTools),
     zoom: (direction) => ipcRenderer.send(CHANNELS.windowZoom, direction),
+    openIde: (file, view) => ipcRenderer.invoke(CHANNELS.windowOpenIde, file, view),
+    openVibe: () => ipcRenderer.invoke(CHANNELS.windowOpenVibe),
+    ready: () => ipcRenderer.send(CHANNELS.windowRendererReady),
   },
   history: {
     versions: (path) => ipcRenderer.invoke(CHANNELS.historyVersions, path),
@@ -292,6 +298,18 @@ const api: AdcodeApi = {
   },
   support: {
     submitReport: (input) => ipcRenderer.invoke(CHANNELS.supportSubmitReport, input),
+  },
+  dialogs: {
+    onConfirmRequest: (listener) => subscribe(CHANNELS.dialogConfirmRequest, listener),
+    onConfirmCancel: (listener) => subscribe(CHANNELS.dialogConfirmCancel, listener),
+    answerConfirm: (id, answer) => ipcRenderer.send(CHANNELS.dialogConfirmAnswer, id, answer),
+  },
+  debugLog: {
+    record: (level, source, message) => ipcRenderer.send(CHANNELS.debugRecord, level, source, message),
+    report: () => ipcRenderer.invoke(CHANNELS.debugReport),
+    summary: (maxChars) => ipcRenderer.invoke(CHANNELS.debugSummary, maxChars),
+    copy: () => ipcRenderer.invoke(CHANNELS.debugCopy),
+    save: () => ipcRenderer.invoke(CHANNELS.debugSave),
   },
   onboarding: {
     completed: () => ipcRenderer.invoke(CHANNELS.onboardingState),

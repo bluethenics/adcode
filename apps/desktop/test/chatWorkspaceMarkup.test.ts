@@ -21,6 +21,18 @@ const dockSource = readFileSync(
   new URL("../src/renderer/workbench/assistantDock.ts", import.meta.url),
   "utf8",
 );
+const sidebarSource = readFileSync(
+  new URL("../src/renderer/workbench/vibeSidebar.ts", import.meta.url),
+  "utf8",
+).replace(/\r\n/g, "\n");
+const contextSource = readFileSync(
+  new URL("../src/renderer/workbench/projectContext.ts", import.meta.url),
+  "utf8",
+).replace(/\r\n/g, "\n");
+const modeStyles = readFileSync(
+  new URL("../src/renderer/styles/workspaceModes.css", import.meta.url),
+  "utf8",
+).replace(/\r\n/g, "\n");
 const smoke = readFileSync(
   new URL("../../../scripts/smoke.mjs", import.meta.url),
   "utf8",
@@ -35,10 +47,31 @@ describe("AI Chat workspace", () => {
   });
 
   it("keeps Vibe navigation attached to the shared conversation", () => {
-    expect(dockSource).toContain('button.className = `vibe-nav-item vibe-rail-only');
+    expect(sidebarSource).toContain("`vibe-nav-item ${className}`");
     expect(dockSource).toContain('(mode === "vibe" ? vibe : dock).append(chat.element)');
+    // Conversations live in the Vibe sidebar at every width - docked or in the drawer.
+    expect(dockSource).toContain('chat.setDocked(true, mode === "vibe" ? vibeSidebar?.historyHost : undefined)');
     expect(source).toContain('welcomeMark.classList.add("chat-welcome-mark")');
     expect(source).toContain('welcomeGreeting.textContent = hour < 5');
+  });
+
+  it("opens the full IDE beside Vibe instead of replacing it", () => {
+    expect(sidebarSource).toContain("vibe-ide-button");
+    expect(sidebarSource).toContain("Open IDE in a separate window");
+    expect(sidebarSource).toContain('deps.run("workspace.openIde")');
+    expect(mainSource).toContain('add("workspace.openIde"');
+    expect(mainSource).toContain("window.adcode.window.openIde()");
+    expect(mainSource).toContain('"#/ide"');
+  });
+
+  it("keeps Vibe requests in Vibe or hands them to the IDE intact", () => {
+    // History in Vibe reveals the sidebar's list; it used to open the IDE window.
+    expect(mainSource).toContain("revealHistory: () => assistantDock?.revealHistory()");
+    expect(mainSource).not.toContain('revealHistory: () => showView("explorer")');
+    // Files and search open the IDE on that view instead of whatever it last showed.
+    expect(mainSource).toContain("void window.adcode.window.openIde(undefined, view);");
+    // Ctrl+B hides the Vibe sidebar rather than opening the IDE.
+    expect(mainSource).toContain('if (assistantDock?.mode() === "vibe") { assistantDock.toggleVibeSidebar(); return; }');
   });
 
   it("retires free-drag position persistence", () => {
@@ -106,6 +139,38 @@ describe("AI Chat workspace", () => {
     expect(styles).toContain(".chat-message-actions");
     expect(styles).toContain(".chat-connect-banner");
     expect(styles).toContain(".connect-steps");
+  });
+});
+
+describe("Context Changes tab", () => {
+  it("reads Cursor-style: totals, branch, per-file counts, diff previews", () => {
+    expect(contextSource).toContain("context-changes-head");
+    expect(contextSource).toContain("Uncommitted");
+    expect(contextSource).toContain("context-branch");
+    expect(contextSource).toContain("context-change-new");
+    expect(contextSource).toContain("context-change-diff");
+    expect(contextSource).toContain("context-diff-text");
+    expect(contextSource).toContain("fileIcon(entry.path)");
+  });
+
+  it("commits and pushes from beside the list, staged first", () => {
+    expect(contextSource).toContain("context-commit-form");
+    expect(contextSource).toContain("Commit & Push");
+    expect(contextSource).toContain("window.adcode.git.commit(text)");
+    expect(contextSource).toContain("window.adcode.git.push()");
+    expect(contextSource).toContain("A commit needs a message.");
+  });
+
+  it("stays honest about what git cannot number", () => {
+    expect(contextSource).toContain("New file — its contents join the commit when staged.");
+    expect(contextSource).toContain("diff truncated — open in Source Control for the rest.");
+  });
+
+  it("carries the panel styling with reduced-motion cover", () => {
+    expect(modeStyles).toContain(".context-change-totals");
+    expect(modeStyles).toContain(".context-commit-send");
+    expect(modeStyles).toContain(".context-diff-text");
+    expect(modeStyles).toContain("prefers-reduced-motion");
   });
 });
 
