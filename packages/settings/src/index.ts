@@ -15,7 +15,8 @@
  * worse than either.
  */
 
-export const SETTINGS_VERSION = 1;
+/** 2: AI edits apply automatically and Keep going is on (see `migrate`). */
+export const SETTINGS_VERSION = 2;
 
 export type SettingGroupId =
   | "editing"
@@ -364,7 +365,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     "adcode.ai.isolatedWorkspaces",
     "ai",
     "AI file tools",
-    "Let the assistant read, edit and run commands directly in the open project. Edits apply immediately with no review queue. Off keeps chat available but disables file tools.",
+    "Let the assistant read, edit and run commands in the open project. AI edit approval decides whether edits land as it works or wait for you. Off keeps chat available but disables file tools.",
     true,
     true,
   ),
@@ -374,12 +375,12 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     kind: "enum",
     label: "AI edit approval",
     description:
-      "Review each change before it reaches your files, or let the assistant apply edits as it works and undo any turn from the chat.",
-    default: "review",
+      "Let the assistant apply edits as it works, with Undo on every turn in the chat - or hold each turn's changes until you apply them.",
+    default: "trusted",
     available: true,
     options: [
-      { value: "review", label: "Review every change", detail: "Recommended" },
-      { value: "trusted", label: "Apply automatically", detail: "Undo any turn" },
+      { value: "trusted", label: "Apply automatically", detail: "Recommended · undo any turn" },
+      { value: "review", label: "Review every change", detail: "Changes wait for Apply" },
     ],
   },
   bool(
@@ -387,7 +388,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     "ai",
     "Keep going until done",
     "When the assistant stops at its step limit, continue automatically - up to five times - instead of waiting for you.",
-    false,
+    true,
     true,
   ),
   {
@@ -577,7 +578,16 @@ export function migrate(stored: StoredSettings): MigratedSettings {
     return { version: SETTINGS_VERSION, values: defaultSettings() };
   }
 
-  return { version: SETTINGS_VERSION, values: validateSettings(stored.values) };
+  const values = validateSettings(stored.values);
+  // Version 1 persisted every value, defaults included, so its "review" and "off" are
+  // the old defaults far more often than choices. ADCode now gets out of the way: edits
+  // land as the assistant works (every turn can be undone) and it keeps going to the end.
+  // Anyone who wants Review back is one click from it, and it sticks from here on.
+  if (stored.version === undefined || stored.version < 2) {
+    values["adcode.ai.editPolicy"] = "trusted";
+    values["adcode.ai.keepGoing"] = true;
+  }
+  return { version: SETTINGS_VERSION, values };
 }
 
 export function settingsForGroup(group: SettingGroupId): readonly Setting[] {

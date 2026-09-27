@@ -33,12 +33,13 @@ latest query.
 AI features are optional. Files, menus, editor shortcuts, terminals, source control,
 debugging, and extensions continue to work normally without connecting a model.
 
-- **Isolated mode** gives an AI task a separate Git-backed workspace. Review the diff and
-  apply it when ready; discard it to roll back without touching the working project.
+- **Apply automatically** is the default: the assistant edits your files as it works, and
+  each turn that changed files gets an **Undo** card in the conversation that puts them back.
 - **Team** can divide one goal among multiple AI roles. ADCode shows the shared goal,
   ownership, trace, token use, and each proposed change instead of hiding parallel work.
-- **Trusted mode** permits broader automated edits for a workspace you trust. You can turn
-  it off at any time; it does not remove the review, history, or rollback path.
+- **Review every change** is one click away in the chat's approval menu. Edits are staged in
+  an isolated copy of the project, and when the turn ends one card offers **Apply all
+  changes** or **Discard** - nothing reaches the working project until you apply.
 - **Scheduled messages** are delivered only while ADCode is open. Built-in chat is always
   supported; terminal delivery requires a visibly waiting compatible agent and a one-time
   permission. Missed one-time messages wait for you to choose **Run now**.
@@ -46,8 +47,8 @@ debugging, and extensions continue to work normally without connecting a model.
   It never bypasses provider usage limits, token budgets, approvals, or a closed ADCode
   window.
 - **Trace and review** show requests, tool activity, file changes, costs, pauses, and errors.
-  Secrets stay in the operating system credential store and the user decides what is
-  applied to the real project.
+  Secrets stay in the operating system credential store, and every AI change to the real
+  project can be undone or, in Review mode, waits for the user to apply it.
 
 Read [AI workspaces and automation](./ai-workspaces.md) for the end-to-end workflow and
 [AI workspace security](../architecture/ai-workspace-security.md) for the trust boundary,
@@ -536,25 +537,25 @@ A conversation workspace with searchable history, a live working block per answe
 
 Why use it: Asking in the editor beats copying code into a browser, because the assistant can already see the project. A playful mascot, a scroll pill that respects your place, and a clear way back from an interrupted turn keep long runs feeling alive instead of hung.
 
-How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. While it works, one activity block per answer shows the current step with elapsed time — the blue mascot bounces while working, its eyes follow your pointer, and clicking it pops a morale-boosting quip. Thinking notes and tool calls stream in as bordered rows, each tool gaining a checkmark when done. When it finishes the block collapses to Worked for Ns; select its header to expand it again. Scroll up and the transcript stays pinned while a Jump to latest pill appears with a count of new messages; select it to return to the tail. If you stop a turn, an interrupted banner offers Edit prompt (your last message back in the composer) and Try again. If a turn fails, a card in the conversation says why in plain words - a rate limit, a request too large for the model, a rejected key, a broken tool call, a network problem - with buttons to try again, switch model, start fresh or report it, and the provider’s exact message under Details. A failed turn never breaks the conversation: the next message works as normal. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers icon actions for Copy, Read aloud, helpful or not helpful, and Retry, with relative time like just now. Use History to browse conversations and the activity panel to see agent work and review changes. Share copies the conversation as markdown. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation. The assistant changes existing files with exact replacements instead of rewriting them, reads several files at once, and works through up to 50 steps per request; if it stops at a limit, Continue picks up where it left off. On an empty conversation, starters - Explain this project, Plan new idea, Fix an error, Review changes, Verify changes and Multitask - get going in one click, and in Vibe a short checklist shows anything still missing, such as opening a project folder or connecting a model.
+How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. While it works, one activity block per answer shows the current step with elapsed time — the blue mascot bounces while working, its eyes follow your pointer, and clicking it pops a morale-boosting quip. Thinking notes and tool calls stream in as bordered rows, each tool gaining a checkmark when done. When it finishes the block collapses to Worked for Ns; select its header to expand it again. Scroll up and the transcript stays pinned while a Jump to latest pill appears with a count of new messages; select it to return to the tail. If you stop a turn, an interrupted banner offers Edit prompt (your last message back in the composer) and Try again. If a turn fails, a card in the conversation says why in plain words - a rate limit, a request too large for the model, a rejected key, a broken tool call, a network problem - with buttons to try again, switch model, start fresh or report it, and the provider’s exact message under Details. A failed turn never breaks the conversation: the next message works as normal. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers icon actions for Copy, Read aloud, helpful or not helpful, and Retry, with relative time like just now. Use History to browse conversations and the activity panel to see agent work. Share copies the conversation as markdown. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation. The assistant changes existing files with exact replacements instead of rewriting them, reads several files at once, and works through up to 50 steps per request, and Keep going until done carries it on past that by itself. Its edits land in your files as it works, and each turn that changed files gets an Undo card. On an empty conversation, starters - Explain this project, Build something, Fix an error, Plan new idea and Multitask - get going in one click, and in Vibe a short checklist shows anything still missing, such as opening a project folder or connecting a model.
 
 Access: `All Features → AI chat workspace`; `Turn on or off`; `Settings`.
 
 <!-- feature:adcode.ai.editPolicy -->
 ### AI edit approval
 
-Choose how the assistant's edits reach your files: you review each change first, or it applies them as it works and you can undo any turn.
+Choose how the assistant's edits reach your files: it applies them as it works and you can undo any turn (the default), or each turn's changes wait for you to apply them.
 
-Why use it: Reviewing is the safe start on a project you care about. Once you trust how the assistant works, applying automatically lets it build, run and fix in one go - the way Cursor's agent does - while one click still takes a whole turn back.
+Why use it: Most of the time you want the result, not a queue of diffs to approve. Applying automatically lets the assistant build, run and fix in one go - the way Cursor's agent does - and one click still takes a whole turn back. Review is there for the times you want to see a change before it lands.
 
-How to use it: Switch at any time from the approval menu in the chat's composer (it reads Review or Auto), from the review window's Always apply automatically button, or in Settings. Review every change is the default: edits are staged in an isolated copy of the project, the chat shows each diff, and nothing moves until you choose Apply; Discard throws the staged copy away. Apply automatically writes files as the assistant goes; when a turn changes files the chat shows them with Undo, which puts every file back as it was before that turn and removes files the turn created. If you edited one of those files afterwards, Undo asks before overwriting your change. Undo covers edits made with the assistant's file tools; what a command it ran did to the disk (an install or a build, say) is not recorded.
+How to use it: Switch at any time from the approval menu in the chat's composer (it reads Auto or Review) or in Settings. Apply automatically is the default: files change as the assistant goes, and when a turn changes files the chat shows them with Undo, which puts every file back as it was before that turn and removes files the turn created. If you edited one of those files afterwards, Undo asks before overwriting your change. Undo covers edits made with the assistant's file tools; what a command it ran did to the disk (an install or a build, say) is not recorded. With Review every change, edits are staged in an isolated copy of the project instead; when the turn ends, one card in the conversation shows everything it changed with Apply all changes, Discard and each file's diff, and nothing reaches your files until you apply. Changes in the sidebar lists anything still waiting.
 
 Access: `All Features → AI edit approval`; `Settings`.
 
 <!-- feature:adcode.ai.isolatedWorkspaces -->
 ### AI file tools
 
-The assistant reads, edits and runs commands directly in your open project. What it does lands in your real files immediately.
+The assistant reads, edits and runs commands directly in your open project. What it does lands in your real files as it works, and every turn can be undone.
 
 Why use it: Isolation kept edits safe but made simple work feel missing: proposals sat in a sandbox queue instead of reaching the folder. Direct edits deliver real results the moment the turn finishes.
 
@@ -657,7 +658,7 @@ When the assistant stops at its step limit in the middle of a long job, it carri
 
 Why use it: Long builds - a whole site, a refactor across many files - can need more than one turn's worth of steps. With this on, you can hand over a big job and come back to it finished.
 
-How to use it: Off by default. Turn it on from the approval menu in the chat's composer or in Settings. When a turn ends at the step limit, ADCode sends Continue for you, up to five times in a row, and says so in the conversation each time. Sending your own message or pressing Stop resets the count. Pair it with Apply automatically, and with Automations to schedule the job, for work that runs start to finish without you.
+How to use it: On by default. Turn it off from the approval menu in the chat's composer or in Settings. When a turn ends at the step limit, ADCode sends Continue for you, up to five times in a row, and says so in the conversation each time. Sending your own message or pressing Stop resets the count. With it off, the assistant stops at its step limit and a Continue button picks up where it left off. Together with Apply automatically, and Automations to schedule the job, work runs start to finish without you.
 
 Access: `All Features → Keep going until done`; `Turn on or off`; `Settings`.
 
@@ -824,7 +825,7 @@ Pick which of your changes to keep as a set, write a note about them, and save t
 
 Why use it: This is the point of source control: your work gets saved in labelled steps you can go back to, rather than as one big pile of edits.
 
-How to use it: On by default. Open the Source Control panel in the activity bar. Tick the changes you want in this set - that is 'staging' - write a short note saying what you did, and press Commit. The Context pane's Changes tab shows the same work Cursor-style: an Uncommitted +added −removed total, one row per file with its own count or a New badge, a diff preview inside each row, and a Commit & Push box that stages, commits, and pushes in one go.
+How to use it: On by default. Open the Source Control panel in the activity bar. Tick the changes you want in this set - that is 'staging' - write a short note saying what you did, and press Commit. The Changes panel (Changes in the Vibe sidebar) shows the same work Cursor-style: an uncommitted +added −removed total, one row per file with its count, a revert arrow and an include checkbox, the diff one click away, and Commit & Push, which commits and pushes in one go and writes the message if you leave it empty.
 
 Access: `All Features → Stage, unstage, and commit`; `Commit`; `Stage all`; `Unstage all`; `Push`; `Pull`; `Fetch`; `Initialise a repository`; `Clone a repository`; `Open Source Control`; `Turn on or off`; `Settings`.
 
@@ -908,6 +909,17 @@ Why use it: Most work needs both an editor and a terminal, and switching windows
 How to use it: Open it from the panel at the bottom. You can have several at once, and each remembers what it was doing.
 
 Access: `All Features → Built-in terminal`; `Open`; `New terminal`; `New terminal with profile`; `Split`; `Next terminal`; `Previous terminal`; `Copy`; `Paste`; `Clear`; `Kill`; `Kill all`; `Run this file in the terminal`.
+
+<!-- feature:workbench.changes -->
+### Changes panel
+
+Every file that changed since your last commit - what the assistant did and what you did - with its line counts, its diff one click away, and one button to commit and push it all.
+
+Why use it: When the assistant edits as it works, this is where you see what it touched and save the result. It reads like Cursor's changes view, but you never have to learn staging: every file is included until you untick it, and if you leave the commit message empty ADCode writes one from the files.
+
+How to use it: Choose Changes in the Vibe sidebar, or Show Workspace Changes in the command palette. The bar at the top shows the uncommitted +added −removed total, the branch and Commit & Push; the line under it always says which files the next commit takes. Each row is a file with its line counts, a New or Deleted tag, a revert arrow and a checkbox. Select a file to see its diff - a new file shows its whole contents. Untick a file to leave it out of the next commit; while every box is ticked, Commit & Push takes every file. Commit & Push commits and pushes in one step, with a message such as Update css/app.css and 2 more files when you have not written one; the arrow beside it offers Commit only and Write the commit message. A project not yet connected to GitHub is committed on this computer, and the panel says how to connect it. The revert arrow asks first, then puts an edited file back as it was at the last commit, or moves a new file to the Recycle Bin. The branch button switches branch; the ⋯ button holds Include everything, Pull, Push, Revert all changes and Source Control. In a folder without Git, Turn on version control starts tracking it. Work from Review mode or an AI Team that is waiting to be applied appears at the top of the panel.
+
+Access: `All Features → Changes panel`; `Open Changes`.
 
 <!-- feature:workbench.commandPalette -->
 ### Command palette
@@ -1039,16 +1051,16 @@ Why use it: Keep planning and editing visible at the same time, with each window
 
 How to use it: Start in Vibe and choose Open IDE at the bottom of the Vibe sidebar to open or focus the Code window. Use Vibe in the Code toolbar to return to the conversation window. Opening a file, Browse files in the IDE or Search in files from Vibe opens the IDE on exactly that. Both windows follow the same project; Code restores its editor tabs.
 
-Access: `All Features → Vibe and Code modes`; `Vibe`; `Code`; `Project`; `Changes`; `Tasks`; `Preview`.
+Access: `All Features → Vibe and Code modes`; `Vibe`; `Code`; `Project`; `AI tasks`; `Preview`.
 
 <!-- feature:workbench.vibeSidebar -->
 ### Vibe sidebar
 
-The left side of the Vibe window: start a conversation, switch project, and see at a glance which tasks and changes are waiting for you.
+The left side of the Vibe window: start a conversation, switch project, and see at a glance what has changed.
 
-Why use it: Vibe hides the editor, so something has to tell you that an agent is still working or that changes are waiting to be reviewed. Badges on Tasks and Review changes say so without opening anything, and every everyday workflow has a row of its own instead of hiding in a menu.
+Why use it: Vibe hides the editor, so something has to tell you that an agent is still working or what has changed. The Changes badge says so without opening anything, and every everyday workflow has a row of its own instead of hiding in a menu.
 
-How to use it: New conversation (Ctrl+Shift+N) starts fresh; earlier ones stay under Conversations, grouped by day and searchable. The project card shows the folder, its branch and how many files have changed - select it to switch to a recent project, open or clone one, or see the project overview. Tasks and Review changes open the panel beside the conversation, and select them again to close it. Their badges count what is going on; a blue badge means something is waiting for you, such as an AI proposal to review. Preview shows the running app, Automations schedules messages, and Agents & tools manages saved agents, MCP tools and skills. The footer holds Open IDE, notifications, your earnings, Settings and More for everything else. Drag the sidebar's right edge to resize it. Press Ctrl+B to hide or show it; on a narrow window it becomes a drawer that the menu button or Ctrl+B opens.
+How to use it: New conversation (Ctrl+Shift+N) starts fresh; earlier ones stay under Conversations, grouped by day and searchable. The project card shows the folder, its branch and how many files have changed - select it to switch to a recent project, open or clone one, or see the project overview. Changes opens the Changes panel beside the conversation (select it again to close it); its badge counts the files you have not committed, and turns blue when something needs you, such as a conflict or - if you chose Review every change - AI edits waiting to apply. Preview shows the running app, Automations schedules messages, and Agents & tools manages saved agents, MCP tools and skills. The footer holds Open IDE, notifications, your earnings, Settings and More for everything else. Drag the sidebar's right edge to resize it. Press Ctrl+B to hide or show it; on a narrow window it becomes a drawer that the menu button or Ctrl+B opens.
 
 Access: `All Features → Vibe sidebar`; `Show or hide`; `Keyboard → Ctrl+B`.
 

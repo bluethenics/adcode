@@ -161,7 +161,6 @@ const api: AdcodeApi = {
     answerAnyway: () => ipcRenderer.send(CHANNELS.aiAnswerAnyway),
     onEvent: (listener) => subscribe(CHANNELS.aiEvent, listener),
     onProposedEdit: (listener) => subscribe(CHANNELS.aiProposedEdit, listener),
-    applyHunks: (path, ids) => ipcRenderer.invoke(CHANNELS.aiApplyHunks, path, ids),
     onCheckpoint: (listener) => subscribe(CHANNELS.aiCheckpoint, listener),
     undoCheckpoint: (id, force) => ipcRenderer.invoke(CHANNELS.aiCheckpointUndo, id, force),
   },

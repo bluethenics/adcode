@@ -31,6 +31,16 @@ export async function checkAi({ evaluate, send, waitFor, sleep, artifacts }) {
       } else res.end('data: ' + JSON.stringify({ choices: [{ delta: { content: 'Two changes are ready for review.' }, finish_reason: 'stop' }] }) + '\n\ndata: [DONE]\n\n');
       return;
     }
+    if (lastUser?.content === 'workspace-auto-smoke') {
+      const afterRequest = request.messages.slice(request.messages.lastIndexOf(lastUser) + 1);
+      if (!afterRequest.some(message => message.role === 'tool')) {
+        const tool_calls = ['styles.css', 'auto-note.txt'].map((path, index) => ({ index, id: `auto-fixture-${index}`, function: {
+          name: 'propose_edit', arguments: JSON.stringify({ path, contents: `/* auto-mode-change ${index} */\n`, summary: `Update ${path} for auto smoke` }),
+        } }));
+        res.end('data: ' + JSON.stringify({ choices: [{ delta: { tool_calls }, finish_reason: 'tool_calls' }] }) + '\n\ndata: [DONE]\n\n');
+      } else res.end('data: ' + JSON.stringify({ choices: [{ delta: { content: 'Both files are updated.' }, finish_reason: 'stop' }] }) + '\n\ndata: [DONE]\n\n');
+      return;
+    }
     if (request.messages.some(message => message.role === 'user' && typeof message.content === 'string' && message.content.includes('stream-batch-smoke'))) {
       for (let index = 0; index < 100; index++) {
         res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: `chunk-${index} ` }, finish_reason: null }] }) + '\n\n');
@@ -264,18 +274,29 @@ export async function checkAi({ evaluate, send, waitFor, sleep, artifacts }) {
     await waitFor(`[...document.querySelectorAll('.chat-bubble-assistant')].at(-1)?.textContent.trim() === ${JSON.stringify(expected)}`);
     await screenshot('vibe-live-session');
     await evaluate("(() => { if (!document.querySelector('.project-context')?.getClientRects().length) document.querySelector('.project-toolbar-action[title=\"Project, changes and saved tasks\"]')?.click(); })()");
-    await evaluate("document.querySelector('#context-tab-tasks').click()");
-    await waitFor("document.querySelectorAll('.context-task').length > 0");
-    await evaluate("document.querySelector('.context-task summary').click()");
-    await waitFor("document.querySelector('.context-task[open] .context-action') !== null");
-    await evaluate("document.querySelector('.context-task[open] .context-action').click()");
+    // Saved tasks have no panel tab any more: they open from the command palette as a list.
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'P', code: 'KeyP', modifiers: 10, windowsVirtualKeyCode: 80 });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'P', code: 'KeyP', modifiers: 10, windowsVirtualKeyCode: 80 });
+    await waitFor("document.querySelector('.quickopen-input[aria-label=\"Command palette\"]')?.getClientRects().length > 0");
+    await evaluate("(() => { const input = document.querySelector('.quickopen-input[aria-label=\"Command palette\"]'); input.value = 'Show AI Tasks'; input.dispatchEvent(new Event('input', { bubbles: true })); })()");
+    await waitFor("document.querySelector('.palette-row')?.textContent.includes('Show AI Tasks')");
+    await evaluate("document.querySelector('.palette-row').click()");
+    await waitFor("document.querySelectorAll('dialog.tasks-popup-dialog[open] .tasks-popup-row').length > 0");
+    await evaluate("document.querySelector('dialog.tasks-popup-dialog[open] .tasks-popup-row').click()");
+    await clickText('dialog.task-details-dialog[open] button', 'Show in chat');
     await waitFor("document.querySelector('.task-review-summary') !== null");
     await screenshot('vibe-task-review');
     const root = await evaluate("window.adcode.workspace.current().then(workspace => workspace.root)");
     const original = await evaluate(`window.adcode.files.read(${JSON.stringify(root + '/styles.css')}).then(file => file.text)`);
+    // Automatic edits are the default; Review is the opt-in this part exercises.
+    assert.equal((await evaluate("window.adcode.settings.read()"))['adcode.ai.editPolicy'], 'trusted', 'Edits apply automatically by default');
+    await evaluate("window.adcode.settings.write('adcode.ai.editPolicy', 'review')");
     await evaluate("window.adcode.ai.reset()");
     assert.equal(await evaluate("window.adcode.ai.send('workspace-review-smoke')"), true);
     assert.equal(await evaluate(`window.adcode.files.read(${JSON.stringify(root + '/styles.css')}).then(file => file.text)`), original, 'Proposals do not change project files before review');
+    // The turn's end offers its staged changes in the conversation by itself - no pop-up.
+    await waitFor(`[...document.querySelectorAll('.task-review-summary')].some(node => node.textContent.includes('workspace-review-smoke'))`);
+    assert.equal(await evaluate("document.querySelector('.task-review-dialog') === null && document.querySelector('.chat-bubble-proposal') === null"), true, 'Review mode shows one card, not a dialog or per-edit notices');
     await evaluate("document.querySelector('#context-tab-changes').click()");
     await waitFor("document.querySelector('.context-content').textContent.includes('workspace-review-smoke')");
     await clickText('.context-content .context-action > span', 'workspace-review-smoke');
@@ -290,6 +311,20 @@ export async function checkAi({ evaluate, send, waitFor, sleep, artifacts }) {
     await evaluate("document.querySelector('.workspace-mode-switch [data-mode=code]').click()");
     assert.match(await evaluate(`window.adcode.files.read(${JSON.stringify(root + '/styles.css')}).then(file => file.text)`), /reviewed-mode-change/);
     process.stdout.write('PASS: real isolated proposals leave files unchanged, review shows actual line counts, and Apply all writes both project files.\n');
+    // Back to the default: edits land as the assistant works, and one Undo takes the turn back.
+    const reviewed = await evaluate(`window.adcode.files.read(${JSON.stringify(root + '/styles.css')}).then(file => file.text)`);
+    await evaluate("window.adcode.settings.write('adcode.ai.editPolicy', 'trusted')");
+    await evaluate("window.adcode.ai.reset()");
+    assert.equal(await evaluate("window.adcode.ai.send('workspace-auto-smoke')"), true);
+    await waitFor(`(async () => (await window.adcode.files.read(${JSON.stringify(root + '/styles.css')})).text.includes('auto-mode-change'))()`);
+    assert.match(await evaluate(`window.adcode.files.read(${JSON.stringify(root + '/auto-note.txt')}).then(file => file.text)`), /auto-mode-change/, 'Automatic mode creates files in the project');
+    assert.equal(await evaluate("window.adcode.aiWorkspace.list().then(tasks => tasks.some(task => task.prompt === 'workspace-auto-smoke'))"), false, 'Automatic mode leaves nothing waiting to apply');
+    await waitFor("[...document.querySelectorAll('.chat-checkpoint')].some(card => card.textContent.includes('auto-note.txt'))");
+    await evaluate("[...document.querySelectorAll('.chat-checkpoint')].findLast(card => card.textContent.includes('auto-note.txt')).querySelector('.chat-checkpoint-undo').click()");
+    await waitFor("[...document.querySelectorAll('.chat-checkpoint')].findLast(card => card.textContent.includes('auto-note.txt'))?.dataset.state === 'undone'");
+    assert.equal(await evaluate(`window.adcode.files.read(${JSON.stringify(root + '/styles.css')}).then(file => file.text)`), reviewed, 'Undo puts a changed file back');
+    assert.equal(await evaluate(`window.adcode.files.read(${JSON.stringify(root + '/auto-note.txt')}).then(() => true, () => false)`), false, 'Undo removes a file the turn created');
+    process.stdout.write('PASS: by default edits land as the assistant works, nothing waits for review, and Undo restores the turn.\n');
     await writeFile(join(root, 'index.html'), '<!doctype html><html><body><h1>Live chat preview works</h1></body></html>');
     await evaluate("document.querySelector('#panel-close').click()");
     await evaluate("document.querySelector('.workspace-mode-switch [data-mode=vibe]').click()");

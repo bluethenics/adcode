@@ -22,7 +22,6 @@ import {
   DEFAULT_ANTHROPIC_MODEL,
   SNAPSHOT_TAKEN_ON,
   TOOLS_WITHOUT_MEMORY,
-  applyHunks,
   baseUrlFor,
   buildInlineEditRequest,
   cleanInlineEditAnswer,
@@ -75,7 +74,7 @@ import {
 } from "../shared/api.ts";
 import { recordAgentEdit } from "./activity.ts";
 import { createKeychainStore } from "./keychain.ts";
-import { createAiToolRunner, type ProposedEdit } from "./aiTools.ts";
+import { createAiToolRunner } from "./aiTools.ts";
 import { resolveSandboxPath } from "./aiSandbox.ts";
 import { createCheckpointStore, type UndoResult } from "./aiCheckpoints.ts";
 import { ASSISTANT_EXTENSION_TOOLS, withAssistantExtensions } from "./assistantControls.ts";
@@ -162,8 +161,6 @@ function baseUrlOf(providerId: string): string | null {
   return baseUrlFor(providerId);
 }
 
-/** Proposals awaiting review, keyed by path. Nothing here has touched disk (§5.3). */
-const pendingEdits = new Map<string, ProposedEdit>();
 let activeTaskId: string | null = null;
 /** The request that started the current review task, used as its title. */
 let currentTaskPrompt: string | null = null;
@@ -436,8 +433,9 @@ async function ensureToolWorkspace() {
   return { taskId: "", sandboxRoot: human, humanRoot: human };
 }
 
+/** Automatic unless the user chose Review: edits land as the assistant works, undoable per turn. */
 function configuredEditPolicy(): "review" | "trusted" {
-  return currentSettings()["adcode.ai.editPolicy"] === "trusted" ? "trusted" : "review";
+  return currentSettings()["adcode.ai.editPolicy"] === "review" ? "review" : "trusted";
 }
 
 // The debug log names the selected provider and model - ids only, never keys.
@@ -650,8 +648,8 @@ function toolRunner() {
         announceProjectFiles([edit.relativePath]);
         return;
       }
-      // Staged, not applied: the chat shows the diff with Apply, and nothing on disk moved.
-      pendingEdits.set(edit.path, edit);
+      // Staged, not applied: nothing on disk moved. The turn's changes are offered for
+      // Apply once, when it ends; this only tells the windows that some are waiting.
       const root = currentWorkspace()?.root;
       const view: ProposedEditView = {
         taskId: edit.taskId,
@@ -964,9 +962,6 @@ export async function aiSend(
         const result = await service.applyTrusted(task.id);
         announceWorkspaceTask(result.task);
         if (result.ok) {
-          for (const [path, edit] of pendingEdits) {
-            if (edit.taskId === task.id) pendingEdits.delete(path);
-          }
           recordAgentEdit({
             chars: changes.reduce(
               (total, change) => total + Math.max(0, change.proposed.length - (change.original?.length ?? 0)),
@@ -1417,56 +1412,8 @@ export function aiReset(): void {
         if (task !== null) announceWorkspaceTask(task);
       });
   }
-  pendingEdits.clear();
   activeTaskId = null;
   session = null;
-}
-
-/**
- * Apply the hunks the user accepted, and only those.
- *
- * This is the single point where a model-authored change reaches disk, and it happens
- * only after the user has seen it (§5.3). Accepting nothing writes nothing.
- */
-export async function aiApplyHunks(path: string, acceptedHunkIds: readonly string[]): Promise<boolean> {
-  const edit = pendingEdits.get(path);
-  if (edit === undefined) return false;
-  if ((await currentWorkspaceTask(edit.taskId)) === null) return false;
-
-  if (acceptedHunkIds.length === 0) {
-    try {
-      const service = await readyAiWorkspaceService();
-      await service.reject(edit.taskId, edit.relativePath);
-      const task = await service.read(edit.taskId);
-      if (task !== null) announceWorkspaceTask(task);
-      pendingEdits.delete(path);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  const next = applyHunks(edit.original, edit.hunks, acceptedHunkIds);
-  const result = await (await readyAiWorkspaceService()).apply(edit.taskId, [
-    { path: edit.relativePath, acceptedHunkIds },
-  ]);
-  announceWorkspaceTask(result.task);
-
-  if (result.ok) {
-    pendingEdits.delete(path);
-    // Counted here because this is the only place a model-authored change reaches disk.
-    // The number is the growth in the file, not the size of the hunks: a hunk that
-    // replaces twenty lines with twenty-one added one character of the agent's work, and
-    // reporting twenty-one would credit it with the twenty the person had already
-    // written. Only what the agent added is the agent's.
-    recordAgentEdit({
-      chars: Math.max(0, next.length - edit.original.length),
-      acceptedEdits: acceptedHunkIds.length,
-      rejectedEdits: edit.hunks.length - acceptedHunkIds.length,
-    });
-  }
-
-  return result.ok;
 }
 
 export async function aiWorkspaceTasks(): Promise<AiWorkspaceTaskView[]> {

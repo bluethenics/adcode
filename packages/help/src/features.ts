@@ -40,7 +40,7 @@ const command = (commandId: string, label: string): FeatureCommandAction => ({
  */
 const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "workbench.modes": {
-    actions: [command("workspace.vibe", "Vibe"), command("workspace.code", "Code"), command("workspace.project", "Project"), command("workspace.changes", "Changes"), command("workspace.tasks", "Tasks"), command("workspace.preview", "Preview")],
+    actions: [command("workspace.vibe", "Vibe"), command("workspace.code", "Code"), command("workspace.project", "Project"), command("workspace.tasks", "AI tasks"), command("workspace.preview", "Preview")],
     keywords: ["vibe mode", "code mode", "workspace", "build", "review", "task history"],
   },
   "workbench.openIde": {
@@ -50,6 +50,10 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "workbench.debugLog": {
     actions: [command("help.report", "Report a problem"), command("help.copyDebugLog", "Copy debug log"), command("help.saveDebugLog", "Save debug log")],
     keywords: ["bug report", "report a bug", "debug log", "logs", "diagnostics", "send logs", "support", "something is broken", "ai not working", "error details", "crash"],
+  },
+  "workbench.changes": {
+    actions: [command("workspace.changes", "Open Changes")],
+    keywords: ["uncommitted", "changed files", "what changed", "diff", "commit and push", "revert a file", "undo file changes", "discard changes", "git changes"],
   },
   "workbench.vibeSidebar": {
     actions: [command("workspace.vibeSidebar", "Show or hide")],
@@ -231,6 +235,12 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
       "codex",
       "claude code",
     ],
+  },
+  "adcode.ai.editPolicy": {
+    keywords: ["auto apply", "apply automatically", "stop asking to approve", "approve edits", "review ai changes", "undo ai changes", "undo turn", "auto mode"],
+  },
+  "adcode.ai.keepGoing": {
+    keywords: ["dont stop", "step limit", "finish the job", "work until done", "carry on by itself"],
   },
   "adcode.ai.terminalAgentDetection": {
     keywords: ["recognise agent", "detect cli", "grok", "kimi", "codex", "share memory with agent"],

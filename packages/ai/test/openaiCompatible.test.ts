@@ -6,6 +6,8 @@ import {
   providerErrorMessage,
 } from "../src/providers/openaiCompatible.ts";
 import type { ProviderEvent, ProviderRequest } from "../src/types.ts";
+import { createAgent } from "../src/agent.ts";
+import { PROPOSE_EDIT } from "../src/tools.ts";
 
 /** Build a fetch that replays server-sent event lines. */
 function sseFetch(lines: string[], status = 200): typeof fetch {
@@ -113,7 +115,7 @@ describe("tool calls", () => {
     expect(events.at(-1)).toEqual({ kind: "stop", reason: "tool-use" });
   });
 
-  it("does not throw on malformed tool arguments", async () => {
+  it("marks malformed tool arguments as invalid instead of silently executing an empty object", async () => {
     const provider = createOpenAiProvider(
       "key",
       sseFetch([
@@ -126,7 +128,58 @@ describe("tool calls", () => {
 
     const events = await collect(provider.stream(request, new AbortController().signal));
     const call = events.find((e) => e.kind === "tool-call");
-    if (call?.kind === "tool-call") expect(call.call.input).toEqual({});
+    expect(call).toMatchObject({ kind: "tool-call", call: {
+      input: {}, inputError: expect.stringContaining("invalid JSON"),
+    } });
+  });
+
+  it.each(["null", "[]", '"text"', "123"])("rejects non-object tool arguments: %s", async (args) => {
+    const provider = createOpenAiProvider("key", sseFetch([
+      `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "propose_edit", arguments: args } }] } }] })}`,
+      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] })}`,
+    ]));
+    const events = await collect(provider.stream(request, new AbortController().signal));
+    expect(events[0]).toMatchObject({ kind: "tool-call", call: { input: {}, inputError: expect.any(String) } });
+  });
+
+  it.each(['{"path":"index.html","contents":"unfinished', '{"path":"index.html","contents":"short"}'])(
+    "does not authorize edits when the provider reports a length cutoff",
+    async (args) => {
+      const provider = createOpenAiProvider("key", sseFetch([
+        `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "propose_edit", arguments: args } }] } }] })}`,
+        `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "length" }] })}`,
+      ]));
+      const events = await collect(provider.stream(request, new AbortController().signal));
+      expect(events[0]).toMatchObject({ kind: "tool-call", call: { input: {}, inputError: expect.stringContaining("response limit") } });
+      expect(events.at(-1)).toEqual({ kind: "stop", reason: "max-tokens" });
+    },
+  );
+
+  it.each(["tool_calls", "length"])("recovers a %s failure without sending incomplete arguments to the file runner", async (finish) => {
+    const requests: ProviderRequest[] = [];
+    let round = 0;
+    const fetchImpl: typeof fetch = async (url, init) => {
+      requests.push(JSON.parse(String(init?.body)));
+      const args = round++ === 0 ? '{"path":"index.html","contents":"private partial' : JSON.stringify({path: "index.html", contents: "<h1>Hello</h1>"});
+      return sseFetch(round > 2 ? [
+        `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}`,
+      ] : [
+        `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: `call-${round}`, function: { name: "propose_edit", arguments: args } }] } }] })}`,
+        `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: round === 1 ? finish : "tool_calls" }] })}`,
+      ])(url, init);
+    };
+    const executed: unknown[] = [];
+    const agent = createAgent({
+      provider: createOpenAiProvider("key", fetchImpl), model: "test", tools: [PROPOSE_EDIT],
+      runner: { async run(call) { executed.push(call.input); return {content: "File written", isError: false}; } },
+    });
+    const events = [];
+    for await (const event of agent.send("Create a page")) events.push(event);
+    expect(executed).toEqual([{path: "index.html", contents: "<h1>Hello</h1>"}]);
+    expect(events.at(-1)).toMatchObject({kind: "turn-end"});
+    expect(events).toContainEqual(expect.objectContaining({kind: "tool-result", isError: true, content: expect.stringContaining("Tool not run:")}));
+    expect(JSON.stringify(requests[1])).toContain("one smaller call");
+    expect(JSON.stringify(agent.history())).not.toContain("private partial");
   });
 });
 

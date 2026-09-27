@@ -30,6 +30,29 @@ const call = (name: string, input: Record<string, unknown>): ToolCallBlock => ({
 });
 
 describe("sandboxed built-in AI tools", () => {
+  it.each([{}, { path: null }, { path: "" }])("reports missing edit arguments without blaming workspace confinement", async (input) => {
+    const workspace = vi.fn(async () => ({ taskId: "", sandboxRoot: human, humanRoot: human }));
+    const writeSandboxFile = vi.fn();
+    const runner = createAiToolRunner({ workspace, memory: () => null, writeSandboxFile, onProposedEdit: vi.fn() });
+    const result = await runner.run(call("propose_edit", input), new AbortController().signal);
+    expect(result).toMatchObject({ isError: true, content: expect.stringContaining('requires a non-empty "path"') });
+    expect(result.content).not.toContain("outside");
+    expect(workspace).not.toHaveBeenCalled();
+    expect(writeSandboxFile).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing workspace as a filesystem failure, not a rejected file path", async () => {
+    const writeSandboxFile = vi.fn();
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "", sandboxRoot: join(human, "missing-project"), humanRoot: human }),
+      memory: () => null, writeSandboxFile, onProposedEdit: vi.fn(),
+    });
+    const result = await runner.run(call("propose_edit", { path: "index.html", contents: "hello" }), new AbortController().signal);
+    expect(result).toMatchObject({ isError: true, content: expect.stringContaining("ENOENT") });
+    expect(result.content).not.toContain(human);
+    expect(writeSandboxFile).not.toHaveBeenCalled();
+  });
+
   it("opens the saved project preview without allocating an edit sandbox", async () => {
     const workspace = vi.fn(async () => null);
     const status = { running: true, starting: false, root: human, url: "http://127.0.0.1:4000/", mode: "static" as const, label: null, error: null };
@@ -158,7 +181,47 @@ describe("sandboxed built-in AI tools", () => {
     expect(result.content).toContain("rollback checkpoint");
   });
 
-  it("refuses traversal and absolute human paths before calling the write authority", async () => {
+  it.each(["./src/file.ts", ".\\src\\file.ts", "src//./file.ts", "absolute"])(
+    "maps %s into the active sandbox for reads and writes",
+    async (spelling) => {
+      const path = spelling === "absolute" ? join(human, "src", "file.ts") : spelling;
+      const writeSandboxFile = vi.fn(async (relativePath: string, contents: string) => {
+        await writeFile(join(sandbox, relativePath), contents, "utf8");
+        return createFileChange(relativePath, "sandbox version\n", contents);
+      });
+      const runner = createAiToolRunner({
+        workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
+        memory: () => null, writeSandboxFile, onProposedEdit: vi.fn(),
+      });
+      const signal = new AbortController().signal;
+      const read = await runner.run(call("read_file", { path }), signal);
+      expect(read.isError).toBe(false);
+      expect(read.content).toContain("sandbox version");
+      const edit = await runner.run(call("propose_edit", { path, contents: "updated\n" }), signal);
+      expect(edit.isError).toBe(false);
+      expect(writeSandboxFile).toHaveBeenCalledWith("src/file.ts", "updated\n");
+      expect(await readFile(join(human, "src", "file.ts"), "utf8")).toBe("human version\n");
+      expect(await readFile(join(sandbox, "src", "file.ts"), "utf8")).toBe("updated\n");
+    },
+  );
+
+  it("accepts the live project's absolute path when edits apply directly", async () => {
+    const writeSandboxFile = vi.fn(async (path: string, contents: string) => {
+      await writeFile(join(human, path), contents, "utf8");
+      return createFileChange(path, "human version\n", contents);
+    });
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "", sandboxRoot: human, humanRoot: human }),
+      directWrites: true, memory: () => null, writeSandboxFile, onProposedEdit: vi.fn(),
+    });
+    const result = await runner.run(call("edit_file", {
+      path: join(human, "src", "file.ts"), old_string: "human version", new_string: "updated",
+    }), new AbortController().signal);
+    expect(result.isError).toBe(false);
+    expect(await readFile(join(human, "src", "file.ts"), "utf8")).toBe("updated\n");
+  });
+
+  it("refuses traversal and absolute outside paths before calling the write authority", async () => {
     const writeSandboxFile = vi.fn(async (path: string, contents: string) =>
       createFileChange(path, null, contents),
     );
@@ -174,14 +237,30 @@ describe("sandboxed built-in AI tools", () => {
       new AbortController().signal,
     );
     const absolute = await runner.run(
-      call("propose_edit", { path: join(human, "src", "file.ts"), contents: "x" }),
+      call("propose_edit", { path: join(`${human}-other`, "src", "file.ts"), contents: "x" }),
       new AbortController().signal,
     );
 
     expect(traversal.isError).toBe(true);
     expect(absolute.isError).toBe(true);
+    expect(traversal.content).toContain("workspace-relative path");
+    expect(absolute.content).toContain("list_files");
     expect(writeSandboxFile).not.toHaveBeenCalled();
   });
+
+  it.each(["./src/../secret.txt", "C:secret.txt", "", null, "src/file.ts\u0000.txt"])(
+    "rejects malformed or traversing edit path %s",
+    async (path) => {
+      const writeSandboxFile = vi.fn();
+      const runner = createAiToolRunner({
+        workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
+        memory: () => null, writeSandboxFile, onProposedEdit: vi.fn(),
+      });
+      expect(await runner.run(call("propose_edit", { path, contents: "x" }), new AbortController().signal))
+        .toMatchObject({ isError: true });
+      expect(writeSandboxFile).not.toHaveBeenCalled();
+    },
+  );
 
   it("refuses read, list, and search paths redirected outside the sandbox", async () => {    await symlink(
       join(human, "src"),
@@ -214,6 +293,20 @@ describe("sandboxed built-in AI tools", () => {
     expect(read.content).not.toContain("human version");
     expect(list.content).not.toContain("file.ts");
     expect(search.content).not.toContain("human version");
+  });
+
+  it("does not let normalized or absolute paths write through an outside junction", async () => {
+    await symlink(join(human, "src"), join(sandbox, "escape"), process.platform === "win32" ? "junction" : "dir");
+    const writeSandboxFile = vi.fn();
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
+      memory: () => null, writeSandboxFile, onProposedEdit: vi.fn(),
+    });
+    for (const path of ["./escape/new.txt", join(human, "escape", "new.txt")]) {
+      expect(await runner.run(call("propose_edit", { path, contents: "x" }), new AbortController().signal))
+        .toMatchObject({ isError: true });
+    }
+    expect(writeSandboxFile).not.toHaveBeenCalled();
   });
 
   it("treats empty, dot, and slash list/search paths as the workspace root", async () => {

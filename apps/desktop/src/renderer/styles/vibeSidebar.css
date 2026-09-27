@@ -189,9 +189,6 @@ body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-badge[data-attention="true"
   font-weight: 650;
 }
 /* A task still running gets a quiet pulse on its icon rather than a spinner in the list. */
-body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-tasks-button[data-working="true"] svg { color: var(--accent); animation: vibe-working 1.6s ease-in-out infinite; }
-@keyframes vibe-working { 50% { opacity: .45; } }
-@media (prefers-reduced-motion: reduce) { body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-tasks-button[data-working="true"] svg { animation: none; } }
 
 /* Start. */
 body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-new-button {

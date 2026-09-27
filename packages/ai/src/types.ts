@@ -66,6 +66,8 @@ export interface ToolCallBlock {
   readonly id: string;
   readonly name: string;
   readonly input: Record<string, unknown>;
+  /** Adapter validation failure. The agent returns it to the model without running the tool. */
+  readonly inputError?: string;
 }
 
 export interface ToolResultBlock {

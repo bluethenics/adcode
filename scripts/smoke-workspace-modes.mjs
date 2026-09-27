@@ -123,11 +123,10 @@ export async function checkModes({ evaluate, send, waitFor, sleep, artifacts }) 
   await toolbar("Context");
   // Context may already have been open on a wide initial layout.
   if (!await evaluate("document.querySelector('.project-context').getClientRects().length > 0")) await toolbar("Context");
-  await click("#context-tab-tasks");
-  await waitFor("document.querySelector('.context-content').textContent.includes('No tasks yet')");
+  assert.equal(await evaluate("document.querySelector('#context-tab-tasks') === null"), true, "Tasks has no panel tab");
   await click("#context-tab-changes");
-  await waitFor("document.querySelector('.context-content').textContent.includes('Source control')");
-  await evaluate("[...document.querySelectorAll('.context-content .context-action')].find(button => button.textContent === 'Open Source Control').click()");
+  await waitFor("document.querySelector('.context-content').textContent.includes('Track your changes')");
+  await evaluate("[...document.querySelectorAll('.context-content .changes-link')].find(button => button.textContent === 'Open Source Control').click()");
   await waitFor("document.querySelector('dialog[data-popup-id=source-control]').open");
   await click(".scm-close");
   await waitFor("!document.querySelector('dialog[data-popup-id=source-control]').open");

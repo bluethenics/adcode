@@ -4,7 +4,6 @@ import {
   projectName,
   recentProjectsFor,
   summarizeVibeChanges,
-  summarizeVibeTasks,
 } from "../src/renderer/workbench/vibeSidebarModel.ts";
 import type { AiWorkspaceTaskStateView } from "../src/shared/api.ts";
 
@@ -17,29 +16,11 @@ const git = (entries: number, extra: Partial<{ isRepo: boolean; branch: string |
   ...extra,
 });
 
-describe("Vibe sidebar task badge", () => {
-  it("is empty with nothing going on", () => {
-    expect(summarizeVibeTasks([])).toMatchObject({ badge: "", attention: false, description: "No tasks yet" });
-    expect(summarizeVibeTasks([task("applied", 2), task("discarded")])).toMatchObject({ badge: "", description: "All tasks settled" });
-  });
-
-  it("counts running work quietly and waiting work loudly", () => {
-    expect(summarizeVibeTasks([task("running"), task("preparing")])).toMatchObject({ working: 2, waiting: 0, badge: "2", attention: false });
-    const mixed = summarizeVibeTasks([task("running"), task("review", 3), task("failed"), task("paused")]);
-    expect(mixed).toMatchObject({ working: 1, waiting: 3, badge: "3", attention: true });
-    expect(mixed.description).toBe("1 working, 3 waiting for you");
-  });
-
-  it("does not ask for review of a task that changed nothing", () => {
-    expect(summarizeVibeTasks([task("review", 0)]).waiting).toBe(0);
-  });
-});
-
 describe("Vibe sidebar changes badge", () => {
-  it("prefers AI proposals over the uncommitted count", () => {
+  it("puts changes waiting to apply ahead of the uncommitted count", () => {
     const summary = summarizeVibeChanges(git(12), [task("review", 2), task("conflict", 1), task("applied", 4)]);
     expect(summary).toMatchObject({ proposals: 2, uncommitted: 12, badge: "2", attention: true });
-    expect(summary.description).toBe("2 AI proposals to review, 12 uncommitted files");
+    expect(summary.description).toBe("2 AI tasks waiting to apply, 12 uncommitted files");
   });
 
   it("shows the uncommitted count without alarm when nothing is proposed", () => {
@@ -50,7 +31,7 @@ describe("Vibe sidebar changes badge", () => {
   it("flags conflicts and handles folders without Git", () => {
     expect(summarizeVibeChanges(git(1, { hasConflicts: true }), []).attention).toBe(true);
     expect(summarizeVibeChanges(git(0), [])).toMatchObject({ badge: "", description: "Working tree clean" });
-    expect(summarizeVibeChanges(git(3, { isRepo: false }), [])).toMatchObject({ uncommitted: 0, badge: "", description: "No changes to review" });
+    expect(summarizeVibeChanges(git(3, { isRepo: false }), [])).toMatchObject({ uncommitted: 0, badge: "", description: "No changes" });
     expect(summarizeVibeChanges(null, [])).toMatchObject({ badge: "" });
   });
 });

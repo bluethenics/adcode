@@ -238,15 +238,18 @@ const vibeNavigation = await evaluate(`(() => {
   document.querySelector('.notification-inbox-close')?.click();
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   // The everyday workflows are sidebar rows, not entries in an overflow menu.
-  const reviewLabel = document.querySelector('.vibe-review-button')?.getAttribute('aria-label') ?? '';
+  const changesLabel = document.querySelector('.vibe-changes-button')?.getAttribute('aria-label') ?? '';
   const card = document.querySelector('.vibe-project-card');
   return {
     docked: document.body.dataset.vibeRail === 'docked',
     automations: visible('.vibe-automations-button'),
     customize: visible('.vibe-customize-button'),
     tools: visible('.project-tools'),
-    tasks: visible('.vibe-tasks-button'),
-    review: visible('.vibe-review-button') && reviewLabel.startsWith('Review changes - '),
+    noTasksRow: document.querySelector('.vibe-tasks-button') === null,
+    changes: visible('.vibe-changes-button') && changesLabel.startsWith('Changes - '),
+    // Edits land as the assistant works unless the user chose Review.
+    approvalAuto: document.querySelector('.chat-approval')?.textContent === 'Auto',
+    noReviewNag: !(document.querySelector('.chat-disclaimer')?.textContent ?? '').includes('Review'),
     preview: visible('.vibe-preview-nav'),
     team: toolsMenu.includes('Set up AI team'),
     projectCard: visible('.vibe-project-card') && card?.querySelector('.vibe-project-name')?.textContent === ${JSON.stringify(REPO.split(/[\\/]/).pop())},
@@ -260,6 +263,28 @@ const vibeNavigation = await evaluate(`(() => {
     inboxClosed: document.querySelector('.notification-inbox')?.hidden === true,
   };
 })()`);
+// The Changes panel, read only: this smoke runs against the real repository, so nothing is
+// clicked that would stage, revert or commit.
+await evaluate("document.querySelector('.vibe-changes-button')?.click()");
+let changesPanel = null;
+for (let attempt = 0; attempt < 60 && changesPanel === null; attempt++) {
+  changesPanel = await evaluate(`(() => {
+    const bar = document.querySelector('.changes-bar');
+    if (!bar || bar.getClientRects().length === 0) return null;
+    const rows = [...document.querySelectorAll('.changes-row')];
+    return {
+      tabs: [...document.querySelectorAll('.context-tabs button')].map((tab) => tab.textContent).join(','),
+      commitButton: document.querySelector('.changes-commit-main')?.textContent ?? '',
+      branch: document.querySelector('.changes-branch')?.textContent ?? '',
+      rows: rows.length,
+      everyRowHasRevertAndCheckbox: rows.every((row) => row.querySelector('.changes-revert') && row.querySelector('input.changes-include')),
+      rowsFit: rows.every((row) => row.scrollWidth <= row.clientWidth + 1),
+      caption: document.querySelector('.changes-caption')?.textContent ?? '',
+    };
+  })()`);
+  if (changesPanel === null) await sleep(150);
+}
+await evaluate("document.querySelector('.vibe-changes-button')?.click()");
 const windowScreenshotPaths = [];
 if (process.argv.includes("--visual-only")) {
   const response = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
@@ -333,6 +358,9 @@ async function openExpandedAssistant() {
 const checks = {
   separateWindows: vibeModeBefore === "vibe" && vibeModeAfter === "vibe" && ideMode === "code" && rendererCount === 2,
   vibeNavigation: Object.values(vibeNavigation).every(Boolean),
+  changesPanel: changesPanel !== null && changesPanel.tabs === "Project,Changes" && /Commit & Push|Push/.test(changesPanel.commitButton)
+    && changesPanel.everyRowHasRevertAndCheckbox && changesPanel.rowsFit && changesPanel.caption.length > 0,
+  changesPanelEvidence: changesPanel,
   title: await evaluate("document.title"),
   activities: await evaluate(
     "document.querySelectorAll('.activity[data-view]').length",

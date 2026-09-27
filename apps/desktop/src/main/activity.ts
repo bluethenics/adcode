@@ -101,9 +101,9 @@ export async function flushActivity(): Promise<void> {
 /**
  * A change the AI agent made, counted where it actually happens.
  *
- * `aiApplyHunks` is the single point at which a model-authored change reaches disk, which
- * makes it the only place this number can be taken honestly. Counting it in the renderer
- * would mean counting a `replaceText` that could equally have come from a git restore.
+ * Counted in the main process, where a model-authored change is applied to disk - the only
+ * place this number can be taken honestly. Counting it in the renderer would mean counting
+ * a `replaceText` that could equally have come from a git restore.
  */
 export function recordAgentEdit(input: {
   chars: number;

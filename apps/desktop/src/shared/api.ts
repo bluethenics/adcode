@@ -545,7 +545,6 @@ export const CHANNELS = {
   aiDeleteSession: "ai:delete-session",
   aiClearSessions: "ai:clear-sessions",
   aiCheckKey: "ai:check-key",
-  aiApplyHunks: "ai:apply-hunks",
   aiCheckpoint: "ai:checkpoint",
   aiCheckpointUndo: "ai:checkpoint-undo",
   aiWorkspaceList: "ai-workspace:list",
@@ -1641,8 +1640,8 @@ export interface AdcodeApi {
     answerAnyway(): void;
     /** The agent's workings, live - this is what the trace widget renders (§5.3). */
     onEvent(listener: (event: unknown) => void): () => void;
+    /** Review mode only: a staged edit is waiting. The turn's changes are offered for Apply when it ends. */
     onProposedEdit(listener: (edit: ProposedEditView) => void): () => void;
-    applyHunks(path: string, acceptedHunkIds: readonly string[]): Promise<boolean>;
     /** A turn in "Apply automatically" mode changed files; `undoCheckpoint` puts them back. */
     onCheckpoint(listener: (checkpoint: AiCheckpointView) => void): () => void;
     undoCheckpoint(id: string, force: boolean): Promise<AiUndoResultView>;

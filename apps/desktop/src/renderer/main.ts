@@ -5494,7 +5494,8 @@ function registerCommands(): void {
   });
   add("workspace.project", "Show Workspace Project", () => assistantDock?.showContext("project"));
   add("workspace.changes", "Show Workspace Changes", () => assistantDock?.showContext("changes"));
-  add("workspace.tasks", "Show Workspace Tasks", () => assistantDock?.showContext("tasks"));
+  // AI tasks (a Team's roles, Review mode's staged work) have no panel tab: they open as a list.
+  add("workspace.tasks", "Show AI Tasks", () => chat.openTasksPopup());
   add("workspace.preview", "Open Project Preview", () => { if (!previewPane.isOpen()) void previewPane.toggle(); });
   add("ai.terminalTeam", "Start an AI Team in the Terminal", () => void openTerminalTeamSetup());
   /*
@@ -6174,15 +6175,18 @@ assistantDock = createAssistantDock({
 });
 
 /*
- * The review box for code mode: a proposal lands in the isolated task
- * workspace, invisible in the Explorer, so the editor says so out loud with
- * a way in. One toast per proposal; it stays until dismissed or reviewed.
+ * Review mode only (edits apply automatically by default): staged changes are invisible
+ * in the Explorer, so say once per task that some are waiting, with a way to them. One
+ * toast per task, not per file - the conversation offers the whole turn when it ends.
  */
+const announcedStagedTasks = new Set<string>();
 window.adcode.ai.onProposedEdit((edit) => {
+  if (announcedStagedTasks.has(edit.taskId)) return;
+  announcedStagedTasks.add(edit.taskId);
   notifications.show({
-    title: "Review proposed changes",
-    body: `${edit.summary} — ${edit.displayPath}. Nothing in your project changed yet.`,
-    actions: [{ label: "Review changes", run: () => commands.run("workspace.changes") }],
+    title: "Changes waiting for you",
+    body: `The assistant is staging edits (starting with ${edit.displayPath}). Nothing in your project changes until you apply them.`,
+    actions: [{ label: "Open Changes", run: () => commands.run("workspace.changes") }],
     tone: "info",
   });
 });

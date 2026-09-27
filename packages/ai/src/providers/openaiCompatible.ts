@@ -280,14 +280,27 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
         }
       }
 
+      if (signal.aborted) return;
+
       for (const accumulator of pending.values()) {
         let input: Record<string, unknown> = {};
+        let inputError: string | undefined;
         try {
-          input = accumulator.args.trim().length === 0
+          const parsed: unknown = accumulator.args.trim().length === 0
             ? {}
-            : (JSON.parse(accumulator.args) as Record<string, unknown>);
+            : JSON.parse(accumulator.args);
+          if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+            throw new Error("Tool arguments must be an object");
+          }
+          input = parsed as Record<string, unknown>;
         } catch {
+          inputError = "Tool not run: the provider returned invalid JSON tool arguments. Retry with one smaller call and valid JSON matching the tool schema. For file edits, include path and contents; escape newlines and quotes inside strings. This is not a workspace permission error.";
+        }
+        if (finish === "length") {
+          // Even valid JSON may contain a file the model had not finished writing.
+          // Never execute calls from a response the provider says was cut short.
           input = {};
+          inputError = "Tool not run: the model's response limit cut off the tool arguments. Retry with one smaller call. Create a short complete file with propose_edit, then extend it using edit_file in smaller steps. Do not resend the same full file. This is not a workspace permission error.";
         }
 
         const toolCall: ToolCallBlock = {
@@ -295,18 +308,19 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
           id: accumulator.id.length > 0 ? accumulator.id : `call_${accumulator.name}`,
           name: accumulator.name,
           input,
+          ...(inputError === undefined ? {} : { inputError }),
         };
         yield { kind: "tool-call", call: toolCall };
       }
 
       if (signal.aborted) return;
 
-      if (finish === "tool_calls" || pending.size > 0) {
-        yield { kind: "stop", reason: "tool-use" };
-      } else if (finish === "length") {
+      if (finish === "length") {
         yield { kind: "stop", reason: "max-tokens" };
       } else if (finish === "content_filter") {
         yield { kind: "stop", reason: "refusal", detail: "declined (content filter)" };
+      } else if (finish === "tool_calls" || pending.size > 0) {
+        yield { kind: "stop", reason: "tool-use" };
       } else {
         yield { kind: "stop", reason: "end-turn" };
       }

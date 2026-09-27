@@ -29,6 +29,10 @@ const contextSource = readFileSync(
   new URL("../src/renderer/workbench/projectContext.ts", import.meta.url),
   "utf8",
 ).replace(/\r\n/g, "\n");
+const changesSource = readFileSync(
+  new URL("../src/renderer/workbench/changesView.ts", import.meta.url),
+  "utf8",
+).replace(/\r\n/g, "\n");
 const modeStyles = readFileSync(
   new URL("../src/renderer/styles/workspaceModes.css", import.meta.url),
   "utf8",
@@ -143,34 +147,34 @@ describe("AI Chat workspace", () => {
 });
 
 describe("Context Changes tab", () => {
-  it("reads Cursor-style: totals, branch, per-file counts, diff previews", () => {
-    expect(contextSource).toContain("context-changes-head");
-    expect(contextSource).toContain("Uncommitted");
-    expect(contextSource).toContain("context-branch");
-    expect(contextSource).toContain("context-change-new");
-    expect(contextSource).toContain("context-change-diff");
-    expect(contextSource).toContain("context-diff-text");
-    expect(contextSource).toContain("fileIcon(entry.path)");
+  it("reads Cursor-style: one bar with totals, branch and Commit & Push, then a row per file", () => {
+    expect(contextSource).toContain("createChangesView");
+    expect(changesSource).toContain("changes-bar");
+    expect(changesSource).toContain("Uncommitted changes");
+    expect(changesSource).toContain("changes-branch");
+    expect(changesSource).toContain("changes-revert");
+    expect(changesSource).toContain("changes-include");
+    expect(changesSource).toContain("fileIcon(");
   });
 
-  it("commits and pushes from beside the list, staged first", () => {
-    expect(contextSource).toContain("context-commit-form");
-    expect(contextSource).toContain("Commit & Push");
-    expect(contextSource).toContain("window.adcode.git.commit(text)");
-    expect(contextSource).toContain("window.adcode.git.push()");
-    expect(contextSource).toContain("A commit needs a message.");
+  it("commits and pushes from the bar, writing the message when none is typed", () => {
+    expect(changesSource).toContain("Commit & Push");
+    expect(changesSource).toContain("defaultCommitMessage(");
+    expect(changesSource).toContain("window.adcode.git.commit(text)");
+    expect(changesSource).toContain("window.adcode.git.push()");
   });
 
-  it("stays honest about what git cannot number", () => {
-    expect(contextSource).toContain("New file — its contents join the commit when staged.");
-    expect(contextSource).toContain("diff truncated — open in Source Control for the rest.");
+  it("reverts a new file to the Recycle Bin, never a silent delete", () => {
+    expect(changesSource).toContain("window.adcode.files.trash(");
+    expect(changesSource).not.toContain("window.adcode.files.delete(");
+    expect(changesSource).toContain("askThemed(");
   });
 
-  it("carries the panel styling with reduced-motion cover", () => {
-    expect(modeStyles).toContain(".context-change-totals");
-    expect(modeStyles).toContain(".context-commit-send");
-    expect(modeStyles).toContain(".context-diff-text");
-    expect(modeStyles).toContain("prefers-reduced-motion");
+  it("carries the panel styling", () => {
+    expect(modeStyles).toContain(".changes-row");
+    expect(modeStyles).toContain(".changes-commit");
+    expect(modeStyles).toContain(".changes-diff-add");
+    expect(modeStyles).toContain("@container");
   });
 });
 
