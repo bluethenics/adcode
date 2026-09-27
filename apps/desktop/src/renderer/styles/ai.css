@@ -188,88 +188,8 @@
   white-space: nowrap;
 }
 
-/* Isolated-task status: part of the existing card, not a new panel or visual system. */
-.ai-workspace-strip {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 7px;
-  min-width: 0;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border-hairline);
-  background: var(--bg-app);
-  font-size: 10px;
-}
-
-.ai-workspace-strip[hidden] {
-  display: none;
-}
-
-.ai-workspace-state {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1 1 150px;
-  min-width: 0;
-  color: var(--text-secondary);
-  font-weight: 560;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ai-workspace-state::before {
-  content: "";
-  flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-
-.ai-workspace-strip[data-state="applied"] .ai-workspace-state::before,
-.ai-workspace-strip[data-state="rolled-back"] .ai-workspace-state::before {
-  background: var(--success);
-}
-
-.ai-workspace-strip[data-state="conflict"] .ai-workspace-state::before,
-.ai-workspace-strip[data-state="failed"] .ai-workspace-state::before {
-  background: var(--danger);
-}
-
-.ai-workspace-strip[data-state="paused"] .ai-workspace-state::before,
-.ai-workspace-strip[data-state="discarded"] .ai-workspace-state::before {
-  background: var(--text-tertiary);
-}
-
-.ai-workspace-usage {
-  flex: none;
-  color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums;
-}
-
-.ai-workspace-notice {
-  flex: 1 0 100%;
-  color: var(--text-secondary);
-  overflow-wrap: anywhere;
-}
-
-.ai-workspace-notice:empty {
-  display: none;
-}
-
-.ai-workspace-strip .ghost-button {
-  padding: 2px 5px;
-  font-size: 10px;
-}
-
 .ai-workspace-danger:hover {
   color: var(--danger);
-}
-
-:root[data-density="compact"] .ai-workspace-strip {
-  padding-block: 4px;
-  gap-block: 2px;
 }
 
 /* The inspector itself scrolls; no tiny nested viewport around a running team. */
@@ -1962,8 +1882,6 @@ button.chat-model[data-ready="false"]::before {
 .chat-card .chat-history-row { gap: 6px; padding: 7px 10px; margin: 4px 10px; border-radius: 12px; }
 .chat-card .chat-history-action { min-height: 30px; padding-inline: 7px; }
 .chat-card .chat-history-clear { margin: 14px; padding: 10px 12px; border-radius: 11px; }
-.chat-card .ai-workspace-strip { padding: 14px; gap: 10px; font-size: var(--text-xs); }
-.chat-card .ai-workspace-strip .ghost-button,
 .chat-card .chat-inspector .ghost-button { min-height: 32px; padding: 7px 10px; }
 .chat-card button { transition: transform 140ms var(--ease-sheet), opacity 140ms var(--ease-sheet), background-color 140ms ease; }
 .chat-card button:active:not(:disabled) { transform: scale(.97); }
@@ -2976,11 +2894,6 @@ button.chat-setup-action {
   margin-top: 10px;
 }
 
-/* A proposal notice: the file is staged for review, not on disk yet. */
-.chat-bubble-proposal {
-  border-inline-start: 3px solid var(--accent);
-}
-
 /* The budget card offers three ways forward in one row, wrapping narrow. */
 .chat-nudge-row {
   display: flex;
@@ -3521,10 +3434,10 @@ button.chat-setup-action {
   will-change: transform;
 }
 
-/* Bloub neutral: face colour shows through the eye holes; blue everywhere
-   else. The face follows the theme so the eyes never glow in dark mode. */
+/* Bloub neutral: white shows through the eye holes; blue everywhere else.
+   White in every theme, so the eyes read as eyes rather than as holes. */
 .chat-mascot-base {
-  fill: var(--bg-elevated);
+  fill: #fff;
 }
 
 .chat-mascot-body {
@@ -3939,16 +3852,7 @@ button.chat-setup-action {
   white-space: nowrap;
 }
 
-/* Preview box file list. */
-.task-review-dialog .task-review-files {
-  list-style: none;
-  margin: 12px 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-  max-height: 260px;
-  overflow: auto;
-}
+/* A task's file list (the task details box). */
 .task-review-file {
   display: flex;
   justify-content: space-between;
@@ -4160,4 +4064,3 @@ button.chat-setup-action {
 .chat-checkpoint-undo:hover { border-color: var(--border-strong); background: var(--bg-hover); }
 .chat-checkpoint-undo:disabled { opacity: .55; cursor: default; }
 .chat-checkpoint-undo:focus-visible, .chat-checkpoint-file:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.task-review-always[hidden] { display: none; }

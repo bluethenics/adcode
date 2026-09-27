@@ -64,7 +64,7 @@ describe("ActivityBlock model (pure, no DOM)", () => {
 });
 
 describe("Agent Chat v2 wiring", () => {
-  it("builds one collapsible block per turn with timer and toggle", () => {
+  it("builds one collapsible block per run of work, in order with the text", () => {
     expect(activitySource).toContain("chat-activity-header");
     expect(activitySource).toContain('aria-expanded');
     expect(activitySource).toContain("chat-activity-loader");
@@ -74,6 +74,9 @@ describe("Agent Chat v2 wiring", () => {
     expect(widgetSource).toContain("ensureActivity()");
     expect(widgetSource).toContain("finishActivity()");
     expect(widgetSource).toContain("resetActivity()");
+    // Text closes the work before it; the next tool call opens a new block below that text.
+    expect(widgetSource).toContain("closeActivitySegment()");
+    expect(widgetSource).not.toContain("transcript.insertBefore(block.element, streamingBubble)");
   });
 
   it("shows work status without exposing internal thinking text", () => {

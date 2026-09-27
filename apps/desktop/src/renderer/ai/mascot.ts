@@ -2,7 +2,7 @@
  * ADCode chat mascot — a friendly blue blob that replaces the three dots.
  *
  * Built on bloub's neutral avatar (https://bloub.vercel.app): a round body
- * with two light pill eyes punched through a mask, so the face reads as
+ * with two white pill eyes punched through a mask, so the face reads as
  * calm rather than staring. No dark pupils, no gloss — the scary version
  * taught us that less is friendlier at 28px.
  *
@@ -12,7 +12,7 @@
  * testable from the markup it produces.
  *
  * Visual contract (see `styles/ai.css`, section "Chat mascot"):
- * - A blue disc with two light pill eyes (bloub neutral, symmetrized).
+ * - A blue disc with two white pill eyes (bloub neutral, symmetrized).
  *   The eye group drifts toward the pointer (transform only, SVG user units).
  * - Moods via `data-mood`: idle (slow breathe), thinking (breathe),
  *   working (bounce), streaming (wiggle), done (settled), error (shake).
@@ -122,7 +122,7 @@ function buildMascotSvg(): SVGSVGElement {
   defs.append(mask);
   svg.append(defs);
 
-  // Face colour, visible only through the eye holes.
+  // White, visible only through the eye holes.
   const base = document.createElementNS(SVG_NS, "circle");
   base.setAttribute("cx", "0");
   base.setAttribute("cy", "0");

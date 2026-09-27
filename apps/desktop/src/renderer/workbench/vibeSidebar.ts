@@ -3,7 +3,7 @@
  *
  * It replaced a rail where most workflows were `display: none` and reachable only through a
  * fourteen-item "Tools" menu. Everything a Vibe user does often now has a visible row, and
- * the rows that can be waiting on the user - Tasks and Review changes - carry live badges,
+ * the row that can be waiting on the user - Changes - carries a live badge,
  * because a conversation-first window hides the editor that would otherwise show it.
  *
  * The sidebar has two presentations and one DOM:
@@ -18,7 +18,8 @@ import type { AiWorkspaceTaskView, GitStatusView } from "../../shared/api.ts";
 import type { ContextTab } from "./projectContext.ts";
 import { createIcon, ICON } from "./icons.ts";
 import { attachContextMenuDismissal, createContextMenu, type ContextMenu, type ContextMenuNode } from "./contextMenu.ts";
-import { describeVibeProject, projectName, recentProjectsFor, summarizeVibeChanges, summarizeVibeTasks } from "./vibeSidebarModel.ts";
+import { describeVibeProject, projectName, recentProjectsFor, summarizeVibeChanges } from "./vibeSidebarModel.ts";
+import { GIT_CHANGED_EVENT } from "./changesView.ts";
 
 /** Below this width the rail would squeeze the conversation, so it becomes a drawer. */
 export const VIBE_DOCK_MIN_WIDTH = 1120;
@@ -30,8 +31,7 @@ const PATH = {
   menu: "M2.5 4h11M2.5 8h11M2.5 12h11",
   folder: "M2 4.5h4l1.5 2H14v7H2z",
   chevron: "M5 6.5 8 9.5l3-3",
-  tasks: "M6.5 4h7M6.5 8h7M6.5 12h7M2.5 4l.8.8 1.4-1.6M2.5 8l.8.8 1.4-1.6M2.5 12l.8.8 1.4-1.6",
-  review: "M3.5 2.5h6l3 3v8h-9zM6 7.5h4M8 5.5v4M6 11h4",
+  changes: "M3.5 2.5h6l3 3v8h-9zM6 7.5h4M8 5.5v4M6 11h4",
   preview: "M2.5 3.5h11v8h-11zM5 14h6",
   automations: "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM8 5v3.2l2 1.3",
   agents: "M2.5 4.5h6.5M12 4.5h1.5M2.5 11.5h1.5M7 11.5h6.5M10.5 3v3M5.5 10v3",
@@ -62,7 +62,7 @@ export interface VibeSidebar {
   readonly element: HTMLElement;
   readonly topbar: HTMLElement;
   readonly historyHost: HTMLElement;
-  /** Show which context tab is open so Tasks and Review changes read as pressed. */
+  /** Show which context tab is open so Changes reads as pressed. */
   setContextTab(tab: ContextTab | null): void;
   setPreviewOpen(open: boolean): void;
   /** Re-read project, Git and task state for the card and badges. */
@@ -159,10 +159,8 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
 
   /* ── Workflows ───────────────────────────────────────────────────────── */
 
-  const tasks = navItem("Tasks", PATH.tasks, "vibe-tasks-button", () => { deps.toggleContext("tasks"); closeDrawer(); });
-  tasks.control.setAttribute("aria-controls", "workspace-context-content");
-  const review = navItem("Review changes", PATH.review, "vibe-review-button", () => { deps.toggleContext("changes"); closeDrawer(); });
-  review.control.setAttribute("aria-controls", "workspace-context-content");
+  const changes = navItem("Changes", PATH.changes, "vibe-changes-button", () => { deps.toggleContext("changes"); closeDrawer(); });
+  changes.control.setAttribute("aria-controls", "workspace-context-content");
   const preview = navItem("Preview", PATH.preview, "vibe-preview-nav", () => { deps.togglePreview(); closeDrawer(); });
   preview.control.title = "Show the running app beside the conversation";
   const automations = navItem("Automations", PATH.automations, "vibe-automations-button", () => { chat.openScheduleComposer(); closeDrawer(); });
@@ -174,7 +172,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
   customize.control.title = "Saved agents, MCP tools and skills";
   const nav = document.createElement("div");
   nav.className = "vibe-nav";
-  nav.append(tasks.control, review.control, preview.control, automations.control, customize.control);
+  nav.append(changes.control, preview.control, automations.control, customize.control);
 
   /* ── Conversations ───────────────────────────────────────────────────── */
 
@@ -337,8 +335,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
     const root = deps.projectRoot();
     if (root === null) {
       paintProject(null, null);
-      setBadge(tasks, "Tasks", "", false, "Open a project to run tasks");
-      setBadge(review, "Review changes", "", false, "Open a project to review changes");
+      setBadge(changes, "Changes", "", false, "Open a project to see its changes");
       return;
     }
     if (cardName.textContent !== projectName(root)) paintProject(root, null);
@@ -348,11 +345,8 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
     ]);
     if (request !== generation || root !== deps.projectRoot()) return;
     paintProject(root, git);
-    const taskSummary = summarizeVibeTasks(taskList);
-    setBadge(tasks, "Tasks", taskSummary.badge, taskSummary.attention, taskSummary.description);
-    tasks.control.dataset["working"] = String(taskSummary.working > 0);
     const changeSummary = summarizeVibeChanges(git, taskList);
-    setBadge(review, "Review changes", changeSummary.badge, changeSummary.attention, changeSummary.description);
+    setBadge(changes, "Changes", changeSummary.badge, changeSummary.attention, changeSummary.description);
   }
   let refreshTimer: number | undefined;
   const scheduleRefresh = (): void => {
@@ -363,6 +357,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
   window.adcode.workspace.onFilesChanged(scheduleRefresh);
   window.adcode.workspace.onChanged(scheduleRefresh);
   window.addEventListener("focus", scheduleRefresh);
+  window.addEventListener(GIT_CHANGED_EVENT, scheduleRefresh);
   // Git has no change event; commits and edits made outside ADCode surface on this beat.
   window.setInterval(() => { if (!document.hidden) void refresh(); }, POLL_MS);
   paintProject(deps.projectRoot(), null);
@@ -430,8 +425,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
     topbar,
     historyHost,
     setContextTab(tab): void {
-      tasks.control.setAttribute("aria-pressed", String(tab === "tasks"));
-      review.control.setAttribute("aria-pressed", String(tab === "changes"));
+      changes.control.setAttribute("aria-pressed", String(tab === "changes"));
     },
     setPreviewOpen(open): void {
       preview.control.setAttribute("aria-pressed", String(open));

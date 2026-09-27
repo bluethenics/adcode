@@ -73,8 +73,15 @@ export interface GitDeps {
   readonly root: string;
 }
 
+export type RepoState = "repo" | "none" | "untrusted";
+
 export interface Git {
   isRepo(): Promise<boolean>;
+  /** Whether the folder is a repository git will use, has none, or has one git refuses. */
+  repoState(): Promise<RepoState>;
+  /** Let git use this folder's repository (`safe.directory`). Only on the user's say-so. */
+  trust(): Promise<GitResult>;
+  /** Create a repository; one made on a drive that records no owner is trusted at once. */
   init(): Promise<GitResult>;
   clone(url: string, target: string): Promise<GitResult>;
   cloneLocalPath(source: string, target: string): Promise<GitResult>;
@@ -129,9 +136,29 @@ export function createGit(deps: GitDeps): Git {
       : fail(result.stderr.trim() || result.stdout.trim() || "git failed");
   }
 
-  async function isRepo(): Promise<boolean> {
+  /**
+   * "untrusted": a repository is there, but git refuses to use it - it cannot confirm who
+   * owns the folder (a FAT32 or exFAT drive records no owner at all, or another account
+   * made it) and the folder is not in `safe.directory`. Told apart from "none" so the UI
+   * can offer to trust it instead of offering to create a repository that already exists.
+   */
+  async function repoState(): Promise<RepoState> {
     const result = await run("rev-parse", "--is-inside-work-tree");
-    return result.code === 0 && result.stdout.trim() === "true";
+    if (result.code === 0 && result.stdout.trim() === "true") return "repo";
+    return /dubious ownership/i.test(result.stderr) ? "untrusted" : "none";
+  }
+
+  async function isRepo(): Promise<boolean> {
+    return (await repoState()) === "repo";
+  }
+
+  /** Add this folder to `safe.directory` in the user's global config, as git itself suggests. */
+  async function trust(): Promise<GitResult> {
+    const path = deps.root.replace(/\\/g, "/").replace(/\/+$/, "");
+    const listed = await run("config", "--global", "--get-all", "safe.directory");
+    const already = listed.stdout.split(/\r?\n/).map((line) => line.trim().toLowerCase());
+    if (already.includes(path.toLowerCase()) || already.includes("*")) return ok("Git already trusts this folder.");
+    return runResult(["config", "--global", "--add", "safe.directory", path], "Git now trusts this folder.");
   }
 
   function parseCommits(stdout: string): GitCommit[] {
@@ -147,8 +174,24 @@ export function createGit(deps: GitDeps): Git {
 
   return {
     isRepo,
+    repoState,
+    trust,
 
-    init: () => runResult(["init"], "Initialised an empty repository."),
+    async init(): Promise<GitResult> {
+      // A repository git already refuses is not this call's to vouch for: trusting one
+      // somebody else made lets its hooks run here, so that is asked for, not assumed.
+      if ((await repoState()) === "untrusted") {
+        return fail("This folder already has a Git repository that Git does not trust yet. Trust it only if you know where it came from.");
+      }
+      const result = await runResult(["init"], "Initialised an empty repository.");
+      // On a drive that records no owner, git refuses even the repository it has just
+      // made. This one was created a moment ago, by this call, so it is vouched for.
+      if (result.ok && (await repoState()) === "untrusted") {
+        const trusted = await trust();
+        if (!trusted.ok) return fail(`Created the repository, but Git will not use it until it is trusted: ${trusted.message}`);
+      }
+      return result;
+    },
 
     async clone(url: string, target: string): Promise<GitResult> {
       // Checked before anything reaches git: `ext::` and `--upload-pack=` both turn a

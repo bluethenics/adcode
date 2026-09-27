@@ -7,7 +7,7 @@
  * testable from the markup they produce.
  *
  * Visual contract (see `styles/ai.css`, section "Agent activity"):
- * - One block per assistant turn, above the final answer.
+ * - One block per run of work, placed in order with the text: work, text, work, text.
  * - Header: interactive mascot (replacing the old 3-dot loader), status
  *   label, elapsed timer, chevron. The mascot's eyes track the pointer,
  *   it blinks, and clicking it pops a rotating quip so long runs stay alive.

@@ -14,7 +14,7 @@
  */
 import { execFile as execFileCallback } from "node:child_process";
 import { readFile, readdir, stat } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
 import { computeHunks, type AiFileChange, type ToolCallBlock, type ToolRunner } from "@adcode/ai";
 import type { NodeMemory } from "@adcode/memory";
@@ -91,15 +91,36 @@ export interface AiToolDeps {
 const ok = (content: string) => ({ content, isError: false });
 const fail = (content: string) => ({ content, isError: true });
 
-/** Resolve a workspace-relative path, refusing lexical and real-filesystem escapes. */
-async function resolveInWorkspace(root: string | null, input: unknown): Promise<string | null> {
-  if (root === null || typeof input !== "string") return null;
+/** Normalize model path spellings before the strict sandbox containment check. */
+async function resolveInWorkspace(workspace: AiToolWorkspace, input: unknown): Promise<string | null> {
+  if (typeof input !== "string" || input.includes("\u0000")) return null;
+  const parts = input.replaceAll("\\", "/").split("/");
+  // Never normalize traversal away, even when it would end up inside the project.
+  if (parts.includes("..")) return null;
+  let portable = input;
+  if (isAbsolute(input)) {
+    // The model sees the human root in its context. Map paths under that root into
+    // the active sandbox, so review mode cannot accidentally write the live file.
+    portable = relative(workspace.humanRoot, input);
+    if (isAbsolute(portable) || portable === ".." || portable.startsWith(`..${sep}`)) return null;
+  } else if (/^[A-Za-z]:/.test(input)) {
+    // A drive-relative Windows path (C:foo) must not use a drive's implicit cwd.
+    return null;
+  }
+  portable = portable.replaceAll("\\", "/").split("/").filter((part) => part !== "." && part !== "").join("/");
   try {
-    return await resolveSandboxPath(root, input);
-  } catch {
+    return await resolveSandboxPath(workspace.sandboxRoot, portable);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | null)?.code;
+    if (code === "ENOENT") throw new Error("Workspace path lookup failed (ENOENT): the project folder or a linked folder is missing. Reopen the project before retrying.");
+    if (code === "EACCES" || code === "EPERM") throw new Error(`Workspace path lookup failed (${code}): the operating system denied access. Check the project folder's access permissions before retrying.`);
+    if (typeof code === "string" && /^[A-Z_]+$/.test(code)) throw new Error(`Workspace path lookup failed (${code}). Check that the project folder is accessible before retrying.`);
     return null;
   }
 }
+
+const INVALID_WORKSPACE_PATH =
+  'Could not resolve that path inside the open workspace. Use a workspace-relative path such as "src/main.ts", without a drive letter, leading slash, or "..". Call list_files with no path to inspect the workspace, then retry with a corrected path. Links pointing outside the workspace are not allowed.';
 
 /**
  * The root-path fix: models ask for the workspace root as "", ".", "./", or "/"
@@ -113,9 +134,9 @@ function isRootAlias(input: unknown): boolean {
   return trimmed === "" || trimmed === "." || trimmed === "./" || trimmed === "/";
 }
 
-async function resolveDirOrRoot(root: string, input: unknown): Promise<string | null> {
-  if (isRootAlias(input)) return root;
-  return resolveInWorkspace(root, input);
+async function resolveDirOrRoot(workspace: AiToolWorkspace, input: unknown): Promise<string | null> {
+  if (isRootAlias(input)) return workspace.sandboxRoot;
+  return resolveInWorkspace(workspace, input);
 }
 
 const truncateOutput = (text: string): string =>
@@ -351,9 +372,12 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
     }
   }
 
-  return {
-    async run(call: ToolCallBlock): Promise<{ content: string; isError: boolean }> {
+  async function run(call: ToolCallBlock): Promise<{ content: string; isError: boolean }> {
       const input = call.input;
+      if (["read_file", "propose_edit", "edit_file", "get_outline"].includes(call.name) &&
+          (typeof input["path"] !== "string" || input["path"].trim().length === 0)) {
+        return fail(`${call.name} requires a non-empty "path" string, such as "src/main.ts". No file was accessed. Retry with valid JSON arguments matching the tool schema.`);
+      }
 
       switch (call.name) {
         case "open_preview": {
@@ -367,9 +391,8 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
         case "read_file": {
           const workspace = await deps.workspace();
           if (workspace === null) return unavailable();
-          const root = workspace.sandboxRoot;
-          const path = await resolveInWorkspace(root, input["path"]);
-          if (path === null) return fail("That path is outside the open workspace.");
+          const path = await resolveInWorkspace(workspace, input["path"]);
+          if (path === null) return fail(INVALID_WORKSPACE_PATH);
 
           try {
             const info = await stat(path);
@@ -404,8 +427,8 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           const workspace = await deps.workspace();
           if (workspace === null) return unavailable();
           const root = workspace.sandboxRoot;
-          const target = await resolveDirOrRoot(root, input["path"]);
-          if (target === null) return fail("That path is outside the open workspace.");
+          const target = await resolveDirOrRoot(workspace, input["path"]);
+          if (target === null) return fail(INVALID_WORKSPACE_PATH);
 
           try {
             if (input["recursive"] === true) {
@@ -439,8 +462,8 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
             return fail("That pattern is not a valid regular expression.");
           }
 
-          const base = await resolveDirOrRoot(root, input["path"]);
-          if (base === null) return fail("That path is outside the open workspace.");
+          const base = await resolveDirOrRoot(workspace, input["path"]);
+          if (base === null) return fail(INVALID_WORKSPACE_PATH);
           let include: RegExp | null = null;
           if (input["include"] !== undefined) {
             if (typeof input["include"] !== "string") return fail("search include must be a glob.");
@@ -477,9 +500,8 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
         case "propose_edit": {
           const workspace = await writeWorkspace();
           if (workspace === null) return unavailable();
-          const root = workspace.sandboxRoot;
-          const path = await resolveInWorkspace(root, input["path"]);
-          if (path === null) return fail("That path is outside the open workspace.");
+          const path = await resolveInWorkspace(workspace, input["path"]);
+          if (path === null) return fail(INVALID_WORKSPACE_PATH);
           if (typeof input["contents"] !== "string") return fail("propose_edit needs contents.");
 
           let current = "";
@@ -500,8 +522,8 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
         case "edit_file": {
           const workspace = await writeWorkspace();
           if (workspace === null) return unavailable();
-          const path = await resolveInWorkspace(workspace.sandboxRoot, input["path"]);
-          if (path === null) return fail("That path is outside the open workspace.");
+          const path = await resolveInWorkspace(workspace, input["path"]);
+          if (path === null) return fail(INVALID_WORKSPACE_PATH);
           const replacements = replacementsOf(input);
           if (typeof replacements === "string") return fail(replacements);
           const relativePath = relative(workspace.sandboxRoot, path).split(sep).join("/");
@@ -533,8 +555,8 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           if (typeof input["pattern"] !== "string") return fail("glob_files needs a pattern.");
           const matcher = globToRegExp(input["pattern"]);
           if (matcher === null) return fail("That glob could not be read. Try **/*.png.");
-          const base = await resolveDirOrRoot(root, input["path"]);
-          if (base === null) return fail("That path is outside the open workspace.");
+          const base = await resolveDirOrRoot(workspace, input["path"]);
+          if (base === null) return fail(INVALID_WORKSPACE_PATH);
 
           const files: string[] = [];
           await walk(base, root, files);
@@ -548,9 +570,8 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
         case "get_outline": {
           const workspace = await deps.workspace();
           if (workspace === null) return unavailable();
-          const root = workspace.sandboxRoot;
-          const path = await resolveInWorkspace(root, input["path"]);
-          if (path === null) return fail("That path is outside the open workspace.");
+          const path = await resolveInWorkspace(workspace, input["path"]);
+          if (path === null) return fail(INVALID_WORKSPACE_PATH);
           try {
             const info = await stat(path);
             if (!info.isFile()) return fail("That path is not a file.");
@@ -566,7 +587,6 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
         case "run_command": {
           const workspace = await writeWorkspace();
           if (workspace === null) return unavailable();
-          const root = workspace.sandboxRoot;
           if (typeof input["command"] !== "string" || input["command"].trim().length === 0) {
             return fail("run_command needs a command.");
           }
@@ -576,8 +596,8 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           if (BLOCKED_COMMANDS.some((blocked) => lowered.includes(blocked))) {
             return fail("That command is blocked. Ask the user to run destructive commands themselves.");
           }
-          const cwd = await resolveDirOrRoot(root, input["cwd"]);
-          if (cwd === null) return fail("That working directory is outside the open workspace.");
+          const cwd = await resolveDirOrRoot(workspace, input["cwd"]);
+          if (cwd === null) return fail(INVALID_WORKSPACE_PATH);
           let result: { content: string; isError: boolean };
           try {
             const shell = process.platform === "win32" ? (process.env["SystemRoot"] ?? "C:\\Windows") + "\\System32\\cmd.exe" : "/bin/sh";
@@ -663,6 +683,15 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
 
         default:
           return fail(`No tool named ${JSON.stringify(call.name)}.`);
+      }
+  }
+
+  return {
+    async run(call) {
+      try {
+        return await run(call);
+      } catch (error) {
+        return fail(error instanceof Error ? error.message : "The tool could not finish.");
       }
     },
   };

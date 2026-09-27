@@ -48,14 +48,15 @@ export function createAssistantDock(deps: AssistantDockDeps) {
   dock.setAttribute("aria-label", "AI Assistant");
   workbench.append(divider, dock);
   let width = 440;
-  let contextWidth = 320;
+  // Wide enough for the Changes list: a path, its line counts, a revert arrow and a checkbox.
+  let contextWidth = 480;
   try { width = Math.max(340, Math.min(640, Number(localStorage.getItem("adcode.assistant.width")) || 440)); } catch { /* Optional storage. */ }
-  try { contextWidth = Math.max(300, Math.min(640, Number(localStorage.getItem("adcode.context.width")) || 320)); } catch { /* Optional storage. */ }
+  try { contextWidth = Math.max(300, Math.min(640, Number(localStorage.getItem("adcode.context.width")) || 480)); } catch { /* Optional storage. */ }
   workbench.style.setProperty("--assistant-width", `${width}px`);
   // On <body>: the notification layer lives outside the workbench and steps aside by it.
   document.body.style.setProperty("--context-width", `${contextWidth}px`);
   createSplitter({
-    element: divider, axis: "x", sign: -1, label: "Resize assistant or context", reset: () => contextOpen ? 320 : 440,
+    element: divider, axis: "x", sign: -1, label: "Resize assistant or context", reset: () => contextOpen ? 480 : 440,
     current: () => dock.getBoundingClientRect().width,
     apply: value => {
       if (contextOpen) {
@@ -124,7 +125,7 @@ export function createAssistantDock(deps: AssistantDockDeps) {
     { label: "AI assistant", run: open },
     { label: "Tasks & agents", run: () => deps.run("workspace.tasks") },
     { label: "Set up AI team", run: () => chat.openTeamSetup() },
-    { label: "Review changes", run: () => deps.run("workspace.changes") },
+    { label: "Changes", run: () => deps.run("workspace.changes") },
     { kind: "separator" },
     { label: "Earnings", run: earnings },
     { label: "Settings", run: () => deps.run("settings.open") },
@@ -367,7 +368,7 @@ export function createAssistantDock(deps: AssistantDockDeps) {
     if (changed) contextOpen = false;
     deps.layoutChanged();
     hintText.textContent = mode === "vibe"
-      ? "Describe what to build or change. Use Review changes in the sidebar to check the result."
+      ? "Describe what to build or change - edits land as it works, and Undo in the chat takes any turn back."
       : "Open a file from Explorer. Use search above to find files and commands.";
     try { hint.hidden = localStorage.getItem(`adcode.hint.${mode}.v1`) === "seen"; } catch { hint.hidden = false; }
     document.body.dataset["modeHint"] = String(!hint.hidden);

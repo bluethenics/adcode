@@ -80,14 +80,11 @@ import { mcpConnection } from "./memory.ts";
 import { assistantControls } from "./assistantControls.ts";
 import { registerGitIpc } from "./gitIpc.ts";
 import { installApplicationMenu } from "./menu.ts";
-import { requiresTrustedEditConfirmation } from "./aiEditPolicy.ts";
-import { confirmInWindow } from "./themedConfirm.ts";
 import { clearRecents, forgetRecent, recentFolders, rememberRecent } from "./recents.ts";
 import { collabFileChanged, disposeCollab, registerCollabIpc } from "./collabIpc.ts";
 import { invalidateFileCache } from "./sourceControl.ts";
 import {
   aiAnswerAnyway,
-  aiApplyHunks,
   aiUndoCheckpoint,
   aiCancel,
   aiCancelCompletion,
@@ -918,20 +915,9 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
 
   ipcMain.handle(CHANNELS.settingsRead, () => readSettings());
 
-  ipcMain.handle(CHANNELS.settingsWrite, async (event, id: unknown, value: unknown) => {
+  ipcMain.handle(CHANNELS.settingsWrite, (_event, id: unknown, value: unknown) => {
     if (!isString(id)) throw new Error("expected a setting id");
     if (typeof value !== "boolean" && !isString(value)) throw new Error("expected a value");
-    if (requiresTrustedEditConfirmation(id, value, currentSettings()[id])) {
-      // Asked in the app's own themed dialog, in the window that asked for the change.
-      const approved = await confirmInWindow(BrowserWindow.fromWebContents(event.sender), {
-        title: "Apply AI edits automatically?",
-        body:
-          "The assistant will change your project's files as it works, without asking first. Each turn that changes files gets an Undo button in the chat, and Undo asks before overwriting anything you edit afterwards. Changes made by commands the assistant runs are not undoable. You can switch back to Review every change at any time.",
-        confirmLabel: "Apply automatically",
-        cancelLabel: "Keep reviewing",
-      });
-      if (!approved) return readSettings();
-    }
     return writeSetting(id, value);
   });
 
@@ -1023,12 +1009,6 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
       ? aiUndoCheckpoint(id, force === true)
       : { ok: false, restored: [], conflicts: [], message: "Nothing to undo." },
   );
-
-  ipcMain.handle(CHANNELS.aiApplyHunks, (_event, path: unknown, ids: unknown) => {
-    if (!isString(path)) throw new Error("expected a path");
-    if (!Array.isArray(ids) || !ids.every(isString)) throw new Error("expected hunk ids");
-    return aiApplyHunks(path, ids);
-  });
 
   ipcMain.handle(CHANNELS.aiWorkspaceList, () => aiWorkspaceTasks());
   ipcMain.handle(CHANNELS.aiWorkspaceCurrent, () => aiCurrentWorkspaceTask());

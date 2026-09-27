@@ -754,8 +754,8 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "Open Assistant from the workbench or command palette.",
       "Ask about the code in front of you - the assistant can see the open project.",
-      "While it works, watch the activity block above the answer: the blue mascot bounces as the header names the current step with elapsed time, and thinking notes and tool calls stream in as bordered rows. Hover the mascot and its eyes follow you; click it for a morale-boosting quip.",
-      "When it finishes, the block collapses to Worked for Ns - select the header to expand the full trace again.",
+      "While it works, the answer builds in the order it happens, as in Claude: a block of work, the text it led to, the next block of work, more text. In a running block the blue mascot bounces as the header names the current step with elapsed time, and tool calls stream in as bordered rows. Hover the mascot and its white eyes follow you; click it for a morale-boosting quip.",
+      "As soon as the assistant writes again, the block before it collapses to Worked for Ns - select its header to expand that step's trace again.",
       "Scroll up mid-stream and the view stays pinned while a Jump to latest pill appears with a count of new messages - select it to return to the tail.",
       "If you stop a turn, the interrupted banner offers Edit prompt (your last message back in the composer) and Try again.",
       "If a turn fails, a card in the conversation names the problem - a rate limit, a request too large for the model, a rejected key, a broken tool call or a network problem - with Try again, Switch model, Start fresh or Report problem, and the provider’s exact message under Details.",
@@ -763,7 +763,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Use History for past conversations and the activity panel for agents, tasks, and review controls. Toggle either panel for more writing space.",
       "Press Escape to dismiss it; the conversation survives dismissal.",
       "Reopen later, find older conversations grouped by recency, or choose Share to copy one as markdown.",
-      "On an empty conversation, pick a starter - Explain this project, Plan new idea, Fix an error, Review changes, Verify changes or Multitask - to get going in one click. In Vibe, a short checklist above the composer shows anything still missing, such as opening a project folder or connecting a model.",
+      "On an empty conversation, pick a starter - Explain this project, Build something, Fix an error, Plan new idea or Multitask - to get going in one click. In Vibe, a short checklist above the composer shows anything still missing, such as opening a project folder or connecting a model.",
       "If a long task stops at the step limit, choose Continue and the assistant picks up where it stopped with everything it already did.",
     ],
     benefits: [
@@ -810,7 +810,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Common requests take two keystrokes, and each one asks for verification - tests run, typechecks pass - instead of an unchecked guess.",
       "/review reads the real diff from git, including staged work and newly added files, so nothing gets reviewed from memory.",
       "@ puts exactly the file you mean in front of the model, which saves a round of it searching for the wrong one.",
-      "Everything stays review-first: commands that change code still stage proposals you apply yourself.",
+      "Commands that change code follow your edit approval: by default the edits land as the assistant works, and Undo in the chat takes any turn back.",
     ],
     betterThan:
       "Most chat panels make you type the same careful instructions again and again, or keep them in a notes file. ADCode ships the good versions as commands, reads your diff for you, and lets you point at a file with @ instead of pasting it, so the prompt you send is the prompt an experienced engineer would write.",
@@ -835,28 +835,29 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ai-edit-policy": {
     steps: [
-      "In the chat's composer, open the approval menu - it reads Review or Auto - or find AI edit approval in Settings.",
-      "Review every change (the default): the assistant stages its edits in an isolated copy of your project, the chat shows each diff, and nothing moves until you choose Apply. Discard throws the staged copy away.",
-      "Apply automatically: the assistant writes your files as it works. When a turn changes files, the chat lists them with an Undo button.",
+      "Ask for what you want. By default (Apply automatically) the assistant writes your files as it works - nothing to approve.",
+      "When a turn changes files, the chat lists them in a card with an Undo button. Select a file in the card to open it.",
       "Undo puts every file back as it was before that turn and removes files the turn created. If you have edited one of them since, it asks before overwriting your change.",
-      "Changed your mind mid-review? The review window's Always apply automatically button applies what is there and switches mode in one click.",
+      "Want to see changes before they land? Open the approval menu in the chat's composer - it reads Auto - and choose Review every change, or find AI edit approval in Settings.",
+      "With Review on, edits are staged in an isolated copy of your project. When the turn ends, one card in the chat shows everything it changed, with Apply all changes, Discard and each file's diff. Changes in the sidebar lists anything still waiting.",
     ],
     benefits: [
-      "Start careful on a project you care about, then let the assistant build uninterrupted once you trust it.",
-      "Automatic mode never leaves you stranded: one click takes a whole turn back.",
-      "The assistant is told which mode you are in, so it describes its work truthfully - proposed and waiting, or done.",
+      "You get results, not a queue of diffs to approve: the assistant builds, runs and fixes in one go.",
+      "Nothing is final: one click takes a whole turn back, and it never overwrites your own later edits without asking.",
+      "The assistant is told which mode you are in, so it describes its work truthfully - done, or staged and waiting.",
     ],
     betterThan:
-      "Cursor and Devin make you choose between approving every edit and hoping for the best. ADCode lets you switch in the chat itself, and its automatic mode keeps a per-turn undo that refuses to overwrite your own later edits without asking.",
+      "Agent tools tend to either stop you at every edit or give you no way back. ADCode applies edits as it works, keeps a per-turn Undo right in the conversation, and leaves review one click away for the times you want it.",
   },
 
   "ai-keep-going": {
     steps: [
-      "Open the approval menu in the chat's composer and tick Keep going until done - or turn it on in Settings.",
+      "Keep going until done is on from the start. To change it, open the approval menu in the chat's composer, or find it in Settings.",
       "Give the assistant a big job: a whole site, a refactor across the project, a feature with tests.",
       "If it reaches its step limit, ADCode sends Continue for it, up to five times in a row, and notes each one in the conversation.",
       "Your own message or Stop resets the count, so you can always step in.",
-      "For work that runs without you, combine it with Apply automatically and schedule the job in Automations.",
+      "With it off, the assistant stops at its step limit and a Continue button picks up where it left off.",
+      "For work that runs without you, schedule the job in Automations - edits apply as it works by default.",
     ],
     benefits: [
       "Long jobs finish instead of pausing at a step limit while you are away.",
@@ -918,7 +919,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Ask it to build, fix, create or change files; the Explorer refreshes to show what changed.",
       "Reads never change anything. Unsaved files pause file edits until you save, and destructive shell commands stay blocked.",
       "Opening any older task shows it as a popup in the chat with files and grouped activity: Cancel stops running work, Delete removes a finished task completely, Roll back undoes an applied one.",
-      "Long tool runs fold each call and its result into one row with a Show-all expander, in the popup, the chat history and the Tasks tab.",
+      "Long tool runs fold each call and its result into one row with a Show-all expander, in the popup and the chat history. Show AI Tasks in the command palette lists every task.",
       "Turn the feature off to keep chat while disabling all file tools.",
     ],
     benefits: [
@@ -1008,9 +1009,9 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "git-stage-commit-ui": {
     steps: [
       "First commit on this machine? Open the terminal and tell git who you are once - git config --global user.name \"Your Name\" and git config --global user.email \"you@example.com\" - then come back and commit as normal.",
-      "Open the Context pane's Changes tab for the Cursor-style review: an Uncommitted +added −removed total, one row per file with its own count or a New badge, and a diff preview inside each row.",
-      "Tick rows to stage exactly the set that belongs together - untracked files join when staged.",
-      "Write the commit message in the Commit & Push box and press it once: ADCode stages what is left, commits, and pushes, reporting each step where you can see it.",
+      "Open Changes in the Vibe sidebar for the Cursor-style view: an uncommitted +added −removed total, one row per file with its count, and the diff one click away.",
+      "Untick a file to leave it out of this commit - until you do, every file is included.",
+      "Press Commit & Push once: ADCode commits the included files and pushes them, writing the message from the files if you leave it empty, and reports the result under the bar.",
       "Prefer the full panel? Open Source Control from the activity bar for the same list with side-by-side diffs, staging, and a separate push.",
       "The set enters your project's history as one labelled step you can return to, and the push result is reported in the same place.",
     ],
@@ -1214,24 +1215,46 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Most editors ask you to find a log folder, zip it and attach it, then hope nothing sensitive was inside. ADCode's log is redacted as it is written, previewed before it is sent, and attached from the same Help menu you would open anyway.",
   },
 
+  "workbench-changes": {
+    steps: [
+      "Choose Changes in the Vibe sidebar. The panel opens beside the conversation with every file changed since your last commit.",
+      "Read the bar at the top: the uncommitted +added −removed total, your branch, and Commit & Push. The line under it says which files the next commit takes.",
+      "Select a file to see its diff, coloured line by line. A new file shows its whole contents.",
+      "Untick a file to leave it out of the next commit. While every box is ticked, Commit & Push takes all of them.",
+      "Press Commit & Push. Leave the message empty and ADCode writes one from the files, such as Update css/app.css and 2 more files; use the arrow beside the button for Commit only or to write your own message.",
+      "Changed your mind about a file? The revert arrow asks, then puts it back as it was at the last commit - or moves a new file to the Recycle Bin, where you can still restore it.",
+      "Use the branch button to switch branch, and ⋯ for Pull, Push, Include everything, Revert all changes or the full Source Control.",
+      "No Git in this folder yet? Choose Turn on version control, and every change from then on appears here.",
+      "See Git needs your OK? The folder is on a drive that does not record who owns files, such as a FAT32 or exFAT drive, so Git will not use its repository until you trust it. Choose Trust this folder if you made the folder or know where it came from.",
+    ],
+    benefits: [
+      "See exactly what the assistant touched without opening the IDE or reading a terminal.",
+      "Save your work in one click - no staging, no commit message to invent.",
+      "Every revert is recoverable: edited files go back to your last commit, new files go to the Recycle Bin rather than disappearing.",
+      "The list follows your files live, so it is always what is on disk now.",
+    ],
+    betterThan:
+      "Cursor's changes view assumes you know Git: stage, write a message, then push. ADCode's panel has the same shape, but it includes everything until you say otherwise, writes the message for you, pushes in the same click, and turns Git on for a folder that does not have it yet.",
+  },
+
   "workbench-vibe-sidebar": {
     steps: [
       "Open ADCode - the Vibe window's sidebar is on the left. Choose New conversation, or press Ctrl+Shift+N, to start fresh.",
       "Select the project card under the search box to switch to a recent project, open a folder, clone a repository, or see the project overview. The card shows the branch and how many files have changed.",
-      "Watch the badges: Tasks counts agent work in progress, Review changes counts AI proposals and uncommitted files. A blue badge means something is waiting for you.",
-      "Select Tasks or Review changes to open that panel beside the conversation; select it again to close it.",
+      "Watch the Changes badge: it counts the files you have not committed yet, and turns blue when something is waiting for you, such as a conflict.",
+      "Select Changes to open the Changes panel beside the conversation - every changed file, its diff, and Commit & Push; select it again to close it.",
       "Use Preview to see the running app, Automations to schedule messages, and Agents & tools for saved agents, MCP tools and skills.",
       "Pick up an earlier conversation from the Conversations list, grouped by day; type in its search box to find one by anything said in it.",
       "Drag the sidebar's right edge to resize it, or press Ctrl+B to hide it. On a narrow window it becomes a drawer: open it with the menu button at the top left or Ctrl+B, and close it with Escape.",
     ],
     benefits: [
-      "You find out an agent finished, or that changes need review, without opening a panel to check.",
+      "You find out an agent finished, or what changed, without opening a panel to check.",
       "Every everyday workflow has one visible row - nothing important hides in an overflow menu.",
       "Switching between projects is two clicks, with the branch and change count in view before you switch.",
       "The same sidebar works at any window size, from a full monitor to half a laptop screen.",
     ],
     betterThan:
-      "Chat-first coding tools tend to show a list of conversations and little else, so you poll the diff view to learn whether anything happened. The Vibe sidebar puts project, branch, running work and pending review in one glance, next to the conversation that caused them.",
+      "Chat-first coding tools tend to show a list of conversations and little else, so you poll the diff view to learn whether anything happened. The Vibe sidebar puts project, branch, running work and uncommitted changes in one glance, next to the conversation that caused them.",
   },
 
   "workbench-ai-context": {

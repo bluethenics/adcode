@@ -189,9 +189,6 @@ body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-badge[data-attention="true"
   font-weight: 650;
 }
 /* A task still running gets a quiet pulse on its icon rather than a spinner in the list. */
-body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-tasks-button[data-working="true"] svg { color: var(--accent); animation: vibe-working 1.6s ease-in-out infinite; }
-@keyframes vibe-working { 50% { opacity: .45; } }
-@media (prefers-reduced-motion: reduce) { body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-tasks-button[data-working="true"] svg { animation: none; } }
 
 /* Start. */
 body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-new-button {
@@ -250,6 +247,9 @@ body[data-workspace-mode="vibe"] .vibe-project-meta { color: var(--text-tertiary
 body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-project-card .vibe-project-chevron { width: 14px; height: 14px; color: var(--text-tertiary); }
 
 body[data-workspace-mode="vibe"] .vibe-nav { display: flex; flex-direction: column; gap: 1px; margin-top: 10px; }
+/* A button gives up its height when the rail runs out of room - a long conversation list
+   squashed the card until its second line spilled over the border. It keeps its own. */
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-project-card { flex-shrink: 0; }
 
 /* Conversations. */
 body[data-workspace-mode="vibe"] .vibe-conversations {

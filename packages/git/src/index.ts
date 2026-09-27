@@ -7,7 +7,7 @@
  * No Electron and no DOM: the exec seam is injected, so every operation is testable
  * against a real repository in a temp directory.
  */
-export { createGit, type Git, type GitDeps } from "./git.ts";
+export { createGit, type Git, type GitDeps, type RepoState } from "./git.ts";
 export { nodeGitExec } from "./nodeExec.ts";
 export { isSafeCloneUrl, isSafePathArg, isSafeRef } from "./argSafety.ts";
 export {

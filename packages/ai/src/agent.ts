@@ -184,6 +184,7 @@ export function createAgent(deps: AgentDeps): Agent {
   let shrunk = false;
 
   async function runTool(call: ToolCallBlock, signal: AbortSignal): Promise<{ content: string; isError: boolean }> {
+    if (call.inputError !== undefined) return { content: call.inputError, isError: true };
     // A tool the model invented is not an error worth ending the turn over; tell it
     // plainly and let it choose again.
     if (!declared.has(call.name)) {

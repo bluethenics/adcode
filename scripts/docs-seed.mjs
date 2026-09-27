@@ -385,12 +385,13 @@ latest query.
 AI features are optional. Files, menus, editor shortcuts, terminals, source control,
 debugging, and extensions continue to work normally without connecting a model.
 
-- **Isolated mode** gives an AI task a separate Git-backed workspace. Review the diff and
-  apply it when ready; discard it to roll back without touching the working project.
+- **Apply automatically** is the default: the assistant edits your files as it works, and
+  each turn that changed files gets an **Undo** card in the conversation that puts them back.
 - **Team** can divide one goal among multiple AI roles. ADCode shows the shared goal,
   ownership, trace, token use, and each proposed change instead of hiding parallel work.
-- **Trusted mode** permits broader automated edits for a workspace you trust. You can turn
-  it off at any time; it does not remove the review, history, or rollback path.
+- **Review every change** is one click away in the chat's approval menu. Edits are staged in
+  an isolated copy of the project, and when the turn ends one card offers **Apply all
+  changes** or **Discard** - nothing reaches the working project until you apply.
 - **Scheduled messages** are delivered only while ADCode is open. Built-in chat is always
   supported; terminal delivery requires a visibly waiting compatible agent and a one-time
   permission. Missed one-time messages wait for you to choose **Run now**.
@@ -398,8 +399,8 @@ debugging, and extensions continue to work normally without connecting a model.
   It never bypasses provider usage limits, token budgets, approvals, or a closed ADCode
   window.
 - **Trace and review** show requests, tool activity, file changes, costs, pauses, and errors.
-  Secrets stay in the operating system credential store and the user decides what is
-  applied to the real project.
+  Secrets stay in the operating system credential store, and every AI change to the real
+  project can be undone or, in Review mode, waits for the user to apply it.
 
 Read [AI workspaces and automation](./ai-workspaces.md) for the end-to-end workflow and
 [AI workspace security](../architecture/ai-workspace-security.md) for the trust boundary,

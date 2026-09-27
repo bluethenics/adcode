@@ -36,7 +36,8 @@ export function registerGitIpc(): void {
     const git = gitForWorkspace();
     if (git === null) return EMPTY_STATUS;
 
-    if (!(await git.isRepo())) return EMPTY_STATUS;
+    const state = await git.repoState();
+    if (state !== "repo") return state === "untrusted" ? { ...EMPTY_STATUS, untrusted: true } : EMPTY_STATUS;
 
     const status = await git.status();
     return {
@@ -90,6 +91,8 @@ export function registerGitIpc(): void {
   ipcMain.handle(CHANNELS.gitPull, async () => gitForWorkspace()?.pull() ?? NO_WORKSPACE);
   ipcMain.handle(CHANNELS.gitFetch, async () => gitForWorkspace()?.fetch() ?? NO_WORKSPACE);
   ipcMain.handle(CHANNELS.gitInit, async () => gitForWorkspace()?.init() ?? NO_WORKSPACE);
+  // The folder is the open workspace, never a path from the renderer.
+  ipcMain.handle(CHANNELS.gitTrust, async () => gitForWorkspace()?.trust() ?? NO_WORKSPACE);
 
   ipcMain.handle(CHANNELS.gitClone, async (_event, url: unknown, target: unknown): Promise<GitOutcome> => {
     const git = gitForWorkspace();

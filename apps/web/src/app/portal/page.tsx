@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell, SideIcon, type SideNavGroup } from "@/components/AppShell";
 import { useAuth } from "@/components/AuthProvider";
 import { Segmented } from "@/components/ios/Segmented";
@@ -19,6 +19,7 @@ import {
 import { BillingBody } from "./billing/page";
 import { NewCampaignForm } from "./campaigns/new/page";
 import { CreativeForm } from "./campaigns/[id]/CreativeForm";
+import { loadPortalReport } from "@/lib/portalReport";
 
 type Window = "7" | "30" | "90";
 
@@ -81,10 +82,15 @@ function PortalBody() {
   // `?checkout=success|cancelled` from the payment provider's return URL. Neither is
   // read anywhere else, so without this the moment passes with no confirmation.
   const [announcement, setAnnouncement] = useState<string | null>(null);
+  const requestId = useRef(0);
 
   const load = useCallback(async () => {
-    const t = await token();
-    const found = await apiFetch<AdvertiserView>({ path: "/portal/advertiser", token: t });
+    const id = ++requestId.current;
+    const found = await token().then((t) => loadPortalReport(t, window)).catch(() => ({
+      ok: false as const,
+      error: "offline" as const,
+    }));
+    if (id !== requestId.current) return;
 
     if (!found.ok) {
       // "No advertiser yet" is the sign-up path, not an error to apologise for - and it
@@ -98,20 +104,38 @@ function PortalBody() {
       return;
     }
 
-    setAdvertiser(found.value);
-
-    const [list, points] = await Promise.all([
-      apiFetch<CampaignView[]>({ path: "/portal/campaigns", token: t }),
-      apiFetch<SeriesPointView[]>({ path: `/portal/series?days=${window}`, token: t }),
-    ]);
-
-    if (list.ok) setCampaigns(list.value);
-    if (points.ok) setSeries(points.value);
+    setAdvertiser(found.value.advertiser);
+    setCampaigns(found.value.campaigns);
+    setSeries(found.value.series);
+    setError(null);
     setState("ready");
   }, [token, window]);
 
   useEffect(() => {
-    void load();
+    setState("loading");
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        await load();
+      } finally {
+        refreshing = false;
+      }
+    };
+    const refreshVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    void refresh();
+    const timer = globalThis.setInterval(refreshVisible, 30_000);
+    globalThis.addEventListener("focus", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
+    return () => {
+      ++requestId.current;
+      globalThis.clearInterval(timer);
+      globalThis.removeEventListener("focus", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
+    };
   }, [load]);
 
   useEffect(() => {
@@ -131,7 +155,7 @@ function PortalBody() {
     }
   }, []);
 
-  const days = useMemo(() => calendar(Number(window)), [window]);
+  const days = useMemo(() => calendar(Number(window)), [window, series]);
 
   /** The series rolled up across campaigns, one value per day of the calendar. */
   const totals = useMemo(() => {
@@ -164,7 +188,10 @@ function PortalBody() {
   if (state === "error") {
     return (
       <div className="notice" data-tone="error" role="alert">
-        {error}
+        <p>Campaign reporting is unavailable. {error}</p>
+        <button type="button" className="btn btn-outline btn-small" onClick={() => void load()}>
+          Retry
+        </button>
       </div>
     );
   }
@@ -215,6 +242,7 @@ function PortalBody() {
 
         <div className="filter-row">
           <Segmented label="Reporting window" value={window} options={WINDOWS} onChange={setWindow} />
+          <span>Updates every 30 seconds</span>
         </div>
 
         <div className="ios-tiles">
@@ -348,6 +376,7 @@ function PortalBody() {
 
           <section id="campaigns" className="workspace-section">
             <h2 className="section-title">All campaigns</h2>
+            <p>Lifetime totals. Ads served counts cards sent to the editor. Verified views require the card to be displayed for at least 4 seconds while the editor stays focused, then synced.</p>
             <div className="campaign-stack">
               <div className="row row-head">
                 <span className="row-main">Campaign</span>
@@ -383,6 +412,7 @@ function PortalBody() {
                       {campaign.targetTags.length === 0
                         ? "everyone"
                         : `${campaign.targetTags.length} tag${campaign.targetTags.length === 1 ? "" : "s"}`}
+                      {" · "}{campaign.serves.toLocaleString("en-US")} ads served
                     </span>
                   </span>
                     <span className="row-num mono">{campaign.impressions.toLocaleString("en-US")} views</span>

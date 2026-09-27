@@ -136,7 +136,7 @@ describe("AI workspace settings", () => {
     expect(byId.get("adcode.ai.scheduledMessages" as SettingId)?.default).toBe(true);
 
     const expected = new Map([
-      ["adcode.ai.editPolicy", ["review", "trusted"]],
+      ["adcode.ai.editPolicy", ["trusted", "review"]],
       ["adcode.ai.autoContinueRetries", ["1", "3", "5"]],
       ["adcode.ai.sandboxQuota", ["1gb", "5gb", "10gb"]],
       ["adcode.ai.sandboxRetention", ["1d", "7d", "30d"]],
@@ -161,7 +161,10 @@ describe("AI workspace settings", () => {
     expect(byId.get("adcode.ai.taskTokenBudgetCustom" as SettingId)?.available).toBe(false);
 
     expect(byId.get("adcode.ai.taskTokenBudget" as SettingId)?.default).toBe("unlimited");
-    expect(byId.get("adcode.ai.editPolicy" as SettingId)?.default).toBe("review");
+    // Results first: edits land as the assistant works, every turn can be undone, and it
+    // carries on past its step limit instead of stopping to ask.
+    expect(byId.get("adcode.ai.editPolicy" as SettingId)?.default).toBe("trusted");
+    expect(byId.get("adcode.ai.keepGoing" as SettingId)?.default).toBe(true);
     expect(byId.get("adcode.ai.sandboxQuota" as SettingId)?.default).toBe("5gb");
     expect(byId.get("adcode.ai.sandboxRetention" as SettingId)?.default).toBe("7d");
     expect(byId.get("adcode.ai.checkpointRetention" as SettingId)?.default).toBe("30d");
@@ -227,6 +230,24 @@ describe("migrate", () => {
     const result = migrate({ version: SETTINGS_VERSION + 99, values: { anything: true } });
     expect(result.version).toBe(SETTINGS_VERSION);
     expect(result.values).toEqual(defaultSettings());
+  });
+
+  it("moves version 1 files onto automatic edits and keep going", () => {
+    // Version 1 wrote every value, defaults included, so a stored "review" is almost
+    // always the old default rather than a choice. Everything else is kept.
+    const result = migrate({
+      version: 1,
+      values: { "adcode.ai.editPolicy": "review", "adcode.ai.keepGoing": false, "adcode.editing.minimap": false },
+    });
+    expect(result.values["adcode.ai.editPolicy"]).toBe("trusted");
+    expect(result.values["adcode.ai.keepGoing"]).toBe(true);
+    expect(result.values["adcode.editing.minimap"]).toBe(false);
+  });
+
+  it("keeps Review once it is chosen on the current version", () => {
+    const result = migrate({ version: SETTINGS_VERSION, values: { "adcode.ai.editPolicy": "review", "adcode.ai.keepGoing": false } });
+    expect(result.values["adcode.ai.editPolicy"]).toBe("review");
+    expect(result.values["adcode.ai.keepGoing"]).toBe(false);
   });
 
   it("is idempotent", () => {

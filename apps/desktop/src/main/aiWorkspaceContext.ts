@@ -12,6 +12,7 @@ export function aiWorkspaceContext(
   return [
     `Open workspace root (JSON string): ${JSON.stringify(root)}.`,
     "The workspace is already selected. Do not ask the user for its path. Use list_files with no path (or an empty string) to inspect its root; use relative paths with read_file, edit_file and propose_edit. Change existing files with edit_file (exact old/new text); create new files with propose_edit.",
+    'For example, create "src/main.ts", not "/src/main.ts" or a guessed project directory. After a path error, inspect the workspace with list_files and correct the path before retrying; never repeat the same rejected call.',
     "To list images or files by shape, use glob_files (e.g. **/*.png). Skim long files with get_outline, page reads with offset/limit, run tests with run_command, and fetch docs with fetch_url.",
     // One statement of where edits land, matching the user's approval setting. The two
     // used to sit side by side, and models reported finished work as unreviewed proposals.

@@ -17,7 +17,6 @@ import { describeAiFailure } from "./aiFailure.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { createChatPreview } from "./chatPreview.ts";
 import { createTaskDetailsDialog } from "./taskDetailsDialog.ts";
-import { createTaskReviewDialog } from "./taskReviewDialog.ts";
 import { createTasksPopupDialog } from "./tasksPopupDialog.ts";
 import type { PreviewStatus } from "../../shared/api.ts";
 import type {
@@ -29,7 +28,6 @@ import type {
   AiWorkspaceChangeView,
   AiWorkspaceTaskView,
   ChatSessionView,
-  ProposedEditView,
 } from "../../shared/api.ts";
 import {
   admitFiles,
@@ -71,7 +69,6 @@ import { createFrameTask } from "../frameTask.ts";
 import { attachChatLayout } from "./chatLayout.ts";
 import {
   aiWorkspaceActions,
-  formatAiWorkspaceUsage,
   groupWorkspaceTraces,
   summarizeAiWorkspaceTask,
   TRACE_PREVIEW_LIMIT,
@@ -862,85 +859,50 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /* -- Isolated task status -------------------------------------------- */
 
+  /*
+   * Staged AI work - Review mode's turns and a Team's combined result - is reviewed in one
+   * place: the card the conversation shows when that work is ready, with Apply all, Discard
+   * and each file's diff. There is no strip, pop-up or per-edit notice beside it; what a
+   * task action has to say lands in the conversation as a one-line note.
+   */
   let activeWorkspaceTask: AiWorkspaceTaskView | null = null;
   let taskRefreshGeneration = 0;
-
-  const taskStrip = document.createElement("section");
-  taskStrip.className = "ai-workspace-strip";
-  taskStrip.hidden = true;
-  taskStrip.setAttribute("aria-label", "Isolated AI task");
-
-  const taskState = document.createElement("span");
-  taskState.className = "ai-workspace-state";
-
-  const taskUsage = document.createElement("span");
-  taskUsage.className = "ai-workspace-usage";
-
-  const taskNotice = document.createElement("span");
-  taskNotice.className = "ai-workspace-notice";
-  taskNotice.setAttribute("role", "status");
-
-  const taskReview = document.createElement("button");
-  taskReview.type = "button";
-  taskReview.className = "ghost-button";
-  taskReview.textContent = "Review";
-
-  const taskPreview = document.createElement("button");
-  taskPreview.type = "button";
-  taskPreview.className = "ghost-button";
-  taskPreview.textContent = "Preview";
-  taskPreview.title = "Preview AI edits with file details before accepting them";
-
-  const taskTrace = document.createElement("button");
-  taskTrace.type = "button";
-  taskTrace.className = "ghost-button";
-  taskTrace.textContent = "Trace";
-
-  const taskDiscard = document.createElement("button");
-  taskDiscard.type = "button";
-  taskDiscard.className = "ghost-button ai-workspace-danger";
-  taskDiscard.textContent = "Discard";
-
-  const taskRollback = document.createElement("button");
-  taskRollback.type = "button";
-  taskRollback.className = "ghost-button";
-  taskRollback.textContent = "Roll back";
-
-  taskStrip.append(taskState, taskUsage, taskNotice, taskReview, taskPreview, taskTrace, taskDiscard, taskRollback);
-
-  /* Preview box: one modal per ready task, with file details and accept buttons. */
-  const reviewDialog = createTaskReviewDialog(document.body);
-  const reviewDialogShownFor = new Set<string>();
+  /** Tasks whose ready changes the conversation has already offered, so each is offered once. */
+  const reviewShownFor = new Set<string>();
+  /** A turn is under way (seen from its events), and when it started. */
+  let turnActive = false;
+  let turnStartedAt = 0;
+  const taskStatus = (text: string): void => modeNote(text);
 
   /* Task popup: the task as a box inside the chat, with Cancel and Delete. */
   const detailsDialog = createTaskDetailsDialog(document.body, {
     onCancel: (task) => {
       window.adcode.ai.cancel();
-      taskNotice.textContent = `Cancelling "${task.prompt}" — the turn stops safely and the task is kept.`;
+      taskStatus(`Cancelling "${task.prompt}" — the turn stops safely and the task is kept.`);
     },
     onDelete: async (task) => {
       try {
         const removed = await window.adcode.aiWorkspace.remove(task.id);
         if (removed) {
           if (activeWorkspaceTask?.id === task.id) paintWorkspaceTask(null);
-          taskNotice.textContent = `Deleted "${task.prompt}".`;
+          taskStatus(`Deleted "${task.prompt}".`);
           void refreshWorkspaceTask();
           void paintFolderBanner();
         } else {
-          taskNotice.textContent = "That task is already gone.";
+          taskStatus("That task is already gone.");
           void refreshWorkspaceTask();
         }
       } catch (error) {
-        taskNotice.textContent = error instanceof Error ? error.message : "Could not delete this task.";
+        taskStatus(error instanceof Error ? error.message : "Could not delete this task.");
       }
     },
     onRollback: async (task) => {
       try {
         const result = await window.adcode.aiWorkspace.rollback(task.id);
         paintWorkspaceTask(result.task);
-        taskNotice.textContent = result.message;
+        taskStatus(result.message);
       } catch {
-        taskNotice.textContent = "Could not roll back this task. Try again.";
+        taskStatus("Could not roll back this task. Try again.");
       }
     },
     onShowInChat: async (task) => {
@@ -949,7 +911,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         await renderPersistedReview(task);
         await renderPersistedTrace(task);
       } catch {
-        taskNotice.textContent = "Could not load task details. Try again.";
+        taskStatus("Could not load task details. Try again.");
       }
       scrollToEnd(true);
     },
@@ -978,76 +940,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     return isUnavailableTask(error)
       ? "This task can't be applied here - it belongs to a project that isn't open, or it has already finished. Nothing in your project changed."
       : fallback;
-  }
-
-  async function openReviewDialog(task: AiWorkspaceTaskView): Promise<void> {
-    let changes: readonly AiWorkspaceChangeView[] = [];
-    try {
-      changes = await window.adcode.aiWorkspace.changes(task.id);
-    } catch {
-      taskNotice.textContent = "Could not load task changes. Try Review again.";
-      return;
-    }
-    // Main lists changes only for a task this folder can apply, under the same rule Apply
-    // enforces. Nothing listed means an Apply button here could only ever fail.
-    if (changes.length === 0) return;
-    reviewDialog.open(task, changes, {
-      onApplyAll: async () => {
-        try {
-          const result = await window.adcode.aiWorkspace.apply(
-            task.id,
-            changes.map((change) => ({ path: change.path, acceptedHunkIds: change.hunks.map((hunk) => hunk.id) })),
-          );
-          paintWorkspaceTask(result.task);
-          taskNotice.textContent = result.message;
-          if (result.ok) {
-            reviewDialog.close();
-            void renderPersistedReview(result.task).catch(() => undefined);
-          }
-        } catch (error) {
-          taskNotice.textContent = applyFailureMessage(error, "Could not apply changes. Your project may have changed; review and retry.");
-          if (isUnavailableTask(error)) {
-            reviewDialog.close();
-            void refreshWorkspaceTask();
-          }
-        }
-      },
-      onAlwaysApply: async () => {
-        try {
-          const result = await window.adcode.aiWorkspace.apply(
-            task.id,
-            changes.map((change) => ({ path: change.path, acceptedHunkIds: change.hunks.map((hunk) => hunk.id) })),
-          );
-          paintWorkspaceTask(result.task);
-          taskNotice.textContent = result.message;
-          if (!result.ok) return;
-          reviewDialog.close();
-          void renderPersistedReview(result.task).catch(() => undefined);
-          setEditPolicy("trusted");
-        } catch (error) {
-          taskNotice.textContent = applyFailureMessage(error, "Could not apply changes. Your project may have changed; review and retry.");
-        }
-      },
-      onDiscard: async () => {
-        if (!await askThemed({ title: "Discard these changes?", body: "The staged task and its pending changes are thrown away. Your project files are not touched.", confirmLabel: "Discard", danger: true })) return;
-        try {
-          const discarded = await window.adcode.aiWorkspace.discard(task.id);
-          paintWorkspaceTask(discarded);
-          taskNotice.textContent = discarded === null ? "Task was not found." : "Sandbox changes discarded.";
-        } catch {
-          taskNotice.textContent = "Could not discard this task. Try again.";
-        }
-      },
-      onShowInChat: async () => {
-        paintWorkspaceTask(task);
-        try {
-          await renderPersistedReview(task);
-        } catch {
-          taskNotice.textContent = "Could not load task changes. Try Review again.";
-        }
-        transcript.scrollIntoView({ block: "end" });
-      },
-    });
   }
 
   /* -- Team suggestion and progress ----------------------------------- */
@@ -1422,20 +1314,21 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   modePill.className = "chat-mode-pill chat-approval";
   modePill.setAttribute("aria-haspopup", "menu");
   modePill.setAttribute("aria-expanded", "false");
-  let editPolicy: "review" | "trusted" = "review";
-  let keepGoing = false;
+  // The defaults, until the saved settings arrive: edits land, and it keeps going.
+  let editPolicy: "review" | "trusted" = "trusted";
+  let keepGoing = true;
   const paintApproval = (): void => {
     const auto = editPolicy === "trusted";
     modePill.textContent = auto ? "Auto" : "Review";
     modePill.dataset["mode"] = auto ? "auto" : "review";
     modePill.title = auto
       ? "Edits apply as the assistant works; undo any turn from the chat. Click to change."
-      : "Edits wait for your review before they reach your files. Click to change.";
+      : "Each turn's edits wait for you to apply them. Click to change.";
     modePill.setAttribute("aria-label", `AI edit approval: ${auto ? "Apply automatically" : "Review every change"}${keepGoing ? ", keep going until done" : ""}. Change`);
   };
   const adoptApproval = (values: Record<string, unknown>): void => {
-    editPolicy = values["adcode.ai.editPolicy"] === "trusted" ? "trusted" : "review";
-    keepGoing = values["adcode.ai.keepGoing"] === true;
+    editPolicy = values["adcode.ai.editPolicy"] === "review" ? "review" : "trusted";
+    keepGoing = values["adcode.ai.keepGoing"] !== false;
     paintApproval();
   };
   void window.adcode.settings.read().then(adoptApproval, () => paintApproval());
@@ -1444,14 +1337,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   attachContextMenuDismissal(approvalMenu, () => modePill.focus(), false);
   function setEditPolicy(next: "review" | "trusted", announce = true): void {
     if (next === editPolicy) return;
-    // Main may ask first (turning on automatic edits does), so the pill follows the
-    // setting as saved - never the click - and a declined switch stays on Review.
+    // The pill follows the setting as saved, never the click, so a failed write shows the truth.
     void window.adcode.settings.write("adcode.ai.editPolicy", next).then((values) => {
       adoptApproval(values);
       if (!announce || editPolicy !== next) return;
       modeNote(next === "trusted"
         ? "Edits now apply as the assistant works. Each turn that changes files gets an Undo button here."
-        : "Edits now wait for your review: the assistant stages them, and nothing reaches your files until you apply.");
+        : "Edits now wait for you: when a turn ends, its changes appear here with Apply all. Nothing reaches your files until then.");
     }, () => undefined);
   }
   let approvalWasOpen = false;
@@ -1462,8 +1354,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     modePill.setAttribute("aria-expanded", "true");
     approvalMenu.open(rect.left, rect.top - 4, [
       { kind: "heading", label: "When the assistant edits files" },
-      { label: "Review every change", accelerator: editPolicy === "review" ? "✓" : "", run: () => setEditPolicy("review") },
       { label: "Apply automatically · undo any turn", accelerator: editPolicy === "trusted" ? "✓" : "", run: () => setEditPolicy("trusted") },
+      { label: "Review every change", accelerator: editPolicy === "review" ? "✓" : "", run: () => setEditPolicy("review") },
       { kind: "heading", label: "Automation" },
       {
         label: "Keep going until done",
@@ -1522,7 +1414,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   composerFooter.className = "chat-composer-footer";
   const disclaimer = document.createElement("span");
   disclaimer.className = "chat-disclaimer";
-  disclaimer.textContent = "Enter to send · Shift+Enter new line · @ file · / command · ↑ last prompt · Review changes before applying";
+  disclaimer.textContent = "Enter to send · Shift+Enter new line · @ file · / command · ↑ last prompt";
   composerFooter.append(disclaimer);
   composer.append(input, attachmentStrip, composerNotice, toolbar, composerFooter, filePicker);
 
@@ -1778,14 +1670,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   paintSetup();
   const quickActions = document.createElement("div");
   quickActions.className = "chat-quick-actions";
-  // A starter that ends in ": " waits for the user's words; a complete one sends at once,
-  // and a slash starter runs its command (attaching the diff for a review, say).
-  const starters: ReadonlyArray<{ label: string; hint: string; prompt?: string; slash?: string; run?: () => void }> = [
+  // A starter that ends in ": " waits for the user's words; a complete one sends at once.
+  // Each one heads for a result - none of them is a review step.
+  const starters: ReadonlyArray<{ label: string; hint: string; prompt?: string; run?: () => void }> = [
     { label: "Explain this project", hint: "A tour of the codebase", prompt: "Give me a short tour of this project: what it does, how the code is organised, how to run it, and where a newcomer should start reading." },
-    { label: "Plan new idea", hint: "Scope it before building", prompt: "Plan this idea for my project. Identify the files, risks, and a way to verify the result: " },
+    { label: "Build something", hint: "Describe it - ADCode builds it", prompt: "Build this in my project, then run it and check that it works: " },
     { label: "Fix an error", hint: "Paste it or name the file", prompt: "Find the root cause of this error and fix it, then verify the fix: " },
-    { label: "Review changes", hint: "Catch bugs before commit", slash: "review" },
-    { label: "Verify changes", hint: "Tests and evidence", prompt: "Inspect my uncommitted changes, run the relevant checks, and report exactly what passed, failed, or could not be checked. Do not change files." },
+    { label: "Plan new idea", hint: "Scope it before building", prompt: "Plan this idea for my project. Identify the files, risks, and a way to verify the result: " },
     { label: "Multitask", hint: "Set up an AI team", run: () => api.openTeamSetup() },
   ];
   for (const starter of starters) {
@@ -1798,12 +1689,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     action.append(hint);
     action.addEventListener("click", () => {
       if (starter.run) { starter.run(); return; }
-      const slash = starter.slash === undefined ? undefined : matchSlashCommands(starter.slash)[0];
-      if (slash !== undefined) {
-        menuTrigger = null;
-        void runSlashCommand(slash, true);
-        return;
-      }
       input.value = starter.prompt ?? "";
       autogrowComposer();
       input.focus();
@@ -1880,7 +1765,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   backToChat.className = "ghost-button chat-inspector-dismiss";
   backToChat.textContent = "Back to chat";
   backToChat.addEventListener("click", () => { inspectorOpen = false; applyDisclosures(); });
-  inspector.append(inspectorHeading, backToChat, controls.element, teamPanel, taskStrip, agentLibrary.element, automationPanel);
+  inspector.append(inspectorHeading, backToChat, controls.element, teamPanel, agentLibrary.element, automationPanel);
 
   const body = document.createElement("div");
   body.className = "chat-body";
@@ -1966,7 +1851,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   let activeActivity: ActivityBlockHandle | null = null;
   const activityToolRows = new Map<string, true>();
 
-  /** Create the turn's block in its default "Thinking" state, above the answer. */
+  /*
+   * A turn reads in the order it happened, as in Claude: a block of work, the text it led
+   * to, the next block of work, more text. A block is one unbroken run of tool calls. Text
+   * closes it - collapsed to "Worked for Ns" - and the next tool call opens a new block
+   * below that text. (One block per turn, kept above the newest text, used to pile every
+   * step of a long turn at the top with the words stacked underneath.)
+   */
   function ensureActivity(): ActivityBlockHandle {
     if (activeActivity !== null) return activeActivity;
     // The activity block is the turn's status line — the legacy dot-pulse
@@ -1974,17 +1865,21 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     working.hidden = true;
     working.remove();
     const block = createActivityBlock({ label: "Thinking" });
-    // Above the final answer: before the live bubble when one exists,
-    // otherwise at the end (ahead of the working indicator, which
-    // scrollToEnd keeps last).
-    if (streamingBubble !== null && transcript.contains(streamingBubble)) {
-      transcript.insertBefore(block.element, streamingBubble);
-    } else {
-      transcript.append(block.element);
-    }
+    transcript.append(block.element);
     activeActivity = block;
     scrollToEnd();
     return block;
+  }
+
+  /** Text is starting: the work before it is done. A "Thinking" placeholder with no steps just goes. */
+  function closeActivitySegment(): void {
+    if (activeActivity === null) return;
+    if (activityToolRows.size === 0) {
+      activeActivity.destroy();
+      activeActivity = null;
+      return;
+    }
+    finishActivity();
   }
 
   function finishActivity(label?: string): void {
@@ -3116,30 +3011,24 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   function paintWorkspaceTask(task: AiWorkspaceTaskView | null): void {
     activeWorkspaceTask = task;
-    taskStrip.hidden = task === null;
-    taskNotice.textContent = "";
-    if (task === null) return;
-
-    taskStrip.dataset["state"] = task.state;
-    taskState.textContent = summarizeAiWorkspaceTask(task);
-    taskState.title = task.changedPaths.length === 0 ? task.prompt : task.changedPaths.join("\n");
-    taskUsage.textContent = formatAiWorkspaceUsage(task);
-    taskUsage.title = "Task token and cost budget";
-
-    const actions = aiWorkspaceActions(task);
-    taskReview.hidden = !actions.review;
-    taskPreview.hidden = !actions.review;
-    taskDiscard.hidden = !actions.discard;
-    taskRollback.hidden = !actions.rollback;
-    taskTrace.hidden = false;
-
-    // After AI edits: one preview box per ready task, plus the same review inline
-    // in chat. Backdrop/Close only dismisses the box; nothing is applied or lost.
-    if (actions.review && task.changedPaths.length > 0 && !reviewDialogShownFor.has(task.id)) {
-      reviewDialogShownFor.add(task.id);
+    // Mid-turn a Review task is already "ready" after its first edit; offering it then
+    // would show a card missing the rest of the turn. The turn's end offers it instead
+    // (`offerStagedChanges`), and work that arrives outside a turn - a Team's combined
+    // result - is offered here, once.
+    if (task === null || turnActive) return;
+    if (aiWorkspaceActions(task).review && !reviewShownFor.has(task.id)) {
+      reviewShownFor.add(task.id);
       void renderPersistedReview(task).catch(() => undefined);
-      void openReviewDialog(task).catch(() => undefined);
     }
+  }
+
+  /** When a turn ends: if it staged changes (Review mode), offer them - one card, with everything the turn did. */
+  async function offerStagedChanges(since: number): Promise<void> {
+    const task = await window.adcode.aiWorkspace.current().catch(() => null);
+    if (task === null || !aiWorkspaceActions(task).review || task.updatedAt < since) return;
+    activeWorkspaceTask = task;
+    reviewShownFor.add(task.id);
+    await renderPersistedReview(task).catch(() => undefined);
   }
 
   async function refreshWorkspaceTask(): Promise<void> {
@@ -3237,147 +3126,142 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     return panel;
   }
 
+  /**
+   * The one place staged work is reviewed: what the task asked for, its line counts, the
+   * ways forward, and each file's diff below. Rendering again replaces the card, so it
+   * always shows the task as it is now.
+   */
   async function renderPersistedReview(task: AiWorkspaceTaskView): Promise<void> {
-    taskReview.disabled = true;
-    try {
-      const changes = await window.adcode.aiWorkspace.changes(task.id);
-      transcript.querySelectorAll(`[data-task-review="${task.id}"]`).forEach((node) => node.remove());
-      const summary = document.createElement("section");
-      summary.className = "task-review-summary";
-      summary.dataset["taskReview"] = task.id;
-      const title = document.createElement("h3");
-      title.textContent = task.prompt;
-      const state = document.createElement("p");
-      const hunks = changes.flatMap(change => change.hunks);
-      state.textContent = `${summarizeAiWorkspaceTask(task)} · +${hunks.reduce((n, h) => n + h.replacement.length, 0)} −${hunks.reduce((n, h) => n + h.original.length, 0)}`;
-      const actions = document.createElement("div");
-      actions.className = "task-review-actions";
-      const action = (label: string, run: () => void): HTMLButtonElement => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "ghost-button";
-        button.textContent = label;
-        button.addEventListener("click", run);
-        actions.append(button);
-        return button;
-      };
-      action("Work history", () => { void renderPersistedTrace(task).catch(() => { state.textContent = "Could not load work history. Try again."; }); });
-      action("Task actions", () => { paintWorkspaceTask(task); revealInspector(); });
-      if (deps.openPreview) action("Open preview", deps.openPreview);
-      if (aiWorkspaceActions(task).review && changes.length) {
-        const applyAll = action("Apply all changes", () => {
-          applyAll.disabled = true;
-          void window.adcode.aiWorkspace.apply(task.id, changes.map(change => ({ path: change.path, acceptedHunkIds: change.hunks.map(h => h.id) }))).then(result => {
-            paintWorkspaceTask(result.task);
-            state.textContent = result.message;
-            if (result.ok) {
-              for (const button of transcript.querySelectorAll<HTMLButtonElement>(`[data-task-review="${task.id}"] .diff-actions button`)) button.disabled = true;
-            } else applyAll.disabled = false;
-          }).catch((error: unknown) => {
-            state.textContent = applyFailureMessage(error, "Could not apply changes. Your project may have changed; review and retry.");
-            applyAll.disabled = isUnavailableTask(error);
-          });
-        });
-      }
-      summary.append(title, state, actions);
-      transcript.append(summary);
-      if (changes.length === 0) {
-        state.textContent = `${summarizeAiWorkspaceTask(task)} · No pending file changes. Open work history for recorded commands and results.`;
-        scrollToEnd();
-        return;
-      }
-      for (const change of changes) transcript.append(persistedDiff(task, change));
-      scrollToEnd();
-    } finally {
-      taskReview.disabled = false;
+    const changes = await window.adcode.aiWorkspace.changes(task.id);
+    transcript.querySelectorAll(`[data-task-review="${task.id}"]`).forEach((node) => node.remove());
+    const summary = document.createElement("section");
+    summary.className = "task-review-summary";
+    summary.dataset["taskReview"] = task.id;
+    const title = document.createElement("h3");
+    title.textContent = task.prompt;
+    const state = document.createElement("p");
+    state.setAttribute("role", "status");
+    const hunks = changes.flatMap(change => change.hunks);
+    state.textContent = `${summarizeAiWorkspaceTask(task)} · +${hunks.reduce((n, h) => n + h.replacement.length, 0)} −${hunks.reduce((n, h) => n + h.original.length, 0)}`;
+    const actions = document.createElement("div");
+    actions.className = "task-review-actions";
+    const action = (label: string, run: () => void, primary = false): HTMLButtonElement => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = primary ? "chat-send" : "ghost-button";
+      button.textContent = label;
+      button.addEventListener("click", run);
+      actions.append(button);
+      return button;
+    };
+    const settle = (): void => {
+      for (const button of transcript.querySelectorAll<HTMLButtonElement>(`[data-task-review="${task.id}"] .diff-actions button`)) button.disabled = true;
+    };
+    const applyAll = action("Apply all changes", () => {
+      applyAll.disabled = true;
+      // All means all: whatever the task holds now, not only what was listed when drawn.
+      void window.adcode.aiWorkspace.changes(task.id).then(current =>
+        window.adcode.aiWorkspace.apply(task.id, current.map(change => ({ path: change.path, acceptedHunkIds: change.hunks.map(h => h.id) })))
+      ).then(result => {
+        paintWorkspaceTask(result.task);
+        state.textContent = result.message;
+        paintActions(result.task);
+        if (result.ok) settle();
+        else applyAll.disabled = false;
+      }).catch((error: unknown) => {
+        state.textContent = applyFailureMessage(error, "Could not apply changes. Your project may have changed; review and retry.");
+        applyAll.disabled = isUnavailableTask(error);
+      });
+    }, true);
+    const discard = action("Discard", () => {
+      void (async () => {
+        if (!await askThemed({ title: "Discard these changes?", body: "The staged changes are thrown away. Your project files are not touched.", confirmLabel: "Discard", danger: true })) return;
+        discard.disabled = true;
+        try {
+          const discarded = await window.adcode.aiWorkspace.discard(task.id);
+          paintWorkspaceTask(discarded);
+          state.textContent = discarded === null ? "This task is already gone." : "Discarded - your project files were not touched.";
+          if (discarded !== null) paintActions(discarded);
+          settle();
+        } catch {
+          state.textContent = "Could not discard these changes. Try again.";
+        } finally {
+          discard.disabled = false;
+        }
+      })();
+    });
+    const rollback = action("Roll back", () => {
+      rollback.disabled = true;
+      void window.adcode.aiWorkspace.rollback(task.id).then((result) => {
+        paintWorkspaceTask(result.task);
+        state.textContent = result.message;
+        paintActions(result.task);
+      }, () => {
+        state.textContent = "Could not roll back this task. Try again.";
+      }).finally(() => { rollback.disabled = false; });
+    });
+    if (deps.openPreview) action("Open preview", deps.openPreview);
+    action("Work history", () => { void renderPersistedTrace(task).catch(() => { state.textContent = "Could not load work history. Try again."; }); });
+    function paintActions(current: AiWorkspaceTaskView): void {
+      const allowed = aiWorkspaceActions(current);
+      applyAll.hidden = !allowed.review || changes.length === 0;
+      discard.hidden = !allowed.discard;
+      rollback.hidden = !allowed.rollback;
     }
+    paintActions(task);
+    summary.append(title, state, actions);
+    transcript.append(summary);
+    if (changes.length === 0) {
+      state.textContent = `${summarizeAiWorkspaceTask(task)} · No pending file changes. Open work history for recorded commands and results.`;
+      scrollToEnd();
+      return;
+    }
+    for (const change of changes) transcript.append(persistedDiff(task, change));
+    scrollToEnd();
   }
 
   async function renderPersistedTrace(task: AiWorkspaceTaskView): Promise<void> {
-    taskTrace.disabled = true;
-    try {
-      const events = await window.adcode.aiWorkspace.traces(task.id);
-      if (events.length === 0) {
-        taskNotice.textContent = "No operational trace events yet.";
-        return;
-      }
-      // Long tool runs record a start and a finish per call. Pairing them keeps
-      // the history readable, and the cap keeps a 40-step task to one screen.
-      const grouped = groupWorkspaceTraces(events);
-      const visible = grouped.slice(0, TRACE_PREVIEW_LIMIT);
-      for (const row of visible) {
-        trace(
-          row.count > 1 ? `${row.summary} · ${traceTone(row.outcome) === "ok" ? "done" : row.outcome}` : row.summary,
-          row.detail,
-          traceTone(row.outcome),
-        );
-      }
-      if (grouped.length > visible.length) {
-        const remaining = grouped.length - visible.length;
-        const more = bubble(
-          "assistant",
-          `${remaining} more step${remaining === 1 ? "" : "s"} recorded for this task.`,
-        );
-        const show = document.createElement("button");
-        show.type = "button";
-        show.className = "chat-send chat-nudge-action";
-        show.textContent = `Show all ${grouped.length} steps`;
-        show.addEventListener("click", () => {
-          show.disabled = true;
-          for (const row of grouped.slice(visible.length)) {
-            trace(
-              row.count > 1 ? `${row.summary} · ${traceTone(row.outcome) === "ok" ? "done" : row.outcome}` : row.summary,
-              row.detail,
-              traceTone(row.outcome),
-            );
-          }
-          more.dataset["nudge"] = "trace-expanded";
-        });
-        more.append(show);
-        scrollToEnd();
-      }
-    } finally {
-      taskTrace.disabled = false;
+    const events = await window.adcode.aiWorkspace.traces(task.id);
+    if (events.length === 0) {
+      taskStatus("No operational trace events yet.");
+      return;
+    }
+    // Long tool runs record a start and a finish per call. Pairing them keeps
+    // the history readable, and the cap keeps a 40-step task to one screen.
+    const grouped = groupWorkspaceTraces(events);
+    const visible = grouped.slice(0, TRACE_PREVIEW_LIMIT);
+    for (const row of visible) {
+      trace(
+        row.count > 1 ? `${row.summary} · ${traceTone(row.outcome) === "ok" ? "done" : row.outcome}` : row.summary,
+        row.detail,
+        traceTone(row.outcome),
+      );
+    }
+    if (grouped.length > visible.length) {
+      const remaining = grouped.length - visible.length;
+      const more = bubble(
+        "assistant",
+        `${remaining} more step${remaining === 1 ? "" : "s"} recorded for this task.`,
+      );
+      const show = document.createElement("button");
+      show.type = "button";
+      show.className = "chat-send chat-nudge-action";
+      show.textContent = `Show all ${grouped.length} steps`;
+      show.addEventListener("click", () => {
+        show.disabled = true;
+        for (const row of grouped.slice(visible.length)) {
+          trace(
+            row.count > 1 ? `${row.summary} · ${traceTone(row.outcome) === "ok" ? "done" : row.outcome}` : row.summary,
+            row.detail,
+            traceTone(row.outcome),
+          );
+        }
+        more.dataset["nudge"] = "trace-expanded";
+      });
+      more.append(show);
+      scrollToEnd();
     }
   }
-
-  taskReview.addEventListener("click", () => {
-    if (activeWorkspaceTask !== null) void renderPersistedReview(activeWorkspaceTask);
-  });
-  taskPreview.addEventListener("click", () => {
-    if (activeWorkspaceTask !== null) void openReviewDialog(activeWorkspaceTask);
-  });
-  taskTrace.addEventListener("click", () => {
-    if (activeWorkspaceTask !== null) void renderPersistedTrace(activeWorkspaceTask);
-  });
-  taskDiscard.addEventListener("click", async () => {
-    const task = activeWorkspaceTask;
-    if (task === null || !await askThemed({ title: "Discard these changes?", body: "The staged task and its pending changes are thrown away. Your project files are not touched.", confirmLabel: "Discard", danger: true })) return;
-    taskDiscard.disabled = true;
-    void window.adcode.aiWorkspace
-      .discard(task.id)
-      .then((discarded) => {
-        paintWorkspaceTask(discarded);
-        taskNotice.textContent = discarded === null ? "Task was not found." : "Sandbox changes discarded.";
-      })
-      .finally(() => {
-        taskDiscard.disabled = false;
-      });
-  });
-  taskRollback.addEventListener("click", () => {
-    const task = activeWorkspaceTask;
-    if (task === null) return;
-    taskRollback.disabled = true;
-    void window.adcode.aiWorkspace
-      .rollback(task.id)
-      .then((result) => {
-        paintWorkspaceTask(result.task);
-        taskNotice.textContent = result.message;
-      })
-      .finally(() => {
-        taskRollback.disabled = false;
-      });
-  });
 
   window.adcode.aiWorkspace.onChanged((task) => {
     paintWorkspaceTask(task);
@@ -3385,138 +3269,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   });
   void refreshWorkspaceTask();
   void paintFolderBanner();
-
-  /*
-   * A proposal that arrives silently is a file the user never finds: the
-   * change lives in the isolated task workspace, not the project, so nothing
-   * appears in the Explorer until it is applied. This notice says exactly
-   * that, right under the diff, and updates in place when the same file is
-   * proposed again instead of stacking.
-   */
-  const proposalNotices = new Map<string, HTMLElement>();
-
-  function proposalNotice(edit: ProposedEditView): void {
-    const key = `${edit.taskId} ${edit.relativePath}`;
-    const text =
-      `Proposed ${edit.hunks.length} change${edit.hunks.length === 1 ? "" : "s"} to ` +
-      `${edit.displayPath} — staged for your review, not in your project yet. ` +
-      `Review the diff above and choose Apply selected; the file lands in your Explorer once applied. ` +
-      // The way out of reviewing, said where the reviewing happens.
-      `Rather have edits land as the assistant works? Switch Review to Auto below - you can undo any turn.`;
-    const existing = proposalNotices.get(key);
-    if (existing !== undefined && existing.isConnected) {
-      messageSources.set(existing, text);
-      renderMessage(existing, text);
-      scrollToEnd();
-      return;
-    }
-    const element = bubble("assistant", text);
-    element.classList.add("chat-bubble-proposal");
-    proposalNotices.set(key, element);
-  }
-
-  function inlineDiff(edit: ProposedEditView): void {
-    const panel = document.createElement("div");
-    panel.className = "diff-panel";
-
-    const heading = document.createElement("div");
-    heading.className = "diff-heading";
-    heading.textContent = `${edit.summary} — ${edit.displayPath}`;
-
-    const accepted = new Set(edit.hunks.map((hunk) => hunk.id));
-    panel.append(heading);
-
-    for (const hunk of edit.hunks) {
-      const block = document.createElement("div");
-      block.className = "diff-hunk";
-
-      const toggle = document.createElement("label");
-      toggle.className = "diff-toggle";
-
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = true;
-      checkbox.addEventListener("change", () => {
-        if (checkbox.checked) accepted.add(hunk.id);
-        else accepted.delete(hunk.id);
-        block.dataset["accepted"] = String(checkbox.checked);
-      });
-
-      const label = document.createElement("span");
-      label.textContent = `Line ${hunk.startLine + 1}`;
-      toggle.append(checkbox, label);
-
-      const body = document.createElement("pre");
-      body.className = "diff-body";
-
-      for (const line of hunk.original) {
-        const removed = document.createElement("span");
-        removed.className = "diff-line diff-removed";
-        removed.textContent = `- ${line}`;
-        body.append(removed);
-      }
-      for (const line of hunk.replacement) {
-        const added = document.createElement("span");
-        added.className = "diff-line diff-added";
-        added.textContent = `+ ${line}`;
-        body.append(added);
-      }
-
-      block.dataset["accepted"] = "true";
-      block.append(toggle, body);
-      panel.append(block);
-    }
-
-    const actions = document.createElement("div");
-    actions.className = "diff-actions";
-
-    const apply = document.createElement("button");
-    apply.className = "chat-send";
-    apply.textContent = "Apply selected";
-    apply.addEventListener("click", () => {
-      if (accepted.size === 0) {
-        heading.textContent = `Select at least one change in ${edit.displayPath}`;
-        return;
-      }
-      apply.disabled = true;
-      void window.adcode.aiWorkspace
-        .apply(edit.taskId, [{ path: edit.relativePath, acceptedHunkIds: [...accepted] }])
-        .then((result) => {
-          paintWorkspaceTask(result.task);
-          heading.textContent = result.ok
-            ? `Applied ${accepted.size} of ${edit.hunks.length} to ${edit.displayPath}`
-            : result.message;
-          if (result.ok) {
-            actions.remove();
-            deps.openExternalPath(edit.path);
-          } else {
-            apply.disabled = false;
-          }
-        })
-        .catch((error: unknown) => {
-          heading.textContent = applyFailureMessage(error, `Could not apply ${edit.displayPath}`);
-          if (isUnavailableTask(error)) actions.remove();
-          else apply.disabled = false;
-        });
-    });
-
-    const reject = document.createElement("button");
-    reject.className = "ghost-button";
-    reject.textContent = "Reject all";
-    reject.addEventListener("click", () => {
-      // Applying nothing is how a rejection is recorded: the proposal is discarded and
-      // the file is left byte-identical.
-      void window.adcode.ai.applyHunks(edit.path, []).then(() => {
-        heading.textContent = `Rejected — ${edit.displayPath} is unchanged`;
-        actions.remove();
-      });
-    });
-
-    actions.append(apply, reject);
-    panel.append(actions);
-    transcript.append(panel);
-    scrollToEnd();
-  }
 
   /* ── Events from the agent ────────────────────────────────────────────── */
 
@@ -3554,19 +3306,25 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     // Flush before tool boundaries, cancellation, and completion so no final text
     // is stranded in a scheduled frame or attached to the next message.
     if (event.kind !== "text") flushStream();
+    // Turns are followed from the events, which every window receives - a turn may have
+    // started in the other window's chat, or from an automation, not from this composer.
+    const ending = event.kind === "turn-end" || event.kind === "error" || event.kind === "cancelled" || event.kind === "refusal";
+    if (!ending && !turnActive) {
+      turnActive = true;
+      turnStartedAt = Date.now();
+    } else if (ending && turnActive) {
+      turnActive = false;
+      void offerStagedChanges(turnStartedAt);
+    }
 
     switch (event.kind) {
       case "text": {
         workingText.textContent = "Writing response";
-        const block = ensureActivity();
-        if (activityToolRows.size === 0) block.setLabel("Writing response");
+        // New text after work: that work is finished, and the text goes below it.
+        if (streamingBubble === null) closeActivitySegment();
         // Append to the live bubble rather than creating one per delta. The
         // bubble streams with a blinking orange caret (CSS) until turn-end.
         streamingBubble ??= bubble("assistant", "");
-        // The activity block must stay above the final answer.
-        if (block.element.nextElementSibling !== streamingBubble && transcript.contains(block.element)) {
-          transcript.insertBefore(block.element, streamingBubble);
-        }
         messageSources.set(streamingBubble, `${messageSources.get(streamingBubble) ?? ""}${String(event["text"])}`);
         dirtyMessages.add(streamingBubble);
         if (open && !document.hidden) streamPaint.schedule();
@@ -3772,13 +3530,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     card.append(icon, body, undo);
     transcript.append(card);
     scrollToEnd();
-  });
-
-  window.adcode.ai.onProposedEdit((edit) => {
-    flushStream();
-    streamingBubble = null;
-    inlineDiff(edit);
-    proposalNotice(edit);
   });
 
   /* ── Sending ──────────────────────────────────────────────────────────── */
@@ -3990,7 +3741,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     },
     reviewTask(task): void {
       api.open();
+      // Changes waiting to apply go straight to their card; anything else opens its details.
+      const waiting = aiWorkspaceActions(task).review;
+      if (waiting) reviewShownFor.add(task.id);
       paintWorkspaceTask(task);
+      if (waiting) {
+        void renderPersistedReview(task).then(() => scrollToEnd(true), () => taskStatus("Could not load these changes. Try again."));
+        return;
+      }
       detailsDialog.open(task);
     },
     openTasksPopup(): void {
@@ -4135,10 +3893,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     setWorkspace(root: string | null): void {
       chatPreview.clear();
       previewCalls.clear();
-      reviewDialog.close();
       detailsDialog.close();
       tasksPopup.close();
-      reviewDialogShownFor.clear();
+      reviewShownFor.clear();
       currentFolderRoot = root;
       paintFolderBanner();
       paintSetup();

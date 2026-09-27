@@ -545,7 +545,6 @@ export const CHANNELS = {
   aiDeleteSession: "ai:delete-session",
   aiClearSessions: "ai:clear-sessions",
   aiCheckKey: "ai:check-key",
-  aiApplyHunks: "ai:apply-hunks",
   aiCheckpoint: "ai:checkpoint",
   aiCheckpointUndo: "ai:checkpoint-undo",
   aiWorkspaceList: "ai-workspace:list",
@@ -584,6 +583,7 @@ export const CHANNELS = {
   gitPull: "git:pull",
   gitFetch: "git:fetch",
   gitInit: "git:init",
+  gitTrust: "git:trust",
   gitClone: "git:clone",
   gitAddRemote: "git:add-remote",
   gitRemotes: "git:remotes",
@@ -805,6 +805,8 @@ export interface GitStatusView {
   readonly ahead: number;
   readonly behind: number;
   readonly isRepo: boolean;
+  /** A repository is there, but git refuses it until the folder is trusted (see `git.trust`). */
+  readonly untrusted?: boolean;
   readonly isClean: boolean;
   readonly hasConflicts: boolean;
   readonly entries: ReadonlyArray<{
@@ -1641,8 +1643,8 @@ export interface AdcodeApi {
     answerAnyway(): void;
     /** The agent's workings, live - this is what the trace widget renders (§5.3). */
     onEvent(listener: (event: unknown) => void): () => void;
+    /** Review mode only: a staged edit is waiting. The turn's changes are offered for Apply when it ends. */
     onProposedEdit(listener: (edit: ProposedEditView) => void): () => void;
-    applyHunks(path: string, acceptedHunkIds: readonly string[]): Promise<boolean>;
     /** A turn in "Apply automatically" mode changed files; `undoCheckpoint` puts them back. */
     onCheckpoint(listener: (checkpoint: AiCheckpointView) => void): () => void;
     undoCheckpoint(id: string, force: boolean): Promise<AiUndoResultView>;
@@ -1698,6 +1700,12 @@ export interface AdcodeApi {
     pull(): Promise<GitOutcome>;
     fetch(): Promise<GitOutcome>;
     init(): Promise<GitOutcome>;
+    /**
+     * Let git use the open folder's repository when it refuses it for "dubious ownership"
+     * (a FAT32 or exFAT drive, or a folder another account made). Adds the folder to
+     * `safe.directory` in the global git config. Only ever on the user's explicit choice.
+     */
+    trust(): Promise<GitOutcome>;
     clone(url: string, target: string): Promise<GitOutcome>;
     /** Connect this repository to a remote, or correct the URL of one it already has. */
     addRemote(name: string, url: string): Promise<GitOutcome>;
