@@ -90,6 +90,9 @@ async function main() {
           outputCostMicrosPerMillion: priceMicros(cost.output),
           cacheReadCostMicrosPerMillion: priceMicros(cost.cache_read),
           cacheWriteCostMicrosPerMillion: priceMicros(cost.cache_write),
+          // When a conversation has to be compacted depends on this; absent means unknown.
+          contextWindow:
+            Number.isSafeInteger(model.limit?.context) && model.limit.context >= 1000 ? model.limit.context : null,
         };
       });
 

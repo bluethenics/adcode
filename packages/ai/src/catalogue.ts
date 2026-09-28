@@ -34,6 +34,20 @@ function costMicros(raw: unknown): number | null {
   return Number.isSafeInteger(micros) ? micros : null;
 }
 
+/**
+ * A model's context size in tokens, or null when absent or implausible.
+ *
+ * Nothing reads fewer than a thousand tokens or more than a billion; outside that is a typo
+ * upstream, and a wrong size is worse than none - it decides when a conversation compacts.
+ */
+function contextTokens(raw: unknown): number | null {
+  if (typeof raw !== "number" || !Number.isSafeInteger(raw)) return null;
+  return raw >= 1_000 && raw <= 1_000_000_000 ? raw : null;
+}
+
+/** What a model with no published size is assumed to read: small enough to be safe. */
+export const DEFAULT_CONTEXT_WINDOW = 128_000;
+
 function modelsFrom(raw: unknown): CatalogueModel[] {
   if (!isRecord(raw)) return [];
 
@@ -47,6 +61,7 @@ function modelsFrom(raw: unknown): CatalogueModel[] {
 
     const name = entry["name"];
     const cost = isRecord(entry["cost"]) ? entry["cost"] : {};
+    const limit = isRecord(entry["limit"]) ? entry["limit"] : {};
     models.push({
       id,
       name: typeof name === "string" && name.length > 0 ? name : id,
@@ -56,6 +71,7 @@ function modelsFrom(raw: unknown): CatalogueModel[] {
       outputCostMicrosPerMillion: costMicros(cost["output"]),
       cacheReadCostMicrosPerMillion: costMicros(cost["cache_read"]),
       cacheWriteCostMicrosPerMillion: costMicros(cost["cache_write"]),
+      contextWindow: contextTokens(limit["context"]),
     });
   }
 
@@ -95,6 +111,16 @@ export function parseCatalogue(raw: unknown): CatalogueProvider[] {
   }
 
   return providers.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** The context size the catalogue gives a provider's model, or null when it gives none. */
+export function contextWindowOf(
+  catalogue: readonly CatalogueProvider[],
+  providerId: string,
+  modelId: string,
+): number | null {
+  const model = catalogue.find((provider) => provider.id === providerId)?.models.find((one) => one.id === modelId);
+  return model?.contextWindow ?? null;
 }
 
 /**

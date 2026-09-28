@@ -17,6 +17,8 @@ export interface CatalogueModel {
   readonly outputCostMicrosPerMillion?: number | null;
   readonly cacheReadCostMicrosPerMillion?: number | null;
   readonly cacheWriteCostMicrosPerMillion?: number | null;
+  /** How many tokens the model reads at once, where models.dev publishes it. */
+  readonly contextWindow?: number | null;
 }
 
 export interface CatalogueProvider {

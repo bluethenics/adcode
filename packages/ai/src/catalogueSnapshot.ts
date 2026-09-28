@@ -4,7 +4,7 @@
  */
 import type { CatalogueProvider } from "./catalogueTypes.ts";
 
-export const SNAPSHOT_TAKEN_ON = "2026-09-24";
+export const SNAPSHOT_TAKEN_ON = "2026-09-28";
 
 export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
   {
@@ -23,7 +23,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1000000,
         "outputCostMicrosPerMillion": 5000000,
         "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": 1250000
+        "cacheWriteCostMicrosPerMillion": 1250000,
+        "contextWindow": 200000
       },
       {
         "id": "claude-opus-4-5",
@@ -33,7 +34,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 200000
       },
       {
         "id": "claude-sonnet-4-5",
@@ -43,7 +45,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 1000000
       },
       {
         "id": "claude-opus-5-5",
@@ -53,7 +56,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 4000000,
         "outputCostMicrosPerMillion": 20000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 5000000
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1000000
       },
       {
         "id": "claude-fable-5-1",
@@ -63,7 +67,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 10000000,
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": 12500000
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000
       },
       {
         "id": "claude-opus-4-5-20251101",
@@ -73,7 +78,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 200000
       },
       {
         "id": "claude-opus-5",
@@ -83,7 +89,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000
       },
       {
         "id": "claude-fable-5",
@@ -93,7 +100,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 10000000,
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000
       },
       {
         "id": "claude-opus-4-8",
@@ -103,7 +111,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000
       },
       {
         "id": "claude-sonnet-4-5-20250929",
@@ -113,7 +122,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 1000000
       },
       {
         "id": "claude-sonnet-5",
@@ -123,7 +133,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 2500000
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1000000
       },
       {
         "id": "claude-opus-4-6",
@@ -133,7 +144,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000
       },
       {
         "id": "claude-haiku-4-5-20251001",
@@ -143,7 +155,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1000000,
         "outputCostMicrosPerMillion": 5000000,
         "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": 1250000
+        "cacheWriteCostMicrosPerMillion": 1250000,
+        "contextWindow": 200000
       },
       {
         "id": "claude-sonnet-4-6",
@@ -153,7 +166,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 1000000
       },
       {
         "id": "claude-opus-4-7",
@@ -163,7 +177,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000
       }
     ]
   },
@@ -183,7 +198,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "gpt-5.4",
@@ -193,7 +209,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2500000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000
       },
       {
         "id": "gpt-5.4-pro",
@@ -203,7 +220,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 30000000,
         "outputCostMicrosPerMillion": 180000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000
       },
       {
         "id": "gpt-3.5-turbo",
@@ -213,7 +231,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 500000,
         "outputCostMicrosPerMillion": 1500000,
         "cacheReadCostMicrosPerMillion": 0,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 16385
       },
       {
         "id": "gpt-5.5-pro",
@@ -223,7 +242,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 30000000,
         "outputCostMicrosPerMillion": 180000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000
       },
       {
         "id": "text-embedding-3-small",
@@ -233,7 +253,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 20000,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8191
       },
       {
         "id": "gpt-5.4-nano",
@@ -243,7 +264,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 200000,
         "outputCostMicrosPerMillion": 1250000,
         "cacheReadCostMicrosPerMillion": 20000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-realtime-2.1",
@@ -253,7 +275,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 4000000,
         "outputCostMicrosPerMillion": 24000000,
         "cacheReadCostMicrosPerMillion": 400000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "gpt-4o-2024-05-13",
@@ -263,7 +286,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "gpt-4o",
@@ -273,7 +297,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2500000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "gpt-5-mini",
@@ -283,7 +308,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 250000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": 25000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-image-2",
@@ -293,7 +319,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 30000000,
         "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "gpt-5.2-pro",
@@ -303,7 +330,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 21000000,
         "outputCostMicrosPerMillion": 168000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "o4-mini",
@@ -313,7 +341,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1100000,
         "outputCostMicrosPerMillion": 4400000,
         "cacheReadCostMicrosPerMillion": 275000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000
       },
       {
         "id": "o3-mini",
@@ -323,7 +352,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1100000,
         "outputCostMicrosPerMillion": 4400000,
         "cacheReadCostMicrosPerMillion": 550000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000
       },
       {
         "id": "text-embedding-ada-002",
@@ -333,7 +363,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8192
       },
       {
         "id": "gpt-4",
@@ -343,7 +374,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 30000000,
         "outputCostMicrosPerMillion": 60000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8192
       },
       {
         "id": "gpt-5.3-codex",
@@ -353,7 +385,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1750000,
         "outputCostMicrosPerMillion": 14000000,
         "cacheReadCostMicrosPerMillion": 175000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-4.1-nano",
@@ -363,7 +396,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 400000,
         "cacheReadCostMicrosPerMillion": 25000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1047576
       },
       {
         "id": "gpt-5-nano",
@@ -373,7 +407,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 50000,
         "outputCostMicrosPerMillion": 400000,
         "cacheReadCostMicrosPerMillion": 5000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-5.6",
@@ -383,7 +418,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 4000000,
         "outputCostMicrosPerMillion": 20000000,
         "cacheReadCostMicrosPerMillion": 400000,
-        "cacheWriteCostMicrosPerMillion": 5000000
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1050000
       },
       {
         "id": "gpt-5.2-chat-latest",
@@ -393,7 +429,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1750000,
         "outputCostMicrosPerMillion": 14000000,
         "cacheReadCostMicrosPerMillion": 175000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "o1",
@@ -403,7 +440,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 15000000,
         "outputCostMicrosPerMillion": 60000000,
         "cacheReadCostMicrosPerMillion": 7500000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000
       },
       {
         "id": "gpt-5-pro",
@@ -413,7 +451,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 15000000,
         "outputCostMicrosPerMillion": 120000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-5.3-codex-spark",
@@ -423,7 +462,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1750000,
         "outputCostMicrosPerMillion": 14000000,
         "cacheReadCostMicrosPerMillion": 175000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "text-embedding-3-large",
@@ -433,7 +473,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 130000,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8191
       },
       {
         "id": "gpt-4o-2024-08-06",
@@ -443,7 +484,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2500000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "gpt-6-astra",
@@ -453,7 +495,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 10000000,
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1050000
       },
       {
         "id": "gpt-5.1",
@@ -463,7 +506,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 125000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-4o-mini",
@@ -473,7 +517,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "o3-pro",
@@ -483,7 +528,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 20000000,
         "outputCostMicrosPerMillion": 80000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000
       },
       {
         "id": "gpt-image-1",
@@ -493,7 +539,19 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
+      },
+      {
+        "id": "gpt-daybreak-blue-latest",
+        "name": "Daybreak Blue",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 4000000,
+        "outputCostMicrosPerMillion": 20000000,
+        "cacheReadCostMicrosPerMillion": 400000,
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1050000
       },
       {
         "id": "gpt-5.4-mini",
@@ -503,7 +561,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 4500000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-5.6-luna",
@@ -513,7 +572,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 200000,
         "outputCostMicrosPerMillion": 1200000,
         "cacheReadCostMicrosPerMillion": 20000,
-        "cacheWriteCostMicrosPerMillion": 250000
+        "cacheWriteCostMicrosPerMillion": 250000,
+        "contextWindow": 1050000
       },
       {
         "id": "gpt-5.2",
@@ -523,7 +583,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1750000,
         "outputCostMicrosPerMillion": 14000000,
         "cacheReadCostMicrosPerMillion": 175000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-5.5",
@@ -533,7 +594,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 30000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000
       },
       {
         "id": "gpt-4.1",
@@ -543,7 +605,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 8000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1047576
       },
       {
         "id": "gpt-4o-2024-11-20",
@@ -553,7 +616,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2500000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "gpt-4.1-mini",
@@ -563,17 +627,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 400000,
         "outputCostMicrosPerMillion": 1600000,
         "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "gpt-6-luna",
-        "name": "GPT-6 Luna",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 500000,
-        "cacheReadCostMicrosPerMillion": 10000,
-        "cacheWriteCostMicrosPerMillion": 125000
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1047576
       }
     ]
   },
@@ -595,7 +650,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 3750000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemma-4-31b-it",
@@ -605,7 +661,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "gemini-omni-flash-preview",
@@ -615,7 +672,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1500000,
         "outputCostMicrosPerMillion": 17500000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "gemini-3.1-flash-image-preview",
@@ -625,7 +683,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 500000,
         "outputCostMicrosPerMillion": 60000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 65536
       },
       {
         "id": "veo-3.1-lite-generate-preview",
@@ -635,7 +694,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "lyria-3-pro-preview",
@@ -645,7 +705,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 0,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-3.1-flash-tts-preview",
@@ -655,7 +716,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1000000,
         "outputCostMicrosPerMillion": 20000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8192
       },
       {
         "id": "gemini-2.5-flash-image",
@@ -665,7 +727,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 300000,
         "outputCostMicrosPerMillion": 30000000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 32768
       },
       {
         "id": "gemini-flash-lite-latest",
@@ -675,7 +738,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 300000,
         "outputCostMicrosPerMillion": 2500000,
         "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-embedding-2",
@@ -685,7 +749,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 200000,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8192
       },
       {
         "id": "gemini-3.6-flash",
@@ -695,7 +760,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 3750000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemma-4-26b-a4b-it",
@@ -705,7 +771,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "gemini-3-pro-image-preview",
@@ -715,7 +782,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 120000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "gemini-2.5-pro-preview-tts",
@@ -725,7 +793,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1000000,
         "outputCostMicrosPerMillion": 20000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8192
       },
       {
         "id": "gemini-3.5-flash-lite",
@@ -735,7 +804,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 300000,
         "outputCostMicrosPerMillion": 2500000,
         "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-3.1-flash-image",
@@ -745,7 +815,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 500000,
         "outputCostMicrosPerMillion": 60000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "lyria-3-clip-preview",
@@ -755,7 +826,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 0,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-3.1-pro-preview",
@@ -765,7 +837,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 12000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-2.5-computer-use-preview-10-2025",
@@ -775,7 +848,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "gemini-3.5-flash",
@@ -785,7 +859,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1500000,
         "outputCostMicrosPerMillion": 9000000,
         "cacheReadCostMicrosPerMillion": 150000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-2.5-pro",
@@ -795,7 +870,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 125000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-3-pro-image",
@@ -805,7 +881,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 120000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 65536
       },
       {
         "id": "gemini-2.5-flash",
@@ -815,7 +892,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 300000,
         "outputCostMicrosPerMillion": 2500000,
         "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-2.5-flash-preview-tts",
@@ -825,7 +903,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 500000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8192
       },
       {
         "id": "gemini-3.1-flash-lite-image",
@@ -835,7 +914,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 250000,
         "outputCostMicrosPerMillion": 30000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 65536
       },
       {
         "id": "deep-research-preview-04-2026",
@@ -845,7 +925,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 12000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "deep-research-max-preview-04-2026",
@@ -855,7 +936,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 12000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "veo-3.1-fast-generate-preview",
@@ -865,7 +947,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "gemini-3.7-flash",
@@ -875,7 +958,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 3750000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "veo-3.1-generate-preview",
@@ -885,7 +969,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "gemini-3.1-pro-preview-customtools",
@@ -895,7 +980,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 12000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-3-flash-preview",
@@ -905,7 +991,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 500000,
         "outputCostMicrosPerMillion": 3000000,
         "cacheReadCostMicrosPerMillion": 50000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-3.8-flash",
@@ -915,7 +1002,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 3750000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-3.5-live-translate-preview",
@@ -925,7 +1013,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3500000,
         "outputCostMicrosPerMillion": 21000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 16384
       },
       {
         "id": "gemini-2.5-flash-lite",
@@ -935,7 +1024,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 400000,
         "cacheReadCostMicrosPerMillion": 10000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-embedding-001",
@@ -945,7 +1035,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 2048
       },
       {
         "id": "gemini-3.1-flash-lite-preview",
@@ -955,7 +1046,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 250000,
         "outputCostMicrosPerMillion": 1500000,
         "cacheReadCostMicrosPerMillion": 25000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gemini-3.1-flash-live-preview",
@@ -965,7 +1057,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 4500000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "gemini-3.1-flash-lite",
@@ -975,7 +1068,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 250000,
         "outputCostMicrosPerMillion": 1500000,
         "cacheReadCostMicrosPerMillion": 25000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       }
     ]
   },
@@ -995,7 +1089,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 40000,
         "outputCostMicrosPerMillion": 50000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8192
       },
       {
         "id": "sao10k/l3.3-euryale-70b",
@@ -1005,7 +1100,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 650000,
         "outputCostMicrosPerMillion": 750000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "sao10k/l3.1-euryale-70b",
@@ -1015,7 +1111,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 850000,
         "outputCostMicrosPerMillion": 850000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "kwaipilot/kat-coder-pro-v2.5",
@@ -1025,7 +1122,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 740000,
         "outputCostMicrosPerMillion": 2960000,
         "cacheReadCostMicrosPerMillion": 150000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "stealth/space-bunny-alpha",
@@ -1035,7 +1133,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 0,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "bytedance-seed/seed-1.6-flash",
@@ -1045,7 +1144,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 75000,
         "outputCostMicrosPerMillion": 300000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "bytedance-seed/seed-2.0-lite",
@@ -1055,7 +1155,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 250000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "bytedance-seed/seed-2-1-turbo",
@@ -1065,7 +1166,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 500000,
         "outputCostMicrosPerMillion": 2500000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "bytedance-seed/seed-2.0-mini",
@@ -1075,7 +1177,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 400000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "bytedance-seed/seed-2.0-code",
@@ -1085,7 +1188,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 500000,
         "outputCostMicrosPerMillion": 3000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "bytedance-seed/seed-1.6",
@@ -1095,17 +1199,19 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 250000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "~moonshotai/kimi-latest",
         "name": "Kimi Latest",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 1400000,
-        "outputCostMicrosPerMillion": 10750000,
+        "inputCostMicrosPerMillion": 1000000,
+        "outputCostMicrosPerMillion": 9000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "poolside/laguna-s-2.1:free",
@@ -1115,7 +1221,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 0,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "poolside/laguna-s-2.1",
@@ -1125,7 +1232,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 90000,
         "outputCostMicrosPerMillion": 180000,
         "cacheReadCostMicrosPerMillion": 9000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "poolside/laguna-xs-2.1:free",
@@ -1135,7 +1243,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 0,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "poolside/laguna-xs-2.1",
@@ -1145,7 +1254,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 60000,
         "outputCostMicrosPerMillion": 120000,
         "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "prism-ml/ternary-bonsai-2-27b",
@@ -1155,7 +1265,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 75000,
         "outputCostMicrosPerMillion": 500000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "anthropic/claude-opus-4.1",
@@ -1165,7 +1276,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 15000000,
         "outputCostMicrosPerMillion": 75000000,
         "cacheReadCostMicrosPerMillion": 1500000,
-        "cacheWriteCostMicrosPerMillion": 18750000
+        "cacheWriteCostMicrosPerMillion": 18750000,
+        "contextWindow": 200000
       },
       {
         "id": "anthropic/claude-opus-4.5",
@@ -1175,7 +1287,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 200000
       },
       {
         "id": "anthropic/claude-opus-4.6",
@@ -1185,7 +1298,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000
       },
       {
         "id": "anthropic/claude-opus-4.7",
@@ -1195,17 +1309,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
-      },
-      {
-        "id": "anthropic/claude-3-haiku",
-        "name": "Claude 3 Haiku",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 250000,
-        "outputCostMicrosPerMillion": 1250000,
-        "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": 300000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000
       },
       {
         "id": "anthropic/claude-opus-4.8",
@@ -1215,7 +1320,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000
       },
       {
         "id": "anthropic/claude-haiku-4.5",
@@ -1225,7 +1331,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1000000,
         "outputCostMicrosPerMillion": 5000000,
         "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": 1250000
+        "cacheWriteCostMicrosPerMillion": 1250000,
+        "contextWindow": 200000
       },
       {
         "id": "anthropic/claude-opus-5",
@@ -1235,7 +1342,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000
       },
       {
         "id": "anthropic/claude-fable-5.1",
@@ -1245,7 +1353,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 10000000,
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": 12500000
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000
       },
       {
         "id": "anthropic/claude-sonnet-4.5",
@@ -1255,7 +1364,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 1000000
       },
       {
         "id": "anthropic/claude-fable-5",
@@ -1265,7 +1375,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 10000000,
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000
       },
       {
         "id": "anthropic/claude-sonnet-4",
@@ -1275,7 +1386,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 200000
       },
       {
         "id": "anthropic/claude-sonnet-5",
@@ -1285,7 +1397,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 2500000
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1000000
       },
       {
         "id": "anthropic/claude-sonnet-4.6",
@@ -1295,7 +1408,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 1000000
       },
       {
         "id": "anthropic/claude-opus-5.5",
@@ -1305,27 +1419,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 4000000,
         "outputCostMicrosPerMillion": 20000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 5000000
-      },
-      {
-        "id": "nex-agi/nex-n2.5-mini:free",
-        "name": "Nex-N2.5-Mini (free)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 0,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "nex-agi/nex-n2.5-pro:free",
-        "name": "Nex-N2.5-Pro (free)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 0,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1000000
       },
       {
         "id": "cohere/command-r-08-2024",
@@ -1335,7 +1430,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "cohere/command-a-plus",
@@ -1345,7 +1441,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 300000,
         "outputCostMicrosPerMillion": 1500000,
         "cacheReadCostMicrosPerMillion": 150000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 192000
       },
       {
         "id": "cohere/command-a",
@@ -1355,7 +1452,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2500000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000
       },
       {
         "id": "cohere/north-mini-code:free",
@@ -1365,7 +1463,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 0,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000
       },
       {
         "id": "cohere/command-r7b-12-2024",
@@ -1375,7 +1474,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 37500,
         "outputCostMicrosPerMillion": 150000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "cohere/command-r-plus-08-2024",
@@ -1385,7 +1485,41 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2500000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
+      },
+      {
+        "id": "deepseek/deepseek-chat-v3.1",
+        "name": "DeepSeek V3.1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 250000,
+        "outputCostMicrosPerMillion": 950000,
+        "cacheReadCostMicrosPerMillion": 130000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 163840
+      },
+      {
+        "id": "deepseek/deepseek-v4-flash-0731",
+        "name": "DeepSeek V4 Flash 0731",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 21000,
+        "outputCostMicrosPerMillion": 320000,
+        "cacheReadCostMicrosPerMillion": 16000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1310720
+      },
+      {
+        "id": "deepseek/deepseek-v4.1-flash",
+        "name": "DeepSeek V4.1 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 35000,
+        "outputCostMicrosPerMillion": 290000,
+        "cacheReadCostMicrosPerMillion": 1000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       }
     ]
   },
@@ -1405,7 +1539,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "llama-3.3-70b-versatile",
@@ -1415,7 +1550,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 590000,
         "outputCostMicrosPerMillion": 790000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "allam-2-7b",
@@ -1425,7 +1561,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 0,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 4096
       },
       {
         "id": "whisper-large-v3-turbo",
@@ -1435,7 +1572,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "llama-3.1-8b-instant",
@@ -1445,7 +1583,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 50000,
         "outputCostMicrosPerMillion": 80000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "groq/compound-mini",
@@ -1455,7 +1594,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "groq/compound",
@@ -1465,7 +1605,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "meta-llama/llama-prompt-guard-2-86m",
@@ -1475,7 +1616,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 40000,
         "outputCostMicrosPerMillion": 40000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "meta-llama/llama-prompt-guard-2-22m",
@@ -1485,7 +1627,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 30000,
         "outputCostMicrosPerMillion": 30000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "canopylabs/orpheus-v1-english",
@@ -1495,7 +1638,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 4000
       },
       {
         "id": "canopylabs/orpheus-arabic-saudi",
@@ -1505,7 +1649,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 4000
       },
       {
         "id": "qwen/qwen3.8-27b",
@@ -1515,7 +1660,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 800000,
         "outputCostMicrosPerMillion": 4000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131042
       },
       {
         "id": "qwen/qwen3.6-27b",
@@ -1525,7 +1671,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 600000,
         "outputCostMicrosPerMillion": 3000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "openai/gpt-oss-20b",
@@ -1535,7 +1682,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 75000,
         "outputCostMicrosPerMillion": 300000,
         "cacheReadCostMicrosPerMillion": 37500,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "openai/gpt-oss-safeguard-20b",
@@ -1545,7 +1693,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 75000,
         "outputCostMicrosPerMillion": 300000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "openai/gpt-oss-120b",
@@ -1555,7 +1704,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       }
     ]
   },
@@ -1575,7 +1725,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 150000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "codestral-latest",
@@ -1585,7 +1736,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 300000,
         "outputCostMicrosPerMillion": 900000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000
       },
       {
         "id": "mistral-large-2411",
@@ -1595,7 +1747,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "mistral-nemo",
@@ -1605,7 +1758,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 150000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "voxtral-mini-tts-latest",
@@ -1615,7 +1769,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "mistral-medium-2508",
@@ -1625,7 +1780,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 400000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "mistral-large-latest",
@@ -1635,7 +1791,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 500000,
         "outputCostMicrosPerMillion": 1500000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "mistral-small-latest",
@@ -1645,7 +1802,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000
       },
       {
         "id": "zai-glm-5-2",
@@ -1655,7 +1813,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1400000,
         "outputCostMicrosPerMillion": 4400000,
         "cacheReadCostMicrosPerMillion": 140000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "ministral-8b-latest",
@@ -1665,7 +1824,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 100000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "devstral-medium-latest",
@@ -1675,7 +1835,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 400000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "open-mixtral-8x22b",
@@ -1685,7 +1846,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 64000
       },
       {
         "id": "devstral-2512",
@@ -1695,7 +1857,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 400000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "mistral-medium-2505",
@@ -1705,7 +1868,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 400000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "magistral-medium-latest",
@@ -1715,7 +1879,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 5000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "pixtral-12b",
@@ -1725,7 +1890,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 150000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "mistral-embed",
@@ -1735,7 +1901,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8000
       },
       {
         "id": "devstral-small-2505",
@@ -1745,7 +1912,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 300000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "mistral-small-2603",
@@ -1755,7 +1923,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000
       },
       {
         "id": "devstral-medium-2507",
@@ -1765,7 +1934,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 400000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "magistral-small",
@@ -1775,7 +1945,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 500000,
         "outputCostMicrosPerMillion": 1500000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "voxtral-mini-latest",
@@ -1785,7 +1956,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "labs-devstral-small-2512",
@@ -1795,7 +1967,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 0,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000
       },
       {
         "id": "mistral-large-2512",
@@ -1805,7 +1978,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 500000,
         "outputCostMicrosPerMillion": 1500000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "devstral-latest",
@@ -1815,7 +1989,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 400000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "devstral-small-2507",
@@ -1825,7 +2000,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 300000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "pixtral-large-latest",
@@ -1835,7 +2011,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "voxtral-small-latest",
@@ -1845,7 +2022,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 300000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 32000
       },
       {
         "id": "open-mixtral-8x7b",
@@ -1855,7 +2033,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 700000,
         "outputCostMicrosPerMillion": 700000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 32000
       },
       {
         "id": "mistral-small-2506",
@@ -1865,7 +2044,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 300000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "zai-glm-5-3",
@@ -1875,7 +2055,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1400000,
         "outputCostMicrosPerMillion": 4400000,
         "cacheReadCostMicrosPerMillion": 140000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "mistral-medium-2604",
@@ -1885,7 +2066,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1500000,
         "outputCostMicrosPerMillion": 7500000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "open-mistral-7b",
@@ -1895,7 +2077,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 250000,
         "outputCostMicrosPerMillion": 250000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8000
       },
       {
         "id": "ministral-3b-latest",
@@ -1905,7 +2088,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 40000,
         "outputCostMicrosPerMillion": 40000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "mistral-medium-latest",
@@ -1915,7 +2099,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1500000,
         "outputCostMicrosPerMillion": 7500000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       }
     ]
   },
@@ -1935,7 +2120,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
         "cacheReadCostMicrosPerMillion": 3000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "deepseek-flash",
@@ -1945,7 +2131,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
         "cacheReadCostMicrosPerMillion": 3000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "deepseek-v4-pro",
@@ -1955,7 +2142,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 435000,
         "outputCostMicrosPerMillion": 870000,
         "cacheReadCostMicrosPerMillion": 3625,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "deepseek-v4-flash",
@@ -1965,7 +2153,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
         "cacheReadCostMicrosPerMillion": 3000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       }
     ]
   },
@@ -1985,7 +2174,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 500000
       },
       {
         "id": "grok-imagine-image",
@@ -1995,7 +2185,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 16000
       },
       {
         "id": "grok-imagine-video",
@@ -2005,7 +2196,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1024
       },
       {
         "id": "grok-4.3",
@@ -2015,7 +2207,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 2500000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "grok-4.20-0309-reasoning",
@@ -2025,7 +2218,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 2500000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "grok-imagine-video-1.5",
@@ -2035,7 +2229,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1024
       },
       {
         "id": "grok-4.5",
@@ -2045,7 +2240,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 500000
       },
       {
         "id": "grok-4.20-0309-non-reasoning",
@@ -2055,7 +2251,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 2500000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "grok-imagine-image-quality",
@@ -2065,7 +2262,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": null,
         "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 16000
       },
       {
         "id": "grok-build-0.1",
@@ -2075,7 +2273,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1000000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000
       },
       {
         "id": "grok-4.20-multi-agent-0309",
@@ -2085,7 +2284,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 2500000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "grok-4.6",
@@ -2095,7 +2295,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 500000
       }
     ]
   },
@@ -2108,16 +2309,6 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
     "doc": "https://fireworks.ai/docs/",
     "models": [
       {
-        "id": "accounts/fireworks/models/kimi-k2p6",
-        "name": "Kimi K2.6",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 950000,
-        "outputCostMicrosPerMillion": 4000000,
-        "cacheReadCostMicrosPerMillion": 160000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
         "id": "accounts/fireworks/models/nemotron-3-ultra-nvfp4",
         "name": "Nemotron 3 Ultra 550B A55B",
         "toolCall": true,
@@ -2125,27 +2316,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 600000,
         "outputCostMicrosPerMillion": 2400000,
         "cacheReadCostMicrosPerMillion": 120000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "accounts/fireworks/models/deepseek-v4-flash-0731",
-        "name": "DeepSeek V4 Flash 0731",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 220000,
-        "outputCostMicrosPerMillion": 660000,
-        "cacheReadCostMicrosPerMillion": 7000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "accounts/fireworks/models/muse-glimmer-30b",
-        "name": "Muse Glimmer 30B",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 350000,
-        "outputCostMicrosPerMillion": 1500000,
-        "cacheReadCostMicrosPerMillion": 40000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "accounts/fireworks/models/kimi-k3",
@@ -2155,7 +2327,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "accounts/fireworks/models/qwen3p8-2p4t-a95b",
@@ -2165,7 +2338,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "accounts/fireworks/models/ember-1",
@@ -2175,17 +2349,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "accounts/fireworks/models/deepseek-v4-flash-vision-exp",
-        "name": "DeepSeek V4 Flash Vision Exp",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 220000,
-        "outputCostMicrosPerMillion": 660000,
-        "cacheReadCostMicrosPerMillion": 7000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "accounts/fireworks/models/deepseek-v4p1-flash",
@@ -2195,17 +2360,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 220000,
         "outputCostMicrosPerMillion": 660000,
         "cacheReadCostMicrosPerMillion": 7000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "accounts/fireworks/models/qwen3p7-plus",
-        "name": "Qwen 3.7 Plus",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 400000,
-        "outputCostMicrosPerMillion": 1600000,
-        "cacheReadCostMicrosPerMillion": 80000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "accounts/fireworks/models/glm-5p3",
@@ -2215,17 +2371,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1400000,
         "outputCostMicrosPerMillion": 4400000,
         "cacheReadCostMicrosPerMillion": 260000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "accounts/fireworks/models/minimax-m2p7",
-        "name": "MiniMax-M2.7",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1200000,
-        "outputCostMicrosPerMillion": 1200000,
-        "cacheReadCostMicrosPerMillion": 600000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048573
       },
       {
         "id": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
@@ -2235,17 +2382,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 50000,
         "outputCostMicrosPerMillion": 200000,
         "cacheReadCostMicrosPerMillion": 10000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "accounts/fireworks/models/deepseek-v4-pro-0813",
-        "name": "DeepSeek V4 Pro 0813",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1320000,
-        "outputCostMicrosPerMillion": 3960000,
-        "cacheReadCostMicrosPerMillion": 44000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "accounts/fireworks/models/inkling",
@@ -2255,17 +2393,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1000000,
         "outputCostMicrosPerMillion": 4050000,
         "cacheReadCostMicrosPerMillion": 170000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "accounts/fireworks/models/glm-5p2",
-        "name": "GLM 5.2",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1400000,
-        "outputCostMicrosPerMillion": 4400000,
-        "cacheReadCostMicrosPerMillion": 140000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "accounts/fireworks/models/minimax-m3",
@@ -2275,17 +2404,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 300000,
         "outputCostMicrosPerMillion": 1200000,
         "cacheReadCostMicrosPerMillion": 60000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "accounts/fireworks/models/kimi-k2p7-code",
-        "name": "Kimi K2.7 Code",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 950000,
-        "outputCostMicrosPerMillion": 4000000,
-        "cacheReadCostMicrosPerMillion": 190000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 512000
       },
       {
         "id": "accounts/fireworks/models/glm-5p3-flash",
@@ -2295,17 +2415,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 500000,
         "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "accounts/fireworks/models/deepseek-v4-pro",
-        "name": "DeepSeek V4 Pro",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1200000,
-        "outputCostMicrosPerMillion": 1200000,
-        "cacheReadCostMicrosPerMillion": 600000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048573
       },
       {
         "id": "accounts/fireworks/models/gpt-oss-120b",
@@ -2315,7 +2426,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
         "cacheReadCostMicrosPerMillion": 15000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "accounts/fireworks/models/qwen3p8-max",
@@ -2325,7 +2437,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "accounts/fireworks/routers/minimax-latest",
@@ -2335,7 +2448,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 300000,
         "outputCostMicrosPerMillion": 1200000,
         "cacheReadCostMicrosPerMillion": 60000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 512000
       },
       {
         "id": "accounts/fireworks/routers/glm-flash-latest",
@@ -2345,7 +2459,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 500000,
         "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048573
       },
       {
         "id": "accounts/fireworks/routers/glm-fast-latest",
@@ -2355,7 +2470,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2100000,
         "outputCostMicrosPerMillion": 6600000,
         "cacheReadCostMicrosPerMillion": 390000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048572
       },
       {
         "id": "accounts/fireworks/routers/kimi-k3-fast",
@@ -2365,7 +2481,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 4500000,
         "outputCostMicrosPerMillion": 22500000,
         "cacheReadCostMicrosPerMillion": 450000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "accounts/fireworks/routers/glm-5p3-fast",
@@ -2375,7 +2492,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2100000,
         "outputCostMicrosPerMillion": 6600000,
         "cacheReadCostMicrosPerMillion": 390000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048572
       },
       {
         "id": "accounts/fireworks/routers/kimi-fast-latest",
@@ -2385,7 +2503,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 4500000,
         "outputCostMicrosPerMillion": 22500000,
         "cacheReadCostMicrosPerMillion": 450000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "accounts/fireworks/routers/qwen-max-latest",
@@ -2395,7 +2514,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "accounts/fireworks/routers/kimi-latest",
@@ -2405,7 +2525,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "accounts/fireworks/routers/deepseek-flash-latest",
@@ -2415,27 +2536,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 220000,
         "outputCostMicrosPerMillion": 660000,
         "cacheReadCostMicrosPerMillion": 7000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "accounts/fireworks/routers/glm-5p2-fast",
-        "name": "GLM 5.2 Fast",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2100000,
-        "outputCostMicrosPerMillion": 6600000,
-        "cacheReadCostMicrosPerMillion": 210000,
-        "cacheWriteCostMicrosPerMillion": null
-      },
-      {
-        "id": "accounts/fireworks/routers/deepseek-pro-latest",
-        "name": "DeepSeek Pro Latest",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1320000,
-        "outputCostMicrosPerMillion": 3960000,
-        "cacheReadCostMicrosPerMillion": 44000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "accounts/fireworks/routers/glm-latest",
@@ -2445,7 +2547,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1400000,
         "outputCostMicrosPerMillion": 4400000,
         "cacheReadCostMicrosPerMillion": 260000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048573
       }
     ]
   },
@@ -2465,7 +2568,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 990000,
         "outputCostMicrosPerMillion": 1490000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "gpt-oss-120b",
@@ -2475,7 +2579,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 350000,
         "outputCostMicrosPerMillion": 750000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       }
     ]
   },
@@ -2496,7 +2601,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 200000,
         "outputCostMicrosPerMillion": 500000,
         "cacheReadCostMicrosPerMillion": 50000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "gpt-5.4",
@@ -2506,7 +2612,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2500000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000
       },
       {
         "id": "deepseek-v3.2-speciale",
@@ -2516,7 +2623,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 580000,
         "outputCostMicrosPerMillion": 1680000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "claude-haiku-4-5",
@@ -2526,7 +2634,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1000000,
         "outputCostMicrosPerMillion": 5000000,
         "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": 1250000
+        "cacheWriteCostMicrosPerMillion": 1250000,
+        "contextWindow": 200000
       },
       {
         "id": "gpt-5.4-pro",
@@ -2536,7 +2645,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 30000000,
         "outputCostMicrosPerMillion": 180000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000
       },
       {
         "id": "grok-4-1-fast-non-reasoning",
@@ -2546,7 +2656,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 200000,
         "outputCostMicrosPerMillion": 500000,
         "cacheReadCostMicrosPerMillion": 50000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "phi-4-reasoning",
@@ -2556,7 +2667,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 125000,
         "outputCostMicrosPerMillion": 500000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 32000
       },
       {
         "id": "text-embedding-3-small",
@@ -2566,7 +2678,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 20000,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8192
       },
       {
         "id": "gpt-5.4-nano",
@@ -2576,7 +2689,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 200000,
         "outputCostMicrosPerMillion": 1250000,
         "cacheReadCostMicrosPerMillion": 20000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-5.2-codex",
@@ -2586,7 +2700,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1750000,
         "outputCostMicrosPerMillion": 14000000,
         "cacheReadCostMicrosPerMillion": 175000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-5.1-codex",
@@ -2596,7 +2711,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 125000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-4o",
@@ -2606,7 +2722,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2500000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "ministral-3b",
@@ -2616,7 +2733,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 40000,
         "outputCostMicrosPerMillion": 40000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "gpt-chat-latest",
@@ -2626,7 +2744,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 30000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-5-codex",
@@ -2636,7 +2755,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 130000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-5-mini",
@@ -2646,7 +2766,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 250000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-image-2",
@@ -2656,7 +2777,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 30000000,
         "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "o4-mini",
@@ -2666,7 +2788,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1100000,
         "outputCostMicrosPerMillion": 4400000,
         "cacheReadCostMicrosPerMillion": 275000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000
       },
       {
         "id": "llama-4-maverick-17b-128e-instruct-fp8",
@@ -2676,7 +2799,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 250000,
         "outputCostMicrosPerMillion": 1000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "o3-mini",
@@ -2686,7 +2810,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1100000,
         "outputCostMicrosPerMillion": 4400000,
         "cacheReadCostMicrosPerMillion": 550000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000
       },
       {
         "id": "claude-opus-4-5",
@@ -2696,7 +2821,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 200000
       },
       {
         "id": "text-embedding-ada-002",
@@ -2706,7 +2832,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8192
       },
       {
         "id": "gpt-5.3-codex",
@@ -2716,7 +2843,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1750000,
         "outputCostMicrosPerMillion": 14000000,
         "cacheReadCostMicrosPerMillion": 175000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-4.1-nano",
@@ -2726,7 +2854,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 400000,
         "cacheReadCostMicrosPerMillion": 25000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1047576
       },
       {
         "id": "gpt-5-nano",
@@ -2736,7 +2865,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 50000,
         "outputCostMicrosPerMillion": 400000,
         "cacheReadCostMicrosPerMillion": 10000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "phi-4-multimodal",
@@ -2746,7 +2876,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 80000,
         "outputCostMicrosPerMillion": 320000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "kimi-k2.6",
@@ -2756,7 +2887,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 950000,
         "outputCostMicrosPerMillion": 4000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "claude-sonnet-4-5",
@@ -2766,7 +2898,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 200000
       },
       {
         "id": "claude-opus-5-5",
@@ -2776,7 +2909,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 4000000,
         "outputCostMicrosPerMillion": 20000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 5000000
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1000000
       },
       {
         "id": "gpt-image-2.5-flare",
@@ -2786,7 +2920,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 30000000,
         "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "claude-fable-5-1",
@@ -2796,7 +2931,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 10000000,
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": 12500000
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000
       },
       {
         "id": "mistral-medium-2505",
@@ -2806,7 +2942,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 400000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "cohere-embed-v3-multilingual",
@@ -2816,7 +2953,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 0,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": null
       },
       {
         "id": "o1",
@@ -2826,7 +2964,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 15000000,
         "outputCostMicrosPerMillion": 60000000,
         "cacheReadCostMicrosPerMillion": 7500000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000
       },
       {
         "id": "codex-mini",
@@ -2836,7 +2975,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1500000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": 375000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000
       },
       {
         "id": "phi-4-reasoning-plus",
@@ -2846,7 +2986,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 125000,
         "outputCostMicrosPerMillion": 500000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 32000
       },
       {
         "id": "claude-mythos-5",
@@ -2856,7 +2997,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 10000000,
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000
       },
       {
         "id": "gpt-5-pro",
@@ -2866,7 +3008,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 15000000,
         "outputCostMicrosPerMillion": 120000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-3.5-turbo-instruct",
@@ -2876,7 +3019,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1500000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 4096
       },
       {
         "id": "gpt-3.5-turbo-0125",
@@ -2886,7 +3030,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 500000,
         "outputCostMicrosPerMillion": 1500000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 16384
       }
     ]
   },
@@ -2909,7 +3054,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 90000,
         "outputCostMicrosPerMillion": 290000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "google.gemma-3-4b-it",
@@ -2919,7 +3065,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 40000,
         "outputCostMicrosPerMillion": 80000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "eu.anthropic.claude-fable-5",
@@ -2929,7 +3076,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 11000000,
         "outputCostMicrosPerMillion": 55000000,
         "cacheReadCostMicrosPerMillion": 1100000,
-        "cacheWriteCostMicrosPerMillion": 13750000
+        "cacheWriteCostMicrosPerMillion": 13750000,
+        "contextWindow": 1000000
       },
       {
         "id": "qwen.qwen3-coder-480b-a35b-v1:0",
@@ -2939,7 +3087,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 450000,
         "outputCostMicrosPerMillion": 1800000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "google.gemma-4-31b",
@@ -2949,7 +3098,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 140000,
         "outputCostMicrosPerMillion": 400000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "us.writer.palmyra-x5-v1:0",
@@ -2959,7 +3109,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 600000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1040000
       },
       {
         "id": "google.gemma-4-e2b",
@@ -2969,7 +3120,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 40000,
         "outputCostMicrosPerMillion": 80000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072
       },
       {
         "id": "us.anthropic.claude-opus-4-7",
@@ -2979,7 +3131,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5500000,
         "outputCostMicrosPerMillion": 27500000,
         "cacheReadCostMicrosPerMillion": 550000,
-        "cacheWriteCostMicrosPerMillion": 6875000
+        "cacheWriteCostMicrosPerMillion": 6875000,
+        "contextWindow": 1000000
       },
       {
         "id": "global.openai.gpt-6-astra",
@@ -2989,7 +3142,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 10000000,
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1050000
       },
       {
         "id": "eu.amazon.nova-lite-v1:0",
@@ -2999,7 +3153,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 69000,
         "outputCostMicrosPerMillion": 276000,
         "cacheReadCostMicrosPerMillion": 17250,
-        "cacheWriteCostMicrosPerMillion": 69000
+        "cacheWriteCostMicrosPerMillion": 69000,
+        "contextWindow": 300000
       },
       {
         "id": "global.anthropic.claude-opus-5-5",
@@ -3009,7 +3164,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 4000000,
         "outputCostMicrosPerMillion": 20000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 5000000
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1000000
       },
       {
         "id": "deepseek.r1-v1:0",
@@ -3019,7 +3175,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1350000,
         "outputCostMicrosPerMillion": 5400000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "openai.gpt-oss-safeguard-20b",
@@ -3029,7 +3186,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 70000,
         "outputCostMicrosPerMillion": 200000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "anthropic.claude-opus-5-5",
@@ -3039,7 +3197,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 4000000,
         "outputCostMicrosPerMillion": 20000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 5000000
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1000000
       },
       {
         "id": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -3049,7 +3208,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1000000,
         "outputCostMicrosPerMillion": 5000000,
         "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": 1250000
+        "cacheWriteCostMicrosPerMillion": 1250000,
+        "contextWindow": 200000
       },
       {
         "id": "eu.amazon.nova-2-lite-v1:0",
@@ -3059,7 +3219,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 374000,
         "outputCostMicrosPerMillion": 3157000,
         "cacheReadCostMicrosPerMillion": 93500,
-        "cacheWriteCostMicrosPerMillion": 374000
+        "cacheWriteCostMicrosPerMillion": 374000,
+        "contextWindow": 1000000
       },
       {
         "id": "us.amazon.nova-pro-v1:0",
@@ -3069,7 +3230,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 800000,
         "outputCostMicrosPerMillion": 3200000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 800000
+        "cacheWriteCostMicrosPerMillion": 800000,
+        "contextWindow": 300000
       },
       {
         "id": "jp.anthropic.claude-opus-5-5",
@@ -3079,7 +3241,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 4400000,
         "outputCostMicrosPerMillion": 22000000,
         "cacheReadCostMicrosPerMillion": 220000,
-        "cacheWriteCostMicrosPerMillion": 5500000
+        "cacheWriteCostMicrosPerMillion": 5500000,
+        "contextWindow": 1000000
       },
       {
         "id": "openai.gpt-5.6-luna",
@@ -3089,7 +3252,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 220000,
         "outputCostMicrosPerMillion": 1320000,
         "cacheReadCostMicrosPerMillion": 22000,
-        "cacheWriteCostMicrosPerMillion": 275000
+        "cacheWriteCostMicrosPerMillion": 275000,
+        "contextWindow": 1050000
       },
       {
         "id": "us.meta.llama4-maverick-17b-instruct-v1:0",
@@ -3099,7 +3263,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 240000,
         "outputCostMicrosPerMillion": 970000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "apac.amazon.nova-micro-v1:0",
@@ -3109,7 +3274,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 37000,
         "outputCostMicrosPerMillion": 148000,
         "cacheReadCostMicrosPerMillion": 9250,
-        "cacheWriteCostMicrosPerMillion": 37000
+        "cacheWriteCostMicrosPerMillion": 37000,
+        "contextWindow": 128000
       },
       {
         "id": "eu.anthropic.claude-sonnet-4-20250514-v1:0",
@@ -3119,7 +3285,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 200000
       },
       {
         "id": "eu.anthropic.claude-opus-4-5-20251101-v1:0",
@@ -3129,7 +3296,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5500000,
         "outputCostMicrosPerMillion": 27500000,
         "cacheReadCostMicrosPerMillion": 550000,
-        "cacheWriteCostMicrosPerMillion": 6875000
+        "cacheWriteCostMicrosPerMillion": 6875000,
+        "contextWindow": 200000
       },
       {
         "id": "global.openai.gpt-6-sol",
@@ -3139,7 +3307,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 2500000
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000
       },
       {
         "id": "qwen.qwen3-coder-30b-a3b-v1:0",
@@ -3149,7 +3318,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144
       },
       {
         "id": "us.amazon.nova-premier-v1:0",
@@ -3159,7 +3329,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2500000,
         "outputCostMicrosPerMillion": 12500000,
         "cacheReadCostMicrosPerMillion": 625000,
-        "cacheWriteCostMicrosPerMillion": 2500000
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1000000
       },
       {
         "id": "anthropic.claude-sonnet-4-6",
@@ -3169,7 +3340,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3300000,
         "outputCostMicrosPerMillion": 16500000,
         "cacheReadCostMicrosPerMillion": 330000,
-        "cacheWriteCostMicrosPerMillion": 4125000
+        "cacheWriteCostMicrosPerMillion": 4125000,
+        "contextWindow": 1000000
       },
       {
         "id": "meta.llama3-1-70b-instruct-v1:0",
@@ -3179,7 +3351,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 720000,
         "outputCostMicrosPerMillion": 720000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000
       },
       {
         "id": "us.writer.palmyra-x4-v1:0",
@@ -3189,7 +3362,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2500000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 122880
       },
       {
         "id": "apac.amazon.nova-pro-v1:0",
@@ -3199,7 +3373,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 840000,
         "outputCostMicrosPerMillion": 3360000,
         "cacheReadCostMicrosPerMillion": 210000,
-        "cacheWriteCostMicrosPerMillion": 840000
+        "cacheWriteCostMicrosPerMillion": 840000,
+        "contextWindow": 300000
       },
       {
         "id": "global.anthropic.claude-fable-5-1",
@@ -3209,7 +3384,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 10000000,
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": 12500000
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000
       },
       {
         "id": "us.anthropic.claude-sonnet-5",
@@ -3219,7 +3395,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2200000,
         "outputCostMicrosPerMillion": 11000000,
         "cacheReadCostMicrosPerMillion": 220000,
-        "cacheWriteCostMicrosPerMillion": 2750000
+        "cacheWriteCostMicrosPerMillion": 2750000,
+        "contextWindow": 1000000
       },
       {
         "id": "amazon.nova-micro-v1:0",
@@ -3229,7 +3406,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 35000,
         "outputCostMicrosPerMillion": 140000,
         "cacheReadCostMicrosPerMillion": 8750,
-        "cacheWriteCostMicrosPerMillion": 35000
+        "cacheWriteCostMicrosPerMillion": 35000,
+        "contextWindow": 128000
       },
       {
         "id": "minimax.minimax-m2.5",
@@ -3239,7 +3417,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 300000,
         "outputCostMicrosPerMillion": 1200000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 196608
       },
       {
         "id": "xai.grok-4.3",
@@ -3249,7 +3428,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 2500000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "us.amazon.nova-lite-v1:0",
@@ -3259,7 +3439,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 60000,
         "outputCostMicrosPerMillion": 240000,
         "cacheReadCostMicrosPerMillion": 15000,
-        "cacheWriteCostMicrosPerMillion": 60000
+        "cacheWriteCostMicrosPerMillion": 60000,
+        "contextWindow": 300000
       },
       {
         "id": "amazon.nova-pro-v1:0",
@@ -3269,7 +3450,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 800000,
         "outputCostMicrosPerMillion": 3200000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 800000
+        "cacheWriteCostMicrosPerMillion": 800000,
+        "contextWindow": 300000
       },
       {
         "id": "qwen.qwen3-32b-v1:0",
@@ -3279,7 +3461,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 32768
       },
       {
         "id": "openai.gpt-5.5",
@@ -3289,7 +3472,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5500000,
         "outputCostMicrosPerMillion": 33000000,
         "cacheReadCostMicrosPerMillion": 550000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "mistral.voxtral-small-24b-2507",
@@ -3299,7 +3483,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 300000,
         "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 32768
       }
     ]
   },
@@ -3319,7 +3504,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2500000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000
       },
       {
         "id": "grok-4.7",
@@ -3329,7 +3515,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 500000
       },
       {
         "id": "gpt-5.4-nano",
@@ -3339,7 +3526,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 200000,
         "outputCostMicrosPerMillion": 1250000,
         "cacheReadCostMicrosPerMillion": 20000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "claude-opus-4.7",
@@ -3349,7 +3537,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 200000
       },
       {
         "id": "kimi-k3",
@@ -3359,7 +3548,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576
       },
       {
         "id": "gpt-5-mini",
@@ -3369,7 +3559,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 250000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": 25000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 264000
       },
       {
         "id": "claude-opus-4.8",
@@ -3379,7 +3570,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 200000
       },
       {
         "id": "gpt-5.3-codex",
@@ -3389,7 +3581,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1750000,
         "outputCostMicrosPerMillion": 14000000,
         "cacheReadCostMicrosPerMillion": 175000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gemini-3.6-flash",
@@ -3399,7 +3592,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 3750000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "mai-code-1-flash-picker",
@@ -3409,7 +3603,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 4500000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000
       },
       {
         "id": "mai-code-1.1-flash",
@@ -3419,7 +3614,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 200000,
         "outputCostMicrosPerMillion": 1200000,
         "cacheReadCostMicrosPerMillion": 20000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000
       },
       {
         "id": "claude-haiku-4.5",
@@ -3429,7 +3625,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1000000,
         "outputCostMicrosPerMillion": 5000000,
         "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": 1250000
+        "cacheWriteCostMicrosPerMillion": 1250000,
+        "contextWindow": 200000
       },
       {
         "id": "gpt-6-astra",
@@ -3439,7 +3636,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 10000000,
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1050000
       },
       {
         "id": "grok-4.5",
@@ -3449,7 +3647,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 500000
       },
       {
         "id": "claude-opus-5",
@@ -3459,7 +3658,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000
       },
       {
         "id": "gemini-3.5-flash",
@@ -3469,7 +3669,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 1500000,
         "outputCostMicrosPerMillion": 9000000,
         "cacheReadCostMicrosPerMillion": 150000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000
       },
       {
         "id": "claude-fable-5.1",
@@ -3479,7 +3680,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 10000000,
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": 12500000
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000
       },
       {
         "id": "claude-fable-5",
@@ -3489,7 +3691,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 10000000,
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000
       },
       {
         "id": "gpt-5.4-mini",
@@ -3499,7 +3702,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 4500000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000
       },
       {
         "id": "gpt-5.6-luna",
@@ -3509,7 +3713,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 200000,
         "outputCostMicrosPerMillion": 1200000,
         "cacheReadCostMicrosPerMillion": 20000,
-        "cacheWriteCostMicrosPerMillion": 250000
+        "cacheWriteCostMicrosPerMillion": 250000,
+        "contextWindow": 1050000
       },
       {
         "id": "gpt-5.5",
@@ -3519,7 +3724,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 30000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000
       },
       {
         "id": "claude-sonnet-5",
@@ -3529,7 +3735,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 2500000
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1000000
       },
       {
         "id": "gemini-3.7-flash",
@@ -3539,7 +3746,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 3750000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "claude-sonnet-4.6",
@@ -3549,7 +3757,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
         "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 200000
       },
       {
         "id": "gemini-3.8-flash",
@@ -3559,7 +3768,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 3750000,
         "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000
       },
       {
         "id": "gpt-6-luna",
@@ -3569,7 +3779,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 100000,
         "outputCostMicrosPerMillion": 500000,
         "cacheReadCostMicrosPerMillion": 10000,
-        "cacheWriteCostMicrosPerMillion": 125000
+        "cacheWriteCostMicrosPerMillion": 125000,
+        "contextWindow": 1050000
       },
       {
         "id": "claude-opus-5.5",
@@ -3579,7 +3790,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 4000000,
         "outputCostMicrosPerMillion": 20000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 5000000
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1000000
       },
       {
         "id": "gpt-5.6-terra",
@@ -3589,7 +3801,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 12000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 2500000
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000
       },
       {
         "id": "kimi-k2.7-code",
@@ -3599,7 +3812,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 950000,
         "outputCostMicrosPerMillion": 4000000,
         "cacheReadCostMicrosPerMillion": 190000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000
       },
       {
         "id": "grok-4.6",
@@ -3609,7 +3823,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 500000
       },
       {
         "id": "gpt-5.6-sol",
@@ -3619,7 +3834,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 4000000,
         "outputCostMicrosPerMillion": 20000000,
         "cacheReadCostMicrosPerMillion": 400000,
-        "cacheWriteCostMicrosPerMillion": 5000000
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1050000
       },
       {
         "id": "gpt-6-sol",
@@ -3629,7 +3845,8 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "inputCostMicrosPerMillion": 2000000,
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 2500000
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000
       }
     ]
   }

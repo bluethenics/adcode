@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   BUNDLED_CATALOGUE,
+  DEFAULT_CONTEXT_WINDOW,
   SNAPSHOT_TAKEN_ON,
+  contextWindowOf,
   baseUrlFor,
   mergeCatalogue,
   parseCatalogue,
@@ -81,6 +83,7 @@ describe("parseCatalogue", () => {
       outputCostMicrosPerMillion: 25_000_000,
       cacheReadCostMicrosPerMillion: 500_000,
       cacheWriteCostMicrosPerMillion: 6_250_000,
+      contextWindow: null,
     });
   });
 
@@ -192,5 +195,32 @@ describe("transport", () => {
 
   it("points the local option at Ollama", () => {
     expect(baseUrlFor("ollama")).toContain("11434");
+  });
+});
+
+describe("context size", () => {
+  const raw = (limit: unknown) => ({
+    anthropic: { id: "anthropic", name: "Anthropic", env: [], models: { big: { id: "big", name: "Big", tool_call: true, limit } } },
+  });
+
+  it("reads the context size models.dev publishes", () => {
+    expect(parseCatalogue(raw({ context: 200000, output: 64000 }))[0]?.models[0]?.contextWindow).toBe(200000);
+  });
+
+  it("calls an absent or nonsense context size unknown", () => {
+    for (const limit of [undefined, {}, { context: -1 }, { context: "x" }, { context: 1e15 }, { context: 1.5 }]) {
+      expect(parseCatalogue(raw(limit))[0]?.models[0]?.contextWindow).toBeNull();
+    }
+  });
+
+  it("finds a model's context size and says null for one it does not know", () => {
+    const catalogue = parseCatalogue(raw({ context: 1000000 }));
+    expect(contextWindowOf(catalogue, "anthropic", "big")).toBe(1000000);
+    expect(contextWindowOf(catalogue, "anthropic", "small")).toBeNull();
+    expect(contextWindowOf(catalogue, "nobody", "big")).toBeNull();
+  });
+
+  it("assumes 128k for models nobody published a size for", () => {
+    expect(DEFAULT_CONTEXT_WINDOW).toBe(128_000);
   });
 });

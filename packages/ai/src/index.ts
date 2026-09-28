@@ -75,8 +75,10 @@ export { createGoogleProvider, GOOGLE_MODELS, GOOGLE_BASE_URL } from "./provider
 
 export {
   BUNDLED_CATALOGUE,
+  DEFAULT_CONTEXT_WINDOW,
   SNAPSHOT_TAKEN_ON,
   baseUrlFor,
+  contextWindowOf,
   mergeCatalogue,
   parseCatalogue,
   providerIn,
