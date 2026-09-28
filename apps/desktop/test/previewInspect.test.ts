@@ -8,6 +8,7 @@ import {
 } from "../src/main/liveServer.ts";
 import {
   describeBox,
+  elementAttachment,
   highlightHtml,
   isInspectHit,
   isInspectedBox,
@@ -126,5 +127,32 @@ describe("preview element inspector", () => {
     );
     expect(pane).toContain("toggleInspect");
     expect(pane).toContain("createElementInspector");
+  });
+});
+
+describe("point-and-fix", () => {
+  it("describes the picked element for an agent: page, selector, size and markup", () => {
+    const text = elementAttachment(box, "http://127.0.0.1:5173/index.html");
+    expect(text).toBe([
+      "Page: http://127.0.0.1:5173/index.html",
+      `Element: ${describeBox(box)}`,
+      "Selector: body > div#hero",
+      "Size: 390 × 120 px",
+      "Markup:",
+      '<div id="hero" class="card">Hi</div>',
+    ].join("\n"));
+  });
+
+  it("leaves out an unknown page and trims very long markup", () => {
+    const text = elementAttachment({ ...box, html: "x".repeat(4_000) }, null);
+    expect(text.startsWith("Element:")).toBe(true);
+    expect(text.length).toBeLessThan(1_800);
+    expect(text.endsWith("…")).toBe(true);
+  });
+
+  it("offers the change button only when someone can act on it", () => {
+    const source = readFileSync(join(import.meta.dirname, "../src/renderer/preview/elementInspector.ts"), "utf8");
+    expect(source).toContain("Change this with AI");
+    expect(source).toContain("deps.onFix");
   });
 });

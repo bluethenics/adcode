@@ -63,8 +63,6 @@ import {
   toolHeaderLabel,
   type ActivityBlockHandle,
 } from "./chatActivity.ts";
-import { createAgentLibrary } from "./agentLibrary.ts";
-import { createAssistantControls } from "./assistantControls.ts";
 import { createFrameTask } from "../frameTask.ts";
 import { attachChatLayout } from "./chatLayout.ts";
 import {
@@ -142,6 +140,19 @@ export interface ChatWidget {
    * - so polling the command that opened it would leave the button claiming otherwise.
    */
   onVisibilityChange(listener: (open: boolean) => void): void;
+  /** Whether a turn is running, and the conversation's title: the Agents board's Main chat box. */
+  busy(): { readonly busy: boolean; readonly title: string };
+  onBusyChange(listener: (busy: boolean) => void): void;
+  /**
+   * Team setup, schedules and live agent activity. The widget owns its state; the host shows
+   * it in a floating panel, because a drawer inside the chat was a sidebar on the right.
+   */
+  readonly inspector: {
+    readonly element: HTMLElement;
+    onToggle(listener: (open: boolean) => void): void;
+    /** The host closed the panel itself (its own close button or Escape). */
+    close(): void;
+  };
 }
 
 export interface ChatWidgetDeps {
@@ -175,6 +186,8 @@ export interface ChatWidgetDeps {
   readonly uncommittedDiff?: () => Promise<string>;
   /** Open the report form, prefilled, with the debug log ticked. */
   readonly reportProblem?: (prefill: { readonly title: string; readonly body: string }) => void;
+  /** Open the Tools page: MCP servers, skills, built-in tools and project memory. */
+  readonly openTools?: () => void;
 }
 
 export function dispatchChatSend(
@@ -435,14 +448,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   controlsButton.className = "ghost-button";
   controlsButton.dataset["chatAction"] = "controls";
   controlsButton.textContent = "Tools & skills";
-  controlsButton.title = "Manage MCP servers, tool access, and workspace skills";
-  controlsButton.addEventListener("click", () => {
-    revealInspector();
-    controls.element.hidden = false;
-    controlsButton.setAttribute("aria-expanded", "true");
-    controls.show();
-    controls.element.scrollIntoView({ block: "nearest" });
-  });
+  controlsButton.title = "Open Tools: MCP servers, skills, built-in tools and project memory";
+  controlsButton.addEventListener("click", () => deps.openTools?.());
   headerActions.className = "chat-header-actions";
   headerActions.append(
     historyButton,
@@ -704,7 +711,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   function toggleHistory(): void {
     if (externalHistory) { deps.revealHistory?.(); historySearch.focus(); return; }
     historyOpen = !historyOpen;
-    if (historyOpen && card.dataset["layout"] === "compact") inspectorOpen = false;
     applyDisclosures();
     if (historyOpen) void refreshHistory();
   }
@@ -1740,48 +1746,33 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   workingText.textContent = "Thinking";
   working.append(workingText);
 
-  const agentLibrary = createAgentLibrary({
-    prompt: () => input.value.trim(),
-    openConnect: deps.openConnect,
-    configure: async (configuration) => {
-      if (!canOfferAnotherTeam()) throw new Error("Finish or cancel the current Team before setting up another.");
-      const team = await window.adcode.aiTeam.configure(configuration);
-      paintTeam(team);
-      bubble("user", `Team plan: ${configuration.prompt}`);
-      input.value = "";
-    },
-  });
-
   const inspector = document.createElement("aside");
   inspector.className = "chat-inspector";
   inspector.id = "chat-inspector-panel";
   inspector.setAttribute("aria-label", "AI task inspector");
   const inspectorHeading = document.createElement("h2");
   inspectorHeading.className = "chat-section-heading";
-  inspectorHeading.textContent = "Agents & activity";
-  const controls = createAssistantControls();
-  controls.element.hidden = true;
-  const backToChat = document.createElement("button");
-  backToChat.className = "ghost-button chat-inspector-dismiss";
-  backToChat.textContent = "Back to chat";
-  backToChat.addEventListener("click", () => { inspectorOpen = false; applyDisclosures(); });
-  inspector.append(inspectorHeading, backToChat, controls.element, teamPanel, agentLibrary.element, automationPanel);
+  inspectorHeading.textContent = "Team, schedules and activity";
+  inspector.append(inspectorHeading, teamPanel, automationPanel);
+  const inspectorListeners: ((open: boolean) => void)[] = [];
+  const busyListeners: ((busy: boolean) => void)[] = [];
+  let announcedInspector = false;
 
   const body = document.createElement("div");
   body.className = "chat-body";
-  body.append(history, conversation, inspector);
+  // The inspector is not part of the chat's own layout: the host floats it (see `inspector`).
+  body.append(history, conversation);
   card.append(header, body);
 
-  // The panels float over the conversation instead of squeezing it, so an
-  // open panel dims what is behind it. One click on the dimming returns to
-  // the conversation - the same dismissal a popup offers.
+  // History floats over the conversation instead of squeezing it, so an open
+  // list dims what is behind it. One click on the dimming returns to the
+  // conversation - the same dismissal a popup offers.
   const scrim = document.createElement("div");
   scrim.className = "chat-scrim";
   scrim.hidden = true;
   scrim.setAttribute("aria-hidden", "true");
   scrim.addEventListener("click", () => {
     historyOpen = false;
-    inspectorOpen = false;
     applyDisclosures();
     input.focus();
   });
@@ -1795,25 +1786,27 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   function applyDisclosures(): void {
     card.dataset["historyOpen"] = String(!externalHistory && historyOpen);
-    card.dataset["inspectorOpen"] = String(inspectorOpen);
+    // Never true: the inspector lives in the host's floating panel, not the chat's grid.
+    card.dataset["inspectorOpen"] = "false";
     history.hidden = !externalHistory && !historyOpen;
-    inspector.hidden = !inspectorOpen;
-    scrim.hidden = !((historyOpen && !externalHistory) || inspectorOpen);
+    inspector.hidden = false;
+    scrim.hidden = !(historyOpen && !externalHistory);
     historyButton.setAttribute("aria-expanded", String(historyOpen));
     inspectorButton.setAttribute("aria-expanded", String(inspectorOpen));
-    controlsButton.setAttribute("aria-expanded", String(inspectorOpen && !controls.element.hidden));
+    if (announcedInspector !== inspectorOpen) {
+      announcedInspector = inspectorOpen;
+      for (const listener of inspectorListeners) listener(inspectorOpen);
+    }
     updateLayout();
   }
 
   function toggleInspector(): void {
     inspectorOpen = !inspectorOpen;
-    if (inspectorOpen && card.dataset["layout"] === "compact") historyOpen = false;
     applyDisclosures();
   }
 
   function revealInspector(): void {
     inspectorOpen = true;
-    if (card.dataset["layout"] === "compact") historyOpen = false;
     applyDisclosures();
   }
 
@@ -3280,7 +3273,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     } else {
       working.remove();
     }
+    const wasWorking = card.dataset["working"] === "true";
     card.dataset["working"] = String(mode === "stop");
+    if (wasWorking !== (mode === "stop")) for (const listener of busyListeners) listener(mode === "stop");
     if (mode === "stop") workingText.textContent = "Thinking";
     sendButton.dataset["mode"] = mode;
     // Cursor-style stop: while a turn runs the button stops it, so it stays
@@ -3733,6 +3728,21 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const api: ChatWidget = {
     element: card,
     connectButton,
+    busy: () => ({ busy: card.dataset["working"] === "true", title: conversationTitle.textContent ?? "" }),
+    onBusyChange(listener): void {
+      busyListeners.push(listener);
+    },
+    inspector: {
+      element: inspector,
+      onToggle(listener): void {
+        inspectorListeners.push(listener);
+      },
+      close(): void {
+        if (!inspectorOpen) return;
+        inspectorOpen = false;
+        applyDisclosures();
+      },
+    },
     draft(question): void {
       api.open();
       input.value = [input.value.trim(), question.trim()].filter(Boolean).join("\n\n");
@@ -3759,8 +3769,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       docked = next;
       externalHistory = next && !!historyHost;
       card.dataset["docked"] = String(next);
-      presentationButton.textContent = next ? "↗" : "Dock";
-      presentationButton.title = next ? "Expand assistant workspace" : "Dock assistant beside editor";
+      presentationButton.textContent = next ? "↗" : "Float";
+      presentationButton.title = next ? "Expand assistant workspace" : "Return the assistant to its floating panel";
       presentationButton.setAttribute("aria-label", presentationButton.title);
       resetButton.textContent = next ? "+" : "+ New";
       if (next) closeButton.replaceChildren(createIcon(ICON.close));
@@ -3797,8 +3807,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       void refreshWorkspaceTask();
       void paintFolderBanner();
       void refreshTeam();
-      void agentLibrary.refresh();
-      if (!controls.element.hidden) controls.show(false);
       if (!automationPanel.hidden) void refreshAutomations();
 
     },
@@ -3806,7 +3814,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     hidden(): void {
       if (!open) return;
       open = false;
-      controls.hide();
       if (statusTimer !== null) window.clearInterval(statusTimer);
       statusTimer = null;
       announce();
@@ -3823,7 +3830,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         open: () => api.open(),
         showTeam: () => {
           revealInspector();
-          void agentLibrary.refresh();
           void suggestForComposer(true);
         },
         showSchedule: showScheduleComposer,

@@ -370,6 +370,24 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     true,
   ),
   {
+    id: "adcode.ai.parallelAgents",
+    group: "ai",
+    kind: "enum",
+    label: "Agents working at once",
+    description:
+      "How many agents on the Agents board, and Team roles, may work at the same time. More runs wait their turn as Queued. Higher finishes a pile of tasks sooner but spends faster and is likelier to hit a provider's rate limit.",
+    default: "3",
+    available: true,
+    options: [
+      { value: "1", label: "1", detail: "One at a time" },
+      { value: "2", label: "2" },
+      { value: "3", label: "3", detail: "Recommended" },
+      { value: "4", label: "4" },
+      { value: "5", label: "5" },
+      { value: "6", label: "6", detail: "Fastest, spends fastest" },
+    ],
+  },
+  {
     id: "adcode.ai.editPolicy",
     group: "ai",
     kind: "enum",

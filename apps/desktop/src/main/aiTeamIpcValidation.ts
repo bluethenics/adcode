@@ -64,6 +64,8 @@ export function parseAiTeamConfigure(value: unknown, id: string): ParsedAiTeamCo
   try {
     const plan = createTeamPlan({
       id,
+      ...(raw.kind === undefined ? {} : { kind: raw.kind }),
+      ...(raw.group === undefined ? {} : { group: raw.group }),
       prompt: raw.prompt,
       acceptanceCriteria: raw.acceptanceCriteria,
       roles: raw.roles,

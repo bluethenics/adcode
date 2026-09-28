@@ -76,3 +76,17 @@ function normalize(path: string): string {
 function formatCount(value: number): string {
   return value > 99 ? "99+" : String(value);
 }
+
+/** The pages Vibe's centre switches between. Everything else opens as a floating panel. */
+export type VibePage = "chat" | "agents" | "tools";
+
+export const VIBE_PAGES: readonly { readonly id: VibePage; readonly label: string }[] = [
+  { id: "chat", label: "Chat" },
+  { id: "agents", label: "Agents" },
+  { id: "tools", label: "Tools" },
+];
+
+/** A routed or remembered page name, or Chat when it is not one this build knows. */
+export function parseVibePage(value: string | null | undefined): VibePage {
+  return VIBE_PAGES.some((page) => page.id === value) ? (value as VibePage) : "chat";
+}

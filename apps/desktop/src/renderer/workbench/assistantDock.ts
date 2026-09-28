@@ -5,6 +5,9 @@ import type { createProjectContext, ContextTab } from "./projectContext.ts";
 import { createIcon } from "./icons.ts";
 import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "./contextMenu.ts";
 import { createVibeSidebar, type VibeSidebar } from "./vibeSidebar.ts";
+import { createVibePages } from "./vibePages.ts";
+import { createFloatingPanel, type FloatingPanel } from "./floatingPanel.ts";
+import type { VibePage } from "./vibeSidebarModel.ts";
 
 interface AssistantDockDeps {
   readonly chat: ChatWidget;
@@ -26,7 +29,15 @@ interface AssistantDockDeps {
   readonly onEarnings: (listener: (label: string) => void) => void;
 }
 
-/** Reparent the live widget: streams, proposals and conversations keep one owner. */
+const contextTitle = (tab: ContextTab): string => tab === "changes" ? "Changes" : "Project overview";
+
+/**
+ * Reparent the live widget: streams, proposals and conversations keep one owner.
+ *
+ * Nothing docks on the right any more. In Vibe the conversation is the Chat page; in the IDE
+ * it is a floating panel over the editor. Changes and the project overview open as a
+ * floating panel in both windows, so the editor and the conversation keep the full width.
+ */
 export function createAssistantDock(deps: AssistantDockDeps) {
   const { chat, workbench, sidebar } = deps;
   let docked = true;
@@ -34,44 +45,51 @@ export function createAssistantDock(deps: AssistantDockDeps) {
   let mode: WorkspaceMode = windowMode;
   let codeAssistantOpen = false;
   let contextOpen = false;
-  const dockedPreviewOpen = (): boolean => !!document.querySelector('.preview-pane[data-placement="docked"]:not([hidden])');
   const vibe = document.createElement("section");
   vibe.className = "vibe-workspace assistant-dock";
   vibe.id = "vibe-workspace";
   vibe.setAttribute("aria-label", "Vibe project session");
   document.getElementById("editor-area")?.append(vibe);
-  const divider = document.createElement("div");
-  divider.id = "splitter-assistant";
-  const dock = document.createElement("aside");
-  dock.className = "assistant-dock";
-  dock.id = "assistant-dock";
-  dock.setAttribute("aria-label", "AI Assistant");
-  workbench.append(divider, dock);
-  let width = 440;
-  // Wide enough for the Changes list: a path, its line counts, a revert arrow and a checkbox.
-  let contextWidth = 480;
-  try { width = Math.max(340, Math.min(640, Number(localStorage.getItem("adcode.assistant.width")) || 440)); } catch { /* Optional storage. */ }
-  try { contextWidth = Math.max(300, Math.min(640, Number(localStorage.getItem("adcode.context.width")) || 480)); } catch { /* Optional storage. */ }
-  workbench.style.setProperty("--assistant-width", `${width}px`);
-  // On <body>: the notification layer lives outside the workbench and steps aside by it.
-  document.body.style.setProperty("--context-width", `${contextWidth}px`);
-  createSplitter({
-    element: divider, axis: "x", sign: -1, label: "Resize assistant or context", reset: () => contextOpen ? 480 : 440,
-    current: () => dock.getBoundingClientRect().width,
-    apply: value => {
-      if (contextOpen) {
-        contextWidth = Math.max(300, Math.min(640, window.innerWidth * .4, value));
-        document.body.style.setProperty("--context-width", `${contextWidth}px`);
-        return;
-      }
-      width = Math.max(340, Math.min(640, window.innerWidth * .48, value));
-      workbench.style.setProperty("--assistant-width", `${width}px`);
+  // Chat, Agents and Tools share the centre; only one shows at a time.
+  const pages = createVibePages();
+  vibe.append(pages.element);
+  // Changes and the project overview: a floating panel, never a right-hand column.
+  const contextPanel = createFloatingPanel({
+    id: "context",
+    title: "Changes",
+    content: deps.context.element,
+    // Wide enough for the Changes list: a path, its line counts, a revert arrow and a checkbox.
+    defaultSize: { width: 560, height: 640 },
+    anchor: "centre",
+    onVisibilityChange: (open) => {
+      if (open || !contextOpen) return;
+      // Closed from its own header or Escape.
+      contextOpen = false;
+      deps.context.setVisible(false);
+      syncContextState();
     },
-    commit: () => { try {
-      localStorage.setItem("adcode.assistant.width", String(width));
-      localStorage.setItem("adcode.context.width", String(contextWidth));
-    } catch { /* Optional. */ } },
   });
+  // The panel's own tabs switch between the overview and Changes; the title follows them.
+  deps.context.element.addEventListener("click", () => contextPanel.setTitle(contextTitle(deps.context.selected())));
+  // The IDE's assistant floats over the editor instead of taking a column beside it.
+  const assistantHost = document.createElement("div");
+  assistantHost.className = "floating-assistant-host";
+  const assistantPanel: FloatingPanel | null = windowMode === "code"
+    ? createFloatingPanel({
+      id: "assistant",
+      title: "Assistant",
+      content: assistantHost,
+      defaultSize: { width: 420, height: 560 },
+      anchor: "bottom-right",
+      className: "assistant-dock",
+      onVisibilityChange: (open) => {
+        if (open || !codeAssistantOpen) return;
+        codeAssistantOpen = false;
+        chat.hidden();
+        syncAssistantChrome();
+      },
+    })
+    : null;
 
   const toolbar = document.createElement("div");
   toolbar.className = "project-toolbar";
@@ -107,7 +125,7 @@ export function createAssistantDock(deps: AssistantDockDeps) {
     { kind: "heading", label: "Assistant" },
     { label: "Models & connections", run: () => deps.run("ai.connect") },
     { label: "Set up AI team", run: () => chat.openTeamSetup() },
-    { label: "Activity inspector", run: () => chatAction("inspector") },
+    { label: "Team, schedules and activity", run: () => chatAction("inspector") },
     { label: "Copy conversation as Markdown", run: () => chatAction("share") },
     { kind: "heading", label: "ADCode" },
     { label: "Earnings", run: earnings },
@@ -120,10 +138,11 @@ export function createAssistantDock(deps: AssistantDockDeps) {
     { label: "Search in files", run: () => deps.run("view.search") },
     { label: "Source control", run: () => deps.run("view.scm") },
     { label: "Terminal", run: deps.toggleTerminal },
-    { label: "Project context", run: () => { contextOpen = !contextOpen; mountPresentation(); } },
+    { label: "Project overview", run: () => toggleContext("project") },
     { kind: "separator" },
     { label: "AI assistant", run: open },
-    { label: "Tasks & agents", run: () => deps.run("workspace.tasks") },
+    { label: "Agents", run: () => deps.run("agents.open") },
+    { label: "Tools", run: () => deps.run("tools.open") },
     { label: "Set up AI team", run: () => chat.openTeamSetup() },
     { label: "Changes", run: () => deps.run("workspace.changes") },
     { kind: "separator" },
@@ -171,10 +190,16 @@ export function createAssistantDock(deps: AssistantDockDeps) {
     terminalButton.addEventListener("click", deps.toggleTerminal);
     assistantButton.className = "project-toolbar-action code-toolbar-action code-assistant-button";
     assistantButton.append(createIcon("M8 2l1.5 4.5L14 8l-4.5 1.5L8 14 6.5 9.5 2 8l4.5-1.5z"), document.createTextNode("Assistant"));
-    assistantButton.title = "Show AI assistant beside code";
-    assistantButton.setAttribute("aria-controls", "assistant-dock");
-    assistantButton.addEventListener("click", () => codeAssistantOpen && !contextOpen ? close() : open());
-    toolbar.append(project, ...(search ? [search] : []), vibeButton, terminalButton, assistantButton, more);
+    assistantButton.title = "Show the AI assistant over the code (Ctrl+I)";
+    assistantButton.setAttribute("aria-controls", "floating-assistant");
+    assistantButton.addEventListener("click", () => codeAssistantOpen ? close() : open());
+    const agentsButton = document.createElement("button");
+    agentsButton.type = "button";
+    agentsButton.className = "project-toolbar-action code-toolbar-action code-agents-button";
+    agentsButton.append(createIcon("M5.5 7.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM11 7.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2zM2 13c0-2 1.6-3.5 3.5-3.5S9 11 9 13M9.8 10.1c.4-.3.8-.4 1.2-.4 1.4 0 2.5 1.1 2.5 2.6"), document.createTextNode("Agents"));
+    agentsButton.title = "Agents working in parallel, and your saved agents";
+    agentsButton.addEventListener("click", () => deps.run("agents.open"));
+    toolbar.append(project, ...(search ? [search] : []), vibeButton, terminalButton, agentsButton, assistantButton, more);
   } else {
     vibeSidebar = createVibeSidebar({
       chat,
@@ -185,6 +210,8 @@ export function createAssistantDock(deps: AssistantDockDeps) {
       toggleContext,
       showContext,
       togglePreview: deps.openPreview,
+      showPage: (page) => pages.show(page),
+      onPageChange: (listener) => pages.onChange(listener),
       openNotifications: deps.openNotifications,
       onUnreadNotifications: deps.onUnreadNotifications,
       onEarnings: deps.onEarnings,
@@ -244,25 +271,25 @@ export function createAssistantDock(deps: AssistantDockDeps) {
   function syncContextState(): void {
     vibeSidebar?.setContextTab(contextOpen ? deps.context.selected() : null);
   }
-  function showDock(show: boolean): void {
-    dock.hidden = !show;
-    divider.hidden = !show;
-    workbench.dataset["assistantOpen"] = String(show);
-    document.getElementById("ai-toggle")?.setAttribute("aria-expanded", String(show));
-    assistantButton.setAttribute("aria-pressed", String(show && mode === "code" && !contextOpen));
+  /** The title bar's assistant button and the toolbar's say whether the IDE assistant is up. */
+  function syncAssistantChrome(): void {
+    const shown = mode === "code" && codeAssistantOpen;
+    // Nothing reserves a grid column any more; these stay false so no stale rule applies.
+    workbench.dataset["assistantOpen"] = "false";
+    workbench.dataset["contextOpen"] = "false";
+    document.getElementById("ai-toggle")?.setAttribute("aria-expanded", String(shown));
+    assistantButton.setAttribute("aria-pressed", String(shown));
   }
   function open(): void {
     if (!docked) { deps.openExpanded(); return; }
     if (mode === "vibe") {
-      if (contextOpen && window.innerWidth < 1280) { contextOpen = false; mountPresentation(); }
+      pages.show("chat");
       chat.shown();
       chat.element.querySelector<HTMLElement>(".chat-input")?.focus();
       return;
     }
-    contextOpen = false;
     codeAssistantOpen = true;
     mountPresentation();
-    showDock(true);
     chat.shown();
   }
   function close(): void {
@@ -275,30 +302,33 @@ export function createAssistantDock(deps: AssistantDockDeps) {
       return;
     }
     codeAssistantOpen = false;
-    contextOpen = false;
-    deps.context.setVisible(false);
-    showDock(false);
+    mountPresentation();
     chat.hidden();
   }
   function mountDock(): void {
     sidebar.dataset["agents"] = "false";
-    (mode === "vibe" ? vibe : dock).append(chat.element);
+    if (mode === "vibe") pages.host("chat").append(chat.element);
+    else assistantHost.append(chat.element);
     // In Vibe the conversation list always lives in the sidebar - docked or in the drawer.
     chat.setDocked(true, mode === "vibe" ? vibeSidebar?.historyHost : undefined);
+    // The floating panel has its own close button; a second one inside it would be noise.
     const close = chat.element.querySelector<HTMLButtonElement>('[aria-label="Close Assistant"]');
-    if (close) close.hidden = mode === "vibe";
+    if (close) close.hidden = true;
   }
   function mountPresentation(): void {
     vibe.hidden = mode !== "vibe";
     if (!docked) return;
     mountDock();
-    const showingContext = contextOpen;
-    workbench.dataset["contextOpen"] = String(showingContext);
-    if (showingContext) dock.append(deps.context.element);
-    deps.context.element.hidden = !showingContext;
-    chat.element.hidden = mode === "code" && showingContext;
-    deps.context.setVisible(showingContext);
-    showDock(mode === "vibe" ? showingContext : codeAssistantOpen || showingContext);
+    chat.element.hidden = false;
+    deps.context.element.hidden = false;
+    if (contextOpen) contextPanel.open();
+    else contextPanel.close();
+    deps.context.setVisible(contextOpen);
+    if (assistantPanel !== null) {
+      if (mode === "code" && codeAssistantOpen) assistantPanel.open();
+      else assistantPanel.close();
+    }
+    syncAssistantChrome();
     if (mode === "vibe" || codeAssistantOpen) chat.shown(false);
     else chat.hidden();
     syncContextState();
@@ -306,7 +336,9 @@ export function createAssistantDock(deps: AssistantDockDeps) {
   function showContext(tab: ContextTab): void {
     if (!docked) setMode(mode);
     contextOpen = true;
+    contextPanel.setTitle(contextTitle(tab));
     mountPresentation();
+    contextPanel.raise();
     deps.context.show(tab);
     syncContextState();
   }
@@ -381,24 +413,18 @@ export function createAssistantDock(deps: AssistantDockDeps) {
     });
   }
   setMode(mode);
-  let previousWidth = window.innerWidth;
-  window.addEventListener("resize", () => {
-    if ((previousWidth >= 1080 && window.innerWidth < 1080) || (previousWidth >= 1280 && window.innerWidth < 1280)) {
-      contextOpen = false;
-      if (window.innerWidth < 1080) codeAssistantOpen = false;
-      mountPresentation();
-    }
-    previousWidth = window.innerWidth;
-  });
   return {
     open, close,
     setMode,
     mode: () => mode,
-    accommodatePreview(): void {
-      if (mode !== "vibe" || !dockedPreviewOpen() || !contextOpen) return;
-      contextOpen = false;
-      mountPresentation();
-    },
+    /** Vibe only: switch the centre to Chat, Agents or Tools. */
+    showPage(page: VibePage): void { pages.show(page); },
+    page: () => pages.current(),
+    onPageChange: (listener: (page: VibePage) => void) => pages.onChange(listener),
+    /** Where the Agents and Tools pages mount their content in Vibe. */
+    pageHost: (page: VibePage) => pages.host(page),
+    /** Preview and the panels all float now, so there is no column to make room in. */
+    accommodatePreview(): void {},
     showContext,
     /** Ctrl+B in Vibe: hide or show the sidebar instead of opening the IDE's explorer. */
     toggleVibeSidebar(): void { vibeSidebar?.toggle(); },
@@ -407,11 +433,16 @@ export function createAssistantDock(deps: AssistantDockDeps) {
     togglePresentation(): void {
       if (docked) {
         if (mode === "vibe") { setMode("code", true); open(); return; }
-        showDock(false);
+        codeAssistantOpen = false;
+        assistantPanel?.close();
+        syncAssistantChrome();
         chat.hidden();
         docked = false;
         sidebar.dataset["agents"] = "false";
         chat.setDocked(false);
+        // Expanded, the chat is a popup of its own with no panel around it: it needs its Close.
+        const closeControl = chat.element.querySelector<HTMLButtonElement>('[aria-label="Close Assistant"]');
+        if (closeControl) closeControl.hidden = false;
         deps.expandedHost.append(chat.element);
         chat.element.hidden = false;
         deps.openExpanded();

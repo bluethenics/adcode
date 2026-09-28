@@ -742,3 +742,27 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* ── Form dialogs (Agents and Tools pages): left-aligned fields in a centred card ── */
+.form-dialog { max-width: min(600px, calc(100vw - 48px)); width: 100%; }
+.form-dialog-card { justify-items: stretch; text-align: left; gap: 12px; padding: 22px 24px 18px; max-height: calc(100vh - 64px); overflow: auto; }
+.form-dialog-form { display: grid; gap: 14px; }
+.form-field { display: grid; gap: 6px; min-width: 0; }
+.form-field-label { font-size: 12px; font-weight: 650; color: var(--text-secondary); }
+.form-field-hint { color: var(--text-tertiary); font-size: 11px; }
+.form-input, .form-select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-editor);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+textarea.form-input { resize: vertical; line-height: 1.5; }
+.form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.form-row[hidden] { display: none; }
+.form-notice { margin: 0; color: var(--danger, #c24b40); font-size: 12px; }
+.form-notice[hidden] { display: none; }

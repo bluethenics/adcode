@@ -243,7 +243,9 @@ const vibeNavigation = await evaluate(`(() => {
   return {
     docked: document.body.dataset.vibeRail === 'docked',
     automations: visible('.vibe-automations-button'),
-    customize: visible('.vibe-customize-button'),
+    // Chat, Agents and Tools are pages; Chat is the one showing at launch.
+    pages: visible('.vibe-page-item.vibe-page-agents') && visible('.vibe-page-item.vibe-page-tools') &&
+      document.querySelector('.vibe-page-item.vibe-page-chat')?.getAttribute('aria-current') === 'page',
     tools: visible('.project-tools'),
     noTasksRow: document.querySelector('.vibe-tasks-button') === null,
     changes: visible('.vibe-changes-button') && changesLabel.startsWith('Changes - '),
@@ -284,7 +286,45 @@ for (let attempt = 0; attempt < 60 && changesPanel === null; attempt++) {
   })()`);
   if (changesPanel === null) await sleep(150);
 }
+// Nothing docks on the right: Changes floats over the page, and the page keeps the width.
+const vibeNoRightSidebar = await evaluate(`(() => {
+  const panel = document.getElementById('floating-context');
+  const workspace = document.getElementById('vibe-workspace')?.getBoundingClientRect();
+  return {
+    changesFloats: !!panel && !panel.hidden && getComputedStyle(panel).position === 'fixed' &&
+      panel.getAttribute('role') === 'dialog' && panel.getAttribute('aria-modal') === 'false',
+    workspaceReachesRightEdge: !!workspace && workspace.right >= window.innerWidth - 2,
+    noDock: document.getElementById('assistant-dock') === null && document.getElementById('splitter-assistant') === null,
+  };
+})()`);
 await evaluate("document.querySelector('.vibe-changes-button')?.click()");
+// Agents and Tools are pages of their own; the board and the tool cards render for real.
+const vibePages = await evaluate(`(async () => {
+  const wait = async (test) => { for (let i = 0; i < 60 && !test(); i++) await new Promise((r) => setTimeout(r, 100)); };
+  document.querySelector('.vibe-page-item.vibe-page-agents')?.click();
+  await wait(() => document.querySelectorAll('#vibe-page-agents .agent-card').length > 1);
+  const agents = document.getElementById('vibe-page-agents');
+  const board = agents?.querySelector('.agents-page');
+  const result = {
+    agentsShown: !!agents && !agents.hidden && document.getElementById('vibe-page-chat')?.hidden === true,
+    agentsCurrent: document.querySelector('.vibe-page-item.vibe-page-agents')?.getAttribute('aria-current') === 'page',
+    threeColumns: agents?.querySelectorAll('.agents-column [role=list]').length === 3,
+    startersAndNew: (agents?.querySelectorAll('.agent-card').length ?? 0) >= 2,
+    mascotsDrawn: (agents?.querySelectorAll('.agent-card .agent-mascot-body').length ?? 0) >= 1,
+    agentsFullWidth: (agents?.getBoundingClientRect().right ?? 0) >= window.innerWidth - 2,
+    agentsNoOverflow: !!board && board.scrollWidth <= board.clientWidth + 1,
+  };
+  document.querySelector('.vibe-page-item.vibe-page-tools')?.click();
+  await wait(() => document.querySelectorAll('#tools-panel-built-in .tool-card').length > 0);
+  const tools = document.getElementById('vibe-page-tools');
+  result.toolsShown = !!tools && !tools.hidden;
+  result.toolsTabs = tools?.querySelectorAll('[role=tab]').length === 4;
+  result.builtInCards = tools?.querySelectorAll('#tools-panel-built-in .tool-card').length === 12;
+  document.querySelector('.vibe-page-item.vibe-page-chat')?.click();
+  await wait(() => document.getElementById('vibe-page-chat')?.hidden === false);
+  result.backToChat = document.getElementById('vibe-page-chat')?.hidden === false && !!document.querySelector('#vibe-page-chat .chat-card');
+  return result;
+})()`);
 const windowScreenshotPaths = [];
 if (process.argv.includes("--visual-only")) {
   const response = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
@@ -342,14 +382,14 @@ if (process.argv.includes("--visual-only")) {
     windowScreenshotPaths.push(path);
   }
 }
-await evaluate("(() => { const dock = document.getElementById('assistant-dock'); if (dock && !dock.hidden) document.getElementById('ai-toggle').click(); })()");
+await evaluate("(() => { const panel = document.getElementById('floating-assistant'); if (panel && !panel.hidden) document.getElementById('ai-toggle').click(); })()");
 async function openExpandedAssistant() {
   await evaluate(`(() => {
     const dialog = document.querySelector('dialog[data-popup-id="chat"]');
     if (dialog?.open) return;
     const card = document.querySelector('.chat-card');
-    if (card?.closest('#assistant-dock')) {
-      if (document.getElementById('assistant-dock').hidden) document.getElementById('ai-toggle').click();
+    if (card?.closest('#floating-assistant')) {
+      if (document.getElementById('floating-assistant').hidden) document.getElementById('ai-toggle').click();
       card.querySelector('.chat-presentation')?.click();
     } else document.getElementById('ai-toggle')?.click();
   })()`);
@@ -358,6 +398,10 @@ async function openExpandedAssistant() {
 const checks = {
   separateWindows: vibeModeBefore === "vibe" && vibeModeAfter === "vibe" && ideMode === "code" && rendererCount === 2,
   vibeNavigation: Object.values(vibeNavigation).every(Boolean),
+  vibeNoRightSidebar: typeof vibeNoRightSidebar === "object" && vibeNoRightSidebar !== null && Object.values(vibeNoRightSidebar).every(Boolean),
+  vibeNoRightSidebarEvidence: vibeNoRightSidebar,
+  vibeAgentsAndToolsPages: typeof vibePages === "object" && vibePages !== null && Object.values(vibePages).every(Boolean),
+  vibeAgentsAndToolsPagesEvidence: vibePages,
   changesPanel: changesPanel !== null && changesPanel.tabs === "Project,Changes" && /Commit & Push|Push/.test(changesPanel.commitButton)
     && changesPanel.everyRowHasRevertAndCheckbox && changesPanel.rowsFit && changesPanel.caption.length > 0,
   changesPanelEvidence: changesPanel,
@@ -4665,13 +4709,16 @@ checks.previewPaneRendersIt = await evaluate(
      const box = pane.getBoundingClientRect();
      const editor = document.getElementById('editor-host').getBoundingClientRect();
 
-     return {
+     const centre = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+     const evidence = {
        framed: /^http:\\/\\/127\\.0\\.0\\.1:\\d+\\//.test(frame?.getAttribute('src') ?? ''),
-       // The pane has real width, and the editor actually gave it up rather than the two
-       // overlapping - which is what a stacking bug looks like from the outside.
+       // The pane has real width and floats on top of the editor: nothing docks on the
+       // right, so the editor keeps its full width underneath instead of giving up a column.
        paneWide: box.width > 100,
-       editorYielded: editor.right <= box.left + 2,
+       floatsOnTop: getComputedStyle(pane).position === 'fixed' && pane.contains(centre),
+       editorKeepsWidth: editor.right >= window.innerWidth - 24,
      };
+     return Object.values(evidence).every(Boolean) || JSON.stringify(evidence);
    })()`,
 );
 
@@ -5456,14 +5503,46 @@ checks.earningsIconIsADrawnDollar = await evaluate(
 );
 
 /*
- * Undocking the preview floats it without reloading the page inside it.
+ * The IDE's assistant floats over the editor instead of docking beside it: Ctrl+I shows it,
+ * the editor keeps every pixel of its width, and its own close button hides it again.
+ */
+checks.ideAssistantFloats = await evaluate(
+  `(async () => {
+     const wait = async (test) => { for (let i = 0; i < 40 && !test(); i++) await new Promise((r) => setTimeout(r, 100)); };
+     const panel = () => document.getElementById('floating-assistant');
+     if (panel() && !panel().hidden) document.getElementById('ai-toggle')?.click();
+     await wait(() => !panel() || panel().hidden);
+     const editorBefore = document.getElementById('editor-host').getBoundingClientRect().width;
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'i', code: 'KeyI', ctrlKey: true, bubbles: true }));
+     await wait(() => !!panel() && !panel().hidden);
+     const shown = panel();
+     if (!shown || shown.hidden) return 'Ctrl+I did not show the assistant';
+     const box = shown.getBoundingClientRect();
+     const editorAfter = document.getElementById('editor-host').getBoundingClientRect();
+     const evidence = {
+       floats: getComputedStyle(shown).position === 'fixed' && shown.getAttribute('aria-modal') === 'false',
+       holdsTheChat: !!shown.querySelector('.chat-card .chat-input'),
+       onScreen: box.left >= 0 && box.top >= 0 && box.right <= innerWidth + 1 && box.bottom <= innerHeight + 1 && box.width >= 320,
+       editorKeepsWidth: Math.abs(editorAfter.width - editorBefore) < 2 && editorAfter.right >= innerWidth - 24,
+       noDock: !document.getElementById('assistant-dock') && !document.getElementById('splitter-assistant'),
+     };
+     shown.querySelector('.floating-panel-close')?.click();
+     await wait(() => shown.hidden);
+     evidence.closes = shown.hidden;
+     return Object.values(evidence).every(Boolean) || JSON.stringify(evidence);
+   })()`,
+);
+
+/*
+ * The preview floats over the editor - no right-hand column - and maximising it does not
+ * reload the page inside it.
  *
  * The last property is the whole reason the implementation looks the way it does. The
- * obvious build - append the iframe into a floating container - reloads the document, and a
+ * obvious build - move the iframe into a bigger container - reloads the document, and a
  * reload is invisible to every assertion except one that watches the frame's identity and
- * its `src` across the move. So that is what this watches.
+ * its `src` across the change. So that is what this watches.
  */
-checks.previewUndocksWithoutReloading = await evaluate(
+checks.previewFloatsAndMaximisesWithoutReloading = await evaluate(
   `(async () => {
      /*
       * Opened through the palette, not through \`preview.start()\`.
@@ -5497,41 +5576,40 @@ checks.previewUndocksWithoutReloading = await evaluate(
      if (!frameBefore) return 'no preview frame';
      const srcBefore = frameBefore.getAttribute('src');
 
-     const dock = pane.querySelector('.icon-button[aria-label="Undock preview"]');
-     if (!dock) return 'no undock button in the preview bar';
-     dock.click();
-     await new Promise((r) => setTimeout(r, 400));
-
      const box = pane.getBoundingClientRect();
      const centre = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-     const frameAfter = pane.querySelector('iframe');
      const editor = document.getElementById('editor-host').getBoundingClientRect();
+     const floating = pane.dataset.placement === 'floating';
+     // Not hidden and not collapsed. Asserted explicitly because an earlier version of this
+     // check was silently measuring a 0x0 box.
+     const hasSize = box.width > 300 && box.height > 200;
+     const onScreen = box.left >= 0 && box.top >= 0 && box.right <= window.innerWidth + 1;
+     const topmost = pane.contains(centre);
+     // Nothing docks on the right: the editor keeps the window's full width under the card.
+     const editorFullWidth = editor.right >= window.innerWidth - 24;
+     const noDockButton = !pane.querySelector('.icon-button[aria-label="Undock preview"], .icon-button[aria-label="Dock preview"]');
+     const edges = pane.querySelectorAll('.preview-edge').length === 8;
 
-     const result = {
-       floating: pane.dataset.placement === 'floating',
-       // Not hidden and not collapsed. Asserted explicitly because the previous version of
-       // this check was silently measuring a 0x0 box.
-       hasSize: box.width > 300 && box.height > 200,
-       onScreen: box.left >= 0 && box.top >= 0 && box.right <= window.innerWidth + 1,
-       // Identity, not equality: a reparented iframe is a different node, and that is the
-       // one thing this whole implementation exists to avoid.
-       sameFrameNode: frameAfter === frameBefore,
-       sameSrc: frameAfter?.getAttribute('src') === srcBefore,
-       topmost: pane.contains(centre),
-       // The editor took the column back, since the card now floats over it.
-       editorReclaimedWidth: editor.width > 200,
-       gripVisible: (pane.querySelector('.preview-grip')?.getBoundingClientRect().width ?? 0) > 0,
-     };
-
-     // Back to docked, then closed, so later checks see the layout they expect.
-     pane.querySelector('.icon-button[aria-label="Dock preview"]')?.click();
+     const maximise = pane.querySelector('.icon-button[aria-label="Maximise preview"]');
+     if (!maximise) return 'no maximise button in the preview bar';
+     maximise.click();
+     await new Promise((r) => setTimeout(r, 400));
+     const big = pane.getBoundingClientRect();
+     const maximised = big.width >= window.innerWidth - 40 && big.height >= window.innerHeight - 40;
+     const frameAfter = pane.querySelector('iframe');
+     // Identity, not equality: a reparented iframe is a different node, and that is the one
+     // thing this whole implementation exists to avoid.
+     const sameFrameNode = frameAfter === frameBefore;
+     const sameSrc = frameAfter?.getAttribute('src') === srcBefore;
+     pane.querySelector('.icon-button[aria-label="Restore preview size"]')?.click();
      await new Promise((r) => setTimeout(r, 300));
-     result.docksAgain = pane.dataset.placement === 'docked';
+     const restored = Math.abs(pane.getBoundingClientRect().width - box.width) < 2;
 
      pane.querySelector('.icon-button[aria-label="Close preview"]')?.click();
      await new Promise((r) => setTimeout(r, 600));
 
-     return result;
+     const evidence = { floating, hasSize, onScreen, topmost, editorFullWidth, noDockButton, edges, maximised, sameFrameNode, sameSrc, restored };
+     return Object.values(evidence).every(Boolean) || JSON.stringify(evidence);
    })()`,
 );
 
@@ -6160,7 +6238,8 @@ checks.chatConnectWorkspaceEvidence = await evaluate(
      const card = chat?.querySelector('.chat-card');
      const history = card?.querySelector('.chat-history');
      const conversation = card?.querySelector('.chat-conversation');
-     const inspector = card?.querySelector('.chat-inspector');
+     // Team, schedules and activity live in a floating panel now, not inside the chat card.
+     const inspector = document.querySelector('.chat-inspector');
      const composer = card?.querySelector('.chat-composer');
      const header = card?.querySelector('.chat-header');
      const historyButton = [...(header?.querySelectorAll('button') ?? [])]
@@ -6218,7 +6297,8 @@ async function readChatDisclosureGeometry() {
        const card = document.querySelector('dialog[data-popup-id="chat"] .chat-card');
        const history = card?.querySelector('.chat-history');
        const conversation = card?.querySelector('.chat-conversation');
-       const inspector = card?.querySelector('.chat-inspector');
+       // The inspector floats in its own panel (#floating-activity); judge the panel.
+       const inspector = document.getElementById('floating-activity');
        const header = card?.querySelector('.chat-header');
        const historyButton = [...(header?.querySelectorAll('button') ?? [])]
          .find((button) => button.textContent?.trim() === 'History');
@@ -6246,12 +6326,12 @@ async function readChatDisclosureGeometry() {
           historyHidden: history.hidden,
           inspectorHidden: inspector.hidden,
           historyOpen: card.dataset.historyOpen,
-          inspectorOpen: card.dataset.inspectorOpen,
+          inspectorOpen: String(!inspector.hidden),
           historyPlace: history.hidden ? null : place(history),
           inspectorPlace: inspector.hidden ? null : place(inspector),
         });
        if (card.dataset.historyOpen !== 'true') historyButton.click();
-       if (card.dataset.inspectorOpen !== 'true') inspectorButton.click();
+       if (inspector.hidden) inspectorButton.click();
        const bothOpen = snapshot();
        historyButton.click();
        const historyCollapsed = snapshot();
@@ -6278,9 +6358,10 @@ function disclosureGeometryPass(result, layout) {
   if (typeof result !== "object" || result === null) return false;
   const { viewport, bothOpen, historyCollapsed, bothCollapsed, inspectorCollapsed } = result;
   if (layout === "compact") {
-    // Compact chat intentionally shows at most one secondary panel at a time.
+    // Compact: history and the floating activity sheet toggle independently, and the
+    // conversation keeps its width whatever is open.
     return viewport <= 720 && [bothOpen, historyCollapsed, bothCollapsed, inspectorCollapsed].every(entry =>
-      entry.width > 0 && !(entry.historyOpen === 'true' && entry.inspectorOpen === 'true') &&
+      entry.width > 0 &&
       entry.historyHidden === (entry.historyOpen !== 'true') && entry.inspectorHidden === (entry.inspectorOpen !== 'true') &&
       Math.abs(entry.width - bothOpen.width) < 4);
   }
@@ -6293,11 +6374,12 @@ function disclosureGeometryPass(result, layout) {
     return false;
   }
   // Panels float over the conversation instead of squeezing it: the transcript
-  // keeps its full width in every state, and an open panel is an absolutely
-  // positioned card inside the card and on top of what it covers.
+  // keeps its full width in every state. History is an absolutely positioned card
+  // inside the chat card; Team and activity is a floating panel over the window,
+  // on top of the expanded chat rather than behind its backdrop.
   const overlay = (entry, historyOpen, inspectorOpen) =>
     (!historyOpen || (entry.historyPlace?.position === "absolute" && entry.historyPlace.inside && entry.historyPlace.onTop)) &&
-    (!inspectorOpen || (entry.inspectorPlace?.position === "absolute" && entry.inspectorPlace.inside && entry.inspectorPlace.onTop));
+    (!inspectorOpen || (entry.inspectorPlace?.position === "fixed" && entry.inspectorPlace.onTop));
   const steady = [historyCollapsed, bothCollapsed, inspectorCollapsed].every(
     (entry) => Math.abs(entry.width - bothOpen.width) < 4,
   );

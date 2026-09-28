@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentEvent } from "@adcode/ai";
-import { agentEventTrace } from "../src/main/aiEventTrace.ts";
+import { agentEventTrace, describeActivity } from "../src/main/aiEventTrace.ts";
 
 describe("durable AI event trace summaries", () => {
   it("records tool identity and path without persisting model-visible file contents", () => {
@@ -65,5 +65,32 @@ describe("durable AI event trace summaries", () => {
       detail: "",
       outcome: "failed",
     });
+  });
+});
+
+describe("live activity lines for agent boxes", () => {
+  const call = (name: string, input: Record<string, unknown>) => agentEventTrace({ kind: "tool-call", call: { id: "c1", name, input } } as AgentEvent)!;
+
+  it("says what the agent is doing in plain words", () => {
+    expect(describeActivity(call("read_file", { path: "src/app.ts" }))).toBe("Reading src/app.ts");
+    expect(describeActivity(call("edit_file", { path: "src/app.ts" }))).toBe("Editing src/app.ts");
+    expect(describeActivity(call("propose_edit", { path: "src/app.ts" }))).toBe("Editing src/app.ts");
+    expect(describeActivity(call("run_command", { command: "npm test" }))).toBe("Running npm test");
+    expect(describeActivity(call("search", { pattern: "login" }))).toBe("Searching for login");
+    expect(describeActivity(call("glob_files", { pattern: "**/*.ts" }))).toBe("Finding **/*.ts");
+    expect(describeActivity(call("list_files", { path: "src" }))).toBe("Looking in src");
+    expect(describeActivity(call("fetch_url", { url: "https://example.com" }))).toBe("Fetching https://example.com");
+    expect(describeActivity(call("get_outline", { path: "src/app.ts" }))).toBe("Outlining src/app.ts");
+    expect(describeActivity(call("project_context", {}))).toBe("Reading the project overview");
+    expect(describeActivity(call("mystery_tool", {}))).toBe("Using mystery_tool");
+  });
+
+  it("stays quiet for results and turn ends, which are not something to show", () => {
+    expect(describeActivity(agentEventTrace({ kind: "tool-result", name: "read_file", isError: false } as AgentEvent)!)).toBeNull();
+    expect(describeActivity(agentEventTrace({ kind: "turn-end", reason: "end-turn" } as AgentEvent)!)).toBeNull();
+  });
+
+  it("reports a failed tool so the box can say something went wrong", () => {
+    expect(describeActivity(agentEventTrace({ kind: "tool-result", name: "run_command", isError: true } as AgentEvent)!)).toBe("run_command failed - trying again");
   });
 });

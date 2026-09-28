@@ -12,7 +12,12 @@ import {
 
 const team = (state: AiTeamView["state"]): AiTeamView => ({
   id: "team-view",
+  kind: "team",
+  group: null,
+  hold: null,
+  touchedPaths: [],
   state,
+  activity: {},
   prompt: "Update desktop and web",
   acceptanceCriteria: ["Both work"],
   concurrency: 2,

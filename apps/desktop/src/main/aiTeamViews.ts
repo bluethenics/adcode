@@ -42,12 +42,33 @@ function conflictView(conflict: AiTeamRecord["merge"]["conflicts"][number]): AiT
   };
 }
 
-export function toAiTeamView(team: AiTeamRecord): AiTeamView {
+/** What a running node is doing, kept in memory by the runner; never persisted. */
+export type AiTeamActivity = Readonly<Record<string, { readonly text: string; readonly at: number }>>;
+
+/** Live facts about a run that the main process keeps in memory, next to the durable record. */
+export interface AiTeamLive {
+  readonly activity?: AiTeamActivity;
+  readonly hold?: string | null;
+  readonly touchedPaths?: readonly string[];
+}
+
+/** A relative path inside the project; anything else never crosses to the renderer. */
+function projectPath(path: string): boolean {
+  if (path.length === 0 || path.length > 4_096 || path.startsWith("/") || /^[A-Za-z]:[\/]/.test(path)) return false;
+  return path.replaceAll("\\", "/").split("/").every((part) => part.length > 0 && part !== "..");
+}
+
+export function toAiTeamView(team: AiTeamRecord, live: AiTeamLive = {}): AiTeamView {
+  const activity = live.activity ?? {};
   const roots = [team.workspaceRoot];
   const reservedTokens = team.budget.reservations.reduce((sum, item) => sum + item.tokens, 0);
   const reservedCostMicros = team.budget.reservations.reduce((sum, item) => sum + item.costMicros, 0);
   return {
     id: team.id,
+    kind: team.plan.kind,
+    group: team.plan.group ?? null,
+    hold: live.hold ?? null,
+    touchedPaths: (live.touchedPaths ?? []).filter(projectPath).slice(0, 200),
     state: team.state,
     prompt: redact(team.plan.prompt, roots),
     acceptanceCriteria: team.plan.acceptanceCriteria.map((item) => redact(item, roots)),
@@ -94,6 +115,9 @@ export function toAiTeamView(team: AiTeamRecord): AiTeamView {
       conflicts: team.merge.conflicts.map(conflictView),
     },
     baseKind: team.base?.kind ?? null,
+    activity: Object.fromEntries(
+      Object.entries(activity).map(([nodeId, entry]) => [nodeId, { text: redact(entry.text, roots), at: entry.at }]),
+    ),
     confirmedAt: team.confirmedAt,
     createdAt: team.createdAt,
     updatedAt: team.updatedAt,

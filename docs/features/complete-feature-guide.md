@@ -530,6 +530,28 @@ Access: `All Features → Tree-sitter highlighting`; `Turn on or off`; `Settings
 
 ## The assistant
 
+<!-- feature:ai.agentMascots -->
+### Agent mascots
+
+Each saved agent has its own little character - a shape and a colour - and its face shows how that agent's work is going.
+
+Why use it: On a busy board you should not have to read to know what needs you. A worried face with a ! stands out from a sleepy one, and a Reviewer never looks like a Tester.
+
+How to use it: Every agent gets a look of its own from the moment it is created; change it in the agent editor by picking one of eight shapes and ten colours. On the board the face follows the work: thinking while it works, alert with a ! when it needs you, proud when its work is ready to review, happy once it has landed, confused when something went wrong, and sleepy while it waits or after it stops. With Reduce motion on, mascots stay still but still change face.
+
+Access: `All Features → Agent mascots`; `Create an agent`.
+
+<!-- feature:adcode.ai.parallelAgents -->
+### Agents working at once
+
+How many agents on the Agents board, and Team roles, may work at the same time. The rest wait their turn as Queued.
+
+Why use it: More agents at once finishes a pile of tasks sooner, but spends your key faster and is likelier to run into a provider's rate limit. Three is quick without being greedy.
+
+How to use it: Settings > AI > Agents working at once: pick 1 to 6. A run that is waiting shows Queued on its box and starts on its own, oldest first, as soon as another agent finishes or is stopped. Raising the number starts queued runs straight away. It counts agents in this window; the main chat is never queued.
+
+Access: `All Features → Agents working at once`; `Settings`.
+
 <!-- feature:adcode.ai.chatWidget -->
 ### AI chat workspace
 
@@ -537,7 +559,7 @@ A conversation workspace with searchable history, a live working block per answe
 
 Why use it: Asking in the editor beats copying code into a browser, because the assistant can already see the project. A playful mascot, a scroll pill that respects your place, and a clear way back from an interrupted turn keep long runs feeling alive instead of hung.
 
-How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. The answer reads in the order it happened, as in Claude: a block of work, the text it led to, the next block of work, more text. While a block runs it names the current step with elapsed time — the blue mascot with white eyes bounces while working, its eyes follow your pointer, and clicking it pops a morale-boosting quip. Tool calls stream in as bordered rows, each gaining a checkmark when done. When the assistant starts writing again, that block collapses to Worked for Ns; select its header to expand it again. Scroll up and the transcript stays pinned while a Jump to latest pill appears with a count of new messages; select it to return to the tail. If you stop a turn, an interrupted banner offers Edit prompt (your last message back in the composer) and Try again. If a turn fails, a card in the conversation says why in plain words - a rate limit, a request too large for the model, a rejected key, a broken tool call, a network problem - with buttons to try again, switch model, start fresh or report it, and the provider’s exact message under Details. A failed turn never breaks the conversation: the next message works as normal. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers icon actions for Copy, Read aloud, helpful or not helpful, and Retry, with relative time like just now. Use History to browse conversations and the activity panel to see agent work. Share copies the conversation as markdown. Toggle either side panel for more conversation space. Escape closes the workspace without losing the conversation. The assistant changes existing files with exact replacements instead of rewriting them, reads several files at once, and works through up to 50 steps per request, and Keep going until done carries it on past that by itself. Its edits land in your files as it works, and each turn that changed files gets an Undo card. On an empty conversation, starters - Explain this project, Build something, Fix an error, Plan new idea and Multitask - get going in one click, and in Vibe a short checklist shows anything still missing, such as opening a project folder or connecting a model.
+How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. The answer reads in the order it happened, as in Claude: a block of work, the text it led to, the next block of work, more text. While a block runs it names the current step with elapsed time — the blue mascot with white eyes bounces while working, its eyes follow your pointer, and clicking it pops a morale-boosting quip. Tool calls stream in as bordered rows, each gaining a checkmark when done. When the assistant starts writing again, that block collapses to Worked for Ns; select its header to expand it again. Scroll up and the transcript stays pinned while a Jump to latest pill appears with a count of new messages; select it to return to the tail. If you stop a turn, an interrupted banner offers Edit prompt (your last message back in the composer) and Try again. If a turn fails, a card in the conversation says why in plain words - a rate limit, a request too large for the model, a rejected key, a broken tool call, a network problem - with buttons to try again, switch model, start fresh or report it, and the provider’s exact message under Details. A failed turn never breaks the conversation: the next message works as normal. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers icon actions for Copy, Read aloud, helpful or not helpful, and Retry, with relative time like just now. Use History to browse conversations; Team, schedules and activity opens as a floating panel, and the Agents page shows every agent at work. Share copies the conversation as markdown. Escape closes the workspace without losing the conversation. The assistant changes existing files with exact replacements instead of rewriting them, reads several files at once, and works through up to 50 steps per request, and Keep going until done carries it on past that by itself. Its edits land in your files as it works, and each turn that changed files gets an Undo card. On an empty conversation, starters - Explain this project, Build something, Fix an error, Plan new idea and Multitask - get going in one click, and in Vibe a short checklist shows anything still missing, such as opening a project folder or connecting a model.
 
 Access: `All Features → AI chat workspace`; `Turn on or off`; `Settings`.
 
@@ -570,7 +592,7 @@ Create named agents with their own instructions and models, then let a team divi
 
 Why use it: Independent research, coding, and checking can finish faster without making one assistant carry every detail in the same context.
 
-How to use it: Open the Assistant and its activity panel. Create agents with a name, instructions, connection, and model. Enable Run after teammates for an agent that should receive others' handoffs first. Select two to four agents, describe a task in the composer, and choose Set up selected Team. Review the plan and start it. Agent rows show tasks and status; Agent trace shows tool activity and results. Review combined changes before applying them, or cancel a running team. Requests share each connection's rate limit.
+How to use it: Open Agents from the Vibe sidebar or the command palette. Create agents under Your agents with a name, look, instructions, connection, model and the tools they may use. Enable Run after teammates for an agent that should receive others' handoffs first. Choose Select for a Team, tick two to four agents, press Set up Team and describe the shared task. The Team appears as one box under Needs you with its members' mascots; press Start to begin. Select the box to see each step it took. Review combined changes before applying them, or Stop a running team. Requests share each connection's rate limit, and Teams count towards Agents working at once. The assistant can also suggest a Team for a big request in the chat.
 
 Access: `All Features → AI Team`; `Set up Team`; `Settings`.
 
@@ -592,7 +614,7 @@ Every conversation is kept in Today, Yesterday, and older groups, so you can go 
 
 Why use it: Assistants that forget everything are frustrating, and assistants that remember invisibly are worse. Showing what is remembered makes clearing it something you can actually see work.
 
-How to use it: Press Ctrl+Shift+N or choose New conversation to start fresh; the current one is kept. In Vibe, past conversations are listed in the sidebar, grouped into Today, Yesterday and older; in the IDE, choose History from the conversation's actions menu. Search them by title or by anything said in them, rename them, or delete one. The header shows the current conversation name and Share copies it as markdown. Conversations are stored on your own machine, per project, and are never uploaded.
+How to use it: Press Ctrl+Shift+N or choose New conversation to start fresh; the current one is kept. In Vibe, past conversations are listed in the sidebar, grouped into Today, Yesterday and older; in the IDE the assistant is a floating window over the editor (Ctrl+I shows or hides it) - choose History from the conversation's actions menu. Search them by title or by anything said in them, rename them, or delete one. The header shows the current conversation name and Share copies it as markdown. Conversations are stored on your own machine, per project, and are never uploaded.
 
 Access: `All Features → Chat history and memory`; `Open Assistant`; `New conversation`.
 
@@ -669,7 +691,7 @@ Lets AI tools outside ADCode - Claude Code, Codex, and others - read and write t
 
 Why use it: One set of notes shared by every assistant you use, rather than each one starting from nothing.
 
-How to use it: On by default. Settings shows the exact command to run once, from your project folder, with a Copy button. That is the whole setup.
+How to use it: On by default. Open Tools and choose Memory: Share with your other AI tools shows the exact command to run once, from your project folder, with a Copy button. That is the whole setup.
 
 Access: `All Features → MCP server`; `Turn on or off`; `Settings`.
 
@@ -680,7 +702,7 @@ The assistant writes down decisions and conventions about your project, so it do
 
 Why use it: Explaining the same thing at the start of every conversation is the main reason AI assistants feel forgetful.
 
-How to use it: On by default. Memories are plain markdown files in your project folder - you can read them, edit them, and delete them like any other file. Settings shows you where they are.
+How to use it: On by default. Memories are plain markdown files in your project folder. Open Tools and choose Memory to read them grouped by kind, correct or delete one, or add your own; they are also ordinary files you can edit anywhere.
 
 Access: `All Features → Memory capture`; `Turn on or off`; `Settings`.
 
@@ -695,6 +717,17 @@ How to use it: Pick from the list, which shows the models your key can actually 
 
 Access: `All Features → Model`; `Settings`.
 
+<!-- feature:ai.memoryEditor -->
+### Project memory
+
+Read, correct and add to what the assistant has learned about your project - decisions, conventions and preferences - all in one place.
+
+Why use it: Memory you cannot see is memory you cannot trust. When a note is wrong, fixing it once stops every assistant and agent repeating the mistake.
+
+How to use it: Open Tools and choose Memory, or Tools: Project Memory in the command palette. Notes are grouped into Decisions, Conventions, Preferences and Session notes, each showing who wrote it and when. Edit changes a note, Delete forgets it, and Add memory writes one yourself - give it a short name, a one-line summary and the detail. Changes are searchable by the assistant straight away. Share with your other AI tools gives the command that lets Claude Code, Cursor and others use this same memory.
+
+Access: `All Features → Project memory`; `Open project memory`.
+
 <!-- feature:adcode.ai.provider -->
 ### Provider
 
@@ -705,6 +738,17 @@ Why use it: Different models are better at different things, and cost different 
 How to use it: Open Connect a model, pick a provider, and paste your key. ADCode checks the key works before saving it. Keys are kept in your operating system's own password store, never in a settings file. The local option needs no key at all - it talks to a model running on your own machine.
 
 Access: `All Features → Provider`; `Settings`.
+
+<!-- feature:ai.raceMode -->
+### Race mode
+
+Give the same task to two or three agents at once - different models if you like - then compare their work side by side and keep the best.
+
+Why use it: One model is often almost right. Trying a few and choosing costs a little more and saves the back-and-forth of fixing an almost-right answer.
+
+How to use it: On the Agents page press New task (or run Agents: Race Several Agents on One Task), describe the task, turn on Race and tick two or three agents. Each works in its own copy; its box shows Race 1 of 3 and so on. A race is never applied on its own. When every lane has finished, press Compare on any of them: each lane shows its agent, model, cost, proof of work and what it said. Keep this one applies that lane to your project and discards the others.
+
+Access: `All Features → Race mode`; `Start a race`.
 
 <!-- feature:adcode.ai.scheduledMessages -->
 ### Scheduled AI messages
@@ -877,6 +921,17 @@ Access: `All Features → Restore workspace`; `Turn on or off`; `Settings`.
 
 ## The workbench
 
+<!-- feature:workbench.agentsBoard -->
+### Agents board
+
+Hand tasks to AI agents that work at the same time, each in its own copy of your project, and follow them as boxes in Working, Needs you and Ready.
+
+Why use it: One assistant doing one thing at a time keeps you waiting. Several agents can fix a bug, write tests and polish a page at once while you keep chatting, and each box shows at a glance which one is busy, which one needs you and which one is done - no scrolling back through a transcript to find out.
+
+How to use it: Choose Agents in the Vibe sidebar, or Open Agents from the command palette (in the IDE window it opens as a large popup). Press New task, describe what you want, pick an agent - or keep the default, your connected model with every tool - and optionally a cost cap, then press Enter. The task appears as a box under Working with its agent's mascot, what it is doing right now (such as Editing src/app.ts), how long it has run, the files it touched, its tokens and - when the model's price is known - its cost. Start as many as you like: the number working at once follows Agents working at once in Settings, and the rest wait as Queued. Each agent works in an isolated copy, so nothing reaches your project until it finishes. With Apply automatically on, finished work lands straight away and its box offers Undo and Continue; with Review every change it waits under Ready with Review, Apply, Apply & continue and Discard. Needs you collects anything that cannot go on without you: a clash with your own edits (Resolve), an error (Run again, or Open in chat to talk it through), a spent cost cap (Run with a higher cap) and runs paused when ADCode closed (Resume). Every finished box shows its proof of work: the tests, type checks and linters the agent actually ran, with a tick or a cross, and warnings about its change - a possible secret, sign-in or payment code, removed tests, new dependencies or a very large change. With Apply automatically on, a run with a failed check or a possible secret is held under Ready for you to look at instead of applied. If an agent keeps trying the same failing thing, ADCode stops it and the box offers Try another way. When two agents edit the same file, both boxes warn you before their work collides. A cost cap set on a task, or a usual cap saved on the agent, shows as spend against the cap, and the header shows your ad earnings beside today's agent spend. Select a box to see what it reported, the files it changed, its proof of work and every step it took. Today's finished runs fold under Finished today. Your agents lists saved specialists - Run gives one a task, Edit changes its name, look, instructions, model and the tools it may use, Duplicate copies it, and New agent adds one. Five starter agents are added the first time. Select for a Team picks two to four agents to split one task; press Start on its box to begin.
+
+Access: `All Features → Agents board`; `Open Agents`; `New task`.
+
 <!-- feature:workbench.allFeatures -->
 ### All Features
 
@@ -917,7 +972,7 @@ Every file that changed since your last commit - what the assistant did and what
 
 Why use it: When the assistant edits as it works, this is where you see what it touched and save the result. It reads like Cursor's changes view, but you never have to learn staging: every file is included until you untick it, and if you leave the commit message empty ADCode writes one from the files.
 
-How to use it: Choose Changes in the Vibe sidebar, or Show Workspace Changes in the command palette. The bar at the top shows the uncommitted +added −removed total, the branch and Commit & Push; the line under it always says which files the next commit takes. Each row is a file with its line counts, a New or Deleted tag, a revert arrow and a checkbox. Select a file to see its diff - a new file shows its whole contents. Untick a file to leave it out of the next commit; while every box is ticked, Commit & Push takes every file. Commit & Push commits and pushes in one step, with a message such as Update css/app.css and 2 more files when you have not written one; the arrow beside it offers Commit only and Write the commit message. A project not yet connected to GitHub is committed on this computer, and the panel says how to connect it. The revert arrow asks first, then puts an edited file back as it was at the last commit, or moves a new file to the Recycle Bin. The branch button switches branch; the ⋯ button holds Include everything, Pull, Push, Revert all changes and Source Control. In a folder without Git, Turn on version control starts tracking it. On a drive that does not record who owns files (FAT32 or exFAT, most USB sticks), Git refuses a repository until the folder is trusted: one ADCode just created is trusted for you, and for any other the panel says Git needs your OK and offers Trust this folder - trust only folders you made or got from someone you trust, because a repository can run its own scripts. Work from Review mode or an AI Team that is waiting to be applied appears at the top of the panel.
+How to use it: Choose Changes in the Vibe sidebar, or Show Workspace Changes in the command palette; it opens as a floating window you can move, resize and maximise. The bar at the top shows the uncommitted +added −removed total, the branch and Commit & Push; the line under it always says which files the next commit takes. Each row is a file with its line counts, a New or Deleted tag, a revert arrow and a checkbox. Select a file to see its diff - a new file shows its whole contents. Untick a file to leave it out of the next commit; while every box is ticked, Commit & Push takes every file. Commit & Push commits and pushes in one step, with a message such as Update css/app.css and 2 more files when you have not written one; the arrow beside it offers Commit only and Write the commit message. A project not yet connected to GitHub is committed on this computer, and the panel says how to connect it. The revert arrow asks first, then puts an edited file back as it was at the last commit, or moves a new file to the Recycle Bin. The branch button switches branch; the ⋯ button holds Include everything, Pull, Push, Revert all changes and Source Control. In a folder without Git, Turn on version control starts tracking it. On a drive that does not record who owns files (FAT32 or exFAT, most USB sticks), Git refuses a repository until the folder is trusted: one ADCode just created is trusted for you, and for any other the panel says Git needs your OK and offers Trust this folder - trust only folders you made or got from someone you trust, because a repository can run its own scripts. Work from Review mode or an AI Team that is waiting to be applied appears at the top of the panel.
 
 Access: `All Features → Changes panel`; `Open Changes`.
 
@@ -931,6 +986,17 @@ Why use it: There are hundreds of commands and no menu can hold them all. If you
 How to use it: Press Ctrl+Shift+P and start typing. The shortcut for each command is shown beside it, so it teaches you the keys as you use it.
 
 Access: `All Features → Command palette`; `Open`; `Keyboard → Ctrl/Cmd+Shift+P`.
+
+<!-- feature:workbench.floatingPanels -->
+### Floating panels
+
+Changes, Preview, the project overview, Team activity and the IDE's assistant open as windows floating over your work instead of sidebars.
+
+Why use it: A sidebar takes a column from the editor or the conversation for as long as it is open. A floating panel sits over the work only while you need it, goes where you put it, and gives the full width back the moment it closes.
+
+How to use it: Open a panel as usual - Changes or Preview in the Vibe sidebar, Project overview from the project card, Ctrl+I for the assistant in the IDE. Drag it by its title bar, resize it from any edge or corner, and double-click the title bar or press Maximise to fill the window; press it again to restore. Escape or the close button hides it. Each panel remembers where you left it, and if the window shrinks it is pulled back so its title bar can always be reached. Several can be open at once; clicking one brings it to the front. On a narrow window panels open full-size instead.
+
+Access: `All Features → Floating panels`; `Reset panel positions`.
 
 <!-- feature:workbench.imagePreview -->
 ### Image preview
@@ -968,13 +1034,13 @@ Access: `All Features → Live collaboration`; `Open`; `Leave session`.
 <!-- feature:workbench.preview -->
 ### Live preview
 
-See a web page you are building beside your code, updating as you type.
+See a web page you are building in a floating window over your code, updating as you type.
 
 Why use it: Saving, switching to a browser, and refreshing is three steps too many when you are adjusting a layout.
 
-How to use it: Open a HTML file and start the preview. It reloads itself when you save. Open device sizes for one-click Phone, Tablet, or Desktop, labelled W and H boxes with minus and plus steppers, or drag the frame's visible edges — the page reshapes in place without reloading, and Fit scales it down so you never scroll to see it. Turn on Inspect, then right-click anything in the preview to see its width, height, padding, margin, and markup; if it grabs an inner piece instead of the card you meant, walk up the breadcrumb to the parent, which flashes in the page as you pick it. Choose List all for every element's spacing at once.
+How to use it: Open a HTML file and start the preview. It reloads itself when you save. The preview floats over your work: drag it by its bar, resize it from any edge, and double-click the bar or press Maximise to fill the window. Open device sizes for one-click Phone, Tablet, or Desktop, labelled W and H boxes with minus and plus steppers, or drag the frame's visible edges — the page reshapes in place without reloading, and Fit scales it down so you never scroll to see it. Turn on Inspect, then right-click anything in the preview to see its width, height, padding, margin, and markup; if it grabs an inner piece instead of the card you meant, walk up the breadcrumb to the parent, which flashes in the page as you pick it. Choose List all for every element's spacing at once. To change an element, pick it with Inspect and choose Change this with AI: New task opens with that element already attached, so you only say what should change.
 
-Access: `All Features → Live preview`; `Open`; `Reload`; `Undock into a window`; `Switch project or files`; `Another screen size`; `Inspect element size and spacing`.
+Access: `All Features → Live preview`; `Open`; `Reload`; `Maximise or restore`; `Switch project or files`; `Another screen size`; `Inspect element size and spacing`.
 
 <!-- feature:workbench.openIde -->
 ### Open IDE in a separate window
@@ -1031,6 +1097,17 @@ How to use it: Works in HTML, JSX className, and Vue, Angular, and Handlebars te
 
 Access: `All Features → Style and markup links`; `Open project map`.
 
+<!-- feature:workbench.toolsPage -->
+### Tools page
+
+Everything the assistant and your agents can use, as cards: ADCode's own tools, MCP servers, skills and project memory, with one search across them.
+
+Why use it: Agents are who; tools are what. Seeing which agent may use which tool, why a server is not working and what the assistant remembers - in one place - beats hunting through settings and config files.
+
+How to use it: Choose Tools in the Vibe sidebar, or Open Tools from the command palette. Built-in lists ADCode's tools in plain words, grouped by what they do, and says which agents may use each one. MCP servers shows each server with a health light, its tools and uses, and - when something is wrong - what to do about it; Tools on a connected server turns individual tools on or off, and Retry reconnects. Add server offers a catalogue of servers that work in one click, such as Playwright for testing pages in a real browser and Context7 for current library docs, or Custom for your own. Skills turns written routines on or off, previews them, and creates new ones. Memory shows what the assistant has learned. Search filters every tab at once.
+
+Access: `All Features → Tools page`; `Open Tools`; `Add an MCP server`.
+
 <!-- feature:workbench.universalSearch -->
 ### Universal search
 
@@ -1060,7 +1137,7 @@ The left side of the Vibe window: start a conversation, switch project, and see 
 
 Why use it: Vibe hides the editor, so something has to tell you that an agent is still working or what has changed. The Changes badge says so without opening anything, and every everyday workflow has a row of its own instead of hiding in a menu.
 
-How to use it: New conversation (Ctrl+Shift+N) starts fresh; earlier ones stay under Conversations, grouped by day and searchable. The project card shows the folder, its branch and how many files have changed - select it to switch to a recent project, open or clone one, or see the project overview. Changes opens the Changes panel beside the conversation (select it again to close it); its badge counts the files you have not committed, and turns blue when something needs you, such as a conflict or - if you chose Review every change - AI edits waiting to apply. Preview shows the running app, Automations schedules messages, and Agents & tools manages saved agents, MCP tools and skills. The footer holds Open IDE, notifications, your earnings, Settings and More for everything else. Drag the sidebar's right edge to resize it. Press Ctrl+B to hide or show it; on a narrow window it becomes a drawer that the menu button or Ctrl+B opens.
+How to use it: New conversation (Ctrl+Shift+N) starts fresh; earlier ones stay under Conversations, grouped by day and searchable. The project card shows the folder, its branch and how many files have changed - select it to switch to a recent project, open or clone one, or see the project overview. Chat, Agents and Tools switch the page in the middle of the window: Chat is the conversation, Agents is the board of agents working in parallel and your saved agents, and Tools is where built-in tools, MCP servers, skills and project memory live. Changes opens the Changes panel as a floating window over the page (select it again to close it); its badge counts the files you have not committed, and turns blue when something needs you, such as a conflict or - if you chose Review every change - AI edits waiting to apply. Preview shows the running app in a floating window, and Automations schedules messages. Nothing docks on the right, so the page always keeps the full width. The footer holds Open IDE, notifications, your earnings, Settings and More for everything else. Drag the sidebar's right edge to resize it. Press Ctrl+B to hide or show it; on a narrow window it becomes a drawer that the menu button or Ctrl+B opens.
 
 Access: `All Features → Vibe sidebar`; `Show or hide`; `Keyboard → Ctrl+B`.
 

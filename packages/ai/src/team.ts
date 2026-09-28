@@ -1,10 +1,19 @@
 /** Pure Team-mode configuration and local suggestion decisions. */
+import { parseToolAccess, type ToolAccess } from "./toolAccess.ts";
+
+/**
+ * A team divides one task across two to four roles. A solo run is one agent on one task -
+ * the Agents board's boxes - scheduled, budgeted and reviewed by the same machinery.
+ */
+export type TeamPlanKind = "team" | "solo";
 
 export interface TeamRoleInput {
   readonly id: string;
   readonly label: string;
   readonly objective: string;
   readonly route?: { readonly provider: string; readonly model: string };
+  /** Which tools this role's agent may use. Absent means all of them. */
+  readonly toolAccess?: ToolAccess;
 }
 
 export interface TeamPlanNodeInput {
@@ -19,6 +28,10 @@ export interface TeamPlanNodeInput {
 
 export interface TeamPlanInput {
   readonly id: string;
+  /** Absent in plans saved before solo runs existed; those are teams. */
+  readonly kind?: TeamPlanKind;
+  /** Race mode: solo runs on the same task share a group so they can be compared. */
+  readonly group?: string;
   readonly prompt: string;
   readonly acceptanceCriteria: readonly string[];
   readonly roles: readonly TeamRoleInput[];
@@ -31,6 +44,8 @@ export interface TeamPlanNode extends TeamPlanNodeInput {}
 
 export interface TeamPlan {
   readonly id: string;
+  readonly kind: TeamPlanKind;
+  readonly group?: string;
   readonly prompt: string;
   readonly acceptanceCriteria: readonly string[];
   readonly roles: readonly TeamRole[];
@@ -78,24 +93,39 @@ export function createTeamPlan(input: TeamPlanInput): TeamPlan {
     1,
     20,
   );
-  if (!Array.isArray(input.roles) || input.roles.length < 2 || input.roles.length > 4) {
-    throw new Error("A team needs at least two roles and at most four roles");
+  const kind: TeamPlanKind = input.kind === undefined ? "team" : input.kind;
+  if (input.group !== undefined && (typeof input.group !== "string" || !/^race-[a-z0-9-]{3,60}$/.test(input.group))) {
+    throw new Error("Invalid race group");
   }
-  if (!Array.isArray(input.nodes) || input.nodes.length < 2 || input.nodes.length > 16) {
-    throw new Error("A team needs between two and sixteen task nodes");
+  if (kind !== "team" && kind !== "solo") throw new Error("Unknown plan kind");
+  if (kind === "solo") {
+    if (!Array.isArray(input.roles) || input.roles.length !== 1) throw new Error("A solo run has exactly one role");
+    if (!Array.isArray(input.nodes) || input.nodes.length !== 1) throw new Error("A solo run has exactly one task node");
+  } else {
+    if (!Array.isArray(input.roles) || input.roles.length < 2 || input.roles.length > 4) {
+      throw new Error("A team needs at least two roles and at most four roles");
+    }
+    if (!Array.isArray(input.nodes) || input.nodes.length < 2 || input.nodes.length > 16) {
+      throw new Error("A team needs between two and sixteen task nodes");
+    }
   }
   uniqueIds(input.roles, "role");
   uniqueIds(input.nodes, "node");
 
-  const roles: TeamRole[] = input.roles.map((role) => ({
-    id: role.id,
-    label: boundedText(role.label, "Role label", 80),
-    objective: boundedText(role.objective, "Role objective", 2_000),
-    ...(role.route === undefined ? {} : { route: {
-      provider: boundedText(role.route.provider, "Role provider", 128),
-      model: boundedText(role.route.model, "Role model", 256),
-    } }),
-  }));
+  const roles: TeamRole[] = input.roles.map((role) => {
+    const toolAccess = role.toolAccess === undefined ? undefined : parseToolAccess(role.toolAccess);
+    if (toolAccess === null) throw new Error(`Role ${role.id} has an invalid tool access`);
+    return {
+      id: role.id,
+      label: boundedText(role.label, "Role label", 80),
+      objective: boundedText(role.objective, "Role objective", 2_000),
+      ...(role.route === undefined ? {} : { route: {
+        provider: boundedText(role.route.provider, "Role provider", 128),
+        model: boundedText(role.route.model, "Role model", 256),
+      } }),
+      ...(toolAccess === undefined ? {} : { toolAccess }),
+    };
+  });
   const roleIds = new Set(roles.map((role) => role.id));
   const nodeIds = new Set(input.nodes.map((node) => node.id));
   const nodes: TeamPlanNode[] = input.nodes.map((node) => {
@@ -128,7 +158,7 @@ export function createTeamPlan(input: TeamPlanInput): TeamPlan {
     throw new Error("Team concurrency must be between one and four and no greater than its roles");
   }
 
-  return { id: input.id, prompt, acceptanceCriteria, roles, nodes, concurrency };
+  return { id: input.id, kind, ...(input.group === undefined ? {} : { group: input.group }), prompt, acceptanceCriteria, roles, nodes, concurrency };
 }
 
 export interface TeamSuggestionInput {

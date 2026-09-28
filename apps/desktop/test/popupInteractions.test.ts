@@ -26,12 +26,13 @@ beforeAll(() => {
   delete env["ELECTRON_RUN_AS_NODE"];
   const run = spawnSync(require("electron") as string,
     [fileURLToPath(new URL("./fixtures/popupInteractions.cjs", import.meta.url))],
-    { env, encoding: "utf8", timeout: 25_000, windowsHide: true });
+    // 16s alone; the budget allows for several Chromium fixtures sharing the CPU in `npm test`.
+    { env, encoding: "utf8", timeout: 60_000, windowsHide: true });
   expect(run.status, run.stderr || String(run.error)).toBe(0);
   const line = run.stdout.split(/\r?\n/).find((entry) => entry.startsWith("POPUP_RESULTS="));
   expect(line, run.stdout).toBeDefined();
   results = JSON.parse(line!.slice("POPUP_RESULTS=".length)) as typeof results;
-}, 30_000);
+}, 65_000);
 
 describe("popup interactions in Chromium", () => {
   it("stays visible after repeated completed close and reopen animations", () => {

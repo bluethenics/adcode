@@ -76,7 +76,8 @@ import {
   resetSettings,
   writeSetting,
 } from "./settings.ts";
-import { mcpConnection } from "./memory.ts";
+import { mcpConnection, memoryList, memoryRemove, memoryWrite } from "./memory.ts";
+import { parseMemoryName, parseMemoryWrite } from "./memoryIpcValidation.ts";
 import { assistantControls } from "./assistantControls.ts";
 import { registerGitIpc } from "./gitIpc.ts";
 import { installApplicationMenu } from "./menu.ts";
@@ -912,6 +913,15 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
   });
 
   ipcMain.handle(CHANNELS.memoryConnection, () => mcpConnection());
+  ipcMain.handle(CHANNELS.memoryList, () => memoryList());
+  ipcMain.handle(CHANNELS.memoryWrite, (_event, raw: unknown) => {
+    const input = parseMemoryWrite(raw);
+    return input === null ? null : memoryWrite(input);
+  });
+  ipcMain.handle(CHANNELS.memoryRemove, (_event, raw: unknown) => {
+    const name = parseMemoryName(raw);
+    return name === null ? false : memoryRemove(name);
+  });
 
   ipcMain.handle(CHANNELS.settingsRead, () => readSettings());
 

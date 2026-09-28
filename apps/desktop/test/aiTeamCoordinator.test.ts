@@ -19,6 +19,7 @@ import {
 } from "../src/main/aiTeamCoordinator.ts";
 import { createAiTeamService } from "../src/main/aiTeamService.ts";
 import { createAiWorkspaceService } from "../src/main/aiWorkspaceService.ts";
+import { createSlotPool } from "../src/main/slotPool.ts";
 
 let project: string;
 let userData: string;
@@ -350,5 +351,101 @@ describe("confirmed AI Team coordination", () => {
     const final = await coordinator.wait("team-coordinator");
     expect(starts).toContain("alpha-change");
     expect(final.state).toBe("completed");
+  });
+});
+
+describe("parallel agents limit across runs", () => {
+  const soloPlan = (id: string) =>
+    createTeamPlan({
+      id,
+      kind: "solo",
+      prompt: "Do the one thing",
+      acceptanceCriteria: ["Done"],
+      concurrency: 1,
+      roles: [{ id: "solo", label: "Solo", objective: "Do the one thing" }],
+      nodes: [{ id: "task", title: "Task", objective: "Do it", roleId: "solo", dependsOn: [], acceptanceCriteria: ["Done"], fileHints: [] }],
+    });
+
+  function soloServices() {
+    const { teams } = services();
+    const configure = (id: string) =>
+      teams.configure({
+        id,
+        workspaceRoot: project,
+        plan: soloPlan(id),
+        claims: [],
+        budget: createTeamBudget({ tokenLimit: 20_000, costMicrosLimit: 1_000_000, agentTokenLimits: { task: 20_000 } }),
+      });
+    return { teams, configure };
+  }
+
+  it("runs two solo runs one after the other when the limit is one", async () => {
+    const { teams, configure } = soloServices();
+    const slots = createSlotPool(() => 1);
+    let running = 0;
+    let peak = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const coordinator = createAiTeamCoordinator({
+      teamService: teams,
+      resolveRoute: async (_team, node) => route(node.id),
+      slots,
+      runNode: async (input) => {
+        running += 1;
+        peak = Math.max(peak, running);
+        // The first run holds its slot until both runs have been started.
+        if (input.teamId === "solo-one") await gate;
+        running -= 1;
+        return handoff(input);
+      },
+    });
+    await configure("solo-one");
+    await configure("solo-two");
+    await coordinator.startConfirmed("solo-one");
+    await coordinator.startConfirmed("solo-two");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(running).toBe(1);
+    release();
+    const [one, two] = await Promise.all([coordinator.wait("solo-one"), coordinator.wait("solo-two")]);
+
+    expect(peak).toBe(1);
+    expect(one.state).toBe("completed");
+    expect(two.state).toBe("completed");
+    expect(slots.active()).toBe(0);
+  });
+
+  it("gives back the slot when a queued run is cancelled, so the queue keeps draining", async () => {
+    const { teams, configure } = soloServices();
+    const slots = createSlotPool(() => 1);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const started: string[] = [];
+    const coordinator = createAiTeamCoordinator({
+      teamService: teams,
+      resolveRoute: async (_team, node) => route(node.id),
+      slots,
+      runNode: async (input) => {
+        started.push(input.teamId);
+        if (input.teamId === "solo-one") await gate;
+        return handoff(input);
+      },
+    });
+    await configure("solo-one");
+    await configure("solo-two");
+    await configure("solo-three");
+    await coordinator.startConfirmed("solo-one");
+    await coordinator.startConfirmed("solo-two");
+    await coordinator.startConfirmed("solo-three");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(started).toEqual(["solo-one"]);
+
+    expect((await coordinator.cancel("solo-two")).state).toBe("cancelled");
+    release();
+    const three = await coordinator.wait("solo-three");
+
+    expect(three.state).toBe("completed");
+    expect(started).toEqual(["solo-one", "solo-three"]);
+    expect(slots.active()).toBe(0);
+    expect(slots.waiting()).toBe(0);
   });
 });

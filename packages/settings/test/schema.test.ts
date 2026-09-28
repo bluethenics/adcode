@@ -141,6 +141,7 @@ describe("AI workspace settings", () => {
       ["adcode.ai.sandboxQuota", ["1gb", "5gb", "10gb"]],
       ["adcode.ai.sandboxRetention", ["1d", "7d", "30d"]],
       ["adcode.ai.checkpointRetention", ["7d", "30d", "90d"]],
+      ["adcode.ai.parallelAgents", ["1", "2", "3", "4", "5", "6"]],
     ]);
     for (const [id, options] of expected) {
       const setting = byId.get(id as SettingId);
@@ -168,6 +169,8 @@ describe("AI workspace settings", () => {
     expect(byId.get("adcode.ai.sandboxQuota" as SettingId)?.default).toBe("5gb");
     expect(byId.get("adcode.ai.sandboxRetention" as SettingId)?.default).toBe("7d");
     expect(byId.get("adcode.ai.checkpointRetention" as SettingId)?.default).toBe("30d");
+    // Three agents at once: fast enough to feel parallel, gentle on a provider's rate limits.
+    expect(byId.get("adcode.ai.parallelAgents" as SettingId)?.default).toBe("3");
   });
 });
 

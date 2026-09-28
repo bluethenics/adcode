@@ -46,6 +46,8 @@ export interface InspectedBox {
 export interface ElementInspectorDeps {
   /** The preview iframe. Only ever posted messages to, never read from. */
   readonly frame: HTMLIFrameElement;
+  /** Point-and-fix: hand the picked element to an agent. Without it, no button is shown. */
+  readonly onFix?: (box: InspectedBox) => void;
 }
 
 /**
@@ -136,6 +138,24 @@ export function highlightHtml(html: string): string {
         .replace(/([a-zA-Z-]+)=(&quot;.*?&quot;)/g, `<span class="inspect-attr">$1</span>=<span class="inspect-string">$2</span>`);
     })
     .join("");
+}
+
+const ATTACHED_MARKUP = 1_500;
+
+/**
+ * The picked element, written out for an agent: where it is, what it is, how big, and its
+ * markup - so a request like "make this bigger" needs no explaining which "this".
+ */
+export function elementAttachment(box: InspectedBox, pageUrl: string | null): string {
+  const markup = box.html.length > ATTACHED_MARKUP ? `${box.html.slice(0, ATTACHED_MARKUP)}…` : box.html;
+  return [
+    ...(pageUrl === null ? [] : [`Page: ${pageUrl}`]),
+    `Element: ${describeBox(box)}`,
+    `Selector: ${box.selector}`,
+    `Size: ${box.width} × ${box.height} px`,
+    "Markup:",
+    markup,
+  ].join("\n");
 }
 
 export function createElementInspector(deps: ElementInspectorDeps): ElementInspector {
@@ -327,6 +347,15 @@ export function createElementInspector(deps: ElementInspectorDeps): ElementInspe
       });
     });
     codeHead.append(codeLabel, copy);
+    if (deps.onFix !== undefined) {
+      const fix = document.createElement("button");
+      fix.type = "button";
+      fix.className = "ghost-button device-action inspect-fix";
+      fix.textContent = "Change this with AI";
+      fix.title = "Tell an agent what to change about this element - it already knows which one";
+      fix.addEventListener("click", () => deps.onFix?.(box));
+      codeHead.append(fix);
+    }
 
     const code = document.createElement("pre");
     code.className = "inspect-code";

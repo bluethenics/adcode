@@ -135,7 +135,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [
       command("preview.toggle", "Open"),
       command("preview.reload", "Reload"),
-      command("preview.undock", "Undock into a window"),
+      command("preview.maximise", "Maximise or restore"),
       command("preview.switchMode", "Switch project or files"),
       command("preview.device", "Another screen size"),
       command("preview.inspect", "Inspect element size and spacing"),
@@ -187,6 +187,30 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "ai.sessions": {
     actions: [command("ai.toggle", "Open Assistant"), command("ai.newConversation", "New conversation")],
     keywords: ["chat history", "conversation", "memory", "new chat", "ctrl+shift+n", "start over"],
+  },
+  "workbench.agentsBoard": {
+    actions: [command("agents.open", "Open Agents"), command("agents.newTask", "New task")],
+    keywords: ["agents", "agent board", "parallel agents", "background agents", "multiple agents", "run in background", "kanban", "boxes", "tasks", "ai tasks", "queued", "needs you", "ready to review", "apply and continue", "cost cap", "starter agents", "reviewer", "tester", "bug fixer", "like cursor agents", "like devin"],
+  },
+  "workbench.toolsPage": {
+    actions: [command("tools.open", "Open Tools"), command("tools.addServer", "Add an MCP server")],
+    keywords: ["tools", "mcp", "mcp server", "model context protocol", "skills", "plugins", "integrations", "marketplace", "playwright", "context7", "figma", "netlify", "chrome devtools", "tool access", "server not working", "agents and tools"],
+  },
+  "ai.memoryEditor": {
+    actions: [command("tools.memory", "Open project memory")],
+    keywords: ["memory", "remember", "forget", "what does the ai know", "conventions", "decisions", "preferences", "agents.md", "claude.md", "shared memory", "edit memory"],
+  },
+  "ai.raceMode": {
+    actions: [command("agents.race", "Start a race")],
+    keywords: ["race", "best of n", "compare models", "several models", "multiple models", "try different models", "pick the best", "a/b", "parallel attempts"],
+  },
+  "ai.agentMascots": {
+    actions: [command("agents.newAgent", "Create an agent")],
+    keywords: ["mascot", "avatar", "character", "agent look", "shape", "colour", "color", "face", "bloub"],
+  },
+  "workbench.floatingPanels": {
+    actions: [command("view.resetFloatingPanels", "Reset panel positions")],
+    keywords: ["floating", "popup", "pop-up", "window", "no sidebar", "right sidebar", "move panel", "resize panel", "maximise", "maximize", "lost panel", "off screen"],
   },
   "ai.team": {
     actions: [command("ai.team", "Set up Team")],

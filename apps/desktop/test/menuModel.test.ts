@@ -246,7 +246,7 @@ describe("the bar as a whole", () => {
       "collab.panel",
       "collab.leave",
       "preview.reload",
-      "preview.undock",
+      "preview.maximise",
       "preview.switchMode",
       "preview.device",
       "ai.toggle",

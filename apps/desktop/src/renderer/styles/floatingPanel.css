@@ -1,0 +1,114 @@
+/*
+ * Floating panels: Changes, Project overview, Activity and the IDE assistant.
+ * They sit over the work, never beside it, so no right-hand column is ever reserved.
+ */
+#floating-layer { position: fixed; inset: 0; pointer-events: none; z-index: 32; }
+
+.floating-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  pointer-events: auto;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-floating);
+  overflow: hidden;
+  contain: layout paint;
+}
+.floating-panel[hidden] { display: none; }
+
+.floating-panel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 var(--space-2) 0 var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-app);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.floating-panel-header:active { cursor: grabbing; }
+.floating-panel[data-maximised="true"] .floating-panel-header,
+.floating-panel[data-sheet="true"] .floating-panel-header { cursor: default; }
+.floating-panel-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.floating-panel-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.floating-panel-actions .icon-button { width: 28px; height: 28px; border-radius: 7px; }
+.floating-panel-actions .icon-button:hover { background: var(--bg-hover); }
+.floating-panel-actions .icon-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+
+.floating-panel-body { position: relative; flex: 1; min-height: 0; overflow: auto; }
+/* Content that manages its own scrolling (the chat, the changes list) fills the body. */
+.floating-panel-body > * { min-height: 100%; }
+.floating-panel-body > .chat-card,
+.floating-panel-body > .project-context { height: 100%; }
+
+.floating-panel-edge { position: absolute; z-index: 2; touch-action: none; }
+.floating-panel-edge[data-edge="n"] { top: -3px; left: 10px; right: 10px; height: 6px; cursor: ns-resize; }
+.floating-panel-edge[data-edge="s"] { bottom: -3px; left: 10px; right: 10px; height: 6px; cursor: ns-resize; }
+.floating-panel-edge[data-edge="e"] { right: -3px; top: 10px; bottom: 10px; width: 6px; cursor: ew-resize; }
+.floating-panel-edge[data-edge="w"] { left: -3px; top: 10px; bottom: 10px; width: 6px; cursor: ew-resize; }
+.floating-panel-edge[data-edge="ne"] { top: -3px; right: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
+.floating-panel-edge[data-edge="sw"] { bottom: -3px; left: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
+.floating-panel-edge[data-edge="nw"] { top: -3px; left: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
+.floating-panel-edge[data-edge="se"] { bottom: -3px; right: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
+.floating-panel[data-maximised="true"] .floating-panel-edge,
+.floating-panel[data-sheet="true"] .floating-panel-edge { display: none; }
+
+/* Narrow windows: no room to float, so the panel is a full-window sheet. */
+.floating-panel[data-sheet="true"] {
+  inset: 0;
+  width: auto;
+  height: auto;
+  transform: none;
+  border-radius: 0;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .floating-panel:not([hidden]) { animation: floating-panel-in 160ms ease-out; }
+}
+@keyframes floating-panel-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/*
+ * The chat's inspector (Team, schedules, activity) used to be a drawer pinned to the right of
+ * the chat, and its narrow-window rules still say so. Inside a floating panel it is plain
+ * scrolling content; the panel does the positioning.
+ */
+.floating-panel-body > .chat-inspector {
+  position: static;
+  inset: auto;
+  width: auto;
+  max-width: none;
+  height: 100%;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.floating-panel-body > .chat-inspector > .chat-section-heading { display: none; }
+
+/* The IDE assistant: the chat fills the panel and keeps its docked styling. */
+.floating-panel.assistant-dock .floating-assistant-host { height: 100%; min-height: 0; display: flex; }
+.floating-panel.assistant-dock .floating-assistant-host > .chat-card { flex: 1; min-width: 0; height: 100%; border: 0; border-radius: 0; }

@@ -1,0 +1,112 @@
+/*
+ * Tools page: built-in tools, MCP servers, skills and project memory, as cards.
+ * Shares the Agents page's buttons (.agents-primary, .agent-box-action) so the two read as one app.
+ */
+.tools-page {
+  container: tools / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-5) max(var(--space-5), calc((100% - 1180px) / 2)) var(--space-6);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+.tools-header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+.tools-title { margin: 0; font-size: clamp(22px, 2vw, 26px); font-weight: 600; letter-spacing: -.02em; }
+.tools-summary { margin: 4px 0 0; color: var(--text-secondary); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.tools-search { width: min(360px, 100%); }
+.tools-page :is(button, input, select, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.tools-tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--border-subtle); }
+.tools-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.tools-tab:hover { color: var(--text-primary); }
+.tools-tab[aria-selected="true"] { color: var(--text-primary); border-bottom-color: var(--accent); }
+.tools-tab-count { display: inline-grid; place-items: center; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--bg-active); font-size: 11px; font-variant-numeric: tabular-nums; }
+.tools-notice { margin: 0; padding: var(--space-2) var(--space-3); border-radius: 8px; background: var(--bg-app); border: 1px solid var(--border-subtle); font-size: var(--text-sm); }
+.tools-notice[hidden], .tools-panel[hidden] { display: none; }
+
+.tools-panel { display: grid; gap: var(--space-4); align-content: start; }
+.tools-bar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.tools-bar .tools-panel-intro { flex: 1; min-width: 220px; }
+.tools-panel-intro { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.tools-scope { width: auto; }
+.tools-empty { margin: 0; padding: var(--space-4); border: 1px dashed var(--border-subtle); border-radius: 12px; color: var(--text-tertiary); font-size: 13px; text-align: center; }
+.tools-group { display: grid; gap: var(--space-2); }
+.tools-group-head { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.tools-group-title { margin: 0; font-size: 12px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--text-secondary); }
+.tools-group-note { color: var(--text-tertiary); font-size: 12px; }
+.tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+
+.tool-card {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: var(--space-3);
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-app);
+}
+.tool-server[data-status="error"] { border-color: color-mix(in srgb, var(--warning, #d9a03f) 55%, var(--border-subtle)); }
+.tool-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tool-card-head .tool-card-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-card-name { font-size: 14px; font-weight: 650; }
+.tool-card-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-tertiary); font-family: var(--font-mono, monospace); font-size: 11px; }
+.tool-card-text { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.tool-card-body { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.tool-card-users { margin: 0; color: var(--text-tertiary); font-size: 11px; }
+.tool-card-problem { margin: 0; padding: 6px 8px; border-radius: 6px; background: color-mix(in srgb, var(--warning, #d9a03f) 14%, transparent); color: var(--text-primary); font-size: 12px; line-height: 1.4; }
+.tool-card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
+.tools-health { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--text-tertiary); }
+.tools-health[data-status="connected"] { background: var(--success, #3f9f6b); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success, #3f9f6b) 22%, transparent); }
+.tools-health[data-status="connecting"] { background: var(--warning, #d9a03f); }
+.tools-health[data-status="error"] { background: var(--danger, #c24b40); }
+.tools-health-label { flex: none; color: var(--text-secondary); font-size: 11px; }
+.tools-badge { flex: none; padding: 2px 8px; border-radius: 999px; background: var(--bg-active); color: var(--text-secondary); font-size: 11px; }
+
+/* A switch built on a real checkbox: keyboard, screen reader and forms work as is. */
+.tools-switch { position: relative; display: inline-flex; flex: none; width: 34px; height: 20px; cursor: pointer; }
+.tools-switch input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.tools-switch-track { width: 100%; height: 100%; border-radius: 999px; background: var(--bg-active); border: 1px solid var(--border-strong); transition: background-color 120ms ease; }
+.tools-switch-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--text-secondary); transition: transform 120ms ease, background-color 120ms ease; }
+.tools-switch input:checked + .tools-switch-track { background: var(--accent); border-color: var(--accent); }
+.tools-switch input:checked + .tools-switch-track::after { transform: translateX(14px); background: var(--bg-elevated); }
+.tools-switch input:focus-visible + .tools-switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.tools-share { gap: 8px; }
+.tools-share-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tools-share-command { flex: 1; min-width: 0; padding: 6px 8px; border-radius: 6px; background: var(--bg-editor); border: 1px solid var(--border-subtle); font-family: var(--font-mono, monospace); font-size: 11px; overflow-x: auto; white-space: nowrap; }
+
+/* ── Dialogs ────────────────────────────────────────────────────────────────── */
+.tools-dialog-tabs { margin-bottom: 4px; }
+.tools-catalogue { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; max-height: min(460px, 60vh); overflow: auto; }
+.tools-catalogue[hidden] { display: none; }
+.tools-catalogue-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-subtle); background: var(--bg-app); }
+.tools-catalogue-text { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.tools-catalogue-text p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+.tools-catalogue-text small { color: var(--text-tertiary); font-size: 11px; }
+.tools-tool-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; max-height: min(460px, 60vh); overflow: auto; }
+.tools-tool { display: flex; align-items: flex-start; gap: 12px; padding: 8px 10px; border-radius: 8px; background: var(--bg-app); }
+.tools-tool-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.tools-tool-text p { margin: 0; color: var(--text-secondary); font-size: 12px; overflow-wrap: anywhere; }
+.tools-tool-text small { color: var(--text-tertiary); font-size: 11px; }
+.tools-preview { max-height: min(420px, 55vh); margin: 0; padding: 10px 12px; overflow: auto; border-radius: 8px; background: var(--bg-editor); border: 1px solid var(--border-subtle); font-family: var(--font-mono, monospace); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }

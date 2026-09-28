@@ -8,6 +8,7 @@
 export * from "./types.ts";
 export * from "./workspaces.ts";
 export * from "./team.ts";
+export * from "./toolAccess.ts";
 export * from "./teamGraph.ts";
 export * from "./routing.ts";
 export * from "./teamBudget.ts";

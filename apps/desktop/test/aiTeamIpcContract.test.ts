@@ -191,3 +191,54 @@ describe("renderer-safe AI Team views", () => {
     expect(view.detail).toBe("Authorization: Bearer [redacted]");
   });
 });
+
+describe("board solo runs over IPC", () => {
+  const soloInput = (): AiTeamConfigureInputView => ({
+    kind: "solo",
+    prompt: "Fix the login button",
+    acceptanceCriteria: ["The button works"],
+    roles: [{ id: "bug-fixer", label: "Bug fixer", objective: "Fix bugs", toolAccess: "read-only" }],
+    nodes: [{ id: "task", title: "Fix the login button", objective: "Fix it", roleId: "bug-fixer", dependsOn: [], acceptanceCriteria: ["Works"], fileHints: [] }],
+    concurrency: 1,
+    claims: [],
+    tokenLimit: 2_000_000,
+    costMicrosLimit: 500_000,
+  });
+
+  it("accepts a one-agent run and keeps its tool access for the runner", () => {
+    const parsed = parseAiTeamConfigure(soloInput(), "run-contract");
+    expect(parsed?.plan.kind).toBe("solo");
+    expect(parsed?.plan.roles[0]?.toolAccess).toBe("read-only");
+  });
+
+  it("refuses a solo run that smuggles in a second agent", () => {
+    const input = soloInput();
+    expect(parseAiTeamConfigure({ ...input, roles: [...input.roles, { id: "second", label: "Second", objective: "More" }] }, "run-contract")).toBeNull();
+  });
+
+  it("refuses a tool access that is not one of the three shapes", () => {
+    const input = soloInput();
+    expect(parseAiTeamConfigure({ ...input, roles: [{ ...input.roles[0]!, toolAccess: "root" as never }] }, "run-contract")).toBeNull();
+  });
+
+  it("shows the run's kind and its live activity in the view", () => {
+    const parsed = parseAiTeamConfigure(soloInput(), "run-contract")!;
+    const record = createAiTeamRecord({ id: "run-contract", workspaceRoot: "C:/private/project", plan: parsed.plan, claims: [], budget: parsed.budget, now: 1 });
+    const view = toAiTeamView(record, {
+      activity: { task: { text: "Editing C:/private/project/src/app.ts", at: 5 } },
+      hold: "a check failed: npm test",
+      touchedPaths: ["src/app.ts", "C:/private/project/secret.txt"],
+    });
+    expect(view.kind).toBe("solo");
+    expect(view.activity["task"]?.at).toBe(5);
+    expect(view.activity["task"]?.text).not.toContain("C:/private/project");
+    expect(view.hold).toBe("a check failed: npm test");
+    // Only portable project paths cross the boundary.
+    expect(view.touchedPaths).toEqual(["src/app.ts"]);
+    const plain = toAiTeamView(record);
+    expect(plain.activity).toEqual({});
+    expect(plain.hold).toBeNull();
+    expect(plain.touchedPaths).toEqual([]);
+    expect(plain.group).toBeNull();
+  });
+});

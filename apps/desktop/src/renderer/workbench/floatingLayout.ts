@@ -138,3 +138,74 @@ function parseObject(raw: string | null): object | null {
 function isFinite(value: number | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
+
+/** Below this width a floating panel becomes a full-screen sheet: there is no room to float. */
+export const FLOATING_SHEET_BREAKPOINT = 820;
+
+export interface Geometry {
+  readonly position: Point;
+  readonly size: Size;
+}
+
+/** Which edge or corner of a panel a resize handle drags. */
+export type ResizeEdge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+
+/**
+ * Resize from any edge or corner.
+ *
+ * A west or north drag moves the origin as well as the size; the opposite edge stays exactly
+ * where it was, including when the minimum size stops the drag. The top edge never rises
+ * above the window, because the header is the drag handle.
+ */
+export function resizeGeometry(start: Geometry, edge: ResizeEdge, dx: number, dy: number, viewport: Viewport): Geometry {
+  let { x, y } = start.position;
+  let { width, height } = start.size;
+  const right = x + width;
+  const bottom = y + height;
+  if (edge.includes("e")) width = Math.min(viewport.width, Math.max(MIN_FLOAT_WIDTH, width + dx));
+  if (edge.includes("s")) height = Math.min(viewport.height, Math.max(MIN_FLOAT_HEIGHT, height + dy));
+  if (edge.includes("w")) {
+    width = Math.min(viewport.width, Math.max(MIN_FLOAT_WIDTH, width - dx));
+    x = right - width;
+  }
+  if (edge.includes("n")) {
+    const top = Math.max(0, Math.min(bottom - MIN_FLOAT_HEIGHT, y + dy));
+    height = Math.min(viewport.height, bottom - top);
+    y = bottom - height;
+  }
+  return { position: { x, y }, size: { width, height } };
+}
+
+/** Where a panel that belongs beside the work goes the first time: the bottom-right corner. */
+export function bottomRightIn(size: Size, viewport: Viewport, margin = 16): Point {
+  return clampToViewport(
+    { x: viewport.width - size.width - margin, y: viewport.height - size.height - margin },
+    size,
+    viewport,
+  );
+}
+
+/** The whole window, less a margin so the panel still reads as a panel. */
+export function maximisedIn(viewport: Viewport, margin = 12): Geometry {
+  return {
+    position: { x: margin, y: margin },
+    size: {
+      width: Math.max(MIN_FLOAT_WIDTH, viewport.width - margin * 2),
+      height: Math.max(MIN_FLOAT_HEIGHT, viewport.height - margin * 2),
+    },
+  };
+}
+
+/**
+ * Bring a panel fully on screen when it fits; otherwise keep its header reachable.
+ *
+ * Used when a panel opens or the window resizes. A drag may leave a panel hanging off an edge
+ * on purpose (`clampToViewport`); a window that shrank under it did not choose that.
+ */
+export function fitInViewport(position: Point, size: Size, viewport: Viewport): Point {
+  if (size.width > viewport.width || size.height > viewport.height) return clampToViewport(position, size, viewport);
+  return {
+    x: Math.min(Math.max(0, position.x), viewport.width - size.width),
+    y: Math.min(Math.max(0, position.y), viewport.height - size.height),
+  };
+}

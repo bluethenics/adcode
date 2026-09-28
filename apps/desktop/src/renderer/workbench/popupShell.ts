@@ -33,9 +33,17 @@ export interface PopupShell {
   focus(): void;
 }
 
-/** A click's composed path survives synchronous replacement of its original target. */
+/**
+ * A click's composed path survives synchronous replacement of its original target.
+ *
+ * A floating panel the popup hosts (the chat's Team and activity panel, opened from an
+ * expanded chat) sits outside the surface but belongs to it, so a click there is not a
+ * request to close the popup.
+ */
 export function isPopupShellBackdrop(event: Event, surface: HTMLElement): boolean {
-  return !event.composedPath().includes(surface);
+  const path = event.composedPath();
+  if (path.includes(surface)) return false;
+  return !path.some((node) => (node as Partial<Element>).classList?.contains("floating-panel") === true);
 }
 
 /**

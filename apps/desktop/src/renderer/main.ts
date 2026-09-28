@@ -30,6 +30,9 @@ import "./styles/vibeWorkspace.css";
 import "./styles/chatPreview.css";
 import "./styles/professionalShell.css";
 import "./styles/vibeSidebar.css";
+import "./styles/floatingPanel.css";
+import "./styles/agents.css";
+import "./styles/tools.css";
 import { createFrameTask } from "./frameTask.ts";
 import "./ai/automationHost.ts";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
@@ -87,6 +90,7 @@ import { createEarningsPopover } from "./panels/earningsPopover.ts";
 import { createCollabPanel } from "./collab/collabPanel.ts";
 import { createCollabSession } from "./collab/collabSession.ts";
 import { createPreviewPane } from "./preview/previewPane.ts";
+import { elementAttachment } from "./preview/elementInspector.ts";
 import { createRunButton } from "./run/runButton.ts";
 import { createDiagnosticsHost } from "./diagnostics/diagnosticsHost.ts";
 import { createLanguageBridge } from "./diagnostics/languageBridge.ts";
@@ -97,6 +101,9 @@ import { getSetting } from "@adcode/settings";
 import { CHECKS, messageFor, type CheckSpec } from "./checks/checkReport.ts";
 import { createChatWidget } from "./ai/chatWidget.ts";
 import { createAssistantDock } from "./workbench/assistantDock.ts";
+import { createFloatingPanel, resetAllFloatingPanels } from "./workbench/floatingPanel.ts";
+import { createAgentsPage } from "./agents/agentsPage.ts";
+import { createToolsPage, type ToolsTab } from "./tools/toolsPage.ts";
 import { createProjectContext } from "./workbench/projectContext.ts";
 import { createConnectView } from "./ai/connectView.ts";
 import { ICON, createIcon, iconButton } from "./workbench/icons.ts";
@@ -4157,6 +4164,11 @@ const previewPane = createPreviewPane({
     assistantDock?.accommodatePreview();
   },
   notify: (text) => setStatus(text, 5000),
+  // Point-and-fix: the element picked in Preview becomes the subject of an agent task.
+  onFixElement: (box, pageUrl) => {
+    openAgents();
+    agentsPage.newTaskAbout({ label: "The element picked in Preview", text: elementAttachment(box, pageUrl) });
+  },
   reportProblem: (message) => {
     // Slice 1 built the panel so slice 2 would have somewhere honest to report to instead
     // of growing a second error surface. This is that promise being collected on.
@@ -4539,6 +4551,7 @@ const chat = createChatWidget({
     return (await window.adcode.files.read(absolute))?.text ?? null;
   },
   reportProblem: (prefill) => reportDialog.open({ kind: "bug", ...prefill, includeDebugLog: true }),
+  openTools: () => commands.run("tools.open"),
   uncommittedDiff: async () => {
     const [diff, status] = await Promise.all([
       window.adcode.git.diff().catch(() => ""),
@@ -4551,6 +4564,86 @@ const chat = createChatWidget({
     return diff.trim().length === 0 && extra.length === 0 ? "" : `${diff}${extra}`;
   },
 });
+
+/*
+ * Team setup, schedules and live agent activity: a floating panel over the work. It used to
+ * be a drawer on the right of the chat, and nothing docks on the right any more.
+ */
+const activityPanel = createFloatingPanel({
+  id: "activity",
+  title: "Team, schedules and activity",
+  content: chat.inspector.element,
+  defaultSize: { width: 420, height: 600 },
+  anchor: "bottom-right",
+  onVisibilityChange: (open) => { if (!open) chat.inspector.close(); },
+});
+chat.inspector.onToggle((open) => {
+  if (!open) { activityPanel.close(); return; }
+  // An expanded chat is a modal popup; the panel lives inside it so it is above its backdrop.
+  activityPanel.setHost(chatShell.isOpen() ? chatShell.element : null);
+  activityPanel.open();
+});
+
+/*
+ * The Agents page: a live board of agent runs and the saved agents. A page in Vibe's centre;
+ * a large popup in the IDE window. One implementation either way.
+ */
+const windowIsIde = window.location.hash === "#/ide";
+function showChatSurface(): void {
+  if (!windowIsIde && assistantDock !== undefined) { assistantDock.showPage("chat"); return; }
+  if (popupLayerState.primary === "agents") closePrimaryPopup("agents");
+  if (popupLayerState.primary === "tools") closePrimaryPopup("tools");
+  chat.open();
+}
+const agentsPage = createAgentsPage({
+  saveAllOpenFiles: async () => { for (const tab of [...tabs]) await savePath(tab.path); },
+  chat: { busy: () => chat.busy(), onBusyChange: (listener) => chat.onBusyChange(listener) },
+  showChat: showChatSurface,
+  draftInChat: (text) => { showChatSurface(); chat.draft(text); },
+  reviewTask: (task) => { showChatSurface(); chat.reviewTask(task); },
+  openConnect: () => commands.run("ai.connect"),
+  openFolder: () => void openFolder(),
+  askText: (title, body, value) => promptDialog.ask({ title, body, value, confirmLabel: "Run again" }),
+  onEarnings: (listener) => { window.adcode.ads.onEarnings((snapshot) => listener(snapshot.hasServerBalance ? snapshot.availableLabel : "")); },
+});
+const agentsShell = windowIsIde
+  ? createPopupShell({
+    id: "agents",
+    title: "Agents",
+    size: "workspace",
+    modal: true,
+    host: popupPrimaryHost,
+    content: agentsPage.element,
+    initialFocus: () => agentsPage.element.querySelector<HTMLElement>(".agents-primary"),
+    onRequestClose: () => closePrimaryPopup("agents"),
+  })
+  : null;
+if (agentsShell !== null) registerPrimaryPopup("agents", agentsShell, agentsPage);
+function openAgents(): void {
+  if (!windowIsIde && assistantDock !== undefined) { assistantDock.showPage("agents"); return; }
+  if (agentsShell !== null) openPrimaryPopup("agents", agentsShell, document.querySelector<HTMLElement>(".project-tools") ?? chatLauncher, "keyboard");
+}
+
+/* The Tools page: built-in tools, MCP servers, skills and project memory. Same two homes. */
+const toolsPage = createToolsPage({ copy: (text) => copyText(text, "Copied the memory sharing command.") });
+const toolsShell = windowIsIde
+  ? createPopupShell({
+    id: "tools",
+    title: "Tools",
+    size: "workspace",
+    modal: true,
+    host: popupPrimaryHost,
+    content: toolsPage.element,
+    initialFocus: () => toolsPage.element.querySelector<HTMLElement>(".tools-search"),
+    onRequestClose: () => closePrimaryPopup("tools"),
+  })
+  : null;
+if (toolsShell !== null) registerPrimaryPopup("tools", toolsShell, toolsPage);
+function openTools(tab?: ToolsTab): void {
+  if (tab !== undefined) toolsPage.showTab(tab);
+  if (!windowIsIde && assistantDock !== undefined) { assistantDock.showPage("tools"); return; }
+  if (toolsShell !== null) openPrimaryPopup("tools", toolsShell, document.querySelector<HTMLElement>(".project-tools") ?? chatLauncher, "keyboard");
+}
 
 const chatLauncher = el<HTMLButtonElement>("ai-toggle");
 
@@ -5440,9 +5533,14 @@ function registerCommands(): void {
   );
   add("preview.toggle", "Toggle Live Preview", () => void previewPane.toggle());
   add("preview.reload", "Reload Live Preview", () => previewPane.reload());
-  add("preview.undock", "Undock Live Preview Into a Floating Window", () =>
-    previewPane.togglePlacement(),
+  add("preview.maximise", "Maximise or Restore Live Preview", () =>
+    previewPane.toggleMaximised(),
   );
+  add("view.resetFloatingPanels", "Reset Floating Panel Positions", () => {
+    resetAllFloatingPanels();
+    previewPane.resetGeometry();
+    setStatus("Floating panels are back in their default places.", 2500);
+  });
   add(
     "preview.switchMode",
     "Switch Preview Between Project and Files",
@@ -5495,7 +5593,15 @@ function registerCommands(): void {
   add("workspace.project", "Show Workspace Project", () => assistantDock?.showContext("project"));
   add("workspace.changes", "Show Workspace Changes", () => assistantDock?.showContext("changes"));
   // AI tasks (a Team's roles, Review mode's staged work) have no panel tab: they open as a list.
-  add("workspace.tasks", "Show AI Tasks", () => chat.openTasksPopup());
+  // AI tasks live on the Agents board now, beside everything else agents are doing.
+  add("workspace.tasks", "Show AI Tasks", () => commands.run("agents.open"));
+  add("agents.open", "Open Agents", () => openAgents());
+  add("agents.newTask", "Agents: Give an Agent a Task", () => { openAgents(); agentsPage.newTask(); });
+  add("agents.newAgent", "Agents: Create an Agent", () => { openAgents(); agentsPage.newAgent(); });
+  add("agents.race", "Agents: Race Several Agents on One Task", () => { openAgents(); agentsPage.newRace(); });
+  add("tools.open", "Open Tools", () => openTools());
+  add("tools.addServer", "Tools: Add an MCP Server", () => { openTools("servers"); toolsPage.addServer(); });
+  add("tools.memory", "Tools: Project Memory", () => openTools("memory"));
   add("workspace.preview", "Open Project Preview", () => { if (!previewPane.isOpen()) void previewPane.toggle(); });
   add("ai.terminalTeam", "Start an AI Team in the Terminal", () => void openTerminalTeamSetup());
   /*
@@ -6173,6 +6279,16 @@ assistantDock = createAssistantDock({
   // A cached mirror of the server's figure, like the status bar's; never computed here.
   onEarnings: listener => { window.adcode.ads.onEarnings(earnings => listener(earnings.hasServerBalance ? earnings.availableLabel : "")); },
 });
+
+// Vibe's Agents page. The IDE window shows the same board in a popup instead (see agentsShell).
+if (!windowIsIde) {
+  assistantDock.pageHost("agents").append(agentsPage.element);
+  assistantDock.pageHost("tools").append(toolsPage.element);
+  assistantDock.onPageChange((page) => {
+    if (page === "agents") agentsPage.shown(); else agentsPage.hidden();
+    if (page === "tools") toolsPage.shown(); else toolsPage.hidden();
+  });
+}
 
 /*
  * Review mode only (edits apply automatically by default): staged changes are invisible

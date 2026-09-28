@@ -23,6 +23,11 @@ import {
   clampToViewport,
   parsePoint,
   parseSize,
+  resizeGeometry,
+  bottomRightIn,
+  maximisedIn,
+  FLOATING_SHEET_BREAKPOINT,
+  fitInViewport,
 } from "../src/renderer/workbench/floatingLayout.ts";
 
 const VIEWPORT = { width: 1440, height: 900 };
@@ -167,5 +172,86 @@ describe("parsePoint and parseSize", () => {
     // placing the card at `translate(NaN, NaN)` - which renders nowhere at all.
     expect(parsePoint('{"x":1e999,"y":0}')).toBeNull();
     expect(parseSize('{"width":1e999,"height":1}')).toBeNull();
+  });
+});
+
+/*
+ * Floating panels resize from every edge, not only a corner. A west or north drag moves the
+ * panel's origin as well as its size, and that pair is where an off-by-dx bug hides: the
+ * right edge must stay exactly where it was while the left edge follows the pointer.
+ */
+describe("resizeGeometry", () => {
+  const start = { position: { x: 400, y: 200 }, size: { width: 500, height: 400 } };
+
+  it("grows east without moving the origin", () => {
+    expect(resizeGeometry(start, "e", 60, 0, VIEWPORT)).toEqual({ position: { x: 400, y: 200 }, size: { width: 560, height: 400 } });
+  });
+
+  it("drags the west edge while the east edge stays put", () => {
+    const next = resizeGeometry(start, "w", -40, 0, VIEWPORT);
+    expect(next.position.x).toBe(360);
+    expect(next.position.x + next.size.width).toBe(900);
+  });
+
+  it("stops the west edge at the minimum width instead of pushing the panel right", () => {
+    const next = resizeGeometry(start, "w", 400, 0, VIEWPORT);
+    expect(next.size.width).toBe(MIN_FLOAT_WIDTH);
+    expect(next.position.x + next.size.width).toBe(900);
+  });
+
+  it("never lets the north edge rise above the window, where the header is unreachable", () => {
+    const next = resizeGeometry(start, "n", 0, -500, VIEWPORT);
+    expect(next.position.y).toBe(0);
+    expect(next.position.y + next.size.height).toBe(600);
+  });
+
+  it("grows both axes from the south-east corner", () => {
+    expect(resizeGeometry(start, "se", 20, 30, VIEWPORT).size).toEqual({ width: 520, height: 430 });
+  });
+
+  it("never grows past the viewport", () => {
+    const next = resizeGeometry(start, "se", 5_000, 5_000, VIEWPORT);
+    expect(next.size.width).toBeLessThanOrEqual(VIEWPORT.width);
+    expect(next.size.height).toBeLessThanOrEqual(VIEWPORT.height);
+  });
+});
+
+describe("panel placement", () => {
+  it("parks a new panel at the bottom-right with a margin", () => {
+    expect(bottomRightIn({ width: 420, height: 560 }, { width: 1400, height: 900 })).toEqual({ x: 964, y: 324 });
+  });
+
+  it("keeps a bottom-right panel reachable in a window smaller than it", () => {
+    const point = bottomRightIn({ width: 420, height: 560 }, { width: 300, height: 200 });
+    expect(point.y).toBeGreaterThanOrEqual(0);
+  });
+
+  it("maximises inside a margin", () => {
+    expect(maximisedIn({ width: 1000, height: 700 })).toEqual({ position: { x: 12, y: 12 }, size: { width: 976, height: 676 } });
+  });
+
+  it("turns panels into sheets below the narrow-window breakpoint", () => {
+    expect(FLOATING_SHEET_BREAKPOINT).toBe(820);
+  });
+});
+
+/*
+ * A drag may park a panel half off the edge on purpose. A window that shrank under it did not
+ * ask for that: when the panel fits, opening it or resizing the window brings all of it back.
+ */
+describe("fitInViewport", () => {
+  it("pulls a panel that fits fully back on screen", () => {
+    expect(fitInViewport({ x: 844, y: 224 }, { width: 420, height: 560 }, { width: 900, height: 800 })).toEqual({ x: 480, y: 224 });
+  });
+
+  it("leaves a panel that is already inside where it is", () => {
+    expect(fitInViewport({ x: 20, y: 30 }, { width: 400, height: 300 }, { width: 900, height: 800 })).toEqual({ x: 20, y: 30 });
+  });
+
+  it("falls back to keeping the header reachable when the panel is bigger than the window", () => {
+    const point = fitInViewport({ x: 500, y: 500 }, { width: 1200, height: 900 }, { width: 900, height: 700 });
+    expect(point.y).toBeGreaterThanOrEqual(0);
+    expect(point.y).toBeLessThanOrEqual(700 - KEEP_VISIBLE);
+    expect(point.x).toBeLessThanOrEqual(900 - KEEP_VISIBLE);
   });
 });

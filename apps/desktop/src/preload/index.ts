@@ -141,6 +141,9 @@ const api: AdcodeApi = {
   },
   memory: {
     connection: () => ipcRenderer.invoke(CHANNELS.memoryConnection),
+    list: () => ipcRenderer.invoke(CHANNELS.memoryList),
+    write: (input) => ipcRenderer.invoke(CHANNELS.memoryWrite, input),
+    remove: (name) => ipcRenderer.invoke(CHANNELS.memoryRemove, name),
   },
   ai: {
     controls: () => ipcRenderer.invoke(CHANNELS.aiControlsRead),

@@ -13,7 +13,7 @@
 import { join } from "node:path";
 import { app } from "electron";
 import { MEMORY_DIRECTORY, openNodeMemory, type NodeMemory } from "@adcode/memory";
-import type { McpConnectionInfo } from "../shared/api.ts";
+import type { McpConnectionInfo, MemoryItemView, MemoryWriteInputView } from "../shared/api.ts";
 import { currentWorkspace } from "./workspace.ts";
 
 let opened: { root: string; memory: NodeMemory } | null = null;
@@ -69,4 +69,33 @@ export function mcpConnection(): McpConnectionInfo {
     storePath: join(workspace.root, MEMORY_DIRECTORY),
     available: true,
   };
+}
+
+/** Every memory for the open project, newest first, for the Tools page. */
+export async function memoryList(): Promise<MemoryItemView[]> {
+  const memory = memoryForWorkspace();
+  if (memory === null) return [];
+  const records = await memory.store.all();
+  return records
+    .map((record) => ({ ...record, agents: [...record.agents] }))
+    .sort((a, b) => b.created.localeCompare(a.created) || a.name.localeCompare(b.name));
+}
+
+/** Create or replace a memory by hand. The input is already validated (memoryIpcValidation.ts). */
+export async function memoryWrite(input: MemoryWriteInputView): Promise<MemoryItemView | null> {
+  const memory = memoryForWorkspace();
+  if (memory === null) return null;
+  const written = await memory.store.write({ ...input, agent: "you" });
+  if (written === null) return null;
+  // Search reads the index, so an edit made here must be findable by the assistant at once.
+  await memory.reindex();
+  return { ...written, agents: [...written.agents] };
+}
+
+export async function memoryRemove(name: string): Promise<boolean> {
+  const memory = memoryForWorkspace();
+  if (memory === null) return false;
+  const removed = await memory.store.delete(name);
+  if (removed) await memory.reindex();
+  return removed;
 }

@@ -43,20 +43,59 @@ const smoke = readFileSync(
 );
 
 describe("AI Chat workspace", () => {
-  it("renders history, conversation, and inspector regions", () => {
+  it("renders history and conversation, and hands the inspector to a floating panel", () => {
     expect(source).toContain('history.className = "chat-history"');
     expect(source).toContain('conversation.className = "chat-conversation"');
     expect(source).toContain('inspector.className = "chat-inspector"');
-    expect(source).toContain("body.append(history, conversation, inspector)");
+    expect(source).toContain("body.append(history, conversation)");
+    expect(source).toContain("readonly inspector: {");
+    // Activity floats over the work in its own panel; it is never a drawer on the right.
+    expect(mainSource).toContain('id: "activity"');
+    expect(mainSource).toContain("content: chat.inspector.element");
+  });
+
+  it("leaves MCP, skills and saved agents to the Tools and Agents pages", () => {
+    expect(source).not.toContain("createAssistantControls");
+    expect(source).not.toContain("createAgentLibrary");
+    expect(source).toContain("deps.openTools");
+  });
+
+  it("gives the expanded chat its own Close button back, since no panel frames it there", () => {
+    const expand = dockSource.slice(dockSource.indexOf("togglePresentation(): void {"));
+    expect(expand).toContain("chat.setDocked(false);");
+    expect(expand).toContain("closeControl.hidden = false");
+  });
+
+  it("floats the IDE assistant instead of docking it on the right", () => {
+    expect(dockSource).toContain('id: "assistant"');
+    expect(dockSource).toContain('anchor: "bottom-right"');
+    expect(dockSource).not.toContain('dock.id = "assistant-dock"');
+    expect(dockSource).not.toContain("splitter-assistant");
   });
 
   it("keeps Vibe navigation attached to the shared conversation", () => {
     expect(sidebarSource).toContain("`vibe-nav-item ${className}`");
-    expect(dockSource).toContain('(mode === "vibe" ? vibe : dock).append(chat.element)');
+    // Vibe's centre is a page switcher; the live conversation is the Chat page.
+    expect(dockSource).toContain("createVibePages()");
+    expect(dockSource).toContain('pages.host("chat").append(chat.element)');
     // Conversations live in the Vibe sidebar at every width - docked or in the drawer.
     expect(dockSource).toContain('chat.setDocked(true, mode === "vibe" ? vibeSidebar?.historyHost : undefined)');
     expect(source).toContain('welcomeMark.classList.add("chat-welcome-mark")');
     expect(source).toContain('welcomeGreeting.textContent = hour < 5');
+  });
+
+  it("opens Changes and the project overview as a floating panel, never a right-hand dock", () => {
+    expect(dockSource).toContain("createFloatingPanel({");
+    expect(dockSource).toContain('id: "context"');
+    expect(dockSource).not.toContain("dock.append(deps.context.element)");
+    expect(dockSource).not.toContain("--context-width");
+  });
+
+  it("switches Vibe between Chat, Agents and Tools pages from the sidebar", () => {
+    expect(sidebarSource).toContain("VIBE_PAGES");
+    expect(sidebarSource).toContain('setAttribute("aria-current", "page")');
+    expect(sidebarSource).not.toContain("Agents & tools");
+    expect(sidebarSource).not.toContain('[data-chat-action="controls"]');
   });
 
   it("opens the full IDE beside Vibe instead of replacing it", () => {

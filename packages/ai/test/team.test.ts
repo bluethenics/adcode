@@ -154,3 +154,61 @@ describe("local Team-mode suggestions", () => {
     expect(first).toMatch(/^team-suggestion-[a-z0-9]+$/);
   });
 });
+
+describe("solo runs", () => {
+  const solo = (): TeamPlanInput => ({
+    ...planInput(),
+    kind: "solo",
+    roles: [{ id: "bug-fixer", label: "Bug fixer", objective: "Fix the bug", toolAccess: "read-only" }],
+    nodes: [{ ...planInput().nodes[0]!, roleId: "bug-fixer", dependsOn: [] }],
+    concurrency: 1,
+  });
+
+  it("accepts exactly one role and one node", () => {
+    const plan = createTeamPlan(solo());
+    expect(plan.kind).toBe("solo");
+    expect(plan.roles).toHaveLength(1);
+    expect(plan.roles[0]!.toolAccess).toBe("read-only");
+  });
+
+  it("rejects a solo run with two roles", () => {
+    expect(() => createTeamPlan({ ...solo(), roles: planInput().roles, nodes: planInput().nodes, concurrency: 1 })).toThrow(/one role/);
+  });
+
+  it("treats a plan saved before kinds existed as a team", () => {
+    expect(createTeamPlan(planInput()).kind).toBe("team");
+  });
+
+  it("still requires two roles for a team", () => {
+    expect(() => createTeamPlan({ ...solo(), kind: "team" })).toThrow(/at least two roles/);
+  });
+
+  it("rejects an invalid tool access", () => {
+    expect(() => createTeamPlan({ ...solo(), roles: [{ ...solo().roles[0]!, toolAccess: "root" as never }] })).toThrow(/tool access/);
+  });
+});
+
+describe("race groups", () => {
+  const soloWith = (group?: string): TeamPlanInput => ({
+    ...planInput(),
+    kind: "solo",
+    ...(group === undefined ? {} : { group }),
+    roles: [{ id: "bug-fixer", label: "Bug fixer", objective: "Fix the bug" }],
+    nodes: [{ ...planInput().nodes[0]!, roleId: "bug-fixer", dependsOn: [] }],
+    concurrency: 1,
+  });
+
+  it("carries a race group on a solo run", () => {
+    expect(createTeamPlan(soloWith("race-2f6c1a9e")).group).toBe("race-2f6c1a9e");
+  });
+
+  it("has no group unless one is given", () => {
+    expect(createTeamPlan(soloWith()).group).toBeUndefined();
+  });
+
+  it("refuses a malformed group", () => {
+    for (const group of ["race-", "Race-ABC", "team-abc", "race-" + "a".repeat(61), "race-a b"]) {
+      expect(() => createTeamPlan(soloWith(group)), group).toThrow(/group/);
+    }
+  });
+});

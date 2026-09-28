@@ -4,6 +4,8 @@ import {
   projectName,
   recentProjectsFor,
   summarizeVibeChanges,
+  VIBE_PAGES,
+  parseVibePage,
 } from "../src/renderer/workbench/vibeSidebarModel.ts";
 import type { AiWorkspaceTaskStateView } from "../src/shared/api.ts";
 
@@ -58,5 +60,18 @@ describe("Vibe project card", () => {
     const recents = ["E:\\a", "E:\\b", "E:/c", "E:\\d"].map((path, i) => ({ path, name: path.slice(-1), openedAt: 10 - i }));
     expect(recentProjectsFor(recents, "e:/b/").map((folder) => folder.path)).toEqual(["E:\\a", "E:/c", "E:\\d"]);
     expect(recentProjectsFor(recents, null, 2).map((folder) => folder.path)).toEqual(["E:\\a", "E:\\b"]);
+  });
+});
+
+describe("Vibe pages", () => {
+  it("lists Chat, Agents and Tools in navigation order", () => {
+    expect(VIBE_PAGES.map((page) => page.id)).toEqual(["chat", "agents", "tools"]);
+    expect(VIBE_PAGES.map((page) => page.label)).toEqual(["Chat", "Agents", "Tools"]);
+  });
+
+  it("accepts only known pages when a stored or routed value comes back", () => {
+    expect(parseVibePage("agents")).toBe("agents");
+    expect(parseVibePage("settings")).toBe("chat");
+    expect(parseVibePage(null)).toBe("chat");
   });
 });

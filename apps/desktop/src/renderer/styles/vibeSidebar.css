@@ -166,7 +166,10 @@ body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-nav-item {
   transition: background-color 120ms ease, color 120ms ease;
 }
 body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
-body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-nav-item[aria-pressed="true"] { background: var(--bg-selected); color: var(--text-primary); }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-nav-item[aria-pressed="true"],
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-nav-item[aria-current="page"] { background: var(--bg-selected); color: var(--text-primary); }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-nav-item[aria-current="page"] { font-weight: 600; }
+body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-pages-nav { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border-subtle); }
 body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-nav-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 body[data-workspace-mode="vibe"] .vibe-sidebar .vibe-badge {
   display: inline-grid;
@@ -410,14 +413,6 @@ body[data-workspace-mode="vibe"] .toast-layer {
   bottom: auto;
 }
 body[data-workspace-mode="vibe"][data-vibe-rail="compact"] .toast-layer { top: calc(var(--ui-chrome-height) + 104px); }
-@media (min-width: 1280px) {
-  body[data-workspace-mode="vibe"]:has(#workbench[data-context-open="true"]) .toast-layer {
-    right: calc(min(max(300px, var(--context-width, 320px)), 40vw) + 20px);
-  }
-}
-@media (max-width: 1279px) {
-  body[data-workspace-mode="vibe"]:has(#workbench[data-context-open="true"]) .toast-layer { right: 380px; }
-}
 
 /* Notifications open beside the bell rather than across the room from it. */
 body[data-workspace-mode="vibe"][data-vibe-rail="docked"] .notification-inbox {

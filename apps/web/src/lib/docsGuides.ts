@@ -760,7 +760,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "If you stop a turn, the interrupted banner offers Edit prompt (your last message back in the composer) and Try again.",
       "If a turn fails, a card in the conversation names the problem - a rate limit, a request too large for the model, a rejected key, a broken tool call or a network problem - with Try again, Switch model, Start fresh or Report problem, and the provider’s exact message under Details.",
       "Read answers with labelled code blocks, inline commands, and numbered steps. Use the icon row under each response to Copy, Read aloud, mark helpful or not helpful, or Retry - with relative time like just now.",
-      "Use History for past conversations and the activity panel for agents, tasks, and review controls. Toggle either panel for more writing space.",
+      "Use History for past conversations. Team setup, schedules and live activity open in a floating panel, and the Agents page shows every agent at work - the conversation keeps its full width.",
       "Press Escape to dismiss it; the conversation survives dismissal.",
       "Reopen later, find older conversations grouped by recency, or choose Share to copy one as markdown.",
       "On an empty conversation, pick a starter - Explain this project, Build something, Fix an error, Plan new idea or Multitask - to get going in one click. In Vibe, a short checklist above the composer shows anything still missing, such as opening a project folder or connecting a model.",
@@ -819,10 +819,10 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "ai-team": {
     steps: [
       "Connect the models your agents will use in Connect a model.",
-      "Open Assistant and its activity panel. Create an agent with a name, instructions, connection, and model; save it for reuse.",
-      "Create at least one more agent. For example, give one implementation instructions and another review instructions. Enable Run after teammates for the reviewer so it receives the builder's handoff first.",
-      "Select two to four saved agents, write the task in the composer, and choose Set up selected Team. Review the plan and start it.",
-      "Watch each agent's task and state in the activity panel. Open its trace to inspect tool calls and results. Cancel the team if the task should stop.",
+      "Open Agents from the Vibe sidebar. Under Your agents, use the starter agents or choose New agent and give it a name, look, instructions, connection, model and the tools it may use.",
+      "Make sure you have at least two agents. For example, give one implementation instructions and another review instructions. Enable Run after teammates for the reviewer so it receives the builder's handoff first.",
+      "Choose Select for a Team, tick two to four agents, press Set up Team and describe the shared task.",
+      "The Team appears as one box under Needs you with its members' mascots. Press Start. Select the box any time to see each step it took; press Stop if the task should end.",
       "Review the combined changes before applying them to the project. Agents sharing a connection also share its requests-per-minute limit.",
     ],
     benefits: [
@@ -831,6 +831,68 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Isolated work and combined review keep parallel proposals inspectable.",
     ],
     betterThan: "Running separate chats requires manually copying instructions and results between them. ADCode assigns named agents to a shared task, passes task handoffs through the team scheduler, and brings proposals back into one review workflow.",
+  },
+
+  "ai-race-mode": {
+    steps: [
+      "Open Agents and press New task, or run Agents: Race Several Agents on One Task from the command palette.",
+      "Describe the task, turn on Race, and tick two or three agents - different models make the race worth having.",
+      "Press Start. Each agent works in its own copy of the project, and its box is labelled Race 1 of 3 and so on.",
+      "When every lane has finished, press Compare on any of them to see each lane's agent, model, cost, proof of work and summary side by side.",
+      "Press Keep this one on the lane you prefer. It is applied to your project; the other lanes are discarded.",
+    ],
+    benefits: [
+      "Pick the best of several attempts instead of fixing an almost-right one.",
+      "See which model actually does your kind of task best, with evidence, not benchmarks.",
+      "Your project changes once, with the lane you chose.",
+    ],
+    betterThan:
+      "Trying another model normally means copying the prompt into another tool and comparing by eye. ADCode runs the lanes side by side in isolated copies, shows the proof for each, and applies only the one you keep.",
+  },
+
+  "ai-agent-mascots": {
+    steps: [
+      "Open Agents. Every saved agent already has a look of its own.",
+      "Select Edit on an agent and pick one of eight shapes and ten colours; the preview updates as you choose. Save.",
+      "Give it a task and watch its face on the board: thinking while it works, alert with a ! when it needs you, proud when its work is ready, happy once it lands, confused if something went wrong, sleepy while it waits.",
+    ],
+    benefits: [
+      "Tell agents apart on a busy board without reading names.",
+      "Spot the one that needs you from across the screen.",
+    ],
+    betterThan:
+      "Agent lists in other tools are rows of identical text. A face that changes with the work tells you where to look first.",
+  },
+
+  "ai-parallel-agents": {
+    steps: [
+      "Open Settings and choose AI.",
+      "Set Agents working at once to a number from 1 to 6. Three is the default.",
+      "Start more tasks than that on the Agents page; the extra ones show Queued and start on their own, oldest first, as others finish.",
+    ],
+    benefits: [
+      "Finish a pile of tasks sooner, or keep spending and rate limits gentle - your choice.",
+      "Nothing is dropped when you start too many: it simply waits its turn.",
+    ],
+    betterThan:
+      "Some tools cap parallel agents by plan tier. ADCode lets you choose, and the limit covers Teams too, so a big Team cannot swamp your provider.",
+  },
+
+  "ai-memory-editor": {
+    steps: [
+      "Open Tools and choose Memory, or run Tools: Project Memory from the command palette.",
+      "Read what the assistant has learned, grouped into Decisions, Conventions, Preferences and Session notes, with who wrote each one and when.",
+      "Press Edit to correct a note, or Delete to make every assistant forget it.",
+      "Press Add memory to teach it something yourself: a short name, a one-line summary and the detail.",
+      "To share this memory with Claude Code or another tool, copy the command under Share with your other AI tools and run it once in the project.",
+    ],
+    benefits: [
+      "Stop repeating the same instructions at the start of every conversation.",
+      "Fix a wrong assumption once, for every assistant and agent that shares the memory.",
+      "Your notes are plain files in your project, never uploaded.",
+    ],
+    betterThan:
+      "Most assistants either forget everything between sessions or remember in a hidden profile you cannot inspect. ADCode's memory is visible, editable, stored in your project, and shared with the other AI tools you use.",
   },
 
   "ai-edit-policy": {
@@ -1217,7 +1279,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "workbench-changes": {
     steps: [
-      "Choose Changes in the Vibe sidebar. The panel opens beside the conversation with every file changed since your last commit.",
+      "Choose Changes in the Vibe sidebar. The panel opens as a floating window over your work - move it, resize it, or double-click its title to fill the window - with every file changed since your last commit.",
       "Read the bar at the top: the uncommitted +added −removed total, your branch, and Commit & Push. The line under it says which files the next commit takes.",
       "Select a file to see its diff, coloured line by line. A new file shows its whole contents.",
       "Untick a file to leave it out of the next commit. While every box is ticked, Commit & Push takes all of them.",
@@ -1242,8 +1304,9 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Open ADCode - the Vibe window's sidebar is on the left. Choose New conversation, or press Ctrl+Shift+N, to start fresh.",
       "Select the project card under the search box to switch to a recent project, open a folder, clone a repository, or see the project overview. The card shows the branch and how many files have changed.",
       "Watch the Changes badge: it counts the files you have not committed yet, and turns blue when something is waiting for you, such as a conflict.",
-      "Select Changes to open the Changes panel beside the conversation - every changed file, its diff, and Commit & Push; select it again to close it.",
-      "Use Preview to see the running app, Automations to schedule messages, and Agents & tools for saved agents, MCP tools and skills.",
+      "Switch the middle of the window with Chat, Agents and Tools: the conversation, the board of agents working in parallel, and the tools, MCP servers, skills and memory they use.",
+      "Select Changes to open the Changes panel as a floating window - every changed file, its diff, and Commit & Push; select it again to close it.",
+      "Use Preview to see the running app in a floating window, and Automations to schedule messages.",
       "Pick up an earlier conversation from the Conversations list, grouped by day; type in its search box to find one by anything said in it.",
       "Drag the sidebar's right edge to resize it, or press Ctrl+B to hide it. On a narrow window it becomes a drawer: open it with the menu button at the top left or Ctrl+B, and close it with Escape.",
     ],
@@ -1305,13 +1368,77 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "JSON keybinding files force you to know both syntax and command IDs. A visible list with in-place editing and conflict checks makes it a UI, not a config-file adventure.",
   },
 
+  "workbench-agents-board": {
+    steps: [
+      "Choose Agents in the Vibe sidebar (in the IDE window, Agents in the More menu or Open Agents in the command palette).",
+      "Press New task. Describe what you want - for example: Add a dark mode toggle to the settings page.",
+      "Pick an agent, or keep Default agent to use your connected model with every tool. Optionally set a cost cap in dollars, then press Enter.",
+      "Watch its box under Working: the mascot thinks while it works, the status line says what it is doing right now, and the time, files, tokens and cost count up. Start more tasks straight away - they run side by side, and extra ones wait as Queued.",
+      "When it finishes: with Apply automatically on, the work lands in your project and the box offers Undo and Continue. With Review every change, the box moves to Ready - press Review to see the diff, then Apply, Apply & continue, or Discard.",
+      "Anything under Needs you is waiting on you: Resolve a clash with your own edits, Run again after an error or Open in chat to talk it through, Run with a higher cap when a cost cap stopped it, or Resume after ADCode restarted.",
+      "Read the proof of work on each finished box: a tick or cross for every test, type check or linter the agent actually ran, and warnings for a possible secret, sign-in or payment code, removed tests, new dependencies or a very large change. With Apply automatically on, a failed check or a possible secret holds the run under Ready for you instead of applying it.",
+      "If an agent keeps trying the same failing thing, ADCode stops it; press Try another way to run it again with a nudge to change approach. If two agents edit the same file, both boxes warn you before their work collides.",
+      "Select any box to see what the agent reported, the files it changed, its proof of work and every step it took.",
+      "Under Your agents, Run hands a saved agent a task, Edit changes its look, instructions, model and tools, and Select for a Team splits one task across two to four agents.",
+    ],
+    benefits: [
+      "Several agents work at once while you keep chatting - a bug fix, tests and a UI polish no longer queue behind each other.",
+      "Each agent works in its own copy of the project, so a half-finished edit never lands in your files.",
+      "One glance says what is working, what needs you and what is ready - no scrolling back through transcripts.",
+      "Cost shows on every box when the price is known, and a cap stops an agent before it spends more.",
+      "A read-only Reviewer really cannot edit: tool access is enforced when the agent runs, not just written in its instructions.",
+      "Proof, not promises: you see which checks actually ran and passed before you review a line, and risky changes are flagged or held.",
+      "Agents that loop get stopped instead of burning your key, and parallel agents warn you before they step on each other.",
+    ],
+    betterThan:
+      "Chat-only assistants do one thing at a time and bury progress in a transcript. Cloud agent services run in parallel but bill by the minute and hide what the agent is doing until it opens a pull request. ADCode runs parallel agents on your own machine and key, shows each one's live status and cost as a box, and brings its work back through the same review and Undo as the chat.",
+  },
+
+  "workbench-tools-page": {
+    steps: [
+      "Choose Tools in the Vibe sidebar, or Open Tools in the command palette.",
+      "Built-in lists ADCode's own tools in plain words and which of your agents may use each one - change that in the agent's editor on the Agents page.",
+      "Open MCP servers and press Add server. On Catalogue, press Add beside a server such as Playwright (test pages in a real browser) or Context7 (current library docs); it is saved and connected in one click. Custom takes any command or URL.",
+      "Watch each server's light: green is connected. If something is wrong, the card says what to do, such as installing Node.js, and Retry tries again. Tools on a connected server turns individual tools on or off.",
+      "Open Skills to turn written routines on or off, preview one, or press New skill to write your own.",
+      "Open Memory to read and correct what the assistant has learned about the project, or to share that memory with Claude Code and other tools.",
+      "Type in the search box to filter every tab at once.",
+    ],
+    benefits: [
+      "One place for every capability the assistant has, instead of settings pages and JSON files.",
+      "Popular servers are one click, with a note on anything they need first.",
+      "A broken server tells you how to fix it rather than failing silently.",
+      "You can see exactly which agent may touch which tool.",
+    ],
+    betterThan:
+      "Most editors make MCP a config file you edit by hand and debug by reading logs. ADCode shows servers as cards with a health light, explains failures in plain words, and adds the common ones in one click - without ever asking you to paste a key into a text box.",
+  },
+
+  "workbench-floating-panels": {
+    steps: [
+      "Open a panel as usual: Changes or Preview in the Vibe sidebar, Project overview from the project card, or Ctrl+I for the assistant in the IDE.",
+      "Drag it by its title bar to where you want it.",
+      "Resize it from any edge or corner. Double-click the title bar, or press Maximise, to fill the window; do it again to restore.",
+      "Press Escape or the close button to hide it. It opens in the same place next time.",
+      "Lost one? Run Reset Floating Panel Positions from the command palette to bring every panel back to its default place.",
+    ],
+    benefits: [
+      "The editor and the conversation always keep the full width of the window.",
+      "Put panels where they suit you - next to the code you are checking, or on the side of the screen you look at.",
+      "A panel can never get stuck off-screen: its title bar is always kept reachable, even after the window shrinks.",
+    ],
+    betterThan:
+      "Sidebars take a fixed column for as long as they are open, and IDEs with many of them leave a narrow strip for the code. ADCode's panels float over the work only while you need them, go where you put them, and give the space back the moment they close.",
+  },
+
   "workbench-preview": {
     steps: [
       "Open any HTML file and start the live preview.",
       "Edit - the preview reloads itself on save.",
       "Switch device sizes from the preview toolbar to check layouts: one click for Phone, Tablet, or Desktop, labelled W and H boxes with minus and plus steppers, a preset list, or drag the frame's visible edges. The page reshapes in place without reloading, and Fit scales it to fit so you never scroll to see it.",
       "Turn on Inspect, then right-click anything in the preview to see its width, height, padding, margin, and highlighted markup for restyling. If it grabs an inner piece instead of the card you meant, walk up the breadcrumb to the parent — the page flashes each level as you pick it. Choose List all to see every element's spacing with a filter.",
-      "Undock to a separate window if you want it on another screen.",
+      "The preview floats over your work instead of taking a column: drag it by its bar, resize it from any edge, and double-click the bar (or press Maximise) to fill the window.",
+      "To change something you can see, pick it with Inspect and press Change this with AI. New task opens with that element attached - page, selector, size and markup - so you only type what should change, like Make this button bigger and green.",
     ],
     benefits: [
       "Save-and-switch-to-browser becomes a thing you used to do.",

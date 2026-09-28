@@ -6,7 +6,9 @@ export type PopupId =
   | "structure"
   | "earnings"
   | "connect"
-  | "help";
+  | "help"
+  | "agents"
+  | "tools";
 
 export interface PopupLayerState {
   readonly primary: PopupId | null;

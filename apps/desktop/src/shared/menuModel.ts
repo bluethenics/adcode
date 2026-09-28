@@ -347,7 +347,7 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
               accelerator: "CmdOrCtrl+Shift+V",
             },
             { label: "&Reload Preview", command: "preview.reload" },
-            { label: "&Undock Into a Floating Window", command: "preview.undock" },
+            { label: "&Maximise or Restore", command: "preview.maximise" },
             { label: "&Switch Between Project and Files", command: "preview.switchMode" },
             { label: "Check Another &Device Size", command: "preview.device" },
             { label: "&Inspect Element Size and Spacing", command: "preview.inspect" },

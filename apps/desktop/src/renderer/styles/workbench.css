@@ -1946,7 +1946,8 @@ body[data-resizing="y"] {
   left: 0;
   right: auto;
   bottom: auto;
-  z-index: 60;
+  /* Above the floating panels (32+), below the Vibe drawer and notifications. */
+  z-index: 40;
   border: 1px solid var(--border-hairline);
   border-radius: var(--radius-md);
   /* The same lift as every other floating surface, and it already adapts to dark mode. */
@@ -1966,34 +1967,31 @@ body[data-resizing="y"] {
 }
 
 /*
- * The resize corner exists only while floating - a docked column is resized by the
- * splitter that already owns that job, and two grips for one edge is one too many.
+ * Resize handles on every edge. `resize: both` is not an option: it does not work on a grid
+ * container holding an iframe, and it draws a grip that matches nothing else in the window.
  */
-.preview-grip {
-  display: none;
-}
+.preview-edge { position: absolute; z-index: 2; touch-action: none; }
+.preview-edge[data-edge="n"] { top: -3px; left: 10px; right: 10px; height: 6px; cursor: ns-resize; }
+.preview-edge[data-edge="s"] { bottom: -3px; left: 10px; right: 10px; height: 6px; cursor: ns-resize; }
+.preview-edge[data-edge="e"] { right: -3px; top: 10px; bottom: 10px; width: 6px; cursor: ew-resize; }
+.preview-edge[data-edge="w"] { left: -3px; top: 10px; bottom: 10px; width: 6px; cursor: ew-resize; }
+.preview-edge[data-edge="ne"] { top: -3px; right: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
+.preview-edge[data-edge="sw"] { bottom: -3px; left: -3px; width: 12px; height: 12px; cursor: nesw-resize; }
+.preview-edge[data-edge="nw"] { top: -3px; left: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
+.preview-edge[data-edge="se"] { bottom: -3px; right: -3px; width: 12px; height: 12px; cursor: nwse-resize; }
+.preview-pane[data-maximised="true"] .preview-edge { display: none; }
+.preview-pane[data-maximised="true"] .preview-bar { cursor: default; }
 
-.preview-pane[data-placement="floating"] .preview-grip {
-  display: block;
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 16px;
-  height: 16px;
-  cursor: nwse-resize;
-  /*
-   * Two hairlines suggesting a corner, drawn in the border colour rather than the platform's
-   * grey diagonals. `resize: both` is not an option here: it does not work on a grid
-   * container holding an iframe, and it draws a grip that matches nothing else in the window.
-   */
-  background:
-    linear-gradient(135deg, transparent 46%, var(--text-tertiary) 46% 54%, transparent 54%),
-    linear-gradient(135deg, transparent 66%, var(--text-tertiary) 66% 74%, transparent 74%);
-  opacity: 0.5;
-}
-
-.preview-pane[data-placement="floating"] .preview-grip:hover {
-  opacity: 0.9;
+/* A narrow window has no room to float: the preview becomes a full-window sheet. */
+@media (max-width: 819px) {
+  .preview-pane[data-placement="floating"]:not([hidden]) {
+    inset: 0;
+    width: auto !important;
+    height: auto !important;
+    transform: none !important;
+    border-radius: 0;
+  }
+  .preview-pane .preview-edge { display: none; }
 }
 
 .preview-output {

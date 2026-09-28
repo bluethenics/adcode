@@ -15,33 +15,29 @@
  * fails to start is the commonest wall a beginner hits, and the toolchain's own words are
  * the useful thing - so they are shown, and shown automatically when something goes wrong.
  *
- * **Docked or floating, and why the iframe never moves.** The preview lives in a column
- * beside the editor, or in a card floating over it, chosen with one button. The naive way to
- * build that is to append the iframe into whichever container is currently wanted - and it
- * is wrong, because reparenting an iframe destroys its document and loads it again from
- * scratch. Undocking would silently reload the user's page: scroll position gone, form state
- * gone, whatever their JS was holding gone. For a surface whose entire purpose is showing
- * the effect of the last edit, throwing away the page on a layout change is a bad trade.
- *
- * So the pane stays exactly where it is in the DOM and only its *positioning* changes, via
- * `data-placement`. Docked, it sits in the layout and `--preview-width` drives its width.
- * Floating, it is `position: fixed` with a translate. The iframe is untouched either way, so
- * undocking costs nothing and the page keeps running.
+ * **Always floating, and why the iframe never moves.** The preview is a window floating over
+ * the work - there is no right-hand column to dock it into any more. It moves, resizes from
+ * any edge and maximises, and none of that touches the iframe: reparenting an iframe destroys
+ * its document and reloads the user's page, so the pane stays exactly where it is in the DOM
+ * and only its `position: fixed` geometry changes. Maximising costs nothing and the page
+ * keeps running.
  */
 import type { PreviewMode, PreviewStatus } from "../../shared/api.ts";
 import { createDeviceToolbar, type DeviceToolbar } from "./deviceToolbar.ts";
-import { createElementInspector, type ElementInspector } from "./elementInspector.ts";
+import { createElementInspector, type ElementInspector, type InspectedBox } from "./elementInspector.ts";
 import { formatViewport, parseViewport } from "./deviceSizes.ts";
 import { ICON, createIcon, iconButton } from "../workbench/icons.ts";
 import {
-  MIN_FLOAT_HEIGHT,
-  MIN_FLOAT_WIDTH,
   centreIn,
   clampSize,
   clampToViewport,
+  fitInViewport,
+  maximisedIn,
   parsePoint,
   parseSize,
+  resizeGeometry,
   type Point,
+  type ResizeEdge,
   type Size,
 } from "../workbench/floatingLayout.ts";
 
@@ -58,16 +54,17 @@ export interface PreviewPaneDeps {
    * to, rather than growing a second error surface of its own.
    */
   readonly reportProblem: (message: string | null) => void;
+  /** Point-and-fix: an element picked in the inspector, with the page it is on. */
+  readonly onFixElement?: (box: InspectedBox, pageUrl: string | null) => void;
 }
 
 /**
- * Where the preview sits.
+ * Where the preview sits: always a floating window now that nothing docks on the right.
  *
  * Deliberately not called `PreviewMode`: that name is already taken, by the choice between
- * the static file server and the project's dev script. Two unrelated "modes" sharing one
- * type name is how a status update ends up setting a layout.
+ * the static file server and the project's dev script.
  */
-export type PreviewPlacement = "docked" | "floating";
+export type PreviewPlacement = "floating";
 
 export interface PreviewPane {
   open(): Promise<void>;
@@ -77,9 +74,11 @@ export interface PreviewPane {
   reload(): void;
   /** Restart under the other engine. Ignored when no dev script was detected. */
   switchMode(): Promise<void>;
-  /** Move between the docked column and the floating card. */
-  setPlacement(placement: PreviewPlacement): void;
-  togglePlacement(): void;
+  /** Fill the window, or go back to the size it had. */
+  toggleMaximised(): void;
+  isMaximised(): boolean;
+  /** Back to the default size, centred, not maximised - and forget the remembered place. */
+  resetGeometry(): void;
   placement(): PreviewPlacement;
   /**
    * Turn device-size preview on or off.
@@ -104,8 +103,9 @@ export interface PreviewPane {
 /** Enough to read a stack trace without letting a chatty watcher grow without bound. */
 const LOG_LIMIT = 40_000;
 
-/** The docked column's share of the window. */
-const DOCKED_WIDTH = "42%";
+const MAXIMISE = "M3 3h10v10H3z";
+const RESTORE = "M5 3h8v8M3 5h8v8H3z";
+const EDGES: readonly ResizeEdge[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 
 function storageKey(workspace: string | null, part: string): string {
   return `adcode.preview.${part}.${workspace ?? "no-workspace"}`;
@@ -152,7 +152,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
   const inspectButton = iconButton("Inspect an element's size and spacing", ICON.inspect);
   const logButton = iconButton("Show output", ICON.output);
   const reloadButton = iconButton("Reload preview", ICON.reload);
-  const dockButton = iconButton("Undock preview", ICON.undock);
+  const maximiseButton = iconButton("Maximise preview", MAXIMISE);
   const externalButton = iconButton("Open in browser", ICON.external);
   const closeButton = iconButton("Close preview", ICON.close);
 
@@ -163,7 +163,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     inspectButton,
     logButton,
     reloadButton,
-    dockButton,
+    maximiseButton,
     externalButton,
     closeButton,
   );
@@ -187,15 +187,17 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
   output.hidden = true;
 
   /**
-   * The resize corner, and the reason it is an element rather than `resize: both`.
-   *
-   * CSS resize does not work on a flex container with an iframe inside it, and it draws the
-   * platform's own grip - which on Windows is a set of grey diagonal lines that belong to no
-   * other control in this window.
+   * Resize handles on every edge, and the reason they are elements rather than
+   * `resize: both`: CSS resize does not work on a flex container with an iframe inside it, and
+   * it draws the platform's own grip, which belongs to no other control in this window.
    */
-  const resizeGrip = document.createElement("div");
-  resizeGrip.className = "preview-grip";
-  resizeGrip.setAttribute("aria-hidden", "true");
+  const edges = EDGES.map((edge) => {
+    const handle = document.createElement("div");
+    handle.className = "preview-edge";
+    handle.dataset["edge"] = edge;
+    handle.setAttribute("aria-hidden", "true");
+    return handle;
+  });
 
   /*
    * The frame's home.
@@ -219,9 +221,12 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
       write(workspace, "device", viewport === null ? "" : formatViewport(viewport)),
   });
 
-  const inspector: ElementInspector = createElementInspector({ frame });
+  const inspector: ElementInspector = createElementInspector({
+    frame,
+    ...(deps.onFixElement === undefined ? {} : { onFix: (box: InspectedBox) => deps.onFixElement?.(box, currentUrl) }),
+  });
 
-  pane.append(bar, deviceToolbar.element, stage, inspector.element, output, resizeGrip);
+  pane.append(bar, deviceToolbar.element, stage, inspector.element, output, ...edges);
   deps.host.append(pane);
 
   /*
@@ -239,67 +244,58 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
   let logShown = false;
 
   let workspace: string | null = null;
-  let placement: PreviewPlacement = "docked";
+  let placement: PreviewPlacement = "floating";
   let position: Point = { x: 0, y: 0 };
   let size: Size = { width: 560, height: 420 };
+  let maximised = false;
+  let positioned = false;
 
-  function setWidth(width: string): void {
-    deps.host.style.setProperty("--preview-width", width);
-    deps.onLayoutChange();
-  }
+  /* ── Geometry ───────────────────────────────────────────────────────────── */
 
-  /* ── Placement ──────────────────────────────────────────────────────────── */
-
-  function applyGeometry(): void {
-    if (placement !== "floating") return;
-
-    // Clamped on the way in, every time. The window can be resized while the card is
-    // floating, and a card that was reachable at 1440px is not necessarily reachable at 900.
+  /** Fit: fully on screen when it fits (open, window resize). Otherwise the looser drag clamp. */
+  function applyGeometry(fit = false): void {
     const bounds = viewport();
-    size = clampSize(size, bounds);
-    position = clampToViewport(position, size, bounds);
-
-    pane.style.width = `${size.width}px`;
-    pane.style.height = `${size.height}px`;
-    pane.style.transform = `translate(${position.x}px, ${position.y}px)`;
+    // First open in this folder: no remembered position, so centre it rather than dropping
+    // it at the origin under the title bar.
+    if (!positioned) {
+      position = centreIn(clampSize(size, bounds), bounds);
+      positioned = true;
+    }
+    // Clamped on the way in, every time. A card that was reachable at 1440px is not
+    // necessarily reachable after the window is dragged down to 900.
+    const current = maximised ? maximisedIn(bounds) : { position, size };
+    const nextSize = clampSize(current.size, bounds);
+    const nextPosition = fit ? fitInViewport(current.position, nextSize, bounds) : clampToViewport(current.position, nextSize, bounds);
+    if (!maximised) {
+      size = nextSize;
+      position = nextPosition;
+    }
+    pane.style.width = `${nextSize.width}px`;
+    pane.style.height = `${nextSize.height}px`;
+    pane.style.transform = `translate(${nextPosition.x}px, ${nextPosition.y}px)`;
   }
 
-  /**
-   * The half of placement that touches no layout.
-   *
-   * Split out so construction can set the button and the attribute without calling
-   * `onLayoutChange`, which reaches into the editor and the run button - neither of which
-   * wants a relayout before the window has drawn once.
-   */
+  /** The attribute and the button; nothing here relayouts the editor. */
   function applyPlacementChrome(): void {
     pane.dataset["placement"] = placement;
-
-    dockButton.title = placement === "floating" ? "Dock preview" : "Undock preview";
-    dockButton.setAttribute("aria-label", dockButton.title);
-    dockButton.replaceChildren(createIcon(placement === "floating" ? ICON.dock : ICON.undock));
+    pane.dataset["maximised"] = String(maximised);
+    maximiseButton.title = maximised ? "Restore preview size" : "Maximise preview";
+    maximiseButton.setAttribute("aria-label", maximiseButton.title);
+    maximiseButton.replaceChildren(createIcon(maximised ? RESTORE : MAXIMISE));
   }
 
   function applyPlacement(): void {
     applyPlacementChrome();
-
-    if (placement === "floating") {
-      applyGeometry();
-      // The column collapses so the editor takes the full width back. The card is over the
-      // top of it, not beside it, so leaving 42% reserved would strand empty space.
-      setWidth("0px");
-      return;
-    }
-
-    // Docked: hand width back to the stylesheet rather than leaving inline pixels behind,
-    // or the column keeps whatever size the floating card happened to have.
-    pane.style.removeProperty("width");
-    pane.style.removeProperty("height");
-    pane.style.removeProperty("transform");
-    setWidth(open ? DOCKED_WIDTH : "0px");
+    applyGeometry(true);
+    // Nothing reserves a column for the preview any more; the editor keeps its full width.
+    deps.host.style.setProperty("--preview-width", "0px");
   }
 
-  function persistPlacement(): void {
-    write(workspace, "placement", placement);
+  function toggleMaximised(): void {
+    maximised = !maximised;
+    write(workspace, "maximised", String(maximised));
+    if (open) applyPlacement();
+    else applyPlacementChrome();
   }
 
   function showLog(show: boolean): void {
@@ -397,10 +393,10 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     }
   });
 
-  /* ── Dragging and resizing, only while floating ─────────────────────────── */
+  /* ── Dragging, resizing and maximising ─────────────────────────────────── */
 
   bar.addEventListener("pointerdown", (event) => {
-    if (placement !== "floating") return;
+    if (maximised || event.button !== 0) return;
     // The bar is also the toolbar. Dragging from a button would mean the pointer never
     // reaches the click, so the buttons would stop working the moment the card floated.
     if ((event.target as HTMLElement).closest("button") !== null) return;
@@ -424,38 +420,44 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     bar.addEventListener("pointerup", release);
   });
 
-  resizeGrip.addEventListener("pointerdown", (event) => {
-    if (placement !== "floating") return;
-    event.preventDefault();
+  // Every edge resizes; west and north edges move the origin too (see `resizeGeometry`).
+  for (const handle of edges) {
+    handle.addEventListener("pointerdown", (event) => {
+      if (maximised || event.button !== 0) return;
+      event.preventDefault();
+      const start = { position, size };
+      const startX = event.clientX;
+      const startY = event.clientY;
+      handle.setPointerCapture(event.pointerId);
 
-    const startWidth = size.width;
-    const startHeight = size.height;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    resizeGrip.setPointerCapture(event.pointerId);
-
-    const move = (moveEvent: PointerEvent): void => {
-      size = {
-        width: Math.max(MIN_FLOAT_WIDTH, startWidth + (moveEvent.clientX - startX)),
-        height: Math.max(MIN_FLOAT_HEIGHT, startHeight + (moveEvent.clientY - startY)),
+      const move = (moveEvent: PointerEvent): void => {
+        const next = resizeGeometry(start, handle.dataset["edge"] as ResizeEdge, moveEvent.clientX - startX, moveEvent.clientY - startY, viewport());
+        position = next.position;
+        size = next.size;
+        applyGeometry();
       };
-      applyGeometry();
-    };
 
-    const release = (): void => {
-      resizeGrip.removeEventListener("pointermove", move);
-      resizeGrip.removeEventListener("pointerup", release);
-      write(workspace, "size", JSON.stringify(size));
-    };
+      const release = (): void => {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", release);
+        write(workspace, "size", JSON.stringify(size));
+        write(workspace, "position", JSON.stringify(position));
+      };
 
-    resizeGrip.addEventListener("pointermove", move);
-    resizeGrip.addEventListener("pointerup", release);
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", release);
+    });
+  }
+
+  bar.addEventListener("dblclick", (event) => {
+    if ((event.target as HTMLElement).closest("button") !== null) return;
+    toggleMaximised();
   });
 
-  // A floating card that was reachable in a 1440px window is not necessarily reachable after
-  // the window is dragged smaller, so the clamp runs again on every resize.
+  // A card that was reachable in a 1440px window is not necessarily reachable after the
+  // window is dragged smaller, so the clamp runs again on every resize.
   window.addEventListener("resize", () => {
-    if (placement === "floating" && open) applyGeometry();
+    if (open) applyGeometry(true);
   });
 
   deviceButton.addEventListener("click", () => {
@@ -465,7 +467,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
   inspectButton.addEventListener("click", () => api.toggleInspect());
   logButton.addEventListener("click", () => showLog(!logShown));
   reloadButton.addEventListener("click", () => api.reload());
-  dockButton.addEventListener("click", () => api.togglePlacement());
+  maximiseButton.addEventListener("click", () => toggleMaximised());
   externalButton.addEventListener("click", () => void window.adcode.preview.openExternal());
   closeButton.addEventListener("click", () => void api.close());
   engine.addEventListener("click", () => void api.switchMode());
@@ -495,7 +497,6 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     async close(): Promise<void> {
       open = false;
       pane.hidden = true;
-      setWidth("0px");
 
       // Drop the frame before stopping the server, or Chromium logs a failed request for a
       // socket that went away mid-load - and `npm run smoke` fails on any console error.
@@ -537,26 +538,19 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
       applyPlacement();
     },
 
-    setPlacement(next: PreviewPlacement): void {
-      if (next === placement) return;
+    toggleMaximised,
 
-      // First float in this folder: no remembered position, so centre it rather than
-      // dropping it at the origin under the title bar.
-      if (next === "floating" && read(workspace, "position") === null) {
-        position = centreIn(size, viewport());
+    isMaximised: () => maximised,
+
+    resetGeometry(): void {
+      maximised = false;
+      positioned = false;
+      size = { width: 560, height: 420 };
+      for (const part of ["position", "size", "maximised"]) {
+        try { localStorage.removeItem(storageKey(workspace, part)); } catch { /* Optional storage. */ }
       }
-
-      placement = next;
-      applyPlacement();
-      persistPlacement();
-
-      // Monaco has to relayout either way: undocking gives the editor the column back, and
-      // docking takes it away again.
-      deps.onLayoutChange();
-    },
-
-    togglePlacement(): void {
-      api.setPlacement(placement === "floating" ? "docked" : "floating");
+      applyPlacementChrome();
+      if (open) applyGeometry();
     },
 
     placement: () => placement,
@@ -584,9 +578,12 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
 
       // Whatever this folder last used. A remembered geometry is clamped by `applyGeometry`
       // on the way in, never trusted as written - see `floatingLayout.ts` for why.
-      placement = read(root, "placement") === "floating" ? "floating" : "docked";
-      position = parsePoint(read(root, "position")) ?? position;
+      placement = "floating";
+      const remembered = parsePoint(read(root, "position"));
+      positioned = remembered !== null;
+      position = remembered ?? position;
       size = parseSize(read(root, "size")) ?? size;
+      maximised = read(root, "maximised") === "true";
 
       // The device viewport is remembered per folder too: a project you were checking at
       // 390 wide is one you are probably still checking at 390 wide.
@@ -594,7 +591,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
       deviceButton.dataset["active"] = String(deviceToolbar.isActive());
 
       // Chrome always, layout only when there is something on screen to lay out. Without the
-      // first call the dock button keeps the previous folder's icon until the pane reopens.
+      // first call the maximise button keeps the previous folder's icon until it reopens.
       applyPlacementChrome();
       if (open) applyPlacement();
     },

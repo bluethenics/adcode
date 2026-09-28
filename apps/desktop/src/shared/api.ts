@@ -521,6 +521,9 @@ export const CHANNELS = {
   settingsReset: "settings:reset",
   settingsChanged: "settings:changed",
   memoryConnection: "memory:connection",
+  memoryList: "memory:list",
+  memoryWrite: "memory:write",
+  memoryRemove: "memory:remove",
   aiProviders: "ai:providers",
   aiSetKey: "ai:set-key",
   aiClearKey: "ai:clear-key",
@@ -1201,6 +1204,8 @@ export interface AiTeamRoleInputView {
   readonly id: string;
   readonly label: string;
   readonly objective: string;
+  /** Which tools this agent may use; the main process filters to exactly these. Absent = all. */
+  readonly toolAccess?: "all" | "read-only" | readonly string[];
 }
 
 export interface AiTeamNodeInputView {
@@ -1214,6 +1219,10 @@ export interface AiTeamNodeInputView {
 }
 
 export interface AiTeamConfigureInputView {
+  /** A board run is one agent on one task ("solo"); a Team is two to four. Absent = Team. */
+  readonly kind?: "team" | "solo";
+  /** Race mode: solo runs on one task share a group (`race-…`) so they can be compared. */
+  readonly group?: string;
   readonly prompt: string;
   readonly acceptanceCriteria: readonly string[];
   readonly roles: readonly AiTeamRoleInputView[];
@@ -1273,6 +1282,13 @@ export interface AiTeamConflictView {
 /** Renderer-safe parent summary. Workspace roots, child ids, and base revisions stay privileged. */
 export interface AiTeamView {
   readonly id: string;
+  readonly kind: "team" | "solo";
+  /** The race this run belongs to, or null. */
+  readonly group: string | null;
+  /** Why a finished run was held for review instead of applied automatically, or null. */
+  readonly hold: string | null;
+  /** Project files this run has edited so far - for collision warnings between live runs. */
+  readonly touchedPaths: readonly string[];
   readonly state: AiTeamStateView;
   readonly prompt: string;
   readonly acceptanceCriteria: readonly string[];
@@ -1309,6 +1325,8 @@ export interface AiTeamView {
     readonly conflicts: readonly AiTeamConflictView[];
   };
   readonly baseKind: "git-revision" | "shadow-base" | null;
+  /** What each running node is doing right now, in plain words ("Editing src/app.ts"). */
+  readonly activity: Readonly<Record<string, { readonly text: string; readonly at: number }>>;
   readonly confirmedAt: number | null;
   readonly createdAt: number;
   readonly updatedAt: number;
@@ -1340,6 +1358,26 @@ export interface McpConnectionInfo {
   readonly storePath: string | null;
   /** False when no folder is open, since the store is per-workspace. */
   readonly available: boolean;
+}
+
+/** One saved project memory, as the Tools page shows it. */
+export interface MemoryItemView {
+  readonly name: string;
+  readonly description: string;
+  readonly type: "decision" | "convention" | "preference" | "session";
+  /** ISO date, `YYYY-MM-DD`. */
+  readonly created: string;
+  /** Which agents have written it ("adcode-chat", "you", or an external agent's name). */
+  readonly agents: readonly string[];
+  readonly body: string;
+}
+
+/** A memory written by hand. Session notes are the assistant's own log, so not writable here. */
+export interface MemoryWriteInputView {
+  readonly name: string;
+  readonly description: string;
+  readonly type: "decision" | "convention" | "preference";
+  readonly body: string;
 }
 
 /** What `window.adcode` exposes. Nothing else crosses the boundary. */
@@ -1608,6 +1646,11 @@ export interface AdcodeApi {
   };
   readonly memory: {
     connection(): Promise<McpConnectionInfo>;
+    /** Every memory for the open project, newest first. Empty when no folder is open. */
+    list(): Promise<readonly MemoryItemView[]>;
+    /** Create or replace a memory by name. Null when the input is refused or no folder is open. */
+    write(input: MemoryWriteInputView): Promise<MemoryItemView | null>;
+    remove(name: string): Promise<boolean>;
   };
   readonly ai: {
     controls(): Promise<AssistantControlsView>;

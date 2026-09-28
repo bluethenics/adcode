@@ -32,6 +32,7 @@ import {
   createGoogleProvider,
   createOpenAiCompatibleProvider,
   createTeamHandoff,
+  filterToolsByAccess,
   mergeCatalogue,
   normalizeInlineCompletion,
   parseCatalogue,
@@ -86,7 +87,10 @@ import { aiWorkspaceContext } from "./aiWorkspaceContext.ts";
 import { OPEN_PREVIEW, openAiPreview } from "./aiPreview.ts";
 import { clearSessions, deleteSession, readSessions, writeSession } from "./aiSessions.ts";
 import { createAiWorkspaceService, type AiWorkspaceService } from "./aiWorkspaceService.ts";
-import { agentEventTrace } from "./aiEventTrace.ts";
+import { agentEventTrace, describeActivity } from "./aiEventTrace.ts";
+import { createSlotPool } from "./slotPool.ts";
+import { createStuckDetector } from "./stuckDetector.ts";
+import { checksFromTraces, holdReason, riskFlags } from "../shared/runEvidence.ts";
 import { normalizeForCompare } from "./pathSafety.ts";
 import { recoverableDrafts } from "./history.ts";
 import { workspaceHasUnsavedDraft, summarizeUnsavedDrafts } from "./aiWorkspaceDrafts.ts";
@@ -104,6 +108,7 @@ import {
   type AiTeamNodeRunner,
 } from "./aiTeamCoordinator.ts";
 import { createAiTeamService, type AiTeamService } from "./aiTeamService.ts";
+import type { AiTeamRecord } from "./aiTeamStore.ts";
 import type { ParsedAiTeamConfigure } from "./aiTeamIpcValidation.ts";
 import { toAiTeamActivityView, toAiTeamTraceView, toAiTeamView } from "./aiTeamViews.ts";
 import { createAiAutomationService, type AiAutomationService } from "./aiAutomationService.ts";
@@ -206,12 +211,53 @@ async function readyAiWorkspaceService(): Promise<AiWorkspaceService> {
   return service;
 }
 
+/**
+ * What each running agent is doing right now, per run: the Agents board's status lines.
+ * In memory only - it is a live readout, not history, and the traces already keep history.
+ */
+const teamActivity = new Map<string, Record<string, { text: string; at: number }>>();
+const activityTimers = new Map<string, ReturnType<typeof setTimeout>>();
+/** Enough to feel live without a broadcast per tool call. */
+const ACTIVITY_BROADCAST_MS = 250;
+
+/** Paths each live run has edited, for collision warnings between parallel agents. */
+const teamTouched = new Map<string, Set<string>>();
+/** Why a finished run was held for review instead of applied automatically. */
+const teamHolds = new Map<string, string>();
+
+function noteTeamTouched(teamId: string, path: string): void {
+  const paths = teamTouched.get(teamId) ?? new Set<string>();
+  if (paths.has(path) || paths.size >= 200) return;
+  paths.add(path);
+  teamTouched.set(teamId, paths);
+}
+
+function teamView(team: AiTeamRecord): AiTeamView {
+  return toAiTeamView(team, {
+    activity: teamActivity.get(team.id) ?? {},
+    hold: teamHolds.get(team.id) ?? null,
+    touchedPaths: [...(teamTouched.get(team.id) ?? [])],
+  });
+}
+
+function noteTeamActivity(teamId: string, nodeId: string, text: string): void {
+  teamActivity.set(teamId, { ...(teamActivity.get(teamId) ?? {}), [nodeId]: { text, at: Date.now() } });
+  if (activityTimers.has(teamId)) return;
+  activityTimers.set(teamId, setTimeout(() => {
+    activityTimers.delete(teamId);
+    void readyAiTeamService()
+      .then((service) => service.read(teamId))
+      .then((team) => { if (team !== null) broadcast(CHANNELS.aiTeamChanged, teamView(team)); })
+      .catch(() => undefined);
+  }, ACTIVITY_BROADCAST_MS));
+}
+
 function aiTeamService(): AiTeamService {
   if (teamService === null) {
     teamService = createAiTeamService({
       userDataDirectory: app.getPath("userData"),
       workspaceService: aiWorkspaceService(),
-      onChanged: (team) => broadcast(CHANNELS.aiTeamChanged, toAiTeamView(team)),
+      onChanged: (team) => broadcast(CHANNELS.aiTeamChanged, teamView(team)),
     });
     teamRecovery = teamService.recoverActive().then(() => undefined);
   }
@@ -1199,19 +1245,40 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
       onProposedEdit: () => undefined,
     });
     const roleProvider = createBudgetedTeamProvider(provider, input.route, input.reserveRequest);
-    const roleAgent = createAgent({
-      provider: roleProvider,
-      model: input.route.modelId,
-      tools: TOOLS_WITHOUT_MEMORY,
-      runner,
-      effort: configuredEffort(),
-      system: [
+    // A saved agent's tool access is enforced here, before the agent exists: a read-only
+    // Reviewer is never handed a tool that writes, runs or fetches.
+    const access = filterToolsByAccess(TOOLS_WITHOUT_MEMORY, input.context.role.toolAccess ?? "all");
+    if (access.unknown.length > 0) {
+      await service.recordTrace(task.id, {
+        kind: "state",
+        summary: "Skipped tools this agent named that do not exist",
+        detail: access.unknown.join(", ").slice(0, 300),
+        outcome: "blocked",
+      });
+    }
+    const system = input.kind === "solo"
+      ? [
+        "You are an ADCode agent working on one task in an isolated copy of the project.",
+        `Agent: ${input.context.role.label}`,
+        `Your standing instructions: ${input.context.role.objective}`,
+        "Do the task end to end with the file tools you have.",
+        "Before you finish, prove it works: run the project's own checks that apply - its tests, type checker or linter (look in package.json or the equivalent) - with run_command, and fix any failure you caused. If there are none, say so.",
+        "Finish with a concise summary of what you changed and anything the user should check. Your edits are applied or reviewed when you finish.",
+      ]
+      : [
         "You are one isolated role inside an explicitly confirmed ADCode Team.",
         `Role: ${input.context.role.label}`,
         `Role objective: ${input.context.role.objective}`,
         "Work only on this node. Use the isolated file tools; never assume another role's transcript.",
         "Finish with a concise outcome summary. All edits remain review-only until the Team merge.",
-      ].join("\n"),
+      ];
+    const roleAgent = createAgent({
+      provider: roleProvider,
+      model: input.route.modelId,
+      tools: access.tools,
+      runner,
+      effort: configuredEffort(),
+      system: system.join("\n"),
     });
     const compactPrompt = JSON.stringify({
       task: input.context.taskPrompt,
@@ -1222,15 +1289,42 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
     });
     let answer = "";
     let failure: Error | null = null;
-    for await (const event of roleAgent.send(compactPrompt, { signal: input.signal })) {
-      const activity = agentEventTrace(event);
-      if (activity !== null) await service.recordTrace(task.id, activity);
-      if (event.kind === "text") answer += event.text;
-      if (event.kind === "error") failure = new Error(event.detail);
-      if (event.kind === "refusal") failure = new Error(event.detail);
-      if (event.kind === "cancelled") failure = new DOMException("Team role cancelled", "AbortError");
+    // The stuck guard can stop this agent on its own; a Stop from the user still wins.
+    const local = new AbortController();
+    const forward = (): void => local.abort();
+    input.signal.addEventListener("abort", forward, { once: true });
+    const stuck = createStuckDetector();
+    let stuckReason: string | null = null;
+    try {
+      for await (const event of roleAgent.send(compactPrompt, { signal: local.signal })) {
+        const activity = agentEventTrace(event);
+        if (activity !== null) {
+          await service.recordTrace(task.id, activity);
+          const line = describeActivity(activity);
+          if (line !== null) noteTeamActivity(input.teamId, input.node.id, line);
+          if (event.kind === "tool-call" && (event.call.name === "edit_file" || event.call.name === "propose_edit") && activity.detail) {
+            noteTeamTouched(input.teamId, activity.detail);
+          }
+          const verdict = stuck.observe(activity);
+          if (verdict !== null) {
+            stuckReason = verdict;
+            local.abort();
+            break;
+          }
+        }
+        if (event.kind === "text") answer += event.text;
+        if (event.kind === "error") failure = new Error(event.detail);
+        if (event.kind === "refusal") failure = new Error(event.detail);
+        if (event.kind === "cancelled") failure = new DOMException("Team role cancelled", "AbortError");
+      }
+    } finally {
+      input.signal.removeEventListener("abort", forward);
     }
     if (input.signal.aborted) throw new DOMException("Team role cancelled", "AbortError");
+    if (stuckReason !== null) {
+      await service.recordTrace(task.id, { kind: "error", summary: "Stopped: the agent looked stuck", detail: stuckReason, outcome: "blocked" });
+      throw new Error(`Stuck: ${stuckReason}`);
+    }
     if (failure !== null) throw failure;
 
     const after = await service.read(task.id);
@@ -1285,8 +1379,42 @@ async function readyAiTeamCoordinator(): Promise<AiTeamCoordinator> {
     // Two concurrent requests is fast enough to benefit Team mode without creating a
     // burst likely to trip a provider's default account limits.
     providerConcurrency: () => 2,
+    // Every board run and Team role in this window shares one limit (Settings > AI).
+    slots: agentSlots,
   });
   return teamCoordinator;
+}
+
+const agentSlots = createSlotPool(() => Number(currentSettings()["adcode.ai.parallelAgents"]) || 3);
+
+/**
+ * A finished board run follows the same edit setting as the chat: with Apply automatically it
+ * lands in the project straight away, with a checkpoint for Undo; with Review every change it
+ * waits on its box. A clash with the user's own edits stops it as a conflict, never an overwrite.
+ */
+async function settleSoloRun(id: string, coordinator: AiTeamCoordinator): Promise<void> {
+  try {
+    const finished = await coordinator.wait(id);
+    if (finished.plan.kind !== "solo" || finished.state !== "review") return;
+    // A race is decided by comparing its lanes; none of them lands on its own.
+    if (finished.plan.group !== undefined) return;
+    if (currentSettings()["adcode.ai.editPolicy"] === "review") return;
+    const taskId = finished.merge.combinedTaskId;
+    if (taskId === null) return;
+    const changes = await aiWorkspaceChanges(taskId);
+    if (changes.length === 0) return;
+    // Proof of work: a failed check or a possible secret waits for a person.
+    const hold = holdReason(checksFromTraces(await aiTeamTraces(id)), riskFlags(changes));
+    if (hold !== null) {
+      teamHolds.set(id, hold);
+      broadcast(CHANNELS.aiTeamChanged, teamView(finished));
+      return;
+    }
+    await aiWorkspaceApply(taskId, changes.map((change) => ({ path: change.path, acceptedHunkIds: change.hunks.map((hunk) => hunk.id) })));
+  } catch (error) {
+    // The run stays in Ready with Apply on its box; nothing is lost.
+    recordDebug("error", "ai", `Could not apply a finished agent run automatically: ${error instanceof Error ? error.message : "unknown error"}`);
+  }
 }
 
 async function currentTeam(id: string) {
@@ -1317,18 +1445,18 @@ export async function aiTeamConfigure(
     claims: input.claims,
     budget: input.budget,
   });
-  return toAiTeamView(team);
+  return teamView(team);
 }
 
 export async function aiTeamList(): Promise<AiTeamView[]> {
   const root = currentWorkspace()?.root;
   if (root === undefined) return [];
-  return (await (await readyAiTeamService()).list(root)).map(toAiTeamView);
+  return (await (await readyAiTeamService()).list(root)).map((team) => teamView(team));
 }
 
 export async function aiTeamRead(id: string): Promise<AiTeamView | null> {
   const team = await currentTeam(id);
-  return team === null ? null : toAiTeamView(team);
+  return team === null ? null : teamView(team);
 }
 
 export async function aiTeamStart(id: string): Promise<AiTeamView> {
@@ -1343,14 +1471,15 @@ export async function aiTeamStart(id: string): Promise<AiTeamView> {
   const coordinator = await readyAiTeamCoordinator();
   const started =
     team.state === "paused" ? await coordinator.resume(id) : await coordinator.startConfirmed(id);
-  return toAiTeamView(started);
+  if (started.plan.kind === "solo") void settleSoloRun(id, coordinator);
+  return teamView(started);
 }
 
 export async function aiTeamCancel(id: string): Promise<AiTeamView> {
   if ((await currentTeam(id)) === null) {
     throw new Error("That Team does not belong to the open workspace");
   }
-  return toAiTeamView(await (await readyAiTeamCoordinator()).cancel(id));
+  return teamView(await (await readyAiTeamCoordinator()).cancel(id));
 }
 
 export async function aiTeamTraces(id: string): Promise<AiTeamTraceView[]> {

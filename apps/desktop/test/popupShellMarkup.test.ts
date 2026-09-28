@@ -23,7 +23,8 @@ describe("shared pop-up shell", () => {
 
   it("owns Escape, backdrop dismissal, and focus restoration", () => {
     expect(source).toContain('addEventListener("cancel"');
-    expect(source).toContain("event.composedPath().includes(surface)");
+    expect(source).toContain("const path = event.composedPath();");
+    expect(source).toContain("path.includes(surface)");
     expect(source).toContain("restoreTarget?.focus()");
   });
 
@@ -43,6 +44,16 @@ describe("shared pop-up shell", () => {
     event.composedPath = () => [backdrop];
 
     expect(isPopupShellBackdrop(event, surface)).toBe(true);
+  });
+
+  it("does not treat a click in a floating panel hosted by the popup as a backdrop click", () => {
+    const surface = {} as HTMLElement;
+    const panel = { classList: { contains: (name: string) => name === "floating-panel" } } as unknown as Node;
+    const button = {} as Node;
+    const event = new Event("click");
+    event.composedPath = () => [button, panel];
+
+    expect(isPopupShellBackdrop(event, surface)).toBe(false);
   });
 
   it("announces launcher disclosure", () => {
