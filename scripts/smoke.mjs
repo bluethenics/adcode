@@ -325,6 +325,43 @@ const vibePages = await evaluate(`(async () => {
   result.backToChat = document.getElementById('vibe-page-chat')?.hidden === false && !!document.querySelector('#vibe-page-chat .chat-card');
   return result;
 })()`);
+/*
+ * Long chat memory and motion, in the real Vibe window: the composer shows how full the
+ * model's context is, its menu offers Compact now and View summary, /compact on a new
+ * conversation says there is nothing to compact instead of sending anything, and Vibe runs
+ * the lively motion personality.
+ */
+const memoryAndMotion = await evaluate(`(async () => {
+  const wait = async (test) => { for (let i = 0; i < 40 && !test(); i++) await new Promise((r) => setTimeout(r, 100)); };
+  const chat = document.getElementById('vibe-page-chat');
+  const meter = chat?.querySelector('.chat-context-meter');
+  await wait(() => /^Context \\d{1,3}%$/.test(meter?.querySelector('.chat-context-label')?.textContent ?? '') && (meter?.title ?? '').length > 0);
+  const result = {
+    motionLively: document.documentElement.dataset.motion === 'lively',
+    meterInComposer: !!meter && !!meter.closest('.chat-composer-footer'),
+    meterReads: /^Context \\d{1,3}%$/.test(meter?.querySelector('.chat-context-label')?.textContent ?? ''),
+    meterExplains: / tokens\\. /.test(meter?.title ?? ''),
+  };
+  meter?.click();
+  await wait(() => !!document.querySelector('.menu-panel'));
+  const labels = [...document.querySelectorAll('.menu-panel .menu-item')].map((node) => node.textContent ?? '');
+  result.meterMenu = labels.some((label) => label.includes('Compact now')) && labels.some((label) => label.includes('View summary'));
+  document.querySelector('.menu-panel')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await wait(() => !document.querySelector('.menu-panel'));
+  const input = chat?.querySelector('.chat-input');
+  const bubbles = chat?.querySelectorAll('.chat-bubble').length ?? 0;
+  if (input) {
+    input.focus();
+    input.value = '/compact';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  }
+  const notice = () => chat?.querySelector('.chat-composer-notice')?.textContent ?? '';
+  await wait(() => /nothing to compact/i.test(notice()));
+  result.compactExplainsEmpty = /nothing to compact/i.test(notice());
+  result.compactSendsNothing = (chat?.querySelectorAll('.chat-bubble').length ?? 0) === bubbles && input?.value === '';
+  return result;
+})()`);
 const windowScreenshotPaths = [];
 if (process.argv.includes("--visual-only")) {
   const response = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
@@ -402,6 +439,8 @@ const checks = {
   vibeNoRightSidebarEvidence: vibeNoRightSidebar,
   vibeAgentsAndToolsPages: typeof vibePages === "object" && vibePages !== null && Object.values(vibePages).every(Boolean),
   vibeAgentsAndToolsPagesEvidence: vibePages,
+  chatMemoryAndMotion: typeof memoryAndMotion === "object" && memoryAndMotion !== null && Object.values(memoryAndMotion).every(Boolean),
+  chatMemoryAndMotionEvidence: memoryAndMotion,
   changesPanel: changesPanel !== null && changesPanel.tabs === "Project,Changes" && /Commit & Push|Push/.test(changesPanel.commitButton)
     && changesPanel.everyRowHasRevertAndCheckbox && changesPanel.rowsFit && changesPanel.caption.length > 0,
   changesPanelEvidence: changesPanel,
@@ -5506,6 +5545,9 @@ checks.earningsIconIsADrawnDollar = await evaluate(
  * The IDE's assistant floats over the editor instead of docking beside it: Ctrl+I shows it,
  * the editor keeps every pixel of its width, and its own close button hides it again.
  */
+// Code keeps the crisp motion personality: short timings, no bounce.
+checks.motionCrispInCode = await evaluate("document.documentElement.dataset.motion === 'crisp' || 'motion is ' + document.documentElement.dataset.motion");
+
 checks.ideAssistantFloats = await evaluate(
   `(async () => {
      const wait = async (test) => { for (let i = 0; i < 40 && !test(); i++) await new Promise((r) => setTimeout(r, 100)); };
