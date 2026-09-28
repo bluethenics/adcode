@@ -12,13 +12,11 @@ export function generateStaticParams(): { slug: string }[] {
 }
 
 /*
- * Only the slugs listed above exist.
- *
- * Without this, `/compare/anything` renders on demand and returns 200, which is how a site
- * ends up with an unbounded set of thin pages a crawler will happily discover from a
- * mistyped link. A 404 is the correct answer for a comparison that was never written.
+ * Allow regeneration when the Worker's incremental cache has no prerendered entry.
+ * With dynamicParams=false, a cache miss returns 404 even for a known comparison.
+ * The getLanding/isComparison guard below still rejects every unknown slug.
  */
-export const dynamicParams = false;
+export const dynamicParams = true;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
