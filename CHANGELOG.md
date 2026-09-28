@@ -3,6 +3,44 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.1.0 — 2026-09-28
+
+- Agents page: every run is a box on a board - Needs you, Working, Ready - with its
+  agent's mascot, live status, spend and actions. Five starter agents (Reviewer,
+  Tester, UI polish, Bug fixer, Docs writer), agents of your own with a model, tool
+  access and a usual cost cap, and several running at once (three by default).
+- Proof of work on every finished box: the tests, type checks and linters the agent
+  actually ran, and warnings for a possible secret, sign-in or payment code, removed
+  tests, new dependencies or a very large change. With Apply automatically on, a
+  failed check or a possible secret holds the run for you instead of applying it.
+- Stuck and collision guards: an agent repeating the same failing step is stopped and
+  offers Try another way; two agents editing the same file both warn you.
+- Race mode: give one task to two or three agents, compare their work side by side
+  with proof and cost, and keep the best - the other lanes are discarded.
+- Point-and-fix: pick an element in Preview with Inspect and choose Change this with
+  AI; the task knows exactly which element you mean.
+- Tools page: ADCode's built-in tools, MCP servers (with a one-click catalogue of
+  servers that need no credentials), skills, and an editable project memory.
+- No right sidebars: the IDE assistant, Preview, Changes, Project overview and
+  Activity float as panels you can move, resize from any edge and maximise.
+- Long chat memory: reopening a conversation, restarting ADCode or switching model no
+  longer forgets the conversation - the assistant carries on where you left off.
+- Auto-compact: when a chat nears the model's context size (80% by default), ADCode
+  summarises the older part with the same model and keeps the newest turns word for
+  word. A meter beside the composer shows how full the context is; /compact (with an
+  optional focus) and Compact now make room on demand, and View summary shows what is
+  carried forward. Long Agents-board runs compact the same way instead of stopping.
+- Motion: Vibe moves with some life - boxes glide between columns and celebrate a
+  finished run, mascots blink, pages slide, panels grow out of what opened them, new
+  messages rise in and streamed text fades up. Code stays crisp. Everything respects
+  the system's reduce-motion setting and ADCode's own Reduced motion switch.
+- The bundled model catalogue is refreshed to 2026-09-28 and now records each
+  model's context size.
+
+Known limitations: macOS builds remain unsupported. Context sizes come from the
+catalogue; models it does not list are assumed to read 128k tokens. Token counts on
+the meter are estimates.
+
 ## 2.0.0 — 2026-09-24
 
 - Vibe assistant toolset: find files by pattern, outline a file's symbols, run tests and
