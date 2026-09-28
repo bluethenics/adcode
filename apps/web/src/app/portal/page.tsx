@@ -19,7 +19,7 @@ import {
 import { BillingBody } from "./billing/page";
 import { NewCampaignForm } from "./campaigns/new/page";
 import { CreativeForm } from "./campaigns/[id]/CreativeForm";
-import { loadPortalReport } from "@/lib/portalReport";
+import { campaignRowToggle, loadPortalReport } from "@/lib/portalReport";
 
 type Window = "7" | "30" | "90";
 
@@ -390,15 +390,7 @@ function PortalBody() {
                 <details
                   key={campaign.campaignId}
                   className="campaign-inline"
-                  onToggle={(event) => {
-                    const id = campaign.campaignId;
-                    setOpenRows((prev) => {
-                      const next = new Set(prev);
-                      if (event.currentTarget.open) next.add(id);
-                      else next.delete(id);
-                      return next;
-                    });
-                  }}
+                  onToggle={campaignRowToggle(setOpenRows, campaign.campaignId)}
                 >
                   <summary>
                     <span className="row-main">

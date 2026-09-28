@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadPortalReport } from "../src/lib/portalReport";
+import { campaignRowToggle, loadPortalReport } from "../src/lib/portalReport";
 
 const advertiser = {
   advertiserId: "adv-1", name: "Acme", status: "active",
@@ -65,5 +65,29 @@ describe("campaign reporting", () => {
     fetchMock.mockResolvedValueOnce(Response.json({ error: "no-advertiser" }, { status: 404 }));
     expect(await loadPortalReport("token", "30")).toEqual({ ok: false, error: "no-advertiser" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("opening a campaign's row in the portal", () => {
+  /*
+   * React sets `currentTarget` only while a handler runs and clears it afterwards, and a
+   * state updater may run later, during the next render. A row that read `open` inside the
+   * updater threw "Cannot read properties of null" and took the advertiser's campaign
+   * report down with it.
+   */
+  function toggle(open: boolean, prev: ReadonlySet<string>): Set<string> {
+    const event: { currentTarget: { open: boolean } | null } = { currentTarget: { open } };
+    let pending: ((prev: ReadonlySet<string>) => Set<string>) | null = null;
+    campaignRowToggle((updater) => { pending = updater; }, "camp-1")(event as { currentTarget: { open: boolean } });
+    event.currentTarget = null;
+    return pending!(prev);
+  }
+
+  it("opens the row even when React applies the update after the event is gone", () => {
+    expect([...toggle(true, new Set(["camp-2"]))].sort()).toEqual(["camp-1", "camp-2"]);
+  });
+
+  it("closes it the same way", () => {
+    expect([...toggle(false, new Set(["camp-1", "camp-2"]))]).toEqual(["camp-2"]);
   });
 });

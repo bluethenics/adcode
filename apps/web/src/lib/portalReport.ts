@@ -32,3 +32,25 @@ export async function loadPortalReport(
     value: { advertiser: advertiser.value, campaigns: campaigns.value, series: series.value },
   };
 }
+
+/**
+ * A campaign row's toggle handler: records which report rows are open.
+ *
+ * `open` is read while the event is live. React sets `currentTarget` only for the length of
+ * the handler, and a state updater can run later, during the next render - reading it there
+ * threw "Cannot read properties of null" and took the advertiser's campaign report with it.
+ */
+export function campaignRowToggle(
+  setOpenRows: (updater: (prev: ReadonlySet<string>) => Set<string>) => void,
+  campaignId: string,
+): (event: { readonly currentTarget: { readonly open: boolean } }) => void {
+  return (event) => {
+    const open = event.currentTarget.open;
+    setOpenRows((prev) => {
+      const next = new Set(prev);
+      if (open) next.add(campaignId);
+      else next.delete(campaignId);
+      return next;
+    });
+  };
+}
