@@ -94,3 +94,20 @@ describe("live activity lines for agent boxes", () => {
     expect(describeActivity(agentEventTrace({ kind: "tool-result", name: "run_command", isError: true } as AgentEvent)!)).toBe("run_command failed - trying again");
   });
 });
+
+describe("compaction in a run's trace", () => {
+  it("records that earlier steps were compacted, without the summary text", () => {
+    const trace = agentEventTrace({ kind: "compacted", summary: "SECRET-SUMMARY", before: 90_000, after: 20_000, keptMessages: 6 });
+    expect(trace).toEqual({ kind: "state", summary: "Compacted earlier steps", detail: "", outcome: "ok" });
+    expect(JSON.stringify(trace)).not.toContain("SECRET-SUMMARY");
+  });
+
+  it("keeps the live compaction signals out of the trace", () => {
+    expect(agentEventTrace({ kind: "compacting" })).toBeNull();
+    expect(agentEventTrace({ kind: "context", tokens: 1000, contextWindow: 200_000 })).toBeNull();
+  });
+
+  it("tells the box the agent is making room", () => {
+    expect(describeActivity(agentEventTrace({ kind: "compacted", summary: "", before: 2, after: 1, keptMessages: 1 })!)).toBe("Compacted earlier steps to make room");
+  });
+});

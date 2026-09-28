@@ -48,6 +48,12 @@ export function agentEventTrace(event: AgentEvent): AgentEventTrace | null {
       return { kind: "error", summary: "Provider turn failed", detail: "", outcome: "failed" };
     case "cancelled":
       return { kind: "state", summary: "Assistant turn cancelled", detail: "", outcome: "blocked" };
+    // The summary is model text about the user's work: the trace says it happened, not what it said.
+    case "compacted":
+      return { kind: "state", summary: "Compacted earlier steps", detail: "", outcome: "ok" };
+    case "compacting":
+    case "context":
+      return null;
   }
 }
 
@@ -77,6 +83,7 @@ export function describeActivity(trace: AgentEventTrace): string | null {
     const name = trace.summary.replace(/^Called /, "");
     return (DOING[name] ?? (() => `Using ${name}`))(trace.detail.trim());
   }
+  if (trace.kind === "state" && trace.summary === "Compacted earlier steps") return "Compacted earlier steps to make room";
   if (trace.kind === "tool-result" && trace.outcome === "failed") {
     return `${trace.summary.replace(/ failed$/, "")} failed - trying again`;
   }

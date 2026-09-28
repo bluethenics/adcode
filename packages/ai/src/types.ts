@@ -139,7 +139,20 @@ export type AgentEvent =
   | { readonly kind: "refusal"; readonly detail: string }
   /** §9: the AI layer degrades; it never throws into the editor. */
   | { readonly kind: "error"; readonly detail: string }
-  | { readonly kind: "cancelled" };
+  | { readonly kind: "cancelled" }
+  /** The older part of the conversation is being summarised to make room. */
+  | { readonly kind: "compacting" }
+  /** The older part was replaced by `summary`; token counts are estimates. */
+  | {
+      readonly kind: "compacted";
+      readonly summary: string;
+      readonly before: number;
+      readonly after: number;
+      /** How many of the newest messages were kept word for word. */
+      readonly keptMessages: number;
+    }
+  /** How full the context is after a request - for a meter, never recorded. */
+  | { readonly kind: "context"; readonly tokens: number; readonly contextWindow: number };
 
 export type StopReason = "end-turn" | "tool-use" | "max-tokens" | "refusal" | "cancelled";
 

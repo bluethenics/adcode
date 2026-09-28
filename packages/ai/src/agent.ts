@@ -24,6 +24,28 @@ import type {
   ToolRunner,
 } from "./types.ts";
 import { isRequestTooLarge, LEAN_SYSTEM, leanHistory, leanTools } from "./requestSize.ts";
+import {
+  compactedHistory,
+  compactionDue,
+  estimateTokens,
+  inputBudget,
+  planCompaction,
+  summaryRequest,
+} from "./compaction.ts";
+
+/** The summary's own answer allowance: enough for a thorough one, small next to any window. */
+const SUMMARY_MAX_TOKENS = 4_096;
+
+export type CompactOutcome =
+  | { readonly ok: true; readonly summary: string; readonly before: number; readonly after: number; readonly keptMessages: number }
+  | { readonly ok: false; readonly reason: string };
+
+export interface AgentCompaction {
+  /** The model's context size in tokens. */
+  contextWindow(): number;
+  /** Compact before a request past this share of the window; null = only when asked or refused. */
+  thresholdPercent(): number | null;
+}
 
 /**
  * How many provider round-trips one `send` may make.
@@ -110,6 +132,13 @@ export interface AgentDeps {
    * request for its size, and stays lean for the rest of the conversation.
    */
   readonly lean?: () => boolean;
+  /**
+   * Keep a long conversation inside the model's context: summarise the older part before
+   * a request that would pass the threshold, and when a provider refuses one for its size.
+   */
+  readonly compaction?: AgentCompaction;
+  /** The conversation so far, when it did not start here - a reopened chat, a new model. */
+  readonly initialMessages?: readonly Message[];
 }
 
 /**
@@ -171,10 +200,60 @@ export interface Agent {
   cancel(): void;
   history(): readonly Message[];
   reset(): void;
+  /** Summarise the older part now, optionally paying attention to `focus`. Never throws. */
+  compact(focus?: string, signal?: AbortSignal): Promise<CompactOutcome>;
+  /** How full the context is, or null when this agent was not told the model's window. */
+  contextUsage(): { readonly tokens: number; readonly contextWindow: number } | null;
 }
 
 export function createAgent(deps: AgentDeps): Agent {
-  const messages: Message[] = [];
+  const messages: Message[] = [...(deps.initialMessages ?? [])];
+  const maxOutput = deps.maxTokens ?? DEFAULT_MAX_TOKENS;
+  /** The last system prompt sent, so estimates between turns count what the model sees. */
+  let lastSystem = deps.system ?? DEFAULT_SYSTEM;
+  let lastTools: readonly ToolDefinition[] = deps.tools;
+
+  /**
+   * Replace the older part of the history with a summary the model writes.
+   *
+   * Yields `compacting` and, on success, `compacted`; returns why not otherwise. The history
+   * is only touched once a non-empty summary is in hand, so every failure - an error, a
+   * refusal, an empty answer, a Stop - leaves the conversation exactly as it was.
+   */
+  async function* compactHistory(signal: AbortSignal, focus?: string): AsyncGenerator<AgentEvent, CompactOutcome> {
+    const window = deps.compaction?.contextWindow() ?? 0;
+    const budget = inputBudget(window, maxOutput);
+    const before = estimateTokens(lastSystem, messages, lastTools);
+    // Keep the newest turns: under a third of what the model can read, and at most about
+    // a third of what is there now, so asking to compact always frees real room.
+    const keep = Math.floor(Math.min(budget * 0.3, before * 0.35));
+    const plan = planCompaction(messages, keep);
+    if (plan === null) return { ok: false, reason: "There is not enough conversation to compact yet." };
+
+    yield { kind: "compacting" };
+    const ask = summaryRequest(plan.older, focus, Math.floor(inputBudget(window, SUMMARY_MAX_TOKENS) * 3 * 0.8));
+    const request: ProviderRequest = { model: deps.model, system: ask.system, messages: ask.messages, tools: [], maxTokens: SUMMARY_MAX_TOKENS };
+    let summary = "";
+    try {
+      const blocked = (await deps.beforeRequest?.(request)) ?? null;
+      if (blocked !== null) return { ok: false, reason: blocked };
+      for await (const event of deps.provider.stream(request, signal)) {
+        if (signal.aborted) break;
+        if (event.kind === "text") summary += event.text;
+        if (event.kind === "stop" && event.reason === "refusal") return { ok: false, reason: "The model declined to summarise." };
+      }
+    } catch (error) {
+      return { ok: false, reason: error instanceof Error ? error.message : "summarising failed" };
+    }
+    if (signal.aborted) return { ok: false, reason: "cancelled" };
+    if (summary.trim().length === 0) return { ok: false, reason: "The model returned an empty summary." };
+
+    messages.splice(0, messages.length, ...compactedHistory(summary, plan.tail, plan.request));
+    const after = estimateTokens(lastSystem, messages, lastTools);
+    const outcome = { ok: true as const, summary: summary.trim(), before, after, keptMessages: plan.tail.length };
+    yield { kind: "compacted", summary: outcome.summary, before, after, keptMessages: outcome.keptMessages };
+    return outcome;
+  }
   const declared = new Set(deps.tools.map((tool) => tool.name));
   const concurrentTools = new Set(
     deps.tools.filter((tool) => tool.concurrent === true && !tool.mutating).map((tool) => tool.name),
@@ -207,6 +286,9 @@ export function createAgent(deps: AgentDeps): Agent {
     const signal = controller.signal;
     const externalSignal = options?.signal;
     const failures = new Map<string, number>();
+    let compactionFailed = false;
+    let justCompacted = false;
+    let reactiveTried = false;
     const abortFromExternal = (): void => controller?.abort();
     if (externalSignal?.aborted === true) controller.abort();
     else externalSignal?.addEventListener("abort", abortFromExternal, { once: true });
@@ -233,11 +315,42 @@ export function createAgent(deps: AgentDeps): Agent {
 
       try {
         const lean = shrunk || deps.lean?.() === true;
+        const system = [deps.system ?? (lean ? LEAN_SYSTEM : DEFAULT_SYSTEM), await deps.context?.()].filter(Boolean).join("\n\n");
+        const tools = lean ? leanTools(deps.tools) : deps.tools;
+        lastSystem = system;
+        lastTools = tools;
+
+        // Make room before the request rather than after a refusal. Once per request at
+        // most, and not again this send after a failed attempt - a summariser that cannot
+        // answer now will not answer on the next step either.
+        const compaction = deps.compaction;
+        if (
+          compaction !== undefined &&
+          !compactionFailed &&
+          !justCompacted &&
+          compactionDue(estimateTokens(system, messages, tools), compaction.contextWindow(), maxOutput, compaction.thresholdPercent())
+        ) {
+          const outcome = yield* compactHistory(signal);
+          if (signal.aborted) {
+            yield { kind: "cancelled" };
+            return;
+          }
+          if (outcome.ok) justCompacted = true;
+          else {
+            compactionFailed = true;
+            yield { kind: "status", text: `Could not compact the conversation (${outcome.reason}) - trimming old tool output instead` };
+            if (!lean) {
+              shrunk = true;
+              continue;
+            }
+          }
+        }
+
         const request: ProviderRequest = {
           model: deps.model,
-          system: [deps.system ?? (lean ? LEAN_SYSTEM : DEFAULT_SYSTEM), await deps.context?.()].filter(Boolean).join("\n\n"),
+          system,
           messages: lean ? leanHistory(messages) : messages,
-          tools: lean ? leanTools(deps.tools) : deps.tools,
+          tools,
           maxTokens: deps.maxTokens ?? DEFAULT_MAX_TOKENS,
           ...(deps.effort === undefined ? {} : { effort: deps.effort }),
         };
@@ -281,7 +394,18 @@ export function createAgent(deps: AgentDeps): Agent {
         }
       } catch (error) {
         const detail = error instanceof Error ? error.message : "provider failed";
-        // Too big for this model: say so, go lean, and ask again - once. Nothing was
+        // Too big for this model: summarise the older part and ask again - once. The
+        // estimate that decides compaction is an estimate; this is the provider's word.
+        if (deps.compaction !== undefined && !reactiveTried && assistantContent.length === 0 && !signal.aborted && isRequestTooLarge(detail)) {
+          reactiveTried = true;
+          const outcome = yield* compactHistory(signal);
+          if (signal.aborted) {
+            yield { kind: "cancelled" };
+            return;
+          }
+          if (outcome.ok) continue;
+        }
+        // Still too big, or nothing to compact: say so, go lean, and ask again - once. Nothing was
         // streamed yet (the refusal comes first), so nothing is repeated.
         if (!shrunk && deps.lean?.() !== true && assistantContent.length === 0 && !signal.aborted && isRequestTooLarge(detail)) {
           shrunk = true;
@@ -295,6 +419,11 @@ export function createAgent(deps: AgentDeps): Agent {
 
       if (assistantContent.length > 0) {
         messages.push({ role: "assistant", content: assistantContent });
+      }
+
+      if (!failed && !signal.aborted && deps.compaction !== undefined) {
+        justCompacted = false;
+        yield { kind: "context", tokens: estimateTokens(lastSystem, messages, lastTools), contextWindow: deps.compaction.contextWindow() };
       }
 
       if (signal.aborted) {
@@ -392,6 +521,20 @@ export function createAgent(deps: AgentDeps): Agent {
       controller?.abort();
       messages.length = 0;
       shrunk = false;
+    },
+
+    async compact(focus?: string, signal?: AbortSignal): Promise<CompactOutcome> {
+      const run = compactHistory(signal ?? new AbortController().signal, focus);
+      // Drive the generator to its return value; the caller reports the outcome.
+      for (;;) {
+        const step = await run.next();
+        if (step.done === true) return step.value;
+      }
+    },
+
+    contextUsage() {
+      if (deps.compaction === undefined) return null;
+      return { tokens: estimateTokens(lastSystem, messages, lastTools), contextWindow: deps.compaction.contextWindow() };
     },
   };
 }
