@@ -10,6 +10,9 @@
  * is newest, which get dropped when there are too many - are tested rather than observed.
  */
 
+import { compactedHistory } from "./compaction.ts";
+import type { Message } from "./types.ts";
+
 export type ChatRole = "user" | "assistant";
 
 export interface ChatMessage {
@@ -27,6 +30,19 @@ export interface ChatSession {
   readonly createdAt: number;
   readonly updatedAt: number;
   readonly messages: readonly ChatMessage[];
+  /**
+   * What the model wrote when the conversation was last compacted: it stands for the
+   * first `coversUntil` messages, which stay on screen but are no longer sent. Absent in
+   * conversations saved before compaction existed.
+   */
+  readonly summary?: ChatSummary | null;
+}
+
+export interface ChatSummary {
+  readonly text: string;
+  /** How many transcript messages, from the start, the summary replaces. */
+  readonly coversUntil: number;
+  readonly at: number;
 }
 
 /** Long enough to tell two conversations apart, short enough for a narrow list. */
@@ -135,7 +151,66 @@ export function validateSession(raw: unknown): ChatSession | null {
     createdAt: typeof createdAt === "number" ? createdAt : 0,
     updatedAt: typeof updatedAt === "number" ? updatedAt : 0,
     messages,
+    summary: validateSummary(record["summary"], messages.length),
   };
+}
+
+/** A summary that points past the transcript, or says nothing, is worth less than none. */
+function validateSummary(raw: unknown, length: number): ChatSummary | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  const text = record["text"];
+  const coversUntil = record["coversUntil"];
+  const at = record["at"];
+  if (typeof text !== "string" || text.trim().length === 0) return null;
+  if (typeof coversUntil !== "number" || !Number.isSafeInteger(coversUntil) || coversUntil < 0 || coversUntil > length) return null;
+  return { text, coversUntil, at: typeof at === "number" ? at : 0 };
+}
+
+/** The conversation with its newest summary recorded. */
+export function withSummary(session: ChatSession, summary: ChatSummary): ChatSession {
+  return { ...session, summary };
+}
+
+/**
+ * How much of the transcript a summary covers, when the model kept its newest
+ * `keptUserTurns` user turns word for word: everything before the oldest of those.
+ */
+export function summaryCoverage(transcript: readonly ChatMessage[], keptUserTurns: number): number {
+  if (keptUserTurns <= 0) return transcript.length;
+  let seen = 0;
+  for (let index = transcript.length - 1; index >= 0; index--) {
+    if (transcript[index]!.role !== "user") continue;
+    seen += 1;
+    if (seen === keptUserTurns) return index;
+  }
+  return 0;
+}
+
+/**
+ * What the model should see when a saved conversation is picked up again: the summary,
+ * then every message after it.
+ *
+ * The transcript keeps text only - tool calls and their output were never saved - which is
+ * also what a model needs to carry on a conversation it did not have. Messages from the same
+ * side are merged and a leading assistant greeting is dropped, because providers expect a
+ * history that starts with the user and alternates.
+ */
+export function restoreHistory(session: ChatSession): Message[] {
+  const summary = session.summary ?? null;
+  const rest = session.messages.slice(summary?.coversUntil ?? 0);
+  const history: Message[] = [];
+  for (const message of rest) {
+    if (message.text.trim().length === 0) continue;
+    const last = history[history.length - 1];
+    if (last === undefined && message.role === "assistant" && summary === null) continue;
+    if (last !== undefined && last.role === message.role) {
+      history[history.length - 1] = { role: last.role, content: [...last.content, { type: "text", text: message.text }] };
+    } else {
+      history.push({ role: message.role, content: [{ type: "text", text: message.text }] });
+    }
+  }
+  return summary === null ? history : compactedHistory(summary.text, history);
 }
 
 /** A session with a message added, retitled if it is still using an automatic name. */

@@ -96,9 +96,13 @@ export {
   titleFor,
   validateSession,
   withMessage,
+  withSummary,
+  summaryCoverage,
+  restoreHistory,
   type ChatMessage,
   type ChatRole,
   type ChatSession,
+  type ChatSummary,
 } from "./sessions.ts";
 
 export * from "./connections.ts";
