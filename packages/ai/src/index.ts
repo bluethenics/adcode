@@ -104,6 +104,7 @@ export {
 export * from "./connections.ts";
 export * from "./requestScheduler.ts";
 export * from "./requestSize.ts";
+export * from "./compaction.ts";
 
 export {
   buildInlineEditRequest,
