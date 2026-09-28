@@ -44,6 +44,11 @@ import {
   type AiWorkspaceTask,
   titleFor,
   withMessage,
+  withSummary,
+  summaryCoverage,
+  restoreHistory,
+  estimateTokens,
+  type AgentCompaction,
   type CatalogueProvider,
   type ChatSession,
   type ImageBlock,
@@ -53,6 +58,8 @@ import {
 import {
   CHANNELS,
   type AiAttachmentView,
+  type AiCompactResultView,
+  type AiContextUsageView,
   type AiKeyCheck,
   type AiWorkspaceActionView,
   type AiWorkspaceApplySelectionView,
@@ -90,6 +97,7 @@ import { createAiWorkspaceService, type AiWorkspaceService } from "./aiWorkspace
 import { agentEventTrace, describeActivity } from "./aiEventTrace.ts";
 import { createSlotPool } from "./slotPool.ts";
 import { createStuckDetector } from "./stuckDetector.ts";
+import { compactThreshold, contextWindowFor, keptUserTurns, parseCompactFocus } from "./chatCompaction.ts";
 import { checksFromTraces, holdReason, riskFlags } from "../shared/runEvidence.ts";
 import { normalizeForCompare } from "./pathSafety.ts";
 import { recoverableDrafts } from "./history.ts";
@@ -885,6 +893,133 @@ function splitAttachments(attachments: readonly AiAttachmentView[]): {
   };
 }
 
+/** The chat's tools: everything built in, minus memory when memory capture is off. */
+function chatTools() {
+  const memoryEnabled = currentSettings()["adcode.ai.memoryCapture"] !== false;
+  return [...(memoryEnabled ? BUILT_IN_TOOLS : TOOLS_WITHOUT_MEMORY), OPEN_PREVIEW, ...ASSISTANT_EXTENSION_TOOLS];
+}
+
+/** When and how far a conversation with this model compacts - read fresh, so a settings change applies at once. */
+function compactionFor(providerId: string, model: string): AgentCompaction {
+  return {
+    contextWindow: () => contextWindowFor(catalogue, providerId, model),
+    thresholdPercent: () => compactThreshold(currentSettings()),
+  };
+}
+
+/**
+ * The chat's agent: the one it has, or a new one when there is none or the model changed.
+ *
+ * A new agent is never a blank one. A different model on the same provider takes the
+ * history exactly as it stands, tool steps included. Anything else - a reopened
+ * conversation, a restart, a changed key, another provider - is given the saved
+ * conversation: its summary and the messages after it, which every provider can read.
+ * Returns what to tell the user when no agent can be built.
+ */
+async function ensureChatAgent(providerId: string, model: string): Promise<Agent | string> {
+  if (agent !== null && agentProvider === providerId && agentModel === model && agentEndpoint === baseUrlOf(providerId)) {
+    return agent;
+  }
+  const provider = await buildProvider(providerId);
+
+  if (provider === null) {
+    const name = providerIn(catalogue, providerId)?.name ?? providerId;
+    // Two different failures, and the fix is different for each.
+    return providerId === "custom" && baseUrlOf("custom") === null
+      ? "No address for the custom endpoint. Set one in Connect a model."
+      : `No API key for ${name}. Add one in Connect a model.`;
+  }
+
+  const carried = agent !== null && agentProvider === providerId ? [...agent.history()] : null;
+  const built = createAgent({
+    provider,
+    model,
+    tools: chatTools(),
+    effort: configuredEffort(),
+    compaction: compactionFor(providerId, model),
+    initialMessages: carried ?? (session === null ? [] : restoreHistory(session)),
+    context: async () => {
+      const root = currentWorkspace()?.root ?? null;
+      let blocker: string | null = null;
+      if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
+        blocker = "Turn on AI file tools in Settings to use file tools.";
+      } else if (root !== null) {
+        const drafts = await recoverableDrafts();
+        if (workspaceHasUnsavedDraft(root, drafts)) {
+          blocker = `Save ${summarizeUnsavedDrafts(root, drafts)} before AI file edits, so nothing unsaved gets overwritten. Reading and answering work meanwhile.`;
+        }
+      }
+      return aiWorkspaceContext(root, blocker, editorContext, configuredEditPolicy() === "review" ? "review" : "direct");
+    },
+    runner: withAssistantExtensions(toolRunner()),
+    beforeRequest: async () => {
+      // Direct edits apply immediately, so there is no task to create and
+      // no budget to reserve. The turn step limit remains the backstop
+      // against runaway tool loops.
+      return null;
+    },
+  });
+  agent = built;
+  agentProvider = providerId;
+  agentModel = model;
+  agentEndpoint = baseUrlOf(providerId);
+  return built;
+}
+
+/**
+ * Save a compaction with the conversation, so a reopened chat starts from the summary.
+ *
+ * The summary covers the transcript up to the oldest user turn the model kept - never the
+ * newest one, so the request in flight always stays in the transcript itself.
+ */
+async function recordCompaction(from: Agent, event: { readonly summary: string; readonly keptMessages: number }): Promise<void> {
+  if (session === null) return;
+  const turns = Math.max(1, keptUserTurns(from.history(), event.keptMessages));
+  session = withSummary(session, { text: event.summary, coversUntil: summaryCoverage(session.messages, turns), at: Date.now() });
+  await writeSession(currentWorkspace()?.root ?? null, session);
+  broadcast(CHANNELS.aiSessionChanged, session);
+}
+
+/** Summarise the older part of the conversation now: `/compact`, or Compact now on the meter. */
+export async function aiCompact(rawFocus: unknown): Promise<AiCompactResultView> {
+  const focus = parseCompactFocus(rawFocus);
+  if (focus === null) return { ok: false, message: "Keep the focus under 500 characters." };
+  if (sendInFlight) return { ok: false, message: "Wait for the current answer to finish, then compact." };
+  if (session === null || session.messages.length === 0) return { ok: false, message: "There is nothing to compact yet." };
+
+  const providerId = activeProvider();
+  const ready = await ensureChatAgent(providerId, activeModel(providerId));
+  if (typeof ready === "string") return { ok: false, message: ready };
+
+  sendInFlight = true;
+  try {
+    const outcome = await ready.compact(focus);
+    if (!outcome.ok) return { ok: false, message: outcome.reason };
+    await recordCompaction(ready, outcome);
+    broadcast(CHANNELS.aiEvent, { kind: "compacted", summary: outcome.summary, before: outcome.before, after: outcome.after, keptMessages: outcome.keptMessages });
+    const usage = ready.contextUsage();
+    if (usage !== null) broadcast(CHANNELS.aiEvent, { kind: "context", ...usage });
+    recordDebug("info", "ai", `Compacted the conversation: about ${String(outcome.before)} to ${String(outcome.after)} tokens`);
+    return { ok: true, message: "Earlier conversation compacted.", summary: outcome.summary };
+  } finally {
+    sendInFlight = false;
+  }
+}
+
+/** How full the chat's context is, for the composer's meter. */
+export function aiContextUsage(): AiContextUsageView {
+  const providerId = activeProvider();
+  const model = activeModel(providerId);
+  const settings = currentSettings();
+  const live = agent !== null && agentProvider === providerId && agentModel === model ? agent.contextUsage() : null;
+  return {
+    tokens: live?.tokens ?? (session === null ? 0 : estimateTokens("", restoreHistory(session), chatTools())),
+    contextWindow: contextWindowFor(catalogue, providerId, model),
+    thresholdPercent: compactThreshold({ ...settings, "adcode.ai.autoCompact": true }) ?? 80,
+    autoCompact: settings["adcode.ai.autoCompact"] !== false,
+  };
+}
+
 /** What the user was looking at when they last sent; folded into every round-trip of that turn. */
 let editorContext: AiEditorContextView | null = null;
 
@@ -901,55 +1036,11 @@ export async function aiSend(
     const providerId = activeProvider();
     const model = activeModel(providerId);
 
-    // Rebuild when the user switches provider or model - §5.2's runtime choice - but
-    // keep the agent otherwise so the conversation survives.
-    if (agent === null || agentProvider !== providerId || agentModel !== model || agentEndpoint !== baseUrlOf(providerId)) {
-      const provider = await buildProvider(providerId);
-
-      if (provider === null) {
-        const name = providerIn(catalogue, providerId)?.name ?? providerId;
-        // Two different failures, and the fix is different for each.
-        const detail =
-          providerId === "custom" && baseUrlOf("custom") === null
-            ? "No address for the custom endpoint. Set one in Connect a model."
-            : `No API key for ${name}. Add one in Connect a model.`;
-
-        broadcast(CHANNELS.aiEvent, { kind: "error", detail });
-        recordDebug("error", "ai", detail);
-        return false;
-      }
-
-      const memoryEnabled = currentSettings()["adcode.ai.memoryCapture"] !== false;
-
-      agent = createAgent({
-        provider,
-        model,
-        tools: [...(memoryEnabled ? BUILT_IN_TOOLS : TOOLS_WITHOUT_MEMORY), OPEN_PREVIEW, ...ASSISTANT_EXTENSION_TOOLS],
-        effort: configuredEffort(),
-        context: async () => {
-          const root = currentWorkspace()?.root ?? null;
-          let blocker: string | null = null;
-          if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
-            blocker = "Turn on AI file tools in Settings to use file tools.";
-          } else if (root !== null) {
-            const drafts = await recoverableDrafts();
-            if (workspaceHasUnsavedDraft(root, drafts)) {
-              blocker = `Save ${summarizeUnsavedDrafts(root, drafts)} before AI file edits, so nothing unsaved gets overwritten. Reading and answering work meanwhile.`;
-            }
-          }
-          return aiWorkspaceContext(root, blocker, editorContext, configuredEditPolicy() === "review" ? "review" : "direct");
-        },
-        runner: withAssistantExtensions(toolRunner()),
-        beforeRequest: async () => {
-          // Direct edits apply immediately, so there is no task to create and
-          // no budget to reserve. The turn step limit remains the backstop
-          // against runaway tool loops.
-          return null;
-        },
-      });
-      agentProvider = providerId;
-      agentModel = model;
-      agentEndpoint = baseUrlOf(providerId);
+    const ready = await ensureChatAgent(providerId, model);
+    if (typeof ready === "string") {
+      broadcast(CHANNELS.aiEvent, { kind: "error", detail: ready });
+      recordDebug("error", "ai", ready);
+      return false;
     }
 
     // Attachments ride this turn only. The session keeps names, not bytes: image
@@ -974,8 +1065,9 @@ export async function aiSend(
     if (turnRoot !== null && configuredEditPolicy() === "trusted") checkpoints.begin(turnRoot);
     recordDebug("info", "ai", `Turn started: ${providerId} / ${model}`);
 
-    for await (const event of agent.send(turnText, { images })) {
+    for await (const event of ready.send(turnText, { images })) {
       broadcast(CHANNELS.aiEvent, event);
+      if (event.kind === "compacted") await recordCompaction(ready, event);
       // What the debug log keeps of a turn: which tools failed and why, and how it ended.
       // Never the prompt, the answer, or a file's contents.
       if (event.kind === "tool-call") toolCalls += 1;
@@ -1275,6 +1367,7 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
     const roleAgent = createAgent({
       provider: roleProvider,
       model: input.route.modelId,
+      compaction: compactionFor(input.route.providerId, input.route.modelId),
       tools: access.tools,
       runner,
       effort: configuredEffort(),

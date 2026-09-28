@@ -142,6 +142,7 @@ describe("AI workspace settings", () => {
       ["adcode.ai.sandboxRetention", ["1d", "7d", "30d"]],
       ["adcode.ai.checkpointRetention", ["7d", "30d", "90d"]],
       ["adcode.ai.parallelAgents", ["1", "2", "3", "4", "5", "6"]],
+      ["adcode.ai.autoCompactAt", ["70", "80", "90"]],
     ]);
     for (const [id, options] of expected) {
       const setting = byId.get(id as SettingId);
@@ -171,6 +172,15 @@ describe("AI workspace settings", () => {
     expect(byId.get("adcode.ai.checkpointRetention" as SettingId)?.default).toBe("30d");
     // Three agents at once: fast enough to feel parallel, gentle on a provider's rate limits.
     expect(byId.get("adcode.ai.parallelAgents" as SettingId)?.default).toBe("3");
+    // Long chats keep going on their own: compaction is on, at 80% of the model's context.
+    expect(byId.get("adcode.ai.autoCompact" as SettingId)).toMatchObject({ kind: "boolean", default: true, available: true, group: "ai" });
+    expect(byId.get("adcode.ai.autoCompactAt" as SettingId)?.default).toBe("80");
+  });
+
+  it("keeps automatic compaction beside the other automation", () => {
+    const ids = SETTINGS_SCHEMA.map((setting) => setting.id as string);
+    const scheduled = ids.indexOf("adcode.ai.scheduledMessages");
+    expect(ids.slice(scheduled + 1, scheduled + 3)).toEqual(["adcode.ai.autoCompact", "adcode.ai.autoCompactAt"]);
   });
 });
 

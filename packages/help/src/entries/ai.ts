@@ -135,7 +135,20 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
       "Choose Schedule beside the chat composer, choose where to send the message and set a local time, then confirm. Built-in chat is always available. For a detected terminal AI, first choose Allow next schedule while its prompt is visibly waiting; later terminal activity removes that one-time permission. If ADCode, the project, or scheduled messages are unavailable at delivery time, the message is marked missed and waits for you to choose Run now.",
     group: "ai",
     settingIds: ["adcode.ai.scheduledMessages"],
-    related: ["adcode.ai.autoContinue", "adcode.ai.chatWidget"],
+    related: ["adcode.ai.autoContinue", "adcode.ai.chatWidget", "ai.autoCompact"],
+  },
+  {
+    id: "ai.autoCompact",
+    title: "Long chat memory and auto-compact",
+    plain:
+      "Chats remember: reopen one tomorrow, restart ADCode or switch model, and the assistant carries on where you left off. When a chat gets long, ADCode summarises the older part so it never runs out of room.",
+    why:
+      "Every model can only read so much at once. Without this, a long chat eventually fails, and a reopened one starts from nothing - so you explain your project again. Compaction keeps the goals, decisions, files and your preferences, and keeps the newest turns word for word.",
+    how:
+      "On by default. The meter beside the chat's composer shows how full the model's context is (Context 34%, say); hover it for the numbers and when it compacts. At 80% - or 70% or 90%, in Settings - ADCode asks the same model to summarise the older part and the chat shows Earlier conversation compacted with View summary. Compact whenever you like with /compact, or /compact keep the API decisions to say what matters most, or Compact now from the meter or the command palette. Long Agents-board runs compact the same way instead of stopping at the limit. The summary is saved with the conversation, so reopening it from Conversations picks up from the summary and the messages after it.",
+    group: "ai",
+    settingIds: ["adcode.ai.autoCompact", "adcode.ai.autoCompactAt"],
+    related: ["adcode.ai.scheduledMessages", "adcode.ai.chatWidget", "workbench.agentsBoard"],
   },
   {
     id: "adcode.ai.mcpServer",

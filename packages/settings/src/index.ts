@@ -511,6 +511,29 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     true,
     true,
   ),
+  bool(
+    "adcode.ai.autoCompact",
+    "ai",
+    "Auto-compact long conversations",
+    "When a chat or an agent run nears the model's context size, summarise the older part so the conversation keeps going. The newest turns stay word for word, and the chat remembers everything in the summary.",
+    true,
+    true,
+  ),
+  {
+    id: "adcode.ai.autoCompactAt",
+    group: "ai",
+    kind: "enum",
+    label: "Compact at",
+    description:
+      "How full the model's context gets before ADCode compacts the conversation. Earlier leaves more room for long answers and large files; later keeps more of the conversation word for word.",
+    default: "80",
+    available: true,
+    options: [
+      { value: "70", label: "70%", detail: "More room for big files" },
+      { value: "80", label: "80%", detail: "Recommended" },
+      { value: "90", label: "90%", detail: "Keep the most word for word" },
+    ],
+  },
   bool("adcode.ai.memoryCapture", "ai", "Memory capture", "Record decisions and conventions to the shared project memory.", true, true),
   bool("adcode.ai.mcpServer", "ai", "MCP server", "Let external agents read and write the same memory.", true, true),
 ];

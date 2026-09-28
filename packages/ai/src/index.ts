@@ -24,7 +24,9 @@ export {
   estimateRequestTokens,
   MAX_TURNS,
   type Agent,
+  type AgentCompaction,
   type AgentDeps,
+  type CompactOutcome,
 } from "./agent.ts";
 export { computeHunks, applyHunks, type Hunk } from "./diff.ts";
 export {

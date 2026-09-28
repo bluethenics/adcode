@@ -540,6 +540,8 @@ export const CHANNELS = {
   aiReset: "ai:reset",
   aiAnswerAnyway: "ai:answer-anyway",
   aiEvent: "ai:event",
+  aiCompact: "ai:compact",
+  aiContextUsage: "ai:context-usage",
   aiProposedEdit: "ai:proposed-edit",
   aiSessionChanged: "ai:session-changed",
   aiSessions: "ai:sessions",
@@ -1019,6 +1021,23 @@ export interface ChatSessionView {
   readonly createdAt: number;
   readonly updatedAt: number;
   readonly messages: readonly ChatMessageView[];
+  /** The latest compaction summary; it stands for the first `coversUntil` messages. */
+  readonly summary?: { readonly text: string; readonly coversUntil: number; readonly at: number } | null;
+}
+
+/** How full the chat's context is. Token counts are estimates. */
+export interface AiContextUsageView {
+  readonly tokens: number;
+  readonly contextWindow: number;
+  /** The share of the context at which the conversation compacts. */
+  readonly thresholdPercent: number;
+  readonly autoCompact: boolean;
+}
+
+export interface AiCompactResultView {
+  readonly ok: boolean;
+  readonly message: string;
+  readonly summary?: string;
 }
 
 /** What checking a key actually found out. */
@@ -1682,6 +1701,9 @@ export interface AdcodeApi {
     cancelInlineEdit(): void;
     cancel(): void;
     reset(): void;
+    /** Summarise the older part of the conversation now, optionally with a focus. */
+    compact(focus?: string): Promise<AiCompactResultView>;
+    contextUsage(): Promise<AiContextUsageView>;
     /** Answer the next turn without file tools, once (see aiAnswerAnyway). */
     answerAnyway(): void;
     /** The agent's workings, live - this is what the trace widget renders (§5.3). */

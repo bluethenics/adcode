@@ -95,6 +95,8 @@ import {
   aiReset,
   aiSend,
   aiStatus,
+  aiCompact,
+  aiContextUsage,
   clearProviderKey,
   setProviderKey,
   aiClearSessions,
@@ -1012,6 +1014,9 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
 
   ipcMain.on(CHANNELS.aiCancel, () => aiCancel());
   ipcMain.on(CHANNELS.aiReset, () => aiReset());
+  // The focus is checked in aiCompact: anything but a short string is refused there.
+  ipcMain.handle(CHANNELS.aiCompact, (_event, focus: unknown) => aiCompact(focus));
+  ipcMain.handle(CHANNELS.aiContextUsage, () => aiContextUsage());
   ipcMain.on(CHANNELS.aiAnswerAnyway, () => aiAnswerAnyway());
 
   ipcMain.handle(CHANNELS.aiCheckpointUndo, (_event, id: unknown, force: unknown) =>
