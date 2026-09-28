@@ -7,6 +7,7 @@
  * showing, so nothing ever docks on the right.
  */
 import { VIBE_PAGES, type VibePage } from "./vibeSidebarModel.ts";
+import { markFor } from "../motionFlip.ts";
 
 export interface VibePages {
   readonly element: HTMLElement;
@@ -40,6 +41,12 @@ export function createVibePages(): VibePages {
     host: (page) => hosts.get(page)!,
     show(page): void {
       if (page === current) return;
+      // The incoming page slides in from the side it sits on in the switcher, and its cards
+      // arrive with a stagger. Only the incoming page moves; the outgoing one hides at once.
+      const order = (id: VibePage): number => VIBE_PAGES.findIndex((one) => one.id === id);
+      const incoming = hosts.get(page)!;
+      incoming.dataset["enter"] = order(page) > order(current) ? "from-right" : "from-left";
+      markFor(incoming, "stagger", "true", 900);
       current = page;
       for (const [id, section] of hosts) section.hidden = id !== page;
       document.body.dataset["vibePage"] = page;

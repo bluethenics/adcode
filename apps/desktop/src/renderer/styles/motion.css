@@ -1,0 +1,119 @@
+/*
+ * Motion: lively in Vibe, crisp in Code, still for anyone who asked for stillness.
+ *
+ * `html[data-motion]` is set from the workspace mode (assistantDock.ts). Everything that
+ * moves animates transform, opacity or their individual `scale`/`translate` properties
+ * only, so the compositor does the work and nothing re-lays out mid-animation. No rule here
+ * carries a final state: every animation runs from a start frame back to the element's
+ * natural style (`backwards` fill at most), so an animation that never runs - a hidden
+ * window, the smoke harness - leaves things exactly where they belong.
+ */
+
+:root {
+  --motion-move: 180ms;
+  --motion-enter: 160ms;
+  --motion-curve: cubic-bezier(.2, .8, .2, 1);
+  --motion-press: .98;
+  --motion-stagger: 0ms;
+}
+
+:root[data-motion="lively"] {
+  --motion-move: 320ms;
+  --motion-enter: 260ms;
+  --motion-curve: cubic-bezier(.34, 1.4, .64, 1);
+  --motion-press: .96;
+  --motion-stagger: 18ms;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Agents board: a new box rises in; a finished run gives off one soft ring. */
+  :root:not([data-reduced-motion="true"]) .agent-box[data-enter="true"] {
+    animation: motion-rise var(--motion-enter) var(--motion-curve) backwards;
+  }
+  :root:not([data-reduced-motion="true"]) .agent-box[data-celebrate="true"]::after {
+    animation: motion-celebrate 720ms ease-out both;
+  }
+
+  /* Mascots blink - each on its own clock, so a board never blinks in unison. */
+  :root:not([data-reduced-motion="true"]) .agent-mascot path[data-part="eye"] {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: motion-blink 5.4s linear var(--mascot-blink-delay, 0s) infinite;
+  }
+
+  /* Pages slide in from the side they sit on in the switcher. */
+  :root:not([data-reduced-motion="true"]) .vibe-page[data-enter="from-right"] {
+    animation: motion-slide-from-right var(--motion-enter) var(--motion-curve) backwards;
+  }
+  :root:not([data-reduced-motion="true"]) .vibe-page[data-enter="from-left"] {
+    animation: motion-slide-from-left var(--motion-enter) var(--motion-curve) backwards;
+  }
+
+  /* Cards arrive with a short stagger when a page or tab is freshly shown. */
+  :root:not([data-reduced-motion="true"]) [data-stagger="true"] :is(.tool-card, .agent-card, .tools-catalogue-item) {
+    animation: motion-rise var(--motion-enter) var(--motion-curve) backwards;
+    animation-delay: calc(var(--i, 0) * var(--motion-stagger));
+  }
+
+  /*
+   * Floating panels grow out of whatever opened them. `scale`, not `transform`: the panel is
+   * positioned with transform, and animating that would fling it to the corner mid-open.
+   */
+  :root:not([data-reduced-motion="true"]) .floating-panel:not([hidden]) {
+    animation: motion-grow var(--motion-enter) var(--motion-curve) backwards;
+  }
+
+  /* Chat: a new message rises in; text that streams in fades up block by block. */
+  :root:not([data-reduced-motion="true"]) .chat-bubble[data-enter="true"] {
+    animation: motion-rise var(--motion-enter) var(--motion-curve) backwards;
+  }
+  :root:not([data-reduced-motion="true"]) .chat-bubble [data-fresh="true"] {
+    animation: motion-fade-in 240ms ease-out backwards;
+  }
+  :root:not([data-reduced-motion="true"]) .chat-compaction-divider {
+    animation: motion-fade-in var(--motion-enter) ease-out backwards;
+  }
+
+  /* Press feel: the button gives a little under the pointer. */
+  :root:not([data-reduced-motion="true"]) :is(.agents-page, .tools-page, .chat-toolbar, .vibe-sidebar) button {
+    transition: scale 90ms ease-out;
+  }
+  :root:not([data-reduced-motion="true"]) :is(.agents-page, .tools-page, .chat-toolbar, .vibe-sidebar) button:active:not(:disabled) {
+    scale: var(--motion-press);
+  }
+}
+
+@keyframes motion-rise {
+  from { opacity: 0; transform: translateY(8px) scale(.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes motion-slide-from-right {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes motion-slide-from-left {
+  from { opacity: 0; transform: translateX(-18px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes motion-grow {
+  from { opacity: 0; scale: .94; }
+  to { opacity: 1; scale: 1; }
+}
+
+@keyframes motion-celebrate {
+  0% { opacity: .55; transform: scale(.97); }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+
+@keyframes motion-blink {
+  0%, 94%, 100% { transform: scaleY(1); }
+  97% { transform: scaleY(.12); }
+}
+
+@keyframes motion-fade-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}

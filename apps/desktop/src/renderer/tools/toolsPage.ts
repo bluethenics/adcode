@@ -19,6 +19,7 @@ import { button, el, field, openFormModal } from "../dialogs/formDialog.ts";
 import { createIcon, ICON } from "../workbench/icons.ts";
 import { BUILT_IN_TOOLS_INFO, type BuiltInToolGroup } from "./builtInTools.ts";
 import { explainMcpError, matchesQuery, serverSummary, toolUsers } from "./toolsModel.ts";
+import { indexForStagger, markFor } from "../motionFlip.ts";
 
 export type ToolsTab = "built-in" | "servers" | "skills" | "memory";
 
@@ -159,7 +160,10 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
       const selected = id === tab;
       control.setAttribute("aria-selected", String(selected));
       control.tabIndex = selected ? 0 : -1;
-      panels.get(id)!.hidden = !selected;
+      const panel = panels.get(id)!;
+      // A tab being opened deals its cards in; typing in search never does.
+      if (selected && panel.hidden) markFor(panel, "stagger", "true", 900);
+      panel.hidden = !selected;
     }
   }
 
@@ -182,6 +186,7 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
     renderServers(query);
     renderSkills(query);
     renderMemory(query);
+    for (const panel of panels.values()) for (const grid of panel.querySelectorAll<HTMLElement>("ul")) indexForStagger(grid);
     const serverCount = controls?.servers.length ?? 0;
     const skillCount = controls?.skills.length ?? 0;
     counts.get("built-in")!.textContent = String(BUILT_IN_TOOLS_INFO.length);

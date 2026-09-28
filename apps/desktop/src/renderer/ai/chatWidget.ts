@@ -52,6 +52,7 @@ import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
 import { createIcon, ICON } from "../workbench/icons.ts";
 import { createContextMenu, attachContextMenuDismissal } from "../workbench/contextMenu.ts";
 import { compactCommand, contextMeterModel, createContextMeter } from "./contextMeter.ts";
+import { markFor } from "../motionFlip.ts";
 import { button as dialogButton, el as dialogEl, openFormModal } from "../dialogs/formDialog.ts";
 import type { CodeReference } from "../editor/codeReferences.ts";
 import {
@@ -275,6 +276,31 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     // links). Buttons are wired after insert so copy and open-file work.
     element.innerHTML = renderChatMessageHtml(text);
     wireMessageButtons(element);
+    if (element.classList.contains("is-streaming")) markFreshBlocks(element);
+  }
+
+  /** When each block of a streaming answer first appeared, so it can fade in across re-renders. */
+  const blockBirths = new WeakMap<HTMLElement, number[]>();
+
+  /**
+   * Fade in the paragraphs, lists and code blocks an answer is still growing.
+   *
+   * A streaming answer is re-rendered on every frame, so each block is a fresh element every
+   * time; a plain entrance would restart each frame and never finish. Each block keeps the
+   * time it first appeared, and its copy resumes the fade from there with a negative delay.
+   */
+  function markFreshBlocks(element: HTMLElement): void {
+    const births = blockBirths.get(element) ?? [];
+    const now = performance.now();
+    [...element.children].forEach((block, index) => {
+      births[index] ??= now;
+      const age = now - births[index]!;
+      if (age < 240 && block instanceof HTMLElement) {
+        block.dataset["fresh"] = "true";
+        block.style.animationDelay = `-${String(Math.round(age))}ms`;
+      }
+    });
+    blockBirths.set(element, births);
   }
 
   const card = document.createElement("section");
@@ -830,6 +856,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
   }
 
+  /** True while a reopened conversation is drawn, which should appear at once. */
+  let restoring = false;
+
   /** Draw a past conversation back into the transcript. */
   async function resume(id: string): Promise<void> {
     if (docked) api.open();
@@ -844,8 +873,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     activeSessionId = session.id;
     conversationTitle.textContent = session.title;
 
-    for (const message of session.messages) {
-      bubble(message.role === "user" ? "user" : "assistant", message.text, [], message.at);
+    restoring = true;
+    try {
+      for (const message of session.messages) {
+        bubble(message.role === "user" ? "user" : "assistant", message.text, [], message.at);
+      }
+    } finally {
+      restoring = false;
     }
     // Everything above the line is what the summary stands for; the model reads the
     // summary and the messages below it.
@@ -2241,6 +2275,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const element = document.createElement("div");
     element.className = `chat-bubble chat-bubble-${role}`;
     element.dataset["at"] = String(at);
+    // New messages rise in; a reopened conversation's hundred messages do not.
+    if (!restoring) markFor(element, "enter", "true", 700);
     if (role === "user" && text.trim().length > 0) lastUserPrompt = text;
     if (role === "assistant" && text.length === 0) element.classList.add("is-streaming");
     if (attachments.length > 0) {

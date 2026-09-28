@@ -193,6 +193,17 @@
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 .agent-box:hover { border-color: var(--border-strong); }
+/* The ring a finished run gives off (motion.css animates it; at rest it is invisible). */
+.agent-box { position: relative; }
+.agent-box[data-celebrate="true"]::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 13px;
+  border: 2px solid var(--success, #3f9f6b);
+  opacity: 0;
+  pointer-events: none;
+}
 .agent-box[data-status="conflict"], .agent-box[data-status="failed"], .agent-box[data-status="budget"] { border-color: color-mix(in srgb, var(--warning, #d9a03f) 55%, var(--border-subtle)); }
 .agent-box[data-status="ready"] { border-color: color-mix(in srgb, var(--success, #3f9f6b) 50%, var(--border-subtle)); }
 .agent-box-open {

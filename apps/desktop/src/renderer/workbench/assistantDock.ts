@@ -7,6 +7,7 @@ import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } f
 import { createVibeSidebar, type VibeSidebar } from "./vibeSidebar.ts";
 import { createVibePages } from "./vibePages.ts";
 import { createFloatingPanel, type FloatingPanel } from "./floatingPanel.ts";
+import { motionPersonality } from "../motionFlip.ts";
 import type { VibePage } from "./vibeSidebarModel.ts";
 
 interface AssistantDockDeps {
@@ -43,6 +44,8 @@ export function createAssistantDock(deps: AssistantDockDeps) {
   let docked = true;
   const windowMode: WorkspaceMode = window.location.hash === "#/ide" ? "code" : "vibe";
   let mode: WorkspaceMode = windowMode;
+  // Lively in Vibe, crisp in Code: motion.css reads this for every duration and curve.
+  document.documentElement.dataset["motion"] = motionPersonality(mode);
   let codeAssistantOpen = false;
   let contextOpen = false;
   const vibe = document.createElement("section");
@@ -397,6 +400,7 @@ export function createAssistantDock(deps: AssistantDockDeps) {
     mode = next;
     if (changed) codeAssistantOpen = false;
     document.body.dataset["workspaceMode"] = mode;
+    document.documentElement.dataset["motion"] = motionPersonality(mode);
     if (changed) contextOpen = false;
     deps.layoutChanged();
     hintText.textContent = mode === "vibe"

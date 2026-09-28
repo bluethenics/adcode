@@ -29,6 +29,12 @@ import { checksFromTraces, riskFlags, type RiskFlag, type RunCheck } from "../..
 import { createAgentMascot, mascotMoodForStatus, type AgentMascot } from "./agentMascot.ts";
 import { defaultMascotFor, type MascotLook } from "./mascotStyle.ts";
 import { STARTERS_MARKER, starterAgents } from "./starterAgents.ts";
+import { indexForStagger, markFor, measure, motionAllowed, playFlip } from "../motionFlip.ts";
+
+/** A run that was under way... */
+const UNDER_WAY: ReadonlySet<string> = new Set(["queued", "running", "merging"]);
+/** ...and one that just finished well, which earns the ring. */
+const FINISHED_WELL: ReadonlySet<string> = new Set(["ready", "completed", "applied"]);
 
 export interface AgentsPageDeps {
   /** Runs start from an isolated copy of the files on disk, so unsaved edits are saved first. */
@@ -272,6 +278,10 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
     const chat = deps.chat.busy();
     const now = Date.now();
     const next = buildBoard({ teams: [...teams.values()], tasks, chat: { streaming: chat.busy, title: chat.title }, now });
+    // Measure before anything moves, so a box that changes column can glide there. Only on
+    // screen, and never on the first render - a board that appears should not dance.
+    const animate = lastBoard !== null && element.offsetParent !== null && motionAllowed();
+    const before = animate ? measure([...entries].map(([id, entry]) => [id, entry.li] as const)) : null;
     lastBoard = next;
     summary.textContent = boardSummary(next);
     connectBanner.hidden = status === null || status.ready;
@@ -281,7 +291,9 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
       const boxes = next[column];
       for (const box of boxes) live.add(box.id);
       boxes.forEach((box, index) => {
-        const entry = entries.get(box.id) ?? createEntry(box.id);
+        const known = entries.get(box.id);
+        const entry = known ?? createEntry(box.id);
+        if (known === undefined && animate) markFor(entry.li, "enter", "true", 700);
         updateEntry(entry, box, now);
         const at = target.list.children[index];
         if (at !== entry.li) target.list.insertBefore(entry.li, at ?? null);
@@ -300,6 +312,7 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
       entry.li.remove();
       entries.delete(id);
     }
+    if (before !== null) playFlip(new Map([...entries].map(([id, entry]) => [id, entry.li])), before);
     syncTicker(next.working.length > 0);
   }
 
@@ -334,7 +347,11 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
   }
 
   function updateEntry(entry: BoxEntry, box: BoxModel, now: number): void {
+    const previous = entry.li.dataset["status"];
     entry.li.dataset["status"] = box.status;
+    if (previous !== undefined && UNDER_WAY.has(previous) && FINISHED_WELL.has(box.status) && motionAllowed()) {
+      markFor(entry.li, "celebrate", "true", 900);
+    }
     entry.li.dataset["kind"] = box.kind;
     const looks = box.kind === "chat" ? [CHAT_LOOK] : box.roleIds.slice(0, 3).map(lookFor);
     const lookKey = JSON.stringify(looks);
@@ -466,6 +483,7 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
     addButton.addEventListener("click", () => newAgent());
     add.append(addButton);
     grid.append(add);
+    indexForStagger(grid);
     // A repaint of the board may need new looks for agents that were just edited.
     for (const entry of entries.values()) entry.lookKey = "";
     scheduleRender();

@@ -49,3 +49,13 @@ describe("mascot drawing", () => {
     expect(styles).toContain('[data-reduced-motion="true"] .agent-mascot');
   });
 });
+
+describe("mascot blinking", () => {
+  it("gives every face exactly two eyes the stylesheet can blink", async () => {
+    const { MASCOT_FACES } = await import("../src/renderer/agents/agentMascot.ts");
+    for (const mood of AGENT_MOODS) {
+      expect(MASCOT_FACES[mood].filter((part) => part.part === "eye")).toHaveLength(2);
+    }
+    expect(source).toContain('setAttribute("data-part", part.part)');
+  });
+});

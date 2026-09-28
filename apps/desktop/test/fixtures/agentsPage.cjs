@@ -134,9 +134,18 @@ app.whenReady().then(async () => {
       const ready = column('ready').querySelector('.agent-box');
       results.movesToReady = ready === box && ready.querySelector('.agent-mascot') === mascotBefore && ready.querySelector('.agent-mascot').dataset.mood === 'proud' && [...ready.querySelectorAll('.agent-box-action')].map((node) => node.textContent).join(',') === 'Review,Apply,Apply & continue,Discard';
 
-      // A running run asks before it is stopped.
+      // Motion: the box glided from Working to Ready (a FLIP transform animation), gave off
+      // its ring, and is fully visible - nothing waits on the animation to show it.
+      const glides = !!ready && ready.getAnimations().some((animation) => String(animation.effect?.getKeyframes?.()[0]?.transform ?? '').startsWith('translate('));
+      results.glidesAndCelebrates = glides && ready.dataset.celebrate === 'true' && getComputedStyle(ready).opacity === '1';
+
+      // A running run asks before it is stopped. With reduced motion asked for, the move back is still.
+      for (const animation of document.getAnimations()) animation.cancel();
+      document.documentElement.dataset.reducedMotion = 'true';
       emitTeam({ ...teams.get(id), state: 'running', nodes: teams.get(id).nodes.map((node) => ({ ...node, state: 'running' })) });
       await settle();
+      results.stillWhenAsked = column('working').querySelector('.agent-box').getAnimations().length === 0;
+      delete document.documentElement.dataset.reducedMotion;
       column('working').querySelector('[data-action="stop"]').click(); await settle();
       const confirm = q('dialog.confirm-dialog[open]');
       results.stopAsks = !!confirm && !calls.some((call) => call[0] === 'cancel');

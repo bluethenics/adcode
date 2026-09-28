@@ -52,36 +52,36 @@ export const MASCOT_BODIES: Readonly<Record<MascotShape, string>> = {
 };
 
 /** Faces: eyes and a mouth, drawn in the face colour over the body. */
-const FACES: Readonly<Record<AgentMood, readonly { readonly d: string; readonly fill?: boolean }[]>> = {
+export const MASCOT_FACES: Readonly<Record<AgentMood, readonly { readonly d: string; readonly fill?: boolean; readonly part: "eye" | "mouth" }[]>> = {
   sleepy: [
-    { d: "M15.5 25.5q3 2.2 6 0" },
-    { d: "M26.5 25.5q3 2.2 6 0" },
-    { d: "M22 32.5h4" },
+    { d: "M15.5 25.5q3 2.2 6 0", part: "eye" },
+    { d: "M26.5 25.5q3 2.2 6 0", part: "eye" },
+    { d: "M22 32.5h4", part: "mouth" },
   ],
   thinking: [
-    { d: "M17.5 20.5a2 2.6 0 1 1 0 .01z", fill: true },
-    { d: "M28.5 20.5a2 2.6 0 1 1 0 .01z", fill: true },
-    { d: "M21 31.5h6" },
+    { d: "M17.5 20.5a2 2.6 0 1 1 0 .01z", fill: true, part: "eye" },
+    { d: "M28.5 20.5a2 2.6 0 1 1 0 .01z", fill: true, part: "eye" },
+    { d: "M21 31.5h6", part: "mouth" },
   ],
   alert: [
-    { d: "M18.5 21a2.6 3 0 1 1 0 .01z", fill: true },
-    { d: "M29.5 21a2.6 3 0 1 1 0 .01z", fill: true },
-    { d: "M24 30.5a2 2 0 1 1 0 .01z", fill: true },
+    { d: "M18.5 21a2.6 3 0 1 1 0 .01z", fill: true, part: "eye" },
+    { d: "M29.5 21a2.6 3 0 1 1 0 .01z", fill: true, part: "eye" },
+    { d: "M24 30.5a2 2 0 1 1 0 .01z", fill: true, part: "mouth" },
   ],
   proud: [
-    { d: "M15.5 25q3-3 6 0" },
-    { d: "M26.5 25q3-3 6 0" },
-    { d: "M19.5 30.5q4.5 3.5 9 0" },
+    { d: "M15.5 25q3-3 6 0", part: "eye" },
+    { d: "M26.5 25q3-3 6 0", part: "eye" },
+    { d: "M19.5 30.5q4.5 3.5 9 0", part: "mouth" },
   ],
   happy: [
-    { d: "M18.5 22.5a2.2 2.8 0 1 1 0 .01z", fill: true },
-    { d: "M29.5 22.5a2.2 2.8 0 1 1 0 .01z", fill: true },
-    { d: "M18 29.5q6 6 12 0" },
+    { d: "M18.5 22.5a2.2 2.8 0 1 1 0 .01z", fill: true, part: "eye" },
+    { d: "M29.5 22.5a2.2 2.8 0 1 1 0 .01z", fill: true, part: "eye" },
+    { d: "M18 29.5q6 6 12 0", part: "mouth" },
   ],
   confused: [
-    { d: "M18.5 22.5a2.2 2.8 0 1 1 0 .01z", fill: true },
-    { d: "M29.5 23a1.6 2 0 1 1 0 .01z", fill: true },
-    { d: "M19 32q2.5-2 5 0t5 0" },
+    { d: "M18.5 22.5a2.2 2.8 0 1 1 0 .01z", fill: true, part: "eye" },
+    { d: "M29.5 23a1.6 2 0 1 1 0 .01z", fill: true, part: "eye" },
+    { d: "M19 32q2.5-2 5 0t5 0", part: "mouth" },
   ],
 };
 
@@ -99,6 +99,8 @@ export function createAgentMascot(options: { readonly look: MascotLook; readonly
   element.setAttribute("aria-hidden", "true");
   const size = options.size ?? 40;
   element.style.setProperty("--mascot-size", `${size}px`);
+  // Each mascot blinks on its own clock, so a full board never blinks in unison.
+  element.style.setProperty("--mascot-blink-delay", `-${(Math.random() * 5).toFixed(2)}s`);
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("viewBox", "0 0 48 48");
   const body = document.createElementNS(SVG_NS, "path");
@@ -127,9 +129,11 @@ export function createAgentMascot(options: { readonly look: MascotLook; readonly
   function setMood(mood: AgentMood): void {
     if (element.dataset["mood"] === mood) return;
     element.dataset["mood"] = mood;
-    face.replaceChildren(...FACES[mood].map((part) => {
+    face.replaceChildren(...MASCOT_FACES[mood].map((part) => {
       const path = document.createElementNS(SVG_NS, "path");
       path.setAttribute("d", part.d);
+      // Eyes blink (motion.css); mouths do not.
+      path.setAttribute("data-part", part.part);
       if (part.fill === true) path.setAttribute("class", "agent-mascot-solid");
       return path;
     }));

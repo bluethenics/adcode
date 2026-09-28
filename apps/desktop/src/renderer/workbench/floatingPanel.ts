@@ -284,6 +284,14 @@ export function createFloatingPanel(options: FloatingPanelOptions): FloatingPane
       open = true;
       element.hidden = false;
       apply(true);
+      // Grow out of whatever opened it: motion.css animates `scale` from this point, which
+      // leaves the translate that positions the panel alone.
+      const origin = returnFocus?.isConnected === true ? returnFocus.getBoundingClientRect() : null;
+      const box = element.getBoundingClientRect();
+      element.style.transformOrigin =
+        origin !== null && origin.width > 0
+          ? `${String(Math.round(origin.left + origin.width / 2 - box.left))}px ${String(Math.round(origin.top + origin.height / 2 - box.top))}px`
+          : "50% 0";
       raise();
       options.onVisibilityChange?.(true);
     },

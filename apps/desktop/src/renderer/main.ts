@@ -33,6 +33,8 @@ import "./styles/vibeSidebar.css";
 import "./styles/floatingPanel.css";
 import "./styles/agents.css";
 import "./styles/tools.css";
+// Last: its reduced-motion-guarded rules refine the entrances the sheets above declare.
+import "./styles/motion.css";
 import { createFrameTask } from "./frameTask.ts";
 import "./ai/automationHost.ts";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
