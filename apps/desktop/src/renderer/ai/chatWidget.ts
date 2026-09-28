@@ -1563,7 +1563,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   composerFooter.append(disclaimer, contextMeter.element);
   refreshContextMeter();
   window.adcode.chat.onChanged((session) => {
-    currentSummary = session?.summary?.text ?? currentSummary;
+    // Whichever conversation is current now - possibly a new one started in the other window.
+    currentSummary = session?.summary?.text ?? null;
     refreshContextMeter();
   });
   void window.adcode.chat.current().then((session) => {

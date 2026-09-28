@@ -310,3 +310,12 @@ describe("long chat memory in the chat", () => {
     expect(mainSource).toContain("openSettings: (query) =>");
   });
 });
+
+describe("a conversation's summary belongs to that conversation", () => {
+  it("forgets the last conversation's summary when a different one is reported", () => {
+    const at = source.indexOf("  window.adcode.chat.onChanged((session) => {\n");
+    expect(at).toBeGreaterThan(0);
+    const listener = source.slice(at);
+    expect(listener.slice(0, 200)).toContain("currentSummary = session?.summary?.text ?? null;");
+  });
+});
