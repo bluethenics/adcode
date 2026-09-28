@@ -166,7 +166,9 @@ function DashboardBody() {
       {/* The hero figure: one per view, and this is the number people come for. */}
       <div className="ios-card hero-balance">
         <span className="hero-balance-label">Available balance</span>
-        <strong className="hero-figure money">{moneyExact(balance?.availableMicros ?? "0")}</strong>
+        <strong className="hero-figure money">
+          <ExactFigure value={moneyExact(balance?.availableMicros ?? "0")} />
+        </strong>
         <span className="hero-balance-sub">
           {moneyExact(balance?.lifetimeMicros ?? "0")} earned all time ·{" "}
           {moneyProgress((thisWeek * 1_000_000).toFixed(0))} in the last seven days
@@ -429,5 +431,20 @@ function Tile({ label, value, hint }: { label: string; value: string; hint: stri
       <span className="ios-tile-value">{value}</span>
       <span className="ios-tile-hint">{hint}</span>
     </div>
+  );
+}
+
+/**
+ * "$1.44" at full size, then "1500" smaller: every micro is still on screen, so a single
+ * view still visibly moves the balance, but the figure reads as dollars and cents first.
+ */
+function ExactFigure({ value }: { value: string }) {
+  const cut = value.indexOf(".") + 3;
+  if (cut < 3) return <>{value}</>;
+  return (
+    <>
+      {value.slice(0, cut)}
+      <span className="hero-figure-micro">{value.slice(cut)}</span>
+    </>
   );
 }

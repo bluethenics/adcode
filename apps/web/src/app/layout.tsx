@@ -1,6 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Suspense } from "react";
-import { WebsiteAnalytics } from "@/components/WebsiteAnalytics";
 import { Inter_Tight, JetBrains_Mono, Inter } from "next/font/google";
 import { SITE, VERIFICATION, url } from "@/lib/site";
 import { Nav } from "@/components/Nav";
@@ -135,7 +133,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Nav />
           <main id="main">{children}</main>
           <Footer />
-          <Suspense fallback={null}><WebsiteAnalytics /></Suspense>
         </AuthProvider></ThemeProvider>
       </body>
     </html>

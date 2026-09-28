@@ -27,7 +27,12 @@ beforeEach(() => {
 });
 
 /** A receipt at a chosen moment. The timestamp is the whole point of these tests. */
-async function receipt(campaignId: string, at: number, outcome = "impression"): Promise<void> {
+async function receipt(
+  campaignId: string,
+  at: number,
+  outcome = "impression",
+  costMicros = 8_000n,
+): Promise<void> {
   await store.createReceiptIfAbsent({
     receiptId: `r-${++counter}`,
     uid: "viewer",
@@ -35,7 +40,7 @@ async function receipt(campaignId: string, at: number, outcome = "impression"): 
     campaignId,
     outcome,
     creditedMicros: 4_000n,
-    costMicros: 8_000n,
+    costMicros,
     createdAt: at,
   });
 }
@@ -124,5 +129,25 @@ describe("campaignSeries", () => {
     if (!result.ok) throw new Error(result.error);
     expect(result.value).toHaveLength(1);
     expect(result.value[0]?.campaignId).toBe(mine);
+  });
+
+  it("leaves admin test cards out of views and spend", async () => {
+    // A test serve settles as a zero-cost receipt. It proves delivery works; it is not a
+    // view the advertiser bought, and counting it made views and spend disagree.
+    await createAdvertiser(deps(), "u-1", { name: "Acme" });
+    const campaignId = await withCampaign("u-1", "First");
+
+    await receipt(campaignId, NOW);
+    await receipt(campaignId, NOW, "impression", 0n);
+    await receipt(campaignId, NOW, "click", 0n);
+
+    const result = await campaignSeries(deps(), "u-1", 30);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.value).toEqual([
+      { day: "2026-08-24", campaignId, impressions: 1, clicks: 0, spentMicros: "8000" },
+    ]);
+
+    const stats = await store.statsForCampaign(campaignId);
+    expect(stats).toMatchObject({ impressions: 1, clicks: 0, spentMicros: 8_000n });
   });
 });

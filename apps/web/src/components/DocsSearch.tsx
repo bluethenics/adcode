@@ -51,10 +51,11 @@ export function DocsSearch({ sections, initialQuery = "" }: Props) {
     },
     [query, sections],
   );
-  const resultCount = filteredSections.reduce(
-    (count, section) => count + section.pages.length,
-    0,
-  );
+  // Distinct pages, not rows: the "New in the docs" shelf repeats pages that also sit in
+  // their own section, and counting both made the index say 119 under a heading of 115.
+  const resultCount = new Set(
+    filteredSections.flatMap((section) => section.pages.map((page) => page.slug)),
+  ).size;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

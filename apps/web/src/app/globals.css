@@ -578,13 +578,12 @@ a {
   align-items: center;
   gap: 10px;
   padding: 8px 8px 8px 14px;
-  border: 1px solid var(--ink-hairline);
+  border: 1px solid var(--hairline);
   border-radius: 14px;
-  background: rgba(0, 0, 0, 0.35);
-  box-shadow: inset 0 1px rgba(255,255,255,.06);
+  background: var(--control);
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 13px;
-  color: var(--on-ink);
+  color: var(--text);
   max-width: 100%;
   overflow: hidden;
 }
@@ -595,7 +594,7 @@ a {
 .install-command .install-text { flex: 1; min-width: 0; overflow-x: auto; text-overflow: clip; user-select: all; }
 .install-command .install-copy { min-height: 44px; display: inline-flex; align-items: center; gap: 7px; }
 .install-command .install-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.install-command .install-copy[data-copied="true"] { background: #fff; color: #050505; }
+.install-command .install-copy[data-copied="true"] { background: var(--money); color: var(--surface); }
 .install-terminal .install code { padding: 0; border: 0; border-radius: 0; background: none; }
 .hero-install-links { display: flex; flex-wrap: wrap; justify-content: center; column-gap: 24px; }
 .hero-install-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--muted); font-size: 13px; text-decoration: underline; text-underline-offset: 4px; }
@@ -619,8 +618,8 @@ a {
   border: 0;
   border-radius: 10px;
   padding: 5px 14px;
-  background: #f2f6f4;
-  color: #06170d;
+  background: var(--text);
+  color: var(--surface);
   font: inherit;
   font-size: 12px;
   font-weight: 700;
@@ -629,7 +628,7 @@ a {
 }
 
 .install-copy:hover {
-  background: #fff;
+  background: var(--muted);
   transform: translateY(-1px);
 }
 
@@ -712,6 +711,9 @@ a {
   box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.7);
   animation: toast-in 620ms var(--ease-sheet) both;
   font-family: var(--font-body), system-ui, sans-serif;
+  /* Always a dark card, whatever the page theme - so its text and the warning colour a
+     notice preview borrows are pinned to their dark-card values. */
+  --warn: #f3c16c;
 }
 
 @keyframes toast-in {
@@ -729,19 +731,19 @@ a {
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--on-ink-muted);
+  color: #a1a1a6;
 }
 
 .toast-head {
   font-size: 13.5px;
   font-weight: 580;
-  color: var(--on-ink);
+  color: #f5f5f7;
   line-height: 1.3;
 }
 
 .toast-body {
   font-size: 12.5px;
-  color: var(--on-ink-muted);
+  color: #a1a1a6;
   line-height: 1.4;
 }
 
@@ -1144,7 +1146,7 @@ body { background: var(--surface); }
 .docs-search-field input{width:100%;min-width:0;padding:17px 142px 17px 51px;border:0;outline:0;background:transparent;color:var(--text);font:500 16px var(--font-body),system-ui,sans-serif}
 .docs-search-field input::placeholder{color:#727d7f;opacity:1}
 .docs-search-field input::-webkit-search-cancel-button{display:none}
-.docs-search-hint,.docs-search-field button{position:absolute;right:14px;color:#8b9597;font-size:12px}
+.docs-search-hint,.docs-search-field button{position:absolute;right:14px;color:var(--faint);font-size:12px}
 .docs-search-hint kbd{display:inline-grid;place-items:center;min-width:25px;height:25px;margin:0 3px;border:1px solid rgba(232,236,236,.16);border-radius:7px;background:#0d1011;color:#d9dede;font:600 12px var(--font-mono),monospace;box-shadow:inset 0 -1px rgba(255,255,255,.06)}
 .docs-search-field button,.docs-search-empty button{padding:7px 10px;border:1px solid rgba(232,236,236,.14);border-radius:8px;background:#0e1112;color:#cbd1d2;cursor:pointer;transition:border-color 160ms var(--ease),background 160ms var(--ease),color 160ms var(--ease)}
 .docs-search-field button:hover,.docs-search-empty button:hover{border-color:rgba(232,236,236,.28);background:#22282a;color:#fff}
@@ -1557,6 +1559,7 @@ body { background: var(--surface); }
 }
 
 .row-title {
+  display: block;
   font-weight: 530;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1564,6 +1567,9 @@ body { background: var(--surface); }
 }
 
 .row-sub {
+  /* Block, like the title: as inline spans the two ran together ("8.0sAd viewed") and
+     neither the margin nor the title's ellipsis applied. */
+  display: block;
   margin-top: 3px;
   font-size: 12.5px;
   color: var(--muted);
@@ -2560,6 +2566,8 @@ body { background: var(--surface); }
 .ios-tiles-tight {
   margin-bottom: 0;
   gap: 10px;
+  /* Four tiles in a half-width card: auto-fit made that three and an orphan. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .ios-tile {
@@ -4172,7 +4180,7 @@ body { background: var(--surface); }
 @keyframes market-drift { 50% { transform: translateY(-12px); opacity: 1; } }
 .marketplace-hero .marketplace-wrap { position: relative; z-index: 1; display: grid; gap: 44px; }
 .marketplace-hero-copy { max-width: 850px; margin-inline: auto; text-align: center; }
-.marketplace-eyebrow,.market-kicker { display: inline-flex; align-items: center; gap: 9px; color: #a3aca9; font-family: var(--font-mono); font-size: 11px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
+.marketplace-eyebrow,.market-kicker { display: inline-flex; align-items: center; gap: 9px; color: var(--muted); font-family: var(--font-mono); font-size: 11px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
 .marketplace-eyebrow > span,.market-kicker > i { width: 7px; height: 7px; border-radius: 50%; background: var(--market-green); box-shadow: 0 0 0 5px rgba(66,216,120,.12); }
 .marketplace-hero h1 { margin-top: 0; font-size: clamp(46px,7.4vw,88px); font-weight: 560; letter-spacing: -.062em; line-height: .93; }
 .marketplace-hero-copy > p:not(.marketplace-eyebrow) { max-width: 620px; margin: 20px auto 0; color: #9da7a5; font-size: clamp(15px,1.6vw,18px); line-height: 1.55; }
@@ -4209,7 +4217,7 @@ body { background: var(--surface); }
 .marketplace-bid { padding: 120px 0; color: #161c1a; background: var(--market-paper); }
 .marketplace-bid-grid { display: grid; grid-template-columns: minmax(260px,.72fr) minmax(0,1.28fr); align-items: start; gap: clamp(48px,8vw,110px); }
 .marketplace-section-intro { position: sticky; top: 110px; padding-top: 16px; }
-.marketplace-section-intro .marketplace-eyebrow { color: #68716d; }
+.marketplace-section-intro .marketplace-eyebrow { color: var(--faint); }
 .marketplace-section-intro h2 { margin-top: 20px; font-size: clamp(42px,5.2vw,70px); font-weight: 580; letter-spacing: -.06em; }
 .marketplace-section-intro > p:not(.marketplace-eyebrow) { margin-top: 24px; color: #5d6662; font-size: 16px; line-height: 1.65; }
 .marketplace-section-intro > p strong { color: #173c26; }
@@ -4233,7 +4241,7 @@ body { background: var(--surface); }
 .landing-bid-form > .field { margin-top: 19px; }.landing-bid-form > .field .field-hint { color: #8b938f; font-size: 10px; }.landing-bid-form .logo-drop { min-height: 104px; border-color: #ccd3ce; background: #fafbf9; color: #68716d; }.landing-bid-form .logo-drop-text { color: #68716d; }.landing-bid-form .logo-drop .btn { color: #1b211f; border-color: #c5ccc7; background: #fff; }
 .bid-price-grid { margin-top: 24px; padding: 22px; border: 1px solid #dce2dc; border-radius: 14px; background: #f5faf6; }
 .bid-audience { margin: 24px 0 0; padding: 0; border: 0; display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }.bid-audience legend { margin-bottom: 9px; }.bid-audience label { min-height: 52px; padding: 13px; display: flex; align-items: center; gap: 9px; border: 1px solid #d1d7d2; border-radius: 10px; color: #5e6763; font-size: 12px; font-weight: 650; cursor: pointer; }.bid-audience label[data-selected="true"] { border-color: #229752; color: #155a32; background: #f0faf3; box-shadow: inset 0 0 0 1px #229752; }.bid-audience input { accent-color: #229752; }.bid-tags { margin-top: 12px; padding: 16px; border: 1px solid #dce2dc; border-radius: 12px; }
-.bid-preview-wrap { margin-top: 24px; padding: 18px; border: 1px solid #dce1dc; border-radius: 14px; }.bid-preview-copy { display: flex; justify-content: space-between; color: #69726e; font-size: 9px; letter-spacing: .07em; text-transform: uppercase; }.bid-preview { position: relative; margin-top: 12px; min-height: 72px; padding: 14px 84px 14px 14px; display: flex; align-items: center; gap: 12px; border-radius: 10px; color: #ecf3ef; background: #111716; }.bid-preview > i { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 8px; color: #092312; background: var(--market-green); font-style: normal; font-weight: 800; }.bid-preview > span { min-width: 0; display: flex; flex-direction: column; color: #b4beba; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.bid-preview b { color: #f2f6f4; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }.bid-preview em { position: absolute; right: 13px; top: 13px; color: #65716c; font-size: 8px; font-style: normal; text-transform: uppercase; }
+.bid-preview-wrap { margin-top: 24px; padding: 18px; border: 1px solid #dce1dc; border-radius: 14px; }.bid-preview-copy { display: flex; justify-content: space-between; color: var(--faint); font-size: 9px; letter-spacing: .07em; text-transform: uppercase; }.bid-preview { position: relative; margin-top: 12px; min-height: 72px; padding: 14px 84px 14px 14px; display: flex; align-items: center; gap: 12px; border-radius: 10px; color: #ecf3ef; background: #111716; }.bid-preview > i { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 8px; color: #092312; background: var(--market-green); font-style: normal; font-weight: 800; }.bid-preview > span { min-width: 0; display: flex; flex-direction: column; color: #b4beba; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.bid-preview b { color: #f2f6f4; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }.bid-preview em { position: absolute; right: 13px; top: 13px; color: #8c9591; font-size: 8px; font-style: normal; text-transform: uppercase; }
 .bid-total { margin-top: 20px; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-radius: 14px; color: #dbe5df; background: #14221a; }.bid-total > span { display: flex; flex-direction: column; }.bid-total small { color: #829087; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }.bid-total strong { color: var(--market-green); font: 600 31px var(--font-mono); letter-spacing: -.05em; }.bid-total p { max-width: 250px; color: #8e9b93; font-size: 10px; line-height: 1.5; }
 .bid-checkout { width: 100%; min-height: 54px; margin-top: 14px; padding: 14px 18px; display: flex; justify-content: center; align-items: center; gap: 26px; border: 0; border-radius: 12px; color: #061009; background: var(--market-green); font: 750 14px var(--font-body); cursor: pointer; }.bid-checkout:hover:not(:disabled) { background: #55e488; }.bid-checkout:disabled { cursor: wait; opacity: .68; }.bid-provider { margin-top: 10px; color: #89918d; font-size: 9px; text-align: center; }
 .bid-auth { margin-top: 16px; }.bid-auth .auth-card { border-color: #d9ddd8; color: #1b211f; background: #fff; }.bid-auth .field-hint { color: #68716d; }
@@ -4247,13 +4255,13 @@ body { background: var(--surface); }
 .hero-install-lead { color: #e8efeb; font-size: 15px; font-weight: 560; letter-spacing: -.01em; }
 /* Terminal card: a real window, not a bare input. The bar sells "paste this
    somewhere you trust" at a glance; the command row stays selectable. */
-.hero-quick-install-card { width: 100%; border: 1px solid rgba(255,255,255,.16); border-radius: 16px; background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.025) 38%, rgba(0,0,0,.42)); box-shadow: 0 24px 60px rgba(0,0,0,.45), inset 0 1px rgba(255,255,255,.08); overflow: hidden; text-align: left; }
-.hero-quick-install-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,.09); background: rgba(255,255,255,.03); }
+.hero-quick-install-card { width: 100%; border: 1px solid var(--hairline); border-radius: 16px; background: var(--card); box-shadow: var(--panel-shadow); overflow: hidden; text-align: left; }
+.hero-quick-install-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--hairline); background: var(--control); }
 .hero-quick-install-dots { display: inline-flex; gap: 6px; }
-.hero-quick-install-dots i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.22); }
-.hero-quick-install-dots i:first-child { background: rgba(255,255,255,.34); }
-.hero-quick-install-shell { color: #eef3f0; font: 600 11px var(--font-body); letter-spacing: .08em; text-transform: uppercase; }
-.hero-quick-install-meta { margin-left: auto; color: #8b948f; font: 11px var(--font-mono); letter-spacing: .02em; white-space: nowrap; }
+.hero-quick-install-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--border-strong); }
+.hero-quick-install-dots i:first-child { background: var(--faint); }
+.hero-quick-install-shell { color: var(--text); font: 600 11px var(--font-body); letter-spacing: .08em; text-transform: uppercase; }
+.hero-quick-install-meta { margin-left: auto; color: var(--faint); font: 11px var(--font-mono); letter-spacing: .02em; white-space: nowrap; }
 .hero-install-command { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 16px; }
 .hero-install-prompt { flex: 0 0 auto; color: var(--market-green, #3ad07a); font: 700 13px var(--font-mono); user-select: none; }
 .hero-install-command code { flex: 1; min-width: 0; padding: 10px 0; overflow-x: auto; color: #f1f5f3; font: 13.5px/1.5 var(--font-mono); white-space: pre; user-select: all; scrollbar-width: thin; }
@@ -4263,13 +4271,13 @@ body { background: var(--surface); }
 .hero-install-command button:focus-visible { outline: 2px solid var(--market-green, #3ad07a); outline-offset: 2px; }
 .hero-install-command button[data-copied="true"] { background: var(--market-green, #3ad07a); color: #06170d; }
 .hero-install-copy-icon { font: 700 14px var(--font-body); line-height: 1; }
-.hero-quick-install-kicker { color: #eef3f0; font-weight: 650; }
+.hero-quick-install-kicker { color: var(--text); font-weight: 650; }
 .hero-install-note { color: #8b948f; font-size: 12.5px; line-height: 1.65; }
 .hero-install-note strong { color: #b9c3be; font-weight: 600; }
 .hero-install-note a { color: #cfd8d3; text-decoration: underline; text-underline-offset: 2px; }
 .hero-install-note a:hover { color: #fff; }
-.hero-install-note code { padding: 2px 6px; border-radius: 5px; background: rgba(255,255,255,.08); color: #cfd8d3; font: 11.5px var(--font-mono); overflow-wrap: anywhere; user-select: all; }
-.hero-install-note kbd { padding: 1px 6px; border: 1px solid rgba(255,255,255,.18); border-bottom-width: 2px; border-radius: 6px; background: rgba(255,255,255,.07); color: #e8efeb; font: 11px var(--font-mono); }
+.hero-install-note code { padding: 2px 6px; border-radius: 5px; background: var(--control); color: var(--text); font: 11.5px var(--font-mono); overflow-wrap: anywhere; user-select: all; }
+.hero-install-note kbd { padding: 1px 6px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 6px; background: var(--control); color: var(--text); font: 11px var(--font-mono); }
 
 /* macOS: present, clearly not pressable for a download. */
 .marketplace-primary.is-soon { opacity: .62; cursor: default; }
@@ -4286,7 +4294,7 @@ body { background: var(--surface); }
 .marketplace-faq { padding: 104px 0; border-top: 1px solid rgba(255,255,255,.08); background: #05090a; }
 .marketplace-faq .marketplace-wrap { display: grid; grid-template-columns: minmax(240px,.62fr) minmax(0,1.38fr); align-items: start; gap: clamp(40px,7vw,96px); }
 .marketplace-faq-intro { position: sticky; top: 110px; }
-.marketplace-faq-intro .marketplace-eyebrow { color: #68716d; }
+.marketplace-faq-intro .marketplace-eyebrow { color: var(--faint); }
 .marketplace-faq-intro h2 { margin-top: 20px; font-size: clamp(38px,4.4vw,58px); font-weight: 580; letter-spacing: -.06em; line-height: 1.02; }
 .marketplace-faq-list { display: grid; }
 .marketplace-faq-list details { border-top: 1px solid rgba(255,255,255,.1); }
@@ -4340,13 +4348,13 @@ body { background: var(--surface); }
 
 /* Continuous role workspaces: headings above each section, reached from the rail. */
 .workspace-section { margin-top: 46px; scroll-margin-top: 92px; }
-.workspace-section-title { margin-bottom: 18px; color: #909a97; font-size: 12px; font-family: var(--font-mono); font-weight: 650; letter-spacing: .09em; text-transform: uppercase; }
+.workspace-section-title { margin-bottom: 18px; color: var(--faint); font-size: 12px; font-family: var(--font-mono); font-weight: 650; letter-spacing: .09em; text-transform: uppercase; }
 .campaign-inline { border: 1px solid var(--hairline); border-radius: var(--radius-md); background: var(--card); overflow: clip; }
 .campaign-inline > summary { list-style: none; cursor: pointer; }
 .campaign-inline > summary::-webkit-details-marker { display: none; }
 .campaign-stack { display: grid; gap: 10px; }
 .campaign-stack > .row-head { display: none; }
-.campaign-inline > summary { min-height: 78px; padding: 15px 18px; display: grid; grid-template-columns: minmax(220px,1fr) repeat(3,minmax(90px,auto)); align-items: center; gap: 18px; }
+.campaign-inline > summary { min-height: 78px; padding: 15px 18px; display: grid; grid-template-columns: minmax(220px,1fr) repeat(3,minmax(90px,auto)) 16px; align-items: center; gap: 18px; }
 .campaign-inline > summary::after { content: "+"; color: var(--faint); font: 18px var(--font-mono); }
 .campaign-inline[open] > summary::after { content: "−"; }
 .campaign-inline-body { padding: 20px; border-top: 1px solid var(--hairline); color: var(--muted); font-size: 13px; }
@@ -4515,7 +4523,7 @@ body { background: var(--surface); }
 .bid-checkout:hover:not(:disabled) { background: #e7e7e9; }
 
 .glass-card { border: 1px solid rgba(255,255,255,.14); border-radius: 22px; background: rgba(255,255,255,.055); box-shadow: 0 28px 80px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.055); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
-.glass-kicker { color: #8d8d92; font: 650 11px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+.glass-kicker { color: var(--faint); font: 650 11px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
 .support-form { max-width: 820px; margin-top: 32px; padding: clamp(22px,4vw,42px); }
 .support-form-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 30px; padding-bottom: 28px; border-bottom: 1px solid rgba(255,255,255,.1); }
 .support-form-head h2 { margin-top: 8px; font-size: clamp(28px,4vw,42px); }
@@ -4551,7 +4559,7 @@ body { background: var(--surface); }
 .install-terminal dl > div { display: grid; gap: 6px; }
 .install-terminal dt { color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .install-terminal dd { margin: 0; min-width: 0; }
-.install-terminal code { display: block; padding: 12px 14px; overflow-x: auto; border: 1px solid var(--hairline); border-radius: var(--radius-sm); background: rgba(0,0,0,.35); color: var(--text); font: 13px/1.5 var(--font-mono); white-space: pre; }
+.install-terminal code { display: block; padding: 12px 14px; overflow-x: auto; border: 1px solid var(--hairline); border-radius: var(--radius-sm); background: var(--control); color: var(--text); font: 13px/1.5 var(--font-mono); white-space: pre; }
 
 .download-card > span { display: grid; gap: 4px; }.download-card strong { font-size: 17px; }.download-card small { color: #85858b; font-size: 12px; }.download-card b { font: 400 24px var(--font-mono); }
 .release-history { margin-top: 90px; }
@@ -4880,10 +4888,10 @@ body { background: var(--surface); }
   flex: none;
   min-width: 22px;
   padding: 1px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--hairline);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--faint);
+  background: var(--control);
+  color: var(--muted);
   font: 600 10.5px var(--font-mono), monospace;
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -4904,7 +4912,7 @@ body { background: var(--surface); }
   gap: 1px;
   margin: 3px 0 8px;
   padding-left: 10px;
-  border-left: 1px solid rgba(255, 255, 255, 0.09);
+  border-left: 1px solid var(--hairline);
   margin-left: 17px;
   animation: docs-sub-in 320ms var(--ease) both;
 }
@@ -4921,10 +4929,13 @@ body { background: var(--surface); }
   font-weight: 480;
   line-height: 1.4;
   border-radius: 8px;
-  display: block;
+  /* Two lines, then an ellipsis. One line cut most titles to three or four words
+     ("Installing ADCode from a te..."), which is not enough to choose between them. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .docs-frame .docs-sidebar-secondary { display: grid; gap: 2px; }

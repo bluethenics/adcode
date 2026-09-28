@@ -71,6 +71,17 @@ describe("TimeChart", () => {
     expect(markup).toContain(">20<");
   });
 
+  it("labels a money axis with the values it actually draws", () => {
+    // Daily spend under fifty cents: the axis tops out at $0.50, and its middle tick is a
+    // quarter. Rounding before formatting used to print "$0.00, $0.00, $1.00".
+    const spend = { label: "Spent", color: MONEY, values: [0.12, 0.31, 0.2, 0.44],
+      format: (value: number) => `$${value.toFixed(2)}` };
+    const markup = render(<TimeChart days={DAYS} series={[spend]} summary="s" />);
+    expect(markup).toContain(">$0.50<");
+    expect(markup).toContain(">$0.25<");
+    expect(markup).not.toContain(">$1.00<");
+  });
+
   it("draws a single day in the middle instead of dividing by zero", () => {
     const markup = render(
       <TimeChart days={["2026-08-23"]} series={[{ ...views, values: [5] }]} summary="s" />,

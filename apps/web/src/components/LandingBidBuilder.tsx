@@ -206,7 +206,7 @@ export function LandingBidBuilder() {
         {error !== null && <div className="bid-notice" data-tone="error" role="alert">{error}</div>}
 
         <div className="bid-fields">
-          <label className="bid-field"><span>Email <b>required</b></span><input type="email" autoComplete="email" placeholder="you@company.com" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+          <label className="bid-field bid-field-wide"><span>Email <b>required</b></span><input type="email" autoComplete="email" placeholder="you@company.com" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           <label className="bid-field bid-field-wide"><span>Ad line <b>{headline.length} / 60</b></span><input maxLength={60} placeholder="Build, ship, and debug faster." value={headline} onChange={(event) => setHeadline(event.target.value)} /></label>
           <label className="bid-field bid-field-wide"><span>Destination URL</span><input type="url" placeholder="https://company.com/developers" value={clickUrl} onChange={(event) => setClickUrl(event.target.value)} /></label>
           <label className="bid-field"><span>Company <b>optional</b></span><input maxLength={40} placeholder="Acme" value={company} onChange={(event) => setCompany(event.target.value)} /></label>

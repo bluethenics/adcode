@@ -141,6 +141,10 @@ function hardenWebContents(contents: Electron.WebContents): void {
 }
 
 type WindowRole = "vibe" | "ide";
+
+/** How long a blur waits to see whether another ADCode window took the focus. */
+const WINDOW_SWITCH_GRACE_MS = 150;
+
 const windows: Partial<Record<WindowRole, BrowserWindow>> = {};
 
 function createWindow(role: WindowRole = "vibe"): BrowserWindow {
@@ -197,7 +201,13 @@ function createWindow(role: WindowRole = "vibe"): BrowserWindow {
 
   window.on("blur", () => {
     window.webContents.send("window:focus", false);
-    getAdRuntime().setWindowFocused(false);
+    // The ad client's focus is the app's, not this window's. Moving from the Vibe window
+    // to the IDE window blurs one before it focuses the other, and reporting that gap broke
+    // the "focused for the full duration" run of a card still on screen - a view the person
+    // saw that never reached the advertiser. Checked after the switch has had time to land.
+    setTimeout(() => {
+      if (BrowserWindow.getFocusedWindow() === null) getAdRuntime().setWindowFocused(false);
+    }, WINDOW_SWITCH_GRACE_MS);
   });
 
   // §8.3: full-screen suppresses at render time - a second layer beneath the scheduler,

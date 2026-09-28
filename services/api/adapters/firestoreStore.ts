@@ -227,9 +227,12 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
 
       for (const doc of receiptSnap.docs) {
         const raw = doc.data();
+        const cost = toMicros(raw["costMicros"]);
+        // A zero-cost receipt is an admin test card, not a view anybody bought.
+        if (cost === 0n) continue;
         if (raw["outcome"] === "click") clicks += 1;
         else impressions += 1;
-        spentMicros += toMicros(raw["costMicros"]);
+        spentMicros += cost;
       }
 
       return {
@@ -517,6 +520,8 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
 
         for (const doc of snap.docs) {
           const raw = doc.data();
+          // Test cards excluded, as in `statsForCampaign`.
+          if (toMicros(raw["costMicros"]) === 0n) continue;
           const campaignId = String(raw["campaignId"]);
           const day = utcDay(Number(raw["createdAt"] ?? 0));
           const key = `${day} ${campaignId}`;

@@ -118,6 +118,21 @@ interface AdRuntime {
   refreshEarnings(): Promise<EarningsSnapshot>;
 }
 
+/**
+ * The one window a sponsored card is shown in.
+ *
+ * The focused window, because the scheduler only presents while one is focused - and
+ * otherwise the first window still open, since the asset fetch in `deliver` can outlast a
+ * focus change. One window, not all of them: the server records one receipt per card, so a
+ * card painted in both the Vibe and the IDE window was two ads to the person looking at them
+ * and one view on the advertiser's dashboard.
+ */
+function toastTarget(): BrowserWindow | null {
+  const focused = BrowserWindow.getFocusedWindow();
+  if (focused !== null && !focused.isDestroyed()) return focused;
+  return BrowserWindow.getAllWindows().find((window) => !window.isDestroyed()) ?? null;
+}
+
 function broadcast(channel: string, ...args: unknown[]): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send(channel, ...args);
@@ -188,6 +203,8 @@ export function createAdRuntime(): AdRuntime {
   let clickUrl: string | null = null;
   let lastBalance: Balance | null = null;
   let watchdog: NodeJS.Timeout | null = null;
+  /** The window holding the live card, by id. See `toastTarget`. */
+  let toastWindowId: number | null = null;
 
   /**
    * The `NotificationSink` the ad client writes into. Everything it produces crosses to
@@ -197,6 +214,7 @@ export function createAdRuntime(): AdRuntime {
     show(notification: SponsoredNotification): NotificationHandle {
       liveCreativeId = notification.creativeId;
       clickUrl = notification.clickUrl;
+      toastWindowId = toastTarget()?.id ?? null;
       armWatchdog(notification);
 
       void deliver(notification);
@@ -207,6 +225,7 @@ export function createAdRuntime(): AdRuntime {
           clearWatchdog();
           liveCreativeId = null;
           clickUrl = null;
+          toastWindowId = null;
         },
       };
     },
@@ -261,7 +280,11 @@ export function createAdRuntime(): AdRuntime {
       autoDismissMs: notification.autoDismissMs,
     };
 
-    broadcast(CHANNELS.adShow, toast);
+    // Sent to the window chosen at `show`, so a theme update reaches the card it updates
+    // rather than opening a second one elsewhere. A window closed since then gets nothing,
+    // and the watchdog writes the card off.
+    const target = toastWindowId === null ? null : BrowserWindow.fromId(toastWindowId);
+    if (target !== null && !target.isDestroyed()) target.webContents.send(CHANNELS.adShow, toast);
   }
 
   const adRenderer = createAdRenderer({

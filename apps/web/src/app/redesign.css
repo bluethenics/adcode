@@ -15,7 +15,8 @@
   --ink-raised: var(--card);
   --text: light-dark(#26251e, #edece7);
   --muted: light-dark(#65645d, #a8a69d);
-  --faint: light-dark(#727168, #96948b);
+  /* 4.5:1 or better on surface, card and control alike - it labels small text everywhere. */
+  --faint: light-dark(#6b6a62, #96948b);
   --on-ink: var(--text);
   --on-ink-muted: var(--muted);
   --hairline: light-dark(#deded5, #343228);
@@ -232,6 +233,9 @@ button, input, select, textarea { font-family: inherit; }
 .hero-quick-install { width: 100%; margin-top: 16px; }
 .hero-quick-install-label { color: var(--muted); font-size: 11px; margin: 0 0 8px; }
 .hero-quick-install .hero-install-note { margin-top: 9px; }
+/* Inside the terminal card the command row is the card's body, not a second card on it. */
+.hero-quick-install-card .hero-install-command { background: transparent; border: 0; box-shadow: none; border-radius: 0; }
+.hero-quick-install-card .hero-install-command code { font-size: 12.5px; }
 .marketplace-faq-list details[open] h3 { color: var(--text); }
 .bid-total small, .bid-total p, .bid-provider { color: var(--muted); }
 .website-consent { background: var(--card); box-shadow: var(--panel-shadow); }
@@ -426,3 +430,5 @@ body:has(.auth-screen) .website-consent { position: static; margin: 24px auto; b
 @media (prefers-reduced-motion: reduce) {
   .auth-mode::before { transition: none; }
 }
+/* The sub-cent digits of an exact balance: present, but not the headline. */
+.hero-figure-micro { font-size: .42em; letter-spacing: 0; opacity: .6; margin-left: .06em; }

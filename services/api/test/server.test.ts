@@ -85,8 +85,8 @@ describe("admin campaign delivery", () => {
     const body = await response.json();
     const portal = await (await get("/v1/portal/campaigns")).json();
     expect(body).toEqual({ campaigns: portal });
-    // The portal counts accepted test views too; their cost stays zero.
-    expect(body).toMatchObject({ campaigns: [{ impressions: 2, clicks: 0, spentMicros: "2020" }] });
+    // The zero-cost test view is not a view the advertiser bought, so neither report counts it.
+    expect(body).toMatchObject({ campaigns: [{ impressions: 1, clicks: 0, spentMicros: "2020" }] });
     expect(await store.listAudit()).toContainEqual(expect.objectContaining({
       adminUid: "admin-1", action: "read-advertiser-campaigns", subjectUid: "adv-1",
     }));

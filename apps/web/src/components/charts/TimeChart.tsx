@@ -39,7 +39,13 @@ export interface TimeChartProps {
 const PAD = { top: 14, right: 16, bottom: 26, left: 46 };
 const VIEW_W = 720;
 
-const defaultFormat = (value: number): string => value.toLocaleString("en-US");
+/*
+ * A tick is formatted as it is, never rounded first. Rounding before a caller's own format
+ * turned a $0.50 axis into "$0.00, $0.00, $1.00" - the top label claimed double the data.
+ * Counts get at most one decimal, which only ever shows on an axis whose maximum is 1.
+ */
+const defaultFormat = (value: number): string =>
+  value.toLocaleString("en-US", { maximumFractionDigits: 1 });
 
 /** Clean axis maxima: 1, 2, 5 x a power of ten, so ticks land on numbers people read. */
 function niceMax(value: number): number {
@@ -128,7 +134,7 @@ export function TimeChart({ days, series, height = 240, area = false, summary }:
               className="chart-grid"
             />
             <text x={PAD.left - 8} y={tick.y + 4} className="chart-tick" textAnchor="end">
-              {(series[0]?.format ?? defaultFormat)(Math.round(tick.value))}
+              {(series[0]?.format ?? defaultFormat)(tick.value)}
             </text>
           </g>
         ))}

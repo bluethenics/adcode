@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { WebsiteAnalytics } from "@/components/WebsiteAnalytics";
 import { COMPARE_PREFIX, comparisons, guides, landingPath } from "@/lib/landings";
 import { PARENT, SITE } from "@/lib/site";
 
@@ -62,6 +64,9 @@ export function Footer() {
           © {new Date().getFullYear()} {SITE.name}. A{" "}
           <a href={PARENT.url}>{PARENT.name}</a> product.
         </span>
+        {/* Here rather than after the footer, where its button floated on the page on its
+            own. The consent card it opens is fixed-position, so placement moves nothing else. */}
+        <Suspense fallback={null}><WebsiteAnalytics /></Suspense>
         <span>{SITE.tagline}.</span>
       </div>
     </footer>

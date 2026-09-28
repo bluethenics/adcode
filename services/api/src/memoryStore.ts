@@ -183,7 +183,9 @@ export function createMemoryStore(): Store & { reset(): void } {
       let spentMicros = 0n;
 
       for (const r of receipts.values()) {
-        if (r.campaignId !== campaignId) continue;
+        // A zero-cost receipt is an admin test card: recorded, billed to nobody, and not
+        // a view anybody bought. Same rule as `publicStats`.
+        if (r.campaignId !== campaignId || r.costMicros === 0n) continue;
         if (r.outcome === "click") clicks += 1;
         else impressions += 1;
         spentMicros += r.costMicros;
@@ -318,7 +320,8 @@ export function createMemoryStore(): Store & { reset(): void } {
       const buckets = new Map<string, SeriesPoint>();
 
       for (const r of receipts.values()) {
-        if (!mine.has(r.campaignId) || r.createdAt < since) continue;
+        // Test cards excluded, as in `statsForCampaign`.
+        if (!mine.has(r.campaignId) || r.createdAt < since || r.costMicros === 0n) continue;
 
         const day = utcDay(r.createdAt);
         const key = `${day} ${r.campaignId}`;
