@@ -36,6 +36,15 @@ only public once its installers are attached to a GitHub release.
   the system's reduce-motion setting and ADCode's own Reduced motion switch.
 - The bundled model catalogue is refreshed to 2026-09-28 and now records each
   model's context size.
+- Ad views count correctly: a sponsored card appears in one window only instead of
+  both the Vibe and IDE windows, and moving between the two windows no longer breaks
+  the "focused for the whole time" rule, so a view you really saw reaches the
+  advertiser.
+- Advertiser reports on the website no longer count admin delivery tests as verified
+  views costing $0.00; views, clicks and spend now agree.
+- Opening a campaign's row in the advertiser portal no longer crashes the report.
+- Website: comparison pages no longer 404 when the cache misses, and the home page's
+  product images load lighter.
 
 Known limitations: macOS builds remain unsupported. Context sizes come from the
 catalogue; models it does not list are assumed to read 128k tokens. Token counts on
