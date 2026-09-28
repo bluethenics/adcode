@@ -833,6 +833,24 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     betterThan: "Running separate chats requires manually copying instructions and results between them. ADCode assigns named agents to a shared task, passes task handoffs through the team scheduler, and brings proposals back into one review workflow.",
   },
 
+  "ai-auto-compact": {
+    steps: [
+      "Just keep chatting. The ring beside the chat's composer shows how full the model's context is - Context 34%, say - and hovering it gives the numbers.",
+      "When the conversation reaches 80% of what the model can read, ADCode asks the same model to summarise the older part. The chat shows Earlier conversation compacted; press View summary to read what it kept.",
+      "To make room yourself, type /compact and press Enter, or say what matters most: /compact keep the database decisions. Compact now is also on the meter and in the command palette as AI: Compact Conversation.",
+      "Close ADCode, come back tomorrow and open the conversation from Conversations. The assistant starts from the saved summary and the messages after it, so it still knows your project, your decisions and what was left to do.",
+      "Switching model mid-conversation keeps the conversation too. To change when compaction happens - 70%, 80% or 90% - or turn it off, choose Auto-compact settings on the meter.",
+    ],
+    benefits: [
+      "A long conversation never dies at the model's limit - it keeps going for as long as the work does.",
+      "No re-explaining: reopening a chat or switching model keeps what the assistant knew.",
+      "The summary is readable and saved with the conversation, so you can see exactly what the assistant carries forward.",
+      "Long Agents-board runs compact the same way instead of stopping halfway through a big task.",
+    ],
+    betterThan:
+      "Most AI chats either fail when a conversation outgrows the model or quietly drop the oldest messages, and many forget everything when you reopen them. ADCode summarises instead of dropping, tells you when it has, shows you the summary, and keeps it with the conversation for next time.",
+  },
+
   "ai-race-mode": {
     steps: [
       "Open Agents and press New task, or run Agents: Race Several Agents on One Task from the command palette.",

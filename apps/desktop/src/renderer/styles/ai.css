@@ -4064,3 +4064,96 @@ button.chat-setup-action {
 .chat-checkpoint-undo:hover { border-color: var(--border-strong); background: var(--bg-hover); }
 .chat-checkpoint-undo:disabled { opacity: .55; cursor: default; }
 .chat-checkpoint-undo:focus-visible, .chat-checkpoint-file:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Long chat memory: the context meter, the compaction line, the summary ── */
+
+.chat-context-meter {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.chat-context-meter:hover,
+.chat-context-meter[aria-expanded="true"] {
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+.chat-context-meter:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.chat-context-ring {
+  width: 14px;
+  height: 14px;
+  transform: rotate(-90deg);
+}
+
+.chat-context-track,
+.chat-context-fill {
+  fill: none;
+  stroke-width: 2.4;
+}
+
+.chat-context-track { stroke: var(--border); }
+.chat-context-fill { stroke: var(--text-secondary); stroke-linecap: round; }
+.chat-context-meter[data-tone="warn"] .chat-context-fill { stroke: var(--warning); }
+.chat-context-meter[data-tone="full"] .chat-context-fill { stroke: var(--danger); }
+.chat-context-meter[data-tone="full"] { color: var(--text-secondary); }
+.chat-context-meter[data-busy="true"] { opacity: 0.6; cursor: progress; }
+
+.chat-compaction-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.chat-compaction-divider::before,
+.chat-compaction-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.chat-compaction-view {
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.chat-compaction-view:hover { color: var(--text-primary); }
+
+.chat-summary-text {
+  max-height: min(60vh, 520px);
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-subtle, var(--bg-active));
+  color: var(--text-primary);
+  font: 12.5px/1.55 var(--font-ui, inherit);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -200,6 +200,13 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("tools.memory", "Open project memory")],
     keywords: ["memory", "remember", "forget", "what does the ai know", "conventions", "decisions", "preferences", "agents.md", "claude.md", "shared memory", "edit memory"],
   },
+  "ai.autoCompact": {
+    actions: [
+      command("ai.compactConversation", "Compact now"),
+      command("ai.viewConversationSummary", "View summary"),
+    ],
+    keywords: ["long memory", "remember conversation", "context", "context window", "compact", "auto compact", "summarise", "summarize", "summary", "long chat", "conversation too long", "forgot", "forgets", "token limit", "prompt too long"],
+  },
   "ai.raceMode": {
     actions: [command("agents.race", "Start a race")],
     keywords: ["race", "best of n", "compare models", "several models", "multiple models", "try different models", "pick the best", "a/b", "parallel attempts"],

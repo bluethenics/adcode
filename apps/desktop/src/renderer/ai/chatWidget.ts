@@ -21,6 +21,7 @@ import { createTasksPopupDialog } from "./tasksPopupDialog.ts";
 import type { PreviewStatus } from "../../shared/api.ts";
 import type {
   AiAttachmentView,
+  AiContextUsageView,
   AiEditorContextView,
   AiAutomationView,
   AiTeamSuggestionView,
@@ -50,6 +51,8 @@ import {
 import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
 import { createIcon, ICON } from "../workbench/icons.ts";
 import { createContextMenu, attachContextMenuDismissal } from "../workbench/contextMenu.ts";
+import { compactCommand, contextMeterModel, createContextMeter } from "./contextMeter.ts";
+import { button as dialogButton, el as dialogEl, openFormModal } from "../dialogs/formDialog.ts";
 import type { CodeReference } from "../editor/codeReferences.ts";
 import {
   groupChatSessions,
@@ -112,6 +115,10 @@ export interface ChatWidget {
   openTeamSetup(): void;
   /** Bring chat forward and open the existing local schedule composer. */
   openScheduleComposer(): void;
+  /** Summarise the older part of the conversation now, optionally paying attention to `focus`. */
+  compactConversation(focus?: string): void;
+  /** Show what the last compaction wrote. */
+  viewConversationSummary(): void;
   close(): void;
   isOpen(): boolean;
   /**
@@ -188,6 +195,8 @@ export interface ChatWidgetDeps {
   readonly reportProblem?: (prefill: { readonly title: string; readonly body: string }) => void;
   /** Open the Tools page: MCP servers, skills, built-in tools and project memory. */
   readonly openTools?: () => void;
+  /** Open Settings at one setting - the meter's "Auto-compact settings". */
+  readonly openSettings?: (settingId: string) => void;
 }
 
 export function dispatchChatSend(
@@ -394,7 +403,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     activeSessionId = null;
     conversationTitle.textContent = "New conversation";
     renderMemory(null);
+    currentSummary = null;
     void refreshHistory();
+    queueMicrotask(() => refreshContextMeter());
   });
 
   const shareButton = document.createElement("button");
@@ -836,6 +847,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     for (const message of session.messages) {
       bubble(message.role === "user" ? "user" : "assistant", message.text, [], message.at);
     }
+    // Everything above the line is what the summary stands for; the model reads the
+    // summary and the messages below it.
+    currentSummary = session.summary?.text ?? null;
+    const summary = session.summary ?? null;
+    if (summary !== null && summary.coversUntil > 0) {
+      transcript.insertBefore(compactionDivider(), transcript.children[summary.coversUntil] ?? null);
+    }
+    refreshContextMeter();
 
     renderMemory(session);
     renderHistory();
@@ -862,6 +881,71 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   renderMemory(null);
+
+  /* -- Compaction: the summary that stands for the older conversation ---- */
+
+  /** What the last compaction wrote; null until this conversation has been compacted. */
+  let currentSummary: string | null = null;
+  let compacting = false;
+
+  function compactionDivider(): HTMLElement {
+    const divider = document.createElement("div");
+    divider.className = "chat-compaction-divider";
+    divider.setAttribute("role", "note");
+    const label = document.createElement("span");
+    label.className = "chat-compaction-label";
+    label.textContent = "Earlier conversation compacted";
+    const view = document.createElement("button");
+    view.type = "button";
+    view.className = "chat-compaction-view";
+    view.textContent = "View summary";
+    view.addEventListener("click", () => viewSummary());
+    divider.append(label, view);
+    return divider;
+  }
+
+  function viewSummary(): void {
+    const text = currentSummary;
+    if (text === null) {
+      complain("This conversation has not been compacted yet.");
+      return;
+    }
+    const modal = openFormModal("chat-summary-dialog", "Conversation summary", () => input.focus());
+    const buttons = dialogEl("div", "confirm-buttons");
+    buttons.append(
+      dialogButton("Copy", "confirm-cancel", () => void copyText(text)),
+      dialogButton("Close", "result-close", () => modal.finish()),
+    );
+    modal.card.append(
+      dialogEl("p", "form-hint", "What the assistant carries forward in place of the earlier messages."),
+      dialogEl("pre", "chat-summary-text", text),
+      buttons,
+    );
+    modal.dialog.showModal();
+  }
+
+  async function compactNow(focus?: string): Promise<void> {
+    if (compacting) return;
+    if (turnActive) {
+      complain("Wait for the current answer to finish, then compact.");
+      return;
+    }
+    compacting = true;
+    contextMeter.element.dataset["busy"] = "true";
+    composerNotice.textContent = "Compacting the conversation…";
+    composerNotice.hidden = false;
+    try {
+      const result = await window.adcode.ai.compact(focus);
+      if (result.ok) composerNotice.hidden = true;
+      else complain(result.message);
+    } catch (error) {
+      complain(error instanceof Error ? error.message : "Could not compact the conversation.");
+    } finally {
+      compacting = false;
+      delete contextMeter.element.dataset["busy"];
+      refreshContextMeter();
+    }
+  }
 
   /* -- Isolated task status -------------------------------------------- */
 
@@ -1421,7 +1505,36 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const disclaimer = document.createElement("span");
   disclaimer.className = "chat-disclaimer";
   disclaimer.textContent = "Enter to send · Shift+Enter new line · @ file · / command · ↑ last prompt";
-  composerFooter.append(disclaimer);
+  // How full the model's context is, and the way to make room on purpose.
+  const meterMenu = createContextMenu(document.body);
+  attachContextMenuDismissal(meterMenu, () => contextMeter.element.focus());
+  let lastUsage: AiContextUsageView | null = null;
+  const contextMeter = createContextMeter((trigger) => {
+    trigger.setAttribute("aria-expanded", "true");
+    const rect = trigger.getBoundingClientRect();
+    meterMenu.open(rect.left, rect.top - 4, [
+      ...(lastUsage === null ? [] : [{ kind: "heading" as const, label: contextMeterModel(lastUsage).amount }]),
+      { label: "Compact now", run: () => void compactNow() },
+      { label: "View summary", disabled: currentSummary === null, run: () => viewSummary() },
+      { kind: "separator" as const },
+      { label: "Auto-compact settings", run: () => deps.openSettings?.("adcode.ai.autoCompact") },
+    ], () => trigger.setAttribute("aria-expanded", "false"));
+  });
+  function refreshContextMeter(): void {
+    void window.adcode.ai.contextUsage().then((usage) => {
+      lastUsage = usage;
+      contextMeter.update(usage);
+    }, () => undefined);
+  }
+  composerFooter.append(disclaimer, contextMeter.element);
+  refreshContextMeter();
+  window.adcode.chat.onChanged((session) => {
+    currentSummary = session?.summary?.text ?? currentSummary;
+    refreshContextMeter();
+  });
+  void window.adcode.chat.current().then((session) => {
+    currentSummary = session?.summary?.text ?? null;
+  }, () => undefined);
   composer.append(input, attachmentStrip, composerNotice, toolbar, composerFooter, filePicker);
 
   /* ── Typed menus: `/` runs a command, `@` adds a file ─────────────────── */
@@ -1454,6 +1567,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       case "preview": void chatPreview.start(); return;
       case "team": api.openTeamSetup(); return;
       case "schedule": api.openScheduleComposer(); return;
+      case "compact": void compactNow(); return;
     }
     if (command.kind === "diff") {
       const diff = await (deps.uncommittedDiff?.() ?? Promise.resolve("")).catch(() => "");
@@ -3301,6 +3415,23 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     // Flush before tool boundaries, cancellation, and completion so no final text
     // is stranded in a scheduled frame or attached to the next message.
     if (event.kind !== "text") flushStream();
+    if (event.kind === "context") {
+      const tokens = Number(event["tokens"]);
+      const contextWindow = Number(event["contextWindow"]);
+      if (lastUsage !== null && Number.isFinite(tokens) && Number.isFinite(contextWindow)) {
+        lastUsage = { ...lastUsage, tokens, contextWindow };
+        contextMeter.update(lastUsage);
+      } else refreshContextMeter();
+      return;
+    }
+    if (event.kind === "compacted") {
+      const summary = String(event["summary"] ?? "");
+      if (summary.trim().length > 0) currentSummary = summary;
+      transcript.append(compactionDivider());
+      scrollToEnd();
+      // Compact now between turns is not a turn; one that happened mid-turn is part of it.
+      if (!turnActive) return;
+    }
     // Turns are followed from the events, which every window receives - a turn may have
     // started in the other window's chat, or from an automation, not from this composer.
     const ending = event.kind === "turn-end" || event.kind === "error" || event.kind === "cancelled" || event.kind === "refusal";
@@ -3332,6 +3463,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         const text = String(event["text"] ?? "");
         workingText.textContent = text;
         ensureActivity().setLabel(text);
+        break;
+      }
+
+      case "compacting": {
+        workingText.textContent = "Compacting the conversation";
+        ensureActivity().setLabel("Compacting the conversation");
         break;
       }
 
@@ -3540,6 +3677,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
     const text = input.value;
     if (text.trim().length === 0 && pending.length === 0) return;
+
+    // `/compact` and `/compact <what matters>` make room rather than asking anything.
+    const compact = pending.length === 0 ? compactCommand(text) : null;
+    if (compact !== null) {
+      input.value = "";
+      autogrowComposer();
+      void compactNow(compact.focus);
+      return;
+    }
 
     // Explicitly not connected: printing the message into a turn that cannot
     // run answers nothing. Say the true thing instead — how to start — with a
@@ -3834,6 +3980,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         },
         showSchedule: showScheduleComposer,
       });
+    },
+
+    compactConversation(focus?: string): void {
+      api.open();
+      void compactNow(focus);
+    },
+
+    viewConversationSummary(): void {
+      api.open();
+      viewSummary();
     },
 
     openScheduleComposer(): void {

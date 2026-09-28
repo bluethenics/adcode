@@ -274,3 +274,39 @@ describe("Chat Connect ownership", () => {
     );
   });
 });
+
+describe("long chat memory in the chat", () => {
+  it("shows the context meter in the composer footer", () => {
+    expect(source).toContain("composerFooter.append(disclaimer, contextMeter.element);");
+    expect(styles).toMatch(/\.chat-context-meter\s*\{/);
+    expect(styles).toMatch(/\.chat-context-meter\[data-tone="full"\]/);
+  });
+
+  it("marks where the conversation was compacted and lets you read the summary", () => {
+    expect(source).toContain('label.textContent = "Earlier conversation compacted";');
+    expect(source).toContain('view.textContent = "View summary";');
+    expect(styles).toMatch(/\.chat-compaction-divider\s*\{/);
+    expect(styles).toMatch(/\.chat-summary-text\s*\{/);
+  });
+
+  it("never treats a meter update or a Compact now between turns as the start of a turn", () => {
+    const handler = source.slice(source.indexOf("window.adcode.ai.onEvent((raw) => {"));
+    const context = handler.indexOf('if (event.kind === "context") {');
+    const turnStart = handler.indexOf("if (!ending && !turnActive) {");
+    expect(context).toBeGreaterThan(0);
+    expect(context).toBeLessThan(turnStart);
+    expect(handler.slice(context, turnStart)).toContain("if (!turnActive) return;");
+  });
+
+  it("makes room on /compact instead of sending it, before any connect nudge", () => {
+    const submit = source.slice(source.indexOf("  function submit(): void {"));
+    expect(submit.indexOf("compactCommand(text)")).toBeGreaterThan(0);
+    expect(submit.indexOf("compactCommand(text)")).toBeLessThan(submit.indexOf("connectNudge();"));
+  });
+
+  it("offers Compact and View summary from the command palette", () => {
+    expect(mainSource).toMatch(/add\("ai\.compactConversation"/);
+    expect(mainSource).toMatch(/add\("ai\.viewConversationSummary"/);
+    expect(mainSource).toContain("openSettings: (query) =>");
+  });
+});

@@ -39,6 +39,7 @@ export const SLASH_COMMANDS: readonly SlashCommand[] = [
   { id: "preview", hint: "Show the live preview here", kind: "action" },
   { id: "team", hint: "Split the task across AI roles", kind: "action" },
   { id: "schedule", hint: "Send a message later", kind: "action" },
+  { id: "compact", hint: "Summarise the older conversation to make room", kind: "action" },
 ];
 
 export interface MenuTrigger {

@@ -4552,6 +4552,7 @@ const chat = createChatWidget({
   },
   reportProblem: (prefill) => reportDialog.open({ kind: "bug", ...prefill, includeDebugLog: true }),
   openTools: () => commands.run("tools.open"),
+  openSettings: (query) => openSetting(query),
   uncommittedDiff: async () => {
     const [diff, status] = await Promise.all([
       window.adcode.git.diff().catch(() => ""),
@@ -5561,6 +5562,8 @@ function registerCommands(): void {
   add("ai.newConversation", "New Conversation", () => chat.newConversation());
   add("ai.team", "Set Up AI Team", () => chat.openTeamSetup());
   add("ai.schedule", "Schedule an AI Message", () => chat.openScheduleComposer());
+  add("ai.compactConversation", "AI: Compact Conversation", () => chat.compactConversation());
+  add("ai.viewConversationSummary", "AI: View Conversation Summary", () => chat.viewConversationSummary());
   add("ai.askSelection", "Ask AI about Selection or File", () => editorHost.runAction("adcode.askSelection"));
   add("ai.explainSelection", "AI: Explain This Code", () => editorHost.runAction("adcode.explainSelection"));
   add("ai.refactorSelection", "AI: Refactor This Code", () => editorHost.runAction("adcode.refactorSelection"));
