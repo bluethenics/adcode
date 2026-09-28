@@ -49,6 +49,61 @@ beforeEach(async () => {
 const get = (path: string, headers: Record<string, string> = auth) =>
   fetch(`${server.url}${path}`, { headers });
 
+describe("admin campaign delivery", () => {
+  const path = "/v1/admin/advertisers/adv-1/campaigns";
+  const adminAuth = { authorization: "Bearer admin" };
+
+  beforeEach(async () => {
+    await store.putAdvertiser({
+      advertiserId: "adv-1", name: "Venet", ownerUids: ["u-1"], status: "active",
+      fundedMicros: 100_000_000n, reservedMicros: 100_000_000n, createdAt: 1,
+    });
+    await store.putCampaign({
+      campaignId: "camp-1", advertiserId: "adv-1", name: "Venet campaign", createdAt: 1,
+      status: "active", cpmMicros: 8_000_000n, budgetMicros: 100_000_000n, targetTags: [],
+    });
+    await store.settleReceipt({
+      receipt: { receiptId: "r-1", uid: "viewer", creativeId: "c-1", campaignId: "camp-1",
+        outcome: "impression", creditedMicros: 1_010n, costMicros: 2_020n, createdAt: 1 },
+      earning: { entryId: "e-1", uid: "viewer", kind: "impression", micros: 1_010n,
+        refId: "r-1", createdAt: 1, description: "Ad from Venet, 8s" },
+    });
+    await store.createReceiptIfAbsent({
+      receiptId: "r-test", uid: "viewer", creativeId: "c-1", campaignId: "camp-1",
+      outcome: "impression", creditedMicros: 0n, costMicros: 0n, createdAt: 2,
+    });
+  });
+
+  it("requires an administrator even when the caller owns the advertiser", async () => {
+    expect((await get(path, {})).status).toBe(401);
+    expect((await get(path)).status).toBe(403);
+  });
+
+  it("returns the same verified totals as the portal and audits the read", async () => {
+    const response = await get(path, adminAuth);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    const portal = await (await get("/v1/portal/campaigns")).json();
+    expect(body).toEqual({ campaigns: portal });
+    // The portal counts accepted test views too; their cost stays zero.
+    expect(body).toMatchObject({ campaigns: [{ impressions: 2, clicks: 0, spentMicros: "2020" }] });
+    expect(await store.listAudit()).toContainEqual(expect.objectContaining({
+      adminUid: "admin-1", action: "read-advertiser-campaigns", subjectUid: "adv-1",
+    }));
+  });
+
+  it("distinguishes an unknown advertiser from an advertiser with no campaigns", async () => {
+    expect((await get("/v1/admin/advertisers/missing/campaigns", adminAuth)).status).toBe(404);
+    await store.putAdvertiser({
+      advertiserId: "empty", name: "Empty", ownerUids: [], status: "active",
+      fundedMicros: 0n, reservedMicros: 0n, createdAt: 1,
+    });
+    const response = await get("/v1/admin/advertisers/empty/campaigns", adminAuth);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ campaigns: [] });
+  });
+});
+
 /*
  * `/v1/me` - the endpoint the browser needs because it cannot work this out itself.
  *

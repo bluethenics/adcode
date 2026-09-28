@@ -93,8 +93,8 @@ export const AUTO_DISMISS_MS = 8_000;
 export const MIN_DWELL_MS = 4_000;
 /** §9: 3s fetch timeout - a display never waits on the network. */
 export const FETCH_TIMEOUT_MS = 3_000;
-/** §9: a prefetch cache of ~10 creatives. */
-export const PREFETCH_TARGET = 10;
+/** Cache only the next slot's winner; later cards expire before standard cadence. */
+export const PREFETCH_TARGET = 1;
 /** §9: queue to disk, capped at 500, oldest dropped. */
 export const RECEIPT_QUEUE_CAP = 500;
 /** Not specified in the brief; chosen. See spec §5.1. */

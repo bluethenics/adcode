@@ -383,15 +383,18 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
         });
     },
 
-    async findServe(uid, creativeId, now) {
+    async findServe(uid, creativeId, at, servedBy) {
       const snap = await (await lazy())
         .collection("serves")
         .where("uid", "==", uid)
         .where("creativeId", "==", creativeId)
-        .where("expiresAt", ">", now)
-        .limit(1)
+        .where("expiresAt", ">", at)
         .get();
-      const doc = snap.docs[0];
+      // Filter the short-lived delivery window locally to retain the existing
+      // Firestore index; a second range on servedAt would need a new index.
+      const doc = snap.docs
+        .filter((candidate) => servedBy === undefined || candidate.data()["servedAt"] <= servedBy)
+        .sort((a, b) => b.data()["servedAt"] - a.data()["servedAt"])[0];
       if (doc === undefined) return null;
       const raw = doc.data();
       return {

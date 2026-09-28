@@ -87,7 +87,7 @@ export function advertiserView(record: AdvertiserRecord): AdvertiserView {
   };
 }
 
-function campaignView(campaign: CampaignRecord, stats: CampaignStats): CampaignView {
+export function campaignView(campaign: CampaignRecord, stats: CampaignStats): CampaignView {
   return {
     campaignId: campaign.campaignId,
     name: campaign.name,

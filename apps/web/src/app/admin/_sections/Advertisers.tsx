@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { CampaignDelivery } from "./CampaignDelivery";
 import { HelpNote } from "@/components/HelpNote";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
@@ -23,6 +24,7 @@ export function AdvertisersBody({ initialQuery = "" }: { initialQuery?: string }
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState(initialQuery);
+  const [openAdvertiser, setOpenAdvertiser] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const found = await apiFetch<{ advertisers: AdvertiserRow[] }>({
@@ -109,7 +111,8 @@ export function AdvertisersBody({ initialQuery = "" }: { initialQuery?: string }
           </div>
 
           {shown.map((row) => (
-            <div className="row" key={row.advertiserId}>
+            <Fragment key={row.advertiserId}>
+            <div className="row">
               <span className="row-main">
                 <span className="row-title">{row.name}</span>
                 <span className="row-sub">
@@ -126,6 +129,11 @@ export function AdvertisersBody({ initialQuery = "" }: { initialQuery?: string }
               <span className="row-num mono">{money(row.fundedMicros)}</span>
 
               <span style={{ flex: "none" }}>
+                <button type="button" className="btn btn-outline btn-small"
+                  aria-expanded={openAdvertiser === row.advertiserId}
+                  onClick={() => setOpenAdvertiser((current) => current === row.advertiserId ? null : row.advertiserId)}>
+                  {openAdvertiser === row.advertiserId ? "Hide campaigns" : "View campaigns"}
+                </button>{" "}
                 {row.status === "suspended" ? (
                   <button
                     className="btn btn-outline btn-small"
@@ -145,6 +153,8 @@ export function AdvertisersBody({ initialQuery = "" }: { initialQuery?: string }
                 )}
               </span>
             </div>
+            {openAdvertiser === row.advertiserId && <CampaignDelivery key={row.advertiserId} advertiserId={row.advertiserId} />}
+            </Fragment>
           ))}
         </div>
       )}

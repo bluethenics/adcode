@@ -263,11 +263,11 @@ export function createMemoryStore(): Store & { reset(): void } {
       serves.set(serve.serveId, serve);
     },
 
-    async findServe(uid, creativeId, now) {
-      for (const s of serves.values()) {
-        if (s.uid === uid && s.creativeId === creativeId && s.expiresAt > now) return s;
-      }
-      return null;
+    async findServe(uid, creativeId, at, servedBy) {
+      return [...serves.values()]
+        .filter((s) => s.uid === uid && s.creativeId === creativeId && s.expiresAt > at &&
+          (servedBy === undefined || s.servedAt <= servedBy))
+        .sort((a, b) => b.servedAt - a.servedAt)[0] ?? null;
     },
 
     async marketPriceHistory(since) {

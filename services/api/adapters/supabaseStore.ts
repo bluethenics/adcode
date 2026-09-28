@@ -498,18 +498,20 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       if (error !== null) fail("recordServe", error);
     },
 
-    async findServe(uid, creativeId, now) {
-      const row = await maybe<ServeRow>("findServe", (db) =>
-        db
+    async findServe(uid, creativeId, at, servedBy) {
+      const row = await maybe<ServeRow>("findServe", (db) => {
+        let query = db
           .from("serves")
           .select(SERVE_COLS)
           .eq("uid", uid)
           .eq("creative_id", creativeId)
-          .gt("expires_at", now)
-          .order("expires_at", { ascending: false })
+          .gt("expires_at", at);
+        if (servedBy !== undefined) query = query.lte("served_at", servedBy);
+        return query
+          .order("served_at", { ascending: false })
           .limit(1)
-          .maybeSingle(),
-      );
+          .maybeSingle();
+      });
       return row === null ? null : toServe(row);
     },
 

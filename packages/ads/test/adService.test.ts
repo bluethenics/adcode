@@ -391,6 +391,24 @@ describe("receipts", () => {
 });
 
 describe("prefetch", () => {
+  it("requests only the next display slot instead of a batch that expires", async () => {
+    const counts: number[] = [];
+    const service = build({ client: stubClient({
+      serve: async (request) => {
+        counts.push(request.count);
+        return { ok: true, value: [creative] };
+      },
+    }) });
+
+    await service.start();
+    clock.advance(SETTLE_MS + 1);
+    await service.tick();
+    await service.tick();
+
+    expect(sink.shown).toHaveLength(1);
+    expect(counts).toEqual([1, 1]);
+  });
+
   it("does not call serve on every tick once it holds inventory", async () => {
     let serveCalls = 0;
     const counting = stubClient({

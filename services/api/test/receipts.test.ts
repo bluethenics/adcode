@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { handleReceipts } from "../src/receipts.ts";
 import { createMemoryStore } from "../src/memoryStore.ts";
 import type { SubmittedReceipt } from "../src/contract.ts";
+import { RECEIPT_UPLOAD_GRACE_MS } from "../src/plausibility.ts";
 
 const NOW = 100_000;
 let store: ReturnType<typeof createMemoryStore>;
@@ -121,11 +122,49 @@ describe("handleReceipts", () => {
     expect((await store.getBalance("u-1")).availableMicros).toBe(0n);
   });
 
-  it("acks but does not pay against an expired serve", async () => {
-    const late = { ...deps(), clock: { now: () => NOW + 50_000 } };
+  it("acks but does not pay after the bounded upload grace has expired", async () => {
+    const late = { ...deps(), clock: { now: () => NOW + 10_000 + RECEIPT_UPLOAD_GRACE_MS } };
     const res = await handleReceipts(late, "u-1", { receipts: [receipt({ receiptId: "r-5" })] });
     expect(res.acked).toEqual(["r-5"]);
     expect((await store.getBalance("u-1")).availableMicros).toBe(0n);
+  });
+
+  it("counts and bills a valid view uploaded on the next tick after creative expiry", async () => {
+    const delayed = { ...deps(), clock: { now: () => NOW + 60_000 } };
+    const viewed = receipt({ shownAt: NOW + 9_000, dwellMs: 8_000 });
+    await handleReceipts(delayed, "u-1", { receipts: [viewed] });
+    await handleReceipts(delayed, "u-1", { receipts: [viewed] });
+
+    expect(await store.getSpend("camp-1")).toBe(5_010n);
+    expect((await store.getBalance("u-1")).availableMicros).toBe(2_505n);
+    const entries = await store.listEntries("u-1", { limit: 10, cursor: null });
+    expect(entries.rows).toHaveLength(1);
+  });
+
+  it("does not let upload grace authorise a view that started after expiry", async () => {
+    const delayed = { ...deps(), clock: { now: () => NOW + 60_000 } };
+    await handleReceipts(delayed, "u-1", {
+      receipts: [receipt({ shownAt: NOW + 10_000, dwellMs: 8_000 })],
+    });
+    expect(await store.getSpend("camp-1")).toBe(0n);
+  });
+
+  it("matches the original delivery, not a newer prefetch with a different price", async () => {
+    await store.recordServe({
+      serveId: "s-new", uid: "u-1", creativeId: "c-1", campaignId: "camp-1",
+      servedAt: NOW + 50_000, expiresAt: NOW + 650_000,
+      maxBidCpmMicros: 8_000_000n, clearingCpmMicros: 6_000_000n, costMicros: 6_000n,
+    });
+    const delayed = { ...deps(), clock: { now: () => NOW + 60_000 } };
+    await handleReceipts(delayed, "u-1", {
+      receipts: [receipt({ shownAt: NOW + 9_000, dwellMs: 8_000 })],
+    });
+    expect(await store.getSpend("camp-1")).toBe(5_010n);
+  });
+
+  it("rejects a view that predates the only matching delivery", async () => {
+    await handleReceipts(deps(), "u-1", { receipts: [receipt({ shownAt: NOW - 50_000 })] });
+    expect(await store.getSpend("camp-1")).toBe(0n);
   });
 
   it("records a click as a click, not an impression", async () => {

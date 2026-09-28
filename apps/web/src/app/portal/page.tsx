@@ -7,7 +7,7 @@ import { Segmented } from "@/components/ios/Segmented";
 import { Donut } from "@/components/charts/Donut";
 import { TimeChart } from "@/components/charts/TimeChart";
 import { MONEY, seriesColor } from "@/components/charts/palette";
-import { money, statusLabel, tone } from "@/components/money";
+import { money, moneyProgress, statusLabel, tone } from "@/components/money";
 import {
   apiFetch,
   MESSAGES,
@@ -212,7 +212,9 @@ function PortalBody() {
   const live = campaigns.filter((c) => c.status === "active").length;
   const viewTotal = totals.views.reduce((sum, value) => sum + value, 0);
   const clickTotal = totals.clicks.reduce((sum, value) => sum + value, 0);
-  const spentTotal = totals.spend.reduce((sum, value) => sum + value, 0);
+  const spentTotal = moneyProgress(series
+    .filter((point) => days.includes(point.day))
+    .reduce((sum, point) => sum + BigInt(point.spentMicros), 0n).toString());
 
   return (
     <>
@@ -252,7 +254,7 @@ function PortalBody() {
             value={clickTotal.toLocaleString("en-US")}
             hint={viewTotal === 0 ? "—" : `${((clickTotal / viewTotal) * 100).toFixed(2)}% of views`}
           />
-          <Tile label="Spent" value={`$${spentTotal.toFixed(2)}`} hint={`Last ${window} days`} money />
+          <Tile label="Spent" value={spentTotal} hint={`Last ${window} days`} money />
           <Tile label="Live campaigns" value={String(live)} hint={`${campaigns.length} total`} />
         </div>
 
@@ -286,7 +288,7 @@ function PortalBody() {
             days={days}
             area
             height={200}
-            summary={`Spend per day over ${window} days, totalling $${spentTotal.toFixed(2)}.`}
+            summary={`Spend per day over ${window} days, totalling ${spentTotal}.`}
             series={[
               {
                 label: "Spent",
@@ -319,8 +321,8 @@ function PortalBody() {
                 <p>Spend by campaign, over the last {window} days.</p>
               </header>
               <Donut
-                summary={`Spend by campaign over ${window} days, totalling $${spentTotal.toFixed(2)}.`}
-                centerValue={`$${spentTotal.toFixed(2)}`}
+                summary={`Spend by campaign over ${window} days, totalling ${spentTotal}.`}
+                centerValue={spentTotal}
                 centerLabel={`in ${window} days`}
                 slices={campaigns.map((campaign) => {
                   const spent = series
@@ -350,7 +352,7 @@ function PortalBody() {
                     <li key={campaign.campaignId}>
                       <span className="meter-head">
                         <span>{campaign.name}</span>
-                        <b className="money">{money(campaign.spentMicros)}</b>
+                        <b className="money">{moneyProgress(campaign.spentMicros)}</b>
                       </span>
                       <span className="meter-track">
                         <span
@@ -376,7 +378,7 @@ function PortalBody() {
 
           <section id="campaigns" className="workspace-section">
             <h2 className="section-title">All campaigns</h2>
-            <p>Lifetime totals. Ads served counts cards sent to the editor. Verified views require the card to be displayed for at least 4 seconds while the editor stays focused, then synced.</p>
+            <p>Lifetime totals. Ad fetches count cards downloaded by the editor, including cards that expired before display. Verified views require at least 4 seconds on screen while the editor stays focused, then syncing. Live campaigns compete for each ad slot.</p>
             <div className="campaign-stack">
               <div className="row row-head">
                 <span className="row-main">Campaign</span>
@@ -412,14 +414,14 @@ function PortalBody() {
                       {campaign.targetTags.length === 0
                         ? "everyone"
                         : `${campaign.targetTags.length} tag${campaign.targetTags.length === 1 ? "" : "s"}`}
-                      {" · "}{campaign.serves.toLocaleString("en-US")} ads served
+                      {" · "}{campaign.serves.toLocaleString("en-US")} ad fetches
                     </span>
                   </span>
                     <span className="row-num mono">{campaign.impressions.toLocaleString("en-US")} views</span>
                     <span className="row-num mono">{campaign.clicks.toLocaleString("en-US")} clicks</span>
-                    <span className="row-num mono">{money(campaign.spentMicros)} spent</span>
+                    <span className="row-num mono">{moneyProgress(campaign.spentMicros)} spent</span>
                   </summary>
-                  <div className="campaign-inline-body"><p>Maximum bid and creative controls stay attached to this campaign. Detailed editing is being folded into this row; the current campaign remains fully tracked here.</p><dl><div><dt>Budget</dt><dd>{money(campaign.budgetMicros)}</dd></div><div><dt>Spent</dt><dd>{money(campaign.spentMicros)}</dd></div><div><dt>Audience</dt><dd>{campaign.targetTags.length === 0 ? "Every developer" : `${campaign.targetTags.length} contexts`}</dd></div></dl><CampaignStatusToggle campaign={campaign} onChanged={load} />{openRows.has(campaign.campaignId) && (<CampaignCards campaignId={campaign.campaignId} advertiserName={advertiser?.name ?? ""} onChanged={load} />)}</div>
+                  <div className="campaign-inline-body"><p>Maximum bid and creative controls stay attached to this campaign. Detailed editing is being folded into this row; the current campaign remains fully tracked here.</p><dl><div><dt>Budget</dt><dd>{money(campaign.budgetMicros)}</dd></div><div><dt>Spent</dt><dd>{moneyProgress(campaign.spentMicros)}</dd></div><div><dt>Audience</dt><dd>{campaign.targetTags.length === 0 ? "Every developer" : `${campaign.targetTags.length} contexts`}</dd></div></dl><CampaignStatusToggle campaign={campaign} onChanged={load} />{openRows.has(campaign.campaignId) && (<CampaignCards campaignId={campaign.campaignId} advertiserName={advertiser?.name ?? ""} onChanged={load} />)}</div>
                 </details>
               ))}
             </div>

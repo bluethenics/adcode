@@ -12,7 +12,7 @@
  */
 import type { ReceiptsRequestBody, ReceiptsResponseBody, SubmittedReceipt } from "./contract.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
-import { checkReceipt } from "./plausibility.ts";
+import { checkReceipt, CLOCK_SKEW_MS, RECEIPT_UPLOAD_GRACE_MS } from "./plausibility.ts";
 import { userCreditMicros } from "./money.ts";
 import type { LedgerEntry } from "./ledger.ts";
 
@@ -20,6 +20,8 @@ export interface ReceiptDeps {
   store: Store;
   clock: Clock;
   ids: IdGen;
+  /** Server-side diagnostics only; clients still receive the same opaque acknowledgement. */
+  onResult?: (result: { creativeId: string; status: string; reason?: string }) => void;
 }
 
 /** "Ad from Acme, 4.2s" - resolved server-side so user and admin views cannot diverge. */
@@ -38,19 +40,28 @@ export async function handleReceipts(
   const config = await deps.store.getConfig();
 
   for (const receipt of body.receipts) {
-    const serve = await deps.store.findServe(uid, receipt.creativeId, now);
+    // A view must start while its creative is valid. Allow the normal upload timer
+    // to finish after expiry, and never match a newer prefetch to an older view.
+    const serve = await deps.store.findServe(
+      uid,
+      receipt.creativeId,
+      Math.max(receipt.shownAt, now - RECEIPT_UPLOAD_GRACE_MS),
+      receipt.shownAt + CLOCK_SKEW_MS,
+    );
     const verdict = checkReceipt(receipt, serve, now);
 
     // `checkReceipt` returns `no-serve` when there is none, so passing implies one
     // exists - but that is a guarantee of its logic, not of its type. Narrowed here
     // rather than asserted, so a future change to that contract fails compilation.
     if (!verdict.ok || serve === null) {
+      deps.onResult?.({ creativeId: receipt.creativeId, status: "rejected", reason: verdict.ok ? "no-serve" : verdict.reason });
       acked.push(receipt.receiptId);
       continue;
     }
 
     const creative = await deps.store.getCreative(receipt.creativeId);
     if (creative === null) {
+      deps.onResult?.({ creativeId: receipt.creativeId, status: "rejected", reason: "missing-creative" });
       acked.push(receipt.receiptId);
       continue;
     }
@@ -89,8 +100,10 @@ export async function handleReceipts(
       description: describeEntry(creative.advertiser, receipt),
     };
 
-    if (isTest) await deps.store.createReceiptIfAbsent(receiptRecord);
-    else await deps.store.settleReceipt({ receipt: receiptRecord, earning: entry });
+    const created = isTest
+      ? await deps.store.createReceiptIfAbsent(receiptRecord)
+      : await deps.store.settleReceipt({ receipt: receiptRecord, earning: entry });
+    deps.onResult?.({ creativeId: receipt.creativeId, status: !created ? "duplicate" : isTest ? "test" : "settled" });
 
     acked.push(receipt.receiptId);
   }

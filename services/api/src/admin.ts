@@ -6,6 +6,7 @@
  * through still leaves evidence that the attempt was made.
  */
 import { handleLedger } from "./balance.ts";
+import { campaignView, type CampaignView } from "./advertisers.ts";
 import type { LedgerResponseBody } from "./contract.ts";
 import type {
   AdminRecord,
@@ -567,6 +568,22 @@ export async function handleListAdvertisers(
     at: deps.clock.now(),
   });
   return deps.store.listAdvertisers();
+}
+
+/** The same verified delivery totals as the portal, with an audited admin read. */
+export async function handleAdminCampaigns(
+  deps: AdminDeps,
+  adminUid: string,
+  advertiserId: string,
+): Promise<CampaignView[] | null> {
+  await deps.store.writeAudit({
+    adminUid, action: "read-advertiser-campaigns", subjectUid: advertiserId, at: deps.clock.now(),
+  });
+  if (await deps.store.getAdvertiser(advertiserId) === null) return null;
+  const campaigns = await deps.store.campaignsForAdvertiser(advertiserId);
+  return Promise.all(campaigns.map(async (campaign) =>
+    campaignView(campaign, await deps.store.statsForCampaign(campaign.campaignId)),
+  ));
 }
 
 /**

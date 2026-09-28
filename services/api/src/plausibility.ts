@@ -18,13 +18,17 @@ export const MIN_DWELL_MS = 1_000;
 export const MAX_DWELL_MS = 300_000;
 
 /** Tolerance for a client clock that runs slightly fast. */
-const CLOCK_SKEW_MS = 30_000;
+export const CLOCK_SKEW_MS = 30_000;
+
+/** An 8s display and the editor's 60s receipt timer may cross the creative TTL. */
+export const RECEIPT_UPLOAD_GRACE_MS = 120_000;
 
 export type RejectReason =
   | "no-serve"
   | "dwell-too-short"
   | "dwell-too-long"
   | "shown-in-future"
+  | "outside-serve-window"
   | "not-earning";
 
 export type Verdict = { ok: true } | { ok: false; reason: RejectReason };
@@ -39,6 +43,11 @@ export function checkReceipt(
 
   if (receipt.outcome === "dismissed") return { ok: false, reason: "not-earning" };
   if (receipt.shownAt > now + CLOCK_SKEW_MS) return { ok: false, reason: "shown-in-future" };
+  if (
+    receipt.shownAt < serve.servedAt - CLOCK_SKEW_MS ||
+    receipt.shownAt >= serve.expiresAt ||
+    now >= serve.expiresAt + RECEIPT_UPLOAD_GRACE_MS
+  ) return { ok: false, reason: "outside-serve-window" };
   if (receipt.dwellMs < MIN_DWELL_MS) return { ok: false, reason: "dwell-too-short" };
   if (receipt.dwellMs > MAX_DWELL_MS) return { ok: false, reason: "dwell-too-long" };
 

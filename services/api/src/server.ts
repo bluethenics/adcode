@@ -25,6 +25,7 @@ import {
   handleSetCreativeStatus,
   handleSetUserStatus,
   handleListAdvertisers,
+  handleAdminCampaigns,
   handleSetAdvertiserStatus,
   handlePublishNotice,
   handleRetractNotice,
@@ -854,6 +855,13 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
+    const advertiserCampaigns = /^\/v1\/admin\/advertisers\/([^/]+)\/campaigns$/.exec(path);
+    if (advertiserCampaigns !== null && req.method === "GET") {
+      const campaigns = await handleAdminCampaigns({ store, clock }, auth.uid, decodeURIComponent(advertiserCampaigns[1]!));
+      send(res, campaigns === null ? 404 : 200, campaigns === null ? { error: "not-found" } : { campaigns }, cors);
+      return;
+    }
+
     const advertiserStatus = /^\/v1\/admin\/advertisers\/([^/]+)\/status$/.exec(path);
     if (advertiserStatus !== null && req.method === "POST") {
       const raw = await jsonBodyOr400();
@@ -1155,7 +1163,10 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         send(res, 400, { error: "malformed receipts request" }, cors);
         return;
       }
-      send(res, 200, await handleReceipts({ store, clock, ids }, auth.uid, body), cors);
+      send(res, 200, await handleReceipts({
+        store, clock, ids,
+        onResult: (result) => console.info("[ads:receipt]", JSON.stringify(result)),
+      }, auth.uid, body), cors);
       return;
     }
 

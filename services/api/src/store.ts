@@ -549,7 +549,8 @@ export interface Store {
   allCreativesForCampaign(campaignId: string): Promise<CreativeRecord[]>;
 
   recordServe(serve: ServeRecord): Promise<void>;
-  findServe(uid: string, creativeId: string, now: number): Promise<ServeRecord | null>;
+  /** Most recent delivery with expiry after `at`, optionally issued by `servedBy`. */
+  findServe(uid: string, creativeId: string, at: number, servedBy?: number): Promise<ServeRecord | null>;
   marketPriceHistory(since: number): Promise<MarketPricePoint[]>;
 
   /** True when created, false when the id already existed. This is the idempotency gate. */

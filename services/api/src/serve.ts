@@ -13,6 +13,8 @@ export interface ServeDeps {
   store: Store;
   clock: Clock;
   ids: IdGen;
+  /** Independent draw in [0, 1) for equal-share campaign delivery. */
+  random?: () => number;
 }
 
 export async function handleServe(
@@ -108,7 +110,7 @@ export async function handleServe(
   const ranked = runAuction({
     candidates,
     tags: body.tags,
-    count: body.count,
+    count: candidates.length,
     floorCpmMicros: effective.floorCpmMicros,
     incrementCpmMicros: effective.auctionIncrementCpmMicros,
     tieSeed: deps.ids.next("auction"),
@@ -116,11 +118,19 @@ export async function handleServe(
 
   const now = deps.clock.now();
 
-  // Winners without an approved creative are skipped, and later ranks backfill -
-  // exactly as the sequential loop did, so a bare campaign never eats another's slot.
-  const winners = ranked
-    .filter((winner) => (artwork.get(winner.campaign.campaignId)?.length ?? 0) > 0)
-    .slice(0, body.count);
+  // The editor has one display slot. Older clients ask for ten creatives, but a
+  // runner-up expires before the next standard slot (both are ten minutes apart).
+  // Keep the auction's captured prices, but share delivery equally across all
+  // eligible campaigns with approved artwork. Always taking ranked[0] starves
+  // every lower bidder. Draw afresh per request, independent of user, bid, or ID
+  // counters, so every funded eligible campaign can reach the same audience.
+  const eligible = ranked.filter(
+    (winner) => (artwork.get(winner.campaign.campaignId)?.length ?? 0) > 0,
+  );
+  const selected = eligible.length > 0
+    ? eligible[Math.floor((deps.random ?? Math.random)() * eligible.length)]
+    : undefined;
+  const winners = selected === undefined ? [] : [selected];
   const served = await Promise.all(
     winners.map(async (winner) => {
       const creative = artwork.get(winner.campaign.campaignId)?.[0];
