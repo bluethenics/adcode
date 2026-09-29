@@ -93,6 +93,30 @@ export function typed(text, t, start, perSecond) {
   return text.slice(0, count);
 }
 
+/**
+ * A camera over a flat layout. Shots are { at, cx, cy, s, move? }: from `at` the camera
+ * glides (over `move` seconds) to look at layout point (cx, cy) with zoom `s`, and holds.
+ * Zoom interpolates in log space, so a push-in feels even rather than rushing at the end.
+ */
+export function camera(t, shots, move = 0.45) {
+  let now = shots[0];
+  for (const next of shots.slice(1)) {
+    if (t < next.at) break;
+    const p = ease.inOutCubic(seg(t, next.at, next.at + (next.move ?? move)));
+    now = {
+      cx: lerp(now.cx, next.cx, p),
+      cy: lerp(now.cy, next.cy, p),
+      s: Math.exp(lerp(Math.log(now.s), Math.log(next.s), p)),
+    };
+  }
+  return now;
+}
+
+/** The transform (origin 0 0) that puts the camera's point at the middle of a view. */
+export function aim({ cx, cy, s }, viewWidth, viewHeight) {
+  return `translate(${n(viewWidth / 2 - s * cx, 2)}px, ${n(viewHeight / 2 - s * cy, 2)}px) scale(${n(s, 4)})`;
+}
+
 /** Mount every scene once; each frame, show the live ones and let them draw. */
 export function createTimeline(stage, scenes, settings) {
   for (const scene of scenes) {

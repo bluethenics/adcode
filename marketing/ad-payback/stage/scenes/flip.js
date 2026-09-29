@@ -39,8 +39,9 @@ export const flip = {
     const landed = since >= 0;
     this.dollar.classList.toggle("money", landed);
     put(this.dollar, {
-      transform: tf({ y: lerp(-820, 0, fall) + (1 - squash) * 60, sx: 2 - squash, sy: squash, s: 1 }) + ` scale(${(1 + part * 2.2).toFixed(4)})`,
-      opacity: (t >= CUE.dollarDrop ? 1 : 0) * (1 - ease.inCubic(seg(t, CUE.toVibe + 0.2, CUE.vibe + 0.2))),
+      transform: tf({ y: lerp(-820, 0, fall) + (1 - squash) * 60, sx: 2 - squash, sy: squash, s: 1 }) + ` scale(${(1 + ease.inCubic(seg(t, CUE.toVibe, CUE.toVibe + 0.25)) * 1.8).toFixed(4)})`,
+      // Flies at the camera and is gone before the window behind it is solid.
+      opacity: (t >= CUE.dollarDrop ? 1 : 0) * (1 - ease.outCubic(seg(t, CUE.toVibe, CUE.toVibe + 0.25))),
     });
 
     // Landing: a green bloom and a shock ring.

@@ -50,10 +50,22 @@ function serve() {
   return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server)));
 }
 
+/**
+ * The frame as it is now, as PNG bytes.
+ *
+ * Through the DevTools protocol rather than `capturePage` or the offscreen `paint` event:
+ * both of those hand back whatever frame the compositor last produced, and the first
+ * capture after loading came back as frame 0 whatever `t` was drawn. `captureScreenshot`
+ * renders a fresh frame of the page as it is at the moment of the call.
+ */
 async function capture(window) {
-  const image = await window.webContents.capturePage();
-  const { width, height } = image.getSize();
-  return width === SIZE && height === SIZE ? image : image.resize({ width: SIZE, height: SIZE, quality: "best" });
+  const { data } = await window.webContents.debugger.sendCommand("Page.captureScreenshot", {
+    format: "png",
+    fromSurface: true,
+    captureBeyondViewport: false,
+    clip: { x: 0, y: 0, width: SIZE, height: SIZE, scale: 1 },
+  });
+  return Buffer.from(data, "base64");
 }
 
 const exited = (child) => new Promise((resolve, reject) => {
@@ -82,6 +94,7 @@ async function main() {
     webPreferences: { offscreen: true, backgroundThrottling: false },
   });
   window.webContents.setFrameRate(60);
+  window.webContents.debugger.attach("1.3");
   window.webContents.on("console-message", (_event, level, message) => {
     if (level >= 2) console.error(`[stage] ${message}`);
   });
@@ -92,7 +105,7 @@ async function main() {
   for (const [index, t] of (options.stills ?? []).entries()) {
     await window.webContents.executeJavaScript(`AD.render(${Number(t)})`);
     const name = options.stillNames?.[index] ?? `still-${String(t).replace(".", "_")}.png`;
-    await writeFile(join(options.out, name), (await capture(window)).toPNG());
+    await writeFile(join(options.out, name), await capture(window));
     console.log(`still ${t}s → ${name}`);
   }
 
@@ -101,7 +114,7 @@ async function main() {
     const last = Math.round(options.to * options.fps);
     const encoder = spawn(options.ffmpeg, [
       "-y", "-hide_banner", "-loglevel", "error",
-      "-f", "rawvideo", "-pix_fmt", "bgra", "-s", `${SIZE}x${SIZE}`, "-r", String(options.fps), "-i", "-",
+      "-f", "image2pipe", "-c:v", "png", "-framerate", String(options.fps), "-i", "-",
       "-c:v", "libx264", "-preset", "slow", "-crf", "16", "-tune", "animation",
       "-profile:v", "high", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
       join(options.out, "picture.mp4"),
@@ -110,8 +123,8 @@ async function main() {
     const started = Date.now();
     for (let frame = first; frame < last; frame += 1) {
       await window.webContents.executeJavaScript(`AD.render(${(frame / options.fps).toFixed(6)})`);
-      const bitmap = (await capture(window)).toBitmap();
-      if (!encoder.stdin.write(bitmap)) await new Promise((resolve) => encoder.stdin.once("drain", resolve));
+      const png = await capture(window);
+      if (!encoder.stdin.write(png)) await new Promise((resolve) => encoder.stdin.once("drain", resolve));
       if ((frame - first) % options.fps === 0) {
         const rate = (frame - first + 1) / ((Date.now() - started) / 1000);
         console.log(`frame ${frame}/${last} (${rate.toFixed(1)} fps)`);
