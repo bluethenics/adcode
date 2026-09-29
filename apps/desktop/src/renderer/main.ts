@@ -122,6 +122,7 @@ import {
   type TerminalPanel,
 } from "./terminal/terminalPanel.ts";
 import { createNotificationCentre } from "./notifications/notifications.ts";
+import { createUpdatePrompt } from "./updates/updatePrompt.ts";
 import { buildAdSignals } from "./ads/adSignals.ts";
 import { createReleaseNotice } from "./releases/releaseNotice.ts";
 import { createWhatsNewSheet } from "./releases/whatsNewSheet.ts";
@@ -1862,14 +1863,23 @@ el("filetree").addEventListener("keydown", (event) => {
  * draft is written now, and the text is recoverable from the same prompt that handles a crash.
  */
 async function closeAllTabs(): Promise<void> {
+  draftUnsavedTabs();
+  for (const tab of [...tabs]) closeTab(tab.path);
+}
+
+/**
+ * Write a recovery draft for every unsaved buffer now, rather than when its timer fires.
+ *
+ * Used before anything that makes the editors go away - switching folders, restarting
+ * into an update - so the text is recoverable from the same prompt that handles a crash.
+ */
+function draftUnsavedTabs(): void {
   for (const tab of [...tabs]) {
     if (!editorHost.isReadOnly(tab.path) && editorHost.isDirty(tab.path)) {
       const text = editorHost.text(tab.path);
       if (text !== null) window.adcode.history.draft(tab.path, text);
     }
   }
-
-  for (const tab of [...tabs]) closeTab(tab.path);
 }
 
 /**
@@ -3069,7 +3079,7 @@ function updateMessage(
     case "idle":
       return "The update check has not run yet.";
     case "ready":
-      return `Version ${status.version} is downloaded. Restart ADCode to apply it.`;
+      return `Version ${status.version} is ready - choose Restart to update in the status bar, or it installs when you close ADCode.`;
     case "downloading":
       return status.percent === undefined
         ? "Downloading an update…"
@@ -4751,6 +4761,16 @@ function setRendererWorkspace(root: string | null): void {
 const notifications = createNotificationCentre(el("toast-layer"));
 
 /*
+ * The update the window can see: "Updating 42%", then "Restart to update" in the status
+ * bar, and one quiet card per version. See updates/updatePrompt.ts.
+ */
+const updatePrompt = createUpdatePrompt({
+  statusItem: el("status-update") as HTMLButtonElement,
+  notifications,
+  flushDrafts: draftUnsavedTabs,
+});
+
+/*
  * Release notes.
  *
  * The sheet is built eagerly and the card lazily: Help > What's New must work on a machine
@@ -5850,6 +5870,11 @@ function registerCommands(): void {
     const status = await window.adcode.updates.check().catch(() => null);
     const info = await window.adcode.app.info().catch(() => null);
     setStatus(updateMessage(status, info?.version ?? null), 6000);
+  });
+
+  add("updates.restart", "Restart to Update", async () => {
+    if (!(await updatePrompt.restart()))
+      setStatus("No update is waiting. Help → Check for Updates looks for one.", 5000);
   });
 
   add("edit.organizeImports", "Organize Imports", () => {

@@ -2,8 +2,8 @@
  * Updates.
  *
  * The rule this describes is the product's, not the platform's: ADCode never restarts
- * itself and never interrupts to ask. The entry says so, because that is the part a
- * reader actually wants promised.
+ * itself. When an update is ready it says so once, quietly, and restarts only if you
+ * choose. The entry says so, because that is the part a reader actually wants promised.
  */
 import type { HelpEntry } from "../types.ts";
 
@@ -12,9 +12,9 @@ export const UPDATES_ENTRIES: readonly HelpEntry[] = [
     id: "adcode.updates.auto",
     title: "Install updates automatically",
     plain:
-      "New versions download quietly in the background and are in place the next time you open ADCode.",
-    why: "So you are never out of date, and never stopped mid-thought by a box asking to restart.",
-    how: "On by default. ADCode will not restart itself and will not interrupt you to ask - you close the editor when you are ready, and the new version is what opens next time. Help → Check for Updates asks now and tells you where you stand, including when you are already on the latest version. Turn this off to update by hand instead. If you installed ADCode from the Microsoft Store, or from a Linux package manager, that is what updates it and this setting does nothing - Settings says so rather than pretending to check.",
+      "New versions download in the background. When one is ready, the status bar says Restart to update and a small card offers to restart now.",
+    why: "So you are never out of date, and you always know when a new version is waiting - without a box that stops your work.",
+    how: "On by default. While a new version downloads, the status bar shows its progress; when it is ready it reads Restart to update, and a card offers Restart now or Later - once per version, and only when you are not typing. Restart now keeps anything unsaved and offers it back when ADCode reopens; Later, or ignoring it, installs the update the next time you close ADCode. ADCode never restarts itself. Help → Check for Updates asks now and tells you where you stand, including when you are already on the latest version. If an update ever fails, Help → Report a Problem includes what the updater recorded. Turn this off to update by hand instead. If you installed ADCode from the Microsoft Store, or from a Linux package manager, that is what updates it and this setting does nothing - Settings says so rather than pretending to check.",
     group: "updates",
     settingIds: ["adcode.updates.auto"],
     related: ["updates.whatsNew"],

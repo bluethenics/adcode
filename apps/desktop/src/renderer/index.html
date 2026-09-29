@@ -266,6 +266,12 @@
       <span class="status-item status-path" id="status-workspace">No folder</span>
       <span class="status-item status-version" id="status-version"></span>
       <!--
+        The update, when there is one: "Updating 42%" while it downloads, then "Restart to
+        update" - a button, because restarting into it is the one useful thing to do from
+        here. Hidden the rest of the time; being up to date is not news.
+      -->
+      <button class="status-item status-update" id="status-update" type="button" hidden></button>
+      <!--
         Who this window's earnings belong to.
 
         After the version because it answers the same *kind* of question - what is this

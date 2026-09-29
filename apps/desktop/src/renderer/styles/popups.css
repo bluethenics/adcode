@@ -608,6 +608,30 @@
   color: var(--text-primary);
 }
 
+/* ── The update in the status bar ─────────────────────────────────────── */
+
+.status-update {
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* While it downloads there is nothing to click yet: it reads as a label. */
+.status-update:disabled {
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: default;
+}
+
+.status-update:not(:disabled):hover {
+  text-decoration: underline;
+}
+
 /* The "not listed" line, dimmer than the rest: it is a footnote, not a finding. */
 .projectmap-hidden {
   margin-top: 6px;

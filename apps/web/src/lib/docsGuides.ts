@@ -1683,19 +1683,20 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "updates-auto": {
     steps: [
-      "Leave it on, which is the default. New versions download in the background.",
-      "Keep working. ADCode never restarts itself and never asks you to.",
-      "Close the editor when you are ready. The next launch is the new version.",
-      "Help → Check for Updates asks straight away and tells you where you stand.",
-      "Turn it off to update by hand; Help → Check for Updates still works.",
+      "Leave it on, which is the default. New versions download in the background while you work.",
+      "Watch the status bar: it shows Updating with a percentage, then Restart to update when the new version is ready.",
+      "Choose Restart now on the card, or click Restart to update. ADCode keeps anything unsaved, installs, and reopens by itself.",
+      "Or keep working - the update installs the next time you close ADCode.",
+      "Help → Check for Updates asks straight away; turn the setting off to update by hand.",
     ],
     benefits: [
-      "An update never costs you an unsaved buffer, because it applies on a restart you chose.",
-      "No modal demanding a restart, and no progress bar between you and your work.",
+      "You always know when a new version is waiting, without a dialog in your way.",
+      "An update never costs you an unsaved buffer: it is kept as a recovery draft and offered back after the restart.",
+      "If an update fails, the reason is in the log Help → Report a Problem sends.",
       "Whichever way you installed ADCode, only one thing is ever updating it.",
     ],
     betterThan:
-      "Where ADCode installed itself, it updates itself; where something else installed it, that keeps the job. From the Microsoft Store the Store updates it, and on Linux your package manager does — in those builds ADCode's own updater stands down instead of downloading a copy it has no permission to apply, and Settings tells you so rather than showing a check that can never succeed.",
+      "Most editors either interrupt with a modal or update so quietly you never find out. ADCode shows progress in the status bar, offers one quiet restart when the update is ready, and otherwise installs it when you close the editor. Where the Microsoft Store or a Linux package manager installed ADCode, that keeps the job, and ADCode's own updater stands down instead of downloading a copy it has no permission to apply.",
   },
 
   "updates-whats-new": {

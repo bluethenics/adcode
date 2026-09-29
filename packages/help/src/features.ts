@@ -426,8 +426,8 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     keywords: ["crash", "lost work", "unsaved", "recover"],
   },
   "adcode.updates.auto": {
-    actions: [command("updates.check", "Check now")],
-    keywords: ["update", "new version", "upgrade", "latest"],
+    actions: [command("updates.check", "Check now"), command("updates.restart", "Restart to update")],
+    keywords: ["update", "new version", "upgrade", "latest", "restart to update", "update ready"],
   },
 
   /* ── Languages ─────────────────────────────────────────────────────────── */
