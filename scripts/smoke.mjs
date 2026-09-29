@@ -95,10 +95,18 @@ await writeFile(
  * pointing at a menu entry that is not there is worse than no card. Forcing it here is the
  * only way to exercise the card without packaging and installing first.
  */
+/*
+ * `ADCODE_UPDATE_SIMULATE` is what lets `updateReadyVisible` below see an update at all.
+ *
+ * An unpackaged build has no update feed. With this set, Help > Check for Updates walks
+ * the updater through downloading to "ready" without a network, and Restart to update is
+ * recorded instead of quitting. A packaged build ignores it.
+ */
 const childEnv = {
   ...process.env,
   ELECTRON_ENABLE_LOGGING: "1",
   ADCODE_PIN_PROMPT: "1",
+  ADCODE_UPDATE_SIMULATE: "1",
 };
 delete childEnv.ELECTRON_RUN_AS_NODE;
 
@@ -1903,6 +1911,18 @@ if (featureLauncherPoint === null) {
     );
     await pressEscape();
   }
+
+  // Updates you can see, found by the words people use for them, in the real library.
+  checks.featureLibraryFindsRestartToUpdate = await evaluate(
+    `(() => {
+       const input = document.querySelector('.feature-library-search');
+       if (!input) return false;
+       input.value = 'restart to update';
+       input.dispatchEvent(new Event('input', { bubbles: true }));
+       return [...document.querySelectorAll('.feature-library-row')]
+         .some((row) => row.dataset.featureId === 'adcode.updates.auto');
+     })()`,
+  );
 
   const actionPoint = await evaluate(
     `(() => {
@@ -6913,6 +6933,35 @@ checks.dialogCloseAuditPass = Object.values(checks.dialogCloseAudit).every(
     Object.values(result).every((value) => value === true),
 );
 
+/*
+ * Updates you can see: a check walks the simulated updater to "ready", the status bar says
+ * Restart to update, and asking to restart answers without quitting. Last, so the ready
+ * card it raises cannot land on top of another check's toasts.
+ */
+// The card waits for a focused window; automation has none unless it is emulated.
+await send("Emulation.setFocusEmulationEnabled", { enabled: true });
+checks.updateReadyVisible = await evaluate(`(async () => {
+  const wait = async (test) => { for (let i = 0; i < 60 && !test(); i++) await new Promise((r) => setTimeout(r, 100)); };
+  const card = () => [...document.querySelectorAll('.toast')].find((node) => /9\\.9\\.9 is ready/.test(node.textContent ?? ''));
+  const checked = await window.adcode.updates.check();
+  const item = document.getElementById('status-update');
+  await wait(() => item?.textContent === 'Restart to update');
+  // An earlier check's keystroke can still count as typing; the card waits that out.
+  await new Promise((r) => setTimeout(r, 4200));
+  window.dispatchEvent(new Event('focus'));
+  await wait(() => card() !== undefined);
+  const shown = card();
+  const buttons = [...(shown?.querySelectorAll('.toast-actions button') ?? [])].map((b) => b.textContent);
+  const after = await window.adcode.updates.install();
+  return {
+    checkedReady: checked.state === 'ready' && checked.version === '9.9.9',
+    statusBarSays: item?.textContent === 'Restart to update' && item.hidden === false && item.disabled === false,
+    cardShown: shown !== undefined,
+    cardOffersRestart: buttons.join('|') === 'Restart now|Later',
+    restartAnswers: after.state === 'ready',
+  };
+})()`);
+
 await send("Emulation.setDeviceMetricsOverride", {
   width: 1280,
   height: 800,
@@ -6960,6 +7009,7 @@ const requiredEvidence = {
   peekShowsTheDefinition: ["opened", "saysHowItWasFound", "matchedByName", "showsSource", "namesTheFile"],
   welcomeScreenIsUsable: ["primaryClickable", "showsVersion", "marked"],
   earningsSettingsButtonWorks: ["settingsOpened", "settingsSelected"],
+  updateReadyVisible: ["checkedReady", "statusBarSays", "cardShown", "cardOffersRestart", "restartAnswers"],
 };
 const failed = Object.entries(checks).filter(
   ([name, value]) =>
