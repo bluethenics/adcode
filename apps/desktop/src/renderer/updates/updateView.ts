@@ -17,7 +17,12 @@ export interface UpdateView {
 
 const HIDDEN: UpdateView = { label: null, title: "", canRestart: false };
 
-export function updateView(status: UpdateStatus): UpdateView {
+export interface UpdateViewOptions {
+  /** A restart has been asked for; the next thing to happen is ADCode closing. */
+  readonly restarting?: boolean;
+}
+
+export function updateView(status: UpdateStatus, options: UpdateViewOptions = {}): UpdateView {
   if (status.state === "downloading") {
     const percent = status.percent;
     const label =
@@ -25,6 +30,19 @@ export function updateView(status: UpdateStatus): UpdateView {
         ? `Updating ${Math.max(0, Math.min(100, Math.round(percent)))}%`
         : "Updating…";
     return { label, title: "A new version of ADCode is downloading in the background.", canRestart: false };
+  }
+
+  if (status.state === "ready" && options.restarting === true) {
+    return { label: "Restarting…", title: `Installing ADCode ${status.version}. ADCode reopens by itself.`, canRestart: false };
+  }
+
+  // Main only restarts where it said it would; anything else installs on close.
+  if (status.state === "ready" && status.restartable !== true) {
+    return {
+      label: "Update ready",
+      title: `ADCode ${status.version} is ready. It installs when you close ADCode.`,
+      canRestart: false,
+    };
   }
 
   if (status.state === "ready") {
@@ -36,6 +54,16 @@ export function updateView(status: UpdateStatus): UpdateView {
   }
 
   return HIDDEN;
+}
+
+/**
+ * Why a restart must wait, or null. With crash recovery off there is no draft to offer back
+ * after the restart, so unsaved text would be lost: the person saves first.
+ */
+export function restartBlocked(unsavedWithoutRecovery: number): string | null {
+  if (unsavedWithoutRecovery <= 0) return null;
+  const files = unsavedWithoutRecovery === 1 ? "a file" : `${unsavedWithoutRecovery} files`;
+  return `Save ${files} first: crash recovery is off, so unsaved changes would not come back after the restart.`;
 }
 
 export interface ReadyMoment {

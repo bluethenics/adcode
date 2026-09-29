@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readyNoticeDue, updateView } from "../src/renderer/updates/updateView.ts";
+import { readyNoticeDue, restartBlocked, updateView } from "../src/renderer/updates/updateView.ts";
 
 describe("updateView", () => {
   it("hides for every quiet state", () => {
@@ -22,9 +22,34 @@ describe("updateView", () => {
   });
 
   it("offers the restart once ready, naming the version", () => {
-    const view = updateView({ state: "ready", version: "2.1.2" });
+    const view = updateView({ state: "ready", version: "2.1.2", restartable: true });
     expect(view).toMatchObject({ label: "Restart to update", canRestart: true });
     expect(view.title).toContain("2.1.2");
+  });
+});
+
+describe("updateView while restarting, or where restart is not offered", () => {
+  /* The first click has been taken: a second one would install twice. */
+  it("stops offering the restart once one has been asked for", () => {
+    expect(updateView({ state: "ready", version: "2.1.2", restartable: true }, { restarting: true }))
+      .toMatchObject({ label: "Restarting…", canRestart: false });
+  });
+
+  it("says the update is ready, without a restart, where restart is not offered", () => {
+    const view = updateView({ state: "ready", version: "2.1.2", restartable: false });
+    expect(view).toMatchObject({ label: "Update ready", canRestart: false });
+    expect(view.title).toContain("when you close ADCode");
+  });
+});
+
+describe("restartBlocked", () => {
+  /* With crash recovery off there is no draft to offer back: the restart would lose the text. */
+  it("asks to save first when unsaved files have no recovery draft", () => {
+    expect(restartBlocked(2)).toMatch(/save/i);
+  });
+
+  it("lets the restart go when nothing would be lost", () => {
+    expect(restartBlocked(0)).toBeNull();
   });
 });
 

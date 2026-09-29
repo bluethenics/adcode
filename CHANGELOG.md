@@ -18,6 +18,11 @@ only public once its installers are attached to a GitHub release.
   notices the mismatch and lets the updater fetch the right one.
 - Why an update failed is now recorded in the debug log that Help > Report a Problem
   sends, instead of being thrown away.
+- Restart now is offered on Windows. On Linux a ready update says so and installs when
+  you close ADCode. With crash recovery switched off, ADCode asks you to save before it
+  restarts, because nothing would be offered back.
+- The portable build no longer runs the updater, which used to install a second, ordinary
+  copy of ADCode as the portable one closed.
 
 Known limitations: macOS builds remain unsupported, and the portable build still does not
 update itself.

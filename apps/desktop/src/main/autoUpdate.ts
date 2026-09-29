@@ -36,7 +36,15 @@ let listeners: ((next: UpdateStatus) => void)[] = [];
 let initialization: Promise<void> | null = null;
 let requestCheck: (() => Promise<void>) | null = null;
 let installNow: (() => void) | null = null;
+let restartRequested = false;
 let announced: string | null = null;
+
+/**
+ * Where "Restart now" is offered. Windows' installer waits for this process to exit before
+ * it reopens ADCode; an AppImage starts the new copy at once, straight into the
+ * single-instance lock, so there it installs as ADCode closes instead.
+ */
+const restartOffered = (): boolean => process.platform === "win32";
 
 function describe(message: unknown): string {
   return message instanceof Error ? (message.stack ?? message.message) : String(message);
@@ -89,6 +97,7 @@ function updatable(): boolean {
     packaged: app.isPackaged,
     disabled: process.env["ADCODE_DISABLE_UPDATES"] === "1",
     windowsStore: runningFromWindowsStore(),
+    portable: process.env["PORTABLE_EXECUTABLE_DIR"] !== undefined,
   });
 }
 
@@ -140,7 +149,7 @@ function startSimulation(): void {
     { state: "downloading", version: "9.9.9" },
     { state: "downloading", percent: 42 },
     { state: "downloading", percent: 100 },
-    { state: "ready", version: "9.9.9" },
+    { state: "ready", version: "9.9.9", restartable: true },
   ];
   requestCheck = async () => {
     if (status.state === "ready") return;
@@ -189,7 +198,9 @@ async function initializeAutoUpdate(enabled: () => boolean): Promise<void> {
   updater.on("download-progress", (progress) =>
     setStatus({ state: "downloading", percent: Math.round(progress.percent) }),
   );
-  updater.on("update-downloaded", (info) => setStatus({ state: "ready", version: info.version }));
+  updater.on("update-downloaded", (info) =>
+    setStatus({ state: "ready", version: info.version, restartable: restartOffered() }),
+  );
   updater.on("error", (error) => {
     // No dialog: a failed check is not the user's problem to solve. The log keeps why.
     updaterLog.error(error);
@@ -229,10 +240,18 @@ export async function checkForUpdatesNow(): Promise<UpdateStatus> {
   return status;
 }
 
-/** Restart into the downloaded update, once every unsaved draft is on disk. */
+/**
+ * Restart into the downloaded update, once every unsaved draft is on disk - and only once.
+ *
+ * A second quitAndInstall makes electron-updater clear its "already installing" flag, and
+ * its quit handler then installs a second time; on an AppImage that second install deletes
+ * the app it just put in place. So the first request wins and every later one only
+ * reports the status.
+ */
 async function restartToUpdate(): Promise<UpdateStatus> {
   if (initialization !== null) await initialization;
-  if (status.state !== "ready" || installNow === null) return status;
+  if (restartRequested || status.state !== "ready" || status.restartable !== true || installNow === null) return status;
+  restartRequested = true;
   await draftWritesSettled();
   updaterLog.info(`restart to install ${status.version}`);
   installNow();

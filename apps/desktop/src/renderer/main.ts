@@ -4768,6 +4768,10 @@ const updatePrompt = createUpdatePrompt({
   statusItem: el("status-update") as HTMLButtonElement,
   notifications,
   flushDrafts: draftUnsavedTabs,
+  unsavedWithoutRecovery: () =>
+    settingsValues["adcode.session.crashRecovery"] === false
+      ? tabs.filter((tab) => !editorHost.isReadOnly(tab.path) && editorHost.isDirty(tab.path)).length
+      : 0,
 });
 
 /*

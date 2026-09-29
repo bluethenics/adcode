@@ -1685,13 +1685,13 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "Leave it on, which is the default. New versions download in the background while you work.",
       "Watch the status bar: it shows Updating with a percentage, then Restart to update when the new version is ready.",
-      "Choose Restart now on the card, or click Restart to update. ADCode keeps anything unsaved, installs, and reopens by itself.",
+      "On Windows, choose Restart now on the card, or click Restart to update. ADCode keeps anything unsaved, installs, and reopens by itself. On Linux, the update installs when you close ADCode.",
       "Or keep working - the update installs the next time you close ADCode.",
       "Help → Check for Updates asks straight away; turn the setting off to update by hand.",
     ],
     benefits: [
       "You always know when a new version is waiting, without a dialog in your way.",
-      "An update never costs you an unsaved buffer: it is kept as a recovery draft and offered back after the restart.",
+      "An update never costs you an unsaved buffer: it is kept as a recovery draft and offered back after the restart - and with crash recovery off, ADCode asks you to save first.",
       "If an update fails, the reason is in the log Help → Report a Problem sends.",
       "Whichever way you installed ADCode, only one thing is ever updating it.",
     ],

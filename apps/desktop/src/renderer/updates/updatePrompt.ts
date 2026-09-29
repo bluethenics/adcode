@@ -8,7 +8,7 @@
  */
 import type { UpdateStatus } from "../../shared/api.ts";
 import type { NotificationCentre } from "../notifications/notifications.ts";
-import { readyNoticeDue, updateView } from "./updateView.ts";
+import { readyNoticeDue, restartBlocked, updateView } from "./updateView.ts";
 
 /** A keystroke counts as "still typing" for this long afterwards. */
 const TYPING_WINDOW_MS = 4_000;
@@ -20,6 +20,8 @@ export interface UpdatePromptDeps {
   readonly notifications: NotificationCentre;
   /** Write a recovery draft for every unsaved buffer, before the restart. */
   readonly flushDrafts: () => void;
+  /** Unsaved buffers that would get no recovery draft - crash recovery switched off. */
+  readonly unsavedWithoutRecovery: () => number;
 }
 
 export interface UpdatePrompt {
@@ -29,6 +31,7 @@ export interface UpdatePrompt {
 
 export function createUpdatePrompt(deps: UpdatePromptDeps): UpdatePrompt {
   let status: UpdateStatus = { state: "idle" };
+  let restarting = false;
   let lastKeyAt = 0;
   let retry: number | null = null;
   const shown = new Set<string>();
@@ -42,14 +45,22 @@ export function createUpdatePrompt(deps: UpdatePromptDeps): UpdatePrompt {
   );
 
   const restart = async (): Promise<boolean> => {
-    if (status.state !== "ready") return false;
+    if (status.state !== "ready" || status.restartable !== true || restarting) return false;
+    const blocked = restartBlocked(deps.unsavedWithoutRecovery());
+    if (blocked !== null) {
+      deps.notifications.show({ title: "Save before restarting", body: blocked, tone: "warning", autoDismissMs: 8000 });
+      return false;
+    }
+    // One restart: a second request would make the updater install twice.
+    restarting = true;
+    draw();
     deps.flushDrafts();
     const after = await window.adcode.updates.install().catch(() => null);
     return after?.state === "ready";
   };
 
   const draw = (): void => {
-    const view = updateView(status);
+    const view = updateView(status, { restarting });
     deps.statusItem.hidden = view.label === null;
     deps.statusItem.textContent = view.label ?? "";
     deps.statusItem.title = view.title;
@@ -74,15 +85,19 @@ export function createUpdatePrompt(deps: UpdatePromptDeps): UpdatePrompt {
 
     shown.add(version);
     if (!(await window.adcode.updates.claimNotice(version).catch(() => false))) return;
-    deps.notifications.show({
-      title: `ADCode ${version} is ready`,
-      body: "Restart to finish updating. Anything unsaved is offered back when ADCode reopens.",
-      actions: [
-        { label: "Restart now", run: () => void restart() },
-        // The card closes itself; the update still installs when ADCode is next closed.
-        { label: "Later", run: () => undefined },
-      ],
-    });
+    if (status.state === "ready" && status.restartable === true) {
+      deps.notifications.show({
+        title: `ADCode ${version} is ready`,
+        body: "Restart to finish updating. Anything unsaved is offered back when ADCode reopens.",
+        actions: [
+          { label: "Restart now", run: () => void restart() },
+          // The card closes itself; the update still installs when ADCode is next closed.
+          { label: "Later", run: () => undefined },
+        ],
+      });
+    } else {
+      deps.notifications.show({ title: `ADCode ${version} is ready`, body: "It installs the next time you close ADCode." });
+    }
   };
 
   const apply = (next: UpdateStatus): void => {

@@ -23,6 +23,12 @@ export interface UpdateEnvironment {
    * cannot terminate.
    */
   readonly windowsStore: boolean;
+  /**
+   * `PORTABLE_EXECUTABLE_DIR` - set by electron-builder's portable launcher. The portable
+   * build unpacks to a temporary folder on every run and has no install to update, so
+   * electron-updater would install a second, ordinary copy of ADCode as it closed.
+   */
+  readonly portable: boolean;
 }
 
 /**
@@ -35,6 +41,7 @@ export function canSelfUpdate(environment: UpdateEnvironment): boolean {
   if (!environment.packaged) return false;
   if (environment.disabled) return false;
   if (environment.windowsStore) return false;
+  if (environment.portable) return false;
   return true;
 }
 

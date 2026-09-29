@@ -5,6 +5,7 @@ const environment = (overrides: Partial<Parameters<typeof canSelfUpdate>[0]> = {
   packaged: true,
   disabled: false,
   windowsStore: false,
+  portable: false,
   ...overrides,
 });
 
@@ -34,7 +35,12 @@ describe("canSelfUpdate", () => {
   });
 
   it("stands down for the Store even when everything else says go", () => {
-    expect(canSelfUpdate({ packaged: true, disabled: false, windowsStore: true })).toBe(false);
+    expect(canSelfUpdate({ packaged: true, disabled: false, windowsStore: true, portable: false })).toBe(false);
+  });
+
+  /* A portable build has no install to update: electron-updater would install a second copy. */
+  it("stands down in the portable build", () => {
+    expect(canSelfUpdate(environment({ portable: true }))).toBe(false);
   });
 });
 

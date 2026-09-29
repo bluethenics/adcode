@@ -57,12 +57,23 @@ async function fresh(): Promise<typeof import("../src/main/autoUpdate.ts")> {
 
 const call = (name: string, ...args: unknown[]): unknown => mock.handlers.get(name)?.({}, ...args);
 
+// Restart-now is decided per platform, so every case says which one it is on.
+const realPlatform = process.platform;
+const setPlatform = (value: string): void => {
+  Object.defineProperty(process, "platform", { value, configurable: true });
+};
+
 beforeEach(() => {
   mock.packaged = true;
   delete process.env["ADCODE_UPDATE_SIMULATE"];
+  delete process.env["PORTABLE_EXECUTABLE_DIR"];
+  setPlatform("win32");
 });
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  setPlatform(realPlatform);
+});
 
 describe("manual update check", () => {
   it("checks even with automatic updates off and reports an already downloaded update", async () => {
@@ -72,11 +83,11 @@ describe("manual update check", () => {
     await startAutoUpdate(() => false);
 
     expect(await call("update:status")).toEqual({ state: "idle" });
-    expect(await call("update:check")).toEqual({ state: "ready", version: "1.0.3" });
+    expect(await call("update:check")).toEqual({ state: "ready", version: "1.0.3", restartable: true });
     expect(mock.checkCalls).toBe(1);
 
     // A second menu click must report the pending update, not start a new download.
-    expect(await call("update:check")).toEqual({ state: "ready", version: "1.0.3" });
+    expect(await call("update:check")).toEqual({ state: "ready", version: "1.0.3", restartable: true });
     expect(mock.checkCalls).toBe(1);
   });
 });
@@ -111,8 +122,49 @@ describe("restart to update", () => {
     await startAutoUpdate(() => false);
     await call("update:check");
 
-    expect(await call("update:install")).toEqual({ state: "ready", version: "1.0.3" });
+    expect(await call("update:install")).toEqual({ state: "ready", version: "1.0.3", restartable: true });
     expect(mock.quitAndInstall).toEqual([[true, true]]);
+  });
+});
+
+describe("restart to update, asked more than once", () => {
+  /*
+   * A second quitAndInstall makes electron-updater clear its "already installing" flag, so
+   * the quit handler installs again - on an AppImage that second install deletes the app.
+   */
+  it("restarts once, however many times it is asked", async () => {
+    const { registerUpdateIpc, startAutoUpdate } = await fresh();
+    registerUpdateIpc();
+    await startAutoUpdate(() => false);
+    await call("update:check");
+
+    await Promise.all([call("update:install"), call("update:install")]);
+    await call("update:install");
+    expect(mock.quitAndInstall).toEqual([[true, true]]);
+  });
+});
+
+describe("where restart-now is offered", () => {
+  it("never restarts on Linux: the update installs when ADCode closes", async () => {
+    setPlatform("linux");
+    const { registerUpdateIpc, startAutoUpdate } = await fresh();
+    registerUpdateIpc();
+    await startAutoUpdate(() => false);
+
+    expect(await call("update:check")).toEqual({ state: "ready", version: "1.0.3", restartable: false });
+    await call("update:install");
+    expect(mock.quitAndInstall).toEqual([]);
+  });
+
+  /* The portable build has no installer to update; electron-updater would install a second copy. */
+  it("stands down entirely in the portable build", async () => {
+    process.env["PORTABLE_EXECUTABLE_DIR"] = "C:\Tools\ADCode";
+    const { registerUpdateIpc, startAutoUpdate } = await fresh();
+    registerUpdateIpc();
+    await startAutoUpdate(() => true);
+
+    expect(await call("update:check")).toEqual({ state: "unsupported" });
+    expect(mock.checkCalls).toBe(0);
   });
 });
 
@@ -139,8 +191,8 @@ describe("smoke simulation", () => {
     registerUpdateIpc();
     await startAutoUpdate(() => true);
 
-    expect(await call("update:check")).toEqual({ state: "ready", version: "9.9.9" });
-    expect(await call("update:install")).toEqual({ state: "ready", version: "9.9.9" });
+    expect(await call("update:check")).toEqual({ state: "ready", version: "9.9.9", restartable: true });
+    expect(await call("update:install")).toEqual({ state: "ready", version: "9.9.9", restartable: true });
     expect(mock.quitAndInstall).toEqual([]);
   });
 
@@ -150,6 +202,6 @@ describe("smoke simulation", () => {
     registerUpdateIpc();
     await startAutoUpdate(() => false);
 
-    expect(await call("update:check")).toEqual({ state: "ready", version: "1.0.3" });
+    expect(await call("update:check")).toEqual({ state: "ready", version: "1.0.3", restartable: true });
   });
 });

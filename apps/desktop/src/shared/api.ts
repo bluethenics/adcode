@@ -178,7 +178,16 @@ export interface ReleaseAnnouncement {
 export type UpdateStatus =
   | { readonly state: "idle" | "checking" | "current" | "failed" | "unsupported" }
   | { readonly state: "downloading"; readonly version?: string; readonly percent?: number }
-  | { readonly state: "ready"; readonly version: string };
+  | {
+      readonly state: "ready";
+      readonly version: string;
+      /**
+       * Whether "Restart now" is offered. Windows only: its installer waits for the old
+       * process before reopening, while an AppImage relaunches at once into ADCode's own
+       * single-instance lock. Elsewhere the update installs when ADCode is closed.
+       */
+      readonly restartable?: boolean;
+    };
 
 export interface AppInfo {
   readonly version: string;
