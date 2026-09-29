@@ -44,6 +44,7 @@ import {
   recordDraft,
   recoverableDrafts,
 } from "./history.ts";
+import { trackDraftWrite } from "./draftWrites.ts";
 import {
   currentDebugState,
   debugBreakpoints,
@@ -446,7 +447,8 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
   ipcMain.handle(CHANNELS.historyDrafts, () => recoverableDrafts());
 
   ipcMain.on(CHANNELS.historyDraft, (_event, path: unknown, text: unknown) => {
-    if (typeof path === "string" && typeof text === "string") void recordDraft(path, text);
+    // Tracked so a restart for an update can wait for it to reach disk (see draftWrites.ts).
+    if (typeof path === "string" && typeof text === "string") trackDraftWrite(recordDraft(path, text));
   });
 
   ipcMain.on(CHANNELS.historyClearDraft, (_event, path: unknown) => {
