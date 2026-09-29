@@ -128,7 +128,8 @@ export function createTimeline(stage, scenes, settings) {
     render(t) {
       for (const scene of scenes) {
         const live = t >= scene.from && t < scene.to;
-        scene.root.style.visibility = live ? "visible" : "hidden";
+        // display, not visibility: a child set visible would show through a hidden parent.
+        scene.root.style.display = live ? "block" : "none";
         if (live) scene.draw(t);
       }
     },
