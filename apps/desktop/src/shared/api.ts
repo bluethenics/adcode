@@ -703,6 +703,8 @@ export const CHANNELS = {
   pinPromptPin: "pin:pin",
   updateStatus: "update:status",
   updateCheck: "update:check",
+  updateInstall: "update:install",
+  updateClaimNotice: "update:claim-notice",
   serviceNotice: "notice:show",
   releaseAnnouncement: "release:announcement",
   releaseMarkSeen: "release:mark-seen",
@@ -1960,6 +1962,10 @@ export interface AdcodeApi {
     status(): Promise<UpdateStatus>;
     check(): Promise<UpdateStatus>;
     onChanged(listener: (status: UpdateStatus) => void): () => void;
+    /** Restart into a downloaded update. Does nothing, and resolves the status, unless it is `ready`. */
+    install(): Promise<UpdateStatus>;
+    /** True for the first window to ask about this ready version; false for every later ask. */
+    claimNotice(version: string): Promise<boolean>;
   };
   readonly support: {
     /** Never rejects: a failure comes back as `{ ok: false, message }` to show the user. */

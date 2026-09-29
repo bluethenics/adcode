@@ -300,6 +300,8 @@ const api: AdcodeApi = {
     status: () => ipcRenderer.invoke(CHANNELS.updateStatus),
     check: () => ipcRenderer.invoke(CHANNELS.updateCheck),
     onChanged: (listener) => subscribe(CHANNELS.updateChanged, listener),
+    install: () => ipcRenderer.invoke(CHANNELS.updateInstall),
+    claimNotice: (version) => ipcRenderer.invoke(CHANNELS.updateClaimNotice, version),
   },
   support: {
     submitReport: (input) => ipcRenderer.invoke(CHANNELS.supportSubmitReport, input),
