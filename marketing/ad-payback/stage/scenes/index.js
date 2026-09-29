@@ -1,4 +1,5 @@
 /** The film, in running order. Later scenes draw on top of earlier ones. */
-import { placeholder } from "./placeholder.js";
+import { flip } from "./flip.js";
+import { hook } from "./hook.js";
 
-export const SCENES = [placeholder];
+export const SCENES = [hook, flip];
