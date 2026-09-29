@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canSelfUpdate, runningFromWindowsStore } from "../src/main/updatePolicy.ts";
+import { blockMapFitsInstaller, canSelfUpdate, runningFromWindowsStore } from "../src/main/updatePolicy.ts";
 
 const environment = (overrides: Partial<Parameters<typeof canSelfUpdate>[0]> = {}) => ({
   packaged: true,
@@ -54,5 +54,46 @@ describe("runningFromWindowsStore", () => {
   /* A truthy string must not be mistaken for the flag; only the boolean counts. */
   it("does not accept a truthy impostor", () => {
     expect(runningFromWindowsStore({ windowsStore: "yes" } as unknown as NodeJS.Process)).toBe(false);
+  });
+});
+
+describe("blockMapFitsInstaller", () => {
+  const map = (...sizes: number[][]) => ({
+    version: "2",
+    files: sizes.map((blocks) => ({ name: "file", offset: 0, sizes: blocks })),
+  });
+
+  it("accepts a blockmap whose blocks add up to the installer", () => {
+    expect(blockMapFitsInstaller(map([100, 200, 50]), 350)).toBe(true);
+  });
+
+  /*
+   * The bug this exists for: a manual install rewrote installer.exe but left the blockmap of
+   * the version the updater downloaded before it. These two sizes are real - the 2.1.0 and
+   * 2.0.0 installers - and the differential download built from the pair failed its checksum.
+   */
+  it("rejects a blockmap for a different installer", () => {
+    expect(blockMapFitsInstaller(map([115_664_780]), 115_582_018)).toBe(false);
+  });
+
+  it("rejects anything that is not a blockmap", () => {
+    const impostors: unknown[] = [
+      null,
+      undefined,
+      42,
+      "blockmap",
+      {},
+      { files: [] },
+      { files: [{}] },
+      { files: [{ sizes: [1, "2"] }] },
+      { files: [{ sizes: [-1, 2] }] },
+      { files: [{ sizes: [1.5] }] },
+    ];
+    for (const impostor of impostors) expect(blockMapFitsInstaller(impostor, 1)).toBe(false);
+  });
+
+  it("rejects an empty or impossible installer size", () => {
+    expect(blockMapFitsInstaller(map([0]), 0)).toBe(false);
+    expect(blockMapFitsInstaller(map([10]), Number.NaN)).toBe(false);
   });
 });

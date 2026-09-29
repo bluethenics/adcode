@@ -48,3 +48,32 @@ export function canSelfUpdate(environment: UpdateEnvironment): boolean {
 export function runningFromWindowsStore(candidate: NodeJS.Process = process): boolean {
   return (candidate as NodeJS.Process & { windowsStore?: boolean }).windowsStore === true;
 }
+
+/**
+ * Whether a cached blockmap describes the installer sitting beside it.
+ *
+ * electron-updater 6.8 reads the "old" blockmap for a differential download from its cache
+ * (`current.blockmap`) before trying the release. The NSIS installer rewrites
+ * `installer.exe` on every install but never that file, so after a manual install - or an
+ * update that downloaded and was never applied - the two describe different builds, the
+ * rebuilt installer fails its checksum, and every update falls back to the full download.
+ * A blockmap's block sizes add up to the exact byte size of the file it maps, which makes
+ * the mismatch cheap to see.
+ */
+export function blockMapFitsInstaller(blockMap: unknown, installerBytes: number): boolean {
+  if (!Number.isInteger(installerBytes) || installerBytes <= 0) return false;
+  if (typeof blockMap !== "object" || blockMap === null) return false;
+  const files = (blockMap as { files?: unknown }).files;
+  if (!Array.isArray(files) || files.length === 0) return false;
+
+  let total = 0;
+  for (const file of files) {
+    const sizes = (file as { sizes?: unknown } | null)?.sizes;
+    if (!Array.isArray(sizes)) return false;
+    for (const size of sizes) {
+      if (typeof size !== "number" || !Number.isInteger(size) || size < 0) return false;
+      total += size;
+    }
+  }
+  return total === installerBytes;
+}
