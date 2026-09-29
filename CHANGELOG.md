@@ -3,6 +3,25 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.1.1 — 2026-09-29
+
+- Updates you can see: while a new version downloads, the status bar shows its progress;
+  when it is ready it reads Restart to update, and one quiet card offers Restart now or
+  Later - once per version, never while you are typing, and in one window only.
+- Restart now writes a recovery draft for anything unsaved first, installs silently and
+  reopens ADCode. Later, or ignoring it, installs the update when you next close ADCode.
+  Restart to Update is also a command, and the Feature library finds it.
+- The first update check runs 10 seconds after launch instead of 45, so a short session
+  still finishes the download.
+- Small updates work again after a manual install: a cached blockmap that no longer
+  matched the installed version sent every update down the full 115 MB path. ADCode now
+  notices the mismatch and lets the updater fetch the right one.
+- Why an update failed is now recorded in the debug log that Help > Report a Problem
+  sends, instead of being thrown away.
+
+Known limitations: macOS builds remain unsupported, and the portable build still does not
+update itself.
+
 ## 2.1.0 — 2026-09-28
 
 - Agents page: every run is a box on a board - Needs you, Working, Ready - with its
