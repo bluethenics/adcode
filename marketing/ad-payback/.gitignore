@@ -1,0 +1,4 @@
+# Fetched by fetch-tools.mjs: ffmpeg and the three font families.
+.tools/
+# Rendered frames, audio and videos.
+out/

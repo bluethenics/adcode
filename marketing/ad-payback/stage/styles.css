@@ -1,0 +1,82 @@
+/*
+ * The Payback ad. Brand monochrome, and one rule that carries the film: the only colour is
+ * money. Green appears for the $, the 50% and the flow of money - never anywhere else.
+ */
+:root {
+  --ink: #050505;
+  --panel: #101010;
+  --panel-2: #161616;
+  --panel-3: #1d1d1d;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.14);
+  --text: #ecebe6;
+  --text-2: #9d9b95;
+  --text-3: #5f5d59;
+  --money: #30d158;
+  --money-glow: rgba(48, 209, 88, 0.55);
+  --display: "Inter Tight", system-ui, sans-serif;
+  --ui: "Inter", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 1080px;
+  height: 1080px;
+  overflow: hidden;
+  background: var(--ink);
+}
+
+body {
+  font-family: var(--ui);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+#stage {
+  position: relative;
+  width: 1080px;
+  height: 1080px;
+  overflow: hidden;
+  background: var(--ink);
+}
+
+.scene {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+}
+
+.word { display: inline-block; }
+
+/* ── Captions: the words of each beat, top-left, big ─────────────────── */
+.caption {
+  position: absolute;
+  left: 72px;
+  top: 76px;
+  font: 800 84px/0.98 var(--display);
+  letter-spacing: -0.035em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* ── Placeholder (pipeline check only) ───────────────────────────────── */
+.placeholder-time {
+  position: absolute;
+  left: 72px;
+  top: 360px;
+  font: 900 220px/1 var(--display);
+  letter-spacing: -0.04em;
+}
+
+.placeholder-bar {
+  position: absolute;
+  left: 72px;
+  top: 700px;
+  width: 200px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--money);
+}
