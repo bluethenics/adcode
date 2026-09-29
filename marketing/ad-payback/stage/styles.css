@@ -103,7 +103,7 @@ body {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(5, 5, 5, 0.9) 0%, rgba(5, 5, 5, 0.25) 26%, rgba(5, 5, 5, 0.35) 48%, rgba(5, 5, 5, 0.94) 72%, #050505 100%);
+    linear-gradient(180deg, rgba(5, 5, 5, 0.96) 0%, rgba(5, 5, 5, 0.6) 15%, rgba(5, 5, 5, 0.18) 32%, rgba(5, 5, 5, 0.5) 48%, rgba(5, 5, 5, 0.97) 60%, #050505 100%);
 }
 .hook-clock {
   position: absolute;
@@ -112,6 +112,10 @@ body {
   display: flex;
   align-items: center;
   gap: 20px;
+  padding: 12px 18px;
+  margin: -12px 0 0 -18px;
+  border-radius: 12px;
+  background: rgba(5, 5, 5, 0.9);
   font: 500 32px/1 var(--mono);
   letter-spacing: 0.02em;
   color: var(--text);
