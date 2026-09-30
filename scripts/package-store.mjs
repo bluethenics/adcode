@@ -105,6 +105,10 @@ if (build !== 0) {
   process.exit(build);
 }
 
+// The licences of everything just bundled, staged where electron-builder picks them up.
+const notices = await run(process.execPath, [join(REPO, "scripts", "third-party-notices.mjs")]);
+if (notices !== 0) process.exit(notices);
+
 const output = releaseDirectory(REPO);
 process.stdout.write(`\nPackaging for the Microsoft Store into ${output}...\n`);
 

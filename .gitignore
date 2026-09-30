@@ -19,6 +19,9 @@ apps/desktop/out/
 # Progress log from `npm run icons`; the icons themselves are committed.
 build/icons.log
 
+# Licence files staged for the installer by scripts/third-party-notices.mjs.
+build/licenses/
+
 # Next.js build output
 apps/web/.next/
 apps/web/out/

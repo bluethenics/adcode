@@ -106,3 +106,14 @@ describe("README", () => {
     expect(readme).toContain("npm run verify");
   });
 });
+
+describe("licences in the installer", () => {
+  it("stages and ships the licence directory", () => {
+    const builder = read("electron-builder.yml");
+    expect(builder).toMatch(/extraResources:\s*\n\s*- from: build\/licenses\s*\n\s*to: licenses/);
+    for (const script of ["scripts/package.mjs", "scripts/package-store.mjs"]) {
+      expect(read(script), script).toContain("third-party-notices.mjs");
+    }
+    expect(read(".gitignore")).toContain("build/licenses/");
+  });
+});

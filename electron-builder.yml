@@ -55,6 +55,14 @@ asarUnpack:
   # For our root node_modules mapping that removes node_modules/ from the match path.
   - "**/node-pty/**"
 
+# The licence, the notice and the third-party notices, beside the app rather than inside
+# the asar, so they can be read without unpacking anything. Apache-2.0 section 4 requires
+# the licence to travel with the binary. `scripts/third-party-notices.mjs` stages this
+# directory, and `main/licencePaths.ts` reads it back for Help > Open Source Licences.
+extraResources:
+  - from: build/licenses
+    to: licenses
+
 # Electron fuses: flags flipped in the binary itself, so they cannot be turned back on by
 # an environment variable or a command-line argument.
 #
