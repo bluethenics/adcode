@@ -26,7 +26,7 @@ const escape = (raw: string): string =>
 const rfc822 = (iso: string): string => new Date(`${iso}T00:00:00Z`).toUTCString();
 
 export async function GET(): Promise<Response> {
-  const posts = (await allPosts({ surface: "docs" })).map((post) => ({
+  const posts = (await allPosts()).map((post) => ({
     title: post.title,
     link: url(`/docs/${post.slug}`),
     description: post.description,

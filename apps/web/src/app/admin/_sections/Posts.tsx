@@ -130,12 +130,8 @@ export function BlogBody() {
       return;
     }
 
-    const where = [
-      showsOnBlog(draft.surface) ? `/blog/${slug}` : null,
-      showsInDocs(draft.surface) ? `/docs/${slug}` : null,
-    ]
-      .filter((one) => one !== null)
-      .join(" and ");
+    // Every page lives at /docs/<slug>; /blog/<slug> is a permanent redirect there.
+    const where = `/docs/${slug}`;
 
     setSaved(status === "published" ? `Published at ${where}` : "Saved as a draft.");
     setDraft(EMPTY);
@@ -195,7 +191,7 @@ export function BlogBody() {
           <div className="field">
             <label htmlFor="p-slug">Web address</label>
             <span className="field-hint">
-              /blog/{slugTouched ? draft.slug || "…" : slugify(draft.title) || "…"} — lowercase
+              /docs/{slugTouched ? draft.slug || "…" : slugify(draft.title) || "…"} — lowercase
               letters, numbers and hyphens.
             </span>
             <input
@@ -213,7 +209,7 @@ export function BlogBody() {
           <div className="field">
             <label htmlFor="p-desc">Summary</label>
             <span className="field-hint">
-              Shown on the blog index and to search engines. Falls back to the title.
+              Shown in the docs, the feed and to search engines. Falls back to the title.
             </span>
             <input
               id="p-desc"
@@ -252,8 +248,8 @@ export function BlogBody() {
                 }
               />
               <span>
-                <strong>Blog.</strong> Listed newest-first at /blog, with a date and a
-                reading time. For writing that is worth reading once.
+                <strong>Blog.</strong> Dated, in the RSS feed, and at /docs/&lt;address&gt; like
+                every page - old /blog links redirect there. For writing worth reading once.
               </span>
             </label>
 
@@ -349,12 +345,7 @@ export function BlogBody() {
                       <span className="pill" data-tone={post.status === "published" ? "live" : "paused"}>
                         {post.status === "published" ? "Live" : "Draft"}
                       </span>{" "}
-                      {[
-                        showsOnBlog(post.surface ?? "blog") ? `/blog/${post.slug}` : null,
-                        showsInDocs(post.surface ?? "blog") ? `/docs/${post.slug}` : null,
-                      ]
-                        .filter((one) => one !== null)
-                        .join(" · ")}{" "}
+                      {`/docs/${post.slug}`}{" "}
                       · edited {when(post.updatedAt)}
                     </span>
                   </span>

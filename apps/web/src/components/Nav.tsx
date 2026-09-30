@@ -53,6 +53,19 @@ export function Nav() {
       >
         Docs
       </Link>
+      {/*
+        The comparison pages are the ones written to win "<editor> alternative" searches,
+        and a footer link was their only way in - Search Console had every one of them as
+        "discovered, not crawled". A link from every page's nav is the signal that says they
+        matter.
+      */}
+      <Link
+        href="/compare"
+        className="glass-nav-link"
+        aria-current={pathname === "/compare" || pathname.startsWith("/compare/") ? "page" : undefined}
+      >
+        Compare
+      </Link>
       <Link href="/support" className="glass-nav-link" aria-current={pathname === "/support" ? "page" : undefined}>Support</Link>
       <Link href="/versions" className="glass-nav-link" aria-current={pathname === "/versions" ? "page" : undefined}>Install</Link>
       {isAdmin && <Link href="/admin" className="glass-nav-link">Admin</Link>}

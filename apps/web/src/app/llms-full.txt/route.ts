@@ -26,7 +26,7 @@ const rule = "\n\n---\n\n";
 
 export async function GET(): Promise<Response> {
   const sections = await docsBySection();
-  const posts = await allPosts({ surface: "docs" });
+  const posts = await allPosts();
   const releases = await allReleases();
 
   const docs = sections

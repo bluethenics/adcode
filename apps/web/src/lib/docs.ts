@@ -165,7 +165,12 @@ const fromPost = (post: Post): DocPage => ({
 export async function allDocs(): Promise<DocPage[]> {
   const pages = new Map(seeded().map((page) => [page.slug, page]));
 
-  for (const post of await allPosts({ surface: "docs" })) {
+  /*
+   * Every post, whatever its surface. There is no blog index any more - `/blog/<slug>`
+   * redirects permanently to `/docs/<slug>` - so a post marked blog-only that the docs
+   * left out would be a published page whose only address is a 404.
+   */
+  for (const post of await allPosts()) {
     pages.set(post.slug, fromPost(post));
   }
 

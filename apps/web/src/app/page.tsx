@@ -8,6 +8,7 @@ import Link from "next/link";
 import { HomeFaq } from "@/components/HomeFaq";
 import { JsonLd } from "@/components/JsonLd";
 import { FAQ, faqPage } from "@/lib/schema";
+import { comparisons, landingPath } from "@/lib/landings";
 import { pageMetadata } from "@/lib/seo";
 import { SITE } from "@/lib/site";
 
@@ -66,6 +67,16 @@ export default function Home() {
       <article><span className="feature-symbol" aria-hidden="true">⌘</span><span className="feature-number">02 / CRAFT</span><h3>Stay in flow.<br />Ship what matters.</h3><p>Monaco editing, real terminals, and integrated Git. The tools you reach for, together where you need them.</p><Link href="/free-ai-code-editor">Meet your new editor <span aria-hidden="true">↗</span></Link></article>
       <article><span className="feature-symbol" aria-hidden="true">↗</span><span className="feature-number">03 / YOUR SHARE</span><h3>Your attention.<br />Something in return.</h3><p>An occasional sponsored card keeps the editor free. Half of the ad revenue is credited to you, with every event itemized.</p><Link href="/earn-while-you-code">How earnings work <span aria-hidden="true">↗</span></Link></article>
       </div>
+      {/* The homepage is the most-linked page on the site; what it links to, a crawler visits first. */}
+      <p className="product-compare">
+        Switching from something else? See how ADCode compares with{" "}
+        {comparisons().map((page, index, all) => (
+          <span key={page.slug}>
+            <Link href={landingPath(page)}>{page.comparison?.subject.replace(/ \(formerly .*\)$/, "")}</Link>
+            {index < all.length - 2 ? ", " : index === all.length - 2 ? " and " : "."}
+          </span>
+        ))}
+      </p>
       </section>
 
       <section className="marketplace-bid" id="advertise">

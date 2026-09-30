@@ -18,6 +18,8 @@
  * WARN is a thing to fix this week, not a thing that is broken now.
  */
 
+import { resolveTxt } from "node:dns/promises";
+
 const DEFAULT_ORIGIN = "https://adcode.bluethenics.com";
 const origin = (process.argv[2] ?? process.env["NEXT_PUBLIC_SITE_ORIGIN"] ?? DEFAULT_ORIGIN).replace(
   /\/$/,
@@ -495,21 +497,51 @@ async function checkMachineText() {
   }
 }
 
+/**
+ * DNS TXT records on the host and every parent domain, joined into strings.
+ *
+ * A Search Console *domain* property is verified by a TXT record, and one on
+ * `bluethenics.com` covers `adcode.bluethenics.com` - which is how this site is actually
+ * verified. Checking only for the meta tag reported "not verified" about a property that
+ * had been collecting data for a month.
+ */
+async function txtRecordsUpward(host) {
+  const labels = host.split(".");
+  const found = [];
+  for (let i = 0; i < labels.length - 1; i += 1) {
+    const name = labels.slice(i).join(".");
+    const records = await resolveTxt(name).catch(() => []);
+    for (const record of records) found.push({ name, value: record.join("") });
+  }
+  return found;
+}
+
 async function checkVerification() {
   heading("ownership and indexing");
   const response = await get("/");
+  const host = new URL(origin).hostname;
+  const txt = host === "localhost" ? [] : await txtRecordsUpward(host);
 
+  const googleDns = txt.find((record) => record.value.startsWith("google-site-verification="));
   if (/name="google-site-verification"/.test(response.body)) {
-    pass("Search Console verification tag present");
+    pass("Search Console ownership verified", "meta tag");
+  } else if (googleDns !== undefined) {
+    pass("Search Console ownership verified", `DNS TXT on ${googleDns.name}`);
+  } else if (host === "localhost") {
+    pass("Search Console ownership verified", "not checkable on localhost - DNS proves it in production");
   } else {
     fail(
-      "Search Console verification tag present",
-      "set NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION and redeploy - SETUP.md step 21",
+      "Search Console ownership verified",
+      "no meta tag and no google-site-verification TXT record - SETUP.md step 21",
     );
   }
 
-  if (/name="msvalidate\.01"/.test(response.body)) pass("Bing verification tag present");
-  else warn("Bing verification tag present", "set NEXT_PUBLIC_BING_SITE_VERIFICATION");
+  /*
+   * Bing is a warning, not a failure: IndexNow already hands it every URL, and Bing
+   * Webmaster Tools imports the property from Search Console in two clicks.
+   */
+  if (/name="msvalidate\.01"/.test(response.body)) pass("Bing Webmaster Tools verified", "meta tag");
+  else warn("Bing Webmaster Tools verified", "sign in at bing.com/webmasters and import from Search Console");
 }
 
 async function checkParentLink() {

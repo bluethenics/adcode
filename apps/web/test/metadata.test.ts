@@ -187,6 +187,32 @@ describe("retired routes", () => {
   });
 });
 
+describe("where a post written in the admin panel ends up", () => {
+  it("gives a blog-only post a real page, since /blog/<slug> redirects to /docs/<slug>", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json({
+          posts: [
+            {
+              slug: "a-blog-only-note",
+              title: "A blog-only note",
+              description: "Written for the blog surface alone.",
+              body: "Hello.",
+              surface: "blog",
+              publishedAt: Date.UTC(2026, 8, 30),
+              updatedAt: Date.UTC(2026, 8, 30),
+            },
+          ],
+        }),
+      ),
+    );
+
+    const docs = await allDocs();
+    expect(docs.map((page) => page.slug)).toContain("a-blog-only-note");
+  });
+});
+
 describe("claims the structured data makes", () => {
   it("names only the operating systems that can actually install today", () => {
     const os = String(softwareApplication()["operatingSystem"]);
