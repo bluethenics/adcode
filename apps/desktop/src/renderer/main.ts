@@ -4745,7 +4745,7 @@ function openIndependentConnect(input: LayoutInput): void {
  * Everything in the renderer that remembers something per folder.
  *
  * One function rather than a call per widget at each of the three places the open folder
- * changes - opening one, restoring a session on launch, and closing one. The README already
+ * changes - opening one, restoring a session on launch, and closing one. docs/STATUS.md already
  * records what happens when a notification like this lives at its call sites instead: the
  * route nobody thinks about is session restore, because no user action triggers it, so the
  * feature works perfectly when you open a folder by hand and is broken on every launch after
@@ -5085,7 +5085,7 @@ async function boot(): Promise<void> {
    *
    * Session restore is the route that gets forgotten - no user action triggers it - so the
    * create buttons stayed greyed out and the welcome screen kept an empty recents list on every
-   * launch after the first, which is the ordinary case. The README records this exact shape of
+   * launch after the first, which is the ordinary case. docs/STATUS.md records this exact shape of
    * bug about language servers; it is the same one.
    */
   syncRootCreateButtons();

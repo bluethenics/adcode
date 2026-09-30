@@ -52,7 +52,7 @@ export async function openWorkspace(): Promise<OpenedWorkspace | null> {
  * function used to do, and it meant the notification never fired on the commonest route of all:
  * opening a folder by hand. Language servers are per-workspace and subscribe to that
  * notification, so they kept indexing the previous project - and a live session kept sharing
- * documents backed by a folder the host had moved away from. The README records the mirror
+ * documents backed by a folder the host had moved away from. docs/STATUS.md records the mirror
  * image of this bug, where session restore was the route that got missed; the lesson was
  * supposed to be that one function owns the change, and one caller had quietly opted out.
  */

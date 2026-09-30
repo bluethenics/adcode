@@ -8,7 +8,7 @@
  * **The rule this panel is built around: never show a number the server did not send.**
  *
  * That is not a style preference here, it is the difference between a useful panel and a
- * harmful one. Brief §1 forbids the client computing money, and the README already records
+ * harmful one. Brief §1 forbids the client computing money, and docs/STATUS.md already records
  * what a panel of plausible-but-wrong statements costs: the Problems panel shipped showing
  * twenty-five true-but-irrelevant errors, and the lesson was that one false row teaches a
  * user to ignore the whole surface - after which the real row is invisible too. A fabricated

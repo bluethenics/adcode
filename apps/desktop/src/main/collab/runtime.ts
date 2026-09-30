@@ -1,7 +1,7 @@
 /**
  * The collaboration runtime: one session, hosted or joined, living in the main process.
  *
- * One session per process, because the workspace root is per-process (the README records why
+ * One session per process, because the workspace root is per-process (docs/STATUS.md records why
  * there is no second window) and a session shares exactly one open folder.
  *
  * **Every permission check in this file runs on the host.** That is not defence in depth, it is

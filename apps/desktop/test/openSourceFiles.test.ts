@@ -17,7 +17,7 @@ export function relativeLinks(markdown: string): string[] {
 }
 
 /** Documents whose links must resolve. Later tasks append to this list. */
-const LINKED_DOCUMENTS = ["TRADEMARKS.md", "CONTRIBUTING.md", "SECURITY.md"];
+const LINKED_DOCUMENTS = ["TRADEMARKS.md", "CONTRIBUTING.md", "SECURITY.md", "README.md", "docs/STATUS.md"];
 
 describe("open-source licensing", () => {
   it("ships the unmodified Apache-2.0 text", () => {
@@ -83,5 +83,26 @@ describe("contributor scaffolding", () => {
     expect(workflow).not.toContain("secrets.");
     expect(workflow).toMatch(/permissions:\s*\n\s*contents: read/);
     expect(workflow).toContain("npm run verify");
+  });
+});
+
+describe("README", () => {
+  it("opens with what ADCode is and how it is licensed", () => {
+    const readme = read("README.md");
+    expect(readme).toContain("Apache License 2.0");
+    expect(readme).toContain("CONTRIBUTING.md");
+    expect(readme).toContain("TRADEMARKS.md");
+  });
+
+  it("does not point at the brief, which is not in the repository", () => {
+    expect(read("README.md")).not.toContain("scratch-ide-build-prompt");
+    expect(read("docs/STATUS.md")).not.toContain("scratch-ide-build-prompt");
+  });
+
+  it("gives the install and build commands", () => {
+    const readme = read("README.md");
+    expect(readme).toContain("irm https://adcode.bluethenics.com/install.ps1 | iex");
+    expect(readme).toContain("curl -fsSL https://adcode.bluethenics.com/install.sh | sh");
+    expect(readme).toContain("npm run verify");
   });
 });
