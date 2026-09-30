@@ -30,6 +30,7 @@ import "./styles/vibeWorkspace.css";
 import "./styles/chatPreview.css";
 import "./styles/professionalShell.css";
 import "./styles/vibeSidebar.css";
+import "./styles/licences.css";
 import "./styles/floatingPanel.css";
 import "./styles/agents.css";
 import "./styles/tools.css";

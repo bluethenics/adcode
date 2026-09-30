@@ -1,0 +1,49 @@
+/* ── Open Source Licences ─────────────────────────────────────────────────
+   The card, header and backdrop are What's New's (`releases.css`). These are
+   only the two things that sheet does not have: a tab strip and a text pane. */
+
+.licences-tabs {
+  display: flex;
+  gap: 4px;
+  flex: none;
+  padding: 8px 20px 0;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.licences-tab {
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.licences-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.licences-tab[aria-selected="true"] {
+  color: var(--text-primary);
+  border-bottom-color: var(--text-primary);
+}
+
+.licences-text {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 16px 20px 20px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  /* Licence text is for reading and for copying. */
+  user-select: text;
+}

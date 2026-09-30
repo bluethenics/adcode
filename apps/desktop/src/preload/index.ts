@@ -296,6 +296,9 @@ const api: AdcodeApi = {
     markSeen: (versions) => ipcRenderer.invoke(CHANNELS.releaseMarkSeen, versions),
     list: () => ipcRenderer.invoke(CHANNELS.releaseList),
   },
+  licences: {
+    read: () => ipcRenderer.invoke(CHANNELS.licencesRead),
+  },
   updates: {
     status: () => ipcRenderer.invoke(CHANNELS.updateStatus),
     check: () => ipcRenderer.invoke(CHANNELS.updateCheck),

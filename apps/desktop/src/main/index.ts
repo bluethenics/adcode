@@ -25,6 +25,7 @@ import { registerPinPromptIpc } from "./pinPrompt.ts";
 import { onUpdateStatus, registerUpdateIpc, startAutoUpdate } from "./autoUpdate.ts";
 import { startNoticePolling } from "./notices.ts";
 import { startReleasePolling } from "./releases.ts";
+import { registerLicenceIpc } from "./licences.ts";
 import { registerAccountIpc } from "./accountIpc.ts";
 import { installApplicationMenu } from "./menu.ts";
 import { loadKeybindings } from "./keybindings.ts";
@@ -295,6 +296,7 @@ void app.whenReady().then(() => {
   void startAutoUpdate(() => currentSettings()["adcode.updates.auto"] !== false);
   startNoticePolling();
   startReleasePolling();
+  registerLicenceIpc();
 
   /*
    * The shortcuts, then the menu.

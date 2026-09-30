@@ -718,6 +718,7 @@ export const CHANNELS = {
   releaseAnnouncement: "release:announcement",
   releaseMarkSeen: "release:mark-seen",
   releaseList: "release:list",
+  licencesRead: "licences:read",
   accountStatus: "account:status",
   accountChanged: "account:changed",
   accountLink: "account:link",
@@ -1001,6 +1002,19 @@ export interface AiProviderInfo {
 export interface AiConnectionInfo {
  readonly id: string; readonly name: string; readonly baseUrl: string; readonly model: string; readonly rpm: number;
  readonly queued: number; readonly cooldownUntil: number; readonly nextStartAt: number;
+}
+
+/**
+ * The three documents behind Help > Open Source Licences.
+ *
+ * Each is null when its file could not be read: a source checkout that has never been
+ * packaged has no third-party file, and a damaged install may have none of them. The
+ * window says which, rather than showing an empty pane.
+ */
+export interface LicenceDocuments {
+  readonly licence: string | null;
+  readonly notice: string | null;
+  readonly thirdParty: string | null;
 }
 
 export interface AiStatus {
@@ -1966,6 +1980,10 @@ export interface AdcodeApi {
     markSeen(versions: readonly string[]): Promise<void>;
     /** Every note this build has, newest first - for the What's New window. */
     list(): Promise<ReleaseAnnouncement>;
+  };
+  readonly licences: {
+    /** ADCode's licence, its notice, and the notices of what it bundles. */
+    read(): Promise<LicenceDocuments>;
   };
   readonly updates: {
     status(): Promise<UpdateStatus>;
