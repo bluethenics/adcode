@@ -9,7 +9,7 @@ import { ReadingProgress } from "@/components/ReadingProgress";
 import { allDocs, docsBySection, getDoc, relatedPages } from "@/lib/docs";
 import { renderMarkdown } from "@/lib/markdown";
 import { breadcrumbs, techArticle } from "@/lib/schema";
-import { url } from "@/lib/site";
+import { docDescription, docTitle, pageMetadata } from "@/lib/seo";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -24,18 +24,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = await getDoc(slug);
   if (page === null) return { title: "Not found" };
 
-  return {
-    title: page.title,
-    description: page.description,
-    alternates: { canonical: url(`/docs/${page.slug}`) },
-    openGraph: {
-      type: "article",
-      title: page.title,
-      description: page.description,
-      url: url(`/docs/${page.slug}`),
-    },
-    twitter: { card: "summary_large_image", title: page.title, description: page.description },
-  };
+  return pageMetadata({
+    path: `/docs/${page.slug}`,
+    title: docTitle(page),
+    socialTitle: page.title,
+    description: docDescription(page.description),
+    type: "article",
+    section: page.section,
+    ...(page.published === undefined ? {} : { publishedTime: page.published }),
+    ...(page.updated === undefined ? {} : { modifiedTime: page.updated }),
+  });
 }
 
 /** Rough reading estimate so the hero meta line is honest, not decorative. */

@@ -14,6 +14,7 @@ import {
   relatedLandings,
 } from "../src/lib/landings";
 import { landingArticle } from "../src/lib/schema";
+import { DESCRIPTION_LIMIT, TITLE_LIMIT } from "../src/lib/seo";
 import { url } from "../src/lib/site";
 
 /**
@@ -43,9 +44,17 @@ describe("landing pages", () => {
 
   it("writes a title that fits a search result and a description that fits a snippet", () => {
     for (const page of LANDINGS) {
-      expect(page.title.length, `${page.slug} title`).toBeLessThanOrEqual(70);
+      expect(page.title.length, `${page.slug} title`).toBeLessThanOrEqual(TITLE_LIMIT);
       expect(page.description.length, `${page.slug} description`).toBeGreaterThan(70);
-      expect(page.description.length, `${page.slug} description`).toBeLessThanOrEqual(200);
+      // Written to fit, not clamped to fit: a cut description ends on an ellipsis.
+      expect(page.description.length, `${page.slug} description`).toBeLessThanOrEqual(DESCRIPTION_LIMIT);
+    }
+  });
+
+  it("puts the product's category in every comparison title, not just two brand names", () => {
+    // "ADCode vs Cursor" matches only people who already know ADCode exists.
+    for (const page of comparisons()) {
+      expect(page.title, page.slug).toMatch(/alternative|get paid/i);
     }
   });
 

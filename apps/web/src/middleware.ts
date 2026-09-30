@@ -34,9 +34,33 @@ const CANONICAL = new URL(SITE_ORIGIN);
  */
 const LEGACY_HOSTS = new Set(["adcode.bluethenics01.workers.dev"]);
 
+/**
+ * Whether a request on the brand host arrived over plain http.
+ *
+ * Plain `http://` used to answer 200 with the whole site - a second copy of every page,
+ * held together only by canonical tags. The Worker sees the scheme the visitor used in
+ * `request.url` (Cloudflare's own HTTPS-redirect example reads exactly that), and OpenNext
+ * builds `nextUrl` from it, so `http:` here means the visitor typed or followed http.
+ *
+ * Two guards, because the failure mode of a wrong answer is a redirect loop on every page.
+ * Only the canonical host is considered - `localhost` in development is http and must stay
+ * so. And a request whose `x-forwarded-proto` says https is never treated as insecure,
+ * whatever its URL claims: if anything in front of the Worker ever rewrote the scheme,
+ * this degrades to "no redirect", not to a loop.
+ */
+function arrivedInsecure(request: NextRequest, host: string): boolean {
+  return (
+    host === CANONICAL.host &&
+    CANONICAL.protocol === "https:" &&
+    request.nextUrl.protocol === "http:" &&
+    request.headers.get("x-forwarded-proto") !== "https"
+  );
+}
+
 export function middleware(request: NextRequest): NextResponse {
   const host = request.headers.get("host");
-  if (host === null || !LEGACY_HOSTS.has(host)) return NextResponse.next();
+  if (host === null) return NextResponse.next();
+  if (!LEGACY_HOSTS.has(host) && !arrivedInsecure(request, host)) return NextResponse.next();
 
   const url = request.nextUrl.clone();
   url.protocol = CANONICAL.protocol;

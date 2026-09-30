@@ -227,6 +227,8 @@ async function checkSitemap() {
     "/compare/vscode",
     "/compare/cursor",
     "/compare/idlen",
+    "/compare/windsurf",
+    "/compare/copilot",
   ]) {
     if (paths.has(path)) pass(`sitemap lists ${path}`);
     else fail(`sitemap lists ${path}`);
@@ -280,7 +282,11 @@ async function checkPage(path, { needs = [], schema = [] } = {}) {
 
   const description = /<meta name="description" content="([^"]*)"/.exec(response.body);
   if (description === null || description[1].trim() === "") fail(`${path} has a description`);
-  else pass(`${path} has a description`, `${String(description[1].length)} chars`);
+  else if (decode(description[1]).length > 160)
+    warn(`${path} description fits a snippet`, `${String(decode(description[1]).length)} chars`);
+  else pass(`${path} has a description`, `${String(decode(description[1]).length)} chars`);
+
+  checkShareCard(path, response.body);
 
   for (const type of schema) {
     if (response.body.includes(`"@type":"${type}"`)) pass(`${path} emits ${type}`);
@@ -294,6 +300,170 @@ async function checkPage(path, { needs = [], schema = [] } = {}) {
 
   if (response.ms > 2500) warn(`${path} responds promptly`, `${String(response.ms)}ms`);
   else pass(`${path} responds promptly`, `${String(response.ms)}ms`);
+}
+
+/** The few entities Next escapes in attribute values, so lengths count characters. */
+const decode = (text) =>
+  text
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+
+const metaContent = (body, attribute, name) =>
+  new RegExp(`<meta ${attribute}="${name.replace(/[.:]/g, "\\$&")}" content="([^"]*)"`).exec(body)?.[1];
+
+/**
+ * What a link unfurls to on X, Slack, Discord, LinkedIn and in iMessage.
+ *
+ * Next merges metadata shallowly, so a page that sets `openGraph` silently loses the
+ * layout's image, and one that sets nothing inherits the homepage's `og:url`. For a month
+ * 120 of 126 pages had no share image and `/versions` introduced itself as the homepage;
+ * every head test passed, because they asserted the fields each page set, not the fields
+ * the rendered page lacked. Only reading the served HTML sees both.
+ */
+/** The share card's gaps, as short phrases. Empty when it is complete. */
+function shareCardProblems(path, body) {
+  const problems = [];
+  const ogImage = metaContent(body, "property", "og:image");
+  const twitterImage = metaContent(body, "name", "twitter:image");
+  const ogUrl = metaContent(body, "property", "og:url");
+  const trim = (value) => value.replace(/\/$/, "");
+
+  if (ogImage === undefined) problems.push("no og:image");
+  if (twitterImage === undefined) problems.push("no twitter:image");
+  if (ogUrl === undefined) problems.push("no og:url");
+  else if (trim(new URL(ogUrl).pathname) !== trim(path)) problems.push(`og:url is ${ogUrl}`);
+
+  return problems;
+}
+
+function checkShareCard(path, body) {
+  const problems = shareCardProblems(path, body);
+  if (problems.length > 0) fail(`${path} has a complete share card`, problems.join(", "));
+  else pass(`${path} has a complete share card`);
+}
+
+/**
+ * Every URL the sitemap lists, not only the handful above.
+ *
+ * The named pages are the ones worth a line each; this is the sweep that catches the one
+ * generated docs page among a hundred whose head came out wrong. Quiet on success so a
+ * clean run is still readable, and on a broken one it names the first few pages rather than
+ * burying the rest of the report under a hundred identical lines.
+ */
+async function checkEveryPage(locations) {
+  heading(`every sitemap page (${String(locations.length)})`);
+  const titles = new Map();
+  const incomplete = [];
+  let longDescriptions = 0;
+  const queue = [...locations];
+
+  const worker = async () => {
+    while (queue.length > 0) {
+      const location = queue.shift();
+      const path = new URL(location).pathname;
+      const response = await get(path);
+      if (response.status !== 200) {
+        fail(`${path} returns 200`, `HTTP ${String(response.status)}`);
+        continue;
+      }
+      const problems = shareCardProblems(path, response.body);
+      if (problems.length > 0) incomplete.push(`${path} (${problems.join(", ")})`);
+
+      const title = /<title>([^<]*)<\/title>/.exec(response.body)?.[1];
+      if (title !== undefined) titles.set(title, [...(titles.get(title) ?? []), path]);
+
+      const description = metaContent(response.body, "name", "description");
+      if (description === undefined) fail(`${path} has a description`);
+      else if (decode(description).length > 160) longDescriptions += 1;
+
+      const h1 = (response.body.match(/<h1[\s>]/g) ?? []).length;
+      if (h1 !== 1) warn(`${path} has one h1`, `${String(h1)} found`);
+    }
+  };
+  await Promise.all(Array.from({ length: 8 }, worker));
+
+  if (incomplete.length === 0) pass("every page has a complete share card");
+  else {
+    fail("every page has a complete share card", `${String(incomplete.length)} of ${String(locations.length)} do not`);
+    for (const line of incomplete.sort().slice(0, 10)) process.stdout.write(`          ${line}
+`);
+    if (incomplete.length > 10) process.stdout.write(`          ...and ${String(incomplete.length - 10)} more
+`);
+  }
+
+  if (longDescriptions === 0) pass("every description fits a snippet");
+  else warn("every description fits a snippet", `${String(longDescriptions)} longer than 160 chars`);
+
+  const duplicates = [...titles].filter(([, paths]) => paths.length > 1);
+  if (duplicates.length === 0) pass("every title is unique");
+  else for (const [title, paths] of duplicates) warn(`title is unique: ${title}`, paths.join(" "));
+}
+
+/**
+ * Retired routes, the insecure scheme, and the areas that must stay out of the index.
+ */
+async function checkRouting() {
+  heading("redirects and indexing rules");
+
+  /*
+   * Permanent, and to the page that replaced them. These were 307s - temporary, so a
+   * search engine kept the old URL and moved nothing it had earned - and every old post
+   * went to the homepage rather than to where it now lives.
+   */
+  for (const [from, to] of [
+    ["/blog", "/docs"],
+    ["/blog/why-the-ledger-is-append-only", "/docs/why-the-ledger-is-append-only"],
+    ["/changelog", "/versions"],
+    ["/download", "/versions"],
+    ["/advertise", "/#advertise"],
+  ]) {
+    const response = await get(from);
+    const location = response.headers.get("location") ?? "";
+    const target = location === "" ? "" : new URL(location, origin);
+    const lands = target === "" ? "" : `${target.pathname}${target.hash}`;
+
+    if (response.status !== 308 && response.status !== 301)
+      fail(`${from} moves permanently`, `HTTP ${String(response.status)} to ${location || "nowhere"}`);
+    else if (lands !== to) fail(`${from} moves to ${to}`, location);
+    else pass(`${from} moves permanently to ${to}`);
+  }
+
+  /*
+   * Plain http must not serve the site. Both schemes answering 200 is two copies of every
+   * page; the canonical tag points at https, but a tag is a hint and a redirect is not.
+   * `middleware.ts` does it for pages; Cloudflare's "Always Use HTTPS" (SSL/TLS > Edge
+   * Certificates) also covers the bare files the middleware matcher skips.
+   */
+  if (origin.startsWith("https://")) {
+    const insecure = await fetch(origin.replace(/^https:/, "http:") + "/", {
+      redirect: "manual",
+      headers: { "user-agent": "adcode-seo-audit" },
+    }).catch(() => null);
+    const location = insecure?.headers.get("location") ?? "";
+
+    if (insecure === null) warn("http redirects to https", "http:// did not answer");
+    else if ([301, 308].includes(insecure.status) && location.startsWith("https://"))
+      pass("http redirects to https", `${String(insecure.status)}`);
+    else
+      fail(
+        "http redirects to https",
+        `HTTP ${String(insecure.status)} - the middleware redirect is not live; or turn on Cloudflare > SSL/TLS > Edge Certificates > Always Use HTTPS`,
+      );
+
+    const secure = await get("/");
+    if (/max-age=\d{7,}/.test(secure.headers.get("strict-transport-security") ?? ""))
+      pass("HSTS is set");
+    else warn("HSTS is set", "no Strict-Transport-Security header");
+  }
+
+  for (const path of ["/portal", "/dashboard"]) {
+    const response = await get(path);
+    if (/<meta name="robots"[^>]*noindex/i.test(response.body)) pass(`${path} is noindex`);
+    else fail(`${path} is noindex`, "signed-in page is indexable");
+  }
 }
 
 async function checkMachineText() {
@@ -386,7 +556,7 @@ async function main() {
   process.stdout.write(`ADCode SEO audit - ${origin}\n`);
 
   await checkRobots();
-  await checkSitemap();
+  const locations = await checkSitemap();
 
   heading("pages");
   await checkPage("/", {
@@ -399,8 +569,13 @@ async function main() {
   await checkPage("/compare/vscode", { schema: ["Article", "FAQPage"] });
   await checkPage("/compare/cursor", { schema: ["Article", "FAQPage"] });
   await checkPage("/compare/idlen", { schema: ["Article", "FAQPage"] });
+  await checkPage("/compare/windsurf", { schema: ["Article", "FAQPage"] });
+  await checkPage("/compare/copilot", { schema: ["Article", "FAQPage"] });
   await checkPage("/docs", { schema: ["BreadcrumbList"] });
+  await checkPage("/versions", { schema: ["BreadcrumbList", "HowTo", "FAQPage"] });
 
+  await checkEveryPage(locations);
+  await checkRouting();
   await checkMachineText();
   await checkVerification();
   await checkParentLink();

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter_Tight, JetBrains_Mono, Inter } from "next/font/google";
-import { SITE, VERIFICATION, url } from "@/lib/site";
+import { SITE, VERIFICATION } from "@/lib/site";
+import { ALTERNATE_TYPES, SHARE_IMAGE } from "@/lib/seo";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { JsonLd } from "@/components/JsonLd";
@@ -81,25 +82,26 @@ export const metadata: Metadata = {
           ...(VERIFICATION.bing === undefined ? {} : { other: { "msvalidate.01": VERIFICATION.bing } }),
         },
       }),
-  alternates: {
-    canonical: url("/"),
-    types: {
-      "text/plain": [{ url: url("/llms.txt"), title: `${SITE.name} for language models` }],
-      "application/rss+xml": [{ url: url("/feed.xml"), title: `${SITE.name} updates` }],
-    },
-  },
+  /*
+   * No canonical and no `og:url` here. Whatever the layout says is inherited by every page
+   * that does not say otherwise, and "this page is the homepage" is the one inherited claim
+   * that is always false. Public pages state their own through `pageMetadata()`; a page
+   * that forgets gets no canonical, which a crawler treats as self-referencing.
+   */
+  alternates: { types: ALTERNATE_TYPES },
   openGraph: {
     type: "website",
     siteName: SITE.name,
     title: `${SITE.name} - ${SITE.tagline}`,
     description: SITE.description,
-    url: url("/"),
     locale: SITE.locale,
+    images: [SHARE_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
     title: `${SITE.name} - ${SITE.tagline}`,
     description: SITE.description,
+    images: [{ url: SHARE_IMAGE.url, alt: SHARE_IMAGE.alt }],
   },
   robots: {
     index: true,

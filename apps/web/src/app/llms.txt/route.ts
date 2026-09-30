@@ -63,15 +63,18 @@ export async function GET(): Promise<Response> {
 
 > ${SITE.description}
 
-${SITE.name} is a free, ad-supported code editor for Windows, macOS, and Linux. It is
+${SITE.name} is a free, ad-supported AI code editor for Windows and Linux (macOS is not published yet). It is
 funded by advertisers rather than subscriptions, and it credits a share of advertising
 revenue to the developer using it.
 
 ## Key facts
 
 - Cost to the developer: free. No subscription, trial, or paid tier.
-- Editor: Monaco editing surface, integrated terminals, git, workspace search, four AI
-  providers, plain-English compiler errors, live collaboration.
+- Editor: Monaco editing surface, integrated terminals, git, workspace search, plain-English
+  compiler errors, live collaboration.
+- AI: agents that edit across files, run tests, and keep going until done; several agents at
+  once on an Agents board; Race mode to compare models on one task; Undo for every turn.
+  Four providers or any OpenAI-compatible endpoint (including a local model), on your own key.
 - Ad format: one small sponsored card in the corner of the window.
 - Ad targeting: a fixed vocabulary of 45 generic tags for language, framework, tool, and
   platform. File contents, paths, and project names are never transmitted.
@@ -87,7 +90,7 @@ The studio's page about this product is ${PARENT.productUrl}.
 ## Pages
 
 - [Home](${url("/")}): what ADCode is and how earnings work.
-- [Download and releases](${url("/versions")}): one-line install for Windows, macOS, and Linux, and what changed in each release.
+- [Download and releases](${url("/versions")}): one-line install for Windows and Linux, and what changed in each release.
 - [Advertise](${url("/#advertise")}): targeting, pricing, and verification for advertisers.
 - [Documentation](${url("/docs")}): every feature, plus the explanations of how the system works.
 - [Full text for machines](${url("/llms-full.txt")}): the complete text of every page in one file.

@@ -8,7 +8,8 @@ import Link from "next/link";
 import { HomeFaq } from "@/components/HomeFaq";
 import { JsonLd } from "@/components/JsonLd";
 import { FAQ, faqPage } from "@/lib/schema";
-import { SITE, url } from "@/lib/site";
+import { pageMetadata } from "@/lib/seo";
+import { SITE } from "@/lib/site";
 
 /*
  * The title leads with what the page is, not only with what it promises.
@@ -21,18 +22,13 @@ import { SITE, url } from "@/lib/site";
  * `absolute` because the layout template appends " - ADCode", which would push a
  * title that already names the product past the length a result will show.
  */
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/",
   title: { absolute: `${SITE.name} - a free AI code editor that pays you to use it` },
+  socialTitle: `${SITE.name} - ${SITE.tagline}`,
   description:
-  "A full IDE - Monaco editing, real terminals, git and four AI providers - free forever. An occasional sponsored card funds it, and half of that revenue is credited to you.",
-  alternates: { canonical: url("/") },
-  openGraph: {
-    type: "website",
-    title: `${SITE.name} - ${SITE.tagline}`,
-    description: SITE.description,
-    url: url("/"),
-  },
-};
+    "A full IDE with AI agents, real terminals and git - free forever. An occasional sponsored card funds it, and half of that ad revenue is credited to you.",
+});
 
 export default function Home() {
   return (
@@ -47,8 +43,13 @@ export default function Home() {
       <section className="marketplace-hero studio-hero" id="earn">
       <div className="marketplace-wrap" id="marketplace-main">
       <div className="studio-hero-top"><div className="marketplace-hero-copy">
-      <h1>A place to build your next big idea.<br />Get paid to build.</h1>
-      <p>Build with AI. Earn while you code. Free from the first line.</p>
+      {/*
+        The one heading on the page that says what the product is. "A place to build your
+        next big idea" matched no query anybody types; "free AI code editor" is the query,
+        and the promise that follows is what earns the click.
+      */}
+      <h1>The free AI code editor<br />that pays you to build.</h1>
+      <p>Build your next big idea with AI. Earn while you code. Free from the first line.</p>
       <p>An IDE that pays you 50% of ad revenue.</p>
       <HeroInstall />
       <small>Available for Windows and Linux. macOS coming soon.</small>

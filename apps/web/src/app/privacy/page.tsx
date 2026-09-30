@@ -2,16 +2,18 @@ import type { Metadata } from "next";
 import { renderMarkdown } from "@/lib/markdown";
 import { JsonLd } from "@/components/JsonLd";
 import { breadcrumbs } from "@/lib/schema";
-import { url } from "@/lib/site";
+import { pageMetadata } from "@/lib/seo";
+import { PRIVACY_UPDATED } from "@/lib/legal";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/privacy",
   title: "Privacy",
+  socialTitle: "ADCode privacy: what the editor collects, and what it never sends",
   description:
-    "What ADCode collects, what its ad service never receives, and what a selected AI provider may receive.",
-  alternates: { canonical: url("/privacy") },
-};
+    "What ADCode collects, what its ad service never receives, and what a selected AI provider may receive. Written against what the code actually does.",
+});
 
-const UPDATED = "2026-09-13";
+const UPDATED = PRIVACY_UPDATED.iso;
 /*
  * Written out rather than formatted, and kept beside the machine-readable date.
  *
@@ -19,7 +21,7 @@ const UPDATED = "2026-09-13";
  * document whose whole job is to record what was true and when, the date is the one field
  * that must not be able to disagree with itself.
  */
-const UPDATED_LABEL = "13 September 2026";
+const UPDATED_LABEL = PRIVACY_UPDATED.label;
 
 /*
  * Written against what the code does, not against a template.

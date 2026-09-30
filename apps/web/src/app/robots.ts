@@ -30,8 +30,20 @@ import { url } from "@/lib/site";
  * because this is exactly the kind of change an account-wide default silently reapplies.
  */
 
-/** Signed-in areas: nothing to index, and every URL under them redirects to a login. */
-const PRIVATE = ["/portal/", "/dashboard/", "/admin/", "/support", "/api/"];
+/**
+ * What crawlers are told not to fetch at all.
+ *
+ * Deliberately short. `/portal`, `/dashboard` and `/support` are linked from every public
+ * page, and a URL that is linked everywhere but disallowed is the textbook way to end up
+ * "Indexed, though blocked by robots.txt": the crawler cannot read the `noindex` those
+ * pages carry, so it indexes the bare URL instead. They stay crawlable and say `noindex`
+ * themselves. The admin panel is linked from nowhere public and stays out.
+ *
+ * `/v1/` is *not* here, on purpose: public pages fetch live figures from it in the
+ * browser, and Google renders pages with those requests. Blocking them would make the
+ * rendered page Google indexes emptier than the one a visitor sees.
+ */
+const PRIVATE = ["/admin", "/api/"];
 
 /**
  * The answer engines, named rather than left to the wildcard.

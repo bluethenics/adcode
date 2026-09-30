@@ -4,19 +4,19 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { JsonLd } from "@/components/JsonLd";
 import { COMPARE_PREFIX, comparisons, landingPath } from "@/lib/landings";
 import { breadcrumbs } from "@/lib/schema";
+import { pageMetadata } from "@/lib/seo";
 import { SITE, url } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: { absolute: `${SITE.name} compared with VS Code, Cursor, and Idlen` },
+export const metadata: Metadata = pageMetadata({
+  path: COMPARE_PREFIX,
+  title: { absolute: `${SITE.name} vs Cursor, Copilot, Windsurf and VS Code compared` },
+  socialTitle: `${SITE.name} comparisons`,
   description:
-    "Straight comparisons of ADCode against the editors people actually weigh it against, including the cases where the other one is the better choice.",
-  alternates: { canonical: url(COMPARE_PREFIX) },
-  openGraph: {
-    type: "website",
-    title: `${SITE.name} comparisons`,
-    url: url(COMPARE_PREFIX),
-  },
-};
+    "Straight comparisons of ADCode with Cursor, GitHub Copilot, Windsurf, VS Code and Idlen - including the cases where the other one is the better choice.",
+});
+
+/** The first sentence of the concession: the short answer to "when should I pick them". */
+const firstSentence = (text: string): string => text.split(/(?<=[.!?])\s+/)[0] ?? text;
 
 export default function CompareIndex() {
   const pages = comparisons();
@@ -30,8 +30,8 @@ export default function CompareIndex() {
         ])}
       />
       {/*
-        An ItemList, so the set is stated rather than inferred from three links. It is what
-        lets a result for "ADCode alternatives" carry the three names as sitelinks instead
+        An ItemList, so the set is stated rather than inferred from the links. It is what
+        lets a result for "ADCode alternatives" carry the names as sitelinks instead
         of a single blue link to a page whose contents a crawler has to guess at.
       */}
       <JsonLd
@@ -56,11 +56,41 @@ export default function CompareIndex() {
             <header className="docs-header">
               <h1>How {SITE.name} compares</h1>
               <p className="lede">
-                Three comparisons against the editors people genuinely weigh {SITE.name}{" "}
-                against. Each one ends with the case for choosing the other, because a
-                comparison that never concedes anything is one you should not trust.
+                Comparisons against the editors and assistants people genuinely weigh{" "}
+                {SITE.name} against. Each one ends with the case for choosing the other,
+                because a comparison that never concedes anything is one you should not
+                trust.
               </p>
             </header>
+
+            {/*
+              The short answer to every page below, on one screen. Built from each page's
+              own concession rather than written again here, so the summary cannot claim
+              something its page does not.
+            */}
+            <section className="landing-compare" aria-labelledby="compare-glance">
+              <h2 id="compare-glance">At a glance</h2>
+              <div className="table-scroll">
+                <table className="landing-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Instead of {SITE.name}</th>
+                      <th scope="col">Pick it when</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pages.map((page) => (
+                      <tr key={page.slug}>
+                        <th scope="row">
+                          <Link href={landingPath(page)}>{page.comparison?.subject}</Link>
+                        </th>
+                        <td>{firstSentence(page.comparison?.whenNotUs ?? "")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
 
             <div className="landing-index">
               {pages.map((page) => (

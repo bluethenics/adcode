@@ -40,7 +40,7 @@ export default function NotFound() {
           </Link>
           <Link href="/versions">
             <strong>Download</strong>
-            <span>The current release for Windows, macOS and Linux.</span>
+            <span>The current release for Windows and Linux.</span>
           </Link>
           <Link href="/support">
             <strong>Support</strong>

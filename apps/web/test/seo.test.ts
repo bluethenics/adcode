@@ -116,6 +116,8 @@ describe("crawling", () => {
       "/compare/vscode",
       "/compare/cursor",
       "/compare/idlen",
+      "/compare/windsurf",
+      "/compare/copilot",
     ]) {
       expect(paths, wanted).toContain(wanted);
     }

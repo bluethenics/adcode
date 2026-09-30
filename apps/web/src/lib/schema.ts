@@ -106,7 +106,7 @@ export function softwareApplication(): Node {
     "@id": url("/#app"),
     name: SITE.name,
     applicationCategory: "DeveloperApplication",
-    operatingSystem: "Windows, macOS, Linux",
+    operatingSystem: "Windows, Linux",
     description: SITE.description,
     // Free to the developer is the entire proposition, so it is stated as data.
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -122,15 +122,19 @@ export function softwareApplication(): Node {
     downloadUrl: url("/versions"),
     installUrl: url("/versions"),
     screenshot: url("/opengraph-image.png"),
-    softwareRequirements: "Windows 10 or later, macOS 11 or later, or a 64-bit Linux desktop",
+    image: url("/opengraph-image.png"),
+    softwareRequirements: "64-bit Windows 10 or 11, or a 64-bit x86 Linux desktop. macOS is not published yet.",
     publisher: { "@id": url("/#organization") },
     isAccessibleForFree: true,
     featureList: [
+      "AI agents that edit across files, run tests, and keep going until done",
+      "Several agents at once on an Agents board, and Race mode to compare models",
+      "Undo for every AI turn that changed files",
       "Monaco editing surface",
       "Multiple integrated terminals",
       "Git: stage, commit, branches, blame, commit browser",
       "Workspace search and replace",
-      "Four AI providers",
+      "Four AI providers or any OpenAI-compatible endpoint, on your own key",
       "Plain-English compiler errors",
       "Built-in preview server",
       "Live collaboration",
@@ -195,6 +199,7 @@ export function techArticle(page: {
   description: string;
   slug: string;
   section: string;
+  published?: string;
   updated?: string;
 }): Node {
   return {
@@ -203,6 +208,9 @@ export function techArticle(page: {
     headline: page.title,
     description: page.description,
     articleSection: page.section,
+    // Google's Article guidance asks for an image; without one a result cannot carry a thumbnail.
+    image: [url("/opengraph-image.png")],
+    ...(page.published === undefined ? {} : { datePublished: page.published }),
     ...(page.updated === undefined ? {} : { dateModified: page.updated }),
     mainEntityOfPage: { "@type": "WebPage", "@id": url(`/docs/${page.slug}`) },
     publisher: { "@id": url("/#organization") },
@@ -241,7 +249,7 @@ export function changelog(
         "@type": "SoftwareApplication",
         name: SITE.name,
         applicationCategory: "DeveloperApplication",
-        operatingSystem: "Windows, macOS, Linux",
+        operatingSystem: "Windows, Linux",
         softwareVersion: release.version,
         datePublished: release.published,
         releaseNotes: `${release.title}. ${release.body}`.slice(0, 900),
@@ -284,7 +292,7 @@ export const FAQ: readonly { q: string; a: string }[] = [
   },
   {
     q: "What platforms does ADCode run on?",
-    a: "ADCode runs on Windows, macOS, and Linux. It can be installed with a single terminal command, and it updates itself automatically when a new version is released.",
+    a: "ADCode runs on Windows and Linux; a macOS build is waiting on Apple notarisation. It installs with a single terminal command, and it updates itself automatically when a new version is released.",
   },
 ];
 
@@ -333,6 +341,7 @@ export function landingArticle(page: {
         description: page.description,
         alternativeHeadline: page.heading,
         abstract: page.lede,
+        image: [url("/opengraph-image.png")],
         dateModified: page.updated,
         datePublished: page.updated,
         inLanguage: SITE.locale,
@@ -369,7 +378,7 @@ export function installHowTo(
     "@context": "https://schema.org",
     "@type": "HowTo",
     name: `How to install ${SITE.name}`,
-    description: `Install ${SITE.name} on Windows, macOS, or Linux with a single terminal command.`,
+    description: `Install ${SITE.name} on Windows or Linux with a single terminal command.`,
     totalTime: "PT2M",
     supply: [],
     tool: [{ "@type": "HowToTool", name: "A terminal" }],

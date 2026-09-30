@@ -2,17 +2,19 @@ import type { Metadata } from "next";
 import { renderMarkdown } from "@/lib/markdown";
 import { JsonLd } from "@/components/JsonLd";
 import { breadcrumbs } from "@/lib/schema";
-import { url } from "@/lib/site";
+import { pageMetadata } from "@/lib/seo";
+import { TERMS_UPDATED } from "@/lib/legal";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/terms",
   title: "Terms",
+  socialTitle: "ADCode terms of use",
   description:
     "The terms for using ADCode: what you get, how earnings work, who can withdraw, what counts as abuse, and what happens to your balance.",
-  alternates: { canonical: url("/terms") },
-};
+});
 
-const UPDATED = "2026-08-30";
-const UPDATED_LABEL = "30 August 2026";
+const UPDATED = TERMS_UPDATED.iso;
+const UPDATED_LABEL = TERMS_UPDATED.label;
 
 /*
  * These terms describe what the software actually does.

@@ -141,7 +141,7 @@ export function LandingArticle({ page }: { page: Landing }) {
             <section className="landing-cta">
               <h2>Try it</h2>
               <p>
-                {SITE.name} installs with one command on Windows, macOS, and Linux, and
+                {SITE.name} installs with one command on Windows and Linux, and
                 updates itself from then on.
               </p>
               <div className="landing-cta-actions">

@@ -7,15 +7,15 @@ import { DocsSidebar } from "@/components/DocsSidebar";
 import { JsonLd } from "@/components/JsonLd";
 import { docsBySection, recentDocs } from "@/lib/docs";
 import { breadcrumbs } from "@/lib/schema";
-import { url } from "@/lib/site";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Documentation",
+export const metadata: Metadata = pageMetadata({
+  path: "/docs",
+  title: { absolute: "ADCode docs - guides for the free AI code editor" },
+  socialTitle: "ADCode documentation",
   description:
-    "Every ADCode feature explained in plain language: what it does, why you would use it, and how to start.",
-  alternates: { canonical: url("/docs") },
-  openGraph: { title: "ADCode Documentation", url: url("/docs"), type: "website" },
-};
+    "Every ADCode feature explained in plain language - AI agents, chat, terminals, git, live preview and earnings: what each does, why you would use it, and how to start.",
+});
 
 interface Props {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

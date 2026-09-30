@@ -94,7 +94,7 @@ short index, with links but no bodies, is at ${url("/llms.txt")}.
 
 Facts, stated once:
 
-- ${SITE.name} is a free, ad-supported code editor for Windows, macOS, and Linux.
+- ${SITE.name} is a free, ad-supported AI code editor for Windows and Linux. macOS is not published yet.
 - It costs the developer nothing. There is no subscription, trial, or paid tier.
 - Advertisers bid in a second-price auction from ${formatMicros(ECONOMICS.floorBlockMicros, 2)}
   per 500 impressions. The developer receives ${ECONOMICS.revSharePercent}% of the clearing price.

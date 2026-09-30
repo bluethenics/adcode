@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { DesktopMockup } from "./DesktopMockup";
 
-const tabs = [{ label: "Desktop", href: "/download" }, { label: "Terminal", href: "/download" }, { label: "AI workspace", href: "/download" }, { label: "Advertisers", href: "/advertise" }] as const;
+const tabs = [{ label: "Desktop", href: "/versions" }, { label: "Terminal", href: "/versions" }, { label: "AI workspace", href: "/versions" }, { label: "Advertisers", href: "/#advertise" }] as const;
 
 export function HeroProduct() {
   const ref = useRef<HTMLDivElement>(null);

@@ -39,11 +39,40 @@ const config: NextConfig = {
    */
   turbopack: { root: join(HERE, "..", "..") },
 
+  /*
+   * The routes retired by the single-page restructure, moved permanently.
+   *
+   * They used to be pages that called `redirect()`, which answers 307 - temporary - so a
+   * search engine kept the old URL on file and passed nothing it had earned to the new
+   * one. Worse, every `/blog/<post>` went to the homepage, although every post has lived
+   * at `/docs/<post>` since the blog folded into the docs. A 308 to the real address is
+   * the only redirect that carries a link's value across.
+   */
+  async redirects() {
+    return [
+      { source: "/blog", destination: "/docs", permanent: true },
+      { source: "/blog/:slug", destination: "/docs/:slug", permanent: true },
+      { source: "/changelog", destination: "/versions", permanent: true },
+      { source: "/download", destination: "/versions", permanent: true },
+      { source: "/downloads", destination: "/versions", permanent: true },
+      { source: "/install", destination: "/versions", permanent: true },
+      { source: "/advertise", destination: "/#advertise", permanent: true },
+      { source: "/rss.xml", destination: "/feed.xml", permanent: true },
+      { source: "/rss", destination: "/feed.xml", permanent: true },
+    ];
+  },
+
   async headers() {
     return [
       {
         source: "/:path*",
         headers: [
+          /*
+           * HTTPS only, remembered for a year. `middleware.ts` redirects plain http on the
+           * brand host; this makes every browser that has visited once skip that hop for good.
+           * No `includeSubDomains`: this host does not speak for the parent domain's.
+           */
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Frame-Options", value: "DENY" },

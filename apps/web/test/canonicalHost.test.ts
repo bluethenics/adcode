@@ -39,6 +39,35 @@ describe("one site, one host", () => {
     }
   });
 
+  it("moves plain http on the brand host to https, permanently", () => {
+    const insecure = new NextRequest(new URL("/docs?q=git", `http://${canonicalHost}`), {
+      headers: { host: canonicalHost, "x-forwarded-proto": "http" },
+    });
+    const response = middleware(insecure);
+
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe(`${SITE_ORIGIN}/docs?q=git`);
+  });
+
+  /*
+   * The loop guard. If anything in front of the Worker ever handed over an https request
+   * with an http URL, redirecting it would send it straight back here - on every page.
+   */
+  it("never redirects a request the edge says arrived over https", () => {
+    const relabelled = new NextRequest(new URL("/", `http://${canonicalHost}`), {
+      headers: { host: canonicalHost, "x-forwarded-proto": "https" },
+    });
+    expect(middleware(relabelled).headers.get("location")).toBeNull();
+    expect(middleware(request(canonicalHost, "/")).headers.get("location")).toBeNull();
+  });
+
+  it("leaves plain http alone on a developer's machine", () => {
+    const local = new NextRequest(new URL("/", "http://localhost:3000"), {
+      headers: { host: "localhost:3000" },
+    });
+    expect(middleware(local).headers.get("location")).toBeNull();
+  });
+
   it("keeps the query string, so a shared link survives the hop", () => {
     const response = middleware(request(OLD, "/versions?from=email"));
 

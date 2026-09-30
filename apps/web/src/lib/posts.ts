@@ -412,6 +412,7 @@ Create the campaign (account included), target from 45 tags, pay per thousand re
     description:
       "Where ADCode matches the big editors, where it differs, and where it deliberately will not compete - written to be argued with.",
     published: "2026-08-23",
+    updated: "2026-09-30",
     surface: "docs",
     section: "Comparisons",
     order: 0,
@@ -432,9 +433,9 @@ Debugging tells the same story: ADCode includes a debug adapter client wired for
 
 This is where the products genuinely diverge:
 
-- **VS Code** offers Copilot subscriptions inside the extension model.
+- **VS Code** offers GitHub Copilot - a limited free tier, paid plans above it - inside the extension model.
 - **Cursor** is a subscription product built around hosted models - the bundle IS the business model.
-- **ADCode** is bring-your-own: connect Anthropic, OpenAI, Google, any OpenAI-compatible gateway, or a local model via its address. Keys live in your OS keychain, conversations stay in files on your disk, and the memory the assistant keeps is plain markdown you can read and delete.
+- **ADCode** is bring-your-own: connect Anthropic, OpenAI, Google, any OpenAI-compatible gateway, or a local model via its address. Keys live in your OS keychain, conversations stay in files on your disk, and the memory the assistant keeps is plain markdown you can read and delete. Its agents edit across files, run your tests and keep going until the job is done; several can work at once on the Agents board, and every turn that changed files can be undone.
 
 No vendor lock-in cuts both ways: you manage your own keys and see the provider's raw pricing instead of a bundled margin.
 

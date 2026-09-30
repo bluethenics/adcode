@@ -20,7 +20,8 @@
  * and the internal links between them. Adding an entry here adds it to all five.
  */
 import type { Metadata } from "next";
-import { ECONOMICS, SITE, formatMicros, perImpressionMicros, url } from "./site";
+import { pageMetadata } from "./seo";
+import { ECONOMICS, SITE, formatMicros, perImpressionMicros } from "./site";
 
 /** A block of prose under its own heading. `body` paragraphs are plain text, not markdown. */
 export interface LandingSection {
@@ -94,10 +95,10 @@ export const LANDINGS: readonly Landing[] = [
     slug: "free-ai-code-editor",
     title: "A free AI code editor with no subscription and no trial",
     description:
-      "ADCode is a full desktop IDE with four AI providers built in, free permanently rather than free for fourteen days. Here is what it includes, what it costs, and how it is funded.",
+      "ADCode is a full desktop IDE with AI agents built in, free permanently rather than for fourteen days. What it includes, what it costs, and how it is funded.",
     heading: "A free AI code editor, funded without charging you",
-    lede: `ADCode is a free AI code editor for Windows, macOS, and Linux. It is not a trial, a community edition, or a free tier with a request cap - the editor is funded by advertisers, so there is no subscription to start and none to cancel. This page covers what is included, how the funding works, and where the limits actually are.`,
-    updated: "2026-09-02",
+    lede: `ADCode is a free AI code editor for Windows and Linux, with macOS on the way. It is not a trial, a community edition, or a free tier with a request cap - the editor is funded by advertisers, so there is no subscription to start and none to cancel. This page covers what is included, how the funding works, and where the limits actually are.`,
+    updated: "2026-09-30",
     sections: [
       {
         heading: "What 'free' means here, precisely",
@@ -115,8 +116,9 @@ export const LANDINGS: readonly Landing[] = [
       {
         heading: "What the AI actually does",
         body: [
-          "Four providers are supported and you choose which one handles a request, so the editor is not a wrapper around a single vendor whose pricing you inherit. You bring your own key, which means the model choice, the spend, and the data policy are decided in your account rather than in ours.",
-          "The features that use it are the ones worth using: inline completion, a chat that can read the files you point it at, and plain-English compiler errors that turn a wall of template instantiation into a sentence. Nothing is sent to a provider unless you asked for something that requires it.",
+          "Four providers are supported directly, plus any OpenAI-compatible endpoint - including a model running on your own machine - so the editor is not a wrapper around a single vendor whose pricing you inherit. You bring your own key, which means the model choice, the spend, and the data policy are decided in your account rather than in ours.",
+          "The assistant works in your project rather than beside it: it reads files, makes exact edits across several of them, runs your tests and type checks, and keeps going until the job is done. Every turn that changed files gets an Undo card, which is what makes it safe to let it act. For bigger jobs the Agents board runs several agents at once, each in its own copy of the project, and Race mode hands one task to two or three models so you keep the best attempt.",
+          "The smaller help is there too: inline completion, select-and-rewrite with Ctrl+E, and plain-English compiler errors that turn a wall of template instantiation into a sentence. Nothing is sent to a provider unless you asked for something that requires it.",
         ],
       },
       {
@@ -170,9 +172,9 @@ export const LANDINGS: readonly Landing[] = [
   },
   {
     slug: "earn-while-you-code",
-    title: "Get paid to code: how developers earn from an ad-supported editor",
+    title: "Get paid to code: how much an ad-supported editor pays",
     description:
-      "An honest account of earning money while programming in ADCode - the auction, the revenue share, the arithmetic on a realistic working month, and why it is beer money rather than income.",
+      "An honest account of earning while you code in ADCode - the ad auction, the revenue share, the arithmetic on a real working month, and why it is not an income.",
     heading: "Getting paid to code, and what that is actually worth",
     lede: `ADCode credits you a share of what advertisers pay to reach you while you work. This page sets out how much that is, using the real rates rather than a best case: what one impression pays, what a normal working month adds up to, and why the honest description is "your editor and your AI subscription pay for themselves" rather than "a second income".`,
     updated: "2026-09-02",
@@ -237,12 +239,12 @@ export const LANDINGS: readonly Landing[] = [
   },
   {
     slug: "vscode",
-    title: "ADCode vs VS Code",
+    title: "ADCode vs VS Code: a free alternative, AI agents built in",
     description:
-      "A straight comparison of ADCode and Visual Studio Code: the shared Monaco editing surface, what ADCode adds, what VS Code's extension marketplace still does better, and who should stay put.",
+      "ADCode and VS Code share the Monaco editor. What ADCode adds - AI agents and full git in the box, and a share of ad revenue - and where VS Code still wins.",
     heading: "ADCode vs Visual Studio Code",
-    lede: `Both editors are free and both are built on Monaco, so the editing feels familiar moving either way. The real differences are three: ADCode has AI and a full git workflow in the box rather than through extensions, ADCode pays you a share of its advertising revenue, and VS Code has an extension marketplace that ADCode cannot match.`,
-    updated: "2026-09-02",
+    lede: `Both editors are free and both are built on Monaco, so the editing feels familiar moving either way. The real differences are three: ADCode has AI agents and a full git workflow in the box rather than through extensions, ADCode pays you a share of its advertising revenue, and VS Code has an extension marketplace that ADCode cannot match.`,
+    updated: "2026-09-30",
     comparison: {
       subject: "Visual Studio Code",
       rows: [
@@ -258,8 +260,8 @@ export const LANDINGS: readonly Landing[] = [
         },
         {
           aspect: "AI",
-          them: "Copilot as a paid subscription, or a third-party extension you configure.",
-          us: "Four providers built in, your own API key, no ADCode markup or request cap.",
+          them: "GitHub Copilot - a limited free tier with paid plans above it - or a third-party extension you configure.",
+          us: "Built in: agents that edit across files and run your tests, on your own key from four providers or any OpenAI-compatible endpoint. No markup, no request cap.",
         },
         {
           aspect: "Git",
@@ -327,22 +329,22 @@ export const LANDINGS: readonly Landing[] = [
         a: "For AI, git history, and cost recovery, ADCode does more in the box. For extension breadth and Microsoft's first-party language tooling, VS Code is ahead and will stay ahead. If a specific proprietary extension is load-bearing for your work, that decides it.",
       },
     ],
-    related: ["cursor", "free-ai-code-editor", "earn-while-you-code"],
+    related: ["copilot", "cursor", "free-ai-code-editor"],
   },
   {
     slug: "cursor",
-    title: "ADCode vs Cursor",
+    title: "ADCode vs Cursor: a free Cursor alternative, no subscription",
     description:
-      "Cursor charges a monthly subscription for AI editing. ADCode gives you four providers on your own API key and pays you instead. A comparison of cost, model choice, and what Cursor still does better.",
+      "Cursor's full plan is a monthly subscription. ADCode runs AI agents on your own API key and pays you a share of ad revenue. Cost, models, and where Cursor wins.",
     heading: "ADCode vs Cursor",
-    lede: `Cursor is an AI-first editor with a monthly subscription and a bundled model allowance. ADCode is an AI-capable editor with no subscription, where you bring your own provider key and the editor pays you rather than the other way round. The trade is real in both directions and this page states it both ways.`,
-    updated: "2026-09-02",
+    lede: `Cursor is an AI-first editor with a limited free plan and a monthly subscription that bundles a model allowance. ADCode is an AI-native editor with no subscription, where you bring your own provider key and the editor pays you rather than the other way round. The trade is real in both directions and this page states it both ways.`,
+    updated: "2026-09-30",
     comparison: {
       subject: "Cursor",
       rows: [
         {
           aspect: "Price",
-          them: "A monthly subscription per seat.",
+          them: "A free Hobby plan with limited usage, then a monthly subscription; teams pay per seat.",
           us: "Free. No subscription and no paid tier.",
         },
         {
@@ -353,12 +355,17 @@ export const LANDINGS: readonly Landing[] = [
         {
           aspect: "Model choice",
           them: "The models Cursor supports, on Cursor's routing.",
-          us: "Four providers, chosen per request.",
+          us: "Four providers or any OpenAI-compatible endpoint, including a local model. Chosen per chat or per agent.",
         },
         {
-          aspect: "AI depth",
-          them: "Deeper. Whole-codebase indexing and multi-file agentic edits are the product.",
-          us: "Completion, file-scoped chat, and plain-English compiler errors.",
+          aspect: "Agents",
+          them: "Mature. Codebase indexing and multi-file agentic edits are the product, tuned on a very large user base.",
+          us: "Newer, and broad: agents edit across files, run your tests and keep going until done; several run at once on a board, and Race mode compares models on one task.",
+        },
+        {
+          aspect: "Safety net",
+          them: "Checkpoints to restore earlier states.",
+          us: "An Undo card on every turn that changed files, and proof of work - the tests and checks each agent actually ran.",
         },
         {
           aspect: "Editing surface",
@@ -377,7 +384,7 @@ export const LANDINGS: readonly Landing[] = [
         },
       ],
       whenNotUs:
-        "Choose Cursor if agentic multi-file editing is central to how you work. Its codebase indexing and its ability to plan and apply a change across many files are the strongest in the category, and ADCode's AI is deliberately narrower - completion, chat scoped to files you name, and error explanation. If you are paying Cursor because the agent saves you hours a week, that subscription is doing its job and this is not the trade you should take.",
+        "Choose Cursor if its agent is already central to how you work and it is paying for itself. Cursor has had years to tune its codebase indexing and its agent against a very large user base, and that maturity shows in the edge cases; ADCode's agents do the same kinds of work but are newer. If the subscription saves you hours a week, it is doing its job and this is not the trade you should take. Stay, too, if your team has standardised on Cursor and switching would split its setup.",
     },
     sections: [
       {
@@ -397,15 +404,15 @@ export const LANDINGS: readonly Landing[] = [
       {
         heading: "Where Cursor is genuinely ahead",
         body: [
-          "Agentic editing. Cursor indexes a whole codebase and applies coordinated multi-file changes, and that is a materially harder problem than anything ADCode's AI attempts. ADCode does completion, chat over files you point it at, and compiler-error explanation - useful daily, but narrower by design.",
-          "If that agent is why you pay, keep paying. A comparison page that told you otherwise would be selling something.",
+          "Maturity. Cursor has spent years tuning codebase indexing and its agent against a very large user base, and it shows in the edge cases - the odd monorepo, the refactor that touches forty files. ADCode's agents do the same kinds of work, and some things Cursor does not, such as racing several models on one task, but they are newer.",
+          "If that agent is why you pay and it earns its keep, keep paying. A comparison page that told you otherwise would be selling something.",
         ],
       },
     ],
     faq: [
       {
         q: "Is there a free alternative to Cursor?",
-        a: "ADCode is free and supports four AI providers on your own API key, with no subscription and no request cap of its own. Its AI is narrower than Cursor's - completion, file-scoped chat, and plain-English compiler errors rather than whole-codebase agentic editing.",
+        a: "ADCode is a free AI code editor that runs agents on your own API key, from four providers or any OpenAI-compatible endpoint, with no subscription and no request cap of its own. Its agents edit across files, run your tests, and can work several at once, and every turn can be undone. Cursor's agent is more mature; ADCode costs nothing and pays you a share of ad revenue.",
       },
       {
         q: "Does ADCode support the same models as Cursor?",
@@ -413,16 +420,16 @@ export const LANDINGS: readonly Landing[] = [
       },
       {
         q: "Why would I use an ad-supported editor instead of paying for Cursor?",
-        a: "Because the cost runs the other way. Cursor charges a monthly subscription; ADCode credits you a share of what advertisers pay to reach you. If Cursor's agentic editing saves you hours each week, the subscription is worth it - the trade only favours ADCode if you mostly want completion, chat, and a capable editor.",
+        a: "Because the cost runs the other way. Cursor charges a monthly subscription; ADCode credits you a share of what advertisers pay to reach you, and your AI spend goes straight to the provider at its own rates. If Cursor's agent already saves you hours each week, the subscription is worth it - the trade favours ADCode when you would rather pay only for the model calls you make.",
       },
     ],
-    related: ["vscode", "free-ai-code-editor", "earn-while-you-code"],
+    related: ["windsurf", "copilot", "free-ai-code-editor"],
   },
   {
     slug: "idlen",
-    title: "ADCode vs Idlen",
+    title: "ADCode vs Idlen: two ways to get paid while you code",
     description:
-      "Both pay developers to see ads while coding. Idlen is a VS Code extension; ADCode is a complete editor with an auditable ledger. A comparison of what each one is, and which suits which situation.",
+      "Both pay developers to see ads while coding. Idlen is a VS Code extension; ADCode is a complete editor with an auditable ledger. Which suits which situation.",
     heading: "ADCode vs Idlen",
     lede: `Idlen and ADCode share one idea - that a developer should be paid a share of the advertising revenue they generate - and differ in almost every decision after it. Idlen is an extension you add to the editor you already use. ADCode is the editor. That difference decides which one suits you, and it does not always decide in our favour.`,
     updated: "2026-09-02",
@@ -431,8 +438,8 @@ export const LANDINGS: readonly Landing[] = [
       rows: [
         {
           aspect: "What it is",
-          them: "An extension for VS Code, Cursor, Windsurf and other VS Code builds.",
-          us: "A complete desktop editor for Windows, macOS, and Linux.",
+          them: "An extension for VS Code, Cursor, Devin Desktop and other VS Code builds.",
+          us: "A complete desktop editor for Windows and Linux, with macOS on the way.",
         },
         {
           aspect: "Keeping your setup",
@@ -500,6 +507,192 @@ export const LANDINGS: readonly Landing[] = [
     ],
     related: ["earn-while-you-code", "vscode", "free-ai-code-editor"],
   },
+  {
+    slug: "windsurf",
+    title: "ADCode vs Windsurf (now Devin Desktop): a free alternative",
+    description:
+      "Windsurf is now Devin Desktop, sold on plans with a usage allowance. ADCode runs AI agents on your own API key, costs nothing, and pays you instead.",
+    heading: "ADCode vs Windsurf, now Devin Desktop",
+    lede: `Windsurf is now Devin Desktop. Cognition, which bought Windsurf in 2025, renamed the editor in June 2026: the IDE carries on, compatible with Windsurf and VS Code extensions, with an Agent Command Center in front of it and Devin Local in place of the Cascade agent. It is sold on plans with a usage allowance. ADCode is an AI-native editor with no plan at all: you bring your own provider key, the agents work in your project, and the editor pays you a share of its advertising revenue. This page says when each one is the right choice.`,
+    updated: "2026-09-30",
+    comparison: {
+      subject: "Devin Desktop (formerly Windsurf)",
+      rows: [
+        {
+          aspect: "Price",
+          them: "A free plan with a light quota, and paid plans with a larger usage allowance.",
+          us: "Free. No plan, no allowance, no paid tier.",
+        },
+        {
+          aspect: "AI billing",
+          them: "An allowance that refreshes daily and weekly; what each message costs depends on the model and the size of the task.",
+          us: "Your own provider key at the provider's own rates. ADCode adds no markup and no cap.",
+        },
+        {
+          aspect: "Model choice",
+          them: "The models the plan offers.",
+          us: "Four providers or any OpenAI-compatible endpoint, including a model on your own machine.",
+        },
+        {
+          aspect: "Agents",
+          them: "Devin Local, the successor to Cascade, alongside cloud Devin agents on a board called the Agent Command Center.",
+          us: "Agents that edit across files, run your tests and keep going until done; several at once on a board, and Race mode to compare models on one task.",
+        },
+        {
+          aspect: "Editing surface",
+          them: "A full IDE, compatible with Windsurf and VS Code extensions and keybindings.",
+          us: "Monaco - the editing component from VS Code - in a separate application.",
+        },
+        {
+          aspect: "Earnings",
+          them: "None.",
+          us: `About ${perImpression} per impression, credited on an append-only ledger.`,
+        },
+        {
+          aspect: "Interruptions",
+          them: "None.",
+          us: "An occasional sponsored card in the corner. Rate limited, and switchable off.",
+        },
+      ],
+      whenNotUs:
+        "Choose Devin Desktop if you already work in Windsurf and its plan pays for itself - the rename carried plans, extensions and settings across, so staying costs you nothing. It is also the natural pick if you want local agents and Devin's cloud agents managed from one board. Stay, too, if your team has standardised on it: two editors in one team is a cost that never shows up on a pricing page.",
+    },
+    sections: [
+      {
+        heading: "Windsurf, renamed",
+        body: [
+          "On 2 June 2026 Cognition renamed Windsurf to Devin Desktop and shipped the change as an ordinary update, keeping each user's plan, extensions, keybindings and settings. The default screen became the Agent Command Center, a board of local and cloud agents, with the full editor behind it. Cascade, the agent Windsurf was known for, was retired on 1 July 2026 in favour of Devin Local.",
+          "If the change is what sent you looking for a Windsurf alternative, the useful question is the one underneath it: whether you want your AI on a vendor's allowance, or on your own key.",
+        ],
+      },
+      {
+        heading: "An allowance against your own key",
+        body: [
+          "A plan's allowance is counted in a unit the vendor defines and can redefine. It bundles the model call, the vendor's margin and the vendor's view of what a request is worth, which makes a month's bill hard to predict and harder to compare.",
+          "With your own key there is one price, the provider's, and one limit, your account's. If a provider cuts its prices you get the cut the same day; if a better model ships you switch in settings rather than waiting for an editor to offer it. Nothing about the arrangement depends on an editor vendor keeping its current plans.",
+        ],
+      },
+      {
+        heading: "What the agents do in ADCode",
+        body: [
+          "The assistant reads your project, makes exact edits across several files, runs your tests and type checks, and carries on until the job is done. Every turn that changed files gets an Undo card, so letting it act is safe rather than brave.",
+          "For bigger jobs the Agents board runs several agents at once, each in its own copy of the project, and shows what each ran as proof of work - the tests and checks, with a tick or a cross. Race mode hands one task to two or three models and lets you keep the best attempt, which is the fastest way to find out which model suits your codebase.",
+        ],
+      },
+      {
+        heading: "Where Devin Desktop is genuinely ahead",
+        body: [
+          "Its link to Devin's cloud agents, and the time Cognition has spent tuning its agents against a large user base. Compatibility with VS Code extensions and keybindings also means more of an existing setup carries over unchanged, which some people value more than anything else on this page.",
+        ],
+      },
+    ],
+    faq: [
+      {
+        q: "What happened to Windsurf?",
+        a: "Windsurf is now called Devin Desktop. Cognition renamed it on 2 June 2026 and delivered the change as an update, keeping users' plans, extensions and settings. The Cascade agent was retired on 1 July 2026 and replaced by Devin Local.",
+      },
+      {
+        q: "Is there a free alternative to Windsurf?",
+        a: "ADCode is a free AI code editor that runs agents on your own API key, from four providers or any OpenAI-compatible endpoint, with no plan, no subscription and no request cap of its own. Its agents edit across files, run your tests and can work several at once, and every turn can be undone.",
+      },
+      {
+        q: "Can I use my own API key instead of a Windsurf or Devin plan?",
+        a: "In ADCode, yes - it is the only way ADCode works. You paste a key from a provider you already use, requests go from the editor to that provider, and every one is billed at the provider's own rates. ADCode does not resell model usage.",
+      },
+      {
+        q: "Is ADCode a fork of VS Code?",
+        a: "No. ADCode is built on Monaco, the editing component VS Code uses, but it is a separate application rather than a fork of the VS Code shell. Editing and keybindings feel familiar; the surrounding workbench is ADCode's own.",
+      },
+    ],
+    related: ["cursor", "copilot", "free-ai-code-editor"],
+  },
+  {
+    slug: "copilot",
+    title: "ADCode vs GitHub Copilot: a free Copilot alternative",
+    description:
+      "Copilot adds AI to the editor you have, with monthly limits and paid plans. ADCode is a full editor with AI agents on your own key - and it pays you instead.",
+    heading: "ADCode vs GitHub Copilot",
+    lede: `GitHub Copilot is an AI assistant you add to an editor you already use, with a free tier that has monthly limits and paid plans above it. ADCode is the editor itself, with AI agents built in on your own provider key and no plan to buy - and it credits you a share of its advertising revenue. The first is the smaller change; the second is the one that also changes who pays whom.`,
+    updated: "2026-09-30",
+    comparison: {
+      subject: "GitHub Copilot",
+      rows: [
+        {
+          aspect: "What it is",
+          them: "An AI assistant for VS Code, Visual Studio, JetBrains IDEs and other editors.",
+          us: "A complete desktop editor with the AI built in.",
+        },
+        {
+          aspect: "Price",
+          them: "A free tier with monthly limits, and paid individual and business plans above it.",
+          us: "Free. No subscription and no paid tier.",
+        },
+        {
+          aspect: "AI billing",
+          them: "Included in the plan, with limits that depend on the plan.",
+          us: "Your own provider key at the provider's own rates. No markup, no cap of ADCode's.",
+        },
+        {
+          aspect: "Model choice",
+          them: "The models GitHub offers on your plan.",
+          us: "Four providers or any OpenAI-compatible endpoint, including a model on your own machine.",
+        },
+        {
+          aspect: "Agents",
+          them: "Agent mode in the editor, and a coding agent that works on GitHub issues and opens pull requests.",
+          us: "Agents that edit across files and run your tests; several at once on a board, with proof of work, and Race mode to compare models.",
+        },
+        {
+          aspect: "Keeping your editor",
+          them: "Yes - that is the point of it.",
+          us: "No. Moving editors is a real cost, and it belongs on this side of the table.",
+        },
+        {
+          aspect: "Earnings",
+          them: "None.",
+          us: `About ${perImpression} per impression, credited on an append-only ledger.`,
+        },
+      ],
+      whenNotUs:
+        "Keep Copilot if you are not willing to change editors - particularly if you live in a JetBrains IDE or Visual Studio, which ADCode does not replace - or if your organisation runs on GitHub and values the coding agent that picks up issues and opens pull requests inside that workflow. A plan your employer pays for is also hard to beat on price.",
+    },
+    sections: [
+      {
+        heading: "An assistant, or an editor",
+        body: [
+          "Copilot's great strength is that it goes where you already are. It does not ask you to move, and for most people that is the right-sized change.",
+          "ADCode asks you to move, and is only worth it if you want what comes with the move: the AI on your own key with no plan limits, agents that work in parallel with proof of what they ran, git history and terminals configured together, and an editor that pays you rather than charging you.",
+        ],
+      },
+      {
+        heading: "Limits, and who sets them",
+        body: [
+          "A plan's allowance is set by the vendor and changes when the vendor decides. With your own key the only limits are your provider account's, and you can raise them yourself. Heavy agent use on a plan tends to meet its ceiling; heavy use on your own key meets only your budget, which you can see request by request.",
+        ],
+      },
+      {
+        heading: "Where Copilot is genuinely ahead",
+        body: [
+          "Reach and integration. It runs in more editors than any other assistant, and its coding agent lives inside GitHub itself - an issue goes in, a pull request comes out. If that loop is how your team works, nothing in an editor replaces it.",
+        ],
+      },
+    ],
+    faq: [
+      {
+        q: "Is there a free alternative to GitHub Copilot?",
+        a: "Copilot has its own limited free tier. ADCode is a different kind of free: a complete editor with AI agents built in, where you bring your own API key and pay the provider directly, with no plan limits of ADCode's own - and the editor credits you a share of its ad revenue.",
+      },
+      {
+        q: "Can I use GitHub Copilot inside ADCode?",
+        a: "ADCode's AI runs on your own provider keys rather than through a Copilot subscription. You can keep Copilot in the editors you already use and try ADCode alongside them; the two do not conflict.",
+      },
+      {
+        q: "Does ADCode work with any model, like Copilot's model picker?",
+        a: "ADCode connects directly to four providers and to any OpenAI-compatible endpoint, including a model running on your own machine. You choose the model per chat or per agent, and Race mode can give one task to two or three models at once so you keep the best result.",
+      },
+    ],
+    related: ["cursor", "windsurf", "vscode"],
+  },
 ];
 
 const BY_SLUG = new Map(LANDINGS.map((page) => [page.slug, page]));
@@ -531,25 +724,14 @@ export const relatedLandings = (page: Landing): readonly Landing[] =>
  * heading, the URL, and the breadcrumb line - it does not need to be in the title twice.
  */
 export function landingMetadata(page: Landing): Metadata {
-  const path = landingPath(page);
-  return {
+  return pageMetadata({
+    path: landingPath(page),
     title: { absolute: page.title },
     description: page.description,
-    alternates: { canonical: url(path) },
-    openGraph: {
-      type: "article",
-      title: page.title,
-      description: page.description,
-      url: url(path),
-      siteName: SITE.name,
-      modifiedTime: page.updated,
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: page.title,
-      description: page.description,
-    },
-  };
+    type: "article",
+    publishedTime: page.updated,
+    modifiedTime: page.updated,
+  });
 }
 
 /** One line per page, for `llms.txt`. */
