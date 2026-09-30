@@ -1,0 +1,136 @@
+/*
+ * The Wait. Brand monochrome, hard black-and-white cuts, and one rule that carries over
+ * from the Payback ad: the only colour is money.
+ */
+:root {
+  --ink: #050505;
+  --paper: #f1f0eb;
+  --panel: #131313;
+  --line-2: rgba(255, 255, 255, 0.14);
+  --text: #ecebe6;
+  --text-2: #9d9b95;
+  --text-3: #5f5d59;
+  --money: #30d158;
+  --money-glow: rgba(48, 209, 88, 0.55);
+  --display: "Inter Tight", system-ui, sans-serif;
+  --ui: "Inter", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { width: 1080px; height: 1080px; overflow: hidden; background: var(--ink); }
+
+body {
+  font-family: var(--ui);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+#stage { position: relative; width: 1080px; height: 1080px; overflow: hidden; background: var(--ink); }
+.scene { position: absolute; inset: 0; display: none; }
+.word { display: inline-block; }
+.flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+
+/* ── Shared: caption, brand corner, the small print ──────────────────── */
+.caption {
+  position: absolute; left: 72px; top: 84px;
+  font: 800 92px/1 var(--display); letter-spacing: -0.035em; word-spacing: 0.06em; white-space: nowrap;
+}
+.corner { position: absolute; left: 72px; bottom: 56px; display: flex; align-items: center; gap: 14px; font: 800 34px var(--display); letter-spacing: -0.03em; }
+.print { position: absolute; right: 72px; bottom: 60px; font: 500 25px var(--ui); color: var(--text-2); letter-spacing: 0.01em; }
+.print.left { left: 72px; right: auto; }
+
+.mark-part { position: absolute; inset: 0; color: var(--text); filter: drop-shadow(0 0 22px rgba(255, 255, 255, 0.32)); }
+.mark-part.money { color: var(--money); filter: drop-shadow(0 0 30px var(--money-glow)); }
+.mark-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.mark-inline { display: inline-flex; color: var(--text); }
+.mark-inline svg { overflow: visible; }
+.icon { display: block; flex: none; }
+.icon path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── The cuts ────────────────────────────────────────────────────────── */
+.shot { position: absolute; inset: 0; display: none; background: var(--ink); overflow: hidden; }
+.shot.light { background: var(--paper); color: var(--ink); }
+.ring { position: absolute; left: 160px; top: 200px; width: 760px; height: 760px; overflow: visible; }
+.ring circle { fill: none; stroke-linecap: round; }
+.ring .track { stroke: rgba(255, 255, 255, 0.1); stroke-width: 16; }
+.ring .arc { stroke: rgba(255, 255, 255, 0.55); stroke-width: 16; }
+
+.money-big {
+  position: absolute; left: 0; right: 0; top: 440px; text-align: center;
+  font: 900 212px/1 var(--display); letter-spacing: -0.05em; color: var(--money); text-shadow: 0 0 60px var(--money-glow);
+  font-variant-numeric: tabular-nums;
+}
+
+.composer {
+  position: absolute; left: 70px; right: 70px; top: 340px; height: 400px; border-radius: 40px;
+  background: var(--panel); border: 2px solid var(--line-2); padding: 52px 54px;
+}
+.composer-text { font: 500 56px/1.25 var(--ui); color: var(--text); letter-spacing: -0.01em; }
+.composer-caret { display: inline-block; width: 5px; height: 58px; margin-left: 5px; background: var(--text); vertical-align: -10px; }
+.composer-send {
+  position: absolute; right: 44px; bottom: 40px; width: 112px; height: 112px; border-radius: 50%;
+  background: #2b2b2b; color: #777; display: grid; place-items: center;
+}
+
+.spinner { position: absolute; left: 270px; top: 200px; width: 540px; height: 540px; overflow: visible; }
+.spinner circle { fill: none; stroke-linecap: round; stroke-width: 34; }
+.spinner .track { stroke: rgba(255, 255, 255, 0.1); }
+.spinner .arc { stroke: var(--text); }
+.spin-time { position: absolute; left: 0; right: 0; top: 388px; text-align: center; font: 700 120px/1 var(--mono); letter-spacing: -0.04em; }
+.spin-label { position: absolute; left: 0; right: 0; top: 800px; text-align: center; font: 500 56px var(--mono); color: var(--text-2); }
+
+.build-label { position: absolute; left: 90px; top: 400px; font: 700 84px/1 var(--mono); letter-spacing: -0.03em; }
+.build-track { position: absolute; left: 90px; right: 90px; top: 540px; height: 72px; border-radius: 36px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.build-fill { position: absolute; inset: 0; background: var(--text); transform-origin: 0 50%; }
+.clock { position: absolute; left: 0; right: 0; top: 300px; text-align: center; font: 700 330px/1 var(--mono); letter-spacing: -0.06em; font-variant-numeric: tabular-nums; }
+
+.slam { position: absolute; left: 0; right: 0; text-align: center; font-family: var(--display); font-weight: 900; letter-spacing: -0.055em; word-spacing: 0.12em; line-height: 0.86; white-space: nowrap; }
+.slam.w1 { top: 420px; font-size: 226px; }
+.slam.w2 { top: 190px; font-size: 390px; }
+.slam.w3 { top: 300px; font-size: 400px; }
+.slam.word { top: 360px; font-size: 296px; }
+
+/* ── The hit: the notification and the money ─────────────────────────── */
+.hit-bg { position: absolute; inset: 0; background: var(--ink); }
+.note {
+  position: absolute; left: 70px; top: 300px; width: 940px; display: flex; align-items: center; gap: 30px;
+  padding: 34px 38px 34px 34px; border-radius: 28px; background: #1c1c1c; border: 2px solid rgba(255, 255, 255, 0.24);
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.7);
+}
+.note-logo { width: 132px; height: 132px; flex: none; border-radius: 30px; background: var(--text); color: #0a0a0a; display: grid; place-items: center; font: 800 76px var(--display); }
+.note-copy { flex: 1; min-width: 0; }
+.note-label { font: 700 22px var(--ui); letter-spacing: 0.14em; color: var(--text-3); margin-bottom: 10px; }
+.note-title { font: 400 41px/1.22 var(--ui); color: var(--text); }
+.note-title b { font-weight: 700; }
+.note-body { font-size: 30px; color: var(--text-2); margin-top: 8px; }
+.note-close { color: var(--text-3); align-self: flex-start; }
+
+.chip { position: absolute; left: 0; right: 0; top: 610px; text-align: center; font: 900 236px/1 var(--display); letter-spacing: -0.05em; color: var(--money); text-shadow: 0 0 70px var(--money-glow); font-variant-numeric: tabular-nums; }
+
+.fifty { position: absolute; left: 0; right: 0; top: 200px; text-align: center; font: 900 420px/1 var(--display); letter-spacing: -0.06em; color: var(--money); text-shadow: 0 0 90px var(--money-glow); }
+.share-line { position: absolute; left: 0; right: 0; top: 640px; text-align: center; font: 800 96px/1.02 var(--display); letter-spacing: -0.04em; }
+.split { position: absolute; left: 120px; right: 120px; top: 884px; height: 28px; }
+.split-you, .split-them { position: absolute; top: 0; height: 28px; border-radius: 14px; }
+.split-you { left: 0; background: var(--money); box-shadow: 0 0 40px var(--money-glow); }
+.split-them { right: 0; background: rgba(255, 255, 255, 0.24); }
+.split-tag { position: absolute; top: 44px; font: 700 27px var(--ui); letter-spacing: 0.02em; }
+.split-tag.you { left: 0; color: var(--money); }
+.split-tag.them { right: 0; color: var(--text-2); }
+
+/* ── The brand ───────────────────────────────────────────────────────── */
+.brand-mark { position: absolute; left: 370px; top: 70px; width: 340px; height: 340px; }
+.brand-bloom { position: absolute; inset: -420px; background: radial-gradient(circle, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.14) 26%, rgba(255, 255, 255, 0) 58%); }
+.brand-ring { position: absolute; inset: 30px; border-radius: 50%; border: 4px solid #fff; }
+.brand-word { position: absolute; left: 0; right: 0; top: 440px; text-align: center; font: 900 176px/1 var(--display); letter-spacing: -0.05em; }
+.brand-tag { position: absolute; left: 0; right: 0; top: 650px; text-align: center; font: 800 104px/1 var(--display); letter-spacing: -0.04em; word-spacing: 0.05em; }
+.brand-tag .money { color: var(--money); text-shadow: 0 0 44px var(--money-glow); }
+.brand-free { position: absolute; left: 0; right: 0; top: 800px; text-align: center; font: 600 44px var(--display); letter-spacing: -0.01em; color: var(--text-2); }
+.brand-url {
+  position: absolute; left: 50%; top: 886px; width: 760px; margin-left: -380px; height: 104px; border-radius: 999px;
+  border: 3px solid rgba(255, 255, 255, 0.7); display: grid; place-items: center; font: 700 47px var(--display); letter-spacing: -0.02em;
+}
+
+.vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 46%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0.3) 100%); }
