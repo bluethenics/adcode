@@ -2,6 +2,12 @@
   "name": "@adcode/web",
   "version": "2.1.1",
   "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bluethenics/adcode.git",
+    "directory": "apps/web"
+  },
   "description": "adcode.dev - the marketing site, advertiser portal, user dashboard, and admin panel.",
   "scripts": {
     "dev": "next dev",

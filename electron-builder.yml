@@ -6,7 +6,7 @@
 
 appId: com.adcode.ide
 productName: ADCode
-copyright: ADCode
+copyright: Copyright 2026 Bluethenics
 
 # node-pty ships N-API prebuilds, which are ABI-stable across Node and Electron versions.
 # The hook stages dependencies through explicit file sets below and returns false so the

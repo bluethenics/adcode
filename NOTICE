@@ -1,0 +1,16 @@
+ADCode
+Copyright 2026 Bluethenics
+
+This product includes software developed by Bluethenics and the ADCode
+contributors (https://github.com/bluethenics/adcode).
+
+Third-party software
+--------------------
+
+The installed application bundles third-party packages under their own
+licences. Their notices ship with every build as THIRD-PARTY-NOTICES.txt and
+are shown in the app under Help > Open Source Licences.
+
+The website's image pipeline uses sharp, whose prebuilt binaries include
+libvips, licensed under LGPL-3.0-or-later. libvips is dynamically linked and
+unmodified; its source is at https://github.com/libvips/libvips.

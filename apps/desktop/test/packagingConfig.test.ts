@@ -42,7 +42,7 @@ describe("desktop packaging dependency boundary", () => {
     expect(manifest.dependencies).toEqual({ "node-pty": "^1.1.0" });
     expect(manifest.optionalDependencies ?? {}).toEqual({});
     expect(manifest.author).toBe("ADCode");
-    expect(manifest.license).toBe("UNLICENSED");
+    expect(manifest.license).toBe("Apache-2.0");
   });
 
   /*
