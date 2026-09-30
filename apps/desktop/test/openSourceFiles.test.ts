@@ -17,7 +17,7 @@ export function relativeLinks(markdown: string): string[] {
 }
 
 /** Documents whose links must resolve. Later tasks append to this list. */
-const LINKED_DOCUMENTS = ["TRADEMARKS.md"];
+const LINKED_DOCUMENTS = ["TRADEMARKS.md", "CONTRIBUTING.md", "SECURITY.md"];
 
 describe("open-source licensing", () => {
   it("ships the unmodified Apache-2.0 text", () => {
@@ -60,5 +60,28 @@ describe("open-source licensing", () => {
         .map((target) => `${document} -> ${target}`),
     );
     expect(broken).toEqual([]);
+  });
+});
+
+describe("contributor scaffolding", () => {
+  it("tells a contributor how to verify a change", () => {
+    const contributing = read("CONTRIBUTING.md");
+    expect(contributing).toContain("npm run verify");
+    expect(contributing).toContain("node scripts/docs-seed.mjs");
+    expect(contributing).toContain("npm run mock-server");
+  });
+
+  it("routes security reports away from public issues", () => {
+    expect(read("SECURITY.md")).toContain("security/advisories/new");
+    expect(read(".github/ISSUE_TEMPLATE/config.yml")).toContain("blank_issues_enabled: false");
+  });
+
+  it("runs verify on pull requests without exposing secrets to forks", () => {
+    const workflow = read(".github/workflows/verify.yml");
+    expect(workflow).toContain("pull_request:");
+    expect(workflow).not.toContain("pull_request_target");
+    expect(workflow).not.toContain("secrets.");
+    expect(workflow).toMatch(/permissions:\s*\n\s*contents: read/);
+    expect(workflow).toContain("npm run verify");
   });
 });

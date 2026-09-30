@@ -1,0 +1,40 @@
+# Run the full verification on every pull request.
+#
+# `pull_request`, never the variant that runs in the base repository's context: that one
+# runs with the base repository's credentials against code from a fork, which is how a pull
+# request steals a signing key. This workflow references no credentials at all and can only
+# read the repository.
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix apps/web ci --ignore-scripts
+      - name: Prepare Electron sandbox for GUI tests
+        run: |
+          node node_modules/electron/install.js
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+      - run: xvfb-run -a npm run verify
