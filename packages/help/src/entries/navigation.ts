@@ -15,7 +15,7 @@ export const NAVIGATION_ENTRIES: readonly HelpEntry[] = [
     plain:
       "Open any file by typing a few letters of its name. You do not have to get them right, or in order.",
     why: "Clicking through folders to find a file you already know the name of is the slowest thing in any editor.",
-    how: "Press Ctrl+P and start typing. 'ushnd' will find 'useHandler.ts'. Enter opens the highlighted one.",
+    how: "Press Ctrl+P and start typing. 'ushnd' will find 'useHandler.ts'. Enter opens the highlighted one. Files in folders that search skips, such as node_modules or a folder your .gitignore leaves out, are not listed; open those from the file tree.",
     group: "navigation",
     settingIds: ["adcode.navigation.fuzzyFileOpen"],
     shortcut: "CmdOrCtrl+P",
@@ -38,7 +38,7 @@ export const NAVIGATION_ENTRIES: readonly HelpEntry[] = [
     title: "Global search and replace",
     plain: "Search every file in the project for some text, and change it everywhere at once.",
     why: "Renaming something, or finding every place a mistake was copied to.",
-    how: "Press Ctrl+Shift+F. You can search for a pattern rather than exact text, restrict it to certain files, and see every change before you make it.",
+    how: "Press Ctrl+Shift+F. You can search for a pattern rather than exact text, restrict it to certain files, and see every change before you make it. Some folders are never searched: downloaded and built ones such as node_modules and dist, any folder your project's .gitignore or .git/info/exclude leaves out, and .claude/worktrees, where coding agents keep whole copies of the project.",
     group: "navigation",
     settingIds: ["adcode.navigation.globalSearch"],
     shortcut: "CmdOrCtrl+Shift+F",

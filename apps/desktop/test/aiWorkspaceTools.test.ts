@@ -309,6 +309,35 @@ describe("sandboxed built-in AI tools", () => {
     expect(writeSandboxFile).not.toHaveBeenCalled();
   });
 
+  /*
+   * The same directory rule as the editor's own search. A shadow-copy sandbox of a dirty
+   * repository carries `.claude/worktrees` - whole second checkouts - along with it, and an
+   * assistant that searched them would answer from a copy of the code nobody is editing.
+   */
+  it("skips agent worktrees and gitignored folders when listing and searching", async () => {
+    await mkdir(join(sandbox, ".claude", "worktrees", "x", "src"), { recursive: true });
+    await writeFile(join(sandbox, ".claude", "worktrees", "x", "src", "file.ts"), "sandbox version\n", "utf8");
+    await writeFile(join(sandbox, ".claude", "settings.json"), "{}\n", "utf8");
+    await mkdir(join(sandbox, "src", "generated"), { recursive: true });
+    await writeFile(join(sandbox, "src", "generated", "types.ts"), "sandbox version\n", "utf8");
+    await writeFile(join(sandbox, ".gitignore"), "generated/\n", "utf8");
+    const runner = createAiToolRunner({
+      workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),
+      memory: () => null,
+      writeSandboxFile: async (path, contents) => createFileChange(path, null, contents),
+      onProposedEdit: () => undefined,
+    });
+    const signal = new AbortController().signal;
+
+    const searched = await runner.run(call("search", { pattern: "sandbox" }), signal);
+    const recursive = await runner.run(call("list_files", { recursive: true }), signal);
+    const claude = await runner.run(call("list_files", { path: ".claude" }), signal);
+
+    expect(searched.content).toBe("src/file.ts:1: sandbox version");
+    expect(recursive.content.split("\n")).toEqual([".claude/settings.json", ".gitignore", "src/file.ts"]);
+    expect(claude.content).toBe("settings.json");
+  });
+
   it("treats empty, dot, and slash list/search paths as the workspace root", async () => {
     const runner = createAiToolRunner({
       workspace: async () => ({ taskId: "task-tools", sandboxRoot: sandbox, humanRoot: human }),

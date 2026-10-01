@@ -10,24 +10,7 @@
  */
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-
-/** Directories nobody means to search, skipped before they are walked. */
-const SKIP_DIRECTORIES = new Set([
-  ".git",
-  "node_modules",
-  "dist",
-  "out",
-  "build",
-  ".next",
-  ".worktrees",
-  ".open-next",
-  ".wrangler",
-  "target",
-  "coverage",
-  ".adcode",
-  ".adcode-cache",
-  ".cache",
-]);
+import { loadDirectoryFilter, type DirectoryFilter } from "./ignore.ts";
 
 /** Past this, a file is a build artefact or a blob, not something a person is reading. */
 const MAX_FILE_BYTES = 2_000_000;
@@ -203,7 +186,11 @@ export interface WorkspaceSearchDeps {
 }
 
 export function createWorkspaceSearch(deps: WorkspaceSearchDeps): WorkspaceSearch {
-  async function* walkFiles(directory: string, signal?: AbortSignal): AsyncGenerator<string> {
+  async function* walkDirectory(
+    directory: string,
+    skip: DirectoryFilter,
+    signal?: AbortSignal,
+  ): AsyncGenerator<string> {
     let entries;
     try {
       entries = await readdir(directory, { withFileTypes: true });
@@ -215,15 +202,22 @@ export function createWorkspaceSearch(deps: WorkspaceSearchDeps): WorkspaceSearc
       if (signal !== undefined && signal.aborted) return;
 
       const full = join(directory, entry.name);
+      const path = relative(deps.root, full).split(sep).join("/");
 
       if (entry.isDirectory()) {
-        if (SKIP_DIRECTORIES.has(entry.name)) continue;
-        yield* walkFiles(full, signal);
+        if (skip(path)) continue;
+        yield* walkDirectory(full, skip, signal);
         continue;
       }
 
-      if (entry.isFile()) yield relative(deps.root, full).split(sep).join("/");
+      if (entry.isFile()) yield path;
     }
+  }
+
+  // The filter is re-read on every walk, so an edit to `.gitignore` takes effect on the
+  // next search rather than the next time the folder is opened.
+  async function* walkFiles(signal?: AbortSignal): AsyncGenerator<string> {
+    yield* walkDirectory(deps.root, await loadDirectoryFilter(deps.root), signal);
   }
 
   function buildMatcher(query: SearchQuery): RegExp | null {
@@ -244,7 +238,7 @@ export function createWorkspaceSearch(deps: WorkspaceSearchDeps): WorkspaceSearc
   return {
     async listFiles(): Promise<string[]> {
       const files: string[] = [];
-      for await (const file of walkFiles(deps.root)) files.push(file);
+      for await (const file of walkFiles()) files.push(file);
       return files;
     },
 
@@ -270,7 +264,7 @@ export function createWorkspaceSearch(deps: WorkspaceSearchDeps): WorkspaceSearc
       let files = 0;
       let replacements = 0;
 
-      for await (const path of walkFiles(deps.root, signal)) {
+      for await (const path of walkFiles(signal)) {
         if (aborted()) break;
 
         if (include !== null && !include.test(path)) continue;
@@ -334,7 +328,7 @@ export function createWorkspaceSearch(deps: WorkspaceSearchDeps): WorkspaceSearc
 
       let emitted = 0;
 
-      for await (const path of walkFiles(deps.root, signal)) {
+      for await (const path of walkFiles(signal)) {
         if (aborted() || emitted >= maxResults) return;
 
         if (include !== null && !include.test(path)) continue;

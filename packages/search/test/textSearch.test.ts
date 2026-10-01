@@ -68,6 +68,33 @@ describe("listing files", () => {
     expect(await collect(search.search({ pattern: "needle" }))).toHaveLength(1);
   });
 
+  /*
+   * Claude Code checks a whole second copy of the repository out under
+   * `.claude/worktrees/<name>/`. Measured in this repo with one present: 1,062 of 2,763
+   * listed files came from it, a symbol search answered from the copy as often as from the
+   * source, and the desktop smoke run's searches timed out under the doubled walk.
+   */
+  it("skips agent worktrees under .claude/worktrees", async () => {
+    await write("src/a.ts", "needle");
+    await write(".claude/settings.json", "needle");
+    await write(".claude/worktrees/x/src/a.ts", "needle");
+
+    expect((await search.listFiles()).sort()).toEqual([".claude/settings.json", "src/a.ts"]);
+    const hits = await collect(search.search({ pattern: "needle" }));
+    expect(hits.map((hit) => hit.path).sort()).toEqual([".claude/settings.json", "src/a.ts"]);
+  });
+
+  it("skips a directory the .gitignore leaves out, but not a gitignored file", async () => {
+    await write(".gitignore", "generated/\n.env\n");
+    await write("src/a.ts", "needle");
+    await write("src/generated/types.ts", "needle");
+    await write(".env", "needle");
+
+    expect((await search.listFiles()).sort()).toEqual([".env", ".gitignore", "src/a.ts"]);
+    const hits = await collect(search.search({ pattern: "needle" }));
+    expect(hits.map((hit) => hit.path).sort()).toEqual([".env", "src/a.ts"]);
+  });
+
   it("returns nothing for a directory that does not exist", async () => {
     const missing = createWorkspaceSearch({ root: join(dir, "nope") });
     expect(await missing.listFiles()).toEqual([]);

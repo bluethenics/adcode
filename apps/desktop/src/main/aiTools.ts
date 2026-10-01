@@ -13,11 +13,13 @@
  * exists for.
  */
 import { execFile as execFileCallback } from "node:child_process";
+import type { Dirent } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { promisify } from "node:util";
 import { computeHunks, type AiFileChange, type ToolCallBlock, type ToolRunner } from "@adcode/ai";
 import type { NodeMemory } from "@adcode/memory";
+import { loadDirectoryFilter, type DirectoryFilter } from "@adcode/search";
 import { resolveSandboxPath } from "./aiSandbox.ts";
 import type { PreviewStatus } from "../shared/api.ts";
 
@@ -30,7 +32,6 @@ const MAX_OUTLINE_SYMBOLS = 200;
 const MAX_OUTPUT_CHARS = 24_000;
 const RUN_TIMEOUT_MS = 30_000;
 const FETCH_TIMEOUT_MS = 10_000;
-const SKIP = new Set([".git", "node_modules", "dist", "out", ".next", "target", ".adcode"]);
 
 /** Commands that are never worth the risk, whatever the workspace. */
 const BLOCKED_COMMANDS = [
@@ -353,23 +354,38 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
     );
   }
 
+  /** Whether a directory entry is left out of a listing. */
+  function skipsEntry(entry: Dirent, path: string, skip: DirectoryFilter): boolean {
+    // A linked-worktree sandbox has a `.git` *file*; it is git's pointer, not project content.
+    if (entry.name === ".git" || entry.isSymbolicLink()) return true;
+    return entry.isDirectory() && skip(path);
+  }
+
+  /** Every file under `directory`, skipping the directories the editor's own search skips. */
   async function walk(directory: string, root: string, hits: string[]): Promise<void> {
-    if (hits.length >= 2000) return;
+    const skip = await loadDirectoryFilter(root);
 
-    let entries;
-    try {
-      entries = await readdir(directory, { withFileTypes: true });
-    } catch {
-      return;
+    async function visit(current: string): Promise<void> {
+      if (hits.length >= 2000) return;
+
+      let entries;
+      try {
+        entries = await readdir(current, { withFileTypes: true });
+      } catch {
+        return;
+      }
+
+      for (const entry of entries) {
+        const full = join(current, entry.name);
+        const path = relative(root, full).split(sep).join("/");
+        if (skipsEntry(entry, path, skip)) continue;
+
+        if (entry.isDirectory()) await visit(full);
+        else hits.push(path);
+      }
     }
 
-    for (const entry of entries) {
-      if (SKIP.has(entry.name) || entry.isSymbolicLink()) continue;
-      const full = join(directory, entry.name);
-
-      if (entry.isDirectory()) await walk(full, root, hits);
-      else hits.push(relative(root, full).split(sep).join("/"));
-    }
+    await visit(directory);
   }
 
   async function run(call: ToolCallBlock): Promise<{ content: string; isError: boolean }> {
@@ -438,8 +454,9 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
               return ok(listed.length === 0 ? "(empty)" : listed.join("\n"));
             }
             const entries = await readdir(target, { withFileTypes: true });
+            const skip = await loadDirectoryFilter(root);
             const listed = entries
-              .filter((entry) => !SKIP.has(entry.name))
+              .filter((entry) => !skipsEntry(entry, relative(root, join(target, entry.name)).split(sep).join("/"), skip))
               .map((entry) => (entry.isDirectory() ? `${entry.name}/` : entry.name))
               .sort();
 

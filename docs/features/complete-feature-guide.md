@@ -331,7 +331,7 @@ Open any file by typing a few letters of its name. You do not have to get them r
 
 Why use it: Clicking through folders to find a file you already know the name of is the slowest thing in any editor.
 
-How to use it: Press Ctrl+P and start typing. 'ushnd' will find 'useHandler.ts'. Enter opens the highlighted one.
+How to use it: Press Ctrl+P and start typing. 'ushnd' will find 'useHandler.ts'. Enter opens the highlighted one. Files in folders that search skips, such as node_modules or a folder your .gitignore leaves out, are not listed; open those from the file tree.
 
 Access: `All Features → Fuzzy file open`; `Go to a file`; `Turn on or off`; `Settings`; `Keyboard → Ctrl/Cmd+P`.
 
@@ -342,7 +342,7 @@ Search every file in the project for some text, and change it everywhere at once
 
 Why use it: Renaming something, or finding every place a mistake was copied to.
 
-How to use it: Press Ctrl+Shift+F. You can search for a pattern rather than exact text, restrict it to certain files, and see every change before you make it.
+How to use it: Press Ctrl+Shift+F. You can search for a pattern rather than exact text, restrict it to certain files, and see every change before you make it. Some folders are never searched: downloaded and built ones such as node_modules and dist, any folder your project's .gitignore or .git/info/exclude leaves out, and .claude/worktrees, where coding agents keep whole copies of the project.
 
 Access: `All Features → Global search and replace`; `Search the project`; `Turn on or off`; `Settings`; `Keyboard → Ctrl/Cmd+Shift+F`.
 

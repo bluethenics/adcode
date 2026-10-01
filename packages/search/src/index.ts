@@ -21,6 +21,8 @@ export {
   type WorkspaceSearchDeps,
 } from "./textSearch.ts";
 
+export { loadDirectoryFilter, SKIP_DIRECTORY_NAMES, type DirectoryFilter } from "./ignore.ts";
+
 export {
   createUniversalSearchCoordinator,
   rankUniversalItems,

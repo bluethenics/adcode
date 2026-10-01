@@ -425,11 +425,13 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Narrow the scope with include/exclude patterns - say, only *.tsx files.",
       "Review the matched lines grouped per file before touching anything.",
       "Type the replacement and press Replace All, or replace just the matches you approve one file at a time.",
+      "For a file in a folder your .gitignore leaves out, open it from the file tree instead - search skips those folders, along with node_modules, build output, and the .claude/worktrees copies coding agents make.",
     ],
     benefits: [
       "You see every hit before anything changes - no surprise diffs.",
       "Pattern search catches variants a plain find misses.",
       "Results stay live as you edit, so renames across many files stay trackable.",
+      "Results come from your code, not from build output or an agent's second copy of the project - and a replace never rewrites those copies behind your back.",
     ],
     betterThan:
       "Where many editors push you to an extension for project-wide replace with review, ADCode treats preview-before-change as the default path. Combined with gutter diffs and git, every mass edit stays visible and reversible.",
