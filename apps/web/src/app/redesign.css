@@ -286,17 +286,22 @@ h1, h2, h3, h4 { font-family: var(--font-body), -apple-system, BlinkMacSystemFon
 .studio-hero .marketplace-hero-copy > p { margin-top: 18px; color: var(--muted); font-size: 14px; line-height: 1.7; }
 .studio-hero .hero-install { margin-top: 24px; gap: 8px; }
 .studio-hero .marketplace-hero-copy > small { margin-top: 12px; font-size: 11px; }
-.hero-dev-counter { --dev-bg: light-dark(#ffffff, #1d1b15); --dev-ink: light-dark(#26251e, #edece7); --dev-muted: light-dark(#65645d, #a8a69d); --dev-line: light-dark(#deded5, #343228); --dev-digit-bg: light-dark(#f4f2ec, #2e2c24); --dev-digit-border: light-dark(#deded5, transparent); --dev-shadow: light-dark(rgb(30 43 65 / .07), rgb(0 0 0 / .25)); --dev-up: light-dark(#14785a, #68d6b1); justify-self: start; width: 100%; max-width: 460px; min-width: 0; display: flex; align-items: center; gap: 18px; padding: 14px 18px; border: 1px solid var(--dev-line); border-radius: 18px; background: var(--dev-bg); box-shadow: 0 12px 32px var(--dev-shadow); }
-.hero-dev-counter-brand { display: flex; align-items: center; gap: 12px; flex: none; }
-.hero-dev-counter-icon { display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex: none; border-radius: 12px; background: var(--dev-ink); color: var(--dev-bg); font-family: var(--font-mono), monospace; font-size: 18px; font-weight: 700; letter-spacing: -.05em; }
-.hero-dev-counter-text { display: flex; flex-direction: column; line-height: 1.3; }
-.hero-dev-counter-text strong { font-size: 15px; font-weight: 650; letter-spacing: -.01em; color: var(--dev-ink); white-space: nowrap; }
-.hero-dev-counter-text small { font-size: 13px; color: var(--dev-muted); white-space: nowrap; }
-.hero-dev-counter-divider { width: 1px; align-self: stretch; flex: none; background: var(--dev-line); }
-.hero-dev-counter-digits { display: flex; flex: 1; justify-content: flex-end; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.hero-dev-counter-digit { flex: 1 1 0; min-width: 0; max-width: 40px; height: 56px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid var(--dev-digit-border); border-radius: 12px; background: var(--dev-digit-bg); color: var(--dev-ink); font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-@media (max-width: 900px) { .hero-dev-counter { justify-self: start; max-width: 460px; } }
-@media (max-width: 480px) { .hero-dev-counter { flex-wrap: wrap; } .hero-dev-counter-divider { display: none; } .hero-dev-counter-digits { flex-basis: 100%; justify-content: flex-start; } }
+.hero-dev-counter { --dev-bg: light-dark(#ffffff, #1d1b15); --dev-ink: light-dark(#26251e, #edece7); --dev-muted: light-dark(#65645d, #a8a69d); --dev-line: light-dark(#deded5, #343228); --dev-digit-bg: light-dark(#f0eee7, #2a2820); --dev-digit-border: light-dark(#deded5, transparent); --dev-shadow: light-dark(rgb(30 43 65 / .07), rgb(0 0 0 / .25)); --dev-up: light-dark(#14785a, #68d6b1); justify-self: end; width: 100%; max-width: 420px; min-width: 0; display: grid; gap: 18px; padding: 22px 26px 24px; border: 1px solid var(--dev-line); border-radius: 20px; background: var(--dev-bg); box-shadow: 0 12px 32px var(--dev-shadow); color: var(--dev-ink); }
+.hero-dev-counter-live { display: inline-flex; align-items: center; gap: 9px; color: var(--dev-muted); font-size: 12px; font-weight: 500; }
+.hero-dev-counter-live i { position: relative; width: 7px; height: 7px; border-radius: 50%; background: var(--dev-up); }
+.hero-dev-counter-stats { display: grid; grid-template-columns: auto auto; justify-content: start; gap: 0; margin: 0; }
+.hero-dev-counter-stats > div { display: flex; flex-direction: column-reverse; gap: 6px; min-width: 0; padding-right: 28px; }
+.hero-dev-counter-stats > div + div { padding: 0 0 0 28px; border-left: 1px solid var(--dev-line); }
+.hero-dev-counter-stats dt { color: var(--dev-muted); font-size: 13px; line-height: 1.3; white-space: nowrap; }
+.hero-dev-counter-stats dd { margin: 0; color: var(--dev-ink); font-size: 46px; font-weight: 600; letter-spacing: -.045em; line-height: 1; font-variant-numeric: tabular-nums; }
+.hero-dev-counter-stats [data-growing="true"] dd { color: var(--dev-up); }
+.hero-dev-counter-blank { display: block; width: 88px; height: 46px; border-radius: 10px; background: var(--dev-digit-bg); border: 1px solid var(--dev-digit-border); }
+@media (prefers-reduced-motion: no-preference) {
+  .hero-dev-counter-live i::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1px solid var(--dev-up); opacity: 0; animation: hero-dev-counter-live 2.4s ease-out infinite; }
+  @keyframes hero-dev-counter-live { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(1.8); opacity: 0; } }
+}
+@media (max-width: 900px) { .hero-dev-counter { justify-self: start; } }
+@media (max-width: 480px) { .hero-dev-counter { padding: 18px 20px 20px; gap: 14px; } .hero-dev-counter-stats dd { font-size: 38px; } .hero-dev-counter-stats > div { padding-right: 20px; } .hero-dev-counter-stats > div + div { padding-left: 20px; } }
 .marketplace-primary, .marketplace-secondary { min-height: 43px; font-weight: 400; font-size: 14px; padding: 11px 20px; }
 .marketplace-secondary { border: 1px solid var(--hairline); background: transparent; }
 .showcase-stage { border: 0; border-radius: 5px; padding: clamp(20px, 4.5vw, 65px); background: var(--preview-ground); }
@@ -461,8 +466,6 @@ body:has(.auth-screen) .website-consent { position: static; margin: 24px auto; b
   @keyframes install-next-in { from { opacity: 0; transform: translateY(-4px); } }
 }
 
-/* Growth in the hero counter is the money colour: it is the number that is moving. */
-.hero-dev-counter-text small[data-growing="true"] { color: var(--dev-up); font-weight: 600; }
 
 /* The nav's way in. Hidden on phones, where the hero offers to send the link instead. */
 .nav-download { min-height: 34px; padding: 7px 14px; border-radius: 999px; background: var(--text); color: var(--surface); font-size: 12px; font-weight: 600; white-space: nowrap; }

@@ -2,29 +2,21 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import {
-  DeveloperCounter,
-  DeveloperCounterView,
-  splitPaddedDigits,
-  weeklyLine,
-} from "../src/components/DeveloperCounter";
+import { countUpValue, DeveloperCounter, DeveloperCounterView } from "../src/components/DeveloperCounter";
 
-describe("splitPaddedDigits", () => {
-  it("pads to six boxes with leading zeros", () => {
-    expect(splitPaddedDigits(632)).toEqual(["0", "0", "0", "6", "3", "2"]);
+describe("countUpValue", () => {
+  it("starts at zero and lands exactly on the real value", () => {
+    expect(countUpValue(632, 0)).toBe(0);
+    expect(countUpValue(632, 1)).toBe(632);
+    expect(countUpValue(632, 5)).toBe(632);
   });
-  it("keeps every digit when the total outgrows the width", () => {
-    expect(splitPaddedDigits(1234567)).toEqual(["1", "2", "3", "4", "5", "6", "7"]);
-  });
-});
-
-describe("weeklyLine", () => {
-  it("states the week's sign-ups when there were any", () => {
-    expect(weeklyLine(214)).toBe("+214 joined this week");
-    expect(weeklyLine(1500)).toBe("+1,500 joined this week");
-  });
-  it("says nothing about growth in a week without any", () => {
-    expect(weeklyLine(0)).toBe("on ADCode");
+  it("only ever climbs", () => {
+    let previous = 0;
+    for (let step = 0; step <= 20; step += 1) {
+      const value = countUpValue(632, step / 20);
+      expect(value).toBeGreaterThanOrEqual(previous);
+      previous = value;
+    }
   });
 });
 
@@ -34,17 +26,30 @@ describe("DeveloperCounter", () => {
    * minute, on a site that sells advertisers access to these developers. The number on the
    * page is now the API's count or nothing.
    */
-  it("shows the API's count, not a number of its own", () => {
+  it("shows the API's count and this week's sign-ups, without zero-padding", () => {
     const markup = renderToStaticMarkup(createElement(DeveloperCounterView, { state: { status: "ready", developers: 632, thisWeek: 214 } }));
-    for (const digit of ["0", "0", "0", "6", "3", "2"]) expect(markup).toContain(`hero-dev-counter-digit">${digit}<`);
-    expect(markup).toContain("+214 joined this week");
-    expect(markup).toContain("632 developers on ADCode");
+    expect(markup).toContain(">632<");
+    expect(markup).toMatch(/\+(<!-- -->)?214</);
+    expect(markup).not.toContain("000632");
+    expect(markup).toContain("632 developers on ADCode, 214 joined this week");
   });
 
-  it("renders empty boxes while loading rather than a guess", () => {
+  it("groups thousands", () => {
+    const markup = renderToStaticMarkup(createElement(DeveloperCounterView, { state: { status: "ready", developers: 12_345, thisWeek: 1_500 } }));
+    expect(markup).toContain(">12,345<");
+    expect(markup).toContain("1,500<");
+  });
+
+  it("leaves out the weekly figure in a week without sign-ups", () => {
+    const markup = renderToStaticMarkup(createElement(DeveloperCounterView, { state: { status: "ready", developers: 632, thisWeek: 0 } }));
+    expect(markup).not.toContain("joined this week</dt>");
+  });
+
+  it("renders blank figures while loading rather than a guess", () => {
     const markup = renderToStaticMarkup(createElement(DeveloperCounter));
     expect(markup).toContain('aria-busy="true"');
-    expect(markup).not.toMatch(/hero-dev-counter-digit">\d</);
+    expect(markup).toContain("hero-dev-counter-blank");
+    expect(markup).not.toMatch(/<dd>\+?\d/);
   });
 
   it("gets out of the way when the count is unavailable", () => {

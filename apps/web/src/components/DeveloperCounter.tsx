@@ -11,54 +11,64 @@ import { parsePublicStats } from "@/lib/publicStats";
  * something is, a week of sign-ups says it is moving. Both come from the same endpoint the
  * network section reads, so the page cannot quote two different numbers.
  *
- * Before the answer arrives the boxes are empty rather than guessed; if it never arrives
+ * The figures are set as type, not as odometer slots: zero-padding a three-digit total into
+ * six boxes made it look smaller than it is. They count up once when they arrive - the one
+ * piece of motion in the hero - and land on the exact value.
+ *
+ * Before the answer arrives the figures are blank rather than guessed; if it never arrives
  * the card stays out of the way instead of showing an apology in the hero.
  */
 
-/** Minimum digit boxes, padded with leading zeros like an odometer (000632). */
-export const DEVELOPER_COUNT_DIGITS = 6;
-
-/**
- * Zero-padded digit boxes, e.g. 632 -> ["0", "0", "0", "6", "3", "2"].
- * Totals that outgrow the width keep every digit rather than truncating.
- */
-export function splitPaddedDigits(value: number, width: number = DEVELOPER_COUNT_DIGITS): string[] {
-  const normalized = String(Math.max(0, Math.floor(value)));
-  return (normalized.length >= width ? normalized : normalized.padStart(width, "0")).split("");
-}
-
-/** "+214 joined this week", or the quieter line when the week was empty. */
-export function weeklyLine(joined: number): string {
-  return joined > 0 ? `+${joined.toLocaleString("en-US")} joined this week` : "on ADCode";
-}
-
 export type CounterState = { status: "loading" } | { status: "ready"; developers: number; thisWeek: number } | { status: "offline" };
+
+const COUNT_UP_MS = 1100;
+
+/** Eased progress for the count-up: fast at first, settling onto the real value. */
+export function countUpValue(target: number, progress: number): number {
+  const clamped = Math.min(Math.max(progress, 0), 1);
+  return Math.round(target * (1 - Math.pow(1 - clamped, 3)));
+}
+
+function CountUp({ value, prefix = "" }: { value: number; prefix?: string }) {
+  // On the server, and for anyone who asked for less motion, the number is simply there.
+  const [shown, setShown] = useState(() =>
+    typeof window === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches ? value : 0,
+  );
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setShown(value); return; }
+    const start = performance.now();
+    let frame = requestAnimationFrame(function tick(now) {
+      const progress = (now - start) / COUNT_UP_MS;
+      setShown(countUpValue(value, progress));
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+  return <>{prefix}{shown.toLocaleString("en-US")}</>;
+}
 
 export function DeveloperCounterView({ state }: { state: CounterState }) {
   if (state.status === "offline") return null;
   const ready = state.status === "ready";
-  const digits = ready ? splitPaddedDigits(state.developers) : Array.from({ length: DEVELOPER_COUNT_DIGITS }, () => "");
   return (
     <div
       className="hero-dev-counter"
       aria-busy={!ready}
       aria-label={ready ? `${state.developers.toLocaleString("en-US")} developers on ADCode, ${state.thisWeek.toLocaleString("en-US")} joined this week` : "Loading the developer count"}
     >
-      <div className="hero-dev-counter-brand">
-        <span className="hero-dev-counter-icon" aria-hidden="true">{"<$>"}</span>
-        <span className="hero-dev-counter-text" aria-hidden="true">
-          <strong>Developers</strong>
-          <small data-growing={ready && state.thisWeek > 0}>{ready ? weeklyLine(state.thisWeek) : "on ADCode"}</small>
-        </span>
-      </div>
-      <span className="hero-dev-counter-divider" aria-hidden="true" />
-      <ol className="hero-dev-counter-digits" aria-hidden="true">
-        {digits.map((digit, index) => (
-          // Fixed length while loading, and only grows, so index keys are stable.
-          // eslint-disable-next-line react/no-array-index-key
-          <li key={index} className="hero-dev-counter-digit">{digit}</li>
-        ))}
-      </ol>
+      <span className="hero-dev-counter-live" aria-hidden="true"><i /> Live from the ADCode network</span>
+      <dl className="hero-dev-counter-stats" aria-hidden="true">
+        <div>
+          <dt>developers on ADCode</dt>
+          <dd>{ready ? <CountUp value={state.developers} /> : <span className="hero-dev-counter-blank" />}</dd>
+        </div>
+        {(!ready || state.thisWeek > 0) && (
+          <div data-growing="true">
+            <dt>joined this week</dt>
+            <dd>{ready ? <CountUp value={state.thisWeek} prefix="+" /> : <span className="hero-dev-counter-blank" />}</dd>
+          </div>
+        )}
+      </dl>
     </div>
   );
 }
