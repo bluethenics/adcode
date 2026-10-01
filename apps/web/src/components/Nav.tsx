@@ -67,7 +67,7 @@ export function Nav() {
         Compare
       </Link>
       <Link href="/support" className="glass-nav-link" aria-current={pathname === "/support" ? "page" : undefined}>Support</Link>
-      <Link href="/versions" className="glass-nav-link" aria-current={pathname === "/versions" ? "page" : undefined}>Install</Link>
+      <Link href="/versions" className="glass-nav-link" aria-current={pathname === "/versions" ? "page" : undefined}>Download</Link>
       {isAdmin && <Link href="/admin" className="glass-nav-link">Admin</Link>}
       {!loading && (user === null ? (
         <Link href="/dashboard" className="glass-auth-control">Sign in</Link>
@@ -87,6 +87,8 @@ export function Nav() {
           <span className="glass-nav-secondary">{secondaryLinks}</span>
           <ThemePicker />
           <PortalActions />
+          {/* The primary action on every page: most visitors came to get the editor. */}
+          <Link href="/versions" className="nav-download">Download</Link>
           <div className="glass-nav-mobile" ref={menu}>
             <button type="button" className="glass-menu-trigger" aria-label="Open navigation menu" aria-controls="glass-mobile-navigation" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
               <span /><span />

@@ -286,7 +286,7 @@ h1, h2, h3, h4 { font-family: var(--font-body), -apple-system, BlinkMacSystemFon
 .studio-hero .marketplace-hero-copy > p { margin-top: 18px; color: var(--muted); font-size: 14px; line-height: 1.7; }
 .studio-hero .hero-install { margin-top: 24px; gap: 8px; }
 .studio-hero .marketplace-hero-copy > small { margin-top: 12px; font-size: 11px; }
-.hero-dev-counter { --dev-bg: light-dark(#ffffff, #1d1b15); --dev-ink: light-dark(#26251e, #edece7); --dev-muted: light-dark(#65645d, #a8a69d); --dev-line: light-dark(#deded5, #343228); --dev-digit-bg: light-dark(#f4f2ec, #2e2c24); --dev-digit-border: light-dark(#deded5, transparent); --dev-shadow: light-dark(rgb(30 43 65 / .07), rgb(0 0 0 / .25)); justify-self: start; width: 100%; max-width: 460px; min-width: 0; display: flex; align-items: center; gap: 18px; padding: 14px 18px; border: 1px solid var(--dev-line); border-radius: 18px; background: var(--dev-bg); box-shadow: 0 12px 32px var(--dev-shadow); }
+.hero-dev-counter { --dev-bg: light-dark(#ffffff, #1d1b15); --dev-ink: light-dark(#26251e, #edece7); --dev-muted: light-dark(#65645d, #a8a69d); --dev-line: light-dark(#deded5, #343228); --dev-digit-bg: light-dark(#f4f2ec, #2e2c24); --dev-digit-border: light-dark(#deded5, transparent); --dev-shadow: light-dark(rgb(30 43 65 / .07), rgb(0 0 0 / .25)); --dev-up: light-dark(#14785a, #68d6b1); justify-self: start; width: 100%; max-width: 460px; min-width: 0; display: flex; align-items: center; gap: 18px; padding: 14px 18px; border: 1px solid var(--dev-line); border-radius: 18px; background: var(--dev-bg); box-shadow: 0 12px 32px var(--dev-shadow); }
 .hero-dev-counter-brand { display: flex; align-items: center; gap: 12px; flex: none; }
 .hero-dev-counter-icon { display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex: none; border-radius: 12px; background: var(--dev-ink); color: var(--dev-bg); font-family: var(--font-mono), monospace; font-size: 18px; font-weight: 700; letter-spacing: -.05em; }
 .hero-dev-counter-text { display: flex; flex-direction: column; line-height: 1.3; }
@@ -433,3 +433,51 @@ body:has(.auth-screen) .website-consent { position: static; margin: 24px auto; b
 }
 /* The sub-cent digits of an exact balance: present, but not the headline. */
 .hero-figure-micro { font-size: .42em; letter-spacing: 0; opacity: .6; margin-left: .06em; }
+
+/*
+ * The install button. The one control on the page most visitors should press, so it is the
+ * one place the page is allowed to be louder: taller, a two-line label that answers "is it
+ * free, and where does it come from" before the click, and a platform mark.
+ */
+.install-cta { min-height: 58px; padding: 10px 26px 10px 22px; gap: 14px; font-size: 15px; font-weight: 600; text-align: left; border: 0; cursor: pointer; }
+.install-cta-logo { width: 18px; height: 18px; flex: none; }
+.install-cta-label { display: grid; gap: 2px; line-height: 1.2; }
+.install-cta-label small { font-size: 11px; font-weight: 450; opacity: .7; }
+.install-cta:focus-visible, .install-link-button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.install-link-button { padding: 0; border: 0; background: none; color: var(--muted); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.install-link-button:hover { color: var(--text); }
+.hero-install .hero-quick-install { width: 100%; display: grid; gap: 8px; text-align: left; }
+
+/* What is left to do once the download has started - a real sequence, so it is numbered. */
+.install-next { counter-reset: install-step; display: grid; gap: 10px; width: 100%; margin: 18px 0 0; padding: 18px 20px; list-style: none; border: 1px solid var(--hairline); border-radius: var(--radius-md); background: var(--card); color: var(--muted); font-size: 13px; line-height: 1.5; text-align: left; }
+.install-next li { counter-increment: install-step; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.install-next li::before { content: counter(install-step); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--text); color: var(--surface); font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.install-next strong { color: var(--text); font-weight: 600; }
+.install-next .install-next-fallback { counter-increment: none; display: block; padding-top: 10px; border-top: 1px solid var(--hairline); color: var(--faint); font-size: 12px; }
+.install-next .install-next-fallback::before { content: none; }
+.install-next a { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .install-next { animation: install-next-in 260ms var(--ease, ease-out); }
+  @keyframes install-next-in { from { opacity: 0; transform: translateY(-4px); } }
+}
+
+/* Growth in the hero counter is the money colour: it is the number that is moving. */
+.hero-dev-counter-text small[data-growing="true"] { color: var(--dev-up); font-weight: 600; }
+
+/* The nav's way in. Hidden on phones, where the hero offers to send the link instead. */
+.nav-download { min-height: 34px; padding: 7px 14px; border-radius: 999px; background: var(--text); color: var(--surface); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.nav-download:hover { background: var(--muted); }
+.nav-download:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+
+.closing-cta .hero-install { margin-inline: auto; }
+.closing-cta .marketplace-hero-actions { justify-content: center; }
+.versions-install { display: grid; gap: 6px; padding: clamp(20px, 3vw, 32px); }
+.versions-install .hero-install { margin: 8px 0 0; justify-items: start; text-align: left; max-width: 640px; }
+.versions-install .marketplace-hero-actions { justify-content: flex-start; margin-top: 0; }
+
+@media (max-width: 640px) {
+  .install-cta { flex: 1 1 100%; justify-content: center; }
+  .studio-hero .marketplace-hero-actions { flex-wrap: wrap; }
+  .studio-hero .marketplace-hero-actions .marketplace-secondary { flex: 1 1 100%; }
+  .nav-download { display: none; }
+}
