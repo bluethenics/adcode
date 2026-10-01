@@ -10,10 +10,13 @@
  * process, so an in-process server would be unreachable by the agents it exists to
  * serve - and would die whenever the user closed the window.
  */
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { app } from "electron";
 import { MEMORY_DIRECTORY, openNodeMemory, type NodeMemory } from "@adcode/memory";
 import type { McpConnectionInfo, MemoryItemView, MemoryWriteInputView } from "../shared/api.ts";
+import { recordDebug } from "./debugLog.ts";
+import { mcpScriptPath, refreshMcpBundle, SHIPPED_MCP, stableMcpDirectory } from "./mcpInstall.ts";
 import { currentWorkspace } from "./workspace.ts";
 
 let opened: { root: string; memory: NodeMemory } | null = null;
@@ -35,22 +38,49 @@ export function closeMemory(): void {
   opened = null;
 }
 
+/** Where packaging ships the bundled server. Only meaningful when `app.isPackaged`. */
+const shippedMcp = (): string => join(process.resourcesPath, SHIPPED_MCP.resourceDir);
+
 /**
  * Locate the standalone MCP binary.
  *
- * In development it is the TypeScript source, which Node 24 runs directly. Packaging has
- * to place it somewhere equivalent under resources; until the packaging slice exists,
- * the development path is the honest answer rather than a guess at a layout that has not
- * been built yet.
+ * In development it is the TypeScript source, which Node 24 runs directly. An installed
+ * build has no `packages/`, so `scripts/build-mcp.mjs` bundles that source into one file
+ * and `extraResources` in electron-builder.yml ships it beside the asar - outside it,
+ * because the process that runs this path is the user's `node`, not Electron.
+ *
+ * The command does not name that shipped file, though: the portable build, an AppImage and
+ * the Store package all lose `process.resourcesPath` once the app closes or updates, while
+ * the agent goes on running whatever `claude mcp add` recorded. It names a copy in the
+ * user's home instead - see `mcpInstall.ts`.
  */
-function binaryPath(): string {
+async function binaryPath(): Promise<string> {
   if (app.isPackaged) {
-    return join(process.resourcesPath, "mcp", "adcode-mcp.js");
+    return mcpScriptPath(shippedMcp(), stableMcpDirectory(homedir()), (error) =>
+      recordDebug("warn", "mcp", `Could not copy the MCP server out of the app: ${String(error)}`),
+    );
   }
   return join(app.getAppPath(), "..", "..", "packages", "memory", "bin", "adcode-mcp.ts");
 }
 
-export function mcpConnection(): McpConnectionInfo {
+/**
+ * At startup, bring a copy handed out by an earlier version up to date. Creates nothing for
+ * somebody who never asked for the command, and never throws: it is not on any path a
+ * window waits for.
+ */
+export async function refreshMcpServer(): Promise<void> {
+  if (!app.isPackaged) return;
+  try {
+    const refreshed = await refreshMcpBundle(shippedMcp(), stableMcpDirectory(homedir()));
+    if (refreshed !== null && refreshed.copied.length > 0) {
+      recordDebug("info", "mcp", `Updated the MCP server copy: ${refreshed.copied.join(", ")}`);
+    }
+  } catch (error) {
+    recordDebug("warn", "mcp", `Could not update the MCP server copy: ${String(error)}`);
+  }
+}
+
+export async function mcpConnection(): Promise<McpConnectionInfo> {
   const workspace = currentWorkspace();
 
   if (workspace === null) {
@@ -62,7 +92,7 @@ export function mcpConnection(): McpConnectionInfo {
   }
 
   // The `--` matters: without it, Claude Code parses the following arguments as its own.
-  const command = `claude mcp add adcode -- node "${binaryPath()}" "${workspace.root}"`;
+  const command = `claude mcp add adcode -- node "${await binaryPath()}" "${workspace.root}"`;
 
   return {
     command,

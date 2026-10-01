@@ -45,6 +45,14 @@ if (build !== 0) {
 const notices = await run(process.execPath, [join(REPO, "scripts", "third-party-notices.mjs")]);
 if (notices !== 0) process.exit(notices);
 
+// The file `extraResources` ships as resources/mcp/adcode-mcp.js. electron-builder only
+// warns when that source is missing, so a failure here has to stop the run itself.
+const mcp = await run(process.execPath, [join(REPO, "scripts", "build-mcp.mjs")]);
+if (mcp !== 0) {
+  process.stderr.write("\nMCP server bundle failed - not packaging.\n");
+  process.exit(mcp);
+}
+
 process.stdout.write("\nPackaging...\n");
 
 // Anything after `--` is passed through, so `npm run package -- --linux` works.

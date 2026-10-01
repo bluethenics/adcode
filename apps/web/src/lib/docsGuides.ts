@@ -1023,6 +1023,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     benefits: [
       "Every assistant you run shares one project memory instead of five partial copies.",
       "Notes go both ways: what a terminal agent learned is visible to the built-in one.",
+      "Set it up once: the command points at a copy of the server in your home folder, so it keeps working while ADCode is closed and after it updates - portable, AppImage and Store builds included.",
     ],
     betterThan:
       "Each AI tool keeping its own silo means every session starts from zero context. A shared MCP server makes the project itself the memory - one source, every assistant.",

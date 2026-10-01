@@ -29,6 +29,9 @@ extraMetadata:
 
 files:
   - out/**/*
+  # The MCP bundle is built under out/ but ships through `extraResources` below. Inside the
+  # asar it would be a second copy that nothing outside Electron can read.
+  - "!out/mcp{,/**/*}"
   - package.json
   # The main process reads this at runtime for the window icon, so it has to be inside the
   # asar. `buildResources` above only feeds the installer and the executable's own embedded
@@ -62,6 +65,29 @@ asarUnpack:
 extraResources:
   - from: build/licenses
     to: licenses
+
+# The project-memory MCP server, as a plain Node program beside the asar.
+#
+# Settings > "Connect an external agent" hands out a `node "<script>"` command, and the
+# process that runs it is the user's own `node`, started by their agent. That rules out the
+# asar, which only Electron can read, and - with `runAsNode` fused off below - it rules out
+# running the script with ADCode's own executable. So it is one self-contained file, built
+# by `scripts/build-mcp.mjs` and copied here. The `package.json` beside it says
+# `"type": "module"`, which is what lets Node load a `.js` file as the ES module it is.
+#
+# The command does not name this copy. The portable build, an AppImage and the Store
+# package all lose their resources folder when the app closes or updates, so the app copies
+# both files to `~/.adcode/mcp/` and names that instead (`main/mcpInstall.ts`).
+#
+# `from` is relative to this file, not to `directories.app`. A source that does not exist
+# is only a warning to electron-builder, so `scripts/package.mjs` and `package-store.mjs`
+# build it first, and `apps/desktop/test/mcpBundle.test.ts` pins this entry to the path
+# `main/memory.ts` asks for.
+  - from: apps/desktop/out/mcp
+    to: mcp
+    filter:
+      - adcode-mcp.js
+      - package.json
 
 # Electron fuses: flags flipped in the binary itself, so they cannot be turned back on by
 # an environment variable or a command-line argument.

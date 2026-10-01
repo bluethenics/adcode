@@ -109,6 +109,14 @@ if (build !== 0) {
 const notices = await run(process.execPath, [join(REPO, "scripts", "third-party-notices.mjs")]);
 if (notices !== 0) process.exit(notices);
 
+// Same step as `scripts/package.mjs`: the Store package ships resources/mcp/adcode-mcp.js
+// too, and electron-builder only warns when the source of an extra resource is missing.
+const mcp = await run(process.execPath, [join(REPO, "scripts", "build-mcp.mjs")]);
+if (mcp !== 0) {
+  process.stderr.write("\nMCP server bundle failed - not packaging.\n");
+  process.exit(mcp);
+}
+
 const output = releaseDirectory(REPO);
 process.stdout.write(`\nPackaging for the Microsoft Store into ${output}...\n`);
 

@@ -26,6 +26,7 @@ import { onUpdateStatus, registerUpdateIpc, startAutoUpdate } from "./autoUpdate
 import { startNoticePolling } from "./notices.ts";
 import { startReleasePolling } from "./releases.ts";
 import { registerLicenceIpc } from "./licences.ts";
+import { refreshMcpServer } from "./memory.ts";
 import { registerAccountIpc } from "./accountIpc.ts";
 import { installApplicationMenu } from "./menu.ts";
 import { loadKeybindings } from "./keybindings.ts";
@@ -297,6 +298,9 @@ void app.whenReady().then(() => {
   startNoticePolling();
   startReleasePolling();
   registerLicenceIpc();
+  // Agents connected under the last version run the copy in ~/.adcode/mcp, not this build's
+  // resources; bring it up to date. Not awaited, and it swallows its own failures.
+  void refreshMcpServer();
 
   /*
    * The shortcuts, then the menu.

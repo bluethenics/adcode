@@ -15,7 +15,10 @@
  * Usage, from a workspace:
  *   claude mcp add adcode -- node <repo>/packages/memory/bin/adcode-mcp.ts <workspace>
  *
- * Node 24 runs this TypeScript directly, so there is no build step to keep in sync.
+ * Node 24 runs this TypeScript directly, so a checkout needs no build step. An installed
+ * ADCode has no `packages/` to point at: `scripts/build-mcp.mjs` bundles this file, with
+ * everything it imports, into `resources/mcp/adcode-mcp.js`, which the installed app copies
+ * to `~/.adcode/mcp/` and hands out from there.
  */
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createMemoryMcpServer } from "../src/mcp.ts";
