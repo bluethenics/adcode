@@ -106,6 +106,7 @@ import type {
   ActivityDay,
   CampaignStats,
   EntryPage,
+  GrowthStats,
   SeriesPoint,
   Page,
   ReportPage,
@@ -375,18 +376,29 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       return rows.map(toCampaign);
     },
 
-    async publicStats() {
+    async publicStats(now) {
       const db = await lazy();
       const results = await Promise.all([
         db.from("receipts").select("*", { count: "exact", head: true }).gt("cost_micros", 0),
         db.from("receipts").select("*", { count: "exact", head: true }).gt("cost_micros", 0).eq("outcome", "click"),
         db.from("campaigns").select("*", { count: "exact", head: true }).eq("status", "active"),
         db.from("users").select("*", { count: "exact", head: true }).eq("status", "active"),
+        db.from("users").select("*", { count: "exact", head: true }).eq("status", "active").gt("created_at", now - 7 * 86_400_000),
       ]);
       for (const result of results) if (result.error) fail("publicStats", result.error);
       const receipts = results[0]!.count ?? 0;
       const clicks = results[1]!.count ?? 0;
-      return { impressions: receipts - clicks, clicks, activeCampaigns: results[2]!.count ?? 0, developers: results[3]!.count ?? 0 };
+      return { impressions: receipts - clicks, clicks, activeCampaigns: results[2]!.count ?? 0, developers: results[3]!.count ?? 0, developersThisWeek: results[4]!.count ?? 0 };
+    },
+
+    async growthStats(now): Promise<GrowthStats> {
+      // Counted in Postgres (`growth_stats`): distinct-user windows cannot be expressed as
+      // PostgREST head counts, and the alternative ships every serve across the wire.
+      const raw = await scalar<Omit<GrowthStats, "creditedMicros"> & { creditedMicros: string }>(
+        "growthStats",
+        (db) => db.rpc("growth_stats", { p_now: now }),
+      );
+      return { ...raw, creditedMicros: toMicros(raw.creditedMicros) };
     },
 
     async statsForCampaign(campaignId): Promise<CampaignStats> {

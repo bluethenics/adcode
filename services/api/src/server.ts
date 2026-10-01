@@ -103,6 +103,7 @@ import { createMemoryStore } from "./memoryStore.ts";
 import { isSafeAssetKey } from "./assets.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
 import { parseWebsiteEvents, summarizeWebsiteEvents, type WebsiteAnalyticsStore } from "./websiteAnalytics.ts";
+import { growthToWire } from "./growth.ts";
 
 export interface ApiServer {
   url: string;
@@ -360,7 +361,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
     }
 
     if (path === "/v1/stats" && req.method === "GET") {
-      const stats = await store.publicStats();
+      const stats = await store.publicStats(clock.now());
       send(res, 200, { ...stats, asOf: clock.now() }, {
         ...cors,
         "cache-control": "public, max-age=60, stale-while-revalidate=30",
@@ -596,6 +597,13 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       const start = end - days * 86400000;
       const result = await options.websiteAnalytics.read(start, end);
       send(res, 200, summarizeWebsiteEvents(result.events, start, end, result.truncated), { ...cors, "cache-control": "no-store" });
+      return;
+    }
+
+    if (path === "/v1/admin/growth" && req.method === "GET") {
+      const now = clock.now();
+      await store.writeAudit({ adminUid: auth.uid, action: "read-growth", subjectUid: "*", at: now });
+      send(res, 200, { ...growthToWire(await store.growthStats(now)), asOf: now }, { ...cors, "cache-control": "no-store" });
       return;
     }
 

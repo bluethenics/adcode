@@ -144,6 +144,41 @@ export interface CampaignStats {
   spentMicros: bigint;
 }
 
+/** One UTC day of the admin growth series. */
+export interface GrowthDay {
+  day: string;
+  /** Accounts that fetched ads or reported editor activity that day. */
+  active: number;
+  /** Accounts created that day. */
+  joined: number;
+  /** Ads shown and billed that day - not serves, most of which expire unseen. */
+  adsShown: number;
+}
+
+/**
+ * How many people use ADCode and how many ads it showed - the admin's numbers, with windows.
+ *
+ * Active means the account fetched ads (the editor prefetches whenever it runs online) or
+ * reported a day of editor activity. An ad shown is a billed, non-click receipt: the same
+ * rule as `publicStats`, so the two can never disagree about the lifetime total.
+ */
+export interface GrowthStats {
+  developers: number;
+  joined7d: number;
+  joined30d: number;
+  active1d: number;
+  active7d: number;
+  active30d: number;
+  adsShown: number;
+  adsShown7d: number;
+  adsShown30d: number;
+  clicks: number;
+  /** Credited to developers across every billed receipt. */
+  creditedMicros: bigint;
+  /** The last 30 UTC days, oldest first, today last. */
+  daily: GrowthDay[];
+}
+
 /**
  * One campaign's numbers for one UTC day.
  *
@@ -509,8 +544,13 @@ export interface WithdrawalPage {
 }
 
 export interface Store {
-  /** Anonymous lifetime totals. Excludes zero-cost test receipts; counts active users only; no account data. */
-  publicStats(): Promise<{ impressions: number; clicks: number; activeCampaigns: number; developers: number }>;
+  /**
+   * Anonymous lifetime totals, plus accounts created in the seven days before `now`.
+   * Excludes zero-cost test receipts; counts active users only; no account data.
+   */
+  publicStats(now: number): Promise<{ impressions: number; clicks: number; activeCampaigns: number; developers: number; developersThisWeek: number }>;
+  /** Active users, sign-ups and ads shown, in rolling windows ending at `now`. Admin only. */
+  growthStats(now: number): Promise<GrowthStats>;
   getUser(uid: string): Promise<UserRecord | null>;
   putUser(user: UserRecord): Promise<void>;
 

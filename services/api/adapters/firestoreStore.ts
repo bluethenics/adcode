@@ -12,6 +12,7 @@
  */
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../src/ledger.ts";
 import { utcDay } from "../src/day.ts";
+import { summarizeGrowth } from "../src/growth.ts";
 import {
   decryptDestination,
   encryptDestination,
@@ -193,16 +194,42 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
       });
     },
 
-    async publicStats() {
+    async publicStats(now) {
       const database = await lazy();
       // Micros are stored as decimal strings; positive values sort after "0".
-      const [receipts, campaigns, developers] = await Promise.all([
+      const [receipts, campaigns, developers, developersThisWeek] = await Promise.all([
         database.collection("receipts").where("costMicros", ">", "0").select("outcome").get(),
         database.collection("campaigns").where("status", "==", "active").count().get(),
         database.collection("users").where("status", "==", "active").count().get(),
+        database.collection("users").where("status", "==", "active").where("createdAt", ">", now - 7 * 86_400_000).count().get(),
       ]);
       const clicks = receipts.docs.filter((doc) => doc.data()["outcome"] === "click").length;
-      return { impressions: receipts.size - clicks, clicks, activeCampaigns: campaigns.data().count, developers: developers.data().count };
+      return { impressions: receipts.size - clicks, clicks, activeCampaigns: campaigns.data().count, developers: developers.data().count, developersThisWeek: developersThisWeek.data().count };
+    },
+
+    async growthStats(now) {
+      const database = await lazy();
+      const since = now - 30 * 86_400_000;
+      // Admin-only and read on demand, so whole-collection reads of users and paid receipts
+      // are acceptable here; serves and activity are bounded to the 30-day window.
+      const [users, serves, receipts, activity] = await Promise.all([
+        database.collection("users").select("status", "createdAt").get(),
+        database.collection("serves").where("servedAt", ">", since).select("uid", "servedAt", "test").get(),
+        database.collection("receipts").where("costMicros", ">", "0").select("outcome", "costMicros", "creditedMicros", "createdAt").get(),
+        database.collection("activity").where("day", ">=", utcDay(since)).select("uid", "day").get(),
+      ]);
+      return summarizeGrowth({
+        now,
+        users: users.docs.map((doc) => ({ uid: doc.id, status: doc.data()["status"], createdAt: Number(doc.data()["createdAt"] ?? 0) }) as UserRecord),
+        serves: serves.docs.map((doc) => ({ uid: String(doc.data()["uid"]), servedAt: Number(doc.data()["servedAt"]), test: doc.data()["test"] === true }) as ServeRecord),
+        receipts: receipts.docs.map((doc) => ({
+          outcome: String(doc.data()["outcome"]),
+          costMicros: toMicros(doc.data()["costMicros"]),
+          creditedMicros: toMicros(doc.data()["creditedMicros"]),
+          createdAt: Number(doc.data()["createdAt"] ?? 0),
+        }) as ReceiptRecord),
+        activity: activity.docs.map((doc) => ({ uid: String(doc.data()["uid"]), day: String(doc.data()["day"]) })),
+      });
     },
 
     async statsForCampaign(campaignId): Promise<CampaignStats> {
