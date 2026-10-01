@@ -284,7 +284,7 @@ export const FAQ: readonly { q: string; a: string }[] = [
   },
   {
     q: "Is ADCode open source?",
-    a: "Yes. The editor, this website and the ad server are open source under the Apache License 2.0, in one public repository at github.com/bluethenics/adcode. You can read the code, build it yourself, change it and share your version. The ADCode name and logo are not covered by the licence, so a changed copy needs its own name. Earnings and payouts come from ADCode's own server, which checks every ad receipt, so they apply to the official builds.",
+    a: "Yes. The editor, this website and the ad server are open source under the Apache License 2.0, in one public repository at github.com/bluethenics/adcode. You can read the code, build it yourself, change it and share your version. The ADCode name and logo are not covered by the licence, so a changed copy needs its own name. Earnings and payouts are handled by ADCode's own server, which pays only for views whose receipt it can verify.",
   },
   {
     q: "When does ADCode show ads?",

@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   bareImports,
   collectPackages,
+  copiedNotices,
   licenceOf,
   packageNameOf,
   renderNotices,
@@ -96,5 +98,38 @@ describe("collectPackages", () => {
 
   it("names each package once", () => {
     expect(new Set(names).size).toBe(names.length);
+  });
+
+  it("includes what is copied into the installer rather than imported", () => {
+    // scripts/grammars.mjs copies grammar .wasm files out of tree-sitter-wasms; no source
+    // file imports it, so scanning imports alone never finds it.
+    expect(names).toContain("tree-sitter-wasms");
+  });
+
+  it("carries a package's own third-party notices, not only its licence", () => {
+    // monaco-editor compiles TypeScript (Apache-2.0), marked and others into the files that
+    // ship, and credits them in ThirdPartyNotices.txt beside its LICENSE.
+    const monaco = collectPackages(ROOT).find((one) => one.name === "monaco-editor");
+    expect(monaco?.text).toContain("ThirdPartyNotices.txt");
+    expect(monaco?.text).toContain("typescript version");
+  });
+});
+
+describe("copiedNotices", () => {
+  const grammarsSource = readFileSync(join(ROOT, "scripts", "grammars.mjs"), "utf8");
+  const shipped = [...(/const LANGUAGES = \[([\s\S]*?)\];/.exec(grammarsSource)?.[1] ?? "").matchAll(/"([^"]+)"/g)]
+    .map((match) => match[1]!);
+  const text = copiedNotices(ROOT).join("\n");
+
+  it("reads the list of shipped grammars", () => {
+    expect(shipped.length).toBeGreaterThan(5);
+  });
+
+  it("credits the upstream grammar of every language the installer ships", () => {
+    // tsx is compiled from the tree-sitter-typescript repository.
+    const repos = new Set(shipped.map((language) => (language === "tsx" ? "typescript" : language)));
+    const missing = [...repos].filter((repo) => !text.includes(`tree-sitter-${repo} (https://github.com/tree-sitter/tree-sitter-${repo})`));
+    expect(missing).toEqual([]);
+    expect(text).toContain("Permission is hereby granted");
   });
 });

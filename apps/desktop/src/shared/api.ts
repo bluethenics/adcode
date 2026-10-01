@@ -1009,12 +1009,15 @@ export interface AiConnectionInfo {
  *
  * Each is null when its file could not be read: a source checkout that has never been
  * packaged has no third-party file, and a damaged install may have none of them. The
- * window says which, rather than showing an empty pane.
+ * window says which, rather than showing an empty pane - and what it says depends on
+ * `packaged`, because "run the generator" is advice only for someone with the source.
  */
 export interface LicenceDocuments {
   readonly licence: string | null;
   readonly notice: string | null;
   readonly thirdParty: string | null;
+  /** `app.isPackaged`: an installed build, as opposed to a source checkout. */
+  readonly packaged: boolean;
 }
 
 export interface AiStatus {

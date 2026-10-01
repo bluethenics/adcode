@@ -13,7 +13,7 @@ By contributing you agree that your contribution is licensed under the
 You need Node 24 or newer and npm 11 or newer.
 
     npm install
-    npm --prefix apps/web install     # only if you are working on the website
+    npm --prefix apps/web install     # needed even for editor work: verify typechecks the site
     npm start                         # build and launch the editor
     npm run dev                       # the editor with hot reload
 

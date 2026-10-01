@@ -45,6 +45,7 @@ export function licencePaths(input: LicencePathInput): LicencePaths {
 export async function readLicences(
   paths: LicencePaths,
   read: (path: string) => Promise<string>,
+  packaged: boolean,
 ): Promise<LicenceDocuments> {
   const one = async (path: string): Promise<string | null> => {
     try {
@@ -60,5 +61,5 @@ export async function readLicences(
     one(paths.notice),
     one(paths.thirdParty),
   ]);
-  return { licence, notice, thirdParty };
+  return { licence, notice, thirdParty, packaged };
 }

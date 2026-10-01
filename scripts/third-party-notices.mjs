@@ -111,9 +111,49 @@ function sourceFiles(dir, out = []) {
   return out;
 }
 
+/**
+ * A package's licence, followed by any third-party notices it carries beside it.
+ *
+ * The second half matters. monaco-editor compiles TypeScript, marked and others into the
+ * files that ship, and credits them in `ThirdPartyNotices.txt`, not in its LICENSE - so
+ * reproducing the LICENSE alone would drop attributions the installer is obliged to carry.
+ */
 function licenceText(dir) {
-  const file = readdirSync(dir).find((name) => /^(licen[sc]e|copying)(\.|-|$)/i.test(name));
-  return file === undefined ? null : readFileSync(join(dir, file), "utf8");
+  const names = readdirSync(dir);
+  const licence = names.find((name) => /^(licen[sc]e|copying)(\.|-|$)/i.test(name));
+  const notices = names.filter(
+    (name) => name !== licence && /^(third[-_ ]?party[-_ ]?notices?|notices?)(\.|$)/i.test(name),
+  );
+  const parts = [
+    ...(licence === undefined ? [] : [readFileSync(join(dir, licence), "utf8").trim()]),
+    ...notices.map((name) => `--- ${name} ---\n\n${readFileSync(join(dir, name), "utf8").trim()}`),
+  ];
+  return parts.length === 0 ? null : parts.join("\n\n");
+}
+
+/**
+ * Packages whose files are copied into the installer rather than imported.
+ *
+ * `scripts/grammars.mjs` copies grammar .wasm files out of tree-sitter-wasms into the
+ * renderer's public directory. No source file imports the package, so the import scan
+ * cannot see it.
+ */
+const COPIED_PACKAGES = ["tree-sitter-wasms"];
+
+/**
+ * Notices for code that ships but has no package of its own to read them from.
+ *
+ * The grammars inside tree-sitter-wasms are compiled from the tree-sitter repositories,
+ * whose MIT licences require their copyright lines to travel with the binaries. Those
+ * texts are kept in `scripts/notices/`, taken from each repository once.
+ */
+export function copiedNotices(root) {
+  const dir = join(root, "scripts", "notices");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((name) => name.endsWith(".txt"))
+    .sort()
+    .map((name) => readFileSync(join(dir, name), "utf8").trim());
 }
 
 /** Every third-party package the desktop bundle imports, with its transitive dependencies. */
@@ -129,7 +169,7 @@ export function collectPackages(root) {
     ),
   ];
 
-  const queue = [];
+  const queue = [...COPIED_PACKAGES];
   for (const file of sources) {
     for (const specifier of bareImports(readFileSync(file, "utf8"))) {
       const name = packageNameOf(specifier);
@@ -177,7 +217,12 @@ function main() {
     process.exit(1);
   }
 
-  writeFileSync(join(out, "THIRD-PARTY-NOTICES.txt"), renderNotices(packages), "utf8");
+  const copied = copiedNotices(root);
+  writeFileSync(
+    join(out, "THIRD-PARTY-NOTICES.txt"),
+    [renderNotices(packages), ...copied.map((text) => `${"=".repeat(78)}\n${text}\n`)].join("\n"),
+    "utf8",
+  );
   copyFileSync(join(root, "LICENSE"), join(out, "LICENSE"));
   copyFileSync(join(root, "NOTICE"), join(out, "NOTICE"));
 

@@ -117,3 +117,22 @@ describe("licences in the installer", () => {
     expect(read(".gitignore")).toContain("build/licenses/");
   });
 });
+
+describe("what the README and CONTRIBUTING promise", () => {
+  it("installs the website's dependencies as part of setup, because verify typechecks the site", () => {
+    // `npm run typecheck` compiles apps/web, whose config imports packages that are only in
+    // apps/web/node_modules. Calling that install optional makes the first verify fail.
+    const contributing = read("CONTRIBUTING.md");
+    expect(contributing).toContain("npm --prefix apps/web install");
+    expect(contributing).not.toMatch(/apps\/web install[^\n]*only if/);
+    expect(read("README.md")).toContain("npm --prefix apps/web install");
+  });
+
+  it("describes how the assistant changes files the way the product does", () => {
+    // The help entry: edits land in the real project as the assistant works, and every turn
+    // can be undone. An earlier design used a private task workspace; the README must not.
+    const readme = read("README.md");
+    expect(readme).not.toContain("private task workspace");
+    expect(readme).toContain("can be undone");
+  });
+});

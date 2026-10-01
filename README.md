@@ -28,8 +28,8 @@ macOS builds are not published yet.
 - **Runs.** Several real terminals, a Run button, and a built-in preview server.
 - **Understands git.** Stage, commit, branch, blame, file timelines and conflict resolution.
 - **Has an assistant that shows its work.** Connect a model provider with your own key, any
-  OpenAI-compatible endpoint, or a local model. Changes are prepared in a private task
-  workspace and reach your project only through a checkpoint you can roll back.
+  OpenAI-compatible endpoint, or a local model. Its edits land in your project as it works,
+  and every turn that changed files can be undone.
 - **Two ways to work.** Vibe, where you describe what you want, and Code, the full IDE.
 - **Explains itself.** Every feature has a plain-language entry, in the app under
   **All Features** and on the [docs site](https://adcode.bluethenics.com/docs).
@@ -54,6 +54,7 @@ The full terms are at [adcode.bluethenics.com/terms](https://adcode.bluethenics.
 You need Node 24 or newer and npm 11 or newer.
 
     npm install
+    npm --prefix apps/web install   # verify typechecks the website too
     npm start               # build if needed, then launch the editor
     npm run dev             # the editor with hot reload
     npm run verify          # types, architecture rules and every test

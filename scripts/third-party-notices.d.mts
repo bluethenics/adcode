@@ -14,3 +14,5 @@ export function licenceOf(manifest: { license?: unknown; licenses?: unknown }): 
 export function renderNotices(packages: readonly NoticePackage[]): string;
 
 export function collectPackages(root: string): NoticePackage[];
+
+export function copiedNotices(root: string): string[];

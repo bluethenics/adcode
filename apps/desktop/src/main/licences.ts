@@ -19,6 +19,7 @@ export function registerLicenceIpc(): void {
         appPath: app.getAppPath(),
       }),
       (path) => readFile(path, "utf8"),
+      app.isPackaged,
     ),
   );
 }

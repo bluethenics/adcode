@@ -57,3 +57,13 @@ describe("the terms no longer contradict the licence", () => {
     expect(terms).toContain("record receipts");
   });
 });
+
+describe("the FAQ does not over-claim", () => {
+  it("does not say only official builds can earn", () => {
+    // A build from source talks to the same server and earns the same way; what the server
+    // checks is the receipt, not which build sent it.
+    const item = FAQ.find((one) => /open source/i.test(one.q));
+    expect(item?.a).not.toContain("apply to the official builds");
+    expect(item?.a).toContain("receipt");
+  });
+});
