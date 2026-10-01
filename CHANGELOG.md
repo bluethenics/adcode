@@ -3,6 +3,16 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## Unreleased
+
+- ADCode is open source under the Apache License 2.0. The repository has a licence, a
+  notice, a trademark policy, a contributing guide, a security policy and CI for pull
+  requests.
+- Help > Open Source Licences shows ADCode's licence, its notice and the licence of every
+  package built into it. Installers carry the same files under `resources/licenses`.
+- The website's terms now say the source code is governed by the Apache licence, and no
+  longer describe a revocable licence or forbid resale of the code.
+
 ## 2.1.1 — 2026-09-29
 
 - Updates you can see: while a new version downloads, the status bar shows its progress;
