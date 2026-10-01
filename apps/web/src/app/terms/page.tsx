@@ -64,16 +64,17 @@ You also confirm that you are not on, and not acting for anyone on, a sanctions 
 
 ## Using the editor
 
-We give you a personal, worldwide, non-exclusive, revocable licence to install and use ADCode for personal or commercial work, including work you are paid for. There is no seat limit and no separate commercial tier.
+ADCode's source code is open source under the Apache License 2.0. That licence, not these terms, says what you may do with the code: use it, change it and share it, including commercially. Nothing here narrows those rights.
 
-You may not:
+These terms cover what the licence does not: the official builds we publish, and the service behind them - accounts, sponsored cards, receipts, earnings and payouts. You may install and use the official builds for personal or commercial work, including work you are paid for. There is no seat limit and no separate commercial tier.
 
-- redistribute modified builds as though they were official, or use the ADCode name or mark to imply we endorse something;
+When you use the service, you may not:
+
+- distribute a modified build as though it were official, or use the ADCode name or mark to imply we endorse something - the licence covers the code, not the name;
 - remove, disable or work around the parts that show sponsored cards or record receipts, while also holding an account that earns;
-- resell or sublicense the editor as a product of your own;
 - attack the service, or attempt to reach accounts or data that are not yours.
 
-ADCode includes open-source components under their own licences. Those licences govern those components and nothing here narrows the rights they give you.
+ADCode also includes other open-source components under their own licences. Those licences govern those components and nothing here narrows the rights they give you.
 
 ## Your code stays yours
 

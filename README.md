@@ -27,9 +27,9 @@ macOS builds are not published yet.
 - **Edits.** Monaco editing, language servers, formatting, search and replace across a folder.
 - **Runs.** Several real terminals, a Run button, and a built-in preview server.
 - **Understands git.** Stage, commit, branch, blame, file timelines and conflict resolution.
-- **Has an assistant that shows its work.** Connect any of a couple of hundred model providers
-  with your own key, or a local model. Changes are prepared in a private task workspace and
-  reach your project only through a checkpoint you can roll back.
+- **Has an assistant that shows its work.** Connect a model provider with your own key, any
+  OpenAI-compatible endpoint, or a local model. Changes are prepared in a private task
+  workspace and reach your project only through a checkpoint you can roll back.
 - **Two ways to work.** Vibe, where you describe what you want, and Code, the full IDE.
 - **Explains itself.** Every feature has a plain-language entry, in the app under
   **All Features** and on the [docs site](https://adcode.bluethenics.com/docs).

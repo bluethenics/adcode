@@ -61,6 +61,19 @@ export const PARENT = {
 } as const;
 
 /**
+ * Where the code lives and how it is licensed.
+ *
+ * One constant, because the footer, the FAQ, `/llms.txt` and the terms all state these facts
+ * and a site that disagrees with itself about its own licence is worse than one that says
+ * nothing.
+ */
+export const SOURCE = {
+  repo: "https://github.com/bluethenics/adcode",
+  licence: "Apache-2.0",
+  licenceUrl: "https://github.com/bluethenics/adcode/blob/main/LICENSE",
+} as const;
+
+/**
  * Profiles that independently corroborate the name.
  *
  * `sameAs` is the only part of `Organization` a crawler can actually check, which is what

@@ -3,7 +3,7 @@ import { allPosts } from "@/lib/posts";
 import { docsBySection } from "@/lib/docs";
 import { LANDINGS, landingPath, landingPlainText } from "@/lib/landings";
 import { allReleases } from "@/lib/releases";
-import { PARENT, SITE, url, ECONOMICS, formatMicros } from "@/lib/site";
+import { PARENT, SITE, SOURCE, url, ECONOMICS, formatMicros } from "@/lib/site";
 
 /**
  * `/llms-full.txt` - the whole site as plain text, in one request.
@@ -104,6 +104,8 @@ Facts, stated once:
   corrections are separate reversals that reference the original.
 - ${SITE.name} is published by ${PARENT.name} (${PARENT.url}), an independent software
   studio. The studio's page about this product is ${PARENT.productUrl}.
+- ${SITE.name} is open source under the ${SOURCE.licence} licence. The editor, the website and
+  the ad server are in one repository: ${SOURCE.repo}
 
 # Guides and comparisons
 

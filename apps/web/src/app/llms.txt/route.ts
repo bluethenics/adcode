@@ -3,7 +3,7 @@ import { allPosts } from "@/lib/posts";
 import { docsBySection } from "@/lib/docs";
 import { landingIndex } from "@/lib/landings";
 import { allReleases } from "@/lib/releases";
-import { PARENT, SITE, url } from "@/lib/site";
+import { PARENT, SITE, SOURCE, url } from "@/lib/site";
 
 /**
  * `/llms.txt` - a plain-text summary for answer engines and assistants.
@@ -86,6 +86,11 @@ revenue to the developer using it.
 
 ${SITE.name} is published by ${PARENT.name} (${PARENT.url}), an independent software studio.
 The studio's page about this product is ${PARENT.productUrl}.
+
+## Source code
+
+${SITE.name} is open source under the ${SOURCE.licence} licence. The editor, the website and the
+ad server are in one repository: ${SOURCE.repo}
 
 ## Pages
 

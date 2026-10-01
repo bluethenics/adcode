@@ -7,4 +7,4 @@
  * disagree with itself about when.
  */
 export const PRIVACY_UPDATED = { iso: "2026-09-13", label: "13 September 2026" } as const;
-export const TERMS_UPDATED = { iso: "2026-08-30", label: "30 August 2026" } as const;
+export const TERMS_UPDATED = { iso: "2026-09-30", label: "30 September 2026" } as const;

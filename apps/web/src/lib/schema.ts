@@ -283,6 +283,10 @@ export const FAQ: readonly { q: string; a: string }[] = [
     a: "No. Ads are targeted using a fixed list of 45 generic tags such as the programming language and framework in use - for example 'lang:rust' or 'fw:react'. File contents, file paths, and project names never leave the machine. AI features send only what you explicitly ask them to send.",
   },
   {
+    q: "Is ADCode open source?",
+    a: "Yes. The editor, this website and the ad server are open source under the Apache License 2.0, in one public repository at github.com/bluethenics/adcode. You can read the code, build it yourself, change it and share your version. The ADCode name and logo are not covered by the licence, so a changed copy needs its own name. Earnings and payouts come from ADCode's own server, which checks every ad receipt, so they apply to the official builds.",
+  },
+  {
     q: "When does ADCode show ads?",
     a: "Sponsored cards appear in the corner of the window and never interrupt typing, debugging, or a running terminal command. They are rate limited, they can be reduced or switched off entirely in settings, and the server enforces a cap that the client cannot loosen.",
   },
