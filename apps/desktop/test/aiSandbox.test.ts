@@ -168,6 +168,27 @@ describe("AI sandbox creation", () => {
     ).rejects.toThrow();
   });
 
+  it("leaves Claude Code's agent worktrees out of a shadow copy but keeps the rest of .claude", async () => {
+    await writeFile(join(root, "index.ts"), "export {};\n", "utf8");
+    await mkdir(join(root, ".claude", "worktrees", "x", "src"), { recursive: true });
+    await writeFile(join(root, ".claude", "worktrees", "x", "src", "a.ts"), "a second checkout\n", "utf8");
+    await writeFile(join(root, ".claude", "settings.json"), "{}\n", "utf8");
+
+    const created = await createAiSandbox({
+      userDataDirectory: userData,
+      taskId: "task-claude-worktrees",
+      workspaceRoot: root,
+      now: 100,
+    });
+    cleanups.push(created.cleanup);
+
+    expect(created.record.kind).toBe("shadow-copy");
+    expect(await readFile(join(created.root, ".claude", "settings.json"), "utf8")).toBe("{}\n");
+    await expect(
+      readFile(join(created.root, ".claude", "worktrees", "x", "src", "a.ts"), "utf8"),
+    ).rejects.toThrow();
+  });
+
   it("removes only its registered sandbox", async () => {
     await writeFile(join(root, "index.ts"), "safe", "utf8");
     const unrelated = join(userData, "ai-workspaces", "sandboxes", "do-not-delete");

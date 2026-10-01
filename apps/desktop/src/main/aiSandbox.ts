@@ -38,6 +38,11 @@ const SHADOW_EXCLUDES = new Set([
   "ci-release-artifacts",
   "win-unpacked",
 ]);
+// Workspace-relative directories excluded by path rather than name. `.claude/worktrees` is
+// where Claude Code checks out a complete second copy of the repository for each agent;
+// excluding `.claude` by name would also drop the settings, skills and commands an agent
+// may need.
+const SHADOW_EXCLUDED_PATHS = [join(".claude", "worktrees")];
 
 function comparePath(path: string): string {
   const absolute = resolve(path);
@@ -152,6 +157,8 @@ async function createShadowCopy(workspaceRoot: string, target: string): Promise<
     filter(source): boolean {
       if (comparePath(source) === comparePath(workspaceRoot)) return true;
       const rel = relative(workspaceRoot, source);
+      // Rejecting a directory skips everything beneath it, so an exact match is enough.
+      if (SHADOW_EXCLUDED_PATHS.includes(rel)) return false;
       return !rel.split(sep).some((part) => SHADOW_EXCLUDES.has(part));
     },
   });
