@@ -15,6 +15,8 @@
  * misrepresent the build. Neither is worth doing to avoid an honest third state.
  */
 import { helpForSetting } from "@adcode/help";
+import type { McpConnectionInfo } from "../../shared/api.ts";
+import { MCP_NODE_REQUIREMENT, mcpNodeNote } from "../../shared/mcpNode.ts";
 import { copyText } from "../clipboard.ts";
 import {
   GROUPS,
@@ -54,11 +56,7 @@ export interface SettingsViewDeps {
   /** Projected hourly earnings per frequency preset, from the server (deviation D1). */
   readonly projections?: () => Record<string, string> | null;
   /** How to connect an external agent to the shared memory (§5.2). */
-  readonly mcpConnection?: () => Promise<{
-    command: string;
-    storePath: string | null;
-    available: boolean;
-  }>;
+  readonly mcpConnection?: () => Promise<McpConnectionInfo>;
 }
 
 /**
@@ -68,14 +66,12 @@ export interface SettingsViewDeps {
  * has to figure out MCP configuration by themselves will not do it, and the entire
  * feature dies there." So the exact command is shown, ready to copy, rather than
  * described in documentation the user would have to go and find.
+ *
+ * The command is only half of it. It runs on the user's own Node.js, which ADCode cannot
+ * supply (`shared/mcpNode.ts`), so the card says so up front - a command that `claude mcp
+ * add` accepts and then cannot start is exactly the dead end §5.2 warns about.
  */
-function connectionCard(
-  load: () => Promise<{
-    command: string;
-    storePath: string | null;
-    available: boolean;
-  }>,
-): HTMLElement {
+function connectionCard(load: () => Promise<McpConnectionInfo>): HTMLElement {
   const card = document.createElement("div");
   card.className = "connection-card";
 
@@ -109,15 +105,31 @@ function connectionCard(
     });
   });
 
+  const requirement = document.createElement("p");
+  requirement.className = "settings-row-description";
+  requirement.textContent = MCP_NODE_REQUIREMENT;
+
+  // Why there is no command, or what is wrong with the Node.js it would run. A sentence, so
+  // it wraps - the command block keeps everything on one line, which suits only a command.
+  const problem = document.createElement("p");
+  problem.className = "connection-problem";
+  problem.setAttribute("role", "status");
+  problem.hidden = true;
+
   const location = document.createElement("p");
   location.className = "settings-row-description";
 
   actions.append(copy);
-  card.append(heading, explanation, code, actions, location);
+  card.append(heading, explanation, requirement, code, actions, problem, location);
 
   void load().then((info) => {
-    code.textContent = info.command;
+    const note = info.available ? mcpNodeNote(info.node) : info.command;
+    code.textContent = info.available ? info.command : "";
+    code.hidden = !info.available;
+    actions.hidden = !info.available;
     copy.disabled = !info.available;
+    problem.textContent = note ?? "";
+    problem.hidden = note === null;
     location.textContent =
       info.storePath === null
         ? ""

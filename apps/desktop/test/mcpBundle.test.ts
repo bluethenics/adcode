@@ -106,7 +106,7 @@ describe("the MCP server an installed build points agents at", () => {
    */
   it("is run by the user's node, because the packaged app cannot act as one", () => {
     expect(builder.electronFuses?.runAsNode).toBe(false);
-    expect(read("apps", "desktop", "src", "main", "memory.ts")).toContain('-- node "${await binaryPath()}"');
+    expect(read("apps", "desktop", "src", "main", "memory.ts")).toContain('-- node "${script}"');
   });
 });
 

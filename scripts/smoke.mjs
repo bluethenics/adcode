@@ -6112,6 +6112,42 @@ checks.themePickerRecordsAChoice = await (async () => {
 })();
 
 /*
+ * Does Settings say what the MCP command needs before handing it out?
+ *
+ * The command runs on the user's own Node.js - with `runAsNode` fused off, ADCode cannot be
+ * the runtime - and `claude mcp add` accepts it whether or not that Node.js exists. The
+ * failure only shows later, inside the agent. So the card has to state the requirement,
+ * and either show a command with a working Copy button or, with none to give, say why in a
+ * sentence that wraps instead of a one-line command box beside a Copy that cannot work.
+ */
+checks.settingsMcpCardStatesNode = await (async () => {
+  if ((await openSettingsSheet()) !== true) return "settings would not open";
+  // The command arrives asynchronously, after a `node --version` on Windows.
+  await sleep(1500);
+
+  return await evaluate(
+    `(() => {
+       const card = document.querySelector('.settings-sheet:not(.help-sheet) .connection-card');
+       if (!card) return { cardInDom: false };
+       const visible = (el) => el !== null && !el.hidden && el.getBoundingClientRect().height > 0;
+       const code = card.querySelector('.connection-command');
+       const actions = card.querySelector('.connection-actions');
+       const problem = card.querySelector('.connection-problem');
+       const commandShown = visible(code) && (code.textContent ?? '').startsWith('claude mcp add adcode -- node ');
+       const reasonShown = visible(problem) && !visible(code);
+       return {
+         statesRequirement: /Node\\.js \\d+\\.\\d+ or newer/.test(card.textContent ?? ''),
+         showsCommandOrReason: commandShown || reasonShown,
+         noDeadCopy: visible(code) === visible(actions),
+         noteFitsTheCard: !visible(problem) || problem.scrollWidth <= problem.clientWidth + 1,
+         commandShown,
+         note: visible(problem) ? problem.textContent : null,
+       };
+     })()`,
+  );
+})();
+
+/*
  * Does Midnight actually repaint the window?
  *
  * Written directly rather than clicked, so this cannot fail for want of an open panel.
@@ -7060,6 +7096,7 @@ const observations = new Set([
 const requiredEvidence = {
   treeSitterColoursByMeaning: ["painted", "foundBoth", "toldApart"],
   terminalOffersSharedMemory: ["shown", "namesTheAgent", "carriesTheCommand", "offersCopy"],
+  settingsMcpCardStatesNode: ["statesRequirement", "showsCommandOrReason", "noDeadCopy", "noteFitsTheCard"],
   peekShowsTheDefinition: ["opened", "saysHowItWasFound", "matchedByName", "showsSource", "namesTheFile"],
   welcomeScreenIsUsable: ["primaryClickable", "showsVersion", "marked"],
   earningsSettingsButtonWorks: ["settingsOpened", "settingsSelected"],

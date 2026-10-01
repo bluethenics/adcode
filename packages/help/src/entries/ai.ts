@@ -156,7 +156,7 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     plain:
       "Lets AI tools outside ADCode - Claude Code, Codex, and others - read and write the same project notes.",
     why: "One set of notes shared by every assistant you use, rather than each one starting from nothing.",
-    how: "On by default. Open Tools and choose Memory: Share with your other AI tools shows the exact command to run once, from your project folder, with a Copy button. That is the whole setup.",
+    how: "On by default, but it needs Node.js 22.13 or newer installed: your agent starts the server with the Node.js on your computer, not with ADCode. Run node --version in a terminal to check, and install the current LTS from nodejs.org if it is missing or older. Then open Tools and choose Memory: Share with your other AI tools shows the exact command, with a Copy button (Settings shows it too). Run it once, from your project folder. Without Node.js the command is still accepted, but the server fails to start inside your agent.",
     group: "ai",
     settingIds: ["adcode.ai.mcpServer"],
     related: ["adcode.ai.memoryCapture", "adcode.ai.terminalAgentDetection"],

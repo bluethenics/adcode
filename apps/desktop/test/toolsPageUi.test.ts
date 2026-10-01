@@ -26,6 +26,7 @@ it("runs the Tools page in real Chromium: servers, catalogue, skills, memory, sh
     createSkill: true,
     memoryListed: true,
     shareCopies: true,
+    shareStatesNode: true,
     memoryAdded: true,
     memoryDeleted: true,
     liveRefresh: true,

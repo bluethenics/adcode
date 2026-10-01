@@ -52,6 +52,7 @@ export interface ReportInput {
 
 import type { ActivityDelta } from "./activity.ts";
 import type { AssistantControlAction, AssistantControlsView } from "./assistantControls.ts";
+import type { McpNodeCheck } from "./mcpNode.ts";
 
 export type { ActivityDelta };
 
@@ -1399,12 +1400,17 @@ export interface AiTeamTraceView {
  * entire feature dies there."
  */
 export interface McpConnectionInfo {
-  /** The exact command to run, ready to paste. */
+  /** The exact command to run, ready to paste - or, when `available` is false, why there is none. */
   readonly command: string;
   /** Where the memory lives on disk, so the user can go and look at it. */
   readonly storePath: string | null;
-  /** False when no folder is open, since the store is per-workspace. */
+  /**
+   * False when no folder is open, since the store is per-workspace, or when this copy of
+   * ADCode has no server script for the command to point at.
+   */
   readonly available: boolean;
+  /** The `node` the command will run with, as far as ADCode can tell (`shared/mcpNode.ts`). */
+  readonly node: McpNodeCheck;
 }
 
 /** One saved project memory, as the Tools page shows it. */

@@ -371,6 +371,22 @@
   margin-bottom: 8px;
 }
 
+.connection-command[hidden],
+.connection-actions[hidden] {
+  display: none;
+}
+
+/* Why there is no command, or what is wrong with the Node.js it needs. Prose, so it wraps. */
+.connection-problem {
+  margin: 10px 0 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
 /*
  * The free-text setting.
  *

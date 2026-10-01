@@ -1015,10 +1015,12 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ai-mcp-server": {
     steps: [
-      "Open Settings and find the MCP server section - it is on by default.",
+      "Check you have Node.js 22.13 or newer: run node --version in a terminal. If the command is not found, or the version is older, install the current LTS from nodejs.org. Your agent starts the server with this Node.js, not with ADCode.",
+      "Open Tools and choose Memory, or open Settings and find the MCP server section - it is on by default.",
       "Copy the connection command shown there.",
-      "Run it once from your project folder; that is the entire setup.",
+      "Run it once from your project folder, in a terminal opened after Node.js was installed.",
       "Any MCP-capable tool - Claude Code, Codex, and the rest - now reads and writes the same notes as ADCode's assistant.",
+      "If your agent reports that the adcode server failed to start, run node --version in that same terminal. A missing or older Node.js is the usual cause.",
     ],
     benefits: [
       "Every assistant you run shares one project memory instead of five partial copies.",

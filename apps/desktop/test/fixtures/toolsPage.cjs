@@ -68,7 +68,8 @@ app.whenReady().then(async () => {
         },
         settings: { read: async () => ({ 'adcode.ai.agentProfiles': profiles }), onChanged: () => () => {} },
         memory: {
-          connection: async () => ({ command: 'claude mcp add adcode -- node "bin" "/project"', storePath: '/project/.adcode/memory', available: true }),
+          // An old Node.js, so the card has to say so while still offering the command.
+          connection: async () => ({ command: 'claude mcp add adcode -- node "bin" "/project"', storePath: '/project/.adcode/memory', available: true, node: { status: 'old', version: 'v20.11.1' } }),
           list: async () => structuredClone(memories),
           write: async (input) => { memoryCalls.push(['write', input]); memories.unshift({ ...input, created: '2026-09-28', agents: ['you'] }); return { ...input, created: '2026-09-28', agents: ['you'] }; },
           remove: async (name) => { memoryCalls.push(['remove', name]); const index = memories.findIndex((item) => item.name === name); if (index >= 0) memories.splice(index, 1); return index >= 0; },
@@ -148,6 +149,9 @@ app.whenReady().then(async () => {
         results.memoryListed = panel('memory').textContent.includes('Conventions') && panel('memory').textContent.includes('The project uses pnpm');
         q('[aria-label="Copy the memory sharing command"]').click(); await settle();
         results.shareCopies = copied.length === 1 && copied[0].startsWith('claude mcp add adcode');
+        const share = q('.tools-share');
+        results.shareStatesNode = /Node\\.js \\d+\\.\\d+ or newer/.test(share.textContent) &&
+          (share.querySelector('.tool-card-problem')?.textContent ?? '').includes('v20.11.1');
         clickText(panel('memory'), 'Add memory'); await settle();
         const memoryForm = q('dialog.tools-memory-editor[open] form');
         memoryForm.querySelectorAll('input')[0].value = 'dark-mode-first';

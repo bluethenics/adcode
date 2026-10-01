@@ -10,14 +10,21 @@
  * process, so an in-process server would be unreachable by the agents it exists to
  * serve - and would die whenever the user closed the window.
  */
+import { execFile as execFileCallback } from "node:child_process";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { app } from "electron";
 import { MEMORY_DIRECTORY, openNodeMemory, type NodeMemory } from "@adcode/memory";
 import type { McpConnectionInfo, MemoryItemView, MemoryWriteInputView } from "../shared/api.ts";
+import { classifyNode, type McpNodeCheck } from "../shared/mcpNode.ts";
 import { recordDebug } from "./debugLog.ts";
+import { findExecutable, launchFor } from "./executables.ts";
 import { mcpScriptPath, refreshMcpBundle, SHIPPED_MCP, stableMcpDirectory } from "./mcpInstall.ts";
 import { currentWorkspace } from "./workspace.ts";
+
+const execFile = promisify(execFileCallback);
 
 let opened: { root: string; memory: NodeMemory } | null = null;
 
@@ -80,6 +87,39 @@ export async function refreshMcpServer(): Promise<void> {
   }
 }
 
+let nodeCheck: Promise<McpNodeCheck> | null = null;
+
+/**
+ * The `node` an agent's terminal would find, and whether it can start the server.
+ *
+ * Windows only. A Windows app inherits the PATH a new terminal gets, so what this process
+ * finds is what the agent will. A macOS app opened from the Dock gets /usr/bin:/bin and
+ * nothing from the shell profile - no Homebrew, no nvm - and a Linux desktop launcher misses
+ * nvm the same way, so "not found" there would usually be false. A check that calls an
+ * installed program missing is worse than no check.
+ *
+ * Runs the first time a card asks, never at startup, and is kept: this process's PATH is
+ * fixed at launch, so asking again could not give a different answer.
+ */
+function checkNode(): Promise<McpNodeCheck> {
+  if (process.platform !== "win32") return Promise.resolve({ status: "unknown" });
+
+  nodeCheck ??= (async (): Promise<McpNodeCheck> => {
+    const node = findExecutable("node", process.platform);
+    if (node === null) return classifyNode(null);
+
+    const launch = launchFor(node, ["--version"], process.platform);
+    try {
+      const { stdout } = await execFile(launch.file, [...launch.args], { timeout: 5_000, windowsHide: true });
+      return classifyNode(stdout);
+    } catch {
+      return { status: "unknown" };
+    }
+  })();
+
+  return nodeCheck;
+}
+
 export async function mcpConnection(): Promise<McpConnectionInfo> {
   const workspace = currentWorkspace();
 
@@ -88,16 +128,34 @@ export async function mcpConnection(): Promise<McpConnectionInfo> {
       command: "Open a folder first - project memory is per-workspace.",
       storePath: null,
       available: false,
+      node: { status: "unknown" },
+    };
+  }
+
+  const storePath = join(workspace.root, MEMORY_DIRECTORY);
+
+  // `claude mcp add` records whatever it is given, so a command naming a file that is not
+  // there is accepted and fails later, inside the agent, where nothing says why. Better to
+  // hand out no command - and the Copy buttons and the terminal's offer all stand down on
+  // `available: false`.
+  const script = await binaryPath();
+  if (!existsSync(script)) {
+    return {
+      command: `This copy of ADCode doesn't include its MCP server (there is no ${script}), so there is no command to give your agent.`,
+      storePath,
+      available: false,
+      node: { status: "unknown" },
     };
   }
 
   // The `--` matters: without it, Claude Code parses the following arguments as its own.
-  const command = `claude mcp add adcode -- node "${await binaryPath()}" "${workspace.root}"`;
+  const command = `claude mcp add adcode -- node "${script}" "${workspace.root}"`;
 
   return {
     command,
-    storePath: join(workspace.root, MEMORY_DIRECTORY),
+    storePath,
     available: true,
+    node: await checkNode(),
   };
 }
 

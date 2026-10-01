@@ -18,7 +18,8 @@ import {
 } from "./terminalTeamRunner.ts";
 import { ICON, createIcon } from "../workbench/icons.ts";
 import { createContextMenu, attachContextMenuDismissal } from "../workbench/contextMenu.ts";
-import type { ThemeChoice } from "../../shared/api.ts";
+import type { McpConnectionInfo, ThemeChoice } from "../../shared/api.ts";
+import { MCP_NODE_MINIMUM, mcpNodeNote } from "../../shared/mcpNode.ts";
 import {
   createAiUsageLimitReader,
   type AiUsageLimitReader,
@@ -131,7 +132,7 @@ export interface TerminalPanelDeps {
    * The same command the settings screen prints. Passed in rather than fetched here so this
    * file keeps knowing nothing about the memory package.
    */
-  readonly mcpConnection?: () => Promise<{ command: string; available: boolean }>;
+  readonly mcpConnection?: () => Promise<Pick<McpConnectionInfo, "command" | "available" | "node">>;
   /**
    * The three doors the right-click menu opens that are not the terminal's to own.
    *
@@ -516,7 +517,13 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
     void deps.mcpConnection().then((connection) => {
       if (!connection.available) return;
 
-      stripText.textContent = `${agent.name} can share this project's memory with ADCode. Run this once:`;
+      // The command runs on the user's own Node.js (`shared/mcpNode.ts`). When ADCode knows
+      // that is missing or too old, saying so beats an offer that fails inside the agent.
+      const note = mcpNodeNote(connection.node);
+      stripText.textContent =
+        note === null
+          ? `${agent.name} can share this project's memory with ADCode. With Node.js ${MCP_NODE_MINIMUM} or newer installed, run this once:`
+          : `${agent.name} can share this project's memory with ADCode. ${note}`;
       stripCommand.textContent = connection.command;
 
       stripCopy.onclick = () => {

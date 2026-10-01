@@ -10,9 +10,10 @@
  * The MCP and skill state is the main process's (see `assistantControlsService.ts`); this page
  * renders it and sends actions, with no optimistic copy of its own.
  */
-import type { MemoryItemView } from "../../shared/api.ts";
+import type { McpConnectionInfo, MemoryItemView } from "../../shared/api.ts";
 import type { AssistantControlAction, AssistantControlsView, AssistantServerView, AssistantSkillView } from "../../shared/assistantControls.ts";
 import { MCP_CATALOGUE } from "../../shared/mcpCatalogue.ts";
+import { MCP_NODE_REQUIREMENT, mcpNodeNote } from "../../shared/mcpNode.ts";
 import { AGENT_PROFILES_SETTING, parseAgentProfiles, type AgentProfile } from "../ai/agentProfiles.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { button, el, field, openFormModal } from "../dialogs/formDialog.ts";
@@ -151,7 +152,7 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
   let controls: AssistantControlsView | null = null;
   let memories: readonly MemoryItemView[] = [];
   let agents: readonly AgentProfile[] = [];
-  let memoryCommand: { command: string; available: boolean } | null = null;
+  let memoryCommand: McpConnectionInfo | null = null;
   let skillScope: "all" | "workspace" | "system" = "all";
   let visible = false;
 
@@ -361,7 +362,16 @@ export function createToolsPage(deps: ToolsPageDeps): ToolsPage {
     copy.setAttribute("aria-label", "Copy the memory sharing command");
     const commandRow = el("div", "tools-share-row");
     commandRow.append(command, copy);
-    share.append(commandRow);
+    // With no command to give, `command` holds the reason - a sentence, which belongs in the
+    // note below rather than in a one-line command box beside a Copy button that cannot work.
+    if (memoryCommand === null || memoryCommand.available) share.append(commandRow);
+    share.append(el("p", "tool-card-text", MCP_NODE_REQUIREMENT));
+    const problem = memoryCommand === null ? null : memoryCommand.available ? mcpNodeNote(memoryCommand.node) : memoryCommand.command;
+    if (problem !== null) {
+      const warning = el("p", "tool-card-problem", problem);
+      warning.setAttribute("role", "status");
+      share.append(warning);
+    }
     panel.append(share);
 
     const shown = memories.filter((memory) => matchesQuery(query, [memory.name, memory.description, memory.body, memory.type]));
