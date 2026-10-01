@@ -481,3 +481,111 @@ body:has(.auth-screen) .website-consent { position: static; margin: 24px auto; b
   .studio-hero .marketplace-hero-actions .marketplace-secondary { flex: 1 1 100%; }
   .nav-download { display: none; }
 }
+
+/*
+ * Vibe and Code. The switch is the memorable thing on this section, so it is drawn like the
+ * app's own control and sized like a headline; the windows are quiet illustrations in the
+ * site's existing editor-preview vocabulary.
+ */
+.modes { padding-block: 104px 24px; scroll-margin-top: 96px; }
+.modes-intro { display: grid; justify-items: start; gap: 14px; }
+.modes-intro h2 { margin: 0; color: var(--text); font-size: clamp(32px, 3.7vw, 48px); font-weight: 520; letter-spacing: -.045em; line-height: 1.1; }
+.modes-intro > p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.6; }
+.modes-switch { display: inline-flex; gap: 4px; margin-top: 14px; padding: 5px; border: 1px solid var(--hairline); border-radius: 999px; background: var(--card); box-shadow: var(--control-shadow); }
+.modes-switch button { display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 26px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: 600 17px var(--font-body), sans-serif; letter-spacing: -.01em; cursor: pointer; transition: background 180ms var(--ease, ease), color 180ms var(--ease, ease); }
+.modes-switch button span { font-family: var(--font-mono), monospace; font-size: 14px; }
+.modes-switch button:hover { color: var(--text); }
+.modes-switch button[aria-selected="true"] { background: var(--text); color: var(--surface); }
+.modes-switch button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.modes-body { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 56px; align-items: center; margin-top: 44px; }
+.modes-copy h3 { margin: 0; color: var(--text); font-size: 26px; font-weight: 560; letter-spacing: -.03em; line-height: 1.2; }
+.modes-copy > p { margin: 14px 0 0; color: var(--muted); font-size: 15px; line-height: 1.65; }
+.modes-copy ul { display: grid; gap: 12px; margin: 22px 0 0; padding: 0; list-style: none; }
+.modes-copy li { position: relative; padding-left: 22px; color: var(--text); font-size: 14px; line-height: 1.55; }
+.modes-copy li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 7px; height: 7px; border-radius: 50%; background: var(--money); }
+.modes-stage { margin: 0; padding: clamp(14px, 3vw, 40px); border: 1px solid var(--hairline); border-radius: 16px; background: radial-gradient(ellipse at 12% 10%, light-dark(#d5ddef, #25334c), transparent 60%), radial-gradient(ellipse at 85% 100%, light-dark(#c7cadc, #393344), transparent 65%), light-dark(#e2e5eb, #23252b); }
+@media (prefers-reduced-motion: no-preference) {
+  .modes-body .mw { animation: modes-in 280ms var(--ease, ease-out); }
+  @keyframes modes-in { from { opacity: 0; transform: translateY(6px); } }
+}
+
+/* The illustrated windows. */
+.mw { position: relative; overflow: hidden; border: 1px solid light-dark(#bfc5d0, #414650); border-radius: 12px; background: var(--card); color: var(--text); box-shadow: 0 24px 65px light-dark(#25334c30, #0007); font-size: 11px; line-height: 1.45; }
+.mw-bar { display: flex; align-items: center; gap: 14px; min-height: 34px; padding: 0 14px; border-bottom: 1px solid var(--hairline); background: var(--control); }
+.mw-bar-title { color: var(--faint); font-size: 10px; }
+.mw code { font: 10px var(--font-mono), monospace; }
+.mw-label { margin-top: 8px; color: var(--faint); font-size: 9px; font-weight: 600; letter-spacing: .04em; }
+.mw-vibe { position: relative; display: grid; grid-template-columns: 172px minmax(0, 1fr); min-height: 410px; }
+.mw-side { display: flex; flex-direction: column; gap: 3px; padding: 12px 10px; border-right: 1px solid var(--hairline); background: var(--surface); color: var(--muted); }
+.mw-new { margin-bottom: 6px; padding: 7px 10px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--card); color: var(--text); font-weight: 550; }
+.mw-project { display: grid; gap: 1px; margin-bottom: 6px; padding: 7px 10px; border-radius: 8px; background: var(--control); }
+.mw-project b { color: var(--text); font-weight: 600; }
+.mw-project small { color: var(--faint); font-size: 9px; }
+.mw-nav { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; border-radius: 6px; }
+.mw-convo { display: block; padding: 5px 10px; border-radius: 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mw-nav.is-active, .mw-convo.is-active { background: var(--selected); color: var(--text); }
+.mw-nav em { color: var(--money); font-size: 9px; font-style: normal; }
+.mw-nav em.is-count { min-width: 16px; padding: 0 5px; border-radius: 99px; background: var(--text); color: var(--surface); text-align: center; }
+.mw-foot { display: flex; justify-content: space-between; margin-top: auto; padding: 8px 10px 0; border-top: 1px solid var(--hairline); color: var(--text); }
+.mw-earn { color: var(--money); font-weight: 600; font-variant-numeric: tabular-nums; }
+.mw-chat { display: flex; flex-direction: column; gap: 12px; padding: 20px clamp(16px, 4%, 44px); }
+.mw-user { align-self: flex-end; max-width: 78%; margin: 0; padding: 9px 12px; border-radius: 12px 12px 4px 12px; background: var(--control); color: var(--text); }
+.mw-worked { display: grid; gap: 5px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: 10px; }
+.mw-worked-head { display: flex; align-items: center; gap: 7px; margin-bottom: 2px; color: var(--muted); font-weight: 550; }
+.mw-step { display: flex; align-items: center; gap: 7px; color: var(--muted); }
+.mw-step i { color: var(--money); font-style: normal; font-weight: 700; }
+.mw-step small { margin-left: auto; color: var(--faint); font-size: 9px; }
+.mw-reply { margin: 0; max-width: 70%; color: var(--text); }
+.mw-undo { display: flex; align-items: center; justify-content: space-between; max-width: 70%; padding: 8px 12px; border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface); }
+.mw-undo small { margin-left: 6px; color: var(--faint); }
+.mw-undo b { padding: 3px 10px; border: 1px solid var(--hairline); border-radius: 6px; font-weight: 600; }
+.mw-composer { display: flex; align-items: center; gap: 8px; margin-top: auto; padding: 10px 10px 10px 14px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--surface); color: var(--faint); }
+.mw-composer > span:first-child { margin-right: auto; }
+.mw-pill { padding: 3px 9px; border: 1px solid var(--hairline); border-radius: 99px; color: var(--muted); }
+.mw-send { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--text); color: var(--surface); font-weight: 700; }
+.mw-sponsor { position: absolute; right: 14px; bottom: 74px; display: grid; gap: 2px; width: 168px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: 10px; background: var(--card); box-shadow: 0 10px 30px light-dark(#25334c22, #0006); }
+.mw-sponsor-tag { color: var(--faint); font-size: 8px; font-weight: 600; letter-spacing: .06em; }
+.mw-sponsor b { color: var(--text); font-weight: 600; }
+.mw-sponsor small { color: var(--money); font-size: 9px; }
+.mw-code { display: grid; grid-template-columns: 158px minmax(0, 1fr); min-height: 410px; }
+.mw-tree { display: flex; flex-direction: column; gap: 5px; padding: 12px; border-right: 1px solid var(--hairline); background: var(--surface); color: var(--muted); }
+.mw-tree .mw-label { margin: 0 0 4px; }
+.mw-tree em { float: right; color: var(--warn); font-size: 9px; font-style: normal; }
+.mw-indent { padding-left: 12px; }
+.mw-indent2 { padding: 2px 6px 2px 24px; border-radius: 5px; }
+.mw-indent2.is-active { background: var(--selected); color: var(--text); }
+.mw-branch { margin-top: auto; color: var(--text); }
+.mw-editor { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.mw-tabs { display: flex; border-bottom: 1px solid var(--hairline); }
+.mw-tabs span { padding: 8px 14px; border-right: 1px solid var(--hairline); color: var(--faint); }
+.mw-tabs span.is-active { color: var(--text); background: var(--surface); }
+.mw-tabs .mw-vibe-btn { margin: 4px 8px 4px auto; padding: 3px 10px; border: 1px solid var(--hairline); border-radius: 99px; color: var(--text); }
+.mw-lines { padding: 10px 8px; font: 10.5px/1.9 var(--font-mono), monospace; white-space: pre; overflow: hidden; }
+.mw-lines > div { display: flex; border-radius: 3px; }
+.mw-lines > div.is-selected { background: light-dark(#d9e4fb, #263451); }
+.mw-lines code { font: inherit; }
+.mw-terminal { margin-top: auto; padding: 8px 14px 12px; border-top: 1px solid var(--hairline); background: var(--surface); font: 10px/1.7 var(--font-mono), monospace; }
+.mw-terminal > span { color: var(--faint); font-family: var(--font-body), sans-serif; }
+.mw-terminal p { margin: 0; }
+.mw-float { position: absolute; right: 14px; top: 64px; display: grid; gap: 7px; width: min(230px, 46%); padding: 11px 12px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--card); box-shadow: 0 18px 44px light-dark(#25334c2e, #0008); }
+.mw-float-head { display: flex; justify-content: space-between; color: var(--text); font-weight: 600; }
+.mw-float-head small { color: var(--faint); font-weight: 400; }
+.mw-chip { justify-self: start; padding: 2px 8px; border-radius: 99px; background: var(--control); color: var(--muted); font-size: 9px; }
+.mw-float p { margin: 0; color: var(--text); }
+.mw-float-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+.mw-float-actions i { padding: 2px 8px; border: 1px solid var(--hairline); border-radius: 99px; color: var(--muted); font-size: 9px; font-style: normal; }
+.mw-status { display: flex; justify-content: space-between; padding: 5px 12px; border-top: 1px solid var(--hairline); background: var(--control); color: var(--faint); font-size: 9px; }
+
+@media (max-width: 1000px) {
+  .modes-body { grid-template-columns: 1fr; gap: 30px; }
+}
+@media (max-width: 640px) {
+  .modes { padding-block: 64px 8px; }
+  .modes-switch { align-self: stretch; width: 100%; }
+  .modes-switch button { flex: 1; justify-content: center; min-height: 48px; padding: 0 12px; font-size: 16px; }
+  .mw-vibe, .mw-code { grid-template-columns: minmax(0, 1fr); min-height: 380px; }
+  .mw-side, .mw-tree { display: none; }
+  .mw-reply, .mw-undo { max-width: 100%; }
+  .mw-sponsor { position: static; width: auto; }
+  .mw-float { width: 62%; top: 76px; }
+}

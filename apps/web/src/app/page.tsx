@@ -4,6 +4,7 @@ import { LandingBidBuilder } from "@/components/LandingBidBuilder";
 import { DeveloperCounter } from "@/components/DeveloperCounter";
 import { HeroCounter } from "@/components/HeroCounter";
 import { AppShowcase } from "@/components/AppShowcase";
+import { ModeShowcase } from "@/components/ModeShowcase";
 import Link from "next/link";
 import { HomeFaq } from "@/components/HomeFaq";
 import { JsonLd } from "@/components/JsonLd";
@@ -57,6 +58,8 @@ export default function Home() {
       <HeroCounter />
       </div>
       </section>
+
+      <ModeShowcase />
 
       <section className="product-story marketplace-wrap" aria-labelledby="product-story-heading">
       <div className="product-story-heading"><p className="marketplace-eyebrow">THE SPACE TO BUILD</p><h2 id="product-story-heading">Everything you need.<br /><span>Nothing in your way.</span></h2><p>From the first idea to the final commit, make yourself at home in an editor built around your work.</p></div>
