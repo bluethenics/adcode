@@ -127,6 +127,7 @@ import { createUpdatePrompt } from "./updates/updatePrompt.ts";
 import { buildAdSignals } from "./ads/adSignals.ts";
 import { createReleaseNotice } from "./releases/releaseNotice.ts";
 import { createWhatsNewSheet } from "./releases/whatsNewSheet.ts";
+import { createLicencesSheet } from "./help/licencesSheet.ts";
 import { createResultDialog } from "./dialogs/resultDialog.ts";
 import { createConfirmDialog } from "./dialogs/confirmDialog.ts";
 import { createPromptDialog } from "./dialogs/promptDialog.ts";
@@ -4783,6 +4784,7 @@ const updatePrompt = createUpdatePrompt({
  * something to show.
  */
 const whatsNewSheet = createWhatsNewSheet(document.body);
+const licencesSheet = createLicencesSheet(document.body);
 
 const releaseNotice = createReleaseNotice({
   host: document.body,
@@ -6035,10 +6037,13 @@ function registerCommands(): void {
   add("help.devTools", "Toggle Developer Tools", () =>
     window.adcode.window.toggleDevTools(),
   );
+  add("help.openSourceLicences", "Open Source Licences", () => {
+    void window.adcode.licences.read().then((documents) => licencesSheet.open(documents));
+  });
   add("help.about", "About ADCode", () => {
     gitResultDialog.showBrand({
       title: "ADCode",
-      body: "An ad-supported, AI-native IDE. Everything ships in the binary - there is no marketplace.",
+      body: "An ad-supported, AI-native IDE. Everything ships in the binary - there is no marketplace. Open source under the Apache License 2.0: Help > Open Source Licences.",
     });
   });
   add("app.quit", "Exit", () => window.close());

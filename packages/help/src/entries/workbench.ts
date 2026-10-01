@@ -217,6 +217,16 @@ export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
     related: ["adcode.ai.chatWidget", "workbench.allFeatures"],
   },
   {
+    id: "workbench.openSource",
+    title: "Open source licences",
+    plain: "ADCode's code is open source. This shows the licence it is shared under, and the licences of the other open-source software built into it.",
+    why: "So you can check what you are allowed to do with ADCode - use it, read it, change it, share it - and see exactly which other projects it is built on, without leaving the editor.",
+    how: "Choose Help > Open Source Licences. The first tab is ADCode's own licence, the Apache License 2.0. Notice names the copyright holder. Third-party lists every package built into ADCode with its licence text. The source code is at github.com/bluethenics/adcode, where you can read it, report a problem or send a change. The ADCode name and logo are not covered by the licence, so a changed copy has to use its own name.",
+    group: "workbench",
+    settingIds: [],
+    related: ["workbench.allFeatures", "workbench.debugLog"],
+  },
+  {
     id: "workbench.vibeSidebar",
     title: "Vibe sidebar",
     plain: "The left side of the Vibe window: start a conversation, switch project, and see at a glance what has changed.",

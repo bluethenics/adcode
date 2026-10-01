@@ -520,6 +520,9 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
           accelerator: "CmdOrCtrl+Shift+I",
         },
         separator,
+        // Beside About, because both answer "what is this and who made it". `O` is the one
+        // letter in this menu no other item has claimed.
+        { label: "&Open Source Licences", command: "help.openSourceLicences" },
         { label: "&About ADCode", command: "help.about" },
       ],
     },

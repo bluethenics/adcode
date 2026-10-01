@@ -1064,6 +1064,17 @@ How to use it: Choose Open IDE at the bottom of the Vibe sidebar, or in the top 
 
 Access: `All Features → Open IDE in a separate window`; `Open IDE in a separate window`.
 
+<!-- feature:workbench.openSource -->
+### Open source licences
+
+ADCode's code is open source. This shows the licence it is shared under, and the licences of the other open-source software built into it.
+
+Why use it: So you can check what you are allowed to do with ADCode - use it, read it, change it, share it - and see exactly which other projects it is built on, without leaving the editor.
+
+How to use it: Choose Help > Open Source Licences. The first tab is ADCode's own licence, the Apache License 2.0. Notice names the copyright holder. Third-party lists every package built into ADCode with its licence text. The source code is at github.com/bluethenics/adcode, where you can read it, report a problem or send a change. The ADCode name and logo are not covered by the licence, so a changed copy has to use its own name.
+
+Access: `All Features → Open source licences`; `Show licences`.
+
 <!-- feature:workbench.debugLog -->
 ### Report a problem with a debug log
 

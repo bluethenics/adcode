@@ -1924,6 +1924,21 @@ if (featureLauncherPoint === null) {
      })()`,
   );
 
+  // The licence, found by either spelling, in the real library.
+  checks.featureLibraryFindsOpenSource = await evaluate(
+    `(() => {
+       const input = document.querySelector('.feature-library-search');
+       if (!input) return false;
+       const finds = (query) => {
+         input.value = query;
+         input.dispatchEvent(new Event('input', { bubbles: true }));
+         return [...document.querySelectorAll('.feature-library-row')]
+           .some((row) => row.dataset.featureId === 'workbench.openSource');
+       };
+       return finds('open source license') && finds('licence');
+     })()`,
+  );
+
   const actionPoint = await evaluate(
     `(() => {
        const input = document.querySelector('.feature-library-search');
@@ -5844,6 +5859,45 @@ checks.collabSessionStartsAndStops = await evaluate(
  * problem as prose is printed and then passes - which is the one way this script lies.
  */
 
+/*
+ * Help > Open Source Licences, through the real command, reading the real file.
+ *
+ * "showsApache" is the one that matters: it proves main found LICENSE on disk and the text
+ * crossed IPC into the pane, rather than the tab falling back to its "could not be read"
+ * sentence - which would still open a perfectly good-looking dialog.
+ *
+ * The palette can fail to open when the window has lost focus. That is recorded as this
+ * check failing, not thrown: an uncaught throw here ends the run and takes every result
+ * already gathered with it.
+ */
+checks.licencesDialog = await (async () => {
+  try {
+    await choosePaletteCommand("help.openSourceLicences", "Open Source Licences");
+  } catch (error) {
+    return `THREW: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  await sleep(500);
+
+  const shown = await evaluate(
+    `(() => {
+       const dialog = document.querySelector('.licences-dialog');
+       const tabs = [...document.querySelectorAll('.licences-tab')].map((tab) => tab.textContent);
+       const text = document.querySelector('.licences-text')?.textContent ?? '';
+       return {
+         opened: dialog?.open === true,
+         threeTabs: tabs.join('|') === 'ADCode licence|Notice|Third-party',
+         showsApache: text.includes('Apache License') && text.includes('Version 2.0, January 2004'),
+       };
+     })()`,
+  );
+
+  await pressEscape();
+  await sleep(250);
+  const closes = await evaluate(`document.querySelector('.licences-dialog')?.open === false`);
+
+  return { ...shown, closes: closes === true };
+})();
+
 checks.helpGuideOpens = await (async () => {
   await choosePaletteCommand("help.guide", "Feature Guide");
   await sleep(500);
@@ -7010,6 +7064,7 @@ const requiredEvidence = {
   welcomeScreenIsUsable: ["primaryClickable", "showsVersion", "marked"],
   earningsSettingsButtonWorks: ["settingsOpened", "settingsSelected"],
   updateReadyVisible: ["checkedReady", "statusBarSays", "cardShown", "cardOffersRestart", "restartAnswers"],
+  licencesDialog: ["opened", "threeTabs", "showsApache", "closes"],
 };
 const failed = Object.entries(checks).filter(
   ([name, value]) =>

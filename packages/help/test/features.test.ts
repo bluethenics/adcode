@@ -55,6 +55,20 @@ describe("feature catalogue", () => {
     });
   });
 
+  it("offers the open-source licences by the words people search with", () => {
+    expect(featureFor("workbench.openSource")?.actions[0]).toEqual({
+      kind: "command",
+      command: "help.openSourceLicences",
+      label: "Show licences",
+    });
+    for (const query of ["license", "licence", "open source", "apache", "third party"]) {
+      expect(
+        searchFeatures(query).map((feature) => feature.entry.id),
+        query,
+      ).toContain("workbench.openSource");
+    }
+  });
+
   it("preserves catalogue order when the query is empty", () => {
     expect(searchFeatures("   ").map((feature) => feature.entry.id)).toEqual(
       featureRecords().map((feature) => feature.entry.id),

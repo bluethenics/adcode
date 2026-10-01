@@ -1030,6 +1030,17 @@ export const DOC_SEED: readonly DocSeed[] = [
     related: ["workbench-modes", "workbench-vibe-sidebar", "workbench-all-features"],
   },
   {
+    slug: "workbench-open-source",
+    title: "Open source licences",
+    section: "The workbench",
+    description: "ADCode's code is open source. This shows the licence it is shared under, and the licences of the other open-source software built into it.",
+    why: "So you can check what you are allowed to do with ADCode - use it, read it, change it, share it - and see exactly which other projects it is built on, without leaving the editor.",
+    how: "Choose Help > Open Source Licences. The first tab is ADCode's own licence, the Apache License 2.0. Notice names the copyright holder. Third-party lists every package built into ADCode with its licence text. The source code is at github.com/bluethenics/adcode, where you can read it, report a problem or send a change. The ADCode name and logo are not covered by the licence, so a changed copy has to use its own name.",
+    keywords: ["Open source licences", "The workbench", "open source", "license", "licence", "apache", "apache-2.0", "source code", "github", "fork", "third party", "credits", "attribution", "legal", "copyright"],
+    access: ["All Features → Open source licences", "Show licences (command:help.openSourceLicences)"],
+    related: ["workbench-all-features", "workbench-debug-log"],
+  },
+  {
     slug: "workbench-debug-log",
     title: "Report a problem with a debug log",
     section: "The workbench",

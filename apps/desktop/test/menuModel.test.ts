@@ -283,6 +283,17 @@ describe("the bar as a whole", () => {
       ),
     ).toBe(true);
   });
+
+  it("offers the open-source licences from Help, beside About", () => {
+    const help = panels(bar).find((panel) => panel.name === "Help");
+    const rows = rowsOf(help?.entries ?? []).flatMap((entry) =>
+      "command" in entry ? [{ command: entry.command, label: stripMnemonic(entry.label) }] : [],
+    );
+
+    const at = rows.findIndex((row) => row.command === "help.openSourceLicences");
+    expect(rows[at]?.label).toBe("Open Source Licences");
+    expect(rows[at + 1]?.command).toBe("help.about");
+  });
 });
 
 describe("the recent folders submenu", () => {

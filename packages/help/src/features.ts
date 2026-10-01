@@ -51,6 +51,10 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("help.report", "Report a problem"), command("help.copyDebugLog", "Copy debug log"), command("help.saveDebugLog", "Save debug log")],
     keywords: ["bug report", "report a bug", "debug log", "logs", "diagnostics", "send logs", "support", "something is broken", "ai not working", "error details", "crash"],
   },
+  "workbench.openSource": {
+    actions: [command("help.openSourceLicences", "Show licences")],
+    keywords: ["open source", "license", "licence", "apache", "apache-2.0", "source code", "github", "fork", "third party", "credits", "attribution", "legal", "copyright"],
+  },
   "workbench.changes": {
     actions: [command("workspace.changes", "Open Changes")],
     keywords: ["uncommitted", "changed files", "what changed", "diff", "commit and push", "revert a file", "undo file changes", "discard changes", "git changes", "not a git repository", "dubious ownership", "safe directory", "trust this folder"],

@@ -1295,6 +1295,24 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Most editors ask you to find a log folder, zip it and attach it, then hope nothing sensitive was inside. ADCode's log is redacted as it is written, previewed before it is sent, and attached from the same Help menu you would open anyway.",
   },
 
+  "workbench-open-source": {
+    steps: [
+      "Choose Help > Open Source Licences. It works the same in Vibe and in Code.",
+      "The first tab is ADCode's own licence, the Apache License 2.0: you may use, change and share the code, including commercially.",
+      "Open Notice to see who holds the copyright.",
+      "Open Third-party to read the licence of every package built into ADCode. Select any text to copy it.",
+      "To read or change the code itself, go to github.com/bluethenics/adcode. CONTRIBUTING.md there explains how to build it and send a change.",
+      "If you publish a changed copy, give it its own name and icon. The licence covers the code, not the ADCode name or logo.",
+    ],
+    benefits: [
+      "You can check what the editor does with your ads, earnings and code by reading the code, rather than taking it on trust.",
+      "Every bundled package is credited with its full licence text, inside the app, with no network needed.",
+      "If ADCode stopped tomorrow, the code would still be yours to build and run.",
+    ],
+    betterThan:
+      "Most ad-supported software is closed: you are told what it collects and have to believe it. ADCode's editor, website and ad server are all in one public repository under a permissive licence, so the claim that it never reads your code to target ads is one you can verify.",
+  },
+
   "workbench-changes": {
     steps: [
       "Choose Changes in the Vibe sidebar. The panel opens as a floating window over your work - move it, resize it, or double-click its title to fill the window - with every file changed since your last commit.",
