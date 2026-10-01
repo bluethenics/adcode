@@ -3,7 +3,7 @@
  * plain words, and a catalogue whose one-click entries actually work in ADCode.
  */
 import { describe, expect, it } from "vitest";
-import { TOOLS_WITHOUT_MEMORY, BUILT_IN_TOOLS } from "@adcode/ai";
+import { AGENT_RUN_TOOLS, BUILT_IN_TOOLS } from "@adcode/ai";
 import { parseAssistantServer } from "../src/main/assistantControlsService.ts";
 import { MCP_CATALOGUE } from "../src/shared/mcpCatalogue.ts";
 import { AGENT_PICKABLE_TOOLS, BUILT_IN_TOOLS_INFO } from "../src/renderer/tools/builtInTools.ts";
@@ -20,7 +20,15 @@ describe("built-in tools in plain words", () => {
   });
 
   it("offers agents exactly the tools a board run is built with", () => {
-    expect(AGENT_PICKABLE_TOOLS.map((tool) => tool.name).sort()).toEqual(TOOLS_WITHOUT_MEMORY.map((tool) => tool.name).sort());
+    expect(AGENT_PICKABLE_TOOLS.map((tool) => tool.name).sort()).toEqual(AGENT_RUN_TOOLS.map((tool) => tool.name).sort());
+  });
+
+  it("keeps the preview, background commands, deletes, moves and the plan to the chat", () => {
+    const agents = [agent("Builder")];
+    for (const name of ["view_page", "open_preview", "command_output", "stop_command", "delete_file", "move_file", "update_plan"]) {
+      expect(toolUsers(name, agents), name).toEqual(["Chat"]);
+    }
+    expect(toolUsers("run_command", agents)).toEqual(["Chat", "Builder"]);
   });
 });
 

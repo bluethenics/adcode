@@ -19,6 +19,10 @@ export const LEAN_TOOL_NAMES: ReadonlySet<string> = new Set([
   "edit_file",
   "propose_edit",
   "run_command",
+  // run_command can start a background process; without these a lean turn could start one
+  // and never read it or stop it.
+  "command_output",
+  "stop_command",
   "open_preview",
 ]);
 

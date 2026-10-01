@@ -103,6 +103,7 @@ import { misspellingsIn } from "@adcode/spell";
 import { getSetting } from "@adcode/settings";
 import { CHECKS, messageFor, type CheckSpec } from "./checks/checkReport.ts";
 import { createChatWidget } from "./ai/chatWidget.ts";
+import { CHECK_APP_PROMPT } from "./ai/composerMenu.ts";
 import { createAssistantDock } from "./workbench/assistantDock.ts";
 import { createFloatingPanel, resetAllFloatingPanels } from "./workbench/floatingPanel.ts";
 import { createAgentsPage } from "./agents/agentsPage.ts";
@@ -4511,6 +4512,8 @@ const chat = createChatWidget({
   // Applying a proposal reopens the file so the user sees the result in the editor.
   openExternalPath: (path) => void openFile(/^(?:[a-z]:[\\/]|\/)/i.test(path) ? path : absolutePath(path)),
   openPreview: () => { if (!previewPane.isOpen()) void previewPane.toggle(); },
+  // The assistant opened a particular page: an open preview follows it there.
+  showPreviewPage: (url) => previewPane.navigate(url),
   openConnect: () => openConnectFromChat(),
   saveAllOpenFiles: () => {
     void commands.run("file.saveAll");
@@ -5614,6 +5617,8 @@ function registerCommands(): void {
     editorHost.runAction("adcode.addSelectionToChat");
   });
   add("ai.slashCommands", "AI: Show Assistant Commands", () => chat.openComposerMenu("/"));
+  // The assistant looks at the running app in its own browser and fixes what it finds.
+  add("ai.checkApp", "AI: Check My Running App", () => chat.ask(CHECK_APP_PROMPT.trim()));
   add("ai.mentionFile", "AI: Add a File to the Conversation", () => chat.openComposerMenu("@"));
   add("workspace.vibe", "Open Vibe Window", () => void window.adcode.window.openVibe());
   add("workspace.code", "Open Code Window", () => void window.adcode.window.openIde());
@@ -5634,6 +5639,7 @@ function registerCommands(): void {
   add("tools.open", "Open Tools", () => openTools());
   add("tools.addServer", "Tools: Add an MCP Server", () => { openTools("servers"); toolsPage.addServer(); });
   add("tools.memory", "Tools: Project Memory", () => openTools("memory"));
+  add("tools.builtIn", "Tools: The Assistant's Built-in Tools", () => openTools("built-in"));
   add("workspace.preview", "Open Project Preview", () => { if (!previewPane.isOpen()) void previewPane.toggle(); });
   add("ai.terminalTeam", "Start an AI Team in the Terminal", () => void openTerminalTeamSetup());
   /*

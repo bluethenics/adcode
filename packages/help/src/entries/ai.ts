@@ -5,6 +5,26 @@ import type { HelpEntry } from "../types.ts";
 
 export const AI_ENTRIES: readonly HelpEntry[] = [
   {
+    id: "ai.seesYourApp",
+    title: "The assistant sees your app",
+    plain: "The assistant opens the web app you are building in a browser of its own, looks at any page, clicks and types through it like a visitor, and fixes what it finds.",
+    why: "An assistant that only reads code has to guess whether a page works. Looking at it - the words on screen, the errors in the console, the requests that failed, a screenshot - turns \"it should work\" into \"I checked, and it works\", and it catches the broken image or the button that does nothing before you do.",
+    how: "Ask in plain words: \"check the contact form sends\", \"look at the pricing page on a phone\", \"open the about page\". Or type /check in the assistant's composer, or run AI: Check My Running App from the command palette, and it looks at the app at desktop and phone width, clicks through the main links and buttons, and fixes what is broken. It starts the live preview by itself when it is not running - a framework's dev server or a plain file server - and waits for its address. The latest screenshot it took appears in the conversation under What the assistant saw, with how many problems it found; click it to open that page in the preview. When it opens a page for you, the preview card in the chat and an open preview window go to that page. Its browser opens only addresses on this computer, forgets everything when it closes, and closes itself after a few idle minutes. A model that cannot read images gets the same report as text.",
+    group: "ai",
+    settingIds: [],
+    related: ["workbench.preview", "ai.agentTools", "ai.composerCommands"],
+  },
+  {
+    id: "ai.agentTools",
+    title: "What the assistant can do",
+    plain: "Besides reading and changing code, the assistant can delete, move and rename files, keep a dev server running, wait out long installs and builds, and show its plan as a checklist.",
+    why: "When it cannot do a job with a proper tool, an assistant improvises with shell commands no Undo can reverse, gives up on anything slower than half a minute, or tells you to run the server yourself. With the right tools it just does the job, and you can put it back.",
+    how: "Nothing to set up - ask for what you want. Deleted, moved and renamed files are part of the turn's Undo: the Changed files card under the answer lists them, deletions struck through, and Undo puts every one back, images included. A dev server or watcher runs in the background while the assistant keeps working, reads what it prints and looks at the address it serves; it stops when you close the folder or quit. Commands may run for up to ten minutes and report their real exit code, and Stop ends a command and everything it started. For a bigger job the assistant keeps a Plan card in the conversation, ticking steps off as it goes. Its search shows the lines around each match and finds code as plain text, edits survive a mismatch in indentation, it can look at images in your project, and web pages it reads for documentation come back as clean text. Every tool is listed in plain words on the Tools page under Built-in - run Tools: The Assistant's Built-in Tools. Deleting and moving work when AI edits apply automatically; in review mode the assistant says what to move instead.",
+    group: "ai",
+    settingIds: [],
+    related: ["ai.seesYourApp", "workbench.toolsPage", "adcode.ai.editPolicy"],
+  },
+  {
     id: "ai.team",
     title: "AI Team",
     plain: "Create named agents with their own instructions and models, then let a team divide a task and bring its results back for review.",
@@ -30,7 +50,7 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     title: "Slash commands and @ files",
     plain: "Type / in the assistant's composer for ready-made commands like /review and /test, or @ to put any project file in the conversation.",
     why: "Typing is faster than hunting for a button, and each command asks the way an experienced engineer would - including checking its own work - so answers come back verified rather than guessed.",
-    how: "Type / at the start of the composer to list every command; keep typing to filter, then press Enter or Tab. /review and /commit attach your uncommitted changes and ask for a review or a commit message. /fix, /test, /plan, /refactor, /explain, /optimize, /security, /docs and /build write a careful prompt that you finish in your own words. /new, /history, /model, /preview, /team and /schedule act at once. Type @ anywhere to search the project's files and add one as a chip; a file open in the editor sends its unsaved text. In an empty composer, the Up arrow brings back your earlier prompts.",
+    how: "Type / at the start of the composer to list every command; keep typing to filter, then press Enter or Tab. /review and /commit attach your uncommitted changes and ask for a review or a commit message. /check asks the assistant to look at your running app in its own browser and fix what is broken. /fix, /test, /plan, /refactor, /explain, /optimize, /security, /docs and /build write a careful prompt that you finish in your own words. /new, /history, /model, /preview, /team and /schedule act at once. Type @ anywhere to search the project's files and add one as a chip; a file open in the editor sends its unsaved text. In an empty composer, the Up arrow brings back your earlier prompts.",
     group: "ai",
     settingIds: [],
     related: ["adcode.ai.chatWidget", "workbench.aiContext", "ai.inlineEdit"],
@@ -178,7 +198,7 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     plain:
       "The assistant reads, edits and runs commands directly in your open project. What it does lands in your real files as it works, and every turn can be undone.",
     why: "Isolation kept edits safe but made simple work feel missing: proposals sat in a sandbox queue instead of reaching the folder. Direct edits deliver real results the moment the turn finishes.",
-    how: "On by default. Ask it to build, fix, create or change files and the result is in your project, with the Explorer refreshing to show it. Reads never change anything. Writes are still guarded: unsaved files pause file edits until you save, so nothing you have not saved gets overwritten, and destructive shell commands stay blocked — run those yourself in the terminal. Chats belong to the open folder only: the chat banner names the folder with its task and chat counts, and Switch opens the folder popup. Turning this off keeps chat available but disables the built-in file tools. Beyond reading, listing, and searching files, the assistant can find files by pattern (for example every image), outline a file's symbols before reading it, run tests and typechecks in the project, and fetch documentation pages.",
+    how: "On by default. Ask it to build, fix, create or change files and the result is in your project, with the Explorer refreshing to show it. Reads never change anything. Writes are still guarded: unsaved files pause file edits until you save, so nothing you have not saved gets overwritten, and destructive shell commands stay blocked — run those yourself in the terminal. Chats belong to the open folder only: the chat banner names the folder with its task and chat counts, and Switch opens the folder popup. Turning this off keeps chat available but disables the built-in file tools. Beyond reading, listing, and searching files, the assistant can find files by pattern (for example every image), outline a file's symbols before reading it, delete and move files with Undo, run tests, typechecks and dev servers in the project, look at the running app in its own browser, and fetch documentation pages.",
     group: "ai",
     settingIds: ["adcode.ai.isolatedWorkspaces"],
     related: ["adcode.ai.chatWidget", "adcode.ai.taskTokenBudget"],

@@ -22,6 +22,8 @@ import type {
   ToolResultBlock,
   ToolDefinition,
   ToolRunner,
+  ToolRunResult,
+  ContentBlock,
 } from "./types.ts";
 import { isRequestTooLarge, LEAN_SYSTEM, leanHistory, leanTools } from "./requestSize.ts";
 import {
@@ -89,6 +91,16 @@ const DEFAULT_SYSTEM = [
   "After changing code, run the project's typecheck or tests with run_command",
   "when it has them, and fix what fails before finishing. Close a task with a short",
   "summary: what you changed, where, and anything the user should check.",
+  "",
+  "For a web page or app, look before you claim it works: view_page loads the page in a",
+  "real browser and reports its text, console errors, failed requests and a screenshot;",
+  "its actions click, type and scroll to test a flow, and width 390 checks a phone. Use",
+  "open_preview (with path for a particular page) to show the user the live result. Start",
+  "servers and watchers with run_command background: true, read them with command_output,",
+  "and end them with stop_command - never run one in the foreground, it would time out.",
+  "Delete and rename files with delete_file and move_file rather than shell commands, so",
+  "the user can undo them. For a task with several steps, keep a checklist with",
+  "update_plan: every step at the start, then each one as it starts and finishes.",
   "",
   "Do the work first; interview the user never. When the request names a job - create",
   "a file, list the images in a folder, fix the failing test - call the tools at once",
@@ -188,6 +200,61 @@ export function closeOpenToolCalls(messages: readonly Message[]): ToolResultBloc
     }));
 }
 
+/** Most pictures one tool call may add to the conversation. */
+const MAX_TOOL_IMAGES = 3;
+
+const RETIRED_TOOL_IMAGE = "[A picture a tool returned was here. Call that tool again to see the current state.]";
+const UNREADABLE_IMAGE = "[An image was left out: this model cannot read images.]";
+
+/** Whether a user message carries tool results - the only kind whose pictures are retired. */
+function isToolResultMessage(message: Message): boolean {
+  return message.role === "user" && message.content.some((block) => block.type === "tool-result");
+}
+
+/**
+ * Pictures from earlier tool calls, replaced by a note.
+ *
+ * A screenshot is evidence for the step right after it. Carried on, every later request would
+ * pay for every picture taken so far - five checks of a page cost five images on each round
+ * trip - so only the newest tool results keep theirs. Images a person attached stay: they are
+ * the request itself.
+ */
+export function retireToolImages(messages: Message[]): void {
+  for (const [index, message] of messages.entries()) {
+    if (!isToolResultMessage(message) || !message.content.some((block) => block.type === "image")) continue;
+    messages[index] = {
+      ...message,
+      content: message.content.map((block) => (block.type === "image" ? { type: "text" as const, text: RETIRED_TOOL_IMAGE } : block)),
+    };
+  }
+}
+
+/** Every image in the history replaced by a note; true when there was one to replace. */
+export function stripImages(messages: Message[]): boolean {
+  let stripped = false;
+  for (const [index, message] of messages.entries()) {
+    if (!message.content.some((block) => block.type === "image")) continue;
+    stripped = true;
+    messages[index] = {
+      ...message,
+      content: message.content.map((block) => (block.type === "image" ? { type: "text" as const, text: UNREADABLE_IMAGE } : block)),
+    };
+  }
+  return stripped;
+}
+
+/**
+ * Whether a provider refused a request because the model cannot take images.
+ *
+ * Each service words it differently - OpenAI's "image_url is only supported by certain
+ * models", DeepSeek's "unknown variant `image_url`", Groq's "content must be a string",
+ * OpenRouter's "No endpoints found that support image input", Ollama's "does not support
+ * images" - so this is only ever asked about a request that actually carried one.
+ */
+export function isImageUnsupported(detail: string): boolean {
+  return /image[_ ]?(?:url|input|content|part)s?\b.*(?:not|only|unsupported|support)|(?:not|n't|only) (?:be )?support(?:s|ed)? (?:for )?(?:image|vision|multimodal)|support (?:image|vision)|does not support images?|vision|multimodal|unknown variant `?image|content must be a string|images? (?:is|are) not (?:supported|allowed)/i.test(detail);
+}
+
 /** Extra turns input beyond the text. Everything optional, so old callers keep working. */
 export interface AgentSendOptions {
   /** Images attached to this turn. Replay turns never carry them. */
@@ -261,8 +328,10 @@ export function createAgent(deps: AgentDeps): Agent {
   let controller: AbortController | null = null;
   /** Set once a provider refuses a request for its size; cleared with the conversation. */
   let shrunk = false;
+  /** Set once a provider refuses an image; pictures tools return are then described, not sent. */
+  let imagesUnreadable = false;
 
-  async function runTool(call: ToolCallBlock, signal: AbortSignal): Promise<{ content: string; isError: boolean }> {
+  async function runTool(call: ToolCallBlock, signal: AbortSignal): Promise<ToolRunResult> {
     if (call.inputError !== undefined) return { content: call.inputError, isError: true };
     // A tool the model invented is not an error worth ending the turn over; tell it
     // plainly and let it choose again.
@@ -405,6 +474,14 @@ export function createAgent(deps: AgentDeps): Agent {
           }
           if (outcome.ok) continue;
         }
+        // A model that cannot read images refuses the whole request over one. Describe the
+        // pictures in words instead and ask again - the tools' text reports still carry what
+        // they found - and stop sending images for the rest of the conversation.
+        if (!imagesUnreadable && assistantContent.length === 0 && !signal.aborted && isImageUnsupported(detail) && stripImages(messages)) {
+          imagesUnreadable = true;
+          yield { kind: "status", text: "This model cannot read images - carrying on with the text alone" };
+          continue;
+        }
         // Still too big, or nothing to compact: say so, go lean, and ask again - once. Nothing was
         // streamed yet (the refusal comes first), so nothing is repeated.
         if (!shrunk && deps.lean?.() !== true && assistantContent.length === 0 && !signal.aborted && isRequestTooLarge(detail)) {
@@ -458,7 +535,8 @@ export function createAgent(deps: AgentDeps): Agent {
       const early = concurrentBatch
         ? await Promise.all(pendingCalls.map((call) => runTool(call, signal)))
         : null;
-      const results = [];
+      const results: ContentBlock[] = [];
+      const pictures: ContentBlock[] = [];
       let repeatedFailure: string | null = null;
       for (const [index, call] of pendingCalls.entries()) {
         // Three identical failures indicate no progress. Avoid spending an entire
@@ -474,12 +552,19 @@ export function createAgent(deps: AgentDeps): Agent {
           failures.set(signature, count);
           if (count >= 3) repeatedFailure = call.name;
         } else failures.delete(signature);
+        const images = (result.images ?? []).slice(0, MAX_TOOL_IMAGES);
         results.push({
           type: "tool-result" as const,
           toolCallId: call.id,
-          content: result.content,
+          content: images.length > 0 && imagesUnreadable
+            ? `${result.content}\n[This model cannot read images, so the picture was left out. Rely on the text above.]`
+            : result.content,
           isError: result.isError,
         });
+        // Labelled, so a model reading several knows which call each picture answers.
+        if (images.length > 0 && !imagesUnreadable) {
+          pictures.push({ type: "text", text: `Picture from ${call.name} (${call.id}):` }, ...images);
+        }
 
         yield {
           kind: "tool-result",
@@ -487,6 +572,7 @@ export function createAgent(deps: AgentDeps): Agent {
           name: call.name,
           content: result.content,
           isError: result.isError,
+          ...(images.length > 0 ? { images } : {}),
         };
       }
 
@@ -495,7 +581,9 @@ export function createAgent(deps: AgentDeps): Agent {
         return;
       }
 
-      messages.push({ role: "user", content: results });
+      // Tool results first: providers that nest them in a user turn require them to lead it.
+      retireToolImages(messages);
+      messages.push({ role: "user", content: [...results, ...pictures] });
       if (repeatedFailure !== null) {
         yield { kind: "error", detail: `Stopped after three identical failed calls to ${repeatedFailure}. Review the tool error, connection, or permissions before retrying.` };
         return;

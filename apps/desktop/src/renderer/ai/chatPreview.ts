@@ -8,7 +8,20 @@ export function localPreviewUrl(value: string | null): string | null {
   } catch { return null; }
 }
 
-/** One live card per conversation. URLs come from the preview service, never Markdown. */
+/** Whether `page` is on the same server as `root` - the only pages the card will show. */
+export function samePreviewOrigin(page: string | null, root: string | null): boolean {
+  if (page === null || root === null) return false;
+  try {
+    return new URL(page).origin === new URL(root).origin && localPreviewUrl(page) !== null;
+  } catch { return false; }
+}
+
+/**
+ * One live card per conversation. URLs come from the preview service, never Markdown.
+ *
+ * It shows the page the assistant opened - `open_preview` with a path - not always the home
+ * page: "open the pricing page" has to end on the pricing page.
+ */
 export function createChatPreview(host: HTMLElement) {
   const element = document.createElement("section");
   element.className = "chat-live-preview";
@@ -34,7 +47,10 @@ export function createChatPreview(host: HTMLElement) {
   let generation = 0;
   let visible = false;
   let currentUrl: string | null = null;
+  /** The page asked for, when it is not the server's root. */
+  let page: string | null = null;
   let busy = false;
+  const shown = (): string | null => (samePreviewOrigin(page, currentUrl) ? page : currentUrl);
   function button(label: string, action: () => void) {
     const control = document.createElement("button");
     control.type = "button";
@@ -43,7 +59,10 @@ export function createChatPreview(host: HTMLElement) {
     control.addEventListener("click", action);
     return control;
   }
-  const reload = button("Reload", () => { if (currentUrl) frame.src = currentUrl; });
+  const reload = button("Reload", () => {
+    const target = shown();
+    if (target) { frame.removeAttribute("src"); frame.src = target; }
+  });
   const external = button("Open in browser", () => { void window.adcode.preview.openExternal().catch(showError); });
   const retry = button("Start server", () => { void start(); });
   const stop = button("Stop server", () => { void window.adcode.preview.stop().then(paint).catch(showError); });
@@ -59,13 +78,15 @@ export function createChatPreview(host: HTMLElement) {
     visible = false;
     busy = false;
     currentUrl = null;
+    page = null;
     frame.removeAttribute("src");
     frame.hidden = true;
     element.remove();
   }
   function paint(status: PreviewStatus) {
     currentUrl = status.running ? localPreviewUrl(status.url) : null;
-    address.textContent = currentUrl ?? status.label ?? "Local server";
+    const target = shown();
+    address.textContent = target ?? status.label ?? "Local server";
     address.title = address.textContent;
     reload.disabled = external.disabled = currentUrl === null;
     stop.disabled = !status.running && !status.starting;
@@ -74,11 +95,13 @@ export function createChatPreview(host: HTMLElement) {
     message.textContent = status.error ?? (status.starting ? "Starting your app…" : status.running && !currentUrl ? "The server did not provide a valid local address." : "The preview server is stopped.");
     message.hidden = currentUrl !== null;
     frame.hidden = currentUrl === null;
-    if (currentUrl && frame.getAttribute("src") !== currentUrl) frame.src = currentUrl;
-    else if (!currentUrl) frame.removeAttribute("src");
+    if (target && frame.getAttribute("src") !== target) frame.src = target;
+    else if (!target) frame.removeAttribute("src");
   }
-  function show(status: PreviewStatus) {
+  function show(status: PreviewStatus, requested: string | null = null) {
     root = status.root;
+    // A new page replaces the old one; a status update without one keeps it.
+    if (requested !== null) page = localPreviewUrl(requested);
     visible = true;
     if (!element.isConnected) host.append(element);
     paint(status);

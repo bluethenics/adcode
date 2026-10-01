@@ -327,7 +327,8 @@ const vibePages = await evaluate(`(async () => {
   const tools = document.getElementById('vibe-page-tools');
   result.toolsShown = !!tools && !tools.hidden;
   result.toolsTabs = tools?.querySelectorAll('[role=tab]').length === 4;
-  result.builtInCards = tools?.querySelectorAll('#tools-panel-built-in .tool-card').length === 12;
+  // One card per row of BUILT_IN_TOOLS_INFO (renderer/tools/builtInTools.ts).
+  result.builtInCards = tools?.querySelectorAll('#tools-panel-built-in .tool-card').length === 19;
   document.querySelector('.vibe-page-item.vibe-page-chat')?.click();
   await wait(() => document.getElementById('vibe-page-chat')?.hidden === false);
   result.backToChat = document.getElementById('vibe-page-chat')?.hidden === false && !!document.querySelector('#vibe-page-chat .chat-card');
@@ -1921,6 +1922,21 @@ if (featureLauncherPoint === null) {
        input.dispatchEvent(new Event('input', { bubbles: true }));
        return [...document.querySelectorAll('.feature-library-row')]
          .some((row) => row.dataset.featureId === 'adcode.updates.auto');
+     })()`,
+  );
+
+  // The assistant's eyes and its tool kit, found by the words people use, in the real library.
+  checks.featureLibraryFindsAgentTools = await evaluate(
+    `(() => {
+       const input = document.querySelector('.feature-library-search');
+       if (!input) return false;
+       const finds = (query, id) => {
+         input.value = query;
+         input.dispatchEvent(new Event('input', { bubbles: true }));
+         return [...document.querySelectorAll('.feature-library-row')].some((row) => row.dataset.featureId === id);
+       };
+       return finds('see my app', 'ai.seesYourApp') && finds('check the page', 'ai.seesYourApp') &&
+         finds('undo delete', 'ai.agentTools') && finds('background command', 'ai.agentTools');
      })()`,
   );
 

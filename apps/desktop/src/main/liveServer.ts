@@ -79,6 +79,15 @@ const RELOAD_SCRIPT = `<script>
 (function () {
   var source = new EventSource(${JSON.stringify(RELOAD_PATH)});
   source.addEventListener("reload", function () { location.reload(); });
+  // Inside the preview, say which page this is, so its address bar follows links.
+  if (window.parent !== window) {
+    var report = function () {
+      try { window.parent.postMessage({ source: "adcode-preview-page", href: location.href }, "*"); } catch (e) {}
+    };
+    report();
+    window.addEventListener("hashchange", report);
+    window.addEventListener("popstate", report);
+  }
 })();
 </script>`;
 

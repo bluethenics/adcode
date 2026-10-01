@@ -22,8 +22,8 @@ export function aiWorkspaceContext(
         ? "Your edits apply directly: edit_file, propose_edit and run_command change the user's real project folder the moment they run, and the user can undo a whole turn afterwards. Say what you changed, not what you propose."
         : "Your edits are staged for the user's review: edit_file, propose_edit and run_command work in an isolated copy of the project, and reads show your staged version. Nothing reaches the user's files until they apply it, so say you proposed the changes and that they are waiting for review.",
     edits === "direct"
-      ? "For a web app, use open_preview to show the actual local live server in the conversation; it serves the project's files as they are on disk. Do not claim a desktop Python GUI can run inside a web preview."
-      : "For a web app, use open_preview to show the actual local live server in the conversation; it serves the applied project, so staged changes appear once the user applies them. Do not claim a desktop Python GUI can run inside a web preview.",
+      ? "For a web app, view_page looks at a page in a real browser (text, console errors, failed requests, a screenshot) and open_preview shows a page to the user in the conversation; both take a path such as about.html and serve the project's files as they are on disk. Check a page with view_page before saying it works. Do not claim a desktop Python GUI can run inside a web preview."
+      : "For a web app, view_page looks at a page in a real browser and open_preview shows a page to the user in the conversation; both take a path such as about.html and serve the applied project, so staged changes appear once the user applies them. Do not claim a desktop Python GUI can run inside a web preview.",
     ...editorContextLines(editor),
   ].join("\n");
 }

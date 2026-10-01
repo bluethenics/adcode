@@ -18,10 +18,18 @@ export interface SlashCommand {
 }
 
 /**
+ * "Check my app": look at it the way a visitor would, then fix what is broken. Shared by
+ * `/check` and the Check My Running App command, so the two ask for the same thing.
+ */
+export const CHECK_APP_PROMPT =
+  "Look at my running app with view_page, at desktop width and at phone width (390x844). Click through the main links, buttons and forms, and fix everything that is broken: console errors, failed requests, broken images, text or layout that spills sideways. Look again after each fix to confirm it, then show me the result with open_preview. ";
+
+/**
  * Prompts are written the way a senior engineer would ask: name the outcome, the
  * verification, and what not to do. The trailing space leaves the cursor ready to type.
  */
 export const SLASH_COMMANDS: readonly SlashCommand[] = [
+  { id: "check", hint: "Look at the running app and fix what is wrong", kind: "prompt", prompt: `${CHECK_APP_PROMPT}Pay most attention to: ` },
   { id: "fix", hint: "Find the root cause and fix it", kind: "prompt", prompt: "Find the root cause of this problem and fix it, then run the tests or typecheck to confirm the fix: " },
   { id: "explain", hint: "Explain code in plain words", kind: "prompt", prompt: "Explain how this works, step by step and in plain words, pointing at the files and lines involved: " },
   { id: "test", hint: "Write tests and run them", kind: "prompt", prompt: "Write focused tests for this with the project's existing test setup, run them, and fix any failures: " },

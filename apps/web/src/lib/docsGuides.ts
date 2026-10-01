@@ -804,7 +804,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Open the Assistant (Ctrl+I) and type / at the start of the composer to see every command.",
       "Keep typing to filter - /re finds /review and /refactor - then press Enter or Tab. Arrow keys move through the list; Esc closes it.",
       "Choose /review to attach your uncommitted changes and get a bug-focused review with file and line, or /commit for a ready-to-use commit message.",
-      "Choose /fix, /test, /plan, /refactor, /explain, /optimize, /security, /docs or /build to start a carefully worded request, then add your own details and send.",
+      "Choose /fix, /test, /plan, /refactor, /explain, /optimize, /security, /docs or /build to start a carefully worded request, then add your own details and send. /check asks the assistant to look at your running app in its own browser and fix what is broken.",
       "Type @ anywhere in a message to search your project's files. Pick one and it rides along as a chip; if it is open in the editor, its unsaved text is what gets sent.",
       "In an empty composer, press the Up arrow to bring back what you sent before - handy for re-running a request after a fix.",
     ],
@@ -816,6 +816,46 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     betterThan:
       "Most chat panels make you type the same careful instructions again and again, or keep them in a notes file. ADCode ships the good versions as commands, reads your diff for you, and lets you point at a file with @ instead of pasting it, so the prompt you send is the prompt an experienced engineer would write.",
+  },
+
+  "ai-sees-your-app": {
+    steps: [
+      "Open a web project - plain HTML files, or a Vite, Next or other framework project - and connect a model in Connect a model.",
+      "Ask in plain words: \"check the signup form works\", \"look at the pricing page on a phone\", or \"open the about page\". Or type /check in the composer, or run AI: Check My Running App from the command palette.",
+      "The assistant starts the live preview if it is not running (your framework's dev server, or a plain file server) and waits until it has an address.",
+      "It loads the page in a browser of its own, clicks and types through it the way you described, and reads what happened: the text on screen, console errors, failed requests, broken images, and anything spilling sideways at phone width.",
+      "It fixes what it found and looks again to confirm. The latest screenshot it took sits in the conversation under What the assistant saw, with how many problems it found - click it to open that page in the preview.",
+      "When it opens a page for you, the preview card in the chat and an open preview window both go to that page. You can do the same yourself: click the preview's address, type /about.html and press Enter.",
+    ],
+    benefits: [
+      "\"It works\" means the assistant saw it work, not that the code looked right.",
+      "Broken images, 404s and console errors are caught by the assistant before a visitor finds them.",
+      "Phone layouts get checked at a real phone width (390 pixels), not guessed from CSS.",
+      "It tests flows, not just pages: fill the form, press the button, read what came back.",
+      "Models that cannot read images still get the full text report, so this works with any provider.",
+    ],
+    betterThan:
+      "Most AI editors stop at the code: you run the app, look at it, and paste the error back in. Browser extensions for agents need installing, a separate server, and permission prompts. In ADCode the assistant already has a browser that opens only your own local addresses and forgets everything when it closes, so checking the page is part of finishing the job rather than a job left for you.",
+  },
+
+  "ai-agent-tools": {
+    steps: [
+      "Ask for the job in plain words - \"move the images into assets and fix the links\", \"rename utils.js to helpers.js\", \"delete the old landing page\", \"start the dev server and check the home page\".",
+      "Deletes, moves and renames happen with proper file tools, not shell commands. The Changed files card under the answer lists them, deletions struck through, and Undo puts every one back - images and other binary files byte for byte.",
+      "Long commands - installs, builds, test suites - may run for up to ten minutes and report their real exit code. Press Stop and the command ends along with everything it started.",
+      "Servers and watchers run in the background while the assistant keeps working: it reads what they print, spots the address a dev server announces, and looks at it. They stop when you close the folder or quit.",
+      "For a bigger job, a Plan card appears in the conversation with every step, ticked off as each one finishes.",
+      "To see every tool in plain words, run Tools: The Assistant's Built-in Tools from the command palette.",
+    ],
+    benefits: [
+      "Nothing the assistant deletes or moves is gone for good: one Undo puts the whole turn back.",
+      "\"npm install\" and full test runs finish instead of timing out after thirty seconds.",
+      "A dev server keeps running for the rest of the conversation instead of blocking it.",
+      "Search shows the lines around each match and finds code like add( as plain text, so the assistant reads less to find more.",
+      "Edits survive an indentation mismatch instead of failing and starting over, and documentation pages come back as clean text, not raw HTML.",
+    ],
+    betterThan:
+      "Agents without these tools improvise: rm and mv in a shell, which no Undo reverses; servers started in the foreground that hang the turn; thirty-second limits that kill every install. ADCode gives the assistant the tools a careful engineer would use, puts every file change under one Undo, and shows its plan while it works, so you can let it run and still put things back.",
   },
 
   "ai-team": {
@@ -1476,6 +1516,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "Open any HTML file and start the live preview.",
       "Edit - the preview reloads itself on save.",
+      "To see another page, click the address in the preview's bar, type its path - /about.html or #pricing - and press Enter. The address follows the links you click, and when the assistant opens a page for you, the preview goes there too.",
       "Switch device sizes from the preview toolbar to check layouts: one click for Phone, Tablet, or Desktop, labelled W and H boxes with minus and plus steppers, a preset list, or drag the frame's visible edges. The page reshapes in place without reloading, and Fit scales it to fit so you never scroll to see it.",
       "Turn on Inspect, then right-click anything in the preview to see its width, height, padding, margin, and highlighted markup for restyling. If it grabs an inner piece instead of the card you meant, walk up the breadcrumb to the parent — the page flashes each level as you pick it. Choose List all to see every element's spacing with a filter.",
       "The preview floats over your work instead of taking a column: drag it by its bar, resize it from any edge, and double-click the bar (or press Maximise) to fill the window.",

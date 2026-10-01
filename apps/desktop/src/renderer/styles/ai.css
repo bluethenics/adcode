@@ -3400,9 +3400,32 @@ button.chat-setup-action {
   padding-bottom: 0;
 }
 
-/* The finished block keeps its mascot — settled, not hidden. */
+/* A finished block hands its place to a small mark: one mascot in the chat, the working one. */
 .chat-activity[data-state="done"] .chat-activity-loader {
   display: inline-flex;
+  width: 26px;
+}
+
+.chat-activity-settled {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--chat-success);
+  background: color-mix(in srgb, var(--chat-success) 14%, transparent);
+}
+
+.chat-activity-settled[hidden] {
+  display: none;
+}
+
+.chat-activity-settled[data-tone="error"] {
+  color: var(--danger, #e5484d);
+  background: color-mix(in srgb, var(--danger, #e5484d) 14%, transparent);
 }
 
 .chat-mascot {
@@ -4157,3 +4180,67 @@ button.chat-setup-action {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.chat-checkpoint-file[data-deleted="true"] { text-decoration: line-through; opacity: .75; cursor: default; }
+.chat-checkpoint-file[data-deleted="true"]:hover { border-color: var(--border-hairline); color: var(--text-secondary); }
+
+/* ── The assistant's plan: one checklist per turn, updated in place ── */
+
+/* flex: none - the transcript is a flex column, and a card that may shrink collapses to its border. */
+.chat-plan {
+  flex: none;
+  margin: 10px 0;
+  padding: 10px 12px;
+  max-width: 520px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 10px;
+  background: var(--bg-app);
+}
+.chat-plan-heading { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; font-size: 12.5px; }
+.chat-plan-heading strong { color: var(--text-primary); font-weight: 600; }
+.chat-plan-summary { min-width: 0; overflow: hidden; color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.chat-plan-steps { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.chat-plan-step { display: flex; align-items: flex-start; gap: 8px; color: var(--text-secondary); font-size: 13px; line-height: 1.45; }
+.chat-plan-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+}
+.chat-plan-step[data-status="in_progress"] { color: var(--text-primary); font-weight: 500; }
+.chat-plan-step[data-status="in_progress"] .chat-plan-mark { border-color: var(--chat-accent); border-top-color: transparent; animation: chat-plan-spin 900ms linear infinite; }
+.chat-plan-step[data-status="done"] .chat-plan-text { text-decoration: line-through; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
+.chat-plan-step[data-status="done"] .chat-plan-mark { border-color: var(--chat-success); background: var(--chat-success); color: var(--bg-app); }
+@keyframes chat-plan-spin { to { transform: rotate(360deg); } }
+
+/* ── What the assistant saw: its latest look at the running app ── */
+
+.chat-agent-view {
+  flex: none;
+  margin: 10px 0;
+  max-width: 360px;
+  overflow: hidden;
+  border: 1px solid var(--border-hairline);
+  border-radius: 10px;
+  background: var(--bg-app);
+}
+.chat-agent-view-media { display: block; width: 100%; padding: 0; border: 0; background: #fff; cursor: zoom-in; }
+.chat-agent-view-media:disabled { cursor: default; }
+.chat-agent-view-media:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.chat-agent-view-image { display: block; width: 100%; max-height: 240px; object-fit: cover; object-position: top; }
+.chat-agent-view-caption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 8px 10px; font-size: 12px; }
+.chat-agent-view-label { flex-basis: 100%; color: var(--text-tertiary); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.chat-agent-view-page { min-width: 0; flex: 1; overflow: hidden; color: var(--text-primary); text-overflow: ellipsis; white-space: nowrap; }
+.chat-agent-view-verdict { flex: none; color: var(--chat-success); font-weight: 600; }
+.chat-agent-view-verdict[data-tone="warn"] { color: var(--danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-plan-step[data-status="in_progress"] .chat-plan-mark { animation: none; border-top-color: var(--chat-accent); }
+}
+:root[data-reduced-motion="true"] .chat-plan-step[data-status="in_progress"] .chat-plan-mark { animation: none; border-top-color: var(--chat-accent); }

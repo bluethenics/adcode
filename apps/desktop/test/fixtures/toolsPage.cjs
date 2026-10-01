@@ -88,7 +88,7 @@ app.whenReady().then(async () => {
       const results = {};
       try {
         page.shown(); await settle();
-        results.counts = tab('built-in').textContent.includes('12') && tab('servers').textContent.includes('2') && tab('skills').textContent.includes('2') && tab('memory').textContent.includes('1');
+        results.counts = tab('built-in').textContent.includes('19') && tab('servers').textContent.includes('2') && tab('skills').textContent.includes('2') && tab('memory').textContent.includes('1');
         const readFile = [...panel('built-in').querySelectorAll('.tool-card')].find((card) => card.textContent.includes('read_file'));
         const editFile = [...panel('built-in').querySelectorAll('.tool-card')].find((card) => card.textContent.includes('edit_file'));
         results.usedBy = readFile.textContent.includes('Used by: Chat, Reviewer, Tester') && editFile.textContent.includes('Used by: Chat, Tester');

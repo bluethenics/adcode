@@ -581,7 +581,7 @@ The assistant reads, edits and runs commands directly in your open project. What
 
 Why use it: Isolation kept edits safe but made simple work feel missing: proposals sat in a sandbox queue instead of reaching the folder. Direct edits deliver real results the moment the turn finishes.
 
-How to use it: On by default. Ask it to build, fix, create or change files and the result is in your project, with the Explorer refreshing to show it. Reads never change anything. Writes are still guarded: unsaved files pause file edits until you save, so nothing you have not saved gets overwritten, and destructive shell commands stay blocked — run those yourself in the terminal. Chats belong to the open folder only: the chat banner names the folder with its task and chat counts, and Switch opens the folder popup. Turning this off keeps chat available but disables the built-in file tools. Beyond reading, listing, and searching files, the assistant can find files by pattern (for example every image), outline a file's symbols before reading it, run tests and typechecks in the project, and fetch documentation pages.
+How to use it: On by default. Ask it to build, fix, create or change files and the result is in your project, with the Explorer refreshing to show it. Reads never change anything. Writes are still guarded: unsaved files pause file edits until you save, so nothing you have not saved gets overwritten, and destructive shell commands stay blocked — run those yourself in the terminal. Chats belong to the open folder only: the chat banner names the folder with its task and chat counts, and Switch opens the folder popup. Turning this off keeps chat available but disables the built-in file tools. Beyond reading, listing, and searching files, the assistant can find files by pattern (for example every image), outline a file's symbols before reading it, delete and move files with Undo, run tests, typechecks and dev servers in the project, look at the running app in its own browser, and fetch documentation pages.
 
 Access: `All Features → AI file tools`; `Turn on or off`; `Settings`.
 
@@ -779,7 +779,7 @@ Type / in the assistant's composer for ready-made commands like /review and /tes
 
 Why use it: Typing is faster than hunting for a button, and each command asks the way an experienced engineer would - including checking its own work - so answers come back verified rather than guessed.
 
-How to use it: Type / at the start of the composer to list every command; keep typing to filter, then press Enter or Tab. /review and /commit attach your uncommitted changes and ask for a review or a commit message. /fix, /test, /plan, /refactor, /explain, /optimize, /security, /docs and /build write a careful prompt that you finish in your own words. /new, /history, /model, /preview, /team and /schedule act at once. Type @ anywhere to search the project's files and add one as a chip; a file open in the editor sends its unsaved text. In an empty composer, the Up arrow brings back your earlier prompts.
+How to use it: Type / at the start of the composer to list every command; keep typing to filter, then press Enter or Tab. /review and /commit attach your uncommitted changes and ask for a review or a commit message. /check asks the assistant to look at your running app in its own browser and fix what is broken. /fix, /test, /plan, /refactor, /explain, /optimize, /security, /docs and /build write a careful prompt that you finish in your own words. /new, /history, /model, /preview, /team and /schedule act at once. Type @ anywhere to search the project's files and add one as a chip; a file open in the editor sends its unsaved text. In an empty composer, the Up arrow brings back your earlier prompts.
 
 Access: `All Features → Slash commands and @ files`; `Show commands`; `Add a file`.
 
@@ -815,6 +815,28 @@ Why use it: So the assistant in your terminal and the one in your editor are wor
 How to use it: On by default. When an agent is recognised, a strip appears above the terminal with the one command that connects it. Nothing is shared unless you press it.
 
 Access: `All Features → Terminal agent detection`; `Turn on or off`; `Settings`.
+
+<!-- feature:ai.seesYourApp -->
+### The assistant sees your app
+
+The assistant opens the web app you are building in a browser of its own, looks at any page, clicks and types through it like a visitor, and fixes what it finds.
+
+Why use it: An assistant that only reads code has to guess whether a page works. Looking at it - the words on screen, the errors in the console, the requests that failed, a screenshot - turns "it should work" into "I checked, and it works", and it catches the broken image or the button that does nothing before you do.
+
+How to use it: Ask in plain words: "check the contact form sends", "look at the pricing page on a phone", "open the about page". Or type /check in the assistant's composer, or run AI: Check My Running App from the command palette, and it looks at the app at desktop and phone width, clicks through the main links and buttons, and fixes what is broken. It starts the live preview by itself when it is not running - a framework's dev server or a plain file server - and waits for its address. The latest screenshot it took appears in the conversation under What the assistant saw, with how many problems it found; click it to open that page in the preview. When it opens a page for you, the preview card in the chat and an open preview window go to that page. Its browser opens only addresses on this computer, forgets everything when it closes, and closes itself after a few idle minutes. A model that cannot read images gets the same report as text.
+
+Access: `All Features → The assistant sees your app`; `Check my running app`.
+
+<!-- feature:ai.agentTools -->
+### What the assistant can do
+
+Besides reading and changing code, the assistant can delete, move and rename files, keep a dev server running, wait out long installs and builds, and show its plan as a checklist.
+
+Why use it: When it cannot do a job with a proper tool, an assistant improvises with shell commands no Undo can reverse, gives up on anything slower than half a minute, or tells you to run the server yourself. With the right tools it just does the job, and you can put it back.
+
+How to use it: Nothing to set up - ask for what you want. Deleted, moved and renamed files are part of the turn's Undo: the Changed files card under the answer lists them, deletions struck through, and Undo puts every one back, images included. A dev server or watcher runs in the background while the assistant keeps working, reads what it prints and looks at the address it serves; it stops when you close the folder or quit. Commands may run for up to ten minutes and report their real exit code, and Stop ends a command and everything it started. For a bigger job the assistant keeps a Plan card in the conversation, ticking steps off as it goes. Its search shows the lines around each match and finds code as plain text, edits survive a mismatch in indentation, it can look at images in your project, and web pages it reads for documentation come back as clean text. Every tool is listed in plain words on the Tools page under Built-in - run Tools: The Assistant's Built-in Tools. Deleting and moving work when AI edits apply automatically; in review mode the assistant says what to move instead.
+
+Access: `All Features → What the assistant can do`; `Show the built-in tools`.
 
 ## Git
 
@@ -1049,7 +1071,7 @@ See a web page you are building in a floating window over your code, updating as
 
 Why use it: Saving, switching to a browser, and refreshing is three steps too many when you are adjusting a layout.
 
-How to use it: Open a HTML file and start the preview. It reloads itself when you save. The preview floats over your work: drag it by its bar, resize it from any edge, and double-click the bar or press Maximise to fill the window. Open device sizes for one-click Phone, Tablet, or Desktop, labelled W and H boxes with minus and plus steppers, or drag the frame's visible edges — the page reshapes in place without reloading, and Fit scales it down so you never scroll to see it. Turn on Inspect, then right-click anything in the preview to see its width, height, padding, margin, and markup; if it grabs an inner piece instead of the card you meant, walk up the breadcrumb to the parent, which flashes in the page as you pick it. Choose List all for every element's spacing at once. To change an element, pick it with Inspect and choose Change this with AI: New task opens with that element already attached, so you only say what should change.
+How to use it: Open a HTML file and start the preview. It reloads itself when you save. To see another page, click the address in the preview's bar, type its path - /about.html, or #pricing - and press Enter; the address follows the links you click. The preview floats over your work: drag it by its bar, resize it from any edge, and double-click the bar or press Maximise to fill the window. Open device sizes for one-click Phone, Tablet, or Desktop, labelled W and H boxes with minus and plus steppers, or drag the frame's visible edges — the page reshapes in place without reloading, and Fit scales it down so you never scroll to see it. Turn on Inspect, then right-click anything in the preview to see its width, height, padding, margin, and markup; if it grabs an inner piece instead of the card you meant, walk up the breadcrumb to the parent, which flashes in the page as you pick it. Choose List all for every element's spacing at once. To change an element, pick it with Inspect and choose Change this with AI: New task opens with that element already attached, so you only say what should change.
 
 Access: `All Features → Live preview`; `Open`; `Reload`; `Maximise or restore`; `Switch project or files`; `Another screen size`; `Inspect element size and spacing`.
 

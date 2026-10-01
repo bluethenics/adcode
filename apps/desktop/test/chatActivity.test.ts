@@ -43,6 +43,14 @@ describe("ActivityBlock model (pure, no DOM)", () => {
     expect(toolHeaderLabel("project_context")).toBe("Reading project notes");
     expect(toolHeaderLabel("get_outline")).toBe("Outlining a file");
     expect(toolHeaderLabel("propose_edit")).toBe("Editing files");
+    expect(toolHeaderLabel("view_page")).toBe("Looking at the page");
+    expect(toolHeaderLabel("open_preview")).toBe("Opening the preview");
+    expect(toolHeaderLabel("update_plan")).toBe("Updating the plan");
+    expect(toolHeaderLabel("move_file")).toBe("Moving files");
+    expect(toolHeaderLabel("delete_file")).toBe("Deleting a file");
+    expect(toolHeaderLabel("command_output")).toBe("Checking a command");
+    expect(toolHeaderLabel("stop_command")).toBe("Stopping a command");
+    expect(summarizeToolInput({ from: "logo.png", to: "assets/logo.png" })).toBe("logo.png → assets/logo.png");
     expect(toolHeaderLabel("")).toBe("Working");
   });
 
@@ -64,6 +72,19 @@ describe("ActivityBlock model (pure, no DOM)", () => {
 });
 
 describe("Agent Chat v2 wiring", () => {
+  // One mascot in the chat, the working one: a finished block hands its place to a mark, and
+  // the mascot's pointer listener and blink timers go with it.
+  it("removes a finished block's mascot instead of keeping a copy per block", () => {
+    const finalize = activitySource.slice(activitySource.indexOf("finalize(totalSeconds?: number, customLabel"), activitySource.indexOf("destroy(): void {"));
+    expect(finalize.length).toBeGreaterThan(0);
+    expect(finalize).toContain("mascot.destroy()");
+    expect(finalize).not.toContain("mascot.setMood");
+    expect(activitySource).toContain("chat-activity-settled");
+    expect(styles).not.toContain("The finished block keeps its mascot");
+    // A block with no steps in it is dropped at the end of the turn, not collapsed empty.
+    expect(widgetSource).toContain('if (label === undefined && activityToolRows.size === 0)');
+  });
+
   it("builds one collapsible block per run of work, in order with the text", () => {
     expect(activitySource).toContain("chat-activity-header");
     expect(activitySource).toContain('aria-expanded');

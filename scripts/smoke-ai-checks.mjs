@@ -41,6 +41,22 @@ export async function checkAi({ evaluate, send, waitFor, sleep, artifacts }) {
       } else res.end('data: ' + JSON.stringify({ choices: [{ delta: { content: 'Both files are updated.' }, finish_reason: 'stop' }] }) + '\n\ndata: [DONE]\n\n');
       return;
     }
+    // The agent looks at a page: plan, view_page at phone size with a click, open_preview on that page, done.
+    // Found by its prompt rather than the last user message: after view_page the last one carries the screenshot.
+    const lookIndex = request.messages.findLastIndex(message => message.role === 'user' && message.content === 'view-page-smoke');
+    const laterPrompt = (message) => message.role === 'user' && typeof message.content === 'string' && !/^Picture from |A picture a tool returned/.test(message.content);
+    if (lookIndex !== -1 && !request.messages.slice(lookIndex + 1).some(laterPrompt)) {
+      const answered = request.messages.slice(lookIndex + 1).filter(message => message.role === 'tool').length;
+      const toolCall = (index, id, name, args) => ({ index, id, function: { name, arguments: JSON.stringify(args) } });
+      const steps = (status) => ({ steps: [{ step: 'Look at the about page', status }, { step: 'Show it to the user', status: status === 'done' ? 'done' : 'pending' }] });
+      const delta = answered === 0
+        ? { tool_calls: [toolCall(0, 'plan-1', 'update_plan', steps('in_progress')), toolCall(1, 'look-1', 'view_page', { path: 'about.html', width: 390, height: 844, actions: [{ type: 'click', text: 'Go' }] })] }
+        : answered === 2
+          ? { tool_calls: [toolCall(0, 'open-1', 'open_preview', { path: 'about.html' }), toolCall(1, 'plan-2', 'update_plan', steps('done'))] }
+          : { content: 'I looked at the about page and opened it for you.' };
+      res.end('data: ' + JSON.stringify({ choices: [{ delta, finish_reason: delta.tool_calls ? 'tool_calls' : 'stop' }] }) + '\n\ndata: [DONE]\n\n');
+      return;
+    }
     if (request.messages.some(message => message.role === 'user' && typeof message.content === 'string' && message.content.includes('stream-batch-smoke'))) {
       for (let index = 0; index < 100; index++) {
         res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: `chunk-${index} ` }, finish_reason: null }] }) + '\n\n');
@@ -347,6 +363,49 @@ export async function checkAi({ evaluate, send, waitFor, sleep, artifacts }) {
     assert.equal(await evaluate("document.querySelector('.chat-live-preview') === null"), true);
     await evaluate("window.adcode.preview.stop()");
     process.stdout.write('PASS: workspace root reaches the provider; AI opens a real live server inside chat; stop, restart and close update the card.\n');
+
+    // The agent sees the app: its own browser loads a page at phone size, clicks, reads the
+    // console and the network, and sends a screenshot; the chat shows the plan, what it saw,
+    // and the page it opened - with one mascot at most, and none once the turn is over.
+    await writeFile(join(root, 'about.html'), '<!doctype html><html><head><title>About smoke</title><meta name="viewport" content="width=device-width"></head><body><h1>About us</h1><img src="missing-photo.png" alt="Team"><button id="go" onclick="document.querySelector(\'h1\').textContent = \'Clicked through\'">Go</button><script>console.error("smoke console error")</script></body></html>');
+    await evaluate("document.querySelector('[aria-label=\"Start a new conversation\"]').click()");
+    let mostMascots = 0;
+    assert.equal(await evaluate("window.adcode.ai.send('view-page-smoke')"), true);
+    for (let attempt = 0; attempt < 240; attempt++) {
+      mostMascots = Math.max(mostMascots, await evaluate("document.querySelectorAll('.chat-transcript .chat-mascot').length"));
+      if (await evaluate("[...document.querySelectorAll('.chat-bubble-assistant')].some(node => node.textContent.includes('opened it for you')) && document.querySelector('.chat-card')?.dataset.working !== 'true'")) break;
+      await sleep(250);
+    }
+    const lookRequest = requests.find(request => request.messages.some(message => message.role === 'tool' && message.tool_call_id === 'look-1'));
+    assert.ok(lookRequest, 'The model got view_page\'s result');
+    const report = lookRequest.messages.find(message => message.role === 'tool' && message.tool_call_id === 'look-1').content;
+    const viewPageEvidence = {
+      title: report.includes('About smoke'),
+      clicked: report.includes('Clicked through'),
+      phone: report.includes('Viewport 390x844'),
+      consoleError: report.includes('smoke console error'),
+      brokenImage: report.includes('missing-photo.png'),
+      screenshotSent: lookRequest.messages.some(message => message.role === 'user' && Array.isArray(message.content) && message.content.some(part => part.type === 'image_url' && part.image_url.url.startsWith('data:image/jpeg;base64,'))),
+      previewOnPage: await evaluate("document.querySelector('.chat-live-preview iframe')?.getAttribute('src')?.endsWith('/about.html') === true"),
+      agentViewCard: await evaluate("document.querySelector('.chat-agent-view-image')?.src.startsWith('data:image/jpeg;base64,') === true && /problem/.test(document.querySelector('.chat-agent-view-verdict')?.textContent ?? '')"),
+      planCard: await evaluate("document.querySelector('.chat-plan-summary')?.textContent === 'All 2 steps done' && document.querySelectorAll('.chat-plan').length === 1"),
+      mostMascotsDuringTurn: mostMascots,
+      mascotsAfterTurn: await evaluate("document.querySelectorAll('.chat-transcript .chat-mascot').length"),
+      settledMarks: await evaluate("document.querySelectorAll('.chat-transcript .chat-activity-settled:not([hidden])').length"),
+    };
+    process.stdout.write('viewPageEvidence: ' + JSON.stringify(viewPageEvidence) + '\n');
+    await evaluate("document.querySelector('.chat-agent-view')?.scrollIntoView({block:'center'})");
+    await sleep(400);
+    await screenshot('vibe-agent-view');
+    for (const [check, value] of Object.entries(viewPageEvidence)) {
+      if (check === 'mostMascotsDuringTurn') assert.ok(value <= 1, `At most one mascot while working (saw ${value})`);
+      else if (check === 'mascotsAfterTurn') assert.equal(value, 0, 'No mascot left once the turn is over');
+      else if (check === 'settledMarks') assert.ok(value >= 1, 'Finished blocks show their mark');
+      else assert.equal(value, true, check);
+    }
+    await clickText('.chat-live-preview button', 'Close preview');
+    await evaluate("window.adcode.preview.stop()");
+    process.stdout.write('PASS: the assistant sees the app - phone-size page, click, console error, broken image, screenshot to the model - opens that exact page, shows its plan and view, and leaves no mascot behind.\n');
     process.stdout.write('PASS: active provider stream survives Vibe/Code switches; persisted tasks open real review in the same conversation.\n');
     process.stdout.write(`PASS: local API connection, saved agents, dependent Team traces, responsive chat, 100 streaming chunks in ${paints} DOM replacements, closed-chat completion, and installed skill discovery.\n`);
     process.stdout.write('PASS: on-demand assistant and saved history, dock/expand/close/reopen, launcher focus, retained transcript, MCP controls, bordered editor layout, narrow dock.\n');

@@ -56,14 +56,33 @@ describe("sandboxed built-in AI tools", () => {
   it("opens the saved project preview without allocating an edit sandbox", async () => {
     const workspace = vi.fn(async () => null);
     const status = { running: true, starting: false, root: human, url: "http://127.0.0.1:4000/", mode: "static" as const, label: null, error: null };
+    const openPreview = vi.fn(async (path: string | null) => ({ status, page: `http://127.0.0.1:4000/${path ?? ""}` }));
     const runner = createAiToolRunner({
       workspace, memory: () => null, writeSandboxFile: vi.fn(), onProposedEdit: vi.fn(),
-      openPreview: async () => status,
+      openPreview,
     });
     const result = await runner.run(call("open_preview", {}), new AbortController().signal);
     expect(result.isError).toBe(false);
-    expect(JSON.parse(result.content)).toMatchObject({ type: "live-preview", status });
+    expect(JSON.parse(result.content)).toMatchObject({ type: "live-preview", status, page: "http://127.0.0.1:4000/" });
+    expect(openPreview).toHaveBeenCalledWith(null);
     expect(workspace).not.toHaveBeenCalled();
+  });
+
+  it("opens the page the model names, not always the home page", async () => {
+    const status = { running: true, starting: false, root: human, url: "http://127.0.0.1:4000/", mode: "static" as const, label: null, error: null };
+    const openPreview = vi.fn(async (path: string | null) => ({ status, page: `http://127.0.0.1:4000/${path ?? ""}` }));
+    const runner = createAiToolRunner({ workspace: async () => null, memory: () => null, writeSandboxFile: vi.fn(), onProposedEdit: vi.fn(), openPreview });
+    const result = await runner.run(call("open_preview", { path: "  about.html " }), new AbortController().signal);
+    expect(openPreview).toHaveBeenCalledWith("about.html");
+    expect(JSON.parse(result.content)).toMatchObject({ page: "http://127.0.0.1:4000/about.html" });
+  });
+
+  it("reports a preview with no address as a failure the model can act on", async () => {
+    const status = { running: true, starting: true, root: human, url: null, mode: "project" as const, label: "Vite", error: null };
+    const runner = createAiToolRunner({ workspace: async () => null, memory: () => null, writeSandboxFile: vi.fn(), onProposedEdit: vi.fn(), openPreview: async () => ({ status, page: null }) });
+    const result = await runner.run(call("open_preview", {}), new AbortController().signal);
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content).note).toContain("no address yet");
   });
   it("reads, lists, and searches the task sandbox instead of the human project", async () => {
     const runner = createAiToolRunner({
@@ -501,13 +520,13 @@ describe("applyReplacements", () => {
   it("replaces exact text and preserves CRLF files", () => {
     expect(
       applyReplacements("const x = 1;\r\nfoo();\r\n", [{ oldString: "foo();", newString: "bar();", replaceAll: false }], "a.ts"),
-    ).toEqual({ ok: true, text: "const x = 1;\r\nbar();\r\n" });
+    ).toEqual({ ok: true, text: "const x = 1;\r\nbar();\r\n", notes: [] });
   });
 
   it("creates a missing file from an empty old_string", () => {
     expect(
       applyReplacements("", [{ oldString: "", newString: "new();\n", replaceAll: false }], "new.ts"),
-    ).toEqual({ ok: true, text: "new();\n" });
+    ).toEqual({ ok: true, text: "new();\n", notes: [] });
     const refused = applyReplacements("full();\n", [{ oldString: "", newString: "x", replaceAll: false }], "a.ts");
     expect(refused.ok).toBe(false);
   });
@@ -519,7 +538,7 @@ describe("applyReplacements", () => {
     expect(twice).toMatchObject({ ok: false });
     expect(
       applyReplacements("x\nx\n", [{ oldString: "x", newString: "y", replaceAll: true }], "a.ts"),
-    ).toEqual({ ok: true, text: "y\ny\n" });
+    ).toEqual({ ok: true, text: "y\ny\n", notes: [] });
   });
 
   it("applies several edits in order, all or nothing", () => {

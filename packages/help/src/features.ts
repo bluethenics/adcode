@@ -200,6 +200,14 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("tools.open", "Open Tools"), command("tools.addServer", "Add an MCP server")],
     keywords: ["tools", "mcp", "mcp server", "model context protocol", "skills", "plugins", "integrations", "marketplace", "playwright", "context7", "figma", "netlify", "chrome devtools", "tool access", "server not working", "agents and tools"],
   },
+  "ai.seesYourApp": {
+    actions: [command("ai.checkApp", "Check my running app")],
+    keywords: ["see my app", "look at the page", "screenshot", "does it work", "check the page", "test in browser", "click through", "console errors", "broken images", "404", "mobile view", "phone width", "open a page", "specific page", "live server", "browser tool", "playwright", "view_page", "/check"],
+  },
+  "ai.agentTools": {
+    actions: [command("tools.builtIn", "Show the built-in tools")],
+    keywords: ["delete file", "move file", "rename file", "dev server", "background command", "npm run dev", "long command", "timeout", "plan", "checklist", "todo list", "undo delete", "agent tools", "what can the ai do", "assistant abilities"],
+  },
   "ai.memoryEditor": {
     actions: [command("tools.memory", "Open project memory")],
     keywords: ["memory", "remember", "forget", "what does the ai know", "conventions", "decisions", "preferences", "agents.md", "claude.md", "shared memory", "edit memory"],

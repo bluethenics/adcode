@@ -96,6 +96,7 @@ import {
   aiReset,
   aiSend,
   aiStatus,
+  aiStopToolProcesses,
   aiCompact,
   aiContextUsage,
   clearProviderKey,
@@ -301,6 +302,10 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
    */
   onWorkspaceRootChanged((root) => setLspWorkspace(root));
   setLspWorkspace(currentWorkspace()?.root ?? null);
+
+  // A dev server the assistant started belongs to the folder it started in, and so does the
+  // page its browser had open.
+  onWorkspaceRootChanged(() => aiStopToolProcesses());
 
   /*
    * The recent folders are part of the menu now, so every change to the list has to

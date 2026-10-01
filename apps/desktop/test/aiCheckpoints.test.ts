@@ -33,6 +33,43 @@ async function assistantWrites(cp: ReturnType<typeof checkpoints>, path: string,
 }
 
 describe("undo checkpoints for applied edits", () => {
+  it("brings back a deleted file and moves a moved one back, binary files byte for byte", async () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01, 0xfe]);
+    await writeFile(join(project, "notes.md"), "keep me");
+    await writeFile(join(project, "logo.png"), png);
+    const cp = checkpoints();
+    cp.begin(project);
+    // delete_file: the text file goes.
+    await rm(join(project, "notes.md"));
+    cp.record("notes.md", "keep me", null);
+    // move_file: the image moves into assets/.
+    await mkdir(join(project, "assets"));
+    await writeFile(join(project, "assets", "logo.png"), png);
+    await rm(join(project, "logo.png"));
+    cp.record("logo.png", png.toString("base64"), null, "base64");
+    cp.record("assets/logo.png", null, png.toString("base64"), "base64");
+    const saved = await cp.finish();
+    expect(saved?.files).toEqual([
+      { path: "notes.md", before: "keep me", after: null },
+      { path: "logo.png", before: png.toString("base64"), after: null, encoding: "base64" },
+      { path: "assets/logo.png", before: null, after: png.toString("base64"), encoding: "base64" },
+    ]);
+
+    const result = await cp.undo(saved!.id, project, false);
+    expect(result).toMatchObject({ ok: true, conflicts: [] });
+    expect(await readFile(join(project, "notes.md"), "utf8")).toBe("keep me");
+    expect(await readFile(join(project, "logo.png"))).toEqual(png);
+    expect(await exists(join(project, "assets", "logo.png"))).toBe(false);
+  });
+
+  it("forgets a file the turn created and then deleted", async () => {
+    const cp = checkpoints();
+    cp.begin(project);
+    cp.record("scratch.txt", null, "temp");
+    cp.record("scratch.txt", "temp", null);
+    expect(await cp.finish()).toBeNull();
+  });
+
   it("puts edited files back and removes files the turn created", async () => {
     await writeFile(join(project, "index.html"), "<h1>old</h1>");
     const cp = checkpoints();

@@ -33,6 +33,8 @@ import { loadKeybindings } from "./keybindings.ts";
 import { disposeAllTerminals } from "./terminal.ts";
 import { shutdownAllServers } from "./lsp.ts";
 import { stopPreview } from "./preview.ts";
+import { closeAgentBrowserWithLastWindow, hardenAgentBrowser, isAgentBrowserContents } from "./agentBrowser.ts";
+import { aiStopToolProcesses } from "./ai.ts";
 import { getAdRuntime } from "./adRuntime.ts";
 import { currentSettings, loadSettings } from "./settings.ts";
 import { windowIconPath } from "./windowIcon.ts";
@@ -121,6 +123,13 @@ process.title = "ADCode";
 registerSchemePrivileges();
 
 function hardenWebContents(contents: Electron.WebContents): void {
+  // The assistant's own browser shows the user's local app, not the workbench, and has rules
+  // of its own: loopback addresses only, no popups - and never the user's real browser.
+  if (isAgentBrowserContents(contents)) {
+    hardenAgentBrowser(contents);
+    return;
+  }
+
   // The renderer never opens a window. Anything that tries goes to the system browser,
   // which is also §1's rule for ad clicks: "never a webview, never in-editor navigation."
   contents.setWindowOpenHandler(({ url }) => {
@@ -331,6 +340,7 @@ void app.whenReady().then(() => {
 });
 
 app.on("web-contents-created", (_event, contents) => hardenWebContents(contents));
+closeAgentBrowserWithLastWindow(app);
 
 app.on("window-all-closed", () => {
   disposeAllTerminals();
@@ -346,4 +356,6 @@ app.on("before-quit", () => {
   // workspace nobody has open, and an orphaned dev server keeps its port until reboot.
   void shutdownAllServers();
   void stopPreview();
+  // Dev servers and watchers the assistant started in the background, and its browser.
+  aiStopToolProcesses();
 });

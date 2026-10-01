@@ -11,6 +11,11 @@
  * edited it since - unless told to go ahead anyway. Silently throwing away a person's own
  * later work is the one thing an undo button must never do.
  *
+ * Deletions and moves made with the file tools are recorded too: a deleted file's "after" is
+ * null, and a moved one is a deletion at its old path plus a creation at its new one. Binary
+ * files - an image the assistant moved into assets/ - are kept as base64, so Undo puts them
+ * back byte for byte.
+ *
  * Limits, stated rather than hidden: only edits made through the file tools are recorded.
  * What a command the assistant ran did to the disk (an npm install, a build) is not.
  */
@@ -22,7 +27,10 @@ export interface CheckpointFile {
   readonly path: string;
   /** Null when the turn created the file. */
   readonly before: string | null;
-  readonly after: string;
+  /** Null when the turn deleted the file, or moved it away. */
+  readonly after: string | null;
+  /** How `before` and `after` hold the bytes: text when absent, as every older checkpoint is. */
+  readonly encoding?: "utf8" | "base64";
 }
 
 export interface EditCheckpoint {
@@ -57,8 +65,8 @@ const CHECKPOINT_ID = /^cp-[a-z0-9-]{8,64}$/;
 export interface CheckpointStore {
   /** Start recording a turn in this project. */
   begin(root: string): void;
-  /** One write by the assistant. The first write of a path keeps its "before". */
-  record(path: string, before: string | null, after: string): void;
+  /** One write by the assistant; a null `after` is a deletion. The first write of a path keeps its "before". */
+  record(path: string, before: string | null, after: string | null, encoding?: "utf8" | "base64"): void;
   /** End the turn; the saved checkpoint, or null when nothing was written. */
   finish(): Promise<EditCheckpoint | null>;
   undo(id: string, root: string, force: boolean): Promise<UndoResult>;
@@ -72,12 +80,13 @@ export function createCheckpointStore(deps: {
   readonly keep?: number;
   readonly now?: () => number;
 }): CheckpointStore {
-  let turn: { root: string; files: Map<string, { before: string | null; after: string }> } | null = null;
+  type Entry = { before: string | null; after: string | null; encoding: "utf8" | "base64" };
+  let turn: { root: string; files: Map<string, Entry> } | null = null;
   const file = (id: string): string => join(deps.directory(), `${id}.json`);
 
-  async function readCurrent(root: string, path: string): Promise<string | null> {
+  async function readCurrent(root: string, path: string, encoding: "utf8" | "base64" = "utf8"): Promise<string | null> {
     try {
-      return await readFile(await deps.resolve(root, path), "utf8");
+      return (await readFile(await deps.resolve(root, path))).toString(encoding);
     } catch {
       return null;
     }
@@ -122,10 +131,11 @@ export function createCheckpointStore(deps: {
       turn = { root, files: new Map() };
     },
 
-    record(path, before, after): void {
+    record(path, before, after, encoding = "utf8"): void {
       if (turn === null) return;
       const existing = turn.files.get(path);
-      turn.files.set(path, { before: existing === undefined ? before : existing.before, after });
+      // A path keeps the encoding it was first recorded in, so its "before" stays readable.
+      turn.files.set(path, existing === undefined ? { before, after, encoding } : { ...existing, after });
     },
 
     async finish(): Promise<EditCheckpoint | null> {
@@ -137,7 +147,9 @@ export function createCheckpointStore(deps: {
         root: finished.root,
         createdAt: (deps.now ?? Date.now)(),
         // A file the turn created and then put back to nothing changed nothing.
-        files: [...finished.files].filter(([, entry]) => entry.before !== entry.after).map(([path, entry]) => ({ path, ...entry })),
+        files: [...finished.files]
+          .filter(([, entry]) => entry.before !== entry.after)
+          .map(([path, { encoding, ...entry }]) => ({ path, ...entry, ...(encoding === "base64" ? { encoding } : {}) })),
         undone: false,
       };
       if (checkpoint.files.length === 0) return null;
@@ -154,7 +166,7 @@ export function createCheckpointStore(deps: {
         return { ok: false, restored: [], conflicts: [], message: "Open the project this change was made in to undo it." };
       }
       const current = new Map<string, string | null>();
-      for (const entry of checkpoint.files) current.set(entry.path, await readCurrent(root, entry.path));
+      for (const entry of checkpoint.files) current.set(entry.path, await readCurrent(root, entry.path, entry.encoding));
       const plan = planUndo(checkpoint, current);
       if (plan.conflicts.length > 0 && !force) {
         return {
@@ -172,7 +184,7 @@ export function createCheckpointStore(deps: {
         } else {
           await mkdir(dirname(target), { recursive: true });
           const temporary = `${target}.adcode-undo-${randomUUID()}.tmp`;
-          await writeFile(temporary, entry.before, "utf8");
+          await writeFile(temporary, Buffer.from(entry.before, entry.encoding ?? "utf8"));
           await rename(temporary, target);
         }
         restored.push(entry.path);

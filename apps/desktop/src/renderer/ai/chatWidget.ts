@@ -16,6 +16,7 @@
 import { describeAiFailure } from "./aiFailure.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { createChatPreview } from "./chatPreview.ts";
+import { createAgentViewCard, createPlanCard, planStepsFrom, type AgentViewCard, type PlanCard } from "./chatAgentCards.ts";
 import { createTaskDetailsDialog } from "./taskDetailsDialog.ts";
 import { createTasksPopupDialog } from "./tasksPopupDialog.ts";
 import type { PreviewStatus } from "../../shared/api.ts";
@@ -165,6 +166,8 @@ export interface ChatWidget {
 
 export interface ChatWidgetDeps {
   readonly openPreview?: () => void;
+  /** Point the floating preview at a page, when it is open: the assistant opened that page. */
+  readonly showPreviewPage?: (url: string) => void;
   readonly openExternalPath: (path: string) => void;
   readonly openCodeReference?: (reference: CodeReference) => void;
   /** Open the Connect screen, which owns providers, keys and models. */
@@ -424,6 +427,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     resetActivity();
     chatPreview.clear();
     previewCalls.clear();
+    planCard = null;
+    viewCard = null;
     transcript.replaceChildren();
     streamingBubble = null;
     activeSessionId = null;
@@ -651,6 +656,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const transcript = document.createElement("div");
   const chatPreview = createChatPreview(transcript);
   const previewCalls = new Set<string>();
+  /*
+   * One plan card and one "what the assistant saw" card per turn, updated in place: a plan is
+   * re-sent after every step and a page may be checked five times, and five cards each would
+   * bury the answer.
+   */
+  let planCard: PlanCard | null = null;
+  let viewCard: AgentViewCard | null = null;
+  function openPageInChat(url: string): void {
+    void window.adcode.preview.status().then((status) => chatPreview.show(status, url), () => undefined);
+    deps.showPreviewPage?.(url);
+  }
   transcript.className = "chat-transcript";
   transcript.setAttribute("aria-live", "polite");
   transcript.setAttribute("role", "log");
@@ -868,6 +884,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     resetActivity();
     chatPreview.clear();
     previewCalls.clear();
+    planCard = null;
+    viewCard = null;
     transcript.replaceChildren();
     streamingBubble = null;
     activeSessionId = session.id;
@@ -2026,6 +2044,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   function finishActivity(label?: string): void {
     if (activeActivity === null) return;
+    // A block with no steps in it has nothing to report: "Worked for 3s" over an empty box
+    // is noise, and it used to leave a second mascot behind. A failure keeps its block.
+    if (label === undefined && activityToolRows.size === 0) {
+      activeActivity.destroy();
+      activeActivity = null;
+      return;
+    }
     const elapsed = (Date.now() - activeActivity.startedAt) / 1000;
     activeActivity.finalize(elapsed, label);
     activeActivity = null;
@@ -3475,6 +3500,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (!ending && !turnActive) {
       turnActive = true;
       turnStartedAt = Date.now();
+      // A new turn gets its own plan and its own view, below its own question.
+      planCard = null;
+      viewCard = null;
     } else if (ending && turnActive) {
       turnActive = false;
       void offerStagedChanges(turnStartedAt);
@@ -3519,6 +3547,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       case "tool-call": {
         const call = event["call"] as { id?: string; name: string; input: unknown };
         if (call.name === "open_preview" && call.id) previewCalls.add(call.id);
+        if (call.name === "update_plan") {
+          const steps = planStepsFrom(call.input);
+          if (steps.length > 0) {
+            if (planCard === null) {
+              planCard = createPlanCard();
+              transcript.append(planCard.element);
+            }
+            planCard.update(steps);
+          }
+        }
         const label = toolHeaderLabel(call.name);
         workingText.textContent = label;
         const block = ensureActivity();
@@ -3541,9 +3579,23 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         const toolCallId = typeof event["toolCallId"] === "string" ? event["toolCallId"] : null;
         if (toolCallId !== null && previewCalls.delete(toolCallId)) {
           try {
-            const result = JSON.parse(String(event["content"])) as { type?: string; status?: PreviewStatus };
-            if (result.type === "live-preview" && result.status) chatPreview.show(result.status);
+            const result = JSON.parse(String(event["content"])) as { type?: string; status?: PreviewStatus; page?: string | null };
+            if (result.type === "live-preview" && result.status) {
+              const page = typeof result.page === "string" ? result.page : null;
+              chatPreview.show(result.status, page);
+              if (page !== null) deps.showPreviewPage?.(page);
+            }
           } catch { /* A failed tool's text stays in the activity trace. */ }
+        }
+        // The page the assistant looked at, as it saw it.
+        const pictures = Array.isArray(event["images"]) ? (event["images"] as { mediaType?: unknown; data?: unknown }[]) : [];
+        const picture = pictures[0];
+        if (event["name"] === "view_page" && picture !== undefined && typeof picture.data === "string" && (picture.mediaType === "image/jpeg" || picture.mediaType === "image/png")) {
+          if (viewCard === null) {
+            viewCard = createAgentViewCard(openPageInChat);
+            transcript.append(viewCard.element);
+          }
+          viewCard.update({ image: `data:${picture.mediaType};base64,${picture.data}`, report: String(event["content"] ?? "") });
         }
         if (toolCallId !== null && activityToolRows.has(toolCallId)) {
           block.completeRow(toolCallId, !isError);
@@ -3651,9 +3703,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       const open = document.createElement("button");
       open.type = "button";
       open.className = "chat-checkpoint-file";
-      open.textContent = `${file.created ? "+ " : ""}${file.path}`;
-      open.title = `${file.created ? "Created" : "Changed"} ${file.path} - open it`;
-      open.addEventListener("click", () => deps.openExternalPath(file.path));
+      if (file.deleted === true) {
+        // Gone, so there is nothing to open - but Undo brings it back.
+        open.textContent = `− ${file.path}`;
+        open.title = `Deleted ${file.path} - Undo puts it back`;
+        open.disabled = true;
+        open.dataset["deleted"] = "true";
+      } else {
+        open.textContent = `${file.created ? "+ " : ""}${file.path}`;
+        open.title = `${file.created ? "Created" : "Changed"} ${file.path} - open it`;
+        open.addEventListener("click", () => deps.openExternalPath(file.path));
+      }
       list.append(open);
     }
     if (count > 8) {

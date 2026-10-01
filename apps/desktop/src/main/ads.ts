@@ -35,6 +35,7 @@ import { DiskFileStore, FetchHttpTransport, SystemClock, toDataUrl } from "./adP
 import { currentSettings } from "./settings.ts";
 import { apiBaseUrl, apiOrigin, createBackendTokens } from "./backend.ts";
 import { currentDebugState } from "./debug.ts";
+import { isAgentBrowserWindow } from "./agentBrowser.ts";
 
 /** §8.1: the 60s tick that asks the scheduler whether now is a moment to interrupt. */
 const DEFAULT_TICK_MS = 60_000;
@@ -130,7 +131,8 @@ interface AdRuntime {
 function toastTarget(): BrowserWindow | null {
   const focused = BrowserWindow.getFocusedWindow();
   if (focused !== null && !focused.isDestroyed()) return focused;
-  return BrowserWindow.getAllWindows().find((window) => !window.isDestroyed()) ?? null;
+  // Never the assistant's offscreen browser: a card painted there is a card nobody saw.
+  return BrowserWindow.getAllWindows().find((window) => !window.isDestroyed() && !isAgentBrowserWindow(window)) ?? null;
 }
 
 function broadcast(channel: string, ...args: unknown[]): void {

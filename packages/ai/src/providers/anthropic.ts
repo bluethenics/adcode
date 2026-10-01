@@ -64,8 +64,8 @@ export function createAnthropicProvider(deps: AnthropicProviderDeps): Provider {
             role: message.role,
             content: message.content.map((block) => {
               if (block.type === "text") return { type: "text" as const, text: block.text };
-              // Images only ever arrive on the user turn that attached them; the
-              // agent loop keeps every replay text-only.
+              // Images arrive on the user turn that attached them, or after the tool
+              // results of the step that took them; the agent loop retires older ones.
               if (block.type === "image") {
                 return {
                   type: "image" as const,

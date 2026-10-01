@@ -15,6 +15,7 @@ import { homedir, arch, release } from "node:os";
 import { join } from "node:path";
 import { app, BrowserWindow, clipboard, dialog, ipcMain } from "electron";
 import { CHANNELS } from "../shared/api.ts";
+import { isAgentBrowserWindow } from "./agentBrowser.ts";
 import { clip, formatEntry, formatReport, formatSummary, redact, type DebugEntry, type DebugEnvironment, type DebugLevel } from "./debugLogFormat.ts";
 
 const MEMORY_LIMIT = 400;
@@ -87,7 +88,7 @@ function environment(): DebugEnvironment {
     effort: ai.effort,
     fileTools: ai.fileTools,
     projectOpen: projectRoot() !== null,
-    windows: BrowserWindow.getAllWindows().map((window) => (window.webContents.getURL().endsWith("#/ide") ? "ide" : "vibe")),
+    windows: BrowserWindow.getAllWindows().filter((window) => !isAgentBrowserWindow(window)).map((window) => (window.webContents.getURL().endsWith("#/ide") ? "ide" : "vibe")),
   };
 }
 

@@ -1095,7 +1095,8 @@ export interface ThemedConfirmRequest {
 export interface AiCheckpointView {
   readonly id: string;
   readonly createdAt: number;
-  readonly files: ReadonlyArray<{ readonly path: string; readonly created: boolean }>;
+  /** `deleted`: the turn deleted the file, or moved it away from this path. */
+  readonly files: ReadonlyArray<{ readonly path: string; readonly created: boolean; readonly deleted?: boolean }>;
 }
 
 export interface AiUndoResultView {

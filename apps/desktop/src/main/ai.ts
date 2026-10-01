@@ -22,6 +22,7 @@ import {
   DEFAULT_ANTHROPIC_MODEL,
   SNAPSHOT_TAKEN_ON,
   TOOLS_WITHOUT_MEMORY,
+  AGENT_RUN_TOOLS,
   baseUrlFor,
   buildInlineEditRequest,
   cleanInlineEditAnswer,
@@ -91,7 +92,9 @@ import { currentSettings } from "./settings.ts";
 import { describeDebugContext, recordDebug } from "./debugLog.ts";
 import { currentWorkspace } from "./workspace.ts";
 import { aiWorkspaceContext } from "./aiWorkspaceContext.ts";
-import { OPEN_PREVIEW, openAiPreview } from "./aiPreview.ts";
+import { aiPreviewUrl, describePreviewForAi, openAiPreview } from "./aiPreview.ts";
+import { createCommandRunner } from "./aiCommands.ts";
+import { closeAgentBrowser, viewPage } from "./agentBrowser.ts";
 import { clearSessions, deleteSession, readSessions, writeSession } from "./aiSessions.ts";
 import { createAiWorkspaceService, type AiWorkspaceService } from "./aiWorkspaceService.ts";
 import { agentEventTrace, describeActivity } from "./aiEventTrace.ts";
@@ -657,9 +660,32 @@ export async function buildProvider(id: string, offeredKey?: string): Promise<Pr
   }));
 }
 
+/**
+ * The chat's background commands - a dev server, a watcher. One registry for the app, so a
+ * server started in one turn can be read and stopped in the next.
+ */
+const chatCommands = createCommandRunner();
+
+/** Stop what the assistant left running: the folder changed, or the app is quitting. */
+export function aiStopToolProcesses(): void {
+  chatCommands.stopAll();
+  closeAgentBrowser();
+}
+
+/** The background commands, in a line for the host context, so a later turn knows they exist. */
+function describeBackgroundCommands(): string | null {
+  const running = chatCommands.list().filter((item) => item.running);
+  if (running.length === 0) return null;
+  return `Background commands still running: ${running.map((item) => `${item.id} (${item.command}${item.url === null ? "" : ` at ${item.url}`})`).join(", ")}. command_output reads them; stop_command ends one.`;
+}
+
 function toolRunner() {
   return createAiToolRunner({
-    openPreview: () => openAiPreview(broadcast),
+    openPreview: (path) => openAiPreview(broadcast, path),
+    viewPage: (request, signal) => viewPage(request, { previewUrl: () => aiPreviewUrl(broadcast) }, signal),
+    backgroundCommands: chatCommands,
+    recordUndo: (path, before, after, encoding) => checkpoints.record(path, before, after, encoding),
+    onFilesChanged: (paths) => announceProjectFiles(paths),
     workspace: resolveToolWorkspace,
     writeWorkspace: ensureToolWorkspace,
     workspaceUnavailableMessage: () =>
@@ -896,7 +922,7 @@ function splitAttachments(attachments: readonly AiAttachmentView[]): {
 /** The chat's tools: everything built in, minus memory when memory capture is off. */
 function chatTools() {
   const memoryEnabled = currentSettings()["adcode.ai.memoryCapture"] !== false;
-  return [...(memoryEnabled ? BUILT_IN_TOOLS : TOOLS_WITHOUT_MEMORY), OPEN_PREVIEW, ...ASSISTANT_EXTENSION_TOOLS];
+  return [...(memoryEnabled ? BUILT_IN_TOOLS : TOOLS_WITHOUT_MEMORY), ...ASSISTANT_EXTENSION_TOOLS];
 }
 
 /** When and how far a conversation with this model compacts - read fresh, so a settings change applies at once. */
@@ -949,7 +975,11 @@ async function ensureChatAgent(providerId: string, model: string): Promise<Agent
           blocker = `Save ${summarizeUnsavedDrafts(root, drafts)} before AI file edits, so nothing unsaved gets overwritten. Reading and answering work meanwhile.`;
         }
       }
-      return aiWorkspaceContext(root, blocker, editorContext, configuredEditPolicy() === "review" ? "review" : "direct");
+      return [
+        aiWorkspaceContext(root, blocker, editorContext, configuredEditPolicy() === "review" ? "review" : "direct"),
+        ...(root === null ? [] : [describePreviewForAi()]),
+        describeBackgroundCommands(),
+      ].filter((line): line is string => line !== null).join("\n");
     },
     runner: withAssistantExtensions(toolRunner()),
     beforeRequest: async () => {
@@ -1146,7 +1176,7 @@ export async function aiSend(
       broadcast(CHANNELS.aiCheckpoint, {
         id: checkpoint.id,
         createdAt: checkpoint.createdAt,
-        files: checkpoint.files.map((file) => ({ path: file.path, created: file.before === null })),
+        files: checkpoint.files.map((file) => ({ path: file.path, created: file.before === null, deleted: file.after === null })),
       });
       recordDebug("info", "ai", `Turn changed ${checkpoint.files.length} file${checkpoint.files.length === 1 ? "" : "s"} (undo available)`);
     }
@@ -1170,7 +1200,7 @@ export async function aiSend(
       broadcast(CHANNELS.aiCheckpoint, {
         id: checkpoint.id,
         createdAt: checkpoint.createdAt,
-        files: checkpoint.files.map((file) => ({ path: file.path, created: file.before === null })),
+        files: checkpoint.files.map((file) => ({ path: file.path, created: file.before === null, deleted: file.after === null })),
       });
     }
     broadcast(CHANNELS.aiEvent, { kind: "error", detail });
@@ -1339,7 +1369,7 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
     const roleProvider = createBudgetedTeamProvider(provider, input.route, input.reserveRequest);
     // A saved agent's tool access is enforced here, before the agent exists: a read-only
     // Reviewer is never handed a tool that writes, runs or fetches.
-    const access = filterToolsByAccess(TOOLS_WITHOUT_MEMORY, input.context.role.toolAccess ?? "all");
+    const access = filterToolsByAccess(AGENT_RUN_TOOLS, input.context.role.toolAccess ?? "all");
     if (access.unknown.length > 0) {
       await service.recordTrace(task.id, {
         kind: "state",

@@ -13,9 +13,15 @@
  *   it blinks, and clicking it pops a rotating quip so long runs stay alive.
  * - Body: bordered rounded rows; text rows are muted thoughts, tool rows carry
  *   a spinner while running and a green check when done; new rows fade in.
- * - Finished: mascot settles to its done/error mood, label becomes
- *   "Worked for Ns", body collapses with a grid-template-rows transition;
- *   header click toggles it again.
+ * - Finished: the mascot leaves and a small check (or "!") takes its place,
+ *   label becomes "Worked for Ns", body collapses with a grid-template-rows
+ *   transition; header click toggles it again.
+ *
+ * One mascot, the working one. A turn is several blocks - work, text, work,
+ * text - and finished blocks used to keep their mascots, so a long
+ * conversation filled with copies of the same face, each still tracking the
+ * pointer and blinking on its own timers. The mascot is the assistant at
+ * work; once a block's work is done it has nothing left to show.
  */
 
 import { createMascot, type MascotHandle, type MascotMood } from "./mascot.ts";
@@ -73,6 +79,7 @@ export function summarizeToolInput(input: unknown): string {
   if (typeof input !== "object" || input === null) return "";
   const record = input as Record<string, unknown>;
   if (typeof record["server"] === "string" && typeof record["tool"] === "string") return `${record["server"]} / ${record["tool"]}`.slice(0, 96);
+  if (typeof record["from"] === "string" && typeof record["to"] === "string") return `${record["from"]} → ${record["to"]}`.slice(0, 96);
   for (const key of ["path", "file", "pattern", "command", "query", "url", "prompt", "id"]) {
     const value = record[key];
     if (typeof value === "string" && value.trim().length > 0) {
@@ -97,6 +104,13 @@ export function toolHeaderLabel(toolName: string): string {
   if (/write|edit|apply|patch/i.test(clean)) return "Editing files";
   if (/search|grep|glob|find/i.test(clean)) return "Searching the project";
   if (/outline|symbol/i.test(clean)) return "Outlining a file";
+  if (clean === "view_page") return "Looking at the page";
+  if (clean === "open_preview") return "Opening the preview";
+  if (clean === "update_plan") return "Updating the plan";
+  if (clean === "delete_file") return "Deleting a file";
+  if (clean === "move_file") return "Moving files";
+  if (clean === "command_output") return "Checking a command";
+  if (clean === "stop_command") return "Stopping a command";
   if (/fetch|url/i.test(clean)) return "Reading the web";
   if (/run|exec|bash|terminal|command/i.test(clean)) return "Running a command";
   if (/preview|image|generate/i.test(clean)) return "Creating a preview";
@@ -133,7 +147,13 @@ export function createActivityBlock(options?: {
   // The loader wrapper is presentational; the mascot button inside carries
   // its own accessible name.
   loader.setAttribute("aria-hidden", "false");
-  loader.append(mascot.element);
+  // What replaces the mascot once the work is done: the label already says
+  // how it went, so this is a mark, not a second announcement.
+  const settled = document.createElement("span");
+  settled.className = "chat-activity-settled";
+  settled.setAttribute("aria-hidden", "true");
+  settled.hidden = true;
+  loader.append(mascot.element, settled);
 
   const toggle = document.createElement("button");
   toggle.type = "button";
@@ -274,7 +294,11 @@ export function createActivityBlock(options?: {
       const finalLabel = customLabel ?? formatWorkedLabel(elapsed);
       label.textContent = finalLabel;
       label.classList.add("is-final");
-      mascot.setMood(/fail|error|declined|cancel/i.test(finalLabel) ? "error" : "done");
+      const failed = /fail|error|declined|cancel/i.test(finalLabel);
+      mascot.destroy();
+      settled.textContent = failed ? "!" : "✓";
+      settled.dataset["tone"] = failed ? "error" : "done";
+      settled.hidden = false;
       setCollapsed(true);
     },
     destroy(): void {

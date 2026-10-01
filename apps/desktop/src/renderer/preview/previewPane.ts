@@ -96,6 +96,12 @@ export interface PreviewPane {
    */
   toggleInspect(): void;
   isInspecting(): boolean;
+  /**
+   * Show another page of the running site - the assistant's open_preview with a path, or an
+   * address typed into the bar. Only pages on the preview's own server; anything else is
+   * ignored. Does nothing while the preview is closed.
+   */
+  navigate(url: string): void;
   /** Placement, position and size are remembered per folder, as the chat card is. */
   setWorkspace(root: string | null): void;
 }
@@ -148,6 +154,20 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
   address.className = "preview-url";
   address.textContent = "Not running";
 
+  /*
+   * The address bar, once there is an address. Typing a path - /about.html, #pricing - and
+   * pressing Enter opens that page; without it the only way to a second page was a link on
+   * the first. The span above keeps saying "Starting…" and errors.
+   */
+  const pageField = document.createElement("input");
+  pageField.type = "text";
+  pageField.className = "preview-address";
+  pageField.spellcheck = false;
+  pageField.autocomplete = "off";
+  pageField.setAttribute("aria-label", "Page address. Type a path such as /about.html and press Enter");
+  pageField.title = "Type a page, such as /about.html, and press Enter";
+  pageField.hidden = true;
+
   const deviceButton = iconButton("Check other screen sizes", ICON.device);
   const inspectButton = iconButton("Inspect an element's size and spacing", ICON.inspect);
   const logButton = iconButton("Show output", ICON.output);
@@ -159,6 +179,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
   bar.append(
     engine,
     address,
+    pageField,
     deviceButton,
     inspectButton,
     logButton,
@@ -239,6 +260,8 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
 
   let open = false;
   let currentUrl: string | null = null;
+  /** The page on show when it is not the server's root: opened by address, by the assistant, or by a link. */
+  let pageUrl: string | null = null;
   let mode: PreviewMode = "static";
   let projectLabel: string | null = null;
   let logShown = false;
@@ -317,6 +340,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
         : `Serving the folder as plain files — click to run ${projectLabel ?? "the project"} instead`;
 
     if (status.error !== null) {
+      showAddress(null);
       address.textContent = status.error;
       address.dataset["tone"] = "error";
       deps.reportProblem(status.error);
@@ -331,23 +355,84 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
     deps.reportProblem(null);
 
     if (status.starting) {
+      showAddress(null);
       address.textContent = `Starting ${status.label ?? "the preview"}…`;
       address.dataset["tone"] = "pending";
       return;
     }
 
     if (status.url === null) {
+      showAddress(null);
       address.textContent = "Not running";
       frame.removeAttribute("src");
       return;
     }
 
     address.textContent = status.url;
+    // A page from an earlier server (another port, another folder) is not on this one.
+    if (pageUrl !== null && !sameOrigin(pageUrl, status.url)) pageUrl = null;
+    const target = pageUrl ?? status.url;
+    showAddress(target);
     // Only reassign when it actually changed: setting `src` to its current value reloads
     // the frame, and a status broadcast arriving mid-edit would throw away the user's
     // scroll position and any state their page was holding.
-    if (frame.getAttribute("src") !== status.url) frame.src = status.url;
+    if (frame.getAttribute("src") !== target) frame.src = target;
   }
+
+  function sameOrigin(a: string, b: string): boolean {
+    try {
+      return new URL(a).origin === new URL(b).origin;
+    } catch {
+      return false;
+    }
+  }
+
+  /** The bar shows the address field when there is a page, and the status line otherwise. */
+  function showAddress(url: string | null): void {
+    address.hidden = url !== null;
+    pageField.hidden = url === null;
+    if (url !== null && document.activeElement !== pageField) pageField.value = url;
+  }
+
+  /** A typed or requested page as an address on the running preview, or null. */
+  function pageOnPreview(typed: string): string | null {
+    if (currentUrl === null) return null;
+    const text = typed.trim();
+    if (text.length === 0) return currentUrl;
+    try {
+      const resolved = /^[a-z][a-z0-9+.-]*:/i.test(text)
+        ? new URL(text)
+        : new URL(text.startsWith("/") || text.startsWith("#") || text.startsWith("?") ? text : `/${text}`, currentUrl);
+      return sameOrigin(resolved.href, currentUrl) ? resolved.href : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function goTo(url: string): void {
+    pageUrl = url;
+    showAddress(url);
+    frame.removeAttribute("src");
+    frame.src = url;
+  }
+
+  pageField.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      pageField.value = pageUrl ?? currentUrl ?? "";
+      pageField.blur();
+      return;
+    }
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const target = pageOnPreview(pageField.value);
+    if (target === null) {
+      deps.notify("The preview shows pages of your own site. Type a path such as /about.html.");
+      return;
+    }
+    goTo(target);
+    pageField.blur();
+  });
+  pageField.addEventListener("focus", () => pageField.select());
 
   // The preview can change without the renderer asking: a dev server announces its address
   // a minute after starting, crashes on a syntax error, or is stopped because the folder
@@ -371,6 +456,15 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
    */
   window.addEventListener("message", (event) => {
     if (typeof event.origin !== "string") return;
+    // The page says where it is after a link or a back button, so the bar keeps up.
+    const data = event.data as { source?: unknown; href?: unknown } | null;
+    if (event.source === frame.contentWindow && data?.source === "adcode-preview-page" && typeof data.href === "string") {
+      if (currentUrl !== null && sameOrigin(data.href, currentUrl)) {
+        pageUrl = data.href;
+        showAddress(data.href);
+      }
+      return;
+    }
     if (
       event.origin !== "null" &&
       !event.origin.startsWith("http://127.0.0.1") &&
@@ -398,8 +492,9 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
   bar.addEventListener("pointerdown", (event) => {
     if (maximised || event.button !== 0) return;
     // The bar is also the toolbar. Dragging from a button would mean the pointer never
-    // reaches the click, so the buttons would stop working the moment the card floated.
-    if ((event.target as HTMLElement).closest("button") !== null) return;
+    // reaches the click, so the buttons would stop working the moment the card floated -
+    // and from the address field, its text could never be selected.
+    if ((event.target as HTMLElement).closest("button, input") !== null) return;
 
     const startX = event.clientX - position.x;
     const startY = event.clientY - position.y;
@@ -450,7 +545,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
   }
 
   bar.addEventListener("dblclick", (event) => {
-    if ((event.target as HTMLElement).closest("button") !== null) return;
+    if ((event.target as HTMLElement).closest("button, input") !== null) return;
     toggleMaximised();
   });
 
@@ -501,6 +596,7 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
       // Drop the frame before stopping the server, or Chromium logs a failed request for a
       // socket that went away mid-load - and `npm run smoke` fails on any console error.
       frame.removeAttribute("src");
+      pageUrl = null;
       await window.adcode.preview.stop();
     },
 
@@ -515,9 +611,15 @@ export function createPreviewPane(deps: PreviewPaneDeps): PreviewPane {
       if (currentUrl === null) return;
 
       // `contentWindow.location.reload()` is a cross-origin call and throws. Re-assigning
-      // `src` is the same reload from the outside.
+      // `src` is the same reload from the outside - of the page on show, not the home page.
       frame.removeAttribute("src");
-      frame.src = currentUrl;
+      frame.src = pageUrl ?? currentUrl;
+    },
+
+    navigate(url: string): void {
+      if (!open || currentUrl === null) return;
+      const target = pageOnPreview(url);
+      if (target !== null) goTo(target);
     },
 
     async switchMode(): Promise<void> {

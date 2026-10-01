@@ -106,8 +106,22 @@ export interface ToolDefinition {
   readonly concurrent?: boolean;
 }
 
+/**
+ * What a tool hands back.
+ *
+ * `images` is for tools whose answer is a picture - a screenshot of the running app, an
+ * image file the model asked to look at. The agent loop places them after the turn's tool
+ * results, labelled, and keeps only the newest set in later requests: a screenshot is
+ * evidence for the next step, not something every following request should pay for.
+ */
+export interface ToolRunResult {
+  readonly content: string;
+  readonly isError: boolean;
+  readonly images?: readonly ImageBlock[];
+}
+
 export interface ToolRunner {
-  run(call: ToolCallBlock, signal: AbortSignal): Promise<{ content: string; isError: boolean }>;
+  run(call: ToolCallBlock, signal: AbortSignal): Promise<ToolRunResult>;
 }
 
 /* ── Streaming ──────────────────────────────────────────────────────────── */
@@ -133,6 +147,8 @@ export type AgentEvent =
       readonly name: string;
       readonly content: string;
       readonly isError: boolean;
+      /** Pictures the tool returned, so the conversation can show what the agent saw. */
+      readonly images?: readonly ImageBlock[];
     }
   | { readonly kind: "turn-end"; readonly reason: StopReason }
   /** The provider declined. Not an error - a normal, reportable outcome. */
