@@ -1,0 +1,280 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ADCode Promo</title>
+<style>
+  @font-face { font-family: "Inter Tight"; src: url(fonts/InterTight.woff2) format("woff2"); font-weight: 100 900; font-display: block; }
+  @font-face { font-family: "JetBrains Mono"; src: url(fonts/JetBrainsMono.woff2) format("woff2"); font-weight: 100 800; font-display: block; }
+  :root {
+    --bg: #050505; --ink: #f5f5f7; --muted: #8b8b92; --line: #1d1d20;
+    --green: #3ad07a; --green-2: #7cf0ad; --red: #ff5f57; --blue: #2f81f7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--bg); overflow: hidden; }
+  #stage {
+    position: relative; width: 1080px; height: 1080px; overflow: hidden;
+    background: var(--bg); color: var(--ink);
+    font-family: "Inter Tight", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .abs { position: absolute; }
+  .center { left: 50%; top: 50%; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+  /* background */
+  #grid {
+    inset: -80px; background-image:
+      linear-gradient(to right, rgba(255,255,255,.055) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,.055) 1px, transparent 1px);
+    background-size: 72px 72px;
+    -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 50%, #000 20%, transparent 75%);
+            mask-image: radial-gradient(ellipse 60% 55% at 50% 50%, #000 20%, transparent 75%);
+  }
+  #glow { width: 900px; height: 900px; border-radius: 50%; filter: blur(90px); }
+  #vignette { inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.65) 100%); }
+  #flash { inset: 0; background: var(--green); opacity: 0; mix-blend-mode: screen; }
+
+  /* chrome: corner labels */
+  .corner { font-size: 20px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+
+  /* scene 1 */
+  #s1 { transform: translate(-50%, -50%); width: 940px; }
+  #s1 .kicker { font-size: 24px; color: var(--green); letter-spacing: .08em; margin-bottom: 28px; }
+  #s1 h1 { font-size: 132px; line-height: .98; font-weight: 800; letter-spacing: -.045em; }
+  #s1 h1 .ch { opacity: 0; }
+  .grad { background: linear-gradient(100deg, var(--green-2), var(--green) 45%, #22b8f0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .caret { display: inline-block; width: 0; position: relative; }
+  .caret::after { content: ""; position: absolute; left: 6px; top: -0.78em; width: 10px; height: .82em; background: var(--green); border-radius: 2px; }
+
+  /* scene 2 */
+  #s2 { transform: translate(-50%, -50%); width: 900px; }
+  .row {
+    position: relative; height: 168px; margin: 18px 0; padding: 0 44px;
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1.5px solid #26262a; border-radius: 28px; background: rgba(18,18,20,.88);
+    overflow: hidden;
+  }
+  .row .name { font-size: 64px; font-weight: 700; letter-spacing: -.035em; display: flex; align-items: center; gap: 22px; }
+  .row .tag { font-size: 34px; font-weight: 600; padding: 14px 24px; border-radius: 999px; letter-spacing: -.01em; white-space: nowrap; }
+  .row .strike { position: absolute; left: 30px; right: 30px; top: 50%; height: 6px; margin-top: -3px; background: var(--ink); border-radius: 3px; transform-origin: left center; transform: scaleX(0); }
+  .row.bad .tag { color: #ff8a84; background: rgba(255,95,87,.12); }
+  .row.meh .tag { color: #c9c9cf; background: rgba(255,255,255,.08); }
+  .row.win { border-color: rgba(58,208,122,.65); background: linear-gradient(100deg, rgba(58,208,122,.16), rgba(18,18,20,.92) 60%); }
+  .row.win .tag { color: #04150b; background: var(--green); }
+  .dot { width: 18px; height: 18px; border-radius: 50%; }
+
+  /* scene 3 */
+  #s3 { transform: translate(-50%, -50%); width: 1000px; text-align: center; }
+  #s3 .big { font-size: 150px; font-weight: 800; letter-spacing: -.05em; line-height: .95; }
+  #s3 .pct { font-size: 300px; font-weight: 800; letter-spacing: -.06em; line-height: 1; margin-top: 30px; color: var(--green); text-shadow: 0 0 80px rgba(58,208,122,.45); font-variant-numeric: tabular-nums; }
+  #s3 .cap { font-size: 38px; color: #c9c9cf; margin-top: 18px; font-weight: 500; letter-spacing: -.01em; }
+  .coin { font-size: 54px; font-weight: 800; color: var(--green); opacity: 0; }
+
+  /* scene 4 */
+  #s4 { transform: translate(-50%, -50%); width: 1000px; text-align: center; }
+  #mark { width: 300px; height: 300px; display: block; margin: 0 auto; overflow: visible; }
+  #mark path { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  #word { font-size: 150px; font-weight: 800; letter-spacing: -.055em; margin-top: 4px; line-height: 1; }
+  #tagline { font-size: 40px; color: #c9c9cf; margin-top: 22px; font-weight: 500; letter-spacing: -.012em; }
+  #url {
+    position: relative; display: inline-flex; align-items: center; gap: 16px; margin-top: 52px;
+    font-size: 40px; padding: 22px 40px; border-radius: 999px; overflow: hidden;
+    color: #04150b; background: var(--green); font-weight: 700; letter-spacing: -.01em;
+    box-shadow: 0 0 0 1px rgba(124,240,173,.6), 0 18px 70px rgba(58,208,122,.35);
+  }
+  #shine { position: absolute; top: -20px; bottom: -20px; width: 120px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent); transform: skewX(-20deg); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="grid" class="abs"></div>
+  <div id="glow" class="abs"></div>
+  <div id="vignette" class="abs"></div>
+
+  <div id="cTL" class="abs corner mono" style="left:56px;top:50px">ADCode</div>
+  <div id="cTR" class="abs corner mono" style="right:56px;top:50px">Free · AI-native</div>
+  <div id="cBL" class="abs corner mono" style="left:56px;bottom:50px">adcode.bluethenics.com</div>
+  <div id="cBR" class="abs corner mono" style="right:56px;bottom:50px"><span id="tc">00:00</span></div>
+
+  <!-- 1: the claim -->
+  <div id="s1" class="abs center">
+    <div class="kicker mono">› new_ide --for ai</div>
+    <h1 id="h1"></h1>
+  </div>
+
+  <!-- 2: the comparison -->
+  <div id="s2" class="abs center">
+    <div class="row bad" id="r1"><div class="name"><span class="dot" style="background:#8b8b92"></span>Cursor</div><div class="tag">You pay it</div><div class="strike"></div></div>
+    <div class="row meh" id="r2"><div class="name"><span class="dot" style="background:#2f81f7"></span>VS Code</div><div class="tag">You pay $0</div><div class="strike"></div></div>
+    <div class="row win" id="r3"><div class="name"><span class="dot" style="background:var(--green);box-shadow:0 0 18px var(--green)"></span>ADCode</div><div class="tag">It pays you</div></div>
+  </div>
+
+  <!-- 3: the payoff -->
+  <div id="coins"></div>
+  <div id="s3" class="abs center">
+    <div class="big">The IDE that<br><span class="grad">pays you.</span></div>
+    <div class="pct mono" id="pct">0%</div>
+    <div class="cap">of ad revenue, credited to you</div>
+  </div>
+
+  <!-- 4: the lockup -->
+  <div id="s4" class="abs center">
+    <svg id="mark" viewBox="100 260 824 504" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+      <path id="mL" pathLength="1" d="M320 348L140 512L320 676" stroke-width="96"/>
+      <path id="mR" pathLength="1" d="M704 348L884 512L704 676" stroke-width="96"/>
+      <path id="mT" pathLength="1" d="M512 296V388" stroke-width="64" stroke="#3ad07a"/>
+      <path id="mB" pathLength="1" d="M512 636V728" stroke-width="64" stroke="#3ad07a"/>
+      <path id="mS" pathLength="1" d="M584 405C563 374 531 356 494 356C446 356 413 383 413 423C413 463 444 484 505 500C569 517 606 541 606 590C606 641 565 671 511 671C466 671 429 651 405 619" stroke-width="92" stroke="#3ad07a"/>
+    </svg>
+    <div id="word">ADCode</div>
+    <div id="tagline">The AI-native IDE. Earn while you code.</div>
+    <div id="url" class="mono"><span>adcode.bluethenics.com</span><span>↗</span><div id="shine" class="abs"></div></div>
+  </div>
+
+  <div id="flash" class="abs"></div>
+</div>
+
+<script>
+const DURATION = 5.0;
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const W = +(params.get("w") || 1080), H = +(params.get("h") || 1080);
+const stage = $("stage");
+stage.style.width = W + "px"; stage.style.height = H + "px";
+
+// --- easing -------------------------------------------------------------
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const p = (t, a, b) => clamp((t - a) / (b - a));
+const outExpo = (x) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x));
+const inExpo = (x) => (x <= 0 ? 0 : Math.pow(2, 10 * x - 10));
+const inOut = (x) => (x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const outBack = (x) => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const lerp = (a, b, x) => a + (b - a) * x;
+function set(el, { x = 0, y = 0, s = 1, r = 0, o = 1, blur = 0, base = "" } = {}) {
+  el.style.transform = `${base} translate(${x}px, ${y}px) scale(${s}) rotate(${r}deg)`;
+  el.style.opacity = o;
+  el.style.filter = blur > .05 ? `blur(${blur}px)` : "none";
+}
+
+// --- scene 1 headline, split into characters ------------------------------
+const lines = [["The IDE", ""], ["designed for ", ""], ["AI.", "grad"]];
+const h1 = $("h1"); const chars = [];
+lines.forEach(([txt, cls], i) => {
+  if (i === 1) h1.appendChild(document.createElement("br"));
+  const wrap = document.createElement("span");
+  for (const c of txt) { const s = document.createElement("span"); s.className = "ch " + cls; s.textContent = c; wrap.appendChild(s); chars.push(s); }
+  h1.appendChild(wrap);
+});
+const caret = document.createElement("span"); caret.className = "caret";
+
+// --- coins for scene 3 ------------------------------------------------------
+const coins = [];
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+for (let i = 0; i < 18; i++) {
+  const c = document.createElement("div"); c.className = "abs coin mono"; c.textContent = "$";
+  $("coins").appendChild(c);
+  coins.push({ el: c, x: rnd() * W, delay: rnd() * .7, speed: 380 + rnd() * 380, size: .5 + rnd() * .9, sway: rnd() * 40 });
+}
+
+// --- the timeline ---------------------------------------------------------
+function seek(t) {
+  // background: a glow that changes colour by scene and drifts
+  const g = $("glow");
+  const greenness = clamp(p(t, 1.5, 2.6));
+  g.style.left = (W / 2 - 450 + Math.sin(t * 1.3) * 120) + "px";
+  g.style.top = (H / 2 - 450 + Math.cos(t * 1.1) * 80) + "px";
+  g.style.background = `radial-gradient(circle, rgba(${lerp(47, 58, greenness)},${lerp(129, 208, greenness)},${lerp(247, 122, greenness)},${lerp(.28, .34, greenness)}), transparent 65%)`;
+  $("grid").style.transform = `translate(${(t * 22) % 72}px, ${(t * 14) % 72}px)`;
+  $("grid").style.opacity = lerp(.6, 1, outExpo(p(t, 0, .6)));
+  const fs = Math.floor(t * 30); $("tc").textContent = `00:0${Math.floor(t)}:${String(fs % 30).padStart(2, "0")}`;
+  ["cTL", "cTR", "cBL", "cBR"].forEach((id, i) => set($(id), { y: (1 - outExpo(p(t, .05 + i * .04, .5 + i * .04))) * (i < 2 ? -20 : 20), o: outExpo(p(t, .05 + i * .04, .5 + i * .04)) * (1 - p(t, 3.9, 4.1)) }));
+
+  // 1 — "The IDE designed for AI." types in, then lifts away (0 → 1.25)
+  const s1 = $("s1");
+  const typed = Math.floor(lerp(0, chars.length, p(t, .08, .62)));
+  chars.forEach((c, i) => {
+    const local = p(t, .08 + i * (.54 / chars.length), .08 + i * (.54 / chars.length) + .1);
+    c.style.opacity = local; c.style.display = "inline-block"; c.style.whiteSpace = "pre";
+    c.style.transform = `translateY(${(1 - outExpo(local)) * 30}px)`;
+  });
+  const after = chars[Math.max(0, typed - 1)];
+  if (after.nextSibling !== caret) after.after(caret);
+  caret.style.opacity = t < .7 ? 1 : (Math.floor(t * 4) % 2 ? 0 : 1);
+  const out1 = inExpo(p(t, 1.06, 1.3));
+  set(s1, { base: "translate(-50%,-50%)", y: out1 * -140, s: 1 + out1 * .06, o: 1 - out1, blur: out1 * 14 });
+  s1.querySelector(".kicker").style.opacity = outExpo(p(t, 0, .25));
+
+  // 2 — Cursor / VS Code / ADCode (1.2 → 2.75)
+  const s2 = $("s2");
+  s2.style.display = t > 1.12 && t < 2.9 ? "block" : "none";
+  [["r1", 1.2], ["r2", 1.32], ["r3", 1.44]].forEach(([id, at], i) => {
+    const k = outExpo(p(t, at, at + .42));
+    const el = $(id);
+    // losing rows dim after their strike-through
+    const strikeAt = i === 0 ? 1.82 : 1.98;
+    const sk = i < 2 ? outExpo(p(t, strikeAt, strikeAt + .22)) : 0;
+    const leave = i < 2 ? inExpo(p(t, 2.42 + i * .05, 2.7 + i * .05)) : 0;
+    const winPop = i === 2 ? outBack(p(t, 2.12, 2.42)) : 0;
+    const winMove = i === 2 ? inOut(p(t, 2.45, 2.82)) : 0;
+    set(el, {
+      x: (1 - k) * 900 + leave * -260,
+      y: leave * 40 + winMove * -186,
+      s: (i === 2 ? 1 + winPop * .06 + winMove * .25 : 1 - sk * .04),
+      o: k * (1 - sk * .55) * (1 - leave) * (i === 2 ? 1 - p(t, 2.66, 2.82) : 1),
+      blur: leave * 8,
+    });
+    if (i < 2) el.querySelector(".strike").style.transform = `scaleX(${sk})`;
+    if (i === 2) el.style.boxShadow = `0 0 ${lerp(0, 90, winPop)}px rgba(58,208,122,${.45 * winPop})`;
+  });
+
+  // flash on the reveal
+  $("flash").style.opacity = .18 * (1 - p(t, 2.72, 3.0)) * (t > 2.72 ? 1 : 0);
+
+  // 3 — "The IDE that pays you." + 0% → 50% (2.72 → 3.95)
+  const s3 = $("s3");
+  const in3 = outExpo(p(t, 2.72, 3.1)), out3 = inExpo(p(t, 3.72, 3.95));
+  s3.style.display = t > 2.68 && t < 4.0 ? "block" : "none";
+  set(s3, { base: "translate(-50%,-50%)", s: lerp(1.18, 1, in3) - out3 * .12, o: in3 * (1 - out3), blur: (1 - in3) * 18 + out3 * 12 });
+  const n = Math.round(50 * outExpo(p(t, 2.82, 3.45)));
+  $("pct").textContent = n + "%";
+  $("pct").style.transform = `scale(${1 + .08 * Math.sin(Math.PI * p(t, 3.4, 3.62))})`;
+  coins.forEach((c) => {
+    const lt = t - 2.86 - c.delay;
+    const vis = lt > 0 && t < 4.0;
+    c.el.style.opacity = vis ? clamp(Math.min(lt * 6, 1) * (1 - p(lt, .55, .95))) * .55 : 0;
+    c.el.style.left = (c.x + Math.sin(lt * 6 + c.sway) * c.sway) + "px";
+    c.el.style.top = (H + 40 - lt * c.speed) + "px";
+    c.el.style.transform = `scale(${c.size})`;
+  });
+
+  // 4 — logo lockup + URL (3.85 → 5.0)
+  const s4 = $("s4");
+  s4.style.display = t > 3.82 ? "block" : "none";
+  const in4 = outExpo(p(t, 3.86, 4.2));
+  set(s4, { base: "translate(-50%,-50%)", s: lerp(.92, 1, in4), o: in4 });
+  const draw = (id, a, b) => { $(id).style.strokeDashoffset = 1 - outExpo(p(t, a, b)); };
+  draw("mL", 3.88, 4.3); draw("mR", 3.88, 4.3); draw("mS", 3.98, 4.45); draw("mT", 4.28, 4.45); draw("mB", 4.28, 4.45);
+  const bk = outExpo(p(t, 3.88, 4.3));
+  $("mL").style.transform = `translateX(${(1 - bk) * 120}px)`;
+  $("mR").style.transform = `translateX(${(1 - bk) * -120}px)`;
+  $("mark").style.filter = `drop-shadow(0 0 ${lerp(0, 26, p(t, 4.3, 4.6))}px rgba(58,208,122,.55))`;
+  set($("word"), { y: (1 - outExpo(p(t, 4.08, 4.45))) * 50, o: outExpo(p(t, 4.08, 4.4)) });
+  set($("tagline"), { y: (1 - outExpo(p(t, 4.2, 4.55))) * 40, o: outExpo(p(t, 4.2, 4.5)) });
+  set($("url"), { y: (1 - outExpo(p(t, 4.3, 4.65))) * 40, s: lerp(.9, 1, outBack(p(t, 4.3, 4.65))), o: outExpo(p(t, 4.3, 4.55)) });
+  $("shine").style.left = lerp(-160, 760, inOut(p(t, 4.55, 4.95))) + "px";
+}
+
+window.seek = seek;
+window.DURATION = DURATION;
+window.ready = document.fonts.ready.then(() => { seek(0); return true; });
+
+// live preview when opened directly: loop the timeline
+if (!params.has("render")) {
+  const t0 = performance.now();
+  const tick = () => { seek(((performance.now() - t0) / 1000) % (DURATION + .6) > DURATION ? DURATION : ((performance.now() - t0) / 1000) % (DURATION + .6)); requestAnimationFrame(tick); };
+  document.fonts.ready.then(tick);
+}
+</script>
+</body>
+</html>
