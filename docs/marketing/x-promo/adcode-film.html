@@ -1,0 +1,391 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ADCode Launch Film</title>
+<style>
+  @font-face { font-family: "Inter Tight"; src: url(fonts/InterTight.woff2) format("woff2"); font-weight: 100 900; font-display: block; }
+  @font-face { font-family: "JetBrains Mono"; src: url(fonts/JetBrainsMono.woff2) format("woff2"); font-weight: 100 800; font-display: block; }
+  :root {
+    --bg: #050506; --ink: #f5f5f7; --muted: #8e8e95; --dim: #5d5d64;
+    --green: #3ad07a; --green-hi: #8ff5bb; --cyan: #3cc9f0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--bg); overflow: hidden; }
+  #stage {
+    position: relative; overflow: hidden; background: var(--bg); color: var(--ink);
+    font-family: "Inter Tight", system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+  .fill { position: absolute; inset: 0; }
+  section { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  .grad {
+    background: linear-gradient(100deg, var(--green-hi) 0%, var(--green) 38%, var(--cyan) 70%, var(--green-hi) 100%);
+    background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+
+  /* atmosphere */
+  #light { position: absolute; width: 1400px; height: 1400px; left: 50%; top: 50%; margin: -700px 0 0 -700px; border-radius: 50%; }
+  #vignette { background: radial-gradient(ellipse 75% 75% at 50% 50%, transparent 50%, rgba(0,0,0,.7) 100%); }
+  #grain { width: 100%; height: 100%; opacity: .042; }
+
+  /* 1 — headline */
+  .hl { font-size: 134px; font-weight: 720; letter-spacing: -.048em; line-height: 1.0; text-align: center; }
+  .w { display: inline-block; overflow: hidden; vertical-align: top; padding: .04em .03em .16em; margin: -.04em -.03em -.16em; }
+  .w > span { display: inline-block; transform-origin: 0 100%; }
+  .gap { display: inline-block; width: .24em; }
+
+  /* 2 — product */
+  #persp { perspective: 2000px; perspective-origin: 50% 40%; }
+  #rig { position: relative; transform-style: preserve-3d; }
+  #win {
+    position: relative; display: flex; flex-direction: column; overflow: hidden;
+    border-radius: 20px; background: #0b0b0d; border: 1px solid #2a2a2f;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.03) inset, 0 60px 160px rgba(0,0,0,.8), 0 0 120px rgba(58,208,122,.10);
+  }
+  .titlebar { height: 46px; display: flex; align-items: center; padding: 0 18px; gap: 9px; border-bottom: 1px solid #1d1d21; background: #0e0e11; flex: none; }
+  .tl { width: 12px; height: 12px; border-radius: 50%; background: #2c2c31; }
+  .tab { margin-left: 20px; height: 30px; display: flex; align-items: center; gap: 9px; padding: 0 14px; border-radius: 8px; background: #17171b; font-size: 15px; color: #d6d6db; border: 1px solid #25252a; }
+  .tab i { width: 8px; height: 8px; border-radius: 2px; background: #3178c6; }
+  .search { margin-left: auto; margin-right: auto; width: 34%; height: 28px; border-radius: 8px; background: #141417; border: 1px solid #222227; color: #66666d; font-size: 14px; display: flex; align-items: center; padding: 0 12px; transform: translateX(-60px); }
+  .body { flex: 1; display: flex; min-height: 0; }
+  .activity { width: 58px; border-right: 1px solid #1a1a1e; display: flex; flex-direction: column; align-items: center; padding-top: 16px; gap: 20px; flex: none; }
+  .ico { width: 22px; height: 22px; border-radius: 6px; border: 2px solid #3a3a40; }
+  .ico.on { border-color: var(--green); background: rgba(58,208,122,.15); }
+  .editor { flex: 1; padding: 22px 0; position: relative; font-size: 19px; line-height: 31px; min-width: 0; }
+  .ln { display: flex; position: relative; white-space: pre; }
+  .ln .no { width: 56px; text-align: right; padding-right: 22px; color: #3c3c43; flex: none; }
+  .ln .code { position: relative; }
+  .ln .ghost { position: absolute; left: 0; top: 0; color: rgba(143,245,187,.55); font-style: italic; }
+  .ln .real { opacity: 0; }
+  #accept { position: absolute; left: 0; right: 0; background: linear-gradient(90deg, rgba(58,208,122,.18), rgba(58,208,122,.04)); border-left: 3px solid var(--green); opacity: 0; }
+  #cursor { position: absolute; width: 2.5px; height: 24px; background: var(--green); box-shadow: 0 0 10px var(--green); }
+  .k { color: #ff7b72; } .s { color: #a5d6ff; } .f { color: #d2a8ff; } .v { color: #ffa657; } .p { color: #e6edf3; } .t { color: #7ee2b8; }
+  .ai { width: 330px; border-left: 1px solid #1a1a1e; background: #0d0d10; padding: 18px; display: flex; flex-direction: column; gap: 14px; flex: none; }
+  .ai-h { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 650; color: #e8e8ec; }
+  .spark { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(135deg, var(--green-hi), var(--green)); }
+  .bubble { font-size: 16px; line-height: 1.45; padding: 12px 14px; border-radius: 14px; }
+  .me { align-self: flex-end; background: #1d1d22; color: #ededf0; border: 1px solid #2a2a30; max-width: 88%; }
+  .bot { background: rgba(58,208,122,.07); border: 1px solid rgba(58,208,122,.22); color: #cfeedd; }
+  .bot code { font-family: "JetBrains Mono", monospace; font-size: 14px; color: var(--green-hi); }
+  .chip { align-self: flex-start; font-size: 14px; font-weight: 650; color: #04150b; background: var(--green); padding: 7px 12px; border-radius: 999px; }
+  .dots { display: flex; gap: 6px; padding: 4px 2px; }
+  .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+  .status { height: 34px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; border-top: 1px solid #1a1a1e; background: #0e0e11; font-size: 13px; color: #6d6d74; }
+  .status b { color: var(--green); font-weight: 600; }
+  #card {
+    position: absolute; width: 360px; padding: 24px; border-radius: 22px;
+    background: linear-gradient(160deg, rgba(30,34,32,.97), rgba(14,15,16,.98));
+    border: 1px solid rgba(143,245,187,.28);
+    box-shadow: 0 40px 100px rgba(0,0,0,.7), 0 0 80px rgba(58,208,122,.18);
+    display: flex; gap: 20px; align-items: center;
+  }
+  #card .ring { width: 104px; height: 104px; position: relative; flex: none; }
+  #card .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  #card .ring span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; font-weight: 750; letter-spacing: -.03em; }
+  #card .lab { font-size: 15px; color: var(--muted); font-weight: 550; letter-spacing: .06em; text-transform: uppercase; }
+  #card .val { font-size: 25px; line-height: 1.15; font-weight: 680; margin-top: 6px; letter-spacing: -.02em; }
+
+  /* 3 — the comparison */
+  .cmp { position: relative; width: 880px; }
+  .mask { overflow: hidden; position: relative; }
+  .l1 { height: 78px; font-size: 58px; font-weight: 600; letter-spacing: -.03em; color: #b9b9c0; }
+  .l1 .it { height: 78px; display: flex; align-items: center; gap: 20px; }
+  .l1 .it i { width: 20px; height: 20px; border-radius: 50%; }
+  .l2 { height: 196px; font-size: 176px; font-weight: 760; letter-spacing: -.055em; }
+  .l2 .it { height: 196px; line-height: 196px; white-space: nowrap; }
+  .sub { font-size: 38px; color: #b9b9c0; font-weight: 500; letter-spacing: -.012em; margin-top: 18px; }
+  .sub b { color: var(--ink); font-weight: 650; }
+  #ring { position: absolute; width: 400px; height: 400px; border-radius: 50%; border: 3px solid var(--green); left: 50%; top: 50%; margin: -200px 0 0 -200px; opacity: 0; }
+
+  /* 4 — end card */
+  .end { display: flex; flex-direction: column; align-items: center; text-align: center; }
+  #mark { width: 228px; height: 140px; overflow: visible; }
+  #mark path { stroke-dasharray: 1 1; }
+  .wm { font-size: 138px; font-weight: 780; letter-spacing: -.058em; line-height: 1; margin-top: 26px; }
+  .tag { font-size: 38px; color: #b9b9c0; font-weight: 500; margin-top: 18px; letter-spacing: -.012em; }
+  #url {
+    position: relative; overflow: hidden; margin-top: 50px; display: inline-flex; align-items: center; gap: 16px;
+    font-size: 36px; font-weight: 600; padding: 22px 38px; border-radius: 999px;
+    color: #f2fff7; background: rgba(58,208,122,.10); border: 1.5px solid rgba(143,245,187,.55);
+    box-shadow: 0 0 60px rgba(58,208,122,.22), inset 0 0 30px rgba(58,208,122,.08);
+  }
+  #url i { width: 12px; height: 12px; border-radius: 50%; background: var(--green); box-shadow: 0 0 14px var(--green); }
+  #shine { position: absolute; top: -30px; bottom: -30px; width: 140px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent); transform: skewX(-22deg); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="light"></div>
+  <div id="cam" class="fill">
+
+    <!-- 1 — headline, word by word -->
+    <section id="s1">
+      <div class="hl" id="hl">
+        <div><span class="w"><span>The</span></span><span class="gap"></span><span class="w"><span>IDE</span></span></div>
+        <div><span class="w"><span>designed</span></span><span class="gap"></span><span class="w"><span>for</span></span><span class="gap"></span><span class="w"><span class="grad" id="ai">AI.</span></span></div>
+      </div>
+    </section>
+
+    <!-- 2 — the product -->
+    <section id="s2"><div id="persp"><div id="rig">
+      <div id="win">
+        <div class="titlebar"><span class="tl"></span><span class="tl"></span><span class="tl"></span>
+          <div class="tab"><i></i>checkout.ts</div>
+          <div class="search">Search · ⌘K</div></div>
+        <div class="body">
+          <div class="activity"><span class="ico"></span><span class="ico on"></span><span class="ico"></span><span class="ico"></span></div>
+          <div class="editor mono" id="editor"><div id="accept"></div><div id="cursor"></div></div>
+          <div class="ai" id="aip">
+            <div class="ai-h"><span class="spark"></span>ADCode AI</div>
+            <div class="bubble me" id="b1">Add Stripe checkout with retries</div>
+            <div class="bubble bot" id="b2"><div class="dots" id="dots"><i></i><i></i><i></i></div><div id="b2t">Added <code>checkout()</code> with retries and typed line items.</div></div>
+            <div class="chip" id="chip">✓ Applied</div>
+          </div>
+        </div>
+        <div class="status mono"><span>main · TypeScript</span><span><b>●</b> Ads on · 50% to you</span></div>
+      </div>
+      <div id="card">
+        <div class="ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="43" fill="none" stroke="#24272a" stroke-width="9"/><circle id="arc" cx="50" cy="50" r="43" fill="none" stroke="#3ad07a" stroke-width="9" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/></svg><span id="pct">0%</span></div>
+        <div><div class="lab">Your share</div><div class="val">of ADCode’s ad revenue</div></div>
+      </div>
+    </div></div></section>
+
+    <!-- 3 — costs / is free / pays -->
+    <section id="s3">
+      <div id="ring"></div>
+      <div class="cmp" id="cmp">
+        <div class="mask l1"><div class="stack" id="st1">
+          <div class="it"><i style="background:#6b6b73"></i>Cursor</div>
+          <div class="it"><i style="background:#2f81f7"></i>VS Code</div>
+          <div class="it" style="color:var(--green-hi)"><i style="background:var(--green);box-shadow:0 0 16px var(--green)"></i>ADCode</div>
+        </div></div>
+        <div class="mask l2"><div class="stack" id="st2">
+          <div class="it">costs you.</div>
+          <div class="it">is free.</div>
+          <div class="it"><span class="grad" id="pays">pays you.</span></div>
+        </div></div>
+        <div class="sub" id="sub"><b>50%</b> of the ad revenue goes to you.</div>
+      </div>
+    </section>
+
+    <!-- 4 — end card -->
+    <section id="s4">
+      <div class="end" id="end">
+        <svg id="mark" viewBox="120 276 784 472" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path id="mL" pathLength="1" d="M320 348L140 512L320 676" stroke="#fff" stroke-width="96"/>
+          <path id="mR" pathLength="1" d="M704 348L884 512L704 676" stroke="#fff" stroke-width="96"/>
+          <path id="mT" pathLength="1" d="M512 296V388" stroke="#3ad07a" stroke-width="64"/>
+          <path id="mB" pathLength="1" d="M512 636V728" stroke="#3ad07a" stroke-width="64"/>
+          <path id="mS" pathLength="1" d="M584 405C563 374 531 356 494 356C446 356 413 383 413 423C413 463 444 484 505 500C569 517 606 541 606 590C606 641 565 671 511 671C466 671 429 651 405 619" stroke="#3ad07a" stroke-width="92"/>
+        </svg>
+        <div class="w wm"><span id="wm">ADCode</span></div>
+        <div class="tag" id="tag">The AI-native IDE that pays you.</div>
+        <div id="url" class="mono"><i></i>adcode.bluethenics.com<div id="shine"></div></div>
+      </div>
+    </section>
+  </div>
+  <div id="vignette" class="fill"></div>
+  <canvas id="grain" class="fill"></canvas>
+</div>
+
+<script>
+const DURATION = 5.0, FPS = 60;
+const $ = (id) => document.getElementById(id);
+const q = new URLSearchParams(location.search);
+const W = +(q.get("w") || 1080), H = +(q.get("h") || 1080);
+const WIDE = W / H > 1.3;
+const stage = $("stage"); stage.style.width = W + "px"; stage.style.height = H + "px";
+
+// ---- motion vocabulary --------------------------------------------------------
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const p = (t, a, b) => clamp((t - a) / (b - a));
+const lerp = (a, b, x) => a + (b - a) * x;
+const oExpo = (x) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x));
+const iExpo = (x) => (x <= 0 ? 0 : Math.pow(2, 10 * x - 10));
+const oQuint = (x) => 1 - Math.pow(1 - x, 5);
+const ioCubic = (x) => (x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const oBack = (x, c = 1.6) => 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2);
+const spring = (x) => (x >= 1 ? 1 : 1 - Math.exp(-7 * x) * Math.cos(9 * x));
+function style(el, tf, o = 1, blur = 0) {
+  el.style.transform = tf; el.style.opacity = o;
+  el.style.filter = blur > .1 ? `blur(${blur.toFixed(2)}px)` : "none";
+}
+const show = (el, on) => { el.style.visibility = on ? "visible" : "hidden"; };
+
+// ---- product: the code that AI writes ----------------------------------------------
+const CODE = [
+  [["k", "import"], ["p", " { stripe } "], ["k", "from"], ["s", " \"./lib/stripe\""], ["p", ";"]],
+  [["k", "import"], ["p", " { withRetry } "], ["k", "from"], ["s", " \"./lib/retry\""], ["p", ";"]],
+  [],
+  [["k", "export async function"], ["f", " checkout"], ["p", "(cart: "], ["t", "Cart"], ["p", ") {"]],
+  [["k", "  const"], ["v", " session"], ["p", " = "], ["k", "await"], ["f", " withRetry"], ["p", "(() =>"]],
+  [["p", "    stripe.checkout.sessions."], ["f", "create"], ["p", "({"]],
+  [["p", "      mode: "], ["s", "\"payment\""], ["p", ","]],
+  [["p", "      line_items: cart.items."], ["f", "map"], ["p", "(toItem),"]],
+  [["p", "      success_url: "], ["s", "`${APP}/thanks`"], ["p", ","]],
+  [["p", "    }),"]],
+  [["p", "  );"]],
+  [["k", "  return"], ["v", " session"], ["p", ".url;"]],
+  [["p", "}"]],
+];
+const GHOST = [4, 5, 6, 7, 8, 9, 10];
+const editor = $("editor"); const lines = [];
+CODE.forEach((toks, i) => {
+  const ln = document.createElement("div"); ln.className = "ln";
+  const txt = toks.map((t) => t[1]).join("");
+  const isG = GHOST.includes(i);
+  ln.innerHTML = `<span class="no">${i + 1}</span><span class="code"><span class="real">${toks.map(([c, s]) => `<span class="${c}">${s.replace(/</g, "&lt;")}</span>`).join("") || " "}</span>${isG ? `<span class="ghost">${txt}</span>` : ""}</span>`;
+  if (!isG) ln.querySelector(".real").style.opacity = 1;
+  editor.appendChild(ln); lines.push({ el: ln, ghost: isG, len: txt.length });
+});
+
+// ---- grain -----------------------------------------------------------------------
+const gc = $("grain"); gc.width = Math.round(W / 2); gc.height = Math.round(H / 2);
+const gx = gc.getContext("2d"); const gimg = gx.createImageData(gc.width, gc.height);
+const GRAIN = q.get("grain") !== "0"; // the renderer adds grain in ffmpeg instead
+if (!GRAIN) gc.style.display = "none";
+function grain(frame) {
+  if (!GRAIN) return;
+  let s = ((frame + 1) * 2654435761) >>> 0; const d = gimg.data;
+  for (let i = 0; i < d.length; i += 4) {
+    s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0;
+    const v = s & 255; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+  }
+  gx.putImageData(gimg, 0, 0);
+}
+
+// ---- layout that depends on aspect -------------------------------------------------
+function layout() {
+  const win = $("win");
+  const ww = WIDE ? 1460 : 960, wh = WIDE ? 760 : 660;
+  win.style.width = ww + "px"; win.style.height = wh + "px";
+  if (!WIDE) $("aip").style.width = "300px";
+  $("card").style.left = (WIDE ? -70 : 18) + "px";
+  $("card").style.top = (wh - (WIDE ? 150 : 120)) + "px";
+  const hl = $("hl").getBoundingClientRect(), ai = $("ai").getBoundingClientRect();
+  $("hl").style.transformOrigin = `${ai.left - hl.left + ai.width * .42}px ${ai.top - hl.top + ai.height * .55}px`;
+  const first = lines[GHOST[0]].el, last = lines[GHOST[GHOST.length - 1]].el;
+  const acc = $("accept");
+  acc.style.top = first.offsetTop + "px"; acc.style.height = (last.offsetTop + last.offsetHeight - first.offsetTop) + "px";
+}
+
+// ---- the timeline (seconds; every cut sits on the 120 BPM eighth-note grid) ----------
+function seek(t) {
+  grain(Math.floor(t * FPS + 1e-6));
+
+  const g = p(t, 1.6, 3.3);
+  const lightO = 0.5 + 0.5 * Math.sin(t * 1.7);
+  $("light").style.background = `radial-gradient(circle, rgba(${lerp(60, 58, g)},${lerp(110, 208, g)},${lerp(255, 122, g)},${lerp(.16, .22, g) + lightO * .03}) 0%, transparent 60%)`;
+  $("light").style.transform = `translate(${Math.sin(t * .9) * 90}px, ${Math.cos(t * .7) * 60}px) scale(${1 + .25 * oExpo(p(t, 3.75, 4.4))})`;
+
+  let sx = 0, sy = 0;
+  for (const [at, amp] of [[3.25, 9], [3.75, 7]]) {
+    const d = t - at; if (d > 0 && d < .35) { const e = Math.exp(-d * 14) * amp; sx += Math.sin(d * 95) * e; sy += Math.cos(d * 77) * e; }
+  }
+  $("cam").style.transform = `translate(${sx}px, ${sy}px)`;
+
+  // 1 ——— "The IDE designed for AI."   0.00 → 1.00
+  const s1on = t < 1.02; show($("s1"), s1on);
+  if (s1on) {
+    const words = $("hl").querySelectorAll(".w > span");
+    const at = [0.0, 0.125, 0.25, 0.375, 0.5];
+    words.forEach((w, i) => {
+      const k = oExpo(p(t, at[i], at[i] + .55));
+      w.style.transform = `translateY(${(1 - k) * 105}%) rotate(${(1 - k) * 7}deg)`;
+    });
+    $("ai").style.backgroundPosition = `${lerp(100, 0, ioCubic(p(t, .5, 1.0)))}% 0`;
+    const z = iExpo(p(t, .78, 1.0));
+    style($("hl"), `scale(${(1 + t * .05) * (1 + z * 7)})`, 1 - p(t, .9, 1.0), z * 6);
+  }
+
+  // 2 ——— product   1.00 → 2.25
+  const s2on = t > .96 && t < 2.3; show($("s2"), s2on);
+  if (s2on) {
+    const land = oQuint(p(t, .98, 1.55));
+    const drift = ioCubic(p(t, 1.0, 2.25));
+    const whip = iExpo(p(t, 2.06, 2.25));
+    $("rig").style.transform =
+      `translate3d(${-whip * W * 1.3}px, ${(1 - land) * 420}px, ${(1 - land) * -600}px) ` +
+      `rotateX(${lerp(42, 12, land) - drift * 4}deg) rotateY(${lerp(-4, -14, land) + drift * 8}deg) rotateZ(${lerp(-6, 0, land)}deg) ` +
+      `scale(${lerp(.9, WIDE ? .96 : .9, land) + drift * .04})`;
+    $("s2").style.opacity = p(t, .98, 1.08);
+    $("s2").style.filter = whip > .02 ? `blur(${whip * 24}px)` : "none";
+
+    const b1 = oExpo(p(t, 1.18, 1.45)); style($("b1"), `translateY(${(1 - b1) * 20}px) scale(${lerp(.92, 1, b1)})`, b1);
+    const b2 = oExpo(p(t, 1.32, 1.6)); style($("b2"), `translateY(${(1 - b2) * 20}px)`, b2);
+    const typing = t < 1.5;
+    $("dots").style.display = typing ? "flex" : "none"; $("b2t").style.display = typing ? "none" : "block";
+    $("dots").querySelectorAll("i").forEach((d, i) => { d.style.opacity = .35 + .65 * Math.max(0, Math.sin(t * 22 - i * 1.1)); });
+    const ch = oBack(p(t, 1.72, 1.95)); style($("chip"), `scale(${lerp(.6, 1, ch)})`, p(t, 1.72, 1.8));
+
+    const gStart = 1.28, gEnd = 1.66, total = GHOST.reduce((a, i) => a + lines[i].len, 0);
+    let budget = p(t, gStart, gEnd) * total, curLine = GHOST[0], curCh = 0;
+    for (const i of GHOST) {
+      const L = lines[i], shown = clamp(budget / L.len), gh = L.el.querySelector(".ghost"), re = L.el.querySelector(".real");
+      gh.style.clipPath = `inset(0 ${100 - shown * 100}% 0 0)`;
+      if (budget > 0) { curLine = i; curCh = Math.min(L.len, Math.max(0, budget)); }
+      budget -= L.len;
+      const acc = p(t, 1.7 + (i - GHOST[0]) * .018, 1.8 + (i - GHOST[0]) * .018);
+      re.style.opacity = acc; gh.style.opacity = 1 - acc;
+    }
+    if (t < gStart) { curLine = 3; curCh = lines[3].len; }
+    const cl = lines[curLine].el, cw = 19 * .6;
+    $("cursor").style.left = (56 + curCh * cw + 1) + "px";
+    $("cursor").style.top = (cl.offsetTop + 3) + "px";
+    $("cursor").style.opacity = t < 1.7 ? 1 : (Math.floor(t * 6) % 2 ? .15 : 1);
+    $("accept").style.opacity = p(t, 1.7, 1.76) * (1 - p(t, 1.8, 2.2));
+
+    const c = spring(p(t, 1.74, 2.2));
+    $("card").style.transform = `translate3d(${(1 - c) * -40}px, ${(1 - c) * 80}px, ${lerp(-60, 170, c)}px) rotateY(${(1 - c) * 20}deg)`;
+    $("card").style.opacity = p(t, 1.74, 1.84);
+    const pc = oExpo(p(t, 1.84, 2.2)) * 50;
+    $("arc").setAttribute("stroke-dasharray", `${pc} 100`);
+    $("pct").textContent = Math.round(pc) + "%";
+  }
+
+  // 3 ——— Cursor costs you. / VS Code is free. / ADCode pays you.   2.25 → 3.75
+  const s3on = t > 2.12 && t < 3.82; show($("s3"), s3on);
+  if (s3on) {
+    const enter = oExpo(p(t, 2.14, 2.5));
+    const out = iExpo(p(t, 3.6, 3.78));
+    style($("cmp"), `translateX(${(1 - enter) * W * .9}px) translateY(${out * -50}px) scale(${1 - out * .06})`,
+      p(t, 2.14, 2.22) * (1 - out), (1 - enter) * 26 + out * 14);
+    const roll = (a) => oExpo(p(t, a, a + .38));
+    const i1 = roll(2.72) + roll(3.22), i2 = roll(2.75) + roll(3.25);
+    $("st1").style.transform = `translateY(${-i1 * 78}px)`;
+    $("st2").style.transform = `translateY(${-i2 * 196}px)`;
+    $("pays").style.backgroundPosition = `${lerp(100, 0, ioCubic(p(t, 3.25, 3.75)))}% 0`;
+    const bloom = t > 3.25 ? Math.exp(-(t - 3.25) * 5) : 0;
+    $("pays").style.filter = `drop-shadow(0 0 ${8 + bloom * 50}px rgba(58,208,122,${.25 + bloom * .45}))`;
+    const sub = oExpo(p(t, 3.34, 3.62)); style($("sub"), `translateY(${(1 - sub) * 26}px)`, sub, (1 - sub) * 6);
+    const r = p(t, 3.25, 3.85); style($("ring"), `translateY(40px) scale(${.3 + oExpo(r) * 2.6})`, (t > 3.25 ? 1 : 0) * (1 - r) * .7);
+  }
+
+  // 4 ——— end card   3.75 → 5.00
+  const s4on = t > 3.68; show($("s4"), s4on);
+  if (s4on) {
+    style($("end"), `scale(${1 + oExpo(p(t, 3.72, 5)) * .035 - (1 - oExpo(p(t, 3.7, 4.1))) * .04})`, p(t, 3.7, 3.8));
+    const br = oExpo(p(t, 3.75, 4.15));
+    $("mL").style.strokeDashoffset = 1 - br; $("mR").style.strokeDashoffset = 1 - br;
+    $("mL").style.transform = `translateX(${(1 - br) * 150}px)`; $("mR").style.transform = `translateX(${(1 - br) * -150}px)`;
+    $("mS").style.strokeDashoffset = 1 - oExpo(p(t, 3.8, 4.22));
+    const tick = oExpo(p(t, 4.02, 4.24)); $("mT").style.strokeDashoffset = 1 - tick; $("mB").style.strokeDashoffset = 1 - tick;
+    $("mark").style.filter = `drop-shadow(0 0 ${lerp(0, 34, oExpo(p(t, 4.0, 4.4)))}px rgba(58,208,122,.5))`;
+    const wm = oExpo(p(t, 3.9, 4.45)); $("wm").style.display = "inline-block";
+    $("wm").style.transform = `translateY(${(1 - wm) * 110}%) rotate(${(1 - wm) * 5}deg)`;
+    const tg = oExpo(p(t, 4.02, 4.45)); style($("tag"), `translateY(${(1 - tg) * 30}px)`, tg, (1 - tg) * 8);
+    const u = oExpo(p(t, 4.12, 4.55)); style($("url"), `translateY(${(1 - u) * 34}px) scale(${lerp(.94, 1, u)})`, u, (1 - u) * 8);
+    $("shine").style.left = lerp(-200, 860, ioCubic(p(t, 4.42, 4.92))) + "px";
+  }
+}
+
+window.seek = seek; window.DURATION = DURATION;
+window.ready = document.fonts.ready.then(() => { layout(); seek(0); return true; });
+if (!q.has("render")) {
+  window.ready.then(() => { const t0 = performance.now(); const tick = () => { const e = ((performance.now() - t0) / 1000) % (DURATION + .8); seek(Math.min(e, DURATION)); requestAnimationFrame(tick); }; tick(); });
+}
+</script>
+</body>
+</html>
