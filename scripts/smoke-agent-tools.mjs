@@ -91,7 +91,9 @@ const endpoint = `http://127.0.0.1:${fake.address().port}/v1`;
 
 /* ── The app ──────────────────────────────────────────────────────────────── */
 
-const env = { ...process.env };
+// A dead backend, as in smoke-first-run.mjs: no check here needs one, and unset it means
+// production, where every run signed up a new anonymous account.
+const env = { ...process.env, ADCODE_AD_SERVER: "http://127.0.0.1:9" };
 delete env.ELECTRON_RUN_AS_NODE;
 const port = Number(process.env.ADCODE_AGENT_SMOKE_PORT ?? 9461);
 const child = spawn(require("electron"), ["apps/desktop", `--remote-debugging-port=${port}`, `--user-data-dir=${userData}`], {

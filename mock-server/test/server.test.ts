@@ -238,3 +238,67 @@ describe("POST /__test__/reset", () => {
     expect((await jsonOf(await get("/v1/config"))).killSwitch).toBe(false);
   });
 });
+
+/*
+ * Firebase Auth, at its emulator's paths, so a smoke run gets a real-shaped anonymous
+ * account without signing one up in production. The wire shapes are Firebase's: sign-up
+ * answers camelCase, the secure-token endpoint answers snake_case.
+ */
+describe("Firebase Auth emulator routes", () => {
+  const signUp = () => post("/identitytoolkit.googleapis.com/v1/accounts:signUp?key=k", { returnSecureToken: true }, {});
+  const refresh = (refreshToken: string) =>
+    fetch(`${server.url}/securetoken.googleapis.com/v1/token?key=k`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshToken)}`,
+    });
+  const lookup = (idToken: string) => post("/identitytoolkit.googleapis.com/v1/accounts:lookup?key=k", { idToken }, {});
+
+  it("signs up an anonymous account with no bearer token, and counts it", async () => {
+    const response = await signUp();
+    expect(response.status).toBe(200);
+
+    const body = await jsonOf(response);
+    expect(body.localId).toHaveLength(28);
+    expect(typeof body.idToken).toBe("string");
+    expect(typeof body.refreshToken).toBe("string");
+    expect(body.expiresIn).toBe("3600");
+    expect(server.signUpCount()).toBe(1);
+  });
+
+  it("refreshes a token it issued, for the same account", async () => {
+    const account = await jsonOf(await signUp());
+
+    const response = await refresh(account.refreshToken);
+    expect(response.status).toBe(200);
+
+    const body = await jsonOf(response);
+    expect(body.user_id).toBe(account.localId);
+    expect(body.refresh_token).toBe(account.refreshToken);
+    expect(body.id_token).not.toBe(account.idToken);
+    expect(server.signUpCount()).toBe(1);
+  });
+
+  it("refuses a refresh token it never issued the way Firebase does", async () => {
+    const response = await refresh("never-issued");
+    expect(response.status).toBe(400);
+    expect((await jsonOf(response)).error.message).toBe("INVALID_REFRESH_TOKEN");
+  });
+
+  it("looks the account up as anonymous: no providers", async () => {
+    const account = await jsonOf(await signUp());
+
+    const body = await jsonOf(await lookup(account.idToken));
+    expect(body.users).toEqual([{ localId: account.localId }]);
+    expect((await lookup("never-issued")).status).toBe(400);
+  });
+
+  it("forgets every account on reset", async () => {
+    const account = await jsonOf(await signUp());
+
+    await fetch(`${server.url}/__test__/reset`, { method: "POST" });
+
+    expect(server.signUpCount()).toBe(0);
+    expect((await refresh(account.refreshToken)).status).toBe(400);
+  });
+});

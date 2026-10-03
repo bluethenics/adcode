@@ -7,6 +7,7 @@
  * Node 24 runs this directly with no build step, so it avoids enums, namespaces, and
  * parameter properties, which type stripping cannot erase.
  */
+import { randomBytes } from "node:crypto";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import type {
@@ -77,6 +78,13 @@ export interface MockServer {
    * refused if all you can see is the last request. Counting is what tells them apart.
    */
   serveCount(): number;
+  /**
+   * How many anonymous accounts the Firebase Auth emulator routes have created.
+   *
+   * A smoke run expects exactly one. Zero means the app still signed up in production; two
+   * means one install became two accounts, which is how 181 of the first 633 happened.
+   */
+  signUpCount(): number;
   /** Fail the next `count` requests with `status`, for backoff tests. */
   failNext(count: number, status: number): void;
   /** Return unparseable bytes for the next `count` requests. */
@@ -93,6 +101,10 @@ interface State {
   seeded: ServedCreative[] | null;
   lastServe: { tags: string[]; themeKind: string } | null;
   serveCount: number;
+  /** Anonymous accounts, by the tokens issued to them. */
+  refreshTokens: Map<string, string>;
+  idTokens: Map<string, string>;
+  signUps: number;
   failures: { remaining: number; status: number };
   corruptions: number;
   hangs: { remaining: number; ms: number };
@@ -107,6 +119,9 @@ function freshState(): State {
     seeded: null,
     lastServe: null,
     serveCount: 0,
+    refreshTokens: new Map(),
+    idTokens: new Map(),
+    signUps: 0,
     failures: { remaining: 0, status: 500 },
     corruptions: 0,
     hangs: { remaining: 0, ms: 0 },
@@ -152,6 +167,14 @@ function send(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(payload);
 }
+
+/** Firebase's error shape, `{ error: { message } }`, which is what the client reads. */
+function refuse(res: ServerResponse, message: string): void {
+  send(res, 400, { error: { code: 400, message } });
+}
+
+/** Random and URL-safe. 21 bytes is 28 characters, the length of a real Firebase uid. */
+const randomToken = (bytes: number): string => randomBytes(bytes).toString("base64url");
 
 function hasBearer(req: IncomingMessage): boolean {
   const header = req.headers.authorization;
@@ -201,6 +224,53 @@ export async function createMockServer(options: { port?: number } = {}): Promise
     if (path.startsWith("/assets/")) {
       res.writeHead(200, { "content-type": "image/png", "cache-control": "max-age=600" });
       res.end(PNG_1X1);
+      return;
+    }
+
+    /*
+     * Firebase Auth, at the paths its emulator uses: `<origin>/identitytoolkit.googleapis.com/...`.
+     *
+     * Only what an anonymous account needs - sign up, refresh, look up. Linking stays
+     * unanswered, because there is no provider here to link to. Outside `/v1/`, so no bearer
+     * token: these are the calls that obtain one.
+     */
+    if (path === "/identitytoolkit.googleapis.com/v1/accounts:signUp" && req.method === "POST") {
+      const uid = randomToken(21);
+      const refreshToken = `mock-refresh-${randomToken(24)}`;
+      const idToken = `mock-id-${randomToken(24)}`;
+      state.signUps += 1;
+      state.refreshTokens.set(refreshToken, uid);
+      state.idTokens.set(idToken, uid);
+      send(res, 200, { idToken, refreshToken, localId: uid, expiresIn: "3600" });
+      return;
+    }
+
+    if (path === "/securetoken.googleapis.com/v1/token" && req.method === "POST") {
+      const form = new URLSearchParams(await readBody(req));
+      const refreshToken = form.get("refresh_token") ?? "";
+      const uid = state.refreshTokens.get(refreshToken);
+      if (form.get("grant_type") !== "refresh_token" || uid === undefined) {
+        refuse(res, "INVALID_REFRESH_TOKEN");
+        return;
+      }
+
+      const idToken = `mock-id-${randomToken(24)}`;
+      state.idTokens.set(idToken, uid);
+      send(res, 200, { id_token: idToken, refresh_token: refreshToken, user_id: uid, expires_in: "3600" });
+      return;
+    }
+
+    if (path === "/identitytoolkit.googleapis.com/v1/accounts:lookup" && req.method === "POST") {
+      const parsed: unknown = JSON.parse((await readBody(req)) || "{}");
+      const idToken = (parsed as Record<string, unknown>)["idToken"];
+      const uid = typeof idToken === "string" ? state.idTokens.get(idToken) : undefined;
+      if (uid === undefined) {
+        refuse(res, "INVALID_ID_TOKEN");
+        return;
+      }
+
+      // No `providerUserInfo`: still anonymous, as every account here is.
+      send(res, 200, { users: [{ localId: uid }] });
       return;
     }
 
@@ -341,9 +411,12 @@ export async function createMockServer(options: { port?: number } = {}): Promise
     publicAssetOrigin,
     assetHost: PUBLIC_ASSET_HOST,
     close: () =>
-      new Promise<void>((resolve, reject) =>
-        server.close((error) => (error ? reject(error) : resolve())),
-      ),
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+        // A client's idle keep-alive sockets would otherwise hold the close open - an app
+        // that has just been killed can leave some behind for a while.
+        server.closeAllConnections();
+      }),
     seed: (creatives) => {
       state.seeded = creatives;
     },
@@ -353,6 +426,7 @@ export async function createMockServer(options: { port?: number } = {}): Promise
     receiptCount: () => state.receipts.size,
     lastServe: () => state.lastServe,
     serveCount: () => state.serveCount,
+    signUpCount: () => state.signUps,
     failNext: (count, status) => {
       state.failures = { remaining: count, status };
     },

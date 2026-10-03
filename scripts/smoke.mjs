@@ -18,6 +18,7 @@ import { join } from "node:path";
 import process from "node:process";
 import { createRequire } from "node:module";
 import { releaseDirectory } from "./release-directory.mjs";
+import { startSmokeBackend } from "./smoke-backend.mjs";
 
 const REPO = process.cwd();
 
@@ -102,8 +103,15 @@ await writeFile(
  * the updater through downloading to "ready" without a network, and Restart to update is
  * recorded instead of quitting. A packaged build ignores it.
  */
+/*
+ * `backend.env` points the ad server and Firebase Auth at the mock, so this run no longer
+ * signs up a production account and counts as a new developer every time it launches.
+ * `accountMadeLocally` below fails if anything goes back to production.
+ */
+const backend = await startSmokeBackend();
 const childEnv = {
   ...process.env,
+  ...backend.env,
   ELECTRON_ENABLE_LOGGING: "1",
   ADCODE_PIN_PROMPT: "1",
   ADCODE_UPDATE_SIMULATE: "1",
@@ -7076,9 +7084,17 @@ await send("Emulation.setDeviceMetricsOverride", {
   mobile: false,
 });
 
+/*
+ * Exactly one anonymous account, and made on the mock. Zero means identity went back to
+ * production; two means one install became two accounts.
+ */
+const signUps = backend.server.signUpCount();
+checks.accountMadeLocally = signUps === 1 ? true : `${signUps} sign-ups reached the mock, expected 1`;
+
 socket.close();
 child.kill();
 await sleep(500);
+await backend.server.close().catch(() => {});
 await rm(SCM_SMOKE_FILE, { force: true }).catch(() => {});
 await rm(userData, { recursive: true, force: true }).catch(() => {});
 

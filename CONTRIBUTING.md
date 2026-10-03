@@ -26,6 +26,10 @@ all, run the mock server and point the editor at it:
 In PowerShell, set the variable first: `$env:ADCODE_AD_SERVER = "http://127.0.0.1:8787"`, then
 `npm start`.
 
+That hides the account button, because there is no Firebase behind the mock. Set
+`ADCODE_AUTH_EMULATOR` to the same address as well and the mock signs you up an anonymous
+account instead, as the smoke scripts do. Firebase's own Auth emulator works there too.
+
 ## Before you open a pull request
 
     npm run verify

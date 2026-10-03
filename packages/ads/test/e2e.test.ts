@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { createMockServer, type MockServer } from "../../../mock-server/src/server.ts";
+import { createFirebaseAuth } from "../src/auth.ts";
 import { createAdClient } from "../src/client.ts";
 import { createAdRenderer } from "../src/renderer.ts";
 import { createAdService } from "../src/adService.ts";
@@ -185,5 +186,32 @@ describe("end to end", () => {
     const body = JSON.parse(serveCall!.body ?? "{}");
     expect(body.tags).toEqual(["fw:next", "lang:typescript", "tool:cargo"]);
     expect(serveCall!.body).not.toMatch(/alice|acme-merger|Users/);
+  });
+});
+
+/*
+ * The real identity client against the mock's Firebase Auth emulator routes - what a smoke
+ * run does instead of signing up a production account on every launch.
+ */
+describe("identity against the mock", () => {
+  it("signs up once, reads back as anonymous, and refreshes onto the same uid", async () => {
+    const clock = new FakeClock();
+    const auth = createFirebaseAuth({
+      http: new BridgingHttpTransport([]),
+      clock,
+      store: new FakeFileStore(),
+      apiKey: "smoke",
+      emulatorOrigin: server.url,
+    });
+
+    expect((await auth.getToken()).ok).toBe(true);
+    const uid = auth.uid();
+    expect(uid).toHaveLength(28);
+    expect(await auth.profile()).toEqual({ ok: true, value: null });
+
+    clock.advance(3_600_000);
+    expect((await auth.getToken()).ok).toBe(true);
+    expect(auth.uid()).toBe(uid);
+    expect(server.signUpCount()).toBe(1);
   });
 });

@@ -100,8 +100,9 @@ export function createBackendTokens(deps: {
 /**
  * The account itself, for linking and profile reads.
  *
- * Null against a dev server or with no Firebase key: there is no real account to link,
- * and the caller should say so rather than offer a button that cannot work.
+ * Null against a dev server with no auth emulator, or with no Firebase key: there is no
+ * real account to link, and the caller should say so rather than offer a button that
+ * cannot work.
  */
 export function backendAccount(deps: {
   http: HttpTransport;
@@ -110,12 +111,19 @@ export function backendAccount(deps: {
 }): FirebaseAuth | null {
   if (shared !== null) return shared;
 
-  // A dev server means the mock, which has no Firebase behind it and nothing to link to.
-  if (process.env["ADCODE_AD_SERVER"] !== undefined) return null;
+  /*
+   * Where identity calls go instead of Google: Firebase's Auth emulator, or the mock server,
+   * which answers the same paths. Smoke runs set it so they stop signing up a production
+   * account every launch - each one showed up as a new developer in /v1/stats.
+   */
+  const emulator = process.env["ADCODE_AUTH_EMULATOR"];
+
+  // A dev server means the mock, which has no Firebase behind it unless an emulator stands in.
+  if (process.env["ADCODE_AD_SERVER"] !== undefined && emulator === undefined) return null;
 
   const apiKey = process.env["ADCODE_FIREBASE_API_KEY"] ?? DEFAULT_FIREBASE_API_KEY;
   if (apiKey.length === 0) return null;
 
-  shared = createFirebaseAuth({ ...deps, apiKey });
+  shared = createFirebaseAuth({ ...deps, apiKey, ...(emulator === undefined ? {} : { emulatorOrigin: emulator }) });
   return shared;
 }

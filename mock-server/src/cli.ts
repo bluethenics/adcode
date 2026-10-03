@@ -14,6 +14,7 @@ process.stdout.write(
     `  api           ${server.url}/v1`,
     `  assets        ${server.assetOrigin}`,
     `  advertised as ${server.publicAssetOrigin}  (allowlist host: ${PUBLIC_ASSET_HOST})`,
+    `  auth          ${server.url}  (set ADCODE_AUTH_EMULATOR to this)`,
     `  reset         POST ${server.url}/__test__/reset`,
     ``,
   ].join("\n"),

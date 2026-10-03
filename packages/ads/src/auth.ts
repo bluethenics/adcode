@@ -128,6 +128,14 @@ export interface FirebaseAuthDeps {
   readonly clock: Clock;
   readonly store: FileStore;
   readonly apiKey: string;
+  /**
+   * Send every identity call here instead of to Google, e.g. `http://127.0.0.1:9099`.
+   *
+   * The paths follow Firebase's own Auth emulator - `<origin>/identitytoolkit.googleapis.com/v1/...`
+   * - so the emulator and the mock server both answer. Without this, every smoke run signed
+   * up a real anonymous account in production and counted as a new developer.
+   */
+  readonly emulatorOrigin?: string;
 }
 
 /**
@@ -205,6 +213,12 @@ export interface FirebaseAuth extends TokenProvider {
 const DEAD_REFRESH_CODES = ["TOKEN_EXPIRED", "INVALID_REFRESH_TOKEN", "USER_NOT_FOUND"];
 
 export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
+  /** An endpoint with the key attached, at Google or at the emulator standing in for it. */
+  const endpoint = (url: string): string => {
+    const at = deps.emulatorOrigin === undefined ? url : `${deps.emulatorOrigin}/${url.slice("https://".length)}`;
+    return `${at}?key=${encodeURIComponent(deps.apiKey)}`;
+  };
+
   let identity: Identity | null = null;
   let cached: CachedToken | null = null;
   let loaded = false;
@@ -268,7 +282,7 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
     try {
       response = await deps.http.request({
         method: "POST",
-        url: `${SIGN_UP_URL}?key=${encodeURIComponent(deps.apiKey)}`,
+        url: endpoint(SIGN_UP_URL),
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ returnSecureToken: true }),
         timeoutMs: AUTH_TIMEOUT_MS,
@@ -314,7 +328,7 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
     try {
       response = await deps.http.request({
         method: "POST",
-        url: `${REFRESH_URL}?key=${encodeURIComponent(deps.apiKey)}`,
+        url: endpoint(REFRESH_URL),
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(identity.refreshToken)}`,
         timeoutMs: AUTH_TIMEOUT_MS,
@@ -438,7 +452,7 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
     try {
       response = await deps.http.request({
         method: "POST",
-        url: `${url}?key=${encodeURIComponent(deps.apiKey)}`,
+        url: endpoint(url),
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ...payload, returnSecureToken: true }),
         timeoutMs: AUTH_TIMEOUT_MS,
@@ -596,7 +610,7 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
       try {
         response = await deps.http.request({
           method: "POST",
-          url: `${LOOKUP_URL}?key=${encodeURIComponent(deps.apiKey)}`,
+          url: endpoint(LOOKUP_URL),
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ idToken: token.value }),
           timeoutMs: AUTH_TIMEOUT_MS,

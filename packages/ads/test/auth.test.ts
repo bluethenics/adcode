@@ -602,3 +602,37 @@ describe("telling a caller when signing in would help", () => {
     expect(linked.error.reason).toBeUndefined();
   });
 });
+
+/* ── An auth emulator ───────────────────────────────────────────────────── */
+
+/*
+ * Smoke runs used to sign up a real anonymous account in production on every launch, and
+ * each one counted as a new developer. Pointed at an emulator, nothing may still reach
+ * Google - including the link calls, which share a different code path from sign-up.
+ */
+describe("an auth emulator", () => {
+  it("receives every identity call, at the paths Firebase's emulator uses", async () => {
+    const http = new FakeHttpTransport([signUpOk(), { json: { users: [{ localId: "uid-1" }] } }, refreshOk(), linkOk()]);
+    const clock = new FakeClock();
+    const auth = createFirebaseAuth({
+      http,
+      clock,
+      store: new FakeFileStore(),
+      apiKey: API_KEY,
+      emulatorOrigin: "http://127.0.0.1:9099",
+    });
+
+    await auth.getToken();
+    await auth.profile();
+    clock.advance(3_600_000);
+    await auth.getToken();
+    await auth.linkGoogle("google-id-token");
+
+    expect(http.calls.map((call) => call.url)).toEqual([
+      `http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`,
+      `http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:lookup?key=${API_KEY}`,
+      `http://127.0.0.1:9099/securetoken.googleapis.com/v1/token?key=${API_KEY}`,
+      `http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${API_KEY}`,
+    ]);
+  });
+});

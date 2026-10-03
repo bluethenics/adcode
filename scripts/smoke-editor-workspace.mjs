@@ -3,6 +3,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { checkPopups } from "./smoke-popups-checks.mjs";
 import { checkAi } from "./smoke-ai-checks.mjs";
 import { checkModes } from "./smoke-workspace-modes.mjs";
+import { startSmokeBackend } from "./smoke-backend.mjs";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -27,7 +28,10 @@ await writeFile(join(userData, "session.json"), JSON.stringify({ state: {
   root: workspace, openFiles: files, activeFile: files[0],
 } }));
 await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: !process.argv.includes("--onboarding"), at: Date.now() }));
-const env = { ...process.env };
+// The mock, not production: the earnings popover reads its rows from the server, and an
+// unset backend signed up a new production account on every run.
+const backend = await startSmokeBackend();
+const env = { ...process.env, ...backend.env };
 delete env.ELECTRON_RUN_AS_NODE;
 const port = Number(process.env.ADCODE_EDITOR_SMOKE_PORT ?? 9347);
 const child = spawn(require("electron"), ["apps/desktop", `--remote-debugging-port=${port}`, `--user-data-dir=${userData}`], {
@@ -278,6 +282,7 @@ try {
   socket?.close();
   child.kill();
   await sleep(700);
+  await backend.server.close().catch(() => {});
   // Only the mkdtemp directory created by this process is removed.
   await rm(scratch, { recursive: true, force: true }).catch(() => {});
 }
