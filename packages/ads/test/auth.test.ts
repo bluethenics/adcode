@@ -68,7 +68,75 @@ describe("anonymous sign-up", () => {
   });
 });
 
+describe("callers that ask at the same moment", () => {
+  /*
+   * Production on 2026-10-03: 181 of 633 accounts were born within five seconds of another
+   * account and never fetched an ad. The ad client, the account screen and the activity
+   * reporter all ask for a token as the app opens; each saw "no identity yet" and signed
+   * up its own. One install, two or three accounts, and a developer count inflated by a
+   * third.
+   */
+  it("signs up ONCE on first launch however many callers ask together", async () => {
+    const { http, auth } = build([signUpOk(), signUpOk("id-other", "refresh-other")]);
+
+    const results = await Promise.all([auth.getToken(), auth.getToken(), auth.getToken()]);
+
+    expect(http.calls).toHaveLength(1);
+    expect(results.every((result) => result.ok && result.value === "id-1")).toBe(true);
+    expect(auth.uid()).toBe("uid-1");
+  });
+
+  it("never signs up on a restart while the saved identity is still being read", async () => {
+    const { clock, store, auth } = build([signUpOk()]);
+    await auth.getToken();
+
+    const http = new FakeHttpTransport([refreshOk(), refreshOk(), signUpOk("id-new", "refresh-new")]);
+    const revived = createFirebaseAuth({ http, clock, store, apiKey: API_KEY });
+
+    const results = await Promise.all([revived.getToken(), revived.getToken()]);
+
+    expect(http.calls).toHaveLength(1);
+    expect(http.calls[0]!.url).toContain("securetoken.googleapis.com");
+    expect(results.every((result) => result.ok)).toBe(true);
+    expect(revived.uid()).toBe("uid-1");
+  });
+});
+
 describe("token refresh", () => {
+  it("keeps the identity through a temporary refresh failure", async () => {
+    // A 503 or a 429 says nothing about whether the account exists. Treating it as "the
+    // identity is gone" handed the person a new account and left their earnings behind.
+    for (const status of [429, 500, 503]) {
+      const { http, clock, auth } = build([
+        signUpOk("id-1", "refresh-1"),
+        { status, json: { error: { message: "UNAVAILABLE" } } },
+        refreshOk("id-2"),
+      ]);
+      await auth.getToken();
+      clock.advance(3_600_000);
+
+      const failed = await auth.getToken();
+      expect(failed.ok).toBe(false);
+      expect(auth.uid()).toBe("uid-1");
+
+      expect(await auth.getToken()).toEqual({ ok: true, value: "id-2" });
+      expect(http.calls.map((call) => call.url.includes("accounts:signUp"))).toEqual([true, false, false]);
+      expect(http.calls[2]!.body).toContain("refresh_token=refresh-1");
+    }
+  });
+
+  it("does not sign a disabled account up again", async () => {
+    const { http, clock, auth } = build([
+      signUpOk("id-1", "refresh-1"),
+      { status: 400, json: { error: { message: "USER_DISABLED" } } },
+    ]);
+    await auth.getToken();
+    clock.advance(3_600_000);
+
+    expect((await auth.getToken()).ok).toBe(false);
+    expect(http.calls).toHaveLength(2);
+  });
+
   it("refreshes before expiry, not at it", async () => {
     const { http, clock, auth } = build([signUpOk("id-1", "refresh-1", "3600"), refreshOk()]);
     await auth.getToken();

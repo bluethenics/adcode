@@ -194,30 +194,76 @@ export interface FirebaseAuth extends TokenProvider {
   profile(): Promise<Result<LinkedProfile | null, AuthError>>;
 }
 
+/**
+ * Refresh refusals that mean the identity really is gone.
+ *
+ * Only these justify signing up again. Anything else - a 429, a 5xx, a code this client has
+ * never seen - says nothing about whether the account exists, and treating it as gone hands
+ * the person a fresh account and leaves their earnings on the old one. `USER_DISABLED` is
+ * not here either: an account switched off server-side must not be replaced by a new one.
+ */
+const DEAD_REFRESH_CODES = ["TOKEN_EXPIRED", "INVALID_REFRESH_TOKEN", "USER_NOT_FOUND"];
+
 export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
   let identity: Identity | null = null;
   let cached: CachedToken | null = null;
   let loaded = false;
+
+  /*
+   * One read of the saved identity and one token request in flight, however many callers
+   * ask at once.
+   *
+   * The ad client, the account screen, the activity reporter and the notice poller all
+   * ask for a token as the app opens. `loaded` used to flip before the read finished, so
+   * the second caller saw no identity and signed up its own - on first launch, one install
+   * became two or three accounts (181 of the first 633), and on a restart it could swap a
+   * returning person onto a brand-new account.
+   */
+  let loading: Promise<void> | null = null;
+  let acquiring: Promise<Result<string, AuthError>> | null = null;
+
+  /**
+   * Bumped whenever the identity is replaced on purpose - a sign-in, a link, a reset - so a
+   * token request that was already in flight cannot write the old account back over it.
+   */
+  let epoch = 0;
 
   async function persist(): Promise<void> {
     if (identity === null) return;
     await deps.store.write(STORE_KEY, new TextEncoder().encode(JSON.stringify(identity)));
   }
 
-  async function load(): Promise<void> {
-    loaded = true;
-    const bytes = await deps.store.read(STORE_KEY);
-    if (bytes === null) return;
+  function load(): Promise<void> {
+    if (loaded) return Promise.resolve();
+    loading ??= (async () => {
+      const startedAt = epoch;
+      const bytes = await deps.store.read(STORE_KEY);
+      // A sign-in or reset decided the identity while the file was being read.
+      if (bytes === null || epoch !== startedAt) return;
 
-    const parsed = readJson(bytes);
-    const uid = parsed?.["uid"];
-    const refreshToken = parsed?.["refreshToken"];
-    if (typeof uid === "string" && typeof refreshToken === "string") {
-      identity = { uid, refreshToken };
-    }
+      const parsed = readJson(bytes);
+      const uid = parsed?.["uid"];
+      const refreshToken = parsed?.["refreshToken"];
+      if (typeof uid === "string" && typeof refreshToken === "string") {
+        identity = { uid, refreshToken };
+      }
+    })().finally(() => {
+      loaded = true;
+      loading = null;
+    });
+    return loading;
+  }
+
+  /** Sign up or refresh, shared by everyone who asks while it is running. */
+  function acquire(): Promise<Result<string, AuthError>> {
+    acquiring ??= (identity === null ? signUp() : refresh()).finally(() => {
+      acquiring = null;
+    });
+    return acquiring;
   }
 
   async function signUp(): Promise<Result<string, AuthError>> {
+    const startedAt = epoch;
     let response;
     try {
       response = await deps.http.request({
@@ -244,6 +290,7 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
     if (typeof idToken !== "string" || typeof refreshToken !== "string" || typeof localId !== "string") {
       return authError("malformed sign-up response");
     }
+    if (epoch !== startedAt) return settledElsewhere();
 
     identity = { uid: localId, refreshToken };
     cached = {
@@ -254,8 +301,14 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
     return ok(idToken);
   }
 
+  /** What a token request returns when a sign-in replaced the identity while it ran. */
+  function settledElsewhere(): Result<string, AuthError> {
+    return cached !== null ? ok(cached.idToken) : authError("the account changed while signing in - try again");
+  }
+
   async function refresh(): Promise<Result<string, AuthError>> {
     if (identity === null) return signUp();
+    const startedAt = epoch;
 
     let response;
     try {
@@ -271,13 +324,19 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
     }
 
     const body = readJson(response.body);
+    if (epoch !== startedAt) return settledElsewhere();
 
-    // A rejected refresh token means the identity is gone server-side. Signing up again
-    // is the only way back, and it is better than leaving the user unable to earn.
     if (response.status < 200 || response.status >= 300) {
-      identity = null;
-      cached = null;
-      return signUp();
+      const code = errorMessage(body, response.status);
+      // A refresh token the service has disowned means the identity is gone server-side.
+      // Signing up again is the only way back, and it is better than leaving the user
+      // unable to earn. Anything else is kept and retried on the next call.
+      if (DEAD_REFRESH_CODES.some((dead) => code.startsWith(dead))) {
+        identity = null;
+        cached = null;
+        return signUp();
+      }
+      return authError(`token refresh failed: ${code}`);
     }
 
     const idToken = body?.["id_token"];
@@ -328,6 +387,7 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
       return false;
     }
 
+    epoch += 1;
     identity = { uid: localId, refreshToken };
     const seconds = typeof expiresIn === "string" ? Number(expiresIn) : 3600;
     cached = {
@@ -340,9 +400,9 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
 
   /** A token for the account as it stands, so a link call can name who is linking. */
   async function currentToken(): Promise<Result<string, AuthError>> {
-    if (!loaded) await load();
+    await load();
     if (cached !== null && deps.clock.now() < cached.expiresAt - REFRESH_SKEW_MS) return ok(cached.idToken);
-    return identity === null ? signUp() : refresh();
+    return acquire();
   }
 
   /**
@@ -482,8 +542,10 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
     url: string,
     payload: Record<string, unknown>,
   ): Promise<Result<LinkedProfile, AuthError>> {
-    // Nothing on disk may overwrite the identity this is about to adopt.
+    // Nothing on disk, and no token request already in flight, may overwrite the identity
+    // this is about to adopt.
     loaded = true;
+    epoch += 1;
 
     const body = await post(url, payload);
     if (!body.ok) return body;
@@ -496,15 +558,7 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
 
     load,
 
-    async getToken(): Promise<Result<string, AuthError>> {
-      if (!loaded) await load();
-
-      if (cached !== null && deps.clock.now() < cached.expiresAt - REFRESH_SKEW_MS) {
-        return ok(cached.idToken);
-      }
-
-      return identity === null ? signUp() : refresh();
-    },
+    getToken: currentToken,
 
     invalidate(): void {
       cached = null;
@@ -576,6 +630,7 @@ export function createFirebaseAuth(deps: FirebaseAuthDeps): FirebaseAuth {
     },
 
     async reset(): Promise<void> {
+      epoch += 1;
       identity = null;
       cached = null;
       loaded = true;
