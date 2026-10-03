@@ -382,13 +382,18 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
         db.from("receipts").select("*", { count: "exact", head: true }).gt("cost_micros", 0),
         db.from("receipts").select("*", { count: "exact", head: true }).gt("cost_micros", 0).eq("outcome", "click"),
         db.from("campaigns").select("*", { count: "exact", head: true }).eq("status", "active"),
-        db.from("users").select("*", { count: "exact", head: true }).eq("status", "active"),
-        db.from("users").select("*", { count: "exact", head: true }).eq("status", "active").gt("created_at", now - 7 * 86_400_000),
       ]);
       for (const result of results) if (result.error) fail("publicStats", result.error);
       const receipts = results[0]!.count ?? 0;
       const clicks = results[1]!.count ?? 0;
-      return { impressions: receipts - clicks, clicks, activeCampaigns: results[2]!.count ?? 0, developers: results[3]!.count ?? 0, developersThisWeek: results[4]!.count ?? 0 };
+      // Developers are accounts that have done something - counted in Postgres
+      // (`developer_counts`) by the same rule as `growth_stats`, because "exists a serve or an
+      // activity day or a milestone" is not a PostgREST head count.
+      const developers = await scalar<{ developers: number; developersThisWeek: number }>(
+        "publicStats",
+        (client) => client.rpc("developer_counts", { p_now: now }),
+      );
+      return { impressions: receipts - clicks, clicks, activeCampaigns: results[2]!.count ?? 0, developers: Number(developers.developers), developersThisWeek: Number(developers.developersThisWeek) };
     },
 
     async growthStats(now): Promise<GrowthStats> {
@@ -632,6 +637,16 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
         p_updated_at: delta.at,
       });
       if (error !== null) fail("addActivity", error);
+    },
+
+    async recordMilestones(uid, items) {
+      // One call for the whole flush. A function rather than an upsert so "first" stays the
+      // earliest and the count adds, whichever of two concurrent flushes lands second.
+      const { error } = await (await lazy()).rpc("record_milestones", {
+        p_uid: uid,
+        p_items: items.map((item) => ({ name: item.name, at: item.at })),
+      });
+      if (error !== null) fail("recordMilestones", error);
     },
 
     async activityForUser(uid, sinceDay): Promise<ActivityDay[]> {

@@ -18,6 +18,12 @@ describe("public network statistics", () => {
     await store.putUser({ uid: "active-developer", status: "active", createdAt: 1 });
     await store.putUser({ uid: "banned-developer", status: "banned", createdAt: 1 });
     await store.putUser({ uid: "new-developer", status: "active", createdAt: NOW - 86_400_000 });
+    // An account that never did anything - the twin a first-launch race used to create - is
+    // not a developer. The others have each been seen at least once.
+    await store.putUser({ uid: "ghost", status: "active", createdAt: NOW - 86_400_000 });
+    await store.addActivity({ uid: "active-developer", at: 2, day: "1970-01-01", manualChars: 1, agentChars: 0, acceptedEdits: 0, rejectedEdits: 0, filesTouched: 0, activeMs: 0, sessions: 1 });
+    await store.recordMilestones("new-developer", [{ name: "welcome_shown", at: NOW - 3_600_000 }]);
+    await store.recordMilestones("banned-developer", [{ name: "welcome_shown", at: NOW - 3_600_000 }]);
     const handler = createFetchHandler({ store, clock: { now: () => NOW }, verifier: { verify: async () => null } });
     const response = await handler(new Request("https://example.test/v1/stats"));
     expect(response.status).toBe(200);

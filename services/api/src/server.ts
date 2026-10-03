@@ -87,6 +87,7 @@ import {
   type Outcome,
 } from "./advertisers.ts";
 import { ACTIVITY_LIMITS, readActivity, recordActivity } from "./activity.ts";
+import { parseMilestones, recordMilestones } from "./milestones.ts";
 import {
   parseActivity,
   parseAdjustment,
@@ -1208,6 +1209,21 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       await recordActivity({ store, clock }, auth.uid, body);
       // No body worth returning: the client is reporting, not asking. `{ ok: true }`
       // rather than 204 so the response parses the same way every other one does.
+      send(res, 200, { ok: true }, cors);
+      return;
+    }
+
+    /* ── First-session milestones ───────────────────────────────────── */
+
+    if (path === "/v1/milestones" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const items = parseMilestones(raw);
+      if (items === null) {
+        send(res, 400, { error: "malformed milestones" }, cors);
+        return;
+      }
+      await recordMilestones({ store, clock }, auth.uid, items);
       send(res, 200, { ok: true }, cors);
       return;
     }

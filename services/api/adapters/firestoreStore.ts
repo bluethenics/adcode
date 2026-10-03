@@ -12,7 +12,7 @@
  */
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../src/ledger.ts";
 import { utcDay } from "../src/day.ts";
-import { summarizeGrowth } from "../src/growth.ts";
+import { countDevelopers, summarizeGrowth, type MilestoneRow } from "../src/growth.ts";
 import {
   decryptDestination,
   encryptDestination,
@@ -197,26 +197,37 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
     async publicStats(now) {
       const database = await lazy();
       // Micros are stored as decimal strings; positive values sort after "0".
-      const [receipts, campaigns, developers, developersThisWeek] = await Promise.all([
+      // Developers are accounts that have done something, the rule `growthStats` uses. This
+      // adapter is not what production runs on (Supabase counts it in SQL), so reading the
+      // uids of every serve, activity day and milestone is an acceptable price here.
+      const [receipts, campaigns, users, serves, activity, milestones] = await Promise.all([
         database.collection("receipts").where("costMicros", ">", "0").select("outcome").get(),
         database.collection("campaigns").where("status", "==", "active").count().get(),
-        database.collection("users").where("status", "==", "active").count().get(),
-        database.collection("users").where("status", "==", "active").where("createdAt", ">", now - 7 * 86_400_000).count().get(),
+        database.collection("users").select("status", "createdAt").get(),
+        database.collection("serves").where("test", "==", false).select("uid").get(),
+        database.collection("activity").select("uid").get(),
+        database.collection("milestones").select("uid").get(),
       ]);
       const clicks = receipts.docs.filter((doc) => doc.data()["outcome"] === "click").length;
-      return { impressions: receipts.size - clicks, clicks, activeCampaigns: campaigns.data().count, developers: developers.data().count, developersThisWeek: developersThisWeek.data().count };
+      const seen = [...serves.docs, ...activity.docs, ...milestones.docs].map((doc) => ({ uid: String(doc.data()["uid"]) }));
+      const developers = countDevelopers(
+        now,
+        users.docs.map((doc) => ({ uid: doc.id, status: doc.data()["status"], createdAt: Number(doc.data()["createdAt"] ?? 0) }) as UserRecord),
+        seen,
+      );
+      return { impressions: receipts.size - clicks, clicks, activeCampaigns: campaigns.data().count, ...developers };
     },
 
     async growthStats(now) {
       const database = await lazy();
-      const since = now - 30 * 86_400_000;
-      // Admin-only and read on demand, so whole-collection reads of users and paid receipts
-      // are acceptable here; serves and activity are bounded to the 30-day window.
-      const [users, serves, receipts, activity] = await Promise.all([
+      // Admin-only and read on demand, so whole-collection reads are acceptable here: "ever
+      // seen" and "came back" reach back to each sign-up, not just the 30-day window.
+      const [users, serves, receipts, activity, milestones] = await Promise.all([
         database.collection("users").select("status", "createdAt").get(),
-        database.collection("serves").where("servedAt", ">", since).select("uid", "servedAt", "test").get(),
+        database.collection("serves").select("uid", "servedAt", "test").get(),
         database.collection("receipts").where("costMicros", ">", "0").select("outcome", "costMicros", "creditedMicros", "createdAt").get(),
-        database.collection("activity").where("day", ">=", utcDay(since)).select("uid", "day").get(),
+        database.collection("activity").select("uid", "day").get(),
+        database.collection("milestones").select("uid", "name", "firstAt", "lastAt").get(),
       ]);
       return summarizeGrowth({
         now,
@@ -229,6 +240,12 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
           createdAt: Number(doc.data()["createdAt"] ?? 0),
         }) as ReceiptRecord),
         activity: activity.docs.map((doc) => ({ uid: String(doc.data()["uid"]), day: String(doc.data()["day"]) })),
+        milestones: milestones.docs.map((doc): MilestoneRow => ({
+          uid: String(doc.data()["uid"]),
+          name: String(doc.data()["name"]),
+          firstAt: Number(doc.data()["firstAt"] ?? 0),
+          lastAt: Number(doc.data()["lastAt"] ?? 0),
+        })),
       });
     },
 
@@ -617,6 +634,27 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
           updatedAt: delta.at,
         });
       });
+    },
+
+    async recordMilestones(uid, items) {
+      const database = await lazy();
+      for (const item of items) {
+        // One document per account per milestone, like the table's primary key, so the
+        // transaction is a single get.
+        const ref = database.collection("milestones").doc(`${uid}_${item.name}`);
+        await database.runTransaction(async (tx) => {
+          const raw = (await tx.get(ref)).data();
+          tx.set(ref, raw === undefined
+            ? { uid, name: item.name, firstAt: item.at, lastAt: item.at, count: 1 }
+            : {
+                uid,
+                name: item.name,
+                firstAt: Math.min(Number(raw["firstAt"] ?? item.at), item.at),
+                lastAt: Math.max(Number(raw["lastAt"] ?? item.at), item.at),
+                count: Number(raw["count"] ?? 0) + 1,
+              });
+        });
+      }
     },
 
     async activityForUser(uid, sinceDay): Promise<ActivityDay[]> {

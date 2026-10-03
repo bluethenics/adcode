@@ -147,28 +147,61 @@ export interface CampaignStats {
 /** One UTC day of the admin growth series. */
 export interface GrowthDay {
   day: string;
-  /** Accounts that fetched ads or reported editor activity that day. */
+  /** Accounts that fetched ads, reported editor activity or reached a milestone that day. */
   active: number;
-  /** Accounts created that day. */
+  /** Of those, accounts at least a day old: people who came back, not that day's arrivals. */
+  returning: number;
+  /** Developers (accounts that did something) created that day. */
   joined: number;
   /** Ads shown and billed that day - not serves, most of which expire unseen. */
   adsShown: number;
 }
 
+/** One week of sign-ups, and how many of them came back. */
+export interface GrowthCohort {
+  /** The first UTC day of the seven. */
+  weekStart: string;
+  /** Developers created that week. */
+  joined: number;
+  /** Of them, seen again at least a day after their account was made. */
+  back1d: number;
+  /** Of them, seen again at least a week after their account was made. */
+  back7d: number;
+}
+
+/** How far the last 30 days' new developers got, milestone by milestone. */
+export interface GrowthFunnel {
+  /** Developers created in the last 30 days: everyone the steps are counted out of. */
+  base: number;
+  /** In the fixed order of `MILESTONES`. */
+  steps: { name: string; accounts: number }[];
+}
+
 /**
  * How many people use ADCode and how many ads it showed - the admin's numbers, with windows.
  *
- * Active means the account fetched ads (the editor prefetches whenever it runs online) or
- * reported a day of editor activity. An ad shown is a billed, non-click receipt: the same
- * rule as `publicStats`, so the two can never disagree about the lifetime total.
+ * Seen means the account fetched ads (the editor prefetches whenever it runs online),
+ * reported editor activity, or reported a first-session milestone. A **developer** is an
+ * account that has been seen at least once; an account that never was is counted in
+ * `accounts` only. Until 2026-10-03 a race in the desktop client created a second and third
+ * anonymous account at first launch that never did anything - 181 of the first 633 - and
+ * counting those as developers overstated the network by about a third.
+ *
+ * An ad shown is a billed, non-click receipt: the same rule as `publicStats`, so the two
+ * can never disagree about the lifetime total.
  */
 export interface GrowthStats {
+  /** Every active-status account, including ones that never did anything. */
+  accounts: number;
   developers: number;
   joined7d: number;
   joined30d: number;
   active1d: number;
   active7d: number;
   active30d: number;
+  /** Active in the window, and at least a day older than the visit that counted. */
+  returning1d: number;
+  returning7d: number;
   adsShown: number;
   adsShown7d: number;
   adsShown30d: number;
@@ -177,6 +210,9 @@ export interface GrowthStats {
   creditedMicros: bigint;
   /** The last 30 UTC days, oldest first, today last. */
   daily: GrowthDay[];
+  /** The last six weeks of sign-ups, oldest first. */
+  cohorts: GrowthCohort[];
+  funnel: GrowthFunnel;
 }
 
 /**
@@ -605,6 +641,12 @@ export interface Store {
   addActivity(delta: ActivityDelta): Promise<void>;
   /** Newest day first, from `sinceDay` ('YYYY-MM-DD') inclusive. */
   activityForUser(uid: string, sinceDay: string): Promise<ActivityDay[]>;
+
+  /**
+   * Keeps the first and last time each named milestone happened, and how often. Concurrent
+   * flushes must both count, and an earlier `at` arriving late still becomes the first.
+   */
+  recordMilestones(uid: string, items: readonly { name: string; at: number }[]): Promise<void>;
 
   /** Appends and updates the derived balance atomically. Throws if the entry id exists. */
   appendEntryAndUpdateBalance(entry: LedgerEntry): Promise<void>;

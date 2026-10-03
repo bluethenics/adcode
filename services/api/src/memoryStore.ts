@@ -7,7 +7,7 @@
  * more permissive than production tests nothing worth testing.
  */
 import { utcDay } from "./day.ts";
-import { summarizeGrowth } from "./growth.ts";
+import { countDevelopers, sightings, summarizeGrowth, type MilestoneRow } from "./growth.ts";
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "./ledger.ts";
 import type {
   ActivityDay,
@@ -74,7 +74,13 @@ export function createMemoryStore(): Store & { reset(): void } {
   let receipts = new Map<string, ReceiptRecord>();
   // Keyed "<uid> <day>", the same grain as the table's composite primary key.
   let activity = new Map<string, ActivityDay>();
+  // Keyed uid NUL name, like the table's composite primary key.
+  let milestones = new Map<string, MilestoneRow>();
   let entries: LedgerEntry[] = [];
+
+  /** Activity rows with their uid. Keyed uid NUL day, as `addActivity` writes them; the uid is not stored on the row. */
+  const activityRows = (): { uid: string; day: string }[] =>
+    [...activity.entries()].map(([key, day]) => ({ uid: key.slice(0, key.indexOf("\u0000")), day: day.day }));
   let balances = new Map<string, Balance>();
   let spend = new Map<string, bigint>();
   let requestCounts = new Map<string, number>();
@@ -106,6 +112,7 @@ export function createMemoryStore(): Store & { reset(): void } {
       serves = new Map();
       receipts = new Map();
       activity = new Map();
+      milestones = new Map();
       entries = [];
       balances = new Map();
       spend = new Map();
@@ -171,8 +178,7 @@ export function createMemoryStore(): Store & { reset(): void } {
       return {
         impressions: paid.length - clicks, clicks, activeCampaigns:
           [...campaigns.values()].filter((campaign) => campaign.status === "active").length,
-        developers: [...users.values()].filter((user) => user.status === "active").length,
-        developersThisWeek: [...users.values()].filter((user) => user.status === "active" && user.createdAt > now - 7 * 86_400_000).length,
+        ...countDevelopers(now, users.values(), sightings({ serves: serves.values(), activity: activityRows(), milestones: milestones.values() })),
       };
     },
 
@@ -182,8 +188,8 @@ export function createMemoryStore(): Store & { reset(): void } {
         users: users.values(),
         serves: serves.values(),
         receipts: receipts.values(),
-        // Keyed "uid day"; the uid is not stored on the row itself.
-        activity: [...activity.entries()].map(([key, day]) => ({ uid: key.slice(0, key.lastIndexOf(" ")), day: day.day })),
+        activity: activityRows(),
+        milestones: milestones.values(),
       });
     },
 
@@ -389,6 +395,16 @@ export function createMemoryStore(): Store & { reset(): void } {
         .filter(([key, day]) => key.startsWith(prefix) && day.day >= sinceDay)
         .map(([, day]) => day)
         .sort((a, b) => b.day.localeCompare(a.day));
+    },
+
+    async recordMilestones(uid, items) {
+      for (const item of items) {
+        const key = `${uid}\u0000${item.name}`;
+        const current = milestones.get(key);
+        milestones.set(key, current === undefined
+          ? { uid, name: item.name, firstAt: item.at, lastAt: item.at }
+          : { uid, name: item.name, firstAt: Math.min(current.firstAt, item.at), lastAt: Math.max(current.lastAt, item.at) });
+      }
     },
 
     async appendEntryAndUpdateBalance(entry) {
