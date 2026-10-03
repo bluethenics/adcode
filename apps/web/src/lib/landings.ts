@@ -157,7 +157,7 @@ export const LANDINGS: readonly Landing[] = [
       },
       {
         q: "Do I need to pay for the AI features in ADCode?",
-        a: "Not to ADCode. The editor supports four AI providers and you supply your own API key, so any cost is the one your provider charges you directly. ADCode adds no markup and imposes no request cap of its own.",
+        a: "Not to ADCode. You can start with a free Google Gemini key - no card - or a model on your own computer, and connect any other provider with your own key, so any cost is the one your provider charges you directly. ADCode adds no markup and imposes no request cap of its own.",
       },
       {
         q: "What is the catch with a free AI code editor?",

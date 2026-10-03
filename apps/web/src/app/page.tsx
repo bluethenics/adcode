@@ -51,7 +51,7 @@ export default function Home() {
         and the promise that follows is what earns the click.
       */}
       <h1>The free AI code editor<br />that pays you to build.</h1>
-      <p>Build your next big idea with AI agents, real terminals and git. Free from the first line, and it pays you half of the ad revenue it earns.</p>
+      <p>Describe your idea and watch it get built - with AI agents, real terminals and git. Free from the first line, with a free AI key in about a minute and no card, and it pays you half of the ad revenue it earns.</p>
       <HeroInstall source="hero" />
       </div><DeveloperCounter /></div>
       <AppShowcase />
@@ -64,7 +64,7 @@ export default function Home() {
       <section className="product-story marketplace-wrap" aria-labelledby="product-story-heading">
       <div className="product-story-heading"><p className="marketplace-eyebrow">THE SPACE TO BUILD</p><h2 id="product-story-heading">Everything you need.<br /><span>Nothing in your way.</span></h2><p>From the first idea to the final commit, make yourself at home in an editor built around your work.</p></div>
       <div className="product-features">
-      <article><span className="feature-symbol" aria-hidden="true">✧</span><span className="feature-number">01 / INTELLIGENCE</span><h3>A second mind.<br />Right beside your code.</h3><p>Work with four AI providers in your editor. Bring your own key and choose the model that fits the task.</p><Link href="/docs">Explore the workspace <span aria-hidden="true">↗</span></Link></article>
+      <article><span className="feature-symbol" aria-hidden="true">✧</span><span className="feature-number">01 / INTELLIGENCE</span><h3>A second mind.<br />Right beside your code.</h3><p>Start free with a Google Gemini key in about a minute, or a model on your own computer. Bring any key you already have - OpenAI, Anthropic, OpenRouter and more - and pick the model that fits the task.</p><Link href="/docs">Explore the workspace <span aria-hidden="true">↗</span></Link></article>
       <article><span className="feature-symbol" aria-hidden="true">⌘</span><span className="feature-number">02 / CRAFT</span><h3>Stay in flow.<br />Ship what matters.</h3><p>Monaco editing, real terminals, and integrated Git. The tools you reach for, together where you need them.</p><Link href="/free-ai-code-editor">Meet your new editor <span aria-hidden="true">↗</span></Link></article>
       <article><span className="feature-symbol" aria-hidden="true">↗</span><span className="feature-number">03 / YOUR SHARE</span><h3>Your attention.<br />Something in return.</h3><p>An occasional sponsored card keeps the editor free. Half of the ad revenue is credited to you, with every event itemized.</p><Link href="/earn-while-you-code">How earnings work <span aria-hidden="true">↗</span></Link></article>
       </div>
