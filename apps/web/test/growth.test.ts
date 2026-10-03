@@ -15,6 +15,33 @@ describe("admin growth numbers", () => {
     expect(growth?.daily).toHaveLength(1);
   });
 
+  it("reads who came back and how far new people got, when the API reports it", () => {
+    const growth = parseGrowth({
+      ...wire,
+      accounts: 633,
+      developers: 419,
+      returning1d: 1,
+      returning7d: 3,
+      daily: [{ day: "2026-10-01", active: 31, returning: 2, joined: 28, adsShown: 20 }],
+      cohorts: [{ weekStart: "2026-09-28", joined: 48, back1d: 1, back7d: 0 }],
+      funnel: { base: 283, steps: [{ name: "welcome_shown", accounts: 0 }, { name: "turn_ok", accounts: 0 }] },
+    });
+    expect(growth?.accounts).toBe(633);
+    expect(growth?.returning7d).toBe(3);
+    expect(growth?.daily[0]?.returning).toBe(2);
+    expect(growth?.cohorts).toEqual([{ weekStart: "2026-09-28", joined: 48, back1d: 1, back7d: 0 }]);
+    expect(growth?.funnel?.base).toBe(283);
+  });
+
+  it("still reads an API deployed before those numbers existed", () => {
+    const growth = parseGrowth(wire);
+    expect(growth?.accounts).toBeNull();
+    expect(growth?.returning7d).toBeNull();
+    expect(growth?.cohorts).toEqual([]);
+    expect(growth?.funnel).toBeNull();
+    expect(growth?.daily[0]?.returning).toBeNull();
+  });
+
   it("refuses anything malformed rather than showing a wrong number", () => {
     expect(parseGrowth({ ...wire, active7d: -1 })).toBeNull();
     expect(parseGrowth({ ...wire, creditedMicros: 226800 })).toBeNull();

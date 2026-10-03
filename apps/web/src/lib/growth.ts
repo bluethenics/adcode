@@ -7,10 +7,46 @@
  */
 import { SITE } from "./site";
 
-export interface GrowthDay { day: string; active: number; joined: number; adsShown: number }
+export interface GrowthDay { day: string; active: number; joined: number; adsShown: number; returning: number | null }
+
+/** One week of sign-ups and how many came back. */
+export interface GrowthCohort { weekStart: string; joined: number; back1d: number; back7d: number }
+
+/** How far the last 30 days' new developers got, step by step. */
+export interface GrowthFunnel { base: number; steps: { name: string; accounts: number }[] }
+
+/**
+ * What each first-session milestone means, in the order a first session goes.
+ *
+ * Names come from the service (`services/api/src/milestones.ts`); a name this list does
+ * not know is still shown, by its raw name, rather than dropped.
+ */
+export const MILESTONE_LABELS: Readonly<Record<string, string>> = {
+  welcome_shown: "Saw the welcome",
+  welcome_done: "Entered an idea or opened a folder",
+  welcome_skipped: "Skipped the welcome",
+  project_created: "Got a new project",
+  folder_opened: "Opened their own folder",
+  ai_needed: "Was asked to connect AI",
+  ai_connected_free: "Connected free Gemini",
+  ai_connected_local: "Connected a local model",
+  ai_connected_key: "Connected their own key",
+  prompt_sent: "Sent a prompt",
+  turn_ok: "Got a working answer",
+  turn_failed: "Hit an AI error",
+  preview_opened: "Saw it running",
+};
 
 export interface Growth {
+  /** Every account, including ones that never did anything. Null from an older API. */
+  accounts: number | null;
+  /** Accounts that did something at least once. */
   developers: number;
+  /** Seen in the window at least a day after sign-up. Null from an older API. */
+  returning1d: number | null;
+  returning7d: number | null;
+  cohorts: GrowthCohort[];
+  funnel: GrowthFunnel | null;
   joined7d: number;
   joined30d: number;
   active1d: number;
@@ -37,12 +73,46 @@ export function parseGrowth(value: unknown): Growth | null {
   const daily: GrowthDay[] = [];
   for (const row of data.daily as unknown[]) {
     if (typeof row !== "object" || row === null) return null;
-    const { day, active, joined, adsShown } = row as Record<string, unknown>;
+    const { day, active, joined, adsShown, returning } = row as Record<string, unknown>;
     if (typeof day !== "string" || !isCount(active) || !isCount(joined) || !isCount(adsShown)) return null;
-    daily.push({ day, active, joined, adsShown });
+    daily.push({ day, active, joined, adsShown, returning: isCount(returning) ? returning : null });
   }
+
+  // Newer fields: read when present and well-formed, absent (null or empty) otherwise, so the
+  // panel keeps working against an API deployed before them.
+  const cohorts: GrowthCohort[] = [];
+  if (Array.isArray(data.cohorts)) {
+    for (const row of data.cohorts as unknown[]) {
+      const { weekStart, joined, back1d, back7d } = (row ?? {}) as Record<string, unknown>;
+      if (typeof weekStart === "string" && isCount(joined) && isCount(back1d) && isCount(back7d)) cohorts.push({ weekStart, joined, back1d, back7d });
+    }
+  }
+  let funnel: GrowthFunnel | null = null;
+  const rawFunnel = data.funnel as Record<string, unknown> | undefined;
+  if (rawFunnel && isCount(rawFunnel.base) && Array.isArray(rawFunnel.steps)) {
+    const steps = (rawFunnel.steps as unknown[]).flatMap((step) => {
+      const { name, accounts } = (step ?? {}) as Record<string, unknown>;
+      return typeof name === "string" && isCount(accounts) ? [{ name, accounts }] : [];
+    });
+    funnel = { base: rawFunnel.base, steps };
+  }
+
   const counts = Object.fromEntries(COUNT_KEYS.map((key) => [key, data[key] as number])) as Record<(typeof COUNT_KEYS)[number], number>;
-  return { ...counts, creditedMicros: BigInt(data.creditedMicros), daily };
+  return {
+    ...counts,
+    accounts: isCount(data.accounts) ? data.accounts : null,
+    returning1d: isCount(data.returning1d) ? data.returning1d : null,
+    returning7d: isCount(data.returning7d) ? data.returning7d : null,
+    cohorts,
+    funnel,
+    creditedMicros: BigInt(data.creditedMicros),
+    daily,
+  };
+}
+
+/** A share of a whole, as a whole percentage, or null when there is nothing to share. */
+export function percent(part: number, whole: number): number | null {
+  return whole > 0 ? Math.round((part / whole) * 100) : null;
 }
 
 /** Dollars from micros, to the cent. Rounds down: never claim a cent that was not paid. */

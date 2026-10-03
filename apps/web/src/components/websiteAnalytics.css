@@ -35,3 +35,12 @@
 .growth-share-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 860px) { .growth-share-body { grid-template-columns: 1fr; } .growth-head { flex-direction: column; } }
 .growth-website-heading { margin: 0 0 14px; font-size: 22px; letter-spacing: -.02em; }
+.growth-cohort-early { color: var(--muted, #999); font-size: 12px; }
+.website-analytics-card td small { color: var(--muted, #999); }
+.growth-funnel { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.growth-funnel li { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(80px, 2fr) 78px; align-items: center; gap: 12px; font-size: 13px; }
+.growth-funnel-bar { height: 8px; border-radius: 999px; background: var(--control, #262626); overflow: hidden; }
+.growth-funnel-bar span { display: block; height: 100%; border-radius: inherit; background: #55c9a2; }
+.growth-funnel-value { text-align: right; font-variant-numeric: tabular-nums; }
+.growth-funnel-value small { color: var(--muted, #999); }
+@media (max-width: 560px) { .growth-funnel li { grid-template-columns: 1fr 70px; } .growth-funnel-bar { grid-column: 1 / -1; grid-row: 2; } }

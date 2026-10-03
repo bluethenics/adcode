@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { TimeChart } from "@/components/charts/TimeChart";
 import { apiFetch } from "@/lib/api";
-import { buildPost, DEFAULT_SHARE, dollars, parseGrowth, SHARE_METRICS, shareLine, xIntentUrl, type Growth, type ShareMetric } from "@/lib/growth";
+import { buildPost, DEFAULT_SHARE, dollars, MILESTONE_LABELS, parseGrowth, percent, SHARE_METRICS, shareLine, xIntentUrl, type Growth, type GrowthFunnel, type ShareMetric } from "@/lib/growth";
 import { SITE } from "@/lib/site";
 
 /**
@@ -55,14 +55,22 @@ export function GrowthPanel() {
 
 function GrowthReport({ growth }: { growth: Growth }) {
   const tiles: [string, string, string][] = [
-    [growth.developers.toLocaleString(), "Developers", `+${growth.joined7d.toLocaleString()} this week · +${growth.joined30d.toLocaleString()} in 30 days`],
+    [
+      growth.developers.toLocaleString(),
+      "Developers",
+      growth.accounts === null
+        ? `+${growth.joined7d.toLocaleString()} this week · +${growth.joined30d.toLocaleString()} in 30 days`
+        : `Did something at least once · ${growth.accounts.toLocaleString()} accounts in all · +${growth.joined7d.toLocaleString()} this week`,
+    ],
     [growth.active1d.toLocaleString(), "Active today", "Opened ADCode in the last 24 hours"],
-    [growth.active7d.toLocaleString(), "Active this week", "Last 7 days"],
+    growth.returning7d === null
+      ? [growth.active7d.toLocaleString(), "Active this week", "Last 7 days"]
+      : [growth.returning7d.toLocaleString(), "Came back this week", `Of ${growth.active7d.toLocaleString()} active - seen again at least a day after joining`],
     [growth.active30d.toLocaleString(), "Active this month", "Last 30 days"],
     [growth.adsShown.toLocaleString(), "Ads shown", `${growth.adsShown7d.toLocaleString()} this week · ${growth.clicks.toLocaleString()} clicks`],
     [dollars(growth.creditedMicros), "Paid to developers", "Credited across every billed view and click"],
   ];
-  const retained = growth.developers > 0 ? Math.round((growth.active7d / growth.developers) * 100) : null;
+  const hasReturning = growth.daily.some((d) => d.returning !== null);
 
   return (
     <>
@@ -71,25 +79,87 @@ function GrowthReport({ growth }: { growth: Growth }) {
           <div className="admin-tile" key={label}><strong>{value}</strong><span>{label}</span><small>{note}</small></div>
         ))}
       </div>
-      {retained !== null && (
-        <p className="website-analytics-note">
-          {retained}% of all accounts opened ADCode this week. Active means the editor fetched an ad or reported a day of work; an ad shown means a sponsored card was seen and billed, not merely fetched.
-        </p>
-      )}
+      <p className="website-analytics-note">
+        A developer is an account that fetched an ad, reported editor activity or reached a first-session milestone at least once; an account that never did is counted only in the total. Came back means seen again at least a day after the account was made - the number that says whether people stay. An ad shown means a sponsored card was seen and billed, not merely fetched.
+      </p>
       <section className="website-analytics-card">
         <h2>Last 30 days</h2>
         <TimeChart
           days={growth.daily.map((d) => d.day)}
           series={[
             { label: "Active developers", color: "#55c9a2", values: growth.daily.map((d) => d.active) },
-            { label: "New accounts", color: "#78a9ff", values: growth.daily.map((d) => d.joined) },
+            ...(hasReturning ? [{ label: "Came back", color: "#c58af9", values: growth.daily.map((d) => d.returning ?? 0) }] : []),
+            { label: "New developers", color: "#78a9ff", values: growth.daily.map((d) => d.joined) },
             { label: "Ads shown", color: "#f3c16c", values: growth.daily.map((d) => d.adsShown) },
           ]}
-          summary={`Over 30 days: ${growth.active30d} active developers, ${growth.joined30d} new accounts, ${growth.adsShown30d} ads shown.`}
+          summary={`Over 30 days: ${growth.active30d} active developers, ${growth.joined30d} new developers, ${growth.adsShown30d} ads shown.`}
         />
       </section>
+      {growth.cohorts.length > 0 && <CohortTable growth={growth} />}
+      {growth.funnel !== null && <FunnelCard funnel={growth.funnel} />}
       <ShareCard growth={growth} />
     </>
+  );
+}
+
+const DAY_MS = 86_400_000;
+
+/** Each week's sign-ups and how many came back, with weeks too recent to judge marked as such. */
+function CohortTable({ growth }: { growth: Growth }) {
+  const cell = (part: number, whole: number, matureAt: number) => {
+    if (growth.asOf < matureAt) return <span className="growth-cohort-early">Too early</span>;
+    const share = percent(part, whole);
+    return <>{part.toLocaleString()}{share === null ? "" : <small> · {share}%</small>}</>;
+  };
+  return (
+    <section className="website-analytics-card" aria-labelledby="growth-cohorts-heading">
+      <h2 id="growth-cohorts-heading">Who came back, by the week they joined</h2>
+      <table>
+        <thead>
+          <tr><th>Week of</th><th>Joined</th><th>Back after a day</th><th>Back after a week</th></tr>
+        </thead>
+        <tbody>
+          {[...growth.cohorts].reverse().map((cohort) => {
+            const end = Date.parse(`${cohort.weekStart}T00:00:00.000Z`) + 7 * DAY_MS;
+            return (
+              <tr key={cohort.weekStart}>
+                <td>{new Date(`${cohort.weekStart}T00:00:00.000Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</td>
+                <td>{cohort.joined.toLocaleString()}</td>
+                <td>{cell(cohort.back1d, cohort.joined, end + DAY_MS)}</td>
+                <td>{cell(cohort.back7d, cohort.joined, end + 7 * DAY_MS)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="website-analytics-note">Back after a day: seen again at least 24 hours after joining. Back after a week: at least 7 days after. A week is marked too early until everybody in it has had that long.</p>
+    </section>
+  );
+}
+
+/** How far the last 30 days' new developers got through a first session. */
+function FunnelCard({ funnel }: { funnel: GrowthFunnel }) {
+  const counted = funnel.steps.some((step) => step.accounts > 0);
+  return (
+    <section className="website-analytics-card" aria-labelledby="growth-funnel-heading">
+      <h2 id="growth-funnel-heading">First session, last 30 days</h2>
+      {!counted && (
+        <p className="website-analytics-note">No milestones yet. They are reported by the desktop release that adds the new welcome and free AI setup; installs before it report none.</p>
+      )}
+      <ol className="growth-funnel">
+        {funnel.steps.map((step) => {
+          const share = percent(step.accounts, funnel.base) ?? 0;
+          return (
+            <li key={step.name}>
+              <span className="growth-funnel-label">{MILESTONE_LABELS[step.name] ?? step.name}</span>
+              <span className="growth-funnel-bar" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
+              <span className="growth-funnel-value">{step.accounts.toLocaleString()} <small>{share}%</small></span>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="website-analytics-note">Out of {funnel.base.toLocaleString()} developers who joined in the last 30 days. Each step counts people who reached it at least once.</p>
+    </section>
   );
 }
 
