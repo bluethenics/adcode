@@ -4,6 +4,8 @@ import {
   installCommand,
   isInstallCommand,
   installRoute,
+  LINUX_DOWNLOADS,
+  MICROSOFT_STORE,
   type Platform,
 } from "../src/lib/platform";
 
@@ -44,26 +46,36 @@ describe("reading the machine", () => {
     expect(detectPlatform("some crawler/1.0")).toBe("unknown");
   });
 
-  it("offers desktop install options on phones and tablets, not commands for their reported OS", () => {
+  it("offers phones and tablets a way to send the link to a computer, not commands for their reported OS", () => {
     for (const ua of [UA.iphone, "Mozilla/5.0 (Linux; Android 14) Mobile", "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)"]) {
       const platform = detectPlatform(ua);
-      expect(installRoute(platform)).toBe("choose");
+      expect(platform).toBe("mobile");
+      expect(installRoute(platform)).toBe("send");
       expect(installCommand(platform, "https://example.com")).toBeNull();
     }
-    expect(detectPlatform(UA.appleSilicon, 5)).toBe("unknown");
+    expect(detectPlatform(UA.appleSilicon, 5)).toBe("mobile");
     expect(detectPlatform(UA.appleSilicon, 0)).toBe("macos");
   });
 });
 
 describe("how each platform should install", () => {
   /*
-   * Every shippable platform installs from a terminal. A browser download of an
-   * unsigned installer earns the SmartScreen dialog and a terminal fetch does not.
+   * Windows installs from the Microsoft Store: its package is signed by Microsoft, so a
+   * browser download raises no SmartScreen dialog. Linux downloads a package directly.
    * macOS cannot ship at all until it is notarised.
    */
-  it("sends Windows and Linux to the terminal", () => {
-    expect(installRoute("windows")).toBe("terminal");
-    expect(installRoute("linux")).toBe("terminal");
+  it("sends Windows to the Microsoft Store and Linux to a direct download", () => {
+    expect(installRoute("windows")).toBe("store");
+    expect(installRoute("linux")).toBe("download");
+  });
+
+  it("points at the real Store listing and the latest Linux release", () => {
+    expect(MICROSOFT_STORE.installerUrl("hero")).toBe("https://get.microsoft.com/installer/download/9MSW2N027GJX?referrer=appbadge&cid=hero");
+    expect(MICROSOFT_STORE.pageUrl).toBe("https://apps.microsoft.com/detail/9MSW2N027GJX");
+    expect(LINUX_DOWNLOADS("bluethenics/adcode")).toEqual({
+      deb: "https://github.com/bluethenics/adcode/releases/latest/download/ADCode-amd64.deb",
+      appImage: "https://github.com/bluethenics/adcode/releases/latest/download/ADCode-x86_64.AppImage",
+    });
   });
 
   it("offers macOS nothing it cannot deliver", () => {
@@ -97,7 +109,7 @@ describe("the command a visitor is asked to paste", () => {
   });
 
   it("offers no command for a platform that has no installer", () => {
-    for (const platform of ["macos", "macos-intel", "unknown"] as Platform[]) {
+    for (const platform of ["macos", "macos-intel", "mobile", "unknown"] as Platform[]) {
       expect(installCommand(platform, origin), platform).toBeNull();
     }
   });

@@ -296,7 +296,7 @@ export const FAQ: readonly { q: string; a: string }[] = [
   },
   {
     q: "What platforms does ADCode run on?",
-    a: "ADCode runs on Windows and Linux; a macOS build is waiting on Apple notarisation. It installs with a single terminal command, and it updates itself automatically when a new version is released.",
+    a: "ADCode runs on Windows and Linux; a macOS build is waiting on Apple notarisation. On Windows it installs from the Microsoft Store in one click; on Linux there is a .deb and an AppImage, or a single terminal command on either. It updates itself when a new version is released.",
   },
 ];
 
@@ -382,10 +382,10 @@ export function installHowTo(
     "@context": "https://schema.org",
     "@type": "HowTo",
     name: `How to install ${SITE.name}`,
-    description: `Install ${SITE.name} on Windows or Linux with a single terminal command.`,
+    description: `Install ${SITE.name} on Windows from the Microsoft Store, or on Linux from a .deb or AppImage.`,
     totalTime: "PT2M",
     supply: [],
-    tool: [{ "@type": "HowToTool", name: "A terminal" }],
+    tool: [{ "@type": "HowToTool", name: "A Windows 10, Windows 11 or x86_64 Linux computer" }],
     step: steps.map((step, index) => ({
       "@type": "HowToStep",
       position: index + 1,

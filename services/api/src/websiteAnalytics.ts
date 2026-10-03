@@ -1,5 +1,5 @@
 /** Website-only telemetry. Never accepts account identifiers or free-form content. */
-export const WEBSITE_EVENTS = ["page_view", "install_copy", "download_click", "advertise_click", "sign_in", "sign_up", "advertiser_created", "campaign_created", "support_sent", "outbound_click", "scroll_50", "scroll_90", "engagement", "js_error", "LCP", "CLS", "INP", "FCP", "TTFB"] as const;
+export const WEBSITE_EVENTS = ["page_view", "install_copy", "download_click", "send_to_desktop", "advertise_click", "sign_in", "sign_up", "advertiser_created", "campaign_created", "support_sent", "outbound_click", "scroll_50", "scroll_90", "engagement", "js_error", "LCP", "CLS", "INP", "FCP", "TTFB"] as const;
 export interface WebsiteEvent {
   id: string; session: string; name: string; path: string;
   source: string; campaign: string; device: string; value: number; receivedAt: number;

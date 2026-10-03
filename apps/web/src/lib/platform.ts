@@ -3,9 +3,9 @@
  *
  * Pure, and separated from the components that use it, because "what does this user
  * agent mean" is the kind of thing that is worth a test rather than a guess repeated
- * twice. Every platform installs from a terminal - there is no file download.
+ * twice.
  */
-export type Platform = "windows" | "macos" | "macos-intel" | "linux" | "unknown";
+export type Platform = "windows" | "macos" | "macos-intel" | "linux" | "mobile" | "unknown";
 
 /**
  * Apple silicon is guessed rather than detected.
@@ -16,7 +16,7 @@ export type Platform = "windows" | "macos" | "macos-intel" | "linux" | "unknown"
  */
 export function detectPlatform(userAgent: string, maxTouchPoints = 0): Platform {
   // Mobile browsers include desktop OS names; iPadOS can even report Macintosh.
-  if (/Android|iPhone|iPad|iPod|Mobile/i.test(userAgent) || (/Macintosh/.test(userAgent) && maxTouchPoints > 1)) return "unknown";
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(userAgent) || (/Macintosh/.test(userAgent) && maxTouchPoints > 1)) return "mobile";
   if (/Win|WOW/.test(userAgent)) return "windows";
   if (/Mac/.test(userAgent)) {
     return /Intel Mac OS X 10_1[0-4]/.test(userAgent) ? "macos-intel" : "macos";
@@ -26,37 +26,64 @@ export function detectPlatform(userAgent: string, maxTouchPoints = 0): Platform 
 }
 
 /**
+ * The Microsoft Store listing.
+ *
+ * The Store build is the one Windows install that is signed - by Microsoft, as part of
+ * certification - so it is the one a browser can download without SmartScreen's "Windows
+ * protected your PC" dialog. `installerUrl` is the Store's own web installer: a small
+ * Microsoft-signed `ADCode Installer.exe` that installs the Store package without opening
+ * the Store app, which is the fewest clicks Windows offers. `cid` tags the source in Partner
+ * Center's acquisition report.
+ */
+export const MICROSOFT_STORE = {
+  productId: "9MSW2N027GJX",
+  installerUrl: (source: string) =>
+    `https://get.microsoft.com/installer/download/9MSW2N027GJX?referrer=appbadge&cid=${encodeURIComponent(source)}`,
+  pageUrl: "https://apps.microsoft.com/detail/9MSW2N027GJX",
+  /** Opens the listing in the Store app, for when the web installer is blocked. */
+  appUrl: "ms-windows-store://pdp/?productid=9MSW2N027GJX",
+} as const;
+
+/**
+ * Direct Linux downloads. `releases/latest/download/<name>` always resolves to the newest
+ * published release, so these never go stale between site deploys.
+ */
+export const LINUX_DOWNLOADS = (repo: string) => ({
+  deb: `https://github.com/${repo}/releases/latest/download/ADCode-amd64.deb`,
+  appImage: `https://github.com/${repo}/releases/latest/download/ADCode-x86_64.AppImage`,
+});
+
+/**
  * How this platform should install, which is not the same question as what it can run.
  *
- * Every shippable platform installs from a terminal. The build is not code-signed, and a
- * *browser* download of an unsigned installer earns the "Windows protected your PC"
- * dialog that hides the Run button behind More info. That dialog fires on the Mark of
- * the Web, a zone tag browsers attach to downloads; `Invoke-WebRequest` does not set it,
- * and the install is per-user so it needs no elevation either. The terminal route is not
- * a workaround for the warning, it is the one that never raises it.
- *
- * - `terminal` - Windows and Linux. The one-line install command for the platform.
+ * - `store` - Windows. One button, the Microsoft Store's signed installer. The terminal
+ *   command stays available for people who prefer it.
+ * - `download` - Linux. The .deb for Debian and Ubuntu, the AppImage for everything else.
  * - `soon` - macOS. Notarisation needs a paid Apple membership and an un-notarised app is
  *   refused rather than warned about, so there is nothing honest to offer yet.
+ * - `send` - a phone or tablet. ADCode is a desktop app; the useful thing to offer someone
+ *   who arrived from a post on their phone is a way to get the link onto their computer.
+ * - `choose` - before hydration, and anything unrecognised: the page that lists every option.
  */
-export type InstallRoute = "terminal" | "soon" | "choose";
+export type InstallRoute = "store" | "download" | "soon" | "send" | "choose";
 
 export function installRoute(platform: Platform): InstallRoute {
   switch (platform) {
     case "windows":
+      return "store";
     case "linux":
-      return "terminal";
+      return "download";
     case "macos":
     case "macos-intel":
       return "soon";
+    case "mobile":
+      return "send";
     default:
-      // Before hydration, and for anything unrecognised: send them to the page that lists
-      // every option rather than guess and be wrong in the most prominent place on the site.
       return "choose";
   }
 }
 
-/** The one-liner for a platform that installs from a terminal, or null if it does not. */
+/** The one-liner for a platform that can install from a terminal, or null if it cannot. */
 export function installCommand(platform: Platform, origin: string): string | null {
   const site = origin.replace(/\/$/, "");
   if (platform === "windows") return `irm ${site}/install.ps1 | iex`;

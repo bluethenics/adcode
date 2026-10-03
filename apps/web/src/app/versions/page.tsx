@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { allReleases } from "@/lib/releases";
 import { GITHUB_REPO, SITE, url } from "@/lib/site";
 import { InstallCommand } from "@/components/InstallCommand";
+import { HeroInstall } from "@/components/HeroInstall";
+import { LINUX_DOWNLOADS, MICROSOFT_STORE } from "@/lib/platform";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { JsonLd } from "@/components/JsonLd";
 import { breadcrumbs, changelog, faqPage, installHowTo } from "@/lib/schema";
@@ -21,18 +23,18 @@ export const metadata: Metadata = pageMetadata({
   title: { absolute: `Download ${SITE.name} for Windows and Linux - free AI code editor` },
   socialTitle: `Download ${SITE.name}`,
   description:
-    "Install ADCode, the free AI code editor, on Windows or Linux with one terminal command. Checksum-verified, and it updates itself. Release notes for every version.",
+    "Download ADCode, the free AI code editor, for Windows from the Microsoft Store or for Linux as a .deb or AppImage. It updates itself. Release notes for every version.",
 });
 
 /** The install, as steps. Printed on the page and serialised as `HowTo` from this one list. */
 const STEPS: readonly { name: string; text: string }[] = [
   {
-    name: "Open a terminal",
-    text: "On Windows open PowerShell - no administrator rights needed. On Linux open any shell.",
+    name: "Download ADCode",
+    text: "On Windows, click Download for Windows to get ADCode Installer.exe from the Microsoft Store. On Linux, download the .deb for Debian and Ubuntu, or the AppImage for any other distribution.",
   },
   {
-    name: "Run the install command",
-    text: `On Windows run: ${WINDOWS_COMMAND}. On Linux run: ${LINUX_COMMAND}. The script downloads the latest release and checks its SHA-256 checksum before running anything.`,
+    name: "Run the installer",
+    text: `On Windows, open ADCode Installer.exe and click Install - no administrator rights needed. On Linux, open the .deb with your software installer, or make the AppImage executable and run it. Prefer a terminal? On Windows run ${WINDOWS_COMMAND}; on Linux run ${LINUX_COMMAND}.`,
   },
   {
     name: "Start ADCode",
@@ -55,12 +57,12 @@ const INSTALL_FAQ: readonly { q: string; a: string }[] = [
     a: "Yes. ADCode is free with no subscription, trial or paid tier. It is funded by an occasional sponsored card in the corner of the editor, and half of that ad revenue is credited to you.",
   },
   {
-    q: "Is the ADCode install command safe to run?",
-    a: "The script is served from this site, and you can read it at /install.ps1 or /install.sh before running it. It downloads the latest published release and refuses to install it unless its SHA-256 checksum matches the one published with it. Windows installers are not code-signed yet, which is why the terminal install is the recommended route.",
+    q: "Is it safe to install ADCode?",
+    a: "On Windows, ADCode installs from the Microsoft Store, which certifies and signs every package it distributes, so Windows installs it without a SmartScreen warning. The terminal commands are served from this site, and you can read them at /install.ps1 or /install.sh first; they refuse to install a release unless its SHA-256 checksum matches the one published with it.",
   },
   {
     q: "How does ADCode update?",
-    a: "ADCode checks for new releases by itself. When an update has downloaded, a Restart to update button appears in the status bar, and it never restarts over unsaved work.",
+    a: "Installed from the Microsoft Store, ADCode is updated by the Store. Installed any other way, it checks for new releases by itself: when an update has downloaded, a Restart to update button appears in the status bar, and it never restarts over unsaved work.",
   },
   {
     q: "When will ADCode be available for macOS?",
@@ -88,12 +90,42 @@ export default async function VersionsPage() {
         <header className="public-glass-hero">
           <span className="glass-kicker">ADCode desktop · free AI code editor</span>
           <h1>Download ADCode</h1>
-          <p>ADCode installs from a terminal with one command on Windows and Linux. It fetches the latest published release, checks it against the checksum published with it, and installs it - no account and nothing to pay.</p>
+          <p>Free, with no account and nothing to pay. Windows installs from the Microsoft Store in one click; Linux has a .deb and an AppImage.</p>
           {latest !== null && <small>Latest release · {latest.version} · <time dateTime={latest.published}>{latest.published}</time></small>}
         </header>
 
+        <section className="glass-card versions-install" aria-label="Download ADCode">
+          <strong>Get ADCode for this computer</strong>
+          <HeroInstall source="versions" advertise={false} />
+        </section>
+
+        <section className="install-terminal glass-card" aria-label="Every download">
+          <div>
+            <strong>Every download</strong>
+            <p>The button above picks the right one for this computer. These are all of them.</p>
+          </div>
+          <dl>
+            <div>
+              <dt>Windows 10 and 11</dt>
+              <dd><a href={MICROSOFT_STORE.installerUrl("versions-list")}>ADCode Installer.exe</a> from the Microsoft Store · <a href={MICROSOFT_STORE.pageUrl} rel="noreferrer">Store page</a></dd>
+            </div>
+            <div>
+              <dt>Linux, Debian and Ubuntu</dt>
+              <dd><a href={LINUX_DOWNLOADS(GITHUB_REPO).deb}>ADCode-amd64.deb</a></dd>
+            </div>
+            <div>
+              <dt>Linux, any distribution</dt>
+              <dd><a href={LINUX_DOWNLOADS(GITHUB_REPO).appImage}>ADCode-x86_64.AppImage</a></dd>
+            </div>
+            <div>
+              <dt>macOS</dt>
+              <dd>Coming soon — notarisation is still pending.</dd>
+            </div>
+          </dl>
+        </section>
+
         {/*
-          The terminal install is the install, not an alternative to one.
+          The terminal install, for people who prefer it.
           A file fetched by Invoke-WebRequest or curl carries no Mark of the Web, so
           Windows SmartScreen does not interpose the "Windows protected your PC" dialog
           that an unsigned installer otherwise earns. Combined with a per-user install,
@@ -102,9 +134,8 @@ export default async function VersionsPage() {
         */}
         <section className="install-terminal glass-card" aria-label="Install from a terminal">
           <div>
-            <strong>Install from a terminal</strong>
-            <p>One command per platform. macOS is not published yet.</p>
-            <p>Windows installers are not code-signed yet. The install command verifies the downloaded file against its published checksum.</p>
+            <strong>Or install from a terminal</strong>
+            <p>One command per platform. Each verifies the download against its published checksum before installing it.</p>
           </div>
           <dl>
             <div>
@@ -122,14 +153,18 @@ export default async function VersionsPage() {
           </dl>
         </section>
 
-        <section className="install-terminal glass-card" aria-label="Remove from a terminal">
+        <section className="install-terminal glass-card" aria-label="Uninstall ADCode">
           <div>
-            <strong>Remove from a terminal</strong>
-            <p>Close ADCode first, then run the command for your installation in an external terminal. Your projects and your account are left alone.</p>
+            <strong>Uninstall ADCode</strong>
+            <p>Close ADCode first, then remove it the way you installed it. Your projects and your account are left alone.</p>
           </div>
           <dl>
             <div>
-              <dt>Windows, in PowerShell</dt>
+              <dt>Windows, from the Microsoft Store</dt>
+              <dd>Settings, Apps, Installed apps, ADCode, Uninstall</dd>
+            </div>
+            <div>
+              <dt>Windows, installed by the command above</dt>
               <dd><code>winget uninstall --name ADCode</code></dd>
             </div>
             <div>
@@ -174,7 +209,7 @@ export default async function VersionsPage() {
         <section className="release-history">
           <div className="release-history-head"><span className="glass-kicker">Release history</span><a href={`https://github.com/${GITHUB_REPO}/releases`} rel="noreferrer">View source releases ↗</a></div>
           {releases.length === 0 ? (
-            <div className="glass-card release-empty"><h2>No published notes yet</h2><p>The install commands above always fetch the latest published release. Release notes will appear here after they are published.</p></div>
+            <div className="glass-card release-empty"><h2>No published notes yet</h2><p>The downloads above always fetch the latest published release. Release notes will appear here after they are published.</p></div>
           ) : releases.map((release, index) => (
             <article className="glass-card release-card" key={`${release.version}-${release.publishedAt}`}>
               <div className="release-meta"><span>{index === 0 ? "Latest" : "Release"}</span><time dateTime={release.published}>{release.published}</time></div>

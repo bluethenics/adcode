@@ -1,5 +1,5 @@
 /** Only this small, explicit event vocabulary can leave the browser. */
-export type WebsiteEventName = "page_view" | "install_copy" | "download_click" | "advertise_click" | "sign_in" | "sign_up" | "advertiser_created" | "campaign_created" | "support_sent" | "outbound_click" | "scroll_50" | "scroll_90" | "engagement" | "js_error" | "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
+export type WebsiteEventName = "page_view" | "install_copy" | "download_click" | "send_to_desktop" | "advertise_click" | "sign_in" | "sign_up" | "advertiser_created" | "campaign_created" | "support_sent" | "outbound_click" | "scroll_50" | "scroll_90" | "engagement" | "js_error" | "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
 export type AnalyticsChoice = "accepted" | "declined";
 const consentKey = "adcode.website-analytics";
 const sessionKey = "adcode.website-session";

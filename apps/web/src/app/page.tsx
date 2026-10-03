@@ -4,6 +4,7 @@ import { LandingBidBuilder } from "@/components/LandingBidBuilder";
 import { DeveloperCounter } from "@/components/DeveloperCounter";
 import { HeroCounter } from "@/components/HeroCounter";
 import { AppShowcase } from "@/components/AppShowcase";
+import { ModeShowcase } from "@/components/ModeShowcase";
 import Link from "next/link";
 import { HomeFaq } from "@/components/HomeFaq";
 import { JsonLd } from "@/components/JsonLd";
@@ -50,15 +51,15 @@ export default function Home() {
         and the promise that follows is what earns the click.
       */}
       <h1>The free AI code editor<br />that pays you to build.</h1>
-      <p>Build your next big idea with AI. Earn while you code. Free from the first line.</p>
-      <p>An IDE that pays you 50% of ad revenue.</p>
-      <HeroInstall />
-      <small>Available for Windows and Linux. macOS coming soon.</small>
+      <p>Build your next big idea with AI agents, real terminals and git. Free from the first line, and it pays you half of the ad revenue it earns.</p>
+      <HeroInstall source="hero" />
       </div><DeveloperCounter /></div>
       <AppShowcase />
       <HeroCounter />
       </div>
       </section>
+
+      <ModeShowcase />
 
       <section className="product-story marketplace-wrap" aria-labelledby="product-story-heading">
       <div className="product-story-heading"><p className="marketplace-eyebrow">THE SPACE TO BUILD</p><h2 id="product-story-heading">Everything you need.<br /><span>Nothing in your way.</span></h2><p>From the first idea to the final commit, make yourself at home in an editor built around your work.</p></div>
@@ -96,7 +97,7 @@ export default function Home() {
       </section>
 
       <HomeFaq />
-      <section className="closing-cta marketplace-wrap"><p className="marketplace-eyebrow">YOUR NEXT CHAPTER</p><h2>Good things start<br />with a line of code.</h2><Link href="/versions" className="marketplace-primary">Get ADCode <span aria-hidden="true">↓</span></Link><p>Free to build. Yours to make.</p></section>
+      <section className="closing-cta marketplace-wrap"><p className="marketplace-eyebrow">YOUR NEXT CHAPTER</p><h2>Good things start<br />with a line of code.</h2><HeroInstall source="closing" advertise={false} /><p>Free to build. Yours to make.</p></section>
       </div>
     );
   }

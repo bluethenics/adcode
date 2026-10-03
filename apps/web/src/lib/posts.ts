@@ -51,18 +51,29 @@ const REVALIDATE_SECONDS = 60;
 const SOURCES: readonly PostSource[] = [
   {
     slug: "installing-adcode",
-    title: "Installing ADCode from a terminal",
+    title: "Installing ADCode",
     description:
-      "One command on Linux or Windows: what it verifies before it runs, where things land, and how to update or remove the editor afterwards.",
+      "One click on Windows from the Microsoft Store, a .deb or AppImage on Linux, or one terminal command on either - and how to update or remove the editor afterwards.",
     published: "2026-08-30",
     surface: "docs",
     section: "Start here",
     order: 0,
     related: ["getting-started-with-adcode"],
     body: `
-ADCode installs from one command. This page is the whole of it: what the command does, where things land, and how to look after the editor afterwards.
+ADCode is free and needs no account. This page is the whole of installing it: the quickest way on each system, the terminal alternative, where things land, and how to look after the editor afterwards.
 
-## The command
+## Windows: the Microsoft Store
+
+On the [download page](/versions), click **Download for Windows**. Your browser downloads \`ADCode Installer.exe\`, a small installer from the Microsoft Store. Open it and click **Install** - the Store downloads ADCode, and keeps it updated from then on.
+
+The Store package is certified and signed by Microsoft, so Windows installs it without a SmartScreen warning. You can also search for ADCode in the Microsoft Store app, or [open its Store page](https://apps.microsoft.com/detail/9MSW2N027GJX).
+
+## Linux: a package
+
+- **Debian and Ubuntu** - download \`ADCode-amd64.deb\` from the [download page](/versions) and open it with your software installer.
+- **Any other distribution** - download \`ADCode-x86_64.AppImage\`, make it executable with \`chmod +x\`, and run it.
+
+## Or one terminal command
 
 **Linux**
 
@@ -72,17 +83,16 @@ ADCode installs from one command. This page is the whole of it: what the command
 
     irm https://adcode.bluethenics.com/install.ps1 | iex
 
-**macOS installs are not available yet.** Windows and Linux install with the commands above - see the [install page](/versions).
+**macOS installs are not available yet.** Windows and Linux install as above - see the [download page](/versions).
 
-## Before installation
-
-The installer checks the download before installing it. If that check fails, nothing is installed and the downloaded file is removed. Windows installation is per-user and does not need administrator access.
+The command checks the download before installing it. If that check fails, nothing is installed and the downloaded file is removed. Windows installation is per-user and does not need administrator access.
 
 ## Where it lands
 
 - **Debian and Ubuntu** - an ordinary package, with \`adcode\` on your PATH.
 - **Other Linux** - the AppImage goes to \`~/.local/bin/adcode\`. If that is not on your PATH the script says so, and how to add it.
-- **Windows** - a per-user install, in the Start menu and on your PATH as \`adcode\`.
+- **Windows, from the Microsoft Store** - in the Start menu, and updated by the Store.
+- **Windows, from the command** - a per-user install, in the Start menu and on your PATH as \`adcode\`.
 
 ## Using it
 
@@ -94,7 +104,7 @@ The editor's Help menu has a Feature Guide listing every feature with what it is
 
 ## Updating
 
-ADCode updates itself. New versions download quietly and apply the next time you start it - it will not restart itself and will not interrupt you to ask.
+Installed from the Microsoft Store, ADCode is updated by the Store. Installed any other way, it updates itself: new versions download quietly and apply the next time you start it - it will not restart itself and will not interrupt you to ask.
 
 To update by hand, run the install command again. To stop automatic updates, turn them off in Settings, Updates.
 
@@ -102,7 +112,7 @@ To update by hand, run the install command again. To stop automatic updates, tur
 
 - **Debian and Ubuntu** - \`sudo apt remove adcode\`
 - **AppImage** - \`rm ~/.local/bin/adcode\`
-- **Windows** - Settings, Apps, Installed apps, ADCode
+- **Windows** - Settings, Apps, Installed apps, ADCode, Uninstall
 
 ## If something goes wrong
 

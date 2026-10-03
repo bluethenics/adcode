@@ -7,6 +7,7 @@
  * more permissive than production tests nothing worth testing.
  */
 import { utcDay } from "./day.ts";
+import { summarizeGrowth } from "./growth.ts";
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "./ledger.ts";
 import type {
   ActivityDay,
@@ -164,14 +165,26 @@ export function createMemoryStore(): Store & { reset(): void } {
         .sort((a, b) => b.createdAt - a.createdAt);
     },
 
-    async publicStats() {
+    async publicStats(now) {
       const paid = [...receipts.values()].filter((receipt) => receipt.costMicros > 0n);
       const clicks = paid.filter((receipt) => receipt.outcome === "click").length;
       return {
         impressions: paid.length - clicks, clicks, activeCampaigns:
           [...campaigns.values()].filter((campaign) => campaign.status === "active").length,
         developers: [...users.values()].filter((user) => user.status === "active").length,
+        developersThisWeek: [...users.values()].filter((user) => user.status === "active" && user.createdAt > now - 7 * 86_400_000).length,
       };
+    },
+
+    async growthStats(now) {
+      return summarizeGrowth({
+        now,
+        users: users.values(),
+        serves: serves.values(),
+        receipts: receipts.values(),
+        // Keyed "uid day"; the uid is not stored on the row itself.
+        activity: [...activity.entries()].map(([key, day]) => ({ uid: key.slice(0, key.lastIndexOf(" ")), day: day.day })),
+      });
     },
 
     async statsForCampaign(campaignId): Promise<CampaignStats> {

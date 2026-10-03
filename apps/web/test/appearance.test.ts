@@ -26,8 +26,8 @@ describe("public counter data", () => {
   });
   it("hides the network section until verified clicks reach 2K", () => {
     expect(PUBLIC_STATS_MIN_VERIFIED_CLICKS).toBe(2000);
-    expect(meetsPublicStatsThreshold({ impressions: 92, clicks: 3, activeCampaigns: 2, developers: 4, asOf: 1 })).toBe(false);
-    expect(meetsPublicStatsThreshold({ impressions: 50000, clicks: 1999, activeCampaigns: 5, developers: 4000, asOf: 1 })).toBe(false);
-    expect(meetsPublicStatsThreshold({ impressions: 50000, clicks: 2000, activeCampaigns: 5, developers: 4123, asOf: 1 })).toBe(true);
+    expect(meetsPublicStatsThreshold({ impressions: 92, clicks: 3, activeCampaigns: 2, developers: 4, developersThisWeek: 0, asOf: 1 })).toBe(false);
+    expect(meetsPublicStatsThreshold({ impressions: 50000, clicks: 1999, activeCampaigns: 5, developers: 4000, developersThisWeek: 0, asOf: 1 })).toBe(false);
+    expect(meetsPublicStatsThreshold({ impressions: 50000, clicks: 2000, activeCampaigns: 5, developers: 4123, developersThisWeek: 0, asOf: 1 })).toBe(true);
   });
 });
