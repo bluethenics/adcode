@@ -188,6 +188,18 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("ai.connect", "Connect")],
     keywords: ["api key", "provider", "model", "local ai", "NVIDIA NIM", "custom endpoint", "connections", "requests per minute", "RPM", "rate limit", "429"],
   },
+  "ai.freeKey": {
+    actions: [command("ai.getFreeKey", "Get a free key")],
+    keywords: ["free", "free ai", "no key", "no api key", "gemini", "google ai studio", "ollama", "local model", "no credit card", "paste key", "which key", "no model connected", "get started"],
+  },
+  "workbench.newProject": {
+    actions: [command("workspace.newProject", "New project")],
+    keywords: ["new project", "create project", "start a project", "build an app", "make a website", "from scratch", "empty folder", "documents", "adcode projects", "idea"],
+  },
+  "workbench.welcome": {
+    actions: [command("onboarding.open", "Show welcome")],
+    keywords: ["welcome", "onboarding", "first launch", "getting started", "tour", "what do you want to build", "start here"],
+  },
   "ai.sessions": {
     actions: [command("ai.toggle", "Open Assistant"), command("ai.newConversation", "New conversation")],
     keywords: ["chat history", "conversation", "memory", "new chat", "ctrl+shift+n", "start over"],

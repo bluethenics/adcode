@@ -21,9 +21,12 @@ import {
 } from "@adcode/ai/connections";
 import type { AiProviderInfo, AiStatus } from "../../shared/api.ts";
 import { pasteText } from "../clipboard.ts";
+import { createQuickConnect, type QuickConnect } from "./quickConnect.ts";
 
 export interface ConnectView {
   readonly element: HTMLElement;
+  /** Show the quick routes on the next open even if a model is already connected. */
+  showQuick(): void;
   shown(): void;
   hidden(): void;
   open(): void;
@@ -180,7 +183,44 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
   connectionStatus.setAttribute("role", "status");
   const catalogueStatus = document.createElement("span");
   footer.append(connectionStatus, catalogueStatus);
-  panel.append(header, steps, progress, lede, toolbar, body, footer);
+  /*
+   * The quick routes, above the full list, while nothing is connected.
+   *
+   * This screen is where the "No model connected" button led, and on a first run it opened
+   * on Anthropic, "needs a key", with thirteen more below it - nothing said free. Somebody
+   * without a key now sees the free route first; the catalogue is still right below.
+   */
+  const quickHost = document.createElement("div");
+  quickHost.className = "connect-quick";
+  quickHost.hidden = true;
+  let quick: QuickConnect | null = null;
+  /** Set by "Get a Free AI Key", which should offer the routes whether or not one is connected. */
+  let forceQuick = false;
+  function paintQuick(connected: boolean): void {
+    const ready = connected && !forceQuick;
+    quickHost.hidden = ready;
+    if (ready) {
+      quick?.dispose();
+      quick = null;
+      quickHost.replaceChildren();
+      return;
+    }
+    if (quick === null) {
+      quick = createQuickConnect({
+        compact: true,
+        onConnected: () => void load(),
+        openAllProviders: () => search.focus(),
+      });
+      const title = document.createElement("h2");
+      title.className = "connect-quick-heading";
+      title.textContent = "Fastest way to start";
+      quickHost.replaceChildren(title, quick.element);
+    } else {
+      quick.refresh();
+    }
+  }
+
+  panel.append(header, steps, progress, lede, quickHost, toolbar, body, footer);
   element.append(panel);
 
   // Detail entrance replays only when the user moves somewhere new - a model
@@ -998,6 +1038,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       selected ??= status.activeProvider;
 
       lede.textContent = "Choose the model your assistant uses. Connect a provider or add your own API endpoint.";
+      paintQuick(status.ready);
 
       renderDetail();
       renderProviders();
@@ -1040,8 +1081,16 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       });
     },
 
+    showQuick(): void {
+      forceQuick = true;
+    },
+
     hidden(): void {
       open = false;
+      forceQuick = false;
+      quick?.dispose();
+      quick = null;
+      quickHost.replaceChildren();
       clearInterval(polling);
       unsubscribeStatus?.();
       unsubscribeStatus = undefined;

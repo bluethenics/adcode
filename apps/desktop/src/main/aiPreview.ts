@@ -11,6 +11,7 @@
  */
 import { CHANNELS, type PreviewStatus } from "../shared/api.ts";
 import { startPreview, previewStatus } from "./preview.ts";
+import { recordMilestone } from "./milestones.ts";
 import { currentWorkspace } from "./workspace.ts";
 import { appendOutput, appendOutputEvent } from "./output.ts";
 import { resolvePreviewPage } from "./agentBrowserModel.ts";
@@ -63,6 +64,7 @@ export async function ensureAiPreview(broadcast: Broadcast): Promise<PreviewStat
   }
   const status = await waitForAddress(ADDRESS_WAIT_MS);
   publish(status);
+  if (status.url !== null) recordMilestone("preview_opened");
   return status;
 }
 

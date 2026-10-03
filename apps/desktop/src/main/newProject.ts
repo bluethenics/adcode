@@ -14,9 +14,14 @@ import { join } from "node:path";
 import { app } from "electron";
 import { projectFolderName } from "../shared/projectName.ts";
 
-/** The parent folder, shown to the person so they know where their work lives. */
+/**
+ * The parent folder, shown to the person so they know where their work lives.
+ *
+ * `ADCODE_PROJECTS_HOME` moves it, for the smoke runs: a check that walks the first run
+ * must not leave folders in the Documents of whoever ran it.
+ */
 export function projectsHome(): string {
-  return join(app.getPath("documents"), "ADCode Projects");
+  return process.env["ADCODE_PROJECTS_HOME"] ?? join(app.getPath("documents"), "ADCode Projects");
 }
 
 /** Creates the folder and returns its absolute path. Never reuses an existing folder. */

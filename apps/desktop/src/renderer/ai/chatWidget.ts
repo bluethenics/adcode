@@ -96,6 +96,8 @@ import {
   aiAutomationTargets,
   onAiAutomationTargetsChanged,
 } from "./automationHost.ts";
+import { createQuickConnect, type QuickConnect } from "./quickConnect.ts";
+import { firstBuildPrompt, looksLikeBuildRequest } from "../../shared/firstBuild.ts";
 
 export interface ChatWidget {
   readonly element: HTMLElement;
@@ -201,6 +203,12 @@ export interface ChatWidgetDeps {
   readonly openTools?: () => void;
   /** Open Settings at one setting - the meter's "Auto-compact settings". */
   readonly openSettings?: (settingId: string) => void;
+  /**
+   * Make a project folder for an idea and open it. Used when somebody asks for something
+   * to be built with no folder open: they have an idea, not a folder, and should not be
+   * sent to find one. Resolves true once the new folder is the open one.
+   */
+  readonly createProjectFor?: (idea: string) => Promise<boolean>;
 }
 
 export function dispatchChatSend(
@@ -344,9 +352,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   queueLabel.hidden = true;
   let statusTimer: number | null = null;
   let statusRefreshInFlight = false;
-  async function refreshModelStatus(): Promise<void> {
-    // Guard overlapping 2s polls: a slow status read must never stack up and
-    // flicker the pill. The pill keeps its last good value while refreshing.
+  let statusRefreshing: Promise<void> | null = null;
+  /**
+   * Guard overlapping 2s polls: a slow status read must never stack up and flicker the
+   * pill. A caller that arrives mid-read gets that read, not an early return - a send
+   * deciding whether a model is ready needs the answer, not the last good guess.
+   */
+  function refreshModelStatus(): Promise<void> {
+    statusRefreshing ??= readModelStatus().finally(() => { statusRefreshing = null; });
+    return statusRefreshing;
+  }
+  async function readModelStatus(): Promise<void> {
     if (statusRefreshInFlight) return;
     statusRefreshInFlight = true;
     try {
@@ -369,9 +385,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       setupStatus.dataset["state"] = status.ready ? "ready" : "idle";
       modelReady = status.ready;
       paintSetup();
+      // A message that waited for a model goes as soon as one is ready, wherever it was
+      // connected from - the card in the chat, the Connect screen, or the welcome.
+      if (status.ready && waitingForModel !== null) {
+        const waiting = waitingForModel;
+        waitingForModel = null;
+        if (input.value.trim() === waiting.trim()) queueMicrotask(() => submit());
+      }
       const setupLabel = status.ready
         ? `Connected: ${active?.displayName ?? status.activeProvider} — you're set.`
-        : "Not connected yet — it takes about a minute.";
+        : "Not connected yet - the free option takes about a minute, no card.";
       if (setupStatus.textContent !== setupLabel) setupStatus.textContent = setupLabel;
       const queued = formatConnectionQueue(status.connections ?? [], Date.now());
       if (queueLabel.textContent !== queued) queueLabel.textContent = queued;
@@ -1796,9 +1819,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const setupAsk = document.createElement("button");
   setupAsk.type = "button";
   setupAsk.className = "ghost-button chat-setup-action";
-  setupAsk.textContent = "2 · Ask your first question";
+  setupAsk.textContent = "2 · Describe what to build";
   setupAsk.addEventListener("click", () => {
-    input.value = "What can you do with my project? ";
     input.focus();
     autogrowComposer();
   });
@@ -1807,68 +1829,91 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   setupHint.textContent = "Write below, Enter sends";
   setupAskItem.append(setupAsk, setupHint);
 
+  /*
+   * Opening a folder is a side door, not step one.
+   *
+   * It used to lead the list - "1 · Open a project folder" - which asked people who arrived
+   * with an idea to go and find a folder first. With no folder open, a request to build
+   * something now makes its own project; this is for people who already have one.
+   */
   const setupFolderItem = document.createElement("li");
   setupFolderItem.className = "chat-setup-step chat-setup-folder";
   const setupFolder = document.createElement("button");
   setupFolder.type = "button";
-  setupFolder.className = "chat-send chat-setup-action";
-  setupFolder.textContent = "Open a project folder";
+  setupFolder.className = "ghost-button chat-setup-action";
+  setupFolder.textContent = "Open an existing folder";
   setupFolder.addEventListener("click", () => deps.switchFolder?.());
   const setupFolderHint = document.createElement("span");
   setupFolderHint.className = "chat-setup-status";
-  setupFolderHint.textContent = "Conversations, tasks and changes stay with the folder.";
+  setupFolderHint.textContent = "Optional - with none open, ADCode makes a project for what you describe.";
   setupFolderItem.append(setupFolder, setupFolderHint);
 
-  setupSteps.append(setupFolderItem, setupConnectItem, setupAskItem);
+  setupSteps.append(setupConnectItem, setupAskItem, setupFolderItem);
   /*
    * Which steps are still to do. Vibe shows the list only while something is missing -
-   * a returning user with a folder and a model should see the prompt, not a checklist -
-   * and the step numbers follow whatever is actually left.
+   * a returning user with a folder and a model should see the prompt, not a checklist.
+   * Connecting comes first because it is the one thing that blocks everything else.
    */
   let modelReady: boolean | null = null;
   function paintSetup(): void {
     const hasFolder = currentFolderRoot !== null;
     setupFolderItem.hidden = hasFolder;
+    setupConnectItem.hidden = modelReady === true && !hasFolder;
     setupConnectItem.dataset["done"] = String(modelReady === true);
     setupSteps.dataset["needed"] = String(!hasFolder || modelReady === false);
-    setupConnect.textContent = `${hasFolder ? "1" : "2"} · Connect a model`;
-    // One primary button: the next thing to do. Connecting waits behind opening a folder.
-    setupConnect.className = `${hasFolder ? "chat-send" : "ghost-button"} chat-setup-action`;
-    setupAsk.textContent = `${hasFolder ? "2" : "3"} · Ask your first question`;
-    setupFolder.textContent = "1 · Open a project folder";
+    setupConnect.textContent = modelReady === true ? "1 · AI connected" : "1 · Connect your AI - free";
+    setupConnect.className = `${modelReady === true ? "ghost-button" : "chat-send"} chat-setup-action`;
+    setupAsk.textContent = hasFolder ? "2 · Ask for a change" : "2 · Describe what to build";
+    setupAsk.className = `${modelReady === true ? "chat-send" : "ghost-button"} chat-setup-action`;
     welcomeText.textContent = hasFolder
       ? "What can I help you build or change in this project?"
-      : "Open a project folder to build with its files, or ask a general question.";
+      : "What do you want to build? Describe it below - ADCode makes the project, writes the code and shows it running.";
+    paintStarters(hasFolder);
   }
-  paintSetup();
   const quickActions = document.createElement("div");
   quickActions.className = "chat-quick-actions";
   // A starter that ends in ": " waits for the user's words; a complete one sends at once.
   // Each one heads for a result - none of them is a review step.
-  const starters: ReadonlyArray<{ label: string; hint: string; prompt?: string; run?: () => void }> = [
+  type Starter = { label: string; hint: string; prompt?: string; run?: () => void };
+  const projectStarters: readonly Starter[] = [
     { label: "Explain this project", hint: "A tour of the codebase", prompt: "Give me a short tour of this project: what it does, how the code is organised, how to run it, and where a newcomer should start reading." },
     { label: "Build something", hint: "Describe it - ADCode builds it", prompt: "Build this in my project, then run it and check that it works: " },
     { label: "Fix an error", hint: "Paste it or name the file", prompt: "Find the root cause of this error and fix it, then verify the fix: " },
     { label: "Plan new idea", hint: "Scope it before building", prompt: "Plan this idea for my project. Identify the files, risks, and a way to verify the result: " },
     { label: "Multitask", hint: "Set up an AI team", run: () => api.openTeamSetup() },
   ];
-  for (const starter of starters) {
-    const action = document.createElement("button");
-    action.type = "button";
-    action.className = "chat-quick-action";
-    action.textContent = starter.label;
-    const hint = document.createElement("small");
-    hint.textContent = starter.hint;
-    action.append(hint);
-    action.addEventListener("click", () => {
-      if (starter.run) { starter.run(); return; }
-      input.value = starter.prompt ?? "";
-      autogrowComposer();
-      input.focus();
-      if (!input.value.endsWith(": ")) submit();
-    });
-    quickActions.append(action);
+  // With no folder open, the starters are things to build: each one makes its own project.
+  const ideaStarters: readonly Starter[] = [
+    { label: "Landing page", hint: "For a business or an idea", prompt: "Build a landing page for my small business, with a hero section, services, testimonials and a contact form." },
+    { label: "Snake game", hint: "Plays in the browser", prompt: "Build a snake game in the browser with a score, a high score and a restart button." },
+    { label: "To-do app", hint: "Saved in the browser", prompt: "Build a to-do app where I can add, tick off and delete tasks, saved in the browser." },
+    { label: "Portfolio", hint: "About, projects, contact", prompt: "Build a personal portfolio site with an about section, my projects and a way to contact me." },
+    { label: "Something else", hint: "Describe it - ADCode builds it", prompt: "Build this, then open it in the preview: " },
+  ];
+  let startersFor: boolean | null = null;
+  function paintStarters(hasFolder: boolean): void {
+    if (startersFor === hasFolder) return;
+    startersFor = hasFolder;
+    quickActions.replaceChildren();
+    for (const starter of hasFolder ? projectStarters : ideaStarters) {
+      const action = document.createElement("button");
+      action.type = "button";
+      action.className = "chat-quick-action";
+      action.textContent = starter.label;
+      const hint = document.createElement("small");
+      hint.textContent = starter.hint;
+      action.append(hint);
+      action.addEventListener("click", () => {
+        if (starter.run) { starter.run(); return; }
+        input.value = starter.prompt ?? "";
+        autogrowComposer();
+        input.focus();
+        if (!input.value.endsWith(": ")) submit();
+      });
+      quickActions.append(action);
+    }
   }
+  paintSetup();
   welcome.append(welcomeTitle, welcomeText, setupSteps);
   const refreshWelcome = (): void => {
     const empty = transcript.childElementCount === 0;
@@ -2080,22 +2125,50 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    * collapse: one assistant bubble explaining the miss, with a button that
    * opens Connect. Deduped so retries cannot stack the same card.
    */
-  function connectNudge(): void {    const last = transcript.lastElementChild;
+  /*
+   * What was typed before a model was connected. It is sent the moment one is, so
+   * connecting is the last step rather than the start of a new one.
+   */
+  let waitingForModel: string | null = null;
+  let nudgeConnect: QuickConnect | null = null;
+  /** Set when making a project for a message failed, so the retry sends instead of looping. */
+  let skipProjectOnce = false;
+  /** Set while a send re-asks whether a model is ready, so it asks once and not forever. */
+  let readyRechecked = false;
+
+  /**
+   * The answer to a prompt sent with no model: the ways to connect one, right here.
+   *
+   * It used to be a sentence and a button to the full Connect screen - fourteen providers,
+   * every one marked "needs a key". This is the quick panel instead, led by a free key,
+   * and the prompt goes as soon as something answers.
+   */
+  function connectNudge(pending: string | null = null): void {
+    if (pending !== null) waitingForModel = pending;
+    const last = transcript.lastElementChild;
     if (last instanceof HTMLElement && last.dataset["nudge"] === "connect") {
+      nudgeConnect?.refresh();
       scrollToEnd();
       return;
     }
+    nudgeConnect?.dispose();
     const element = bubble(
       "assistant",
-      "No answer came back — the assistant has no working model connection right now. Connecting takes about a minute.",
+      pending === null
+        ? "I need an AI model to work with. The free option takes about a minute and needs no card:"
+        : "Ready when you are - I just need an AI model first. The free option takes about a minute and needs no card. Your message is waiting below and sends itself once one is connected.",
     );
     element.dataset["nudge"] = "connect";
-    const action = document.createElement("button");
-    action.type = "button";
-    action.className = "chat-send chat-nudge-action";
-    action.textContent = "Connect a model";
-    action.addEventListener("click", () => deps.openConnect());
-    element.append(action);
+    nudgeConnect = createQuickConnect({
+      compact: true,
+      openAllProviders: () => deps.openConnect(),
+      // The refresh sends a waiting message itself, if the person has not since changed it.
+      onConnected: () => {
+        void refreshModelStatus().then(() => input.focus());
+      },
+    });
+    element.append(nudgeConnect.element);
+    window.adcode.milestones.record("ai_needed");
     scrollToEnd();
   }
 
@@ -3788,10 +3861,47 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     // run answers nothing. Say the true thing instead — how to start — with a
     // button that does it. (Unknown status proceeds; the backend reports back.)
     if (modelLabel.dataset["ready"] === "false") {
-      connectNudge();
+      // The pill refreshes on a timer, so "not connected" can be a few seconds stale - the
+      // welcome connects a model and sends the idea straight after. Ask once more first.
+      if (!readyRechecked) {
+        readyRechecked = true;
+        void refreshModelStatus().finally(() => submit());
+        return;
+      }
+      readyRechecked = false;
+      // The message stays in the composer and goes by itself once a model answers.
+      connectNudge(text.trim().length > 0 ? text : null);
       input.focus();
       return;
     }
+    readyRechecked = false;
+
+    /*
+     * A build request with no folder open: make the project, then send. The person has an
+     * idea, not a folder, and "open a project folder" was the step that stopped them.
+     */
+    if (!skipProjectOnce && currentFolderRoot === null && deps.createProjectFor !== undefined && pending.length === 0 && looksLikeBuildRequest(text)) {
+      const idea = text;
+      input.value = "";
+      autogrowComposer();
+      taskStatus("Making a project folder for this…");
+      void deps.createProjectFor(idea).then(
+        (created) => {
+          input.value = created ? firstBuildPrompt(idea, true) : idea;
+          autogrowComposer();
+          // `created` false means no folder; send anyway, as a general question.
+          if (!created) skipProjectOnce = true;
+          submit();
+        },
+        () => {
+          input.value = idea;
+          skipProjectOnce = true;
+          submit();
+        },
+      );
+      return;
+    }
+    skipProjectOnce = false;
 
     if (activeSuggestion !== null) {
       activeSuggestion = null;

@@ -735,6 +735,54 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Subscription AI editors lock you to one vendor's models and resell access at a margin. ADCode takes no cut: connect Anthropic, OpenAI, Google, a local Ollama, or any gateway - and switch between them per question if you like.",
   },
 
+  "ai-free-key": {
+    steps: [
+      "In Vibe, choose Connect your AI - free in the checklist. Or just send a message: with no model connected, the reply offers the same choices, and your message waits in the box until one is connected.",
+      "Press Get my free key. Google AI Studio opens in your browser.",
+      "Sign in with any Google account, click Create API key, and copy the key.",
+      "Come back to ADCode. The copied key is picked up and checked on its own - you can also paste it into the box. When it says Connected, you are done, and a waiting message sends itself.",
+      "Prefer to keep everything on your computer? If Ollama is running, a second card offers Use it, with the best installed model for coding already chosen.",
+      "Already have a key from OpenAI, Anthropic, OpenRouter, Groq, xAI, DeepSeek or Cerebras? Paste it under I already have a key - ADCode recognises which service it belongs to.",
+    ],
+    benefits: [
+      "No credit card and no account with an AI company: a Google account is enough.",
+      "Nothing is saved until the model has answered a test message, so a bad key never leaves you half set up.",
+      "You can switch to a paid key or another provider at any time in Connect a model; the free one stays as an option.",
+    ],
+    betterThan:
+      "Most AI editors make you start a paid plan or a trial before the AI answers at all. ADCode gets you building with a free key in about a minute. Be aware that Google's free tier may use what you send to improve its products - for private or work code, use a paid key.",
+  },
+
+  "workbench-new-project": {
+    steps: [
+      "With no folder open, describe what you want built in the chat - for example \"build a snake game\" or \"make a landing page for my bakery\".",
+      "ADCode makes a new folder for it in Documents › ADCode Projects, named after your idea, and opens it.",
+      "Your request goes to the assistant, which builds it. Unless you named a framework, it uses plain HTML, CSS and JavaScript, so it runs in the preview straight away with nothing to install.",
+      "You can also run New Project from an Idea from the command palette (Ctrl+Shift+P), or use the box on the welcome screen.",
+    ],
+    benefits: [
+      "Start from an idea, not from a folder: there is no empty-folder step between you and a working first version.",
+      "Every project lives in one place, named after what it is, so you can find it again next week.",
+      "A question asked with no folder open is just answered - no folder is made for it.",
+    ],
+    betterThan:
+      "Other editors open on an empty window and expect you to create, name and open a folder before anything happens. ADCode treats your idea as the starting point.",
+  },
+
+  "workbench-welcome": {
+    steps: [
+      "On first launch, type what you want to build, or pick one of the ideas under the box.",
+      "Press Build it, or Enter.",
+      "If no AI is connected yet, the next step offers the free option - it takes about a minute and needs no card.",
+      "ADCode makes the project, opens it and starts building your idea.",
+      "Skip or Escape closes the welcome at any time. Run Show Welcome from the command palette to see it again.",
+    ],
+    benefits: [
+      "The first thing you see ADCode do is build what you asked for.",
+      "Theme, ad frequency and account wait in Settings instead of standing between you and a first result.",
+    ],
+  },
+
   "ai-inline-completion": {
     steps: [
       "Connect a model once (see Connect a model).",

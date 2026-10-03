@@ -563,6 +563,7 @@ export const CHANNELS = {
   aiCheckKey: "ai:check-key",
   aiQuickConnect: "ai:quick-connect",
   aiDetectOllama: "ai:detect-ollama",
+  aiOpenKeyPage: "ai:open-key-page",
   aiCheckpoint: "ai:checkpoint",
   aiCheckpointUndo: "ai:checkpoint-undo",
   aiWorkspaceList: "ai-workspace:list",
@@ -1747,6 +1748,8 @@ export interface AdcodeApi {
     quickConnect(provider: string, key: string, model: string | null): Promise<AiQuickConnectResult>;
     /** Whether Ollama is running here, and the models it has. Never throws. */
     detectOllama(): Promise<{ running: boolean; models: string[] }>;
+    /** Open AI Studio's key page, or Ollama's download page, in the system browser. */
+    openKeyPage(intent: "gemini" | "ollama"): Promise<void>;
     /**
      * True when the turn reached a normal provider completion.
      *

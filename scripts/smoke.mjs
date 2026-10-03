@@ -524,7 +524,8 @@ checks.onboardingIsSkippable = await (async () => {
        return {
          steps: existing.querySelectorAll('.onboarding-dot').length,
          hasSkip: existing.querySelector('.onboarding-skip') !== null,
-         hasThemeCards: existing.querySelectorAll('.theme-card').length,
+         hasIdeaBox: existing.querySelector('textarea.onboarding-idea') !== null,
+         ideaChips: existing.querySelectorAll('.onboarding-idea-chip').length,
          heading: existing.querySelector('.onboarding-head h2')?.textContent ?? null,
        };
      })()`,

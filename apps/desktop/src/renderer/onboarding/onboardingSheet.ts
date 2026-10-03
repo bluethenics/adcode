@@ -1,22 +1,29 @@
 /**
- * The first thing a new install shows.
+ * The first thing a new install shows: "What do you want to build?"
  *
- * Four steps: pick a look, decide how often ads appear, optionally connect an account,
- * and a short list of the things worth knowing. Every one of them is skippable, and the
- * whole sheet is dismissible, because ADCode's stated promise is that there is no account
- * and no wall on first launch (brief §8.4, and the download page says it in as many
- * words). A tour that has to be completed before the editor is usable would be that wall.
+ * Production on 2026-10-03: of 419 real installs, 394 were gone within five minutes and
+ * five ever came back. The old welcome was five steps - Vibe or Code, a theme, how often
+ * ads appear, an account, three tips - and none of them got anything built. After it, the
+ * checklist said "Open a project folder" to people who had an idea rather than a folder,
+ * then "Connect a model" to a screen of fourteen paid providers. The first prompt anybody
+ * sent was answered with "No model connected".
  *
- * The sign-in step is deliberately framed as something to do later. It is offered because
- * an unlinked account's earnings live only on this machine - which is worth knowing on
- * day one rather than after a reinstall - and it is offered *last*, after the person has
- * already made two choices and seen what the app is for.
+ * Now the welcome is the first prompt:
  *
- * A `<dialog>` opened with `showModal`, like the other sheets: the top layer, Escape, and
- * a focus trap, none of them hand-written.
+ * 1. **The idea.** One box, a few ideas to start from, and "open a folder" for people who
+ *    already have a project.
+ * 2. **The AI**, only when nothing is connected yet: `quickConnect`, led by a free Gemini
+ *    key that needs no card.
+ * 3. **The build.** ADCode makes a project folder named after the idea, opens it, and sends
+ *    the idea as the first prompt - so the first thing the person sees ADCode do is build
+ *    what they asked for.
+ *
+ * Everything is skippable and Escape closes it, because ADCode's promise is that there is
+ * no wall on first launch. The theme, ad frequency and account are still one click away in
+ * Settings - nobody downloads an editor to choose a theme - and the one line about ads
+ * stays on the first screen, because how ADCode is paid for is worth knowing on day one.
  */
-import { getSetting, type EnumSetting } from "@adcode/settings";
-import { themePicker } from "../settings/themePicker.ts";
+import { createQuickConnect, type QuickConnect } from "../ai/quickConnect.ts";
 
 export interface OnboardingSheet {
   open(): void;
@@ -25,55 +32,41 @@ export interface OnboardingSheet {
 }
 
 export interface OnboardingDeps {
-  openIde?: () => void;
-  /** Current settings, and how to change one. Same pair the settings sheet uses. */
-  read: () => Promise<Record<string, boolean | string>>;
-  write: (id: string, value: boolean | string) => Promise<Record<string, boolean | string>>;
-  /** Opens the account sheet. The tour never signs anybody in itself. */
-  openAccount: () => void;
   /** Records that this machine has been welcomed, so it happens once. */
   complete: () => void;
-}
-
-const TIPS: { title: string; body: string }[] = [
-  /*
-   * This tip used to promise "a sponsored card never appears while you are typing". It
-   * does, and always has: `decide` in packages/ads takes no typing or idle input, there is
-   * no such field on `SchedulerState`, and `doNotDisturb` is hard-coded `false` in
-   * `main/ads.ts`. Mid-work delivery is the intent - a card that only ever arrived once you
-   * had stopped working would be a card shown to somebody who has left.
-   *
-   * So the tip now describes the restraints that are real and enforced in `scheduler.ts`:
-   * debugging, an unfocused window, the settle period after launch, and the minimum gap.
-   * The old wording was the single most-read false claim in the product - every new user
-   * sees this screen - and it set up the exact complaint it was written to prevent.
+  /** Whether a model is connected and ready right now. */
+  aiReady: () => Promise<boolean>;
+  /**
+   * Make a project for the idea (unless a folder is already open), open it, and put the
+   * idea to the assistant - sent when `send` is true, left in the composer otherwise.
    */
-  {
-    title: "Ads arrive while you work",
-    body: "A sponsored card appears on the right while you are working - that is the point, and half of what it pays goes to you. It never interrupts a debugging session, never arrives while the window is in the background, and always leaves a gap between cards.",
-  },
-  {
-    title: "Your earnings are a ledger",
-    body: "Every verified view is a row you can read, with the exact amount. Corrections appear as their own row rather than quietly editing an old one.",
-  },
-  {
-    title: "Bring your own AI",
-    body: "Connect any provider and key you already have. The assistant works on your project's files directly and tells you exactly what it changed, the way a teammate at your keyboard would.",
-  },
-];
-
-/** The frequency options, read from the schema so they cannot drift from Settings. */
-function frequencyOptions(): readonly { value: string; label: string; detail?: string }[] {
-  const setting = getSetting("adcode.ads.frequency");
-  return setting?.kind === "enum" ? (setting as EnumSetting).options : [];
+  build: (idea: string, send: boolean) => Promise<void>;
+  /** Open a folder the person already has. */
+  openFolder: () => void;
+  /** The full Connect screen, for every provider the quick routes do not cover. */
+  openAllProviders: () => void;
+  /** Settings, at the ads section. */
+  openAdSettings: () => void;
 }
+
+/** Ideas that build into something the preview shows straight away. */
+const IDEAS: readonly { readonly label: string; readonly prompt: string }[] = [
+  { label: "Landing page", prompt: "A landing page for my small business, with a hero section, services, testimonials and a contact form." },
+  { label: "Portfolio", prompt: "A personal portfolio site with an about section, my projects and a way to contact me." },
+  { label: "To-do app", prompt: "A to-do app where I can add, tick off and delete tasks, saved in the browser." },
+  { label: "Snake game", prompt: "A snake game in the browser with a score, a high score and a restart button." },
+  { label: "Budget tracker", prompt: "A budget tracker where I add income and expenses and see my balance and a chart by category." },
+  { label: "Quiz", prompt: "A quiz app with ten multiple-choice questions, a progress bar and a score at the end." },
+];
 
 export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
   const dialog = document.createElement("dialog");
-  dialog.className = "onboarding";
+  dialog.className = "onboarding onboarding-build";
 
-  let step = 0;
-  let values: Record<string, boolean | string> = {};
+  let step: "idea" | "connect" = "idea";
+  let idea = "";
+  let finished = false;
+  let quick: QuickConnect | null = null;
 
   const body = document.createElement("div");
   body.className = "onboarding-body";
@@ -81,235 +74,192 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
   const dots = document.createElement("div");
   dots.className = "onboarding-dots";
 
-  const back = document.createElement("button");
-  back.type = "button";
-  back.className = "ghost-button";
-  back.textContent = "Back";
-
-  const next = document.createElement("button");
-  next.type = "button";
-  next.className = "chat-send";
-
   const skip = document.createElement("button");
   skip.type = "button";
   skip.className = "onboarding-skip";
-  skip.textContent = "Skip";
+
+  const next = document.createElement("button");
+  next.type = "button";
+  next.className = "chat-send onboarding-next";
 
   const footer = document.createElement("div");
   footer.className = "onboarding-footer";
-  footer.append(skip, dots, back, next);
+  footer.append(skip, dots, next);
 
   dialog.append(body, footer);
   document.body.append(dialog);
 
-  const finish = (): void => {
+  /** Close the sheet; `outcome` says which milestone the person reached. */
+  const finish = (outcome: "welcome_done" | "welcome_skipped"): void => {
+    if (!finished) window.adcode.milestones.record(outcome);
+    finished = true;
+    quick?.dispose();
+    quick = null;
     deps.complete();
-    dialog.close();
+    if (dialog.open) dialog.close();
   };
 
-  skip.addEventListener("click", finish);
-  back.addEventListener("click", () => {
-    step = Math.max(0, step - 1);
-    render();
+  const go = (send: boolean): void => {
+    const text = idea.trim();
+    finish("welcome_done");
+    if (text.length > 0) void deps.build(text, send);
+  };
+
+  skip.addEventListener("click", () => {
+    if (step === "connect") go(false);
+    else finish("welcome_skipped");
   });
+
   next.addEventListener("click", () => {
-    if (step >= 4) {
-      finish();
-      return;
-    }
-    step += 1;
-    render();
+    if (step !== "idea" || idea.trim().length === 0) return;
+    next.disabled = true;
+    void deps.aiReady().then((ready) => {
+      next.disabled = false;
+      if (ready) go(true);
+      else {
+        step = "connect";
+        render();
+      }
+    }, () => {
+      next.disabled = false;
+      go(false);
+    });
   });
 
   // Escape closes a `<dialog>` for free, and closing it any way at all counts as done:
-  // being asked the same four questions on every launch is worse than missing them once.
-  dialog.addEventListener("close", () => deps.complete());
+  // being asked the same question on every launch is worse than missing it once.
+  dialog.addEventListener("close", () => {
+    if (!finished) finish("welcome_skipped");
+  });
 
   function heading(title: string, lede: string): HTMLElement {
     const wrap = document.createElement("div");
     wrap.className = "onboarding-head";
-
     const h = document.createElement("h2");
     h.textContent = title;
-
     const p = document.createElement("p");
     p.textContent = lede;
-
     wrap.append(h, p);
     return wrap;
   }
 
-  function renderTheme(): void {
-    body.append(
-      heading("Make it yours", "Warm light, charcoal dark, or midnight. You can change this whenever you like."),
-      themePicker(
-        (getSetting("adcode.appearance.theme") as EnumSetting | undefined)?.options ?? [],
-        String(values["adcode.appearance.theme"] ?? "system"),
-        false,
-        (choice) => {
-          void deps.write("adcode.appearance.theme", choice).then((updated) => {
-            values = updated;
-            render();
-          });
-        },
-      ),
-    );
-  }
+  function renderIdea(): void {
+    const box = document.createElement("textarea");
+    box.className = "onboarding-idea";
+    box.rows = 3;
+    box.placeholder = "A landing page for my bakery, with the menu and opening hours";
+    box.value = idea;
+    box.setAttribute("aria-label", "What do you want to build?");
+    box.addEventListener("input", () => {
+      idea = box.value;
+      next.disabled = idea.trim().length === 0;
+    });
+    box.addEventListener("keydown", (event) => {
+      // Enter builds, as in the chat composer; Shift+Enter is a new line.
+      if (event.key === "Enter" && !event.shiftKey && idea.trim().length > 0) {
+        event.preventDefault();
+        next.click();
+      }
+    });
 
-  function renderFrequency(): void {
-    const group = document.createElement("div");
-    group.className = "onboarding-choices";
-
-    for (const option of frequencyOptions()) {
-      const card = document.createElement("button");
-      card.type = "button";
-      card.className = "onboarding-choice";
-      card.setAttribute("role", "radio");
-      card.ariaChecked = String(values["adcode.ads.frequency"] === option.value);
-
-      const label = document.createElement("strong");
-      label.textContent = option.label;
-
-      const detail = document.createElement("small");
-      detail.textContent = option.detail ?? "";
-
-      card.append(label, detail);
-      card.addEventListener("click", () => {
-        void deps.write("adcode.ads.frequency", option.value).then((updated) => {
-          values = updated;
-          render();
-        });
+    const chips = document.createElement("div");
+    chips.className = "onboarding-ideas";
+    chips.setAttribute("aria-label", "Ideas to start from");
+    for (const option of IDEAS) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "onboarding-idea-chip";
+      chip.textContent = option.label;
+      chip.addEventListener("click", () => {
+        idea = option.prompt;
+        box.value = idea;
+        next.disabled = false;
+        box.focus();
+        box.setSelectionRange(box.value.length, box.value.length);
       });
-      group.append(card);
+      chips.append(chip);
     }
 
-    body.append(
-      heading(
-        "How often should ads appear?",
-        "Never during typing or debugging, whichever you pick. Off is a real option - the editor is free either way.",
-      ),
-      group,
+    const existing = document.createElement("p");
+    existing.className = "onboarding-existing";
+    const openFolder = document.createElement("button");
+    openFolder.type = "button";
+    openFolder.className = "onboarding-link";
+    openFolder.textContent = "Open a folder";
+    openFolder.addEventListener("click", () => {
+      finish("welcome_done");
+      deps.openFolder();
+    });
+    existing.append("Already have a project? ", openFolder, ".");
+
+    const ads = document.createElement("p");
+    ads.className = "onboarding-ads-note";
+    const adsLink = document.createElement("button");
+    adsLink.type = "button";
+    adsLink.className = "onboarding-link";
+    adsLink.textContent = "Ad settings";
+    adsLink.addEventListener("click", () => {
+      finish("welcome_skipped");
+      deps.openAdSettings();
+    });
+    ads.append(
+      "ADCode is free. Once you have built something, a small sponsored card appears now and then - half of what it earns is yours. ",
+      adsLink,
     );
-  }
-
-  function renderAccount(): void {
-    const actions = document.createElement("div");
-    actions.className = "onboarding-actions";
-
-    const connect = document.createElement("button");
-    connect.type = "button";
-    connect.className = "chat-send";
-    connect.textContent = "Connect an account";
-    connect.addEventListener("click", () => {
-      // The tour hands off rather than signing anybody in itself: the account sheet
-      // already knows how to do this, and two implementations of sign-in is one too many.
-      deps.openAccount();
-      finish();
-    });
-
-    const later = document.createElement("button");
-    later.type = "button";
-    later.className = "ghost-button";
-    later.textContent = "I'll do this later";
-    later.addEventListener("click", () => {
-      step = 3;
-      render();
-    });
-
-    actions.append(connect, later);
 
     body.append(
-      heading(
-        "Connect an account, or don't",
-        "You are already signed in anonymously and already earning - nothing here is required. Connecting one means your balance follows you to another machine, and survives a reinstall.",
-      ),
-      actions,
+      heading("What do you want to build?", "Describe it in a sentence. ADCode makes the project, writes the code and shows it running."),
+      box,
+      chips,
+      existing,
+      ads,
     );
+    next.disabled = idea.trim().length === 0;
+    requestAnimationFrame(() => box.focus());
   }
 
-  function renderTips(): void {
-    const list = document.createElement("div");
-    list.className = "onboarding-tips";
-
-    for (const tip of TIPS) {
-      const card = document.createElement("div");
-      card.className = "onboarding-tip";
-
-      const title = document.createElement("strong");
-      title.textContent = tip.title;
-
-      const text = document.createElement("p");
-      text.textContent = tip.body;
-
-      card.append(title, text);
-      list.append(card);
-    }
-
-    body.append(heading("Three things worth knowing", "Then you are done."), list);
+  function renderConnect(): void {
+    quick?.dispose();
+    quick = createQuickConnect({
+      onConnected: () => window.setTimeout(() => go(true), 600),
+      openAllProviders: () => {
+        go(false);
+        deps.openAllProviders();
+      },
+    });
+    body.append(
+      heading("Connect your AI", "One step left. The free option takes about a minute and needs no card."),
+      quick.element,
+    );
   }
 
   function render(): void {
     body.replaceChildren();
-
-    if (step === 0) renderModes();
-    else if (step === 1) renderTheme();
-    else if (step === 2) renderFrequency();
-    else if (step === 3) renderAccount();
-    else renderTips();
+    dialog.dataset["step"] = step;
+    if (step === "idea") renderIdea();
+    else renderConnect();
 
     dots.replaceChildren();
-    for (let index = 0; index < 5; index += 1) {
+    for (const name of ["idea", "connect"] as const) {
       const dot = document.createElement("span");
       dot.className = "onboarding-dot";
-      if (index === step) dot.dataset["current"] = "true";
+      if (name === step) dot.dataset["current"] = "true";
       dots.append(dot);
     }
 
-    back.hidden = step === 0;
-    skip.hidden = step === 4;
-    next.textContent = step === 4 ? "Start building" : "Continue";
-  }
-
-  function renderModes(): void {
-    body.append(heading("Welcome to ADCode", "Start in Vibe. Open the IDE in its own window whenever you need code."));
-    const choices = document.createElement("div");
-    choices.className = "onboarding-modes";
-    for (const mode of ["vibe", "code"] as const) {
-      const card = document.createElement("div");
-      card.className = "onboarding-mode";
-      if (mode === "vibe") card.dataset["default"] = "true";
-      const tag = document.createElement("small");
-      tag.className = "onboarding-mode-tag";
-      tag.textContent = mode === "vibe" ? "Opens first" : "Its own window";
-      const title = document.createElement("strong");
-      title.textContent = mode === "vibe" ? "Vibe" : "Code";
-      const detail = document.createElement("span");
-      detail.textContent = mode === "vibe"
-        ? "Build and change your project through conversation. The sidebar shows what is running and what is waiting for your review."
-        : "Edit files, run terminals and debug in the full IDE, beside Vibe on the same project.";
-      card.append(tag, title, detail);
-      if (mode === "code") {
-        const open = document.createElement("button");
-        open.type = "button";
-        open.className = "ghost-button onboarding-open-ide";
-        open.textContent = "Open IDE";
-        open.addEventListener("click", () => { dialog.close(); deps.openIde?.(); });
-        card.append(open);
-      }
-      choices.append(card);
-    }
-    body.append(choices);
+    skip.textContent = step === "idea" ? "Skip" : "Later - just make the project";
+    next.hidden = step !== "idea";
+    next.textContent = "Build it";
   }
 
   return {
     open() {
       if (dialog.open) return;
-      void deps.read().then((current) => {
-        values = current;
-        step = 0;
-        render();
-        dialog.showModal();
-      });
+      finished = false;
+      step = "idea";
+      render();
+      dialog.showModal();
+      window.adcode.milestones.record("welcome_shown");
     },
     close() {
       if (dialog.open) dialog.close();

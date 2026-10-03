@@ -155,7 +155,7 @@ describe("Agent Chat v2 wiring", () => {
   it("fails loudly and guides: failed labels, connect nudge, setup steps", () => {
     expect(activitySource).toContain("formatFailedLabel");
     expect(widgetSource).toContain("finishActivityFailed()");
-    expect(widgetSource).toContain("connectNudge()");
+    expect(widgetSource).toContain("connectNudge(");
     expect(widgetSource).toContain("chat-setup-steps");
     expect(widgetSource).toContain("chat-setup-status");
     expect(styles).toContain(".chat-setup-steps");

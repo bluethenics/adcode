@@ -766,3 +766,90 @@ textarea.form-input { resize: vertical; line-height: 1.5; }
 .form-row[hidden] { display: none; }
 .form-notice { margin: 0; color: var(--danger, #c24b40); font-size: 12px; }
 .form-notice[hidden] { display: none; }
+
+/* ── The welcome: "What do you want to build?" ─────────────────────────
+   One box and a few ideas, then (only if needed) connecting the AI. Wider
+   than the old tour because the idea is typed here, and the quick-connect
+   cards need room for a key field. */
+
+.onboarding.onboarding-build {
+  width: min(620px, calc(100vw - 40px));
+}
+
+.onboarding-build .onboarding-body {
+  min-height: 0;
+  padding-bottom: 8px;
+}
+
+.onboarding-idea {
+  display: block;
+  width: 100%;
+  min-height: 84px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  background: var(--bg-editor);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-base, 14px);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.onboarding-idea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.onboarding-ideas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.onboarding-idea-chip {
+  padding: 5px 11px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: border-color var(--duration-exit) var(--ease-toast), color var(--duration-exit) var(--ease-toast);
+}
+
+.onboarding-idea-chip:hover {
+  border-color: var(--text-tertiary);
+  color: var(--text-primary);
+}
+
+.onboarding-existing,
+.onboarding-ads-note {
+  margin: 16px 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.onboarding-ads-note {
+  margin-top: 10px;
+  color: var(--text-tertiary);
+}
+
+.onboarding-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.onboarding-next:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

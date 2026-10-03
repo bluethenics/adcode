@@ -158,6 +158,7 @@ const api: AdcodeApi = {
     checkKey: (provider, key) => ipcRenderer.invoke(CHANNELS.aiCheckKey, provider, key),
     quickConnect: (provider, key, model) => ipcRenderer.invoke(CHANNELS.aiQuickConnect, provider, key, model),
     detectOllama: () => ipcRenderer.invoke(CHANNELS.aiDetectOllama),
+    openKeyPage: (intent) => ipcRenderer.invoke(CHANNELS.aiOpenKeyPage, intent),
     send: (text, attachments, editor) => ipcRenderer.invoke(CHANNELS.aiSend, text, attachments, editor),
     complete: (input) => ipcRenderer.invoke(CHANNELS.aiCompletion, input),
     cancelCompletion: (requestId) => ipcRenderer.send(CHANNELS.aiCancelCompletion, requestId),

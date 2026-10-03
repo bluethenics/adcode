@@ -7,6 +7,8 @@
  */
 import { stat } from "node:fs/promises";
 import { createProjectFolder, projectsHome } from "./newProject.ts";
+import { recordMilestone } from "./milestones.ts";
+import { GEMINI_KEY_PAGE, OLLAMA_DOWNLOAD_PAGE } from "../shared/quickConnect.ts";
 import { BrowserWindow, app, clipboard, dialog, ipcMain, shell } from "electron";
 import { isInsideWorkspace } from "./pathSafety.ts";
 import {
@@ -632,6 +634,15 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
 
   ipcMain.handle(CHANNELS.aiDetectOllama, () => aiDetectOllama());
 
+  /*
+   * Where to get a key, by intent rather than by URL - the same rule as every other
+   * `shell.openExternal` here: a renderer that could pass any string would be a way out.
+   */
+  ipcMain.handle(CHANNELS.aiOpenKeyPage, async (_event, intent: unknown) => {
+    const url = intent === "gemini" ? GEMINI_KEY_PAGE : intent === "ollama" ? OLLAMA_DOWNLOAD_PAGE : null;
+    if (url !== null) await shell.openExternal(url);
+  });
+
   /* ── Debugging ────────────────────────────────────────────────────────── */
 
   ipcMain.handle(CHANNELS.debugState, () => currentDebugState());
@@ -755,6 +766,7 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
 
     const status = await startPreview(currentWorkspace()?.root ?? null, requested, previewEvents);
     broadcastPreview(status);
+    if (status.running || status.starting) recordMilestone("preview_opened");
     return status;
   });
 

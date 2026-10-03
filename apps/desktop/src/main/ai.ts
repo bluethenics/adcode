@@ -774,6 +774,27 @@ export async function aiStatus(): Promise<AiStatus> {
   }
 
   /*
+   * Ollama, which the catalogue does not list.
+   *
+   * It has an address and needs no key, but status only knew providers from the catalogue,
+   * so a local model could be selected and still never count as ready - and it did not
+   * appear on the Connect screen at all. Its models are whatever this machine has pulled,
+   * so the selected one is listed and the rest are typed or picked through quick connect.
+   */
+  if (!providers.some((one) => one.id === "ollama")) {
+    const localModel = provider === "ollama" ? activeModel("ollama") : null;
+    providers.push({
+      id: "ollama",
+      displayName: "Ollama (on this computer)",
+      models: localModel === null ? [] : [{ id: localModel, name: localModel, toolCall: true, reasoning: false }],
+      hasKey: true,
+      needsKey: false,
+      transport: "openai-compatible",
+      doc: "https://ollama.com/download",
+    });
+  }
+
+  /*
    * The custom endpoint is always offered, and is not in the catalogue.
    *
    * It is the escape hatch that makes "any provider" true rather than aspirational: a

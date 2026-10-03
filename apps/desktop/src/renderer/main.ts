@@ -152,6 +152,7 @@ import type { BindingOverrides } from "../shared/keybindings.ts";
 import { scaffoldFor, todoMarksIn } from "@adcode/structure";
 import { createAccountMenu } from "./workbench/accountMenu.ts";
 import { createOnboardingSheet } from "./onboarding/onboardingSheet.ts";
+import { firstBuildPrompt } from "../shared/firstBuild.ts";
 import { createPinPromptCard } from "./onboarding/pinPromptCard.ts";
 import {
   createContextMenu,
@@ -1953,6 +1954,7 @@ async function openFolder(): Promise<void> {
   if (opened === null) return;
 
   await adoptWorkspace(opened);
+  window.adcode.milestones.record("folder_opened");
 }
 
 /** Open a folder the user picked from the recents list or the welcome screen. */
@@ -3270,10 +3272,11 @@ const PIN_PROMPT_DELAY_MS = 1_200;
 const pinPromptCard = createPinPromptCard(document.body);
 
 const onboarding = createOnboardingSheet({
-  openIde: () => void window.adcode.window.openIde(),
-  read: () => window.adcode.settings.read(),
-  write: (id, value) => window.adcode.settings.write(id, value),
-  openAccount: () => el<HTMLButtonElement>("account-toggle").click(),
+  aiReady: () => window.adcode.ai.status().then((status) => status.ready),
+  build: (idea, send) => buildFromIdea(idea, send),
+  openFolder: () => void openFolder(),
+  openAllProviders: () => openIndependentConnect("pointer"),
+  openAdSettings: () => openSetting("adcode.ads.frequency"),
   complete: () => {
     window.adcode.onboarding.complete().catch(() => undefined);
     /*
@@ -3284,6 +3287,35 @@ const onboarding = createOnboardingSheet({
     window.setTimeout(() => pinPromptCard.offer(), PIN_PROMPT_DELAY_MS);
   },
 });
+
+/**
+ * From an idea to a running first build.
+ *
+ * With no folder open, a project is made for the idea in Documents/ADCode Projects and
+ * opened. Then the idea goes to the assistant - sent when a model is ready, waiting in the
+ * composer when it is not, where the connect nudge says the one thing left to do.
+ */
+async function buildFromIdea(idea: string, send: boolean): Promise<void> {
+  const created = workspaceRoot === null && (await createProjectForIdea(idea));
+  const prompt = firstBuildPrompt(idea, created);
+  if (send) chat.ask(prompt);
+  else chat.draft(prompt);
+}
+
+/** A new folder for the idea in Documents/ADCode Projects, opened. False if it could not be made. */
+async function createProjectForIdea(idea: string): Promise<boolean> {
+  try {
+    const opened = await window.adcode.workspace.createProject(idea);
+    if (opened === null) return false;
+    await adoptWorkspace(opened);
+    window.adcode.milestones.record("project_created");
+    setStatus(`New project: ${opened.name} - in Documents › ADCode Projects`, 8000);
+    return true;
+  } catch (error) {
+    setStatus(`Could not make a project folder: ${error instanceof Error ? error.message : String(error)}`, 8000);
+    return false;
+  }
+}
 
 void window.adcode.onboarding.completed().then((seen) => {
   if (seen) {
@@ -4495,6 +4527,7 @@ editorHost.git.onResolved(() => {
 /* ── Assistant (§5.3) ─────────────────────────────────────────────────── */
 
 const chat = createChatWidget({
+  createProjectFor: (idea) => createProjectForIdea(idea),
   openCodeReference: (reference) => {
     const absolute = /^(?:[a-z]:\/|\/)/i.test(reference.path);
     if (!absolute && workspaceRoot === null) {
@@ -5588,6 +5621,24 @@ function registerCommands(): void {
   add("run.file", "Run Active File", () => runButton.activate());
   add("ai.toggle", "Assistant", () => chat.toggle());
   add("ai.connect", "Connect a Model", () => connectView.open());
+  add("ai.getFreeKey", "Get a Free AI Key", () => {
+    connectView.showQuick();
+    connectView.open();
+  });
+  add("workspace.newProject", "New Project from an Idea", async () => {
+    const idea = await promptDialog.ask({
+      title: "What do you want to build?",
+      body: "ADCode makes a new folder for it in Documents › ADCode Projects, opens it and starts building.",
+      placeholder: "A landing page for my bakery, with the menu and opening hours",
+      confirmLabel: "Build it",
+    });
+    if (idea === null) return;
+    if (!(await createProjectForIdea(idea))) return;
+    const ready = await window.adcode.ai.status().then((status) => status.ready, () => false);
+    if (ready) chat.ask(firstBuildPrompt(idea, true));
+    else chat.draft(firstBuildPrompt(idea, true));
+  });
+  add("onboarding.open", "Show Welcome", () => onboarding.open());
   add("ai.complete", "Suggest Code with AI", () =>
     editorHost.triggerInlineCompletion(),
   );
