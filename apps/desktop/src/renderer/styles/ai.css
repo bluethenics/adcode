@@ -4438,3 +4438,13 @@ button.chat-setup-action {
     animation: none;
   }
 }
+
+/* The conversation this project was left on, first among the starters. */
+.chat-quick-action.chat-quick-continue {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-hairline));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.chat-quick-action.chat-quick-continue[hidden] {
+  display: none;
+}

@@ -1890,11 +1890,49 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     { label: "Portfolio", hint: "About, projects, contact", prompt: "Build a personal portfolio site with an about section, my projects and a way to contact me." },
     { label: "Something else", hint: "Describe it - ADCode builds it", prompt: "Build this, then open it in the preview: " },
   ];
+  /*
+   * "Continue" - the conversation this project was left on, first among the starters.
+   *
+   * Five of the first 419 installs ever came back, and the ones that did reopened to a
+   * greeting and four generic starters, with the work they had been doing one click away
+   * in a sidebar list. Picking up where you left off is the reason to come back, so it is
+   * the first thing offered.
+   */
+  const continueAction = document.createElement("button");
+  continueAction.type = "button";
+  continueAction.className = "chat-quick-action chat-quick-continue";
+  continueAction.hidden = true;
+  let continueId: string | null = null;
+  continueAction.addEventListener("click", () => {
+    if (continueId !== null) void resume(continueId);
+  });
+  async function paintContinue(): Promise<void> {
+    if (currentFolderRoot === null) {
+      continueAction.hidden = true;
+      return;
+    }
+    try {
+      const sessions = await window.adcode.chat.sessions();
+      const latest = sessions.find((one) => one.messages.length > 0 && one.id !== activeSessionId) ?? null;
+      continueId = latest?.id ?? null;
+      continueAction.hidden = latest === null;
+      if (latest !== null) {
+        const title = latest.title.length > 42 ? `${latest.title.slice(0, 41)}…` : latest.title;
+        const hint = document.createElement("small");
+        hint.textContent = "Pick up where you left off";
+        continueAction.replaceChildren(`Continue “${title}”`, hint);
+      }
+    } catch {
+      continueAction.hidden = true;
+    }
+  }
+
   let startersFor: boolean | null = null;
   function paintStarters(hasFolder: boolean): void {
+    void paintContinue();
     if (startersFor === hasFolder) return;
     startersFor = hasFolder;
-    quickActions.replaceChildren();
+    quickActions.replaceChildren(continueAction);
     for (const starter of hasFolder ? projectStarters : ideaStarters) {
       const action = document.createElement("button");
       action.type = "button";
@@ -1917,7 +1955,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   welcome.append(welcomeTitle, welcomeText, setupSteps);
   const refreshWelcome = (): void => {
     const empty = transcript.childElementCount === 0;
-    if (empty) paintGreeting();
+    if (empty) {
+      paintGreeting();
+      void paintContinue();
+    }
     welcome.hidden = !empty;
     quickActions.hidden = !empty;
     conversation.dataset["empty"] = String(empty);
