@@ -6,6 +6,7 @@
  * - a compromised renderer talks to `ipcRenderer` directly.
  */
 import { stat } from "node:fs/promises";
+import { createProjectFolder, projectsHome } from "./newProject.ts";
 import { BrowserWindow, app, clipboard, dialog, ipcMain, shell } from "electron";
 import { isInsideWorkspace } from "./pathSafety.ts";
 import {
@@ -125,6 +126,8 @@ import {
   aiWorkspaceTraces,
   aiCurrentWorkspaceTask,
   checkProviderKey,
+  aiQuickConnect,
+  aiDetectOllama,
   aiTeamCancel,
   aiTeamConfigure,
   aiTeamList,
@@ -357,6 +360,22 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
     }
     return opened;
   });
+
+  /*
+   * A new project from an idea: a fresh folder in Documents/ADCode Projects, opened the same
+   * way a recent folder is, so the tree, the recents list and every other window agree.
+   */
+  ipcMain.handle(CHANNELS.workspaceCreateProject, async (event, idea: unknown) => {
+    const root = await createProjectFolder(isString(idea) ? idea.slice(0, 500) : "");
+    const opened = openWorkspaceAt(root);
+    if (opened !== null) {
+      await remember(opened.root);
+      for (const window of BrowserWindow.getAllWindows()) if (window.webContents !== event.sender) window.webContents.send(CHANNELS.workspaceChanged, opened);
+    }
+    return opened;
+  });
+
+  ipcMain.handle(CHANNELS.workspaceProjectsHome, () => projectsHome());
 
   ipcMain.handle(CHANNELS.workspaceCurrent, () => currentWorkspace());
   ipcMain.handle(CHANNELS.workspaceRecents, () => recentFolders());
@@ -604,6 +623,14 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
       ? checkProviderKey(provider, key)
       : { ok: false, message: "Nothing to check." },
   );
+
+  ipcMain.handle(CHANNELS.aiQuickConnect, (_event, provider: unknown, key: unknown, model: unknown) =>
+    isString(provider) && isString(key) && key.length <= 1000
+      ? aiQuickConnect(provider, key, isString(model) ? model.slice(0, 200) : null)
+      : { ok: false, message: "Nothing to connect." },
+  );
+
+  ipcMain.handle(CHANNELS.aiDetectOllama, () => aiDetectOllama());
 
   /* ── Debugging ────────────────────────────────────────────────────────── */
 

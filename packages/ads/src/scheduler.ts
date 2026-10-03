@@ -22,6 +22,9 @@ export function decide(state: SchedulerState): SchedulerDecision {
 
   // Context.
   if (state.now - state.launchedAt < state.settleMs) return { show: false, reason: "settling" };
+  // A new install's first minutes belong to getting something built. An admin test card is
+  // exempt, so delivery can still be proven on a fresh machine.
+  if (state.newcomer === true && state.testCardWaiting !== true) return { show: false, reason: "newcomer" };
   if (!state.windowFocused) return { show: false, reason: "window-unfocused" };
   if (state.debugActive) return { show: false, reason: "debug-active" };
   if (state.doNotDisturb) return { show: false, reason: "do-not-disturb" };

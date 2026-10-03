@@ -18,6 +18,9 @@ import { createActivityLog, type ActivityLog } from "../../shared/activity.ts";
 /** How often the counters go to the main process, which queues and batches from there. */
 const FLUSH_MS = 120_000;
 
+/** Presence counts at most this often: enough for minutes in the app, far short of a key log. */
+const PRESENCE_EVERY_MS = 10_000;
+
 /** Just the part of the editor host this needs. Passing the whole thing would test worse. */
 export interface ActivitySource {
   onHumanInput(listener: (chars: number, path: string | null) => void): () => void;
@@ -48,6 +51,26 @@ export function startActivityTracker(
     log.add(path === null ? { manualChars: chars } : { manualChars: chars, path });
   });
 
+  /*
+   * Time in the app, not only time typing in the editor.
+   *
+   * Active time is the capped gap between events, and the only event used to be a
+   * keystroke in a code editor - so an afternoon spent in Vibe, prompting and reading
+   * previews, counted as zero minutes. Any key, click or scroll in this window now counts
+   * as presence, at most once every ten seconds. It records that somebody was here, never
+   * what they pressed.
+   */
+  let lastPresence = 0;
+  const onPresence = (): void => {
+    const at = Date.now();
+    if (at - lastPresence < PRESENCE_EVERY_MS) return;
+    lastPresence = at;
+    log.add({});
+  };
+  window.addEventListener("keydown", onPresence, { passive: true, capture: true });
+  window.addEventListener("pointerdown", onPresence, { passive: true, capture: true });
+  window.addEventListener("wheel", onPresence, { passive: true, capture: true });
+
   const timer = window.setInterval(flush, FLUSH_MS);
 
   // A window losing focus or going away is the moment most likely to be the last one.
@@ -62,6 +85,9 @@ export function startActivityTracker(
       window.clearInterval(timer);
       window.removeEventListener("pagehide", onHide);
       window.removeEventListener("blur", onHide);
+      window.removeEventListener("keydown", onPresence, { capture: true });
+      window.removeEventListener("pointerdown", onPresence, { capture: true });
+      window.removeEventListener("wheel", onPresence, { capture: true });
       stop();
       flush();
     },

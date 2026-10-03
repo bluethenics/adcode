@@ -213,6 +213,7 @@ export function createAdService(deps: AdServiceDeps): AdService {
           windowFocused: signal(() => deps.ide.windowFocused(), false),
           debugActive: signal(() => deps.ide.debugActive(), true),
           doNotDisturb: signal(() => deps.ide.doNotDisturb(), true),
+          newcomer: signal(() => deps.ide.newcomer?.() ?? false, false),
           impressionsToday: impressionsToday(now),
           lastImpressionAt: impressions.at(-1) ?? null,
           creativeAvailable: inventory.length > 0,

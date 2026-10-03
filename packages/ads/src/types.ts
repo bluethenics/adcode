@@ -135,6 +135,7 @@ export type SuppressReason =
   | "kill-switch"
   | "frequency-off"
   | "settling"
+  | "newcomer"
   | "window-unfocused"
   | "debug-active"
   | "do-not-disturb"
@@ -158,6 +159,12 @@ export interface SchedulerState {
   readonly impressionsToday: number;
   readonly lastImpressionAt: number | null;
   readonly creativeAvailable: boolean;
+  /**
+   * A new install that has not had its first success yet - an assistant turn that worked -
+   * and is still inside its first minutes. The host decides; see `newcomerHold` in the
+   * desktop app's `main/milestones.ts`. Absent means false.
+   */
+  readonly newcomer?: boolean;
   /**
    * The next card waiting is an admin test.
    *
@@ -315,4 +322,6 @@ export interface IdeSignals {
   languageIds(): readonly string[];
   /** Workspace filenames. Basenames only reach the tagger (§8.2). */
   filenames(): readonly string[];
+  /** A new install still before its first success. Optional: an older host never holds. */
+  newcomer?(): boolean;
 }

@@ -26,6 +26,8 @@ const api: AdcodeApi = {
   workspace: {
     open: () => ipcRenderer.invoke(CHANNELS.workspaceOpen),
     openPath: (root) => ipcRenderer.invoke(CHANNELS.workspaceOpenPath, root),
+    createProject: (idea) => ipcRenderer.invoke(CHANNELS.workspaceCreateProject, idea),
+    projectsHome: () => ipcRenderer.invoke(CHANNELS.workspaceProjectsHome),
     recents: () => ipcRenderer.invoke(CHANNELS.workspaceRecents),
     forgetRecent: (root) => ipcRenderer.invoke(CHANNELS.workspaceForgetRecent, root),
     clearRecents: () => ipcRenderer.invoke(CHANNELS.workspaceClearRecents),
@@ -154,6 +156,8 @@ const api: AdcodeApi = {
     setKey: (provider, key) => ipcRenderer.invoke(CHANNELS.aiSetKey, provider, key),
     clearKey: (provider) => ipcRenderer.invoke(CHANNELS.aiClearKey, provider),
     checkKey: (provider, key) => ipcRenderer.invoke(CHANNELS.aiCheckKey, provider, key),
+    quickConnect: (provider, key, model) => ipcRenderer.invoke(CHANNELS.aiQuickConnect, provider, key, model),
+    detectOllama: () => ipcRenderer.invoke(CHANNELS.aiDetectOllama),
     send: (text, attachments, editor) => ipcRenderer.invoke(CHANNELS.aiSend, text, attachments, editor),
     complete: (input) => ipcRenderer.invoke(CHANNELS.aiCompletion, input),
     cancelCompletion: (requestId) => ipcRenderer.send(CHANNELS.aiCancelCompletion, requestId),
@@ -337,6 +341,9 @@ const api: AdcodeApi = {
     // `send`, not `invoke`: the renderer has nothing to wait for, and a counter flush
     // must never be able to hold up a keystroke.
     report: (deltas) => ipcRenderer.send(CHANNELS.activityReport, deltas),
+  },
+  milestones: {
+    record: (name) => ipcRenderer.send(CHANNELS.milestoneRecord, name),
   },
   ads: {
     onShow: (listener) => subscribe(CHANNELS.adShow, listener),

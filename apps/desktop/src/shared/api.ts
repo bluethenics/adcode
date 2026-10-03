@@ -51,6 +51,7 @@ export interface ReportInput {
 }
 
 import type { ActivityDelta } from "./activity.ts";
+import type { MilestoneName } from "./milestones.ts";
 import type { AssistantControlAction, AssistantControlsView } from "./assistantControls.ts";
 import type { McpNodeCheck } from "./mcpNode.ts";
 
@@ -560,6 +561,8 @@ export const CHANNELS = {
   aiDeleteSession: "ai:delete-session",
   aiClearSessions: "ai:clear-sessions",
   aiCheckKey: "ai:check-key",
+  aiQuickConnect: "ai:quick-connect",
+  aiDetectOllama: "ai:detect-ollama",
   aiCheckpoint: "ai:checkpoint",
   aiCheckpointUndo: "ai:checkpoint-undo",
   aiWorkspaceList: "ai-workspace:list",
@@ -689,6 +692,8 @@ export const CHANNELS = {
   collabAddresses: "collab:addresses",
   collabReencodeInvite: "collab:reencode-invite",
   workspaceOpenPath: "workspace:open-path",
+  workspaceCreateProject: "workspace:create-project",
+  workspaceProjectsHome: "workspace:projects-home",
   workspaceRecents: "workspace:recents",
   workspaceFilesChanged: "workspace:files-changed",
   workspaceForgetRecent: "workspace:forget-recent",
@@ -705,6 +710,7 @@ export const CHANNELS = {
   debugCopy: "debug:copy",
   debugSave: "debug:save",
   activityReport: "activity:report",
+  milestoneRecord: "milestone:record",
   onboardingState: "onboarding:state",
   onboardingComplete: "onboarding:complete",
   pinPromptOffer: "pin:offer",
@@ -1072,6 +1078,11 @@ export interface AiCompactResultView {
 /** What checking a key actually found out. */
 export type AiKeyCheck =
   | { readonly ok: true; readonly detail: string }
+  | { readonly ok: false; readonly message: string };
+
+/** What quick connect did: switched to a working model, or left everything as it was. */
+export type AiQuickConnectResult =
+  | { readonly ok: true; readonly provider: string; readonly model: string; readonly status: AiStatus }
   | { readonly ok: false; readonly message: string };
 
 /** A hunk of a proposed change, as rendered in the inline diff widget. */
@@ -1507,6 +1518,13 @@ export interface AdcodeApi {
     open(): Promise<OpenedWorkspace | null>;
     /** Open a known folder without a dialog - the recents list and the welcome screen. */
     openPath(root: string): Promise<OpenedWorkspace | null>;
+    /**
+     * Make an empty folder for a new project in Documents/ADCode Projects, named after the
+     * idea, and open it. For people who arrive with an idea rather than a folder.
+     */
+    createProject(idea: string): Promise<OpenedWorkspace | null>;
+    /** Where new projects are made, to show the person before and after. */
+    projectsHome(): Promise<string>;
     close(): Promise<void>;
     current(): Promise<OpenedWorkspace | null>;
     list(dirPath: string): Promise<DirEntry[]>;
@@ -1722,6 +1740,13 @@ export interface AdcodeApi {
      * out when it is pasted is the point of the Connect screen.
      */
     checkKey(provider: string, key: string): Promise<AiKeyCheck>;
+    /**
+     * Check a key against a named model and, only if it answers, save it and switch to it.
+     * `model` null picks the provider's first model with tool use. Ollama needs no key.
+     */
+    quickConnect(provider: string, key: string, model: string | null): Promise<AiQuickConnectResult>;
+    /** Whether Ollama is running here, and the models it has. Never throws. */
+    detectOllama(): Promise<{ running: boolean; models: string[] }>;
     /**
      * True when the turn reached a normal provider completion.
      *
@@ -2055,6 +2080,13 @@ export interface AdcodeApi {
      * them. Fire and forget: this must never be able to block or fail the editor.
      */
     report(deltas: readonly ActivityDelta[]): void;
+  };
+  readonly milestones: {
+    /**
+     * Notes how far a first session got - a fixed word from `shared/milestones.ts`, nothing
+     * else. Fire and forget; repeats within one launch are ignored.
+     */
+    record(name: MilestoneName): void;
   };
   readonly ads: {
     /** The main process asks the renderer to show a toast. */

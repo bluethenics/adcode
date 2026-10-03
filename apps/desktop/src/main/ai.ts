@@ -62,6 +62,7 @@ import {
   type AiCompactResultView,
   type AiContextUsageView,
   type AiKeyCheck,
+  type AiQuickConnectResult,
   type AiWorkspaceActionView,
   type AiWorkspaceApplySelectionView,
   type AiWorkspaceChangeView,
@@ -82,13 +83,14 @@ import {
   type ProposedEditView,
 } from "../shared/api.ts";
 import { recordAgentEdit } from "./activity.ts";
+import { recordMilestone } from "./milestones.ts";
 import { createKeychainStore } from "./keychain.ts";
 import { createAiToolRunner } from "./aiTools.ts";
 import { resolveSandboxPath } from "./aiSandbox.ts";
 import { createCheckpointStore, type UndoResult } from "./aiCheckpoints.ts";
 import { ASSISTANT_EXTENSION_TOOLS, withAssistantExtensions } from "./assistantControls.ts";
 import { memoryForWorkspace } from "./memory.ts";
-import { currentSettings } from "./settings.ts";
+import { currentSettings, writeSetting } from "./settings.ts";
 import { describeDebugContext, recordDebug } from "./debugLog.ts";
 import { currentWorkspace } from "./workspace.ts";
 import { aiWorkspaceContext } from "./aiWorkspaceContext.ts";
@@ -871,6 +873,71 @@ export async function checkProviderKey(providerId: string, key: string): Promise
   }
 }
 
+/** The providers quick connect may select. Each has a built-in address and a model with tools. */
+const QUICK_PROVIDERS = new Set(["google", "anthropic", "openai", "openrouter", "groq", "xai", "cerebras", "deepseek", "ollama"]);
+
+/** The model quick connect picks when the caller does not name one: the first that can use tools. */
+function quickModelFor(providerId: string): string | null {
+  const models = providerIn(catalogue, providerId)?.models ?? [];
+  return (models.find((model) => model.toolCall) ?? models[0])?.id ?? null;
+}
+
+/**
+ * Check a key against a named model, then save it and switch to it - one step.
+ *
+ * The Connect screen checks against "the model in settings", which on a first run is
+ * whatever the default provider uses: checking a Gemini key would ask Google for a Claude
+ * model and fail with a perfectly good key. Quick connect names the model it will use, and
+ * only once that model has answered does anything get saved or selected, so a failure
+ * leaves the person exactly where they were.
+ */
+export async function aiQuickConnect(providerId: string, key: string, model: string | null): Promise<AiQuickConnectResult> {
+  if (!QUICK_PROVIDERS.has(providerId)) return { ok: false, message: "ADCode cannot connect that provider in one step yet." };
+  const trimmed = key.trim();
+  if (trimmed.length === 0 && !KEYLESS.has(providerId)) return { ok: false, message: "Paste a key first." };
+
+  const chosen = model?.trim() || quickModelFor(providerId);
+  if (chosen === null || chosen.length === 0) return { ok: false, message: "ADCode does not know a model for that provider yet." };
+
+  try {
+    const provider = await buildProvider(providerId, trimmed);
+    if (provider === null) return { ok: false, message: "ADCode has no address for that provider yet." };
+
+    const check = createAgent({ provider, model: chosen, tools: [], runner: toolRunner() });
+    for await (const event of check.send("Reply with the single word: ok")) {
+      if (event.kind === "error") return { ok: false, message: event.detail };
+    }
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "that key was not accepted" };
+  } finally {
+    agent = null;
+  }
+
+  if (!KEYLESS.has(providerId)) await keys.set(providerId, trimmed);
+  await writeSetting("adcode.ai.provider", providerId);
+  await writeSetting("adcode.ai.model", chosen);
+  agent = null;
+  return { ok: true, provider: providerId, model: chosen, status: await aiStatus() };
+}
+
+/**
+ * Whether Ollama is running on this machine, and which models it has.
+ *
+ * Asked of its own API on loopback with a short timeout, so a machine without it answers
+ * "not running" in a second and a half rather than holding up the screen.
+ */
+export async function aiDetectOllama(): Promise<{ running: boolean; models: string[] }> {
+  try {
+    const response = await fetch("http://127.0.0.1:11434/api/tags", { signal: AbortSignal.timeout(1500) });
+    if (!response.ok) return { running: false, models: [] };
+    const body = (await response.json()) as { models?: Array<{ name?: unknown }> };
+    const models = (body.models ?? []).map((one) => one.name).filter((name): name is string => typeof name === "string");
+    return { running: true, models: models.slice(0, 50) };
+  } catch {
+    return { running: false, models: [] };
+  }
+}
+
 /**
  * Send a turn, streaming every event to the renderer as it happens.
  *
@@ -1070,8 +1137,10 @@ export async function aiSend(
     if (typeof ready === "string") {
       broadcast(CHANNELS.aiEvent, { kind: "error", detail: ready });
       recordDebug("error", "ai", ready);
+      recordMilestone("turn_failed");
       return false;
     }
+    recordMilestone("prompt_sent");
 
     // Attachments ride this turn only. The session keeps names, not bytes: image
     // base64 in a session file would bloat history on disk and re-send stale
@@ -1087,6 +1156,7 @@ export async function aiSend(
     let answer = "";
     let paragraphBreak = false;
     let turnSucceeded = true;
+    let cancelled = false;
     let modelTraceRecorded = false;
     const turnStarted = Date.now();
     let toolCalls = 0;
@@ -1128,8 +1198,10 @@ export async function aiSend(
       if (event.kind === "error" || event.kind === "refusal" || event.kind === "cancelled") {
         turnSucceeded = false;
       }
+      if (event.kind === "cancelled") cancelled = true;
     }
 
+    let agentEditRecorded = false;
     if (turnSucceeded && activeTaskId !== null) {
       const service = await readyAiWorkspaceService();
       const task = await currentWorkspaceTask(activeTaskId);
@@ -1149,6 +1221,7 @@ export async function aiSend(
             ),
             rejectedEdits: 0,
           });
+          agentEditRecorded = true;
         } else if (result.conflicts.length > 0) {
           broadcast(CHANNELS.aiEvent, {
             kind: "error",
@@ -1179,7 +1252,27 @@ export async function aiSend(
         files: checkpoint.files.map((file) => ({ path: file.path, created: file.before === null, deleted: file.after === null })),
       });
       recordDebug("info", "ai", `Turn changed ${checkpoint.files.length} file${checkpoint.files.length === 1 ? "" : "s"} (undo available)`);
+      /*
+       * Automatic mode - the default - writes through checkpoints, not through a review task,
+       * and the agent's share of the writing was only ever counted on the task path. Every
+       * account on the dashboard read "the agent wrote 0%", including ones that used nothing
+       * else. Counted here from what the turn actually changed on disk.
+       */
+      if (!agentEditRecorded) {
+        recordAgentEdit({
+          chars: checkpoint.files.reduce(
+            (total, file) => total + Math.max(0, (file.after?.length ?? 0) - (file.before?.length ?? 0)),
+            0,
+          ),
+          acceptedEdits: checkpoint.files.reduce(
+            (total, file) => total + Math.max(1, computeHunks(file.before ?? "", file.after ?? "").length),
+            0,
+          ),
+          rejectedEdits: 0,
+        });
+      }
     }
+    recordMilestone(turnSucceeded ? "turn_ok" : cancelled ? "prompt_sent" : "turn_failed");
     recordDebug("info", "ai", `Turn ${turnSucceeded ? "finished" : "ended early"} after ${((Date.now() - turnStarted) / 1000).toFixed(1)}s with ${toolCalls} tool call${toolCalls === 1 ? "" : "s"}`);
     return turnSucceeded;
   } catch (error) {
@@ -1204,6 +1297,7 @@ export async function aiSend(
       });
     }
     broadcast(CHANNELS.aiEvent, { kind: "error", detail });
+    recordMilestone("turn_failed");
     return false;
   } finally {
     currentTaskPrompt = null;

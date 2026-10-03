@@ -21,6 +21,7 @@ import { closeAssistantControls } from "./assistantControls.ts";
 import { registerSupportIpc } from "./supportIpc.ts";
 import { registerActivityIpc } from "./activity.ts";
 import { registerOnboardingIpc } from "./onboarding.ts";
+import { registerMilestoneIpc } from "./milestones.ts";
 import { registerPinPromptIpc } from "./pinPrompt.ts";
 import { onUpdateStatus, registerUpdateIpc, startAutoUpdate } from "./autoUpdate.ts";
 import { startNoticePolling } from "./notices.ts";
@@ -291,6 +292,7 @@ void app.whenReady().then(() => {
   describeDebugContext({ projectRoot: () => currentWorkspace()?.root ?? null });
   registerActivityIpc();
   registerOnboardingIpc();
+  registerMilestoneIpc();
   registerPinPromptIpc();
   registerUpdateIpc();
   registerAccountIpc();

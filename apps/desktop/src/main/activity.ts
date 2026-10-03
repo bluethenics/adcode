@@ -14,7 +14,9 @@
  * into the queue and retried on the next tick; nothing here ever surfaces an error, and
  * nothing here ever blocks the editor.
  */
-import { join } from "node:path";
+import { writeFileSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { app, ipcMain } from "electron";
 import { CHANNELS } from "../shared/api.ts";
 import { mergeDeltas, utcDay, type ActivityDelta } from "../shared/activity.ts";
@@ -38,6 +40,49 @@ const queue = new Map<string, ActivityDelta>();
 let timer: NodeJS.Timeout | null = null;
 let sending = false;
 
+/**
+ * The first flush of a launch goes out this soon after there is something to say.
+ *
+ * Only the five-minute timer and a fire-and-forget flush at quit used to send anything,
+ * and the app exits before that last request completes - so of the first 419 installs,
+ * the 394 that were gone within five minutes reported nothing at all. Half a minute in,
+ * a short first session has already said that it happened.
+ */
+const FIRST_FLUSH_MS = 30_000;
+let firstFlush: NodeJS.Timeout | null = null;
+
+/** Undelivered days, on disk, so a quit or a crash sends them next launch instead of losing them. */
+const queueFile = (): string => join(app.getPath("userData"), "activity-queue.json");
+let persistTimer: NodeJS.Timeout | null = null;
+
+function persistSoon(): void {
+  if (persistTimer !== null) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    void persistNow();
+  }, 1_000);
+  persistTimer.unref?.();
+}
+
+async function persistNow(): Promise<void> {
+  try {
+    await mkdir(dirname(queueFile()), { recursive: true });
+    await writeFile(queueFile(), JSON.stringify([...queue.values()]), "utf8");
+  } catch {
+    // Unsaved means unsent after a crash, nothing worse.
+  }
+}
+
+async function restoreQueue(): Promise<void> {
+  try {
+    const saved: unknown = JSON.parse(await readFile(queueFile(), "utf8"));
+    if (!Array.isArray(saved)) return;
+    for (const delta of saved as ActivityDelta[]) if (typeof delta?.day === "string") enqueue(delta);
+  } catch {
+    // Nothing saved, which is the usual case.
+  }
+}
+
 function enqueue(delta: ActivityDelta): void {
   const existing = queue.get(delta.day);
   queue.set(delta.day, existing === undefined ? delta : mergeDeltas(existing, delta));
@@ -47,6 +92,13 @@ function enqueue(delta: ActivityDelta): void {
     if (oldest === undefined) break;
     queue.delete(oldest);
   }
+  persistSoon();
+}
+
+function flushSoon(): void {
+  if (firstFlush !== null) return;
+  firstFlush = setTimeout(() => void flushActivity(), FIRST_FLUSH_MS);
+  firstFlush.unref?.();
 }
 
 async function send(delta: ActivityDelta): Promise<boolean> {
@@ -95,6 +147,7 @@ export async function flushActivity(): Promise<void> {
     }
   } finally {
     sending = false;
+    persistSoon();
   }
 }
 
@@ -129,6 +182,12 @@ export function registerActivityIpc(): void {
     for (const delta of deltas) {
       if (typeof delta?.day === "string") enqueue(delta);
     }
+    flushSoon();
+  });
+
+  // What a previous launch could not deliver goes out early in this one.
+  void restoreQueue().then(() => {
+    if (queue.size > 0) flushSoon();
   });
 
   timer = setInterval(() => void flushActivity(), FLUSH_MS);
@@ -137,6 +196,13 @@ export function registerActivityIpc(): void {
 
   app.on("before-quit", () => {
     if (timer !== null) clearInterval(timer);
+    // Written synchronously: the request below rarely finishes before the process exits,
+    // and what it does not deliver is sent from this file next launch.
+    try {
+      writeFileSync(queueFile(), JSON.stringify([...queue.values()]), "utf8");
+    } catch {
+      // §9.
+    }
     void flushActivity();
   });
 }

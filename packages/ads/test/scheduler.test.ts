@@ -33,6 +33,7 @@ describe("decide - one reason at a time", () => {
     ["kill-switch", { killSwitch: true }],
     ["frequency-off", { preset: "off" }],
     ["settling", { launchedAt: NOW - 1 }],
+    ["newcomer", { newcomer: true }],
     ["window-unfocused", { windowFocused: false }],
     ["debug-active", { debugActive: true }],
     ["do-not-disturb", { doNotDisturb: true }],
@@ -222,6 +223,30 @@ describe("decide - an admin test card", () => {
 
   it("still waits out the settle period after launch", () => {
     expect(decide({ ...testing, launchedAt: NOW })).toEqual({ show: false, reason: "settling" });
+  });
+
+  it("is not held back by the newcomer wait, so delivery can be proven on a fresh machine", () => {
+    expect(decide({ ...testing, newcomer: true })).toEqual({ show: true });
+  });
+});
+
+describe("decide - a newcomer's first minutes", () => {
+  /*
+   * Production on 2026-10-03: 394 of 419 installs were gone within five minutes, and the
+   * first card arrived a minute after launch - before the person had built anything. A
+   * sponsored card is fair exchange for an editor that works for you; shown before it has,
+   * it is the first thing ADCode ever gave them.
+   */
+  it("waits until the person has had a first success", () => {
+    expect(decide({ ...clear, newcomer: true })).toEqual({ show: false, reason: "newcomer" });
+  });
+
+  it("puts what the person chose ahead of it", () => {
+    expect(decide({ ...clear, newcomer: true, adsEnabled: false })).toEqual({ show: false, reason: "ads-disabled" });
+  });
+
+  it("changes nothing once the wait is over", () => {
+    expect(decide({ ...clear, newcomer: false })).toEqual({ show: true });
   });
 
   it("leaves the ordinary path alone when the flag is absent or false", () => {

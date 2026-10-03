@@ -34,6 +34,7 @@ import { CHANNELS, type EarningsSnapshot, type SponsoredToast } from "../shared/
 import { DiskFileStore, FetchHttpTransport, SystemClock, toDataUrl } from "./adPorts.ts";
 import { currentSettings } from "./settings.ts";
 import { apiBaseUrl, apiOrigin, createBackendTokens } from "./backend.ts";
+import { adsHeldForNewcomer } from "./milestones.ts";
 import { currentDebugState } from "./debug.ts";
 import { isAgentBrowserWindow } from "./agentBrowser.ts";
 
@@ -337,6 +338,8 @@ export function createAdRuntime(): AdRuntime {
         return state === "starting" || state === "running" || state === "paused";
       },
       doNotDisturb: () => false,
+      // Ads wait for a new install's first success - see `newcomerHold`.
+      newcomer: () => adsHeldForNewcomer(Date.now()),
       themeKind: () => themeKind,
       languageIds: () => languageIds,
       filenames: () => filenames,
