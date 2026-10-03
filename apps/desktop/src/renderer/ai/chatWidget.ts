@@ -1863,7 +1863,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     setupSteps.dataset["needed"] = String(!hasFolder || modelReady === false);
     setupConnect.textContent = modelReady === true ? "1 · AI connected" : "1 · Connect your AI - free";
     setupConnect.className = `${modelReady === true ? "ghost-button" : "chat-send"} chat-setup-action`;
-    setupAsk.textContent = hasFolder ? "2 · Ask for a change" : "2 · Describe what to build";
+    // Numbered only while there is a step 1 above it.
+    setupAsk.textContent = `${setupConnectItem.hidden ? "" : "2 · "}${hasFolder ? "Ask for a change" : "Describe what to build"}`;
     setupAsk.className = `${modelReady === true ? "chat-send" : "ghost-button"} chat-setup-action`;
     welcomeText.textContent = hasFolder
       ? "What can I help you build or change in this project?"

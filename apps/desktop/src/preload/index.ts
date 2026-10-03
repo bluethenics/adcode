@@ -27,7 +27,6 @@ const api: AdcodeApi = {
     open: () => ipcRenderer.invoke(CHANNELS.workspaceOpen),
     openPath: (root) => ipcRenderer.invoke(CHANNELS.workspaceOpenPath, root),
     createProject: (idea) => ipcRenderer.invoke(CHANNELS.workspaceCreateProject, idea),
-    projectsHome: () => ipcRenderer.invoke(CHANNELS.workspaceProjectsHome),
     recents: () => ipcRenderer.invoke(CHANNELS.workspaceRecents),
     forgetRecent: (root) => ipcRenderer.invoke(CHANNELS.workspaceForgetRecent, root),
     clearRecents: () => ipcRenderer.invoke(CHANNELS.workspaceClearRecents),

@@ -389,10 +389,22 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       // Developers are accounts that have done something - counted in Postgres
       // (`developer_counts`) by the same rule as `growth_stats`, because "exists a serve or an
       // activity day or a milestone" is not a PostgREST head count.
-      const developers = await scalar<{ developers: number; developersThisWeek: number }>(
-        "publicStats",
-        (client) => client.rpc("developer_counts", { p_now: now }),
-      );
+      let developers: { developers: number; developersThisWeek: number };
+      try {
+        developers = await scalar<{ developers: number; developersThisWeek: number }>(
+          "publicStats",
+          (client) => client.rpc("developer_counts", { p_now: now }),
+        );
+      } catch {
+        // The function arrives with migration 20261003120000. Until it is applied, the
+        // homepage counter keeps the old account count rather than failing outright.
+        const [all, week] = await Promise.all([
+          db.from("users").select("*", { count: "exact", head: true }).eq("status", "active"),
+          db.from("users").select("*", { count: "exact", head: true }).eq("status", "active").gt("created_at", now - 7 * 86_400_000),
+        ]);
+        if (all.error) fail("publicStats", all.error);
+        developers = { developers: all.count ?? 0, developersThisWeek: week.count ?? 0 };
+      }
       return { impressions: receipts - clicks, clicks, activeCampaigns: results[2]!.count ?? 0, developers: Number(developers.developers), developersThisWeek: Number(developers.developersThisWeek) };
     },
 

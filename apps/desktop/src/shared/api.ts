@@ -694,7 +694,6 @@ export const CHANNELS = {
   collabReencodeInvite: "collab:reencode-invite",
   workspaceOpenPath: "workspace:open-path",
   workspaceCreateProject: "workspace:create-project",
-  workspaceProjectsHome: "workspace:projects-home",
   workspaceRecents: "workspace:recents",
   workspaceFilesChanged: "workspace:files-changed",
   workspaceForgetRecent: "workspace:forget-recent",
@@ -1524,8 +1523,6 @@ export interface AdcodeApi {
      * idea, and open it. For people who arrive with an idea rather than a folder.
      */
     createProject(idea: string): Promise<OpenedWorkspace | null>;
-    /** Where new projects are made, to show the person before and after. */
-    projectsHome(): Promise<string>;
     close(): Promise<void>;
     current(): Promise<OpenedWorkspace | null>;
     list(dirPath: string): Promise<DirEntry[]>;

@@ -6,7 +6,7 @@
  * - a compromised renderer talks to `ipcRenderer` directly.
  */
 import { stat } from "node:fs/promises";
-import { createProjectFolder, projectsHome } from "./newProject.ts";
+import { createProjectFolder } from "./newProject.ts";
 import { recordMilestone } from "./milestones.ts";
 import { GEMINI_KEY_PAGE, OLLAMA_DOWNLOAD_PAGE } from "../shared/quickConnect.ts";
 import { BrowserWindow, app, clipboard, dialog, ipcMain, shell } from "electron";
@@ -377,7 +377,6 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
     return opened;
   });
 
-  ipcMain.handle(CHANNELS.workspaceProjectsHome, () => projectsHome());
 
   ipcMain.handle(CHANNELS.workspaceCurrent, () => currentWorkspace());
   ipcMain.handle(CHANNELS.workspaceRecents, () => recentFolders());
