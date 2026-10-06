@@ -114,6 +114,7 @@ describe("the admin rail", () => {
     expect(items.map((item) => item.href)).toEqual([
       "/admin",
       "/admin/analytics",
+      "/admin/models",
       "/admin/review",
       "/admin/review?tab=feedback",
       "/admin/money",

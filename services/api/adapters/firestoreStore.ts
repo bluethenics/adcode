@@ -1325,6 +1325,21 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
       };
     },
 
+    async getModelCatalog() {
+      const snap = await (await lazy()).collection("config").doc("modelCatalog").get();
+      const raw = snap.data();
+      if (raw === undefined) return null;
+      return {
+        overrides: raw["overrides"] as import("../src/modelCatalog.ts").ModelCatalog,
+        updatedAt: typeof raw["updatedAt"] === "number" ? raw["updatedAt"] : 0,
+        updatedBy: typeof raw["updatedBy"] === "string" ? raw["updatedBy"] : "",
+      };
+    },
+
+    async putModelCatalog(record) {
+      await (await lazy()).collection("config").doc("modelCatalog").set({ ...record });
+    },
+
     async putConfig(config) {
       await (await lazy())
         .collection("config")

@@ -733,6 +733,10 @@ export interface Store {
   getConfig(): Promise<ServingConfig>;
   putConfig(config: ServingConfig): Promise<void>;
 
+  /** The admin panel's curation of the model list; null until it is first saved. */
+  getModelCatalog(): Promise<import("./modelCatalog.ts").ModelCatalogRecord | null>;
+  putModelCatalog(record: import("./modelCatalog.ts").ModelCatalogRecord): Promise<void>;
+
   writeAudit(record: AuditRecord): Promise<void>;
   listAudit(): Promise<AuditRecord[]>;
 

@@ -9,6 +9,7 @@
 import { utcDay } from "./day.ts";
 import { countDevelopers, sightings, summarizeGrowth, type MilestoneRow } from "./growth.ts";
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "./ledger.ts";
+import type { ModelCatalogRecord } from "./modelCatalog.ts";
 import type {
   ActivityDay,
   AdminRecord,
@@ -101,6 +102,7 @@ export function createMemoryStore(): Store & { reset(): void } {
   let audit: AuditRecord[] = [];
   let admins = new Map<string, AdminRecord>();
   let config: ServingConfig = { ...DEFAULT_CONFIG };
+  let modelCatalog: ModelCatalogRecord | null = null;
 
   return {
     reset() {
@@ -133,6 +135,7 @@ export function createMemoryStore(): Store & { reset(): void } {
       audit = [];
       admins = new Map();
       config = { ...DEFAULT_CONFIG };
+      modelCatalog = null;
     },
 
     async getUser(uid) {
@@ -756,6 +759,14 @@ export function createMemoryStore(): Store & { reset(): void } {
 
     async putConfig(next) {
       config = next;
+    },
+
+    async getModelCatalog() {
+      return modelCatalog;
+    },
+
+    async putModelCatalog(record) {
+      modelCatalog = structuredClone(record);
     },
 
     async writeAudit(record) {

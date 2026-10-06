@@ -1141,6 +1141,32 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       if (error !== null) fail("putConfig", error);
     },
 
+    /*
+     * The admin panel's model list curation: one row, id 1. The document was validated by
+     * `parseModelCatalog` before it reached here; jsonb keeps it whole.
+     */
+    async getModelCatalog() {
+      const row = await maybe<{ overrides: unknown; updated_at: number | string; updated_by: string }>("getModelCatalog", (db) =>
+        db.from("model_catalog").select("overrides, updated_at, updated_by").eq("id", 1).maybeSingle(),
+      );
+      if (row === null) return null;
+      return {
+        overrides: row.overrides as import("../src/modelCatalog.ts").ModelCatalog,
+        updatedAt: Number(row.updated_at),
+        updatedBy: row.updated_by,
+      };
+    },
+
+    async putModelCatalog(record) {
+      const { error } = await (await lazy()).from("model_catalog").upsert({
+        id: 1,
+        overrides: record.overrides,
+        updated_at: record.updatedAt,
+        updated_by: record.updatedBy,
+      });
+      if (error !== null) fail("putModelCatalog", error);
+    },
+
     async writeAudit(record) {
       const { error } = await (await lazy()).from("audit_log").insert(fromAudit(record));
       if (error !== null) fail("writeAudit", error);

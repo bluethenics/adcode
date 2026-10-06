@@ -32,6 +32,10 @@ export interface CatalogueModel {
   /** What it reads ("text", "image", "pdf"...) and writes, where published. */
   readonly inputs?: readonly string[];
   readonly outputs?: readonly string[];
+  /** Picked out in the admin panel: listed near the top, tagged Featured. */
+  readonly featured?: boolean;
+  /** A line from the admin panel, shown with the model ("Best for big builds"). */
+  readonly note?: string;
 }
 
 export interface CatalogueProvider {

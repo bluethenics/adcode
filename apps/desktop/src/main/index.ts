@@ -35,7 +35,7 @@ import { disposeAllTerminals } from "./terminal.ts";
 import { shutdownAllServers } from "./lsp.ts";
 import { stopPreview } from "./preview.ts";
 import { closeAgentBrowserWithLastWindow, hardenAgentBrowser, isAgentBrowserContents } from "./agentBrowser.ts";
-import { aiStopToolProcesses } from "./ai.ts";
+import { aiStopToolProcesses, refreshModelLists } from "./ai.ts";
 import { getAdRuntime } from "./adRuntime.ts";
 import { currentSettings, loadSettings } from "./settings.ts";
 import { windowIconPath } from "./windowIcon.ts";
@@ -312,6 +312,9 @@ void app.whenReady().then(() => {
   // Agents connected under the last version run the copy in ~/.adcode/mcp, not this build's
   // resources; bring it up to date. Not awaited, and it swallows its own failures.
   void refreshMcpServer();
+  // The live model list and the admin panel's word on it. `refreshCatalogue` existed and was
+  // never called, so every launch showed the bundled list; neither is waited on.
+  void refreshModelLists();
 
   /*
    * The shortcuts, then the menu.

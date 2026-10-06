@@ -39,6 +39,11 @@ import {
   parseCatalogue,
   providerIn,
   recommendedModel,
+  applyOverrides,
+  parseOverrides,
+  preferencesWith,
+  EMPTY_OVERRIDES,
+  type CatalogueOverrides,
   suggestTeam,
   traitsOf,
   transportFor,
@@ -131,6 +136,7 @@ import { toAiTeamActivityView, toAiTeamTraceView, toAiTeamView } from "./aiTeamV
 import { createAiAutomationService, type AiAutomationService } from "./aiAutomationService.ts";
 import { toAiAutomationView } from "./aiAutomationViews.ts";
 import { askOllama, localModels, startOllama } from "./localModels.ts";
+import { apiBaseUrl } from "./backend.ts";
 import { preferredOllamaModel } from "../shared/quickConnect.ts";
 
 const keys = createKeychainStore();
@@ -152,8 +158,52 @@ const KEYLESS = new Set(["ollama"]);
  * fully usable from the snapshot, and a network that is down should cost freshness rather
  * than the feature.
  */
+/** The bundled or live list, before the admin panel's word on it. */
+let baseCatalogue: readonly CatalogueProvider[] = BUNDLED_CATALOGUE;
+/** What every surface reads: the list with the admin panel's overrides applied. */
 let catalogue: readonly CatalogueProvider[] = BUNDLED_CATALOGUE;
 let catalogueIsLive = false;
+
+/**
+ * The admin panel's curation of the model list (GET /v1/models/overrides): which model each
+ * provider starts on, which to feature, which to hide, models to add before models.dev lists
+ * them. The last good copy is kept on disk, so an offline launch still has it.
+ */
+let overrides: CatalogueOverrides = EMPTY_OVERRIDES;
+let preferences = preferencesWith(EMPTY_OVERRIDES);
+const overridesFile = (): string => join(app.getPath("userData"), "model-overrides.json");
+
+function adoptCatalogue(): void {
+  catalogue = applyOverrides(baseCatalogue, overrides);
+  preferences = preferencesWith(overrides);
+}
+
+async function refreshModelOverrides(): Promise<void> {
+  try {
+    overrides = parseOverrides(JSON.parse(await readFile(overridesFile(), "utf8")));
+    adoptCatalogue();
+  } catch {
+    // Nothing saved yet.
+  }
+  try {
+    const response = await fetch(`${apiBaseUrl()}/models/overrides`, { signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) return;
+    const body = (await response.json()) as { overrides?: unknown };
+    overrides = parseOverrides(body.overrides);
+    adoptCatalogue();
+    await writeFile(overridesFile(), JSON.stringify(overrides), "utf8");
+  } catch {
+    // Offline, or the server is down: the saved copy (or none) stands.
+  }
+}
+
+/**
+ * Both lists, on launch, in the background: models.dev for what exists, the admin panel for
+ * what to recommend and hide. Neither is waited on; the bundled snapshot is usable at once.
+ */
+export async function refreshModelLists(): Promise<void> {
+  await Promise.all([refreshCatalogue(), refreshModelOverrides()]);
+}
 
 export async function refreshCatalogue(): Promise<void> {
   try {
@@ -170,7 +220,8 @@ export async function refreshCatalogue(): Promise<void> {
     const live = usableCatalogue(parseCatalogue(await response.json()));
     if (live.length === 0) return;
 
-    catalogue = mergeCatalogue(BUNDLED_CATALOGUE, live);
+    baseCatalogue = mergeCatalogue(BUNDLED_CATALOGUE, live);
+    adoptCatalogue();
     catalogueIsLive = true;
   } catch {
     // The snapshot is already loaded. Nothing to say.
@@ -641,7 +692,7 @@ function activeModel(provider: string): string {
 
   // The provider's recommended model, not whatever upstream happened to list first - for
   // OpenRouter that was a stealth preview that filled every reply with "I stopped at a limit".
-  return recommendedModel(catalogue, provider) ?? DEFAULT_ANTHROPIC_MODEL;
+  return recommendedModel(catalogue, provider, preferences) ?? DEFAULT_ANTHROPIC_MODEL;
 }
 
 /** What the catalogue knows about a model, for the adapters: its effort levels and output ceiling. */
@@ -784,7 +835,7 @@ export async function aiStatus(): Promise<AiStatus> {
 
   for (const known of catalogue) {
     const needsKey = !KEYLESS.has(known.id);
-    const recommended = recommendedModel(catalogue, known.id);
+    const recommended = recommendedModel(catalogue, known.id, preferences);
 
     providers.push({
       id: known.id,
@@ -929,7 +980,7 @@ const QUICK_PROVIDERS = new Set(["google", "anthropic", "openai", "openrouter", 
 
 /** The model quick connect picks when the caller does not name one: the provider's recommended one. */
 function quickModelFor(providerId: string): string | null {
-  return recommendedModel(catalogue, providerId);
+  return recommendedModel(catalogue, providerId, preferences);
 }
 
 /**
@@ -1008,6 +1059,8 @@ function modelInfo(providerId: string, model: CatalogueProvider["models"][number
     freeTier: providerId === "google" && /flash/i.test(model.id),
     isNew: Number.isFinite(released) && Date.now() - released < NEW_FOR_DAYS * 86_400_000,
     releaseDate: model.releaseDate ?? null,
+    ...(model.featured === true ? { featured: true } : {}),
+    ...(model.note === undefined ? {} : { note: model.note }),
   };
 }
 

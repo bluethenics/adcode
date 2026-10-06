@@ -1016,6 +1016,10 @@ export interface AiModelInfo {
   /** Released in the last 45 days. */
   readonly isNew?: boolean;
   readonly releaseDate?: string | null;
+  /** Picked out in the admin panel. */
+  readonly featured?: boolean;
+  /** The admin panel's line about it ("Best for big builds"). */
+  readonly note?: string;
 }
 
 /** What is true of Ollama on this computer right now - asked, never assumed. */

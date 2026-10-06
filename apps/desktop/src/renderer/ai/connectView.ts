@@ -64,6 +64,7 @@ function price(dollars: number): string {
 /** "1M context · $2 in / $10 out per 1M tokens" - only what the catalogue actually published. */
 export function modelFacts(model: AiModelInfo): string {
   const parts: string[] = [];
+  if (typeof model.note === "string" && model.note.length > 0) parts.push(model.note);
   if (typeof model.contextWindow === "number" && model.contextWindow > 0) parts.push(`${tokenCount(model.contextWindow)} context`);
   if (model.free !== true && typeof model.inputPrice === "number" && typeof model.outputPrice === "number") {
     parts.push(`${price(model.inputPrice)} in / ${price(model.outputPrice)} out per 1M tokens`);
@@ -953,6 +954,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         // What "Use this model" picks, what just came out, and what costs nothing.
         const badges: Array<[string, string]> = [];
         if (model.recommended === true) badges.push(["Recommended", "recommended"]);
+        if (model.featured === true) badges.push(["Featured", "new"]);
         if (model.isNew === true) badges.push(["New", "new"]);
         if (model.free === true) badges.push(["Free", "free"]);
         else if (model.freeTier === true) badges.push(["Free tier", "free"]);

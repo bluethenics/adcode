@@ -105,6 +105,7 @@ import { isSafeAssetKey } from "./assets.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
 import { parseWebsiteEvents, summarizeWebsiteEvents, type WebsiteAnalyticsStore } from "./websiteAnalytics.ts";
 import { growthToWire } from "./growth.ts";
+import { parseModelCatalog, readModelCatalog, saveModelCatalog } from "./modelCatalog.ts";
 
 export interface ApiServer {
   url: string;
@@ -370,6 +371,22 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
+    /*
+     * GET /v1/models/overrides - the admin panel's curation of the model list.
+     *
+     * Public and unauthenticated: every editor reads it on launch, before any account
+     * exists, and it says nothing a model list would not. Cached at the edge for five
+     * minutes, so a change in the panel reaches people within one coffee.
+     */
+    if (path === "/v1/models/overrides" && req.method === "GET") {
+      const record = await readModelCatalog(store);
+      send(res, 200, { overrides: record.overrides, updatedAt: record.updatedAt }, {
+        ...cors,
+        "cache-control": "public, max-age=300, stale-while-revalidate=600",
+      });
+      return;
+    }
+
     if (path === "/v1/demand" && req.method === "GET") {
       const demand = await readDemand(store, clock.now());
       send(res, 200, demand, {
@@ -605,6 +622,23 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       const now = clock.now();
       await store.writeAudit({ adminUid: auth.uid, action: "read-growth", subjectUid: "*", at: now });
       send(res, 200, { ...growthToWire(await store.growthStats(now)), asOf: now }, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+
+    if (path === "/v1/admin/models" && req.method === "GET") {
+      send(res, 200, await readModelCatalog(store), { ...cors, "cache-control": "no-store" });
+      return;
+    }
+
+    if (path === "/v1/admin/models" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const overrides = parseModelCatalog(raw);
+      if (overrides === null) {
+        send(res, 400, { error: "malformed catalog" }, cors);
+        return;
+      }
+      send(res, 200, await saveModelCatalog({ store, clock }, auth.uid, overrides), cors);
       return;
     }
 

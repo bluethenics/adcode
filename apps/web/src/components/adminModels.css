@@ -1,0 +1,135 @@
+/* The admin AI models page: one card per provider, a table of its models. */
+
+.admin-models {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-models-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 0;
+  background: var(--bg, var(--background, #0d0d0d));
+}
+
+.admin-models-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-models-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted, var(--text-secondary, inherit));
+}
+
+.admin-models-meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted, var(--text-secondary, inherit));
+}
+
+.admin-models-provider {
+  padding: 14px 16px;
+  border: 1px solid var(--line, var(--border, rgba(255, 255, 255, 0.1)));
+  border-radius: 14px;
+}
+
+.admin-models-scroll {
+  overflow-x: auto;
+}
+
+.admin-models-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-models-table th,
+.admin-models-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line, var(--border, rgba(255, 255, 255, 0.08)));
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.admin-models-table th {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--muted, var(--text-secondary, inherit));
+}
+
+.admin-models-table tr[data-hidden="true"] td {
+  opacity: 0.45;
+}
+
+.admin-models-table tr[data-hidden="true"] td:nth-child(7) {
+  opacity: 1;
+}
+
+.admin-models-name {
+  display: block;
+  font-weight: 600;
+}
+
+.admin-models-id {
+  display: block;
+  font: 11px var(--font-mono, ui-monospace, monospace);
+  color: var(--muted, var(--text-secondary, inherit));
+}
+
+.admin-models-added {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--accent, #6ea8ff);
+}
+
+.admin-models-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.admin-models-note {
+  min-width: 200px;
+  padding: 5px 8px;
+  font-size: 12.5px;
+}
+
+.admin-models-more {
+  margin-top: 10px;
+}
+
+.admin-models-add {
+  padding: 14px 16px;
+  border: 1px dashed var(--line, var(--border, rgba(255, 255, 255, 0.15)));
+  border-radius: 14px;
+}
+
+.admin-models-add summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-models-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px 14px;
+  margin: 12px 0;
+}
+
+.admin-models-form .field {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}

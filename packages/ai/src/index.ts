@@ -105,6 +105,15 @@ export {
   type Transport,
 } from "./catalogue.ts";
 export { effortFor } from "./effort.ts";
+export {
+  EMPTY_OVERRIDES,
+  applyOverrides,
+  modelKey,
+  parseOverrides,
+  preferencesWith,
+  type AddedModel,
+  type CatalogueOverrides,
+} from "./catalogueOverrides.ts";
 export { allowedOutputSize } from "./outputSize.ts";
 export { THINKING_FILLED_ALLOWANCE } from "./agent.ts";
 
