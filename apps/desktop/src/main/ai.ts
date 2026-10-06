@@ -38,8 +38,11 @@ import {
   normalizeInlineCompletion,
   parseCatalogue,
   providerIn,
+  recommendedModel,
   suggestTeam,
+  traitsOf,
   transportFor,
+  usableCatalogue,
   type Agent,
   type AiFileChange,
   type AiWorkspaceTask,
@@ -66,6 +69,7 @@ import {
   type AiWorkspaceActionView,
   type AiWorkspaceApplySelectionView,
   type AiWorkspaceChangeView,
+  type AiModelInfo as AiModelInfoView,
   type AiProviderInfo,
   type AiStatus,
   type AiWorkspaceTaskView,
@@ -126,6 +130,8 @@ import type { ParsedAiTeamConfigure } from "./aiTeamIpcValidation.ts";
 import { toAiTeamActivityView, toAiTeamTraceView, toAiTeamView } from "./aiTeamViews.ts";
 import { createAiAutomationService, type AiAutomationService } from "./aiAutomationService.ts";
 import { toAiAutomationView } from "./aiAutomationViews.ts";
+import { askOllama, localModels, startOllama } from "./localModels.ts";
+import { preferredOllamaModel } from "../shared/quickConnect.ts";
 
 const keys = createKeychainStore();
 const requestScheduler = new RequestScheduler();
@@ -156,7 +162,10 @@ export async function refreshCatalogue(): Promise<void> {
     });
     if (!response.ok) return;
 
-    const live = parseCatalogue(await response.json());
+    // Cut by the same rules as the bundled snapshot: reachable providers, models that can
+    // hold a conversation with tools. The raw list held Azure, Bedrock and every embedding
+    // model upstream sells, and each failed the moment it was picked.
+    const live = usableCatalogue(parseCatalogue(await response.json()));
     if (live.length === 0) return;
 
     catalogue = mergeCatalogue(BUNDLED_CATALOGUE, live);
@@ -628,8 +637,24 @@ function activeModel(provider: string): string {
   const value = currentSettings()["adcode.ai.model"];
   if (typeof value === "string" && value.trim().length > 0) return value.trim();
 
-  const known = providerIn(catalogue, provider);
-  return known?.models[0]?.id ?? DEFAULT_ANTHROPIC_MODEL;
+  // The provider's recommended model, not whatever upstream happened to list first - for
+  // OpenRouter that was a stealth preview that filled every reply with "I stopped at a limit".
+  return recommendedModel(catalogue, provider) ?? DEFAULT_ANTHROPIC_MODEL;
+}
+
+/** What the catalogue knows about a model, for the adapters: its effort levels and output ceiling. */
+const traitsFor = (providerId: string) => (model: string) => traitsOf(catalogue, providerId, model);
+
+/**
+ * The output allowance a chat request starts with, and the most it may grow to.
+ *
+ * Starting at 16K (or the model's own ceiling, when lower) leaves room for hidden reasoning
+ * plus a real answer; a reply cut off part way doubles it, up to the model's ceiling. A model
+ * the catalogue does not know grows to the agent's default instead.
+ */
+function outputBudget(providerId: string, model: string): { maxTokens: number; maxOutputTokens?: number } {
+  const ceiling = traitsOf(catalogue, providerId, model)?.maxOutput ?? null;
+  return ceiling === null ? { maxTokens: 16_384 } : { maxTokens: Math.min(16_384, ceiling), maxOutputTokens: Math.min(ceiling, 65_536) };
 }
 
 /**
@@ -645,8 +670,8 @@ export async function buildProvider(id: string, offeredKey?: string): Promise<Pr
   const paced = (provider: Provider) => requestScheduler.wrap(provider, id, () => connections().find(item => item.id === id)?.rpm ?? 6000);
   if (!KEYLESS.has(id) && key.length === 0 && id !== "custom") return null;
 
-  if (id === "anthropic") return paced(createAnthropicProvider({ apiKey: key }));
-  if (id === "google") return paced(createGoogleProvider({ apiKey: key }));
+  if (id === "anthropic") return paced(createAnthropicProvider({ apiKey: key, traits: traitsFor(id) }));
+  if (id === "google") return paced(createGoogleProvider({ apiKey: key, traits: traitsFor(id) }));
 
   const baseUrl = baseUrlOf(id);
   if (baseUrl === null) return null;
@@ -659,6 +684,7 @@ export async function buildProvider(id: string, offeredKey?: string): Promise<Pr
     baseUrl,
     apiKey: key,
     models: (known?.models ?? []).map((model) => model.id),
+    traits: traitsFor(id),
   }));
 }
 
@@ -756,16 +782,15 @@ export async function aiStatus(): Promise<AiStatus> {
 
   for (const known of catalogue) {
     const needsKey = !KEYLESS.has(known.id);
+    const recommended = recommendedModel(catalogue, known.id);
 
     providers.push({
       id: known.id,
       displayName: known.name,
-      models: known.models.map((model) => ({
-        id: model.id,
-        name: model.name,
-        toolCall: model.toolCall,
-        reasoning: model.reasoning,
-      })),
+      // The recommended model first - it is what "Use this model" picks - then newest first.
+      models: [...known.models]
+        .sort((a, b) => Number(b.id === recommended) - Number(a.id === recommended))
+        .map((model) => modelInfo(known.id, model, recommended)),
       hasKey: needsKey ? await keys.has(known.id) : true,
       needsKey,
       transport: transportFor(known.id),
@@ -774,25 +799,26 @@ export async function aiStatus(): Promise<AiStatus> {
   }
 
   /*
-   * Ollama, which the catalogue does not list.
+   * Ollama, as it is on this computer - asked, never assumed.
    *
-   * It has an address and needs no key, but status only knew providers from the catalogue,
-   * so a local model could be selected and still never count as ready - and it did not
-   * appear on the Connect screen at all. Its models are whatever this machine has pulled,
-   * so the selected one is listed and the rest are typed or picked through quick connect.
+   * It used to be listed as connected on every machine ("no key needed", in green), installed
+   * or not. Its models are the ones this machine has pulled; it counts as ready only while it
+   * is running and has the selected model.
    */
-  if (!providers.some((one) => one.id === "ollama")) {
-    const localModel = provider === "ollama" ? activeModel("ollama") : null;
-    providers.push({
-      id: "ollama",
-      displayName: "Ollama (on this computer)",
-      models: localModel === null ? [] : [{ id: localModel, name: localModel, toolCall: true, reasoning: false }],
-      hasKey: true,
-      needsKey: false,
-      transport: "openai-compatible",
-      doc: "https://ollama.com/download",
-    });
-  }
+  const local = await localModels();
+  const preferredLocal = preferredOllamaModel(local.models);
+  providers.push({
+    id: "ollama",
+    displayName: "Ollama (on this computer)",
+    models: [...local.models]
+      .sort((a, b) => Number(b === preferredLocal) - Number(a === preferredLocal))
+      .map((name) => ({ id: name, name, toolCall: true, reasoning: false, recommended: name === preferredLocal, free: true })),
+    hasKey: local.running && local.models.length > 0,
+    needsKey: false,
+    local,
+    transport: "openai-compatible",
+    doc: "https://ollama.com/download",
+  });
 
   /*
    * The custom endpoint is always offered, and is not in the catalogue.
@@ -826,7 +852,9 @@ export async function aiStatus(): Promise<AiStatus> {
     // address where the provider is the custom one.
     ready:
       (active?.hasKey ?? false) &&
-      (provider !== "custom" || customUrl !== null),
+      (provider !== "custom" || customUrl !== null) &&
+      // A local model is ready only while Ollama runs and has it.
+      (provider !== "ollama" || local.models.includes(activeModel("ollama"))),
     customBaseUrl: customUrl ?? "",
     catalogueTakenOn: SNAPSHOT_TAKEN_ON,
     catalogueIsLive,
@@ -897,10 +925,9 @@ export async function checkProviderKey(providerId: string, key: string): Promise
 /** The providers quick connect may select. Each has a built-in address and a model with tools. */
 const QUICK_PROVIDERS = new Set(["google", "anthropic", "openai", "openrouter", "groq", "xai", "cerebras", "deepseek", "ollama"]);
 
-/** The model quick connect picks when the caller does not name one: the first that can use tools. */
+/** The model quick connect picks when the caller does not name one: the provider's recommended one. */
 function quickModelFor(providerId: string): string | null {
-  const models = providerIn(catalogue, providerId)?.models ?? [];
-  return (models.find((model) => model.toolCall) ?? models[0])?.id ?? null;
+  return recommendedModel(catalogue, providerId);
 }
 
 /**
@@ -947,16 +974,39 @@ export async function aiQuickConnect(providerId: string, key: string, model: str
  * Asked of its own API on loopback with a short timeout, so a machine without it answers
  * "not running" in a second and a half rather than holding up the screen.
  */
-export async function aiDetectOllama(): Promise<{ running: boolean; models: string[] }> {
-  try {
-    const response = await fetch("http://127.0.0.1:11434/api/tags", { signal: AbortSignal.timeout(1500) });
-    if (!response.ok) return { running: false, models: [] };
-    const body = (await response.json()) as { models?: Array<{ name?: unknown }> };
-    const models = (body.models ?? []).map((one) => one.name).filter((name): name is string => typeof name === "string");
-    return { running: true, models: models.slice(0, 50) };
-  } catch {
-    return { running: false, models: [] };
-  }
+export function aiDetectOllama(): Promise<{ running: boolean; models: string[] }> {
+  return askOllama();
+}
+
+/** Start Ollama on the person's click, and say how it is afterwards. */
+export async function aiStartOllama(): Promise<AiStatus> {
+  await startOllama();
+  return aiStatus();
+}
+
+/** Days a model counts as new after its release. */
+const NEW_FOR_DAYS = 45;
+
+/** What the model list shows about a model: real numbers from the catalogue, never invented ones. */
+function modelInfo(providerId: string, model: CatalogueProvider["models"][number], recommended: string | null): AiModelInfoView {
+  const dollars = (micros: number | null | undefined): number | null =>
+    micros === null || micros === undefined ? null : micros / 1_000_000;
+  const released = model.releaseDate === undefined ? Number.NaN : Date.parse(`${model.releaseDate}T00:00:00Z`);
+  return {
+    id: model.id,
+    name: model.name,
+    toolCall: model.toolCall,
+    reasoning: model.reasoning,
+    recommended: model.id === recommended,
+    contextWindow: model.contextWindow ?? null,
+    inputPrice: dollars(model.inputCostMicrosPerMillion),
+    outputPrice: dollars(model.outputCostMicrosPerMillion),
+    free: model.inputCostMicrosPerMillion === 0 && model.outputCostMicrosPerMillion === 0,
+    // Google's free tier covers the Flash models: the route quick connect offers first.
+    freeTier: providerId === "google" && /flash/i.test(model.id),
+    isNew: Number.isFinite(released) && Date.now() - released < NEW_FOR_DAYS * 86_400_000,
+    releaseDate: model.releaseDate ?? null,
+  };
 }
 
 /**
@@ -1050,6 +1100,7 @@ async function ensureChatAgent(providerId: string, model: string): Promise<Agent
     model,
     tools: chatTools(),
     effort: configuredEffort(),
+    ...outputBudget(providerId, model),
     compaction: compactionFor(providerId, model),
     initialMessages: carried ?? (session === null ? [] : restoreHistory(session)),
     context: async () => {

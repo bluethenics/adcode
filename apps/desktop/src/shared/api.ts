@@ -563,6 +563,7 @@ export const CHANNELS = {
   aiCheckKey: "ai:check-key",
   aiQuickConnect: "ai:quick-connect",
   aiDetectOllama: "ai:detect-ollama",
+  aiStartOllama: "ai:start-ollama",
   aiOpenKeyPage: "ai:open-key-page",
   aiCheckpoint: "ai:checkpoint",
   aiCheckpointUndo: "ai:checkpoint-undo",
@@ -1001,6 +1002,28 @@ export interface AiModelInfo {
   /** An agent needs tool calls; a model without them is a chat box. */
   readonly toolCall: boolean;
   readonly reasoning: boolean;
+  /** The model this provider starts on. At most one per provider, and listed first. */
+  readonly recommended?: boolean;
+  /** Tokens it reads at once, where published. */
+  readonly contextWindow?: number | null;
+  /** USD per million tokens, where published. */
+  readonly inputPrice?: number | null;
+  readonly outputPrice?: number | null;
+  /** Costs nothing per token (an OpenRouter `:free` model, or one on this computer). */
+  readonly free?: boolean;
+  /** The provider has a free tier that covers it (Google's Flash models). */
+  readonly freeTier?: boolean;
+  /** Released in the last 45 days. */
+  readonly isNew?: boolean;
+  readonly releaseDate?: string | null;
+}
+
+/** What is true of Ollama on this computer right now - asked, never assumed. */
+export interface LocalModelsView {
+  readonly installed: boolean;
+  readonly running: boolean;
+  /** The models it has pulled, embeddings left out. */
+  readonly models: readonly string[];
 }
 
 export interface AiProviderInfo {
@@ -1010,6 +1033,8 @@ export interface AiProviderInfo {
   /** False until the user supplies a key. The local option needs none. */
   readonly hasKey: boolean;
   readonly needsKey: boolean;
+  /** For Ollama: whether it is installed, running, and which models it has. */
+  readonly local?: LocalModelsView;
   /**
    * Whether this editor can talk to it, and how.
    *
@@ -1760,6 +1785,8 @@ export interface AdcodeApi {
     quickConnect(provider: string, key: string, model: string | null): Promise<AiQuickConnectResult>;
     /** Whether Ollama is running here, and the models it has. Never throws. */
     detectOllama(): Promise<{ running: boolean; models: string[] }>;
+    /** Start an installed Ollama, wait for it to answer, and return the status that follows. */
+    startOllama(): Promise<AiStatus>;
     /** Open AI Studio's key page, or Ollama's download page, in the system browser. */
     openKeyPage(intent: "gemini" | "ollama"): Promise<void>;
     /**

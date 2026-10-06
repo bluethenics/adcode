@@ -13,7 +13,7 @@
  * Only `transform` and `opacity` animate (§1) - the card is positioned with a translate,
  * never with `left`/`top`, so dragging never triggers layout.
  */
-import { describeAiFailure } from "./aiFailure.ts";
+import { describeAiFailure, OUTPUT_LIMIT_AGAIN } from "./aiFailure.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { createChatPreview } from "./chatPreview.ts";
 import { createAgentViewCard, createPlanCard, planStepsFrom, type AgentViewCard, type PlanCard } from "./chatAgentCards.ts";
@@ -2520,6 +2520,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /** Re-send a prompt, unless a turn is already running. */
   const KEEP_GOING_LIMIT = 5;
   let keptGoing = 0;
+  /** Output-limit stops since a turn last finished: a second one means Continue is not helping. */
+  let outputLimitStops = 0;
   /**
    * Send once the turn that just ended has fully returned. The step-limit error arrives
    * while main is still finishing that turn, and a send in that moment is refused.
@@ -3759,6 +3761,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
             continueWhenIdle("Continue from where you stopped and finish the remaining steps.");
             break;
           }
+          // The agent already continued a cut-off reply by itself, with more room each time.
+          // Reaching the output limit again after a Continue means one more will not help:
+          // say what will, instead of offering the same button again.
+          if (/response limit/i.test(detail)) {
+            outputLimitStops += 1;
+            if (outputLimitStops >= 2) {
+              failureCard(OUTPUT_LIMIT_AGAIN);
+              break;
+            }
+          }
           continueNudge();
           break;
         }
@@ -3775,6 +3787,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         break;
 
       case "turn-end": {
+        outputLimitStops = 0;
         const finished = streamingBubble;
         finished?.classList.remove("is-streaming");
         streamingBubble = null;

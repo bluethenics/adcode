@@ -735,7 +735,7 @@ Which particular AI, from that company, answers you.
 
 Why use it: Bigger models are cleverer and slower; smaller ones are quick and cheap. Most people want a big one for hard questions and a small one for everything else.
 
-How to use it: Pick from the list, which shows the models your key can actually reach rather than a fixed set. Switching takes effect on your next message - it does not restart the conversation. Thinking effort sets how hard reasoning models think: Auto lets the provider decide, higher efforts answer harder questions better and cost more.
+How to use it: Pick from the list, which shows only models that can work as your assistant - ones that write text and use tools - newest first. Each says what it reads at once and what it costs per million tokens, and is tagged Recommended (the one Use this model picks), New, Free or Free tier where that is true. Switching takes effect on your next message - it does not restart the conversation. Thinking effort sets how hard reasoning models think: Auto lets the provider decide, higher efforts answer harder questions better and cost more; each model is sent the nearest level it actually has. A long reply that reaches the model's output limit carries on by itself with more room.
 
 Access: `All Features → Model`; `Settings`.
 
@@ -757,7 +757,7 @@ Which company's AI you want to use. You bring your own account and key.
 
 Why use it: Different models are better at different things, and cost different amounts. ADCode does not resell anybody's AI, so the choice - and the bill - is yours.
 
-How to use it: Open Connect a model, pick a provider, and paste your key. ADCode checks the key works before saving it. Keys are kept in your operating system's own password store, never in a settings file. The local option needs no key at all - it talks to a model running on your own machine.
+How to use it: Open Connect a model, pick a provider, and paste your key. ADCode checks the key works before saving it. Keys are kept in your operating system's own password store, never in a settings file. The local option, Ollama, needs no key at all - it talks to a model running on your own machine, and its row says what is true right now: Running with how many models, Installed but not running (with Start Ollama), or Not installed (with Download Ollama).
 
 Access: `All Features → Provider`; `Settings`.
 

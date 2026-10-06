@@ -130,6 +130,7 @@ import {
   checkProviderKey,
   aiQuickConnect,
   aiDetectOllama,
+  aiStartOllama,
   aiTeamCancel,
   aiTeamConfigure,
   aiTeamList,
@@ -632,6 +633,8 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
   );
 
   ipcMain.handle(CHANNELS.aiDetectOllama, () => aiDetectOllama());
+  // Start Ollama on the person's click: the executable is found here, never named by the renderer.
+  ipcMain.handle(CHANNELS.aiStartOllama, () => aiStartOllama());
 
   /*
    * Where to get a key, by intent rather than by URL - the same rule as every other

@@ -168,6 +168,42 @@
   white-space: nowrap;
 }
 
+/* New, Free, Free tier, Reasoning, Chat only: facts, coloured by what they mean. */
+.connect-model-marks > .connect-model-tag[data-tone="new"] {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
+}
+.connect-model-marks > .connect-model-tag[data-tone="free"] {
+  border-color: color-mix(in srgb, var(--success) 40%, transparent);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
+  font-weight: 650;
+}
+.connect-model-marks > .connect-model-tag[data-tone="warn"] {
+  border-color: color-mix(in srgb, var(--warning) 40%, transparent);
+  color: var(--warning);
+}
+
+/* Context size and price, from the catalogue: one quiet line under the id. */
+.connect-model-facts {
+  overflow: hidden;
+  color: var(--text-tertiary, var(--text-secondary));
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ollama: download, start, or look again - only the step that applies. */
+.connect-local-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+.connect-local-actions .connect-result { flex-basis: 100%; margin: 0; }
+.connect-local-actions .connect-result:empty { display: none; }
+
 /* ── Thinking effort: one segmented control, five honest options ────── */
 
 .connect-effort { margin: 18px 0 0; padding: 14px; background: var(--surface-sheen), var(--bg-app); border-radius: var(--radius-md); }

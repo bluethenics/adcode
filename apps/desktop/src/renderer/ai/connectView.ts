@@ -19,7 +19,7 @@ import {
   NIM_BASE_URL,
   type ConnectionProfile,
 } from "@adcode/ai/connections";
-import type { AiProviderInfo, AiStatus } from "../../shared/api.ts";
+import type { AiModelInfo, AiProviderInfo, AiStatus, LocalModelsView } from "../../shared/api.ts";
 import { pasteText } from "../clipboard.ts";
 import { createQuickConnect, type QuickConnect } from "./quickConnect.ts";
 
@@ -48,6 +48,44 @@ export interface ConnectViewDeps {
   /** The coordinator owns the dialog shell, dismissal, and focus return. */
   readonly requestOpen: () => void;
   readonly requestClose: () => void;
+}
+
+/** "1M", "200K", "32K": a token count the way a person reads it. */
+function tokenCount(tokens: number): string {
+  if (tokens >= 1_000_000) return `${String(Math.round(tokens / 100_000) / 10).replace(/\.0$/, "")}M`;
+  return `${String(Math.round(tokens / 1000))}K`;
+}
+
+/** "$2", "$0.15", "$10": a price per million tokens, as short as it stays exact. */
+function price(dollars: number): string {
+  return `$${dollars >= 10 ? dollars.toFixed(0) : dollars >= 1 ? dollars.toFixed(2).replace(/\.00$/, "") : dollars.toFixed(2)}`;
+}
+
+/** "1M context · $2 in / $10 out per 1M tokens" - only what the catalogue actually published. */
+export function modelFacts(model: AiModelInfo): string {
+  const parts: string[] = [];
+  if (typeof model.contextWindow === "number" && model.contextWindow > 0) parts.push(`${tokenCount(model.contextWindow)} context`);
+  if (model.free !== true && typeof model.inputPrice === "number" && typeof model.outputPrice === "number") {
+    parts.push(`${price(model.inputPrice)} in / ${price(model.outputPrice)} out per 1M tokens`);
+  }
+  return parts.join(" · ");
+}
+
+/** Ollama's row, in three words: what is true of this computer. */
+export function localLabel(local: LocalModelsView): string {
+  if (local.running) return local.models.length > 0 ? `Running · ${String(local.models.length)} model${local.models.length === 1 ? "" : "s"}` : "Running · no models";
+  return local.installed ? "Installed · not running" : "Not installed";
+}
+
+function localDescription(local: LocalModelsView): string {
+  if (!local.installed) {
+    return "Ollama runs AI models on your own computer - free, private and offline. It is not installed here yet: download it, then come back and pick a model.";
+  }
+  if (!local.running) return "Ollama is installed but not running. Start it, and the models it has appear here.";
+  if (local.models.length === 0) {
+    return "Ollama is running but has no models yet. In a terminal, run: ollama pull qwen3-coder - then pick it here.";
+  }
+  return "Runs on your computer: free, private, and as fast as your machine. No API key needed.";
 }
 
 export function createConnectView(deps: ConnectViewDeps): ConnectView {
@@ -422,8 +460,12 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       const state = document.createElement("span");
       state.className = "connect-state";
       // Three different things, and conflating them is how a connection screen lies.
+      // Ollama says what is true of this computer, not "no key needed" whether or not it exists.
+      const local = provider.local;
       state.textContent = provider.id === status.activeProvider && status.ready
         ? "In use"
+        : local !== undefined
+        ? localLabel(local)
         : !provider.needsKey
         ? "no key needed"
         : provider.hasKey
@@ -431,8 +473,9 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
           : provider.transport === "unsupported"
             ? "needs an address"
             : "needs a key";
-      state.dataset["tone"] =
-        provider.hasKey || !provider.needsKey
+      state.dataset["tone"] = local !== undefined
+        ? local.running && local.models.length > 0 ? "ok" : local.installed ? "warn" : ""
+        : provider.hasKey || !provider.needsKey
           ? "ok"
           : provider.transport === "unsupported"
             ? "warn"
@@ -482,10 +525,13 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     description.className = "connect-detail-description";
     description.textContent = provider.transport === "unsupported"
       ? "Add an API connection with this provider's endpoint to get started."
-      : provider.needsKey
-        ? "Connect your account, then choose a model for your assistant."
-        : "Run your assistant with a local model. No API key required.";
+      : provider.local !== undefined
+        ? localDescription(provider.local)
+        : provider.needsKey
+          ? "Connect your account, then choose a model for your assistant."
+          : "Run your assistant with a local model. No API key required.";
     detail.append(description);
+    if (provider.local !== undefined) detail.append(localActions(provider.local));
     const selection = document.createElement("div");
     selection.className = "connect-selection";
     const selectionText = document.createElement("p");
@@ -873,7 +919,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       const models = document.createElement("div");
       models.className = "connect-models";
 
-      for (const [index, model] of provider.models.entries()) {
+      for (const model of provider.models) {
         const row = document.createElement("button");
         row.type = "button";
         row.className = "connect-model";
@@ -893,21 +939,32 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         id.className = "connect-model-id";
         id.textContent = model.id;
         copy.append(name, id);
+        // Real numbers from the catalogue - context and price - so a choice is an informed one.
+        const facts = modelFacts(model);
+        if (facts.length > 0) {
+          const line = document.createElement("span");
+          line.className = "connect-model-facts";
+          line.textContent = facts;
+          copy.append(line);
+        }
 
         const marks = document.createElement("span");
         marks.className = "connect-model-marks";
-        // The first model is the default "Use this model" picks: say so.
-        if (index === 0) {
-          const recommended = document.createElement("span");
-          recommended.className = "connect-model-badge";
-          recommended.textContent = "Recommended";
-          marks.append(recommended);
-        }
+        // What "Use this model" picks, what just came out, and what costs nothing.
+        const badges: Array<[string, string]> = [];
+        if (model.recommended === true) badges.push(["Recommended", "recommended"]);
+        if (model.isNew === true) badges.push(["New", "new"]);
+        if (model.free === true) badges.push(["Free", "free"]);
+        else if (model.freeTier === true) badges.push(["Free tier", "free"]);
+        if (model.reasoning) badges.push(["Reasoning", ""]);
         // Tool calls are the one capability that changes what this editor may do with a
         // model: without them the agent cannot read a file, and it is a chat box.
-        for (const capability of [model.toolCall ? "Tools" : "Chat only", ...(model.reasoning ? ["Reasoning"] : [])]) {
+        if (!model.toolCall) badges.push(["Chat only", "warn"]);
+        for (const [text, tone] of badges) {
           const badge = document.createElement("span");
-          badge.textContent = capability;
+          badge.className = tone === "recommended" ? "connect-model-badge" : "connect-model-tag";
+          if (tone.length > 0) badge.dataset["tone"] = tone;
+          badge.textContent = text;
           marks.append(badge);
         }
 
@@ -968,10 +1025,57 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
     animateDetail();
   }
 
+  /** Ollama's way forward: get it, start it, or look again once a model is pulled. */
+  function localActions(local: LocalModelsView): HTMLElement {
+    const row = document.createElement("div");
+    row.className = "connect-local-actions";
+    const note = document.createElement("p");
+    note.className = "connect-result";
+    note.setAttribute("role", "status");
+    const action = (label: string, primary: boolean, run: (button: HTMLButtonElement) => Promise<void>): void => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = primary ? "btn btn-primary" : "ad-btn";
+      button.textContent = label;
+      button.addEventListener("click", () => {
+        button.disabled = true;
+        void run(button).finally(() => { button.disabled = false; });
+      });
+      row.append(button);
+    };
+    const refresh = async (next?: AiStatus): Promise<void> => {
+      status = next ?? (await deps.status());
+      keepDetailScroll(() => {
+        renderProviders();
+        renderDetail();
+      });
+    };
+
+    if (!local.installed) {
+      action("Download Ollama", true, async () => { await window.adcode.ai.openKeyPage("ollama"); });
+    } else if (!local.running) {
+      action("Start Ollama", true, async (button) => {
+        button.textContent = "Starting…";
+        note.textContent = "";
+        const next = await window.adcode.ai.startOllama().catch(() => null);
+        if (next === null || next.providers.find((one) => one.id === "ollama")?.local?.running !== true) {
+          button.textContent = "Start Ollama";
+          note.dataset["tone"] = "error";
+          note.textContent = "Ollama did not start. Open the Ollama app yourself, then press Check again.";
+          return;
+        }
+        await refresh(next);
+      });
+    }
+    if (!(local.running && local.models.length > 0)) action("Check again", local.installed && local.running, () => refresh());
+    row.append(note);
+    return row;
+  }
+
   async function activateProvider(provider: AiProviderInfo): Promise<void> {
     const model = status?.activeProvider === provider.id
       ? status.activeModel
-      : provider.models[0]?.id ?? "";
+      : (provider.models.find((one) => one.recommended) ?? provider.models[0])?.id ?? "";
     await deps.write("adcode.ai.provider", provider.id);
     await deps.write("adcode.ai.model", model);
     status = await deps.status();

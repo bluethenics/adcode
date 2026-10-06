@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeAiFailure, providerFrom } from "../src/renderer/ai/aiFailure.ts";
+import { describeAiFailure, OUTPUT_LIMIT_AGAIN, providerFrom } from "../src/renderer/ai/aiFailure.ts";
 
 describe("assistant failure explanations", () => {
   it("names the provider from its own error", () => {
@@ -58,6 +58,35 @@ describe("assistant failure explanations", () => {
     expect(describeAiFailure("fetch failed").kind).toBe("network");
     expect(describeAiFailure("connect ECONNREFUSED 127.0.0.1:11434").title).toBe("Could not reach the provider");
     expect(describeAiFailure("Anthropic returned HTTP 529: Overloaded").kind).toBe("server");
+  });
+
+  /*
+   * The wordings the model fixes of 2026-10-04 introduced or exposed. Each used to land on
+   * "The assistant stopped with an error" - or, for the first, on a Continue that could not
+   * help.
+   */
+  it("says a model that only thought should think less or be swapped, not continued", () => {
+    const failure = describeAiFailure("The model spent its whole output allowance thinking and wrote nothing. Lower Thinking effort in Connect a model, or choose another model.");
+    expect(failure.kind).toBe("thinking-limit");
+    expect(failure.actions).toEqual(["models", "retry"]);
+  });
+
+  it("recognises OpenRouter's ways of saying a model is unavailable or cannot use tools", () => {
+    expect(describeAiFailure("OpenRouter: No endpoints found that support tool use. (code 404)").kind).toBe("no-tools");
+    expect(describeAiFailure("OpenRouter: No endpoints found for stealth/space-bunny-alpha. (code 404)").kind).toBe("model-missing");
+    expect(describeAiFailure("OpenRouter returned HTTP 402: This request requires more credits, or fewer max_tokens. You requested up to 16384 tokens, but can only afford 120.").kind).toBe("credits");
+  });
+
+  it("stops offering Continue when the output limit stopped the reply twice in a row", () => {
+    const failure = describeAiFailure(OUTPUT_LIMIT_AGAIN);
+    expect(failure.kind).toBe("output-limit");
+    expect(failure.actions).toEqual(["models", "new-conversation"]);
+  });
+
+  it("offers a fresh start when Gemini rejects a history it cannot verify", () => {
+    const failure = describeAiFailure("Google returned HTTP 400: Function call is missing a thought_signature in functionCall parts. (INVALID_ARGUMENT)");
+    expect(failure.kind).toBe("history");
+    expect(failure.actions[0]).toBe("new-conversation");
   });
 
   it("still offers a way forward for anything unrecognised", () => {

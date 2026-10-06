@@ -23,6 +23,9 @@ export interface AiFailure {
     | "tool-format"
     | "no-tools"
     | "credits"
+    | "thinking-limit"
+    | "output-limit"
+    | "history"
     | "network"
     | "server"
     | "unknown";
@@ -32,6 +35,17 @@ export interface AiFailure {
   /** The provider's exact words, for the details disclosure and the debug log. */
   readonly detail: string;
 }
+
+/**
+ * What the chat reports when the output limit stopped a reply a second time in a row.
+ *
+ * Reported: Vibe answered "I stopped at a limit... Continue" again and again, and Continue
+ * changed nothing. The agent now continues a cut-off reply by itself, with more room each
+ * time; a reply that still reaches the limit after that will not be fixed by one more
+ * Continue, so the chat says what will.
+ */
+export const OUTPUT_LIMIT_AGAIN =
+  "The reply reached the model's output limit again, even after continuing.";
 
 /** "Groq returned HTTP 429: ..." -> "Groq". Falls back to a neutral noun. */
 export function providerFrom(detail: string): string {
@@ -55,8 +69,33 @@ export function describeAiFailure(raw: string): AiFailure {
   const make = (kind: AiFailure["kind"], title: string, explanation: string, actions: readonly AiFailureAction[]): AiFailure =>
     ({ kind, title, explanation, actions, detail });
 
+  if (detail === OUTPUT_LIMIT_AGAIN) {
+    return make(
+      "output-limit",
+      "The reply keeps reaching the model's limit",
+      "Continuing did not get it past the limit. Ask for a smaller piece of the work at a time, or pick a model that can write longer replies.",
+      ["models", "new-conversation"],
+    );
+  }
+  // Before "Connect a model" below: this one names Connect as the fix, not as what is missing.
+  if (/output allowance thinking/i.test(detail)) {
+    return make(
+      "thinking-limit",
+      "The model only thought, and wrote nothing",
+      "It spent its whole output allowance reasoning, even with more room. Lower Thinking effort in Connect a model, or pick a model that answers sooner.",
+      ["models", "retry"],
+    );
+  }
   if (/No API key|No address for the custom endpoint|Connect a model/i.test(detail)) {
     return make("no-key", "No model connected", "Add a provider and key in Connect a model - it takes about a minute.", ["models"]);
+  }
+  if (/thought_signature|thought signature|thinking block.*(?:signature|bound)|Invalid `?signature`?/i.test(detail)) {
+    return make(
+      "history",
+      "This model cannot pick up this conversation",
+      `${who} refused the conversation's earlier steps. Start a fresh conversation with the same request - nothing in your project is lost.`,
+      ["new-conversation", "retry"],
+    );
   }
   if (/HTTP 413|request too large|context[_ ]length|maximum context|too many tokens|prompt is too long|reduce the length/i.test(detail)) {
     const numbers = tokenNumbers(detail);
@@ -87,7 +126,7 @@ export function describeAiFailure(raw: string): AiFailure {
   if (/insufficient[_ ](credit|quota|balance)|credit|billing|payment required|HTTP 402|quota (?:is )?(?:reached|exceeded)|exceeded your (?:current )?quota/i.test(detail)) {
     return make("credits", `${who} account is out of credit`, "Add credit with the provider, or switch to another model in Connect a model.", ["models"]);
   }
-  if (/does not support tools|tool use is not supported|tools are not supported|function calling is not supported|not support function/i.test(detail)) {
+  if (/does not support tools|tool use is not supported|tools are not supported|function calling is not supported|not support function|endpoints found that support tool/i.test(detail)) {
     return make("no-tools", "This model cannot use tools", "ADCode needs tool use to read and change your files. Choose a model that supports tools.", ["models"]);
   }
   if (/tool_use_failed|failed to call a function|invalid tool call|malformed (?:tool|function)|failed_generation|tool call validation/i.test(detail)) {
@@ -98,7 +137,7 @@ export function describeAiFailure(raw: string): AiFailure {
       ["retry", "models"],
     );
   }
-  if (/HTTP 404|model[^.]{0,40}(not found|does not exist|not available|decommissioned|deprecated)|unknown model|no such model/i.test(detail)) {
+  if (/HTTP 404|model[^.]{0,40}(not found|does not exist|not available|decommissioned|deprecated)|unknown model|no such model|No endpoints found for|\(code 404\)/i.test(detail)) {
     return make("model-missing", "This model is not available", `${who} does not offer this model any more, or not to your account. Pick another one in Connect a model.`, ["models"]);
   }
   if (/fetch failed|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|socket hang up|network|timed? ?out|getaddrinfo/i.test(detail)) {
