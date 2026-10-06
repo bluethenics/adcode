@@ -258,11 +258,115 @@ describe("tool use", () => {
     expect(agent.history().at(-1)?.content[0]).toMatchObject({ type: "tool-result", isError: true });
   });
   it("does not report an output-token cutoff as a successful completion", async () => {
-    const provider = scriptedProvider([[{ kind: "text", text: "Partial answer" }, { kind: "stop", reason: "max-tokens" }]]);
+    const cut: ProviderEvent[] = [{ kind: "text", text: "Partial answer" }, { kind: "stop", reason: "max-tokens" }];
+    const provider = scriptedProvider([cut, cut, cut, cut, cut]);
     const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner() });
     const events = await collect(agent.send("go"));
     expect(events.at(-1)).toMatchObject({ kind: "error", detail: expect.stringContaining("response limit") });
     expect(kinds(events)).not.toContain("turn-end");
+  });
+});
+
+/**
+ * The output limit, handled where it happens.
+ *
+ * Reported: Vibe kept answering "I stopped at a limit before finishing... Continue", and
+ * Continue changed nothing. Each request allowed 8,192 output tokens, which most providers
+ * share with the model's hidden reasoning; a reasoning model spent it all thinking, wrote
+ * nothing, and Continue sent the same doomed request again. Now a cut-off reply carries on
+ * by itself with more room, a reply that was all thinking is asked again with more room,
+ * and only a limit that more room cannot fix reaches the person - saying which it was.
+ */
+describe("the output limit", () => {
+  function recordingProvider(turns: ProviderEvent[][]): Provider & { budgets: number[]; histories: Message[][] } {
+    let index = 0;
+    const provider = {
+      id: "anthropic" as const,
+      displayName: "Recording",
+      models: ["test-model"],
+      budgets: [] as number[],
+      histories: [] as Message[][],
+      async *stream(request: { maxTokens: number; messages: readonly Message[] }): AsyncIterable<ProviderEvent> {
+        provider.budgets.push(request.maxTokens);
+        provider.histories.push([...request.messages]);
+        const turn = turns[index++] ?? [{ kind: "stop" as const, reason: "end-turn" as const }];
+        for (const event of turn) yield event;
+      },
+    };
+    return provider;
+  }
+
+  it("continues a reply the limit cut off, by itself and with more room", async () => {
+    const provider = recordingProvider([
+      [{ kind: "text", text: "Part one" }, { kind: "stop", reason: "max-tokens" }],
+      [{ kind: "text", text: " and part two." }, { kind: "stop", reason: "end-turn" }],
+    ]);
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner(), maxTokens: 1000, maxOutputTokens: 8000 });
+
+    const events = await collect(agent.send("write it"));
+
+    expect(events.at(-1)).toEqual({ kind: "turn-end", reason: "end-turn" });
+    expect(events.filter((event) => event.kind === "text").map((event) => (event as { text: string }).text).join("")).toBe("Part one and part two.");
+    expect(provider.budgets).toEqual([1000, 2000]);
+    // The second request ends with a note asking for the rest, after the cut-off text.
+    const second = provider.histories[1]!;
+    expect(second.at(-2)).toMatchObject({ role: "assistant", content: [{ type: "text", text: "Part one" }] });
+    expect(JSON.stringify(second.at(-1))).toMatch(/cut off by the output limit/);
+  });
+
+  it("asks again with more room when the model spent everything thinking", async () => {
+    const provider = recordingProvider([
+      [{ kind: "thinking", text: "Planning the whole game..." }, { kind: "stop", reason: "max-tokens" }],
+      [{ kind: "text", text: "Built it." }, { kind: "stop", reason: "end-turn" }],
+    ]);
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner(), maxTokens: 1000, maxOutputTokens: 8000 });
+
+    const events = await collect(agent.send("build a racing game"));
+
+    expect(events.at(-1)).toEqual({ kind: "turn-end", reason: "end-turn" });
+    expect(provider.budgets).toEqual([1000, 2000]);
+    // Nothing was written, so nothing was added: the same question, asked with more room.
+    expect(provider.histories[1]).toEqual(provider.histories[0]);
+  });
+
+  it("says thinking filled the allowance when even the largest one was not enough", async () => {
+    const thinking: ProviderEvent[] = [{ kind: "thinking", text: "..." }, { kind: "stop", reason: "max-tokens" }];
+    const provider = recordingProvider([thinking, thinking, thinking, thinking]);
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner(), maxTokens: 1000, maxOutputTokens: 2000 });
+
+    const events = await collect(agent.send("go"));
+
+    expect(provider.budgets).toEqual([1000, 2000]);
+    const last = events.at(-1);
+    expect(last).toMatchObject({ kind: "error" });
+    expect(last?.kind === "error" ? last.detail : "").toMatch(/thinking/i);
+    // Not the response-limit wording: Continue cannot fix this, so it must not offer it.
+    expect(last?.kind === "error" ? last.detail : "").not.toMatch(/response limit/);
+  });
+
+  it("gives a cut-off tool call more room on the next request", async () => {
+    const provider = recordingProvider([
+      [
+        { kind: "tool-call", call: { ...call("c1"), input: {}, inputError: "Tool not run: the model's response limit cut off the tool arguments." } },
+        { kind: "stop", reason: "max-tokens" },
+      ],
+      [{ kind: "text", text: "Done." }, { kind: "stop", reason: "end-turn" }],
+    ]);
+    const agent = createAgent({ provider, model: "test-model", tools: [echoTool], runner: runner(), maxTokens: 1000, maxOutputTokens: 8000 });
+
+    await collect(agent.send("write the file"));
+
+    expect(provider.budgets).toEqual([1000, 2000]);
+  });
+
+  it("never asks for more than the model's ceiling", async () => {
+    const cut: ProviderEvent[] = [{ kind: "text", text: "more" }, { kind: "stop", reason: "max-tokens" }];
+    const provider = recordingProvider([cut, cut, cut, cut]);
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner(), maxTokens: 1000, maxOutputTokens: 3000 });
+
+    await collect(agent.send("go"));
+
+    expect(provider.budgets).toEqual([1000, 2000, 3000, 3000]);
   });
 });
 

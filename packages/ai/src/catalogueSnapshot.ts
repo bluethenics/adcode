@@ -4,7 +4,7 @@
  */
 import type { CatalogueProvider } from "./catalogueTypes.ts";
 
-export const SNAPSHOT_TAKEN_ON = "2026-09-28";
+export const SNAPSHOT_TAKEN_ON = "2026-10-06";
 
 export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
   {
@@ -16,37 +16,33 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
     "doc": "https://docs.anthropic.com/en/docs/about-claude/models",
     "models": [
       {
-        "id": "claude-haiku-4-5",
-        "name": "Claude Haiku 4.5 (latest)",
+        "id": "claude-sonnet-5-5",
+        "name": "Claude Sonnet 5.5",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 1000000,
-        "outputCostMicrosPerMillion": 5000000,
-        "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": 1250000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "claude-opus-4-5",
-        "name": "Claude Opus 4.5 (latest)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 25000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "claude-sonnet-4-5",
-        "name": "Claude Sonnet 4.5 (latest)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000,
-        "contextWindow": 1000000
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-28",
+        "family": "claude-sonnet",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "claude-opus-5-5",
@@ -57,7 +53,25 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 20000000,
         "cacheReadCostMicrosPerMillion": 200000,
         "cacheWriteCostMicrosPerMillion": 5000000,
-        "contextWindow": 1000000
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-22",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "claude-fable-5-1",
@@ -68,18 +82,25 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 50000000,
         "cacheReadCostMicrosPerMillion": 250000,
         "cacheWriteCostMicrosPerMillion": 12500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "claude-opus-4-5-20251101",
-        "name": "Claude Opus 4.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 25000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 200000
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-01",
+        "family": "claude-fable",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "claude-opus-5",
@@ -90,40 +111,25 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
         "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "claude-fable-5",
-        "name": "Claude Fable 5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 10000000,
-        "outputCostMicrosPerMillion": 50000000,
-        "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "claude-opus-4-8",
-        "name": "Claude Opus 4.8",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 25000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "claude-sonnet-4-5-20250929",
-        "name": "Claude Sonnet 4.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000,
-        "contextWindow": 1000000
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-07-24",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "claude-sonnet-5",
@@ -134,40 +140,83 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 10000000,
         "cacheReadCostMicrosPerMillion": 200000,
         "cacheWriteCostMicrosPerMillion": 2500000,
-        "contextWindow": 1000000
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-06-29",
+        "family": "claude-sonnet",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "claude-opus-4-6",
-        "name": "Claude Opus 4.6",
+        "id": "claude-fable-5",
+        "name": "Claude Fable 5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 10000000,
+        "outputCostMicrosPerMillion": 50000000,
+        "cacheReadCostMicrosPerMillion": 1000000,
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-06-07",
+        "family": "claude-fable",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "claude-opus-4-8",
+        "name": "Claude Opus 4.8",
         "toolCall": true,
         "reasoning": true,
         "inputCostMicrosPerMillion": 5000000,
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
         "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "claude-haiku-4-5-20251001",
-        "name": "Claude Haiku 4.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1000000,
-        "outputCostMicrosPerMillion": 5000000,
-        "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": 1250000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "claude-sonnet-4-6",
-        "name": "Claude Sonnet 4.6",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000,
-        "contextWindow": 1000000
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-05-28",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "claude-opus-4-7",
@@ -178,457 +227,897 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 25000000,
         "cacheReadCostMicrosPerMillion": 500000,
         "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 1000000
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-04-14",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "claude-sonnet-4-6",
+        "name": "Claude Sonnet 4.6",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 3000000,
+        "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": 300000,
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-02-17",
+        "family": "claude-sonnet",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "claude-opus-4-6",
+        "name": "Claude Opus 4.6",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 25000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-02-04",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "claude-opus-4-5-20251101",
+        "name": "Claude Opus 4.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 25000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 200000,
+        "maxOutput": 64000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-11-24",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "claude-opus-4-5",
+        "name": "Claude Opus 4.5 (latest)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 25000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 200000,
+        "maxOutput": 64000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-11-24",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "claude-haiku-4-5-20251001",
+        "name": "Claude Haiku 4.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1000000,
+        "outputCostMicrosPerMillion": 5000000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": 1250000,
+        "contextWindow": 200000,
+        "maxOutput": 64000,
+        "releaseDate": "2025-10-15",
+        "family": "claude-haiku",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "claude-haiku-4-5",
+        "name": "Claude Haiku 4.5 (latest)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1000000,
+        "outputCostMicrosPerMillion": 5000000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": 1250000,
+        "contextWindow": 200000,
+        "maxOutput": 64000,
+        "releaseDate": "2025-10-15",
+        "family": "claude-haiku",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "claude-sonnet-4-5-20250929",
+        "name": "Claude Sonnet 4.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 3000000,
+        "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": 300000,
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 1000000,
+        "maxOutput": 64000,
+        "releaseDate": "2025-09-29",
+        "family": "claude-sonnet",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "claude-sonnet-4-5",
+        "name": "Claude Sonnet 4.5 (latest)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 3000000,
+        "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": 300000,
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 1000000,
+        "maxOutput": 64000,
+        "releaseDate": "2025-09-29",
+        "family": "claude-sonnet",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       }
     ]
   },
   {
-    "id": "openai",
-    "name": "OpenAI",
+    "id": "cerebras",
+    "name": "Cerebras",
     "env": [
-      "OPENAI_API_KEY"
+      "CEREBRAS_API_KEY"
     ],
-    "doc": "https://platform.openai.com/docs/models",
+    "doc": "https://inference-docs.cerebras.ai/models/overview",
     "models": [
       {
-        "id": "chatgpt-image-latest",
-        "name": "chatgpt-image-latest",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "gpt-5.4",
-        "name": "GPT-5.4",
+        "id": "qwen-3.8-27b",
+        "name": "Qwen3.8 27B",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 2500000,
+        "inputCostMicrosPerMillion": 990000,
+        "outputCostMicrosPerMillion": 1490000,
+        "cacheReadCostMicrosPerMillion": 990000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 40960,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-08-14",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-oss-120b",
+        "name": "GPT OSS 120B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 350000,
+        "outputCostMicrosPerMillion": 750000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 40960,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-08-05",
+        "family": "gpt-oss",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "deepseek",
+    "name": "DeepSeek",
+    "env": [
+      "DEEPSEEK_API_KEY"
+    ],
+    "doc": "https://api-docs.deepseek.com/quick_start/pricing",
+    "models": [
+      {
+        "id": "deepseek-flash",
+        "name": "DeepSeek V4.1 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 600000,
+        "cacheReadCostMicrosPerMillion": 3000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 393216,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-09-10",
+        "family": "deepseek-flash",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek-v4-pro",
+        "name": "DeepSeek V4 Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 660000,
+        "outputCostMicrosPerMillion": 1980000,
+        "cacheReadCostMicrosPerMillion": 22000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 393216,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-12",
+        "family": "deepseek-thinking",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "fireworks-ai",
+    "name": "Fireworks AI",
+    "env": [
+      "FIREWORKS_API_KEY"
+    ],
+    "doc": "https://fireworks.ai/docs/",
+    "models": [
+      {
+        "id": "accounts/fireworks/models/ember-1",
+        "name": "Ember-1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 3000000,
         "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": 300000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-09-22",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "accounts/fireworks/routers/deepseek-flash-latest",
+        "name": "DeepSeek Flash Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 6000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 384000,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-09-10",
+        "family": "deepseek-flash",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "accounts/fireworks/models/deepseek-v4p1-flash",
+        "name": "DeepSeek V4.1 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 6000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 384000,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-09-10",
+        "family": "deepseek-flash",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "accounts/fireworks/routers/glm-5p3-fast",
+        "name": "GLM 5.3 Fast",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2100000,
+        "outputCostMicrosPerMillion": 6600000,
+        "cacheReadCostMicrosPerMillion": 390000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048572,
+        "maxOutput": 262144,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-28",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "accounts/fireworks/routers/glm-fast-latest",
+        "name": "GLM 5.3 Fast (Latest)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2100000,
+        "outputCostMicrosPerMillion": 6600000,
+        "cacheReadCostMicrosPerMillion": 390000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048572,
+        "maxOutput": 262144,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-28",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "accounts/fireworks/models/glm-5p3-flash",
+        "name": "GLM 5.3 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 500000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048573,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-26",
+        "family": "glm-flash",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "accounts/fireworks/routers/glm-flash-latest",
+        "name": "GLM Flash Latest (GLM 5.3 Flash)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 500000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048573,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-26",
+        "family": "glm-flash",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "accounts/fireworks/models/glm-5p3",
+        "name": "GLM 5.3",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1400000,
+        "outputCostMicrosPerMillion": 4400000,
+        "cacheReadCostMicrosPerMillion": 260000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048573,
+        "maxOutput": 262144,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-14",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "accounts/fireworks/routers/glm-latest",
+        "name": "GLM Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1400000,
+        "outputCostMicrosPerMillion": 4400000,
+        "cacheReadCostMicrosPerMillion": 260000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048573,
+        "maxOutput": 262144,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-14",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "accounts/fireworks/models/qwen3p8-2p4t-a95b",
+        "name": "Qwen3.8 2.4T A95B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": 250000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1050000
+        "contextWindow": 262144,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "medium",
+          "xhigh"
+        ],
+        "releaseDate": "2026-08-12",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "gpt-5.4-pro",
-        "name": "GPT-5.4 Pro",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 30000000,
-        "outputCostMicrosPerMillion": 180000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "gpt-3.5-turbo",
-        "name": "GPT-3.5-turbo",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 500000,
-        "outputCostMicrosPerMillion": 1500000,
-        "cacheReadCostMicrosPerMillion": 0,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 16385
-      },
-      {
-        "id": "gpt-5.5-pro",
-        "name": "GPT-5.5 Pro",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 30000000,
-        "outputCostMicrosPerMillion": 180000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "text-embedding-3-small",
-        "name": "text-embedding-3-small",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 20000,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8191
-      },
-      {
-        "id": "gpt-5.4-nano",
-        "name": "GPT-5.4 nano",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 200000,
-        "outputCostMicrosPerMillion": 1250000,
-        "cacheReadCostMicrosPerMillion": 20000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-realtime-2.1",
-        "name": "GPT-Realtime-2.1",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 4000000,
-        "outputCostMicrosPerMillion": 24000000,
-        "cacheReadCostMicrosPerMillion": 400000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "gpt-4o-2024-05-13",
-        "name": "GPT-4o (2024-05-13)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "gpt-4o",
-        "name": "GPT-4o",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 2500000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "gpt-5-mini",
-        "name": "GPT-5 Mini",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 250000,
-        "outputCostMicrosPerMillion": 2000000,
-        "cacheReadCostMicrosPerMillion": 25000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-image-2",
-        "name": "gpt-image-2",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 30000000,
-        "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "gpt-5.2-pro",
-        "name": "GPT-5.2 Pro",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 21000000,
-        "outputCostMicrosPerMillion": 168000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "o4-mini",
-        "name": "o4-mini",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1100000,
-        "outputCostMicrosPerMillion": 4400000,
-        "cacheReadCostMicrosPerMillion": 275000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 200000
-      },
-      {
-        "id": "o3-mini",
-        "name": "o3-mini",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1100000,
-        "outputCostMicrosPerMillion": 4400000,
-        "cacheReadCostMicrosPerMillion": 550000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 200000
-      },
-      {
-        "id": "text-embedding-ada-002",
-        "name": "text-embedding-ada-002",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8192
-      },
-      {
-        "id": "gpt-4",
-        "name": "GPT-4",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 30000000,
-        "outputCostMicrosPerMillion": 60000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8192
-      },
-      {
-        "id": "gpt-5.3-codex",
-        "name": "GPT-5.3 Codex",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1750000,
-        "outputCostMicrosPerMillion": 14000000,
-        "cacheReadCostMicrosPerMillion": 175000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-4.1-nano",
-        "name": "GPT-4.1 nano",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 400000,
-        "cacheReadCostMicrosPerMillion": 25000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1047576
-      },
-      {
-        "id": "gpt-5-nano",
-        "name": "GPT-5 Nano",
+        "id": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+        "name": "Nemotron 3.5 Lightning 30B A3B",
         "toolCall": true,
         "reasoning": true,
         "inputCostMicrosPerMillion": 50000,
-        "outputCostMicrosPerMillion": 400000,
-        "cacheReadCostMicrosPerMillion": 5000,
+        "outputCostMicrosPerMillion": 200000,
+        "cacheReadCostMicrosPerMillion": 10000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
+        "contextWindow": 262144,
+        "maxOutput": 262144,
+        "releaseDate": "2026-08-11",
+        "family": "nemotron",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "gpt-5.6",
-        "name": "GPT-5.6",
+        "id": "accounts/fireworks/routers/qwen-max-latest",
+        "name": "Qwen Max Latest (Qwen3.8 Max)",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 4000000,
-        "outputCostMicrosPerMillion": 20000000,
-        "cacheReadCostMicrosPerMillion": 400000,
-        "cacheWriteCostMicrosPerMillion": 5000000,
-        "contextWindow": 1050000
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 250000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 131072,
+        "releaseDate": "2026-08-03",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "gpt-5.2-chat-latest",
-        "name": "GPT-5.2 Chat",
+        "id": "accounts/fireworks/models/qwen3p8-max",
+        "name": "Qwen3.8 Max",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 1750000,
-        "outputCostMicrosPerMillion": 14000000,
-        "cacheReadCostMicrosPerMillion": 175000,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 250000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
+        "contextWindow": 262144,
+        "maxOutput": 131072,
+        "releaseDate": "2026-08-03",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "o1",
-        "name": "o1",
+        "id": "accounts/fireworks/routers/kimi-fast-latest",
+        "name": "Kimi Fast Latest",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 15000000,
-        "outputCostMicrosPerMillion": 60000000,
-        "cacheReadCostMicrosPerMillion": 7500000,
+        "inputCostMicrosPerMillion": 4500000,
+        "outputCostMicrosPerMillion": 22500000,
+        "cacheReadCostMicrosPerMillion": 450000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 200000
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-07-27",
+        "family": "kimi-k3",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "gpt-5-pro",
-        "name": "GPT-5 Pro",
+        "id": "accounts/fireworks/models/kimi-k3",
+        "name": "Kimi K3",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 15000000,
-        "outputCostMicrosPerMillion": 120000000,
-        "cacheReadCostMicrosPerMillion": null,
+        "inputCostMicrosPerMillion": 3000000,
+        "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": 300000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-07-27",
+        "family": "kimi-k3",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "gpt-5.3-codex-spark",
-        "name": "GPT-5.3 Codex Spark",
+        "id": "accounts/fireworks/routers/kimi-k3-fast",
+        "name": "Kimi K3 Fast",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 1750000,
-        "outputCostMicrosPerMillion": 14000000,
-        "cacheReadCostMicrosPerMillion": 175000,
+        "inputCostMicrosPerMillion": 4500000,
+        "outputCostMicrosPerMillion": 22500000,
+        "cacheReadCostMicrosPerMillion": 450000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-07-27",
+        "family": "kimi-k3",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "text-embedding-3-large",
-        "name": "text-embedding-3-large",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 130000,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8191
-      },
-      {
-        "id": "gpt-4o-2024-08-06",
-        "name": "GPT-4o (2024-08-06)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 2500000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "gpt-6-astra",
-        "name": "GPT-6 Astra",
+        "id": "accounts/fireworks/routers/kimi-latest",
+        "name": "Kimi Latest",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 10000000,
-        "outputCostMicrosPerMillion": 50000000,
-        "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000,
-        "contextWindow": 1050000
+        "inputCostMicrosPerMillion": 3000000,
+        "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": 300000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-07-27",
+        "family": "kimi-k3",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "gpt-5.1",
-        "name": "GPT-5.1",
+        "id": "accounts/fireworks/models/inkling",
+        "name": "Inkling",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 1250000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": 125000,
+        "inputCostMicrosPerMillion": 1000000,
+        "outputCostMicrosPerMillion": 4050000,
+        "cacheReadCostMicrosPerMillion": 170000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
+        "contextWindow": 1048576,
+        "maxOutput": 1048576,
+        "releaseDate": "2026-07-15",
+        "family": "ling",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "gpt-4o-mini",
-        "name": "GPT-4o mini",
+        "id": "accounts/fireworks/routers/minimax-latest",
+        "name": "MiniMax Latest",
         "toolCall": true,
-        "reasoning": false,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 60000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 512000,
+        "maxOutput": 512000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-06-12",
+        "family": "minimax",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "accounts/fireworks/models/minimax-m3",
+        "name": "MiniMax-M3",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 60000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 512000,
+        "maxOutput": 512000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-06-12",
+        "family": "minimax",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "accounts/fireworks/models/nemotron-3-ultra-nvfp4",
+        "name": "Nemotron 3 Ultra 550B A55B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 600000,
+        "outputCostMicrosPerMillion": 2400000,
+        "cacheReadCostMicrosPerMillion": 120000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 128000,
+        "releaseDate": "2026-06-04",
+        "family": "nemotron",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "accounts/fireworks/models/gpt-oss-120b",
+        "name": "GPT OSS 120B",
+        "toolCall": true,
+        "reasoning": true,
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
-        "cacheReadCostMicrosPerMillion": 75000,
+        "cacheReadCostMicrosPerMillion": 15000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "o3-pro",
-        "name": "o3-pro",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 20000000,
-        "outputCostMicrosPerMillion": 80000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 200000
-      },
-      {
-        "id": "gpt-image-1",
-        "name": "gpt-image-1",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "gpt-daybreak-blue-latest",
-        "name": "Daybreak Blue",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 4000000,
-        "outputCostMicrosPerMillion": 20000000,
-        "cacheReadCostMicrosPerMillion": 400000,
-        "cacheWriteCostMicrosPerMillion": 5000000,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "gpt-5.4-mini",
-        "name": "GPT-5.4 mini",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 750000,
-        "outputCostMicrosPerMillion": 4500000,
-        "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-5.6-luna",
-        "name": "GPT-5.6 Luna",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 200000,
-        "outputCostMicrosPerMillion": 1200000,
-        "cacheReadCostMicrosPerMillion": 20000,
-        "cacheWriteCostMicrosPerMillion": 250000,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "gpt-5.2",
-        "name": "GPT-5.2",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1750000,
-        "outputCostMicrosPerMillion": 14000000,
-        "cacheReadCostMicrosPerMillion": 175000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-5.5",
-        "name": "GPT-5.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 30000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "gpt-4.1",
-        "name": "GPT-4.1",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 8000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1047576
-      },
-      {
-        "id": "gpt-4o-2024-11-20",
-        "name": "GPT-4o (2024-11-20)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 2500000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "gpt-4.1-mini",
-        "name": "GPT-4.1 mini",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 400000,
-        "outputCostMicrosPerMillion": 1600000,
-        "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1047576
+        "contextWindow": 131072,
+        "maxOutput": 32768,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-08-05",
+        "family": "gpt-oss",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
       }
     ]
   },
@@ -643,312 +1132,33 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
     "doc": "https://ai.google.dev/gemini-api/docs/models",
     "models": [
       {
-        "id": "gemini-flash-latest",
-        "name": "Gemini Flash Latest",
+        "id": "gemini-3.8-flash",
+        "name": "Gemini 3.8 Flash",
         "toolCall": true,
         "reasoning": true,
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 3750000,
         "cacheReadCostMicrosPerMillion": 75000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemma-4-31b-it",
-        "name": "Gemma 4 31B IT",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "gemini-omni-flash-preview",
-        "name": "Gemini Omni Flash Preview",
-        "toolCall": false,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1500000,
-        "outputCostMicrosPerMillion": 17500000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "gemini-3.1-flash-image-preview",
-        "name": "Nano Banana 2",
-        "toolCall": false,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 500000,
-        "outputCostMicrosPerMillion": 60000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 65536
-      },
-      {
-        "id": "veo-3.1-lite-generate-preview",
-        "name": "Veo 3.1 lite",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "lyria-3-pro-preview",
-        "name": "Lyria 3 Pro Preview",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 0,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemini-3.1-flash-tts-preview",
-        "name": "Gemini 3.1 Flash TTS Preview",
-        "toolCall": false,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1000000,
-        "outputCostMicrosPerMillion": 20000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8192
-      },
-      {
-        "id": "gemini-2.5-flash-image",
-        "name": "Nano Banana",
-        "toolCall": false,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 300000,
-        "outputCostMicrosPerMillion": 30000000,
-        "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 32768
-      },
-      {
-        "id": "gemini-flash-lite-latest",
-        "name": "Gemini Flash-Lite Latest",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 300000,
-        "outputCostMicrosPerMillion": 2500000,
-        "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemini-embedding-2",
-        "name": "Gemini Embedding 2",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 200000,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8192
-      },
-      {
-        "id": "gemini-3.6-flash",
-        "name": "Gemini 3.6 Flash",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 750000,
-        "outputCostMicrosPerMillion": 3750000,
-        "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemma-4-26b-a4b-it",
-        "name": "Gemma 4 26B A4B IT",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "gemini-3-pro-image-preview",
-        "name": "Nano Banana Pro",
-        "toolCall": false,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 120000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "gemini-2.5-pro-preview-tts",
-        "name": "Gemini 2.5 Pro Preview TTS",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 1000000,
-        "outputCostMicrosPerMillion": 20000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8192
-      },
-      {
-        "id": "gemini-3.5-flash-lite",
-        "name": "Gemini 3.5 Flash Lite",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 300000,
-        "outputCostMicrosPerMillion": 2500000,
-        "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemini-3.1-flash-image",
-        "name": "Nano Banana 2",
-        "toolCall": false,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 500000,
-        "outputCostMicrosPerMillion": 60000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "lyria-3-clip-preview",
-        "name": "Lyria 3 Clip Preview",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 0,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemini-3.1-pro-preview",
-        "name": "Gemini 3.1 Pro Preview",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 12000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemini-2.5-computer-use-preview-10-2025",
-        "name": "Gemini 2.5 Computer Use Preview 10-2025",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1250000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "gemini-3.5-flash",
-        "name": "Gemini 3.5 Flash",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1500000,
-        "outputCostMicrosPerMillion": 9000000,
-        "cacheReadCostMicrosPerMillion": 150000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemini-2.5-pro",
-        "name": "Gemini 2.5 Pro",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1250000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": 125000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemini-3-pro-image",
-        "name": "Nano Banana Pro",
-        "toolCall": false,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 120000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 65536
-      },
-      {
-        "id": "gemini-2.5-flash",
-        "name": "Gemini 2.5 Flash",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 300000,
-        "outputCostMicrosPerMillion": 2500000,
-        "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemini-2.5-flash-preview-tts",
-        "name": "Gemini 2.5 Flash Preview TTS",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 500000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8192
-      },
-      {
-        "id": "gemini-3.1-flash-lite-image",
-        "name": "Nano Banana 2 Lite",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 250000,
-        "outputCostMicrosPerMillion": 30000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 65536
-      },
-      {
-        "id": "deep-research-preview-04-2026",
-        "name": "Deep Research Preview (Apr-21-2026)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 12000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "deep-research-max-preview-04-2026",
-        "name": "Deep Research Max Preview (Apr-21-2026)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 12000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "veo-3.1-fast-generate-preview",
-        "name": "Veo 3.1 fast",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-09-02",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "gemini-3.7-flash",
@@ -959,106 +1169,174 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 3750000,
         "cacheReadCostMicrosPerMillion": 75000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-08-13",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "veo-3.1-generate-preview",
-        "name": "Veo 3.1",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "gemini-3.1-pro-preview-customtools",
-        "name": "Gemini 3.1 Pro Preview Custom Tools",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 12000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemini-3-flash-preview",
-        "name": "Gemini 3 Flash Preview",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 500000,
-        "outputCostMicrosPerMillion": 3000000,
-        "cacheReadCostMicrosPerMillion": 50000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemini-3.8-flash",
-        "name": "Gemini 3.8 Flash",
+        "id": "gemini-flash-latest",
+        "name": "Gemini Flash Latest",
         "toolCall": true,
         "reasoning": true,
         "inputCostMicrosPerMillion": 750000,
         "outputCostMicrosPerMillion": 3750000,
         "cacheReadCostMicrosPerMillion": 75000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-08-13",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "gemini-3.5-live-translate-preview",
-        "name": "Gemini 3.5 Live Translate Preview",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 3500000,
-        "outputCostMicrosPerMillion": 21000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 16384
-      },
-      {
-        "id": "gemini-2.5-flash-lite",
-        "name": "Gemini 2.5 Flash-Lite",
+        "id": "gemini-3.5-flash-lite",
+        "name": "Gemini 3.5 Flash Lite",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 400000,
-        "cacheReadCostMicrosPerMillion": 10000,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 2500000,
+        "cacheReadCostMicrosPerMillion": 30000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-07-21",
+        "family": "gemini-flash-lite",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "gemini-embedding-001",
-        "name": "Gemini Embedding 001",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 2048
-      },
-      {
-        "id": "gemini-3.1-flash-lite-preview",
-        "name": "Gemini 3.1 Flash Lite Preview",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 250000,
-        "outputCostMicrosPerMillion": 1500000,
-        "cacheReadCostMicrosPerMillion": 25000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gemini-3.1-flash-live-preview",
-        "name": "Gemini 3.1 Flash Live Preview",
+        "id": "gemini-3.6-flash",
+        "name": "Gemini 3.6 Flash",
         "toolCall": true,
         "reasoning": true,
         "inputCostMicrosPerMillion": 750000,
-        "outputCostMicrosPerMillion": 4500000,
-        "cacheReadCostMicrosPerMillion": null,
+        "outputCostMicrosPerMillion": 3750000,
+        "cacheReadCostMicrosPerMillion": 75000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-07-21",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gemini-flash-lite-latest",
+        "name": "Gemini Flash-Lite Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 2500000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-07-21",
+        "family": "gemini-flash-lite",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gemini-3.5-flash",
+        "name": "Gemini 3.5 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1500000,
+        "outputCostMicrosPerMillion": 9000000,
+        "cacheReadCostMicrosPerMillion": 150000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-05-19",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "gemini-3.1-flash-lite",
@@ -1069,457 +1347,228 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 1500000,
         "cacheReadCostMicrosPerMillion": 25000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      }
-    ]
-  },
-  {
-    "id": "openrouter",
-    "name": "OpenRouter",
-    "env": [
-      "OPENROUTER_API_KEY"
-    ],
-    "doc": "https://openrouter.ai/models",
-    "models": [
-      {
-        "id": "sao10k/l3-lunaris-8b",
-        "name": "Llama 3 8B Lunaris",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 40000,
-        "outputCostMicrosPerMillion": 50000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8192
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-05-07",
+        "family": "gemini-flash-lite",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "sao10k/l3.3-euryale-70b",
-        "name": "Llama 3.3 Euryale 70B",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 650000,
-        "outputCostMicrosPerMillion": 750000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "sao10k/l3.1-euryale-70b",
-        "name": "Llama 3.1 Euryale 70B v2.2",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 850000,
-        "outputCostMicrosPerMillion": 850000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "kwaipilot/kat-coder-pro-v2.5",
-        "name": "KAT-Coder-Pro V2.5",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 740000,
-        "outputCostMicrosPerMillion": 2960000,
-        "cacheReadCostMicrosPerMillion": 150000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "stealth/space-bunny-alpha",
-        "name": "Space Bunny Alpha",
+        "id": "gemma-4-26b-a4b-it",
+        "name": "Gemma 4 26B A4B IT",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 0,
-        "outputCostMicrosPerMillion": 0,
+        "inputCostMicrosPerMillion": null,
+        "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-04-02",
+        "family": "gemma",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "bytedance-seed/seed-1.6-flash",
-        "name": "Seed 1.6 Flash",
+        "id": "gemma-4-31b-it",
+        "name": "Gemma 4 31B IT",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 75000,
-        "outputCostMicrosPerMillion": 300000,
+        "inputCostMicrosPerMillion": null,
+        "outputCostMicrosPerMillion": null,
         "cacheReadCostMicrosPerMillion": null,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-04-02",
+        "family": "gemma",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "bytedance-seed/seed-2.0-lite",
-        "name": "Seed 2.0 Lite",
+        "id": "gemini-3.1-pro-preview",
+        "name": "Gemini 3.1 Pro Preview",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 250000,
-        "outputCostMicrosPerMillion": 2000000,
-        "cacheReadCostMicrosPerMillion": null,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 12000000,
+        "cacheReadCostMicrosPerMillion": 200000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-02-19",
+        "family": "gemini-pro",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "bytedance-seed/seed-2-1-turbo",
-        "name": "Seed 2.1 Turbo",
+        "id": "gemini-3.1-pro-preview-customtools",
+        "name": "Gemini 3.1 Pro Preview Custom Tools",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 500000,
-        "outputCostMicrosPerMillion": 2500000,
-        "cacheReadCostMicrosPerMillion": null,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 12000000,
+        "cacheReadCostMicrosPerMillion": 200000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-02-19",
+        "family": "gemini-pro",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "bytedance-seed/seed-2.0-mini",
-        "name": "Seed 2.0 Mini",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 400000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "bytedance-seed/seed-2.0-code",
-        "name": "Seed 2.0 Code",
+        "id": "gemini-3-flash-preview",
+        "name": "Gemini 3 Flash Preview",
         "toolCall": true,
         "reasoning": true,
         "inputCostMicrosPerMillion": 500000,
         "outputCostMicrosPerMillion": 3000000,
-        "cacheReadCostMicrosPerMillion": null,
+        "cacheReadCostMicrosPerMillion": 50000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-12-17",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "bytedance-seed/seed-1.6",
-        "name": "Seed 1.6",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 250000,
-        "outputCostMicrosPerMillion": 2000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "~moonshotai/kimi-latest",
-        "name": "Kimi Latest",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1000000,
-        "outputCostMicrosPerMillion": 9000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "poolside/laguna-s-2.1:free",
-        "name": "Laguna S 2.1 (free)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 0,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "poolside/laguna-s-2.1",
-        "name": "Laguna S 2.1",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 90000,
-        "outputCostMicrosPerMillion": 180000,
-        "cacheReadCostMicrosPerMillion": 9000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "poolside/laguna-xs-2.1:free",
-        "name": "Laguna XS 2.1 (free)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 0,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "poolside/laguna-xs-2.1",
-        "name": "Laguna XS 2.1",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 60000,
-        "outputCostMicrosPerMillion": 120000,
-        "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "prism-ml/ternary-bonsai-2-27b",
-        "name": "Ternary Bonsai 2 27B",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 75000,
-        "outputCostMicrosPerMillion": 500000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "anthropic/claude-opus-4.1",
-        "name": "Claude Opus 4.1 (latest)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 15000000,
-        "outputCostMicrosPerMillion": 75000000,
-        "cacheReadCostMicrosPerMillion": 1500000,
-        "cacheWriteCostMicrosPerMillion": 18750000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "anthropic/claude-opus-4.5",
-        "name": "Claude Opus 4.5 (latest)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 25000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "anthropic/claude-opus-4.6",
-        "name": "Claude Opus 4.6",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 25000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "anthropic/claude-opus-4.7",
-        "name": "Claude Opus 4.7",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 25000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "anthropic/claude-opus-4.8",
-        "name": "Claude Opus 4.8",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 25000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "anthropic/claude-haiku-4.5",
-        "name": "Claude Haiku 4.5 (latest)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1000000,
-        "outputCostMicrosPerMillion": 5000000,
-        "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": 1250000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "anthropic/claude-opus-5",
-        "name": "Claude Opus 5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 25000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "anthropic/claude-fable-5.1",
-        "name": "Claude Fable 5.1",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 10000000,
-        "outputCostMicrosPerMillion": 50000000,
-        "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": 12500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "anthropic/claude-sonnet-4.5",
-        "name": "Claude Sonnet 4.5 (latest)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "anthropic/claude-fable-5",
-        "name": "Claude Fable 5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 10000000,
-        "outputCostMicrosPerMillion": 50000000,
-        "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "anthropic/claude-sonnet-4",
-        "name": "Claude Sonnet 4",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "anthropic/claude-sonnet-5",
-        "name": "Claude Sonnet 5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 2500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "anthropic/claude-sonnet-4.6",
-        "name": "Claude Sonnet 4.6",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "anthropic/claude-opus-5.5",
-        "name": "Claude Opus 5.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 4000000,
-        "outputCostMicrosPerMillion": 20000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 5000000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "cohere/command-r-08-2024",
-        "name": "Command R",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 600000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "cohere/command-a-plus",
-        "name": "Command A+",
+        "id": "gemini-2.5-flash",
+        "name": "Gemini 2.5 Flash",
         "toolCall": true,
         "reasoning": true,
         "inputCostMicrosPerMillion": 300000,
-        "outputCostMicrosPerMillion": 1500000,
-        "cacheReadCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 2500000,
+        "cacheReadCostMicrosPerMillion": 30000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 192000
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "releaseDate": "2025-06-17",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "cohere/command-a",
-        "name": "Command A",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 2500000,
+        "id": "gemini-2.5-flash-lite",
+        "name": "Gemini 2.5 Flash-Lite",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 400000,
+        "cacheReadCostMicrosPerMillion": 10000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "releaseDate": "2025-06-17",
+        "family": "gemini-flash-lite",
+        "inputs": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": null,
+        "cacheReadCostMicrosPerMillion": 125000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 256000
-      },
-      {
-        "id": "cohere/north-mini-code:free",
-        "name": "North Mini Code (free)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 0,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 256000
-      },
-      {
-        "id": "cohere/command-r7b-12-2024",
-        "name": "Command R7B",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 37500,
-        "outputCostMicrosPerMillion": 150000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "cohere/command-r-plus-08-2024",
-        "name": "Command R+",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 2500000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "deepseek/deepseek-chat-v3.1",
-        "name": "DeepSeek V3.1",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 250000,
-        "outputCostMicrosPerMillion": 950000,
-        "cacheReadCostMicrosPerMillion": 130000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 163840
-      },
-      {
-        "id": "deepseek/deepseek-v4-flash-0731",
-        "name": "DeepSeek V4 Flash 0731",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 21000,
-        "outputCostMicrosPerMillion": 320000,
-        "cacheReadCostMicrosPerMillion": 16000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1310720
-      },
-      {
-        "id": "deepseek/deepseek-v4.1-flash",
-        "name": "DeepSeek V4.1 Flash",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 35000,
-        "outputCostMicrosPerMillion": 290000,
-        "cacheReadCostMicrosPerMillion": 1000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "releaseDate": "2025-06-17",
+        "family": "gemini-pro",
+        "inputs": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       }
     ]
   },
@@ -1532,127 +1581,6 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
     "doc": "https://console.groq.com/docs/models",
     "models": [
       {
-        "id": "whisper-large-v3",
-        "name": "Whisper",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "llama-3.3-70b-versatile",
-        "name": "Llama 3.3 70B",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 590000,
-        "outputCostMicrosPerMillion": 790000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "allam-2-7b",
-        "name": "ALLaM-2-7b",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 0,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 4096
-      },
-      {
-        "id": "whisper-large-v3-turbo",
-        "name": "Whisper Large V3 Turbo",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "llama-3.1-8b-instant",
-        "name": "Llama 3.1 8B",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 50000,
-        "outputCostMicrosPerMillion": 80000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "groq/compound-mini",
-        "name": "Compound Mini",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "groq/compound",
-        "name": "Compound",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "meta-llama/llama-prompt-guard-2-86m",
-        "name": "Prompt Guard 2 86M",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 40000,
-        "outputCostMicrosPerMillion": 40000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "meta-llama/llama-prompt-guard-2-22m",
-        "name": "Llama Prompt Guard 2 22M",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 30000,
-        "outputCostMicrosPerMillion": 30000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "canopylabs/orpheus-v1-english",
-        "name": "Canopy Labs Orpheus V1 English",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 4000
-      },
-      {
-        "id": "canopylabs/orpheus-arabic-saudi",
-        "name": "Canopy Labs Orpheus Arabic Saudi",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 4000
-      },
-      {
         "id": "qwen/qwen3.8-27b",
         "name": "Qwen3.8 27B",
         "toolCall": true,
@@ -1661,7 +1589,24 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 4000000,
         "cacheReadCostMicrosPerMillion": null,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131042
+        "contextWindow": 131042,
+        "maxOutput": 16384,
+        "effortLevels": [
+          "none",
+          "default",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-08-14",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "qwen/qwen3.6-27b",
@@ -1672,18 +1617,21 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 3000000,
         "cacheReadCostMicrosPerMillion": 300000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "openai/gpt-oss-20b",
-        "name": "GPT OSS 20B",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 75000,
-        "outputCostMicrosPerMillion": 300000,
-        "cacheReadCostMicrosPerMillion": 37500,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
+        "contextWindow": 131072,
+        "maxOutput": 16384,
+        "effortLevels": [
+          "none",
+          "default"
+        ],
+        "releaseDate": "2026-04-22",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "openai/gpt-oss-safeguard-20b",
@@ -1694,7 +1642,22 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 300000,
         "cacheReadCostMicrosPerMillion": null,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
+        "contextWindow": 131072,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-10-29",
+        "status": "beta",
+        "family": "gpt-oss",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "openai/gpt-oss-120b",
@@ -1705,7 +1668,86 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 600000,
         "cacheReadCostMicrosPerMillion": 75000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
+        "contextWindow": 131072,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-08-05",
+        "family": "gpt-oss",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-oss-20b",
+        "name": "GPT OSS 20B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 75000,
+        "outputCostMicrosPerMillion": 300000,
+        "cacheReadCostMicrosPerMillion": 37500,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-08-05",
+        "family": "gpt-oss",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "llama-3.3-70b-versatile",
+        "name": "Llama 3.3 70B",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 590000,
+        "outputCostMicrosPerMillion": 790000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 32768,
+        "releaseDate": "2024-12-06",
+        "family": "llama",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "llama-3.1-8b-instant",
+        "name": "Llama 3.1 8B",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 50000,
+        "outputCostMicrosPerMillion": 80000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 131072,
+        "releaseDate": "2024-07-23",
+        "family": "llama",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
       }
     ]
   },
@@ -1718,92 +1760,29 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
     "doc": "https://docs.mistral.ai/getting-started/models/",
     "models": [
       {
-        "id": "open-mistral-nemo",
-        "name": "Open Mistral Nemo",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 150000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "codestral-latest",
-        "name": "Codestral (latest)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 300000,
-        "outputCostMicrosPerMillion": 900000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 256000
-      },
-      {
-        "id": "mistral-large-2411",
-        "name": "Mistral Large 2.1",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "mistral-nemo",
-        "name": "Mistral Nemo",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 150000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "voxtral-mini-tts-latest",
-        "name": "Voxtral Mini TTS (latest)",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "mistral-medium-2508",
-        "name": "Mistral Medium 3.1",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 400000,
-        "outputCostMicrosPerMillion": 2000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "mistral-large-latest",
-        "name": "Mistral Large (latest)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 500000,
-        "outputCostMicrosPerMillion": 1500000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "mistral-small-latest",
-        "name": "Mistral Small (latest)",
+        "id": "zai-glm-5-3",
+        "name": "GLM-5.3",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 600000,
-        "cacheReadCostMicrosPerMillion": null,
+        "inputCostMicrosPerMillion": 1400000,
+        "outputCostMicrosPerMillion": 4400000,
+        "cacheReadCostMicrosPerMillion": 140000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 256000
+        "contextWindow": 1000000,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-14",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "zai-glm-5-2",
@@ -1814,106 +1793,97 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 4400000,
         "cacheReadCostMicrosPerMillion": 140000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
+        "contextWindow": 1000000,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "none",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-06-13",
+        "status": "beta",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "ministral-8b-latest",
-        "name": "Ministral 8B (latest)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 100000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "devstral-medium-latest",
-        "name": "Devstral 2 (latest)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 400000,
-        "outputCostMicrosPerMillion": 2000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "open-mixtral-8x22b",
-        "name": "Mixtral 8x22B",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 64000
-      },
-      {
-        "id": "devstral-2512",
-        "name": "Devstral 2",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 400000,
-        "outputCostMicrosPerMillion": 2000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "mistral-medium-2505",
-        "name": "Mistral Medium 3",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 400000,
-        "outputCostMicrosPerMillion": 2000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "magistral-medium-latest",
-        "name": "Magistral Medium (latest)",
+        "id": "mistral-medium-latest",
+        "name": "Mistral Medium (latest)",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 5000000,
-        "cacheReadCostMicrosPerMillion": null,
+        "inputCostMicrosPerMillion": 1500000,
+        "outputCostMicrosPerMillion": 7500000,
+        "cacheReadCostMicrosPerMillion": 150000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
+        "contextWindow": 262144,
+        "maxOutput": 262144,
+        "effortLevels": [
+          "none",
+          "high"
+        ],
+        "releaseDate": "2026-04-29",
+        "family": "mistral-medium",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "pixtral-12b",
-        "name": "Pixtral 12B",
+        "id": "mistral-medium-2604",
+        "name": "Mistral Medium 3.5",
         "toolCall": true,
-        "reasoning": false,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1500000,
+        "outputCostMicrosPerMillion": 7500000,
+        "cacheReadCostMicrosPerMillion": 150000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 262144,
+        "effortLevels": [
+          "none",
+          "high"
+        ],
+        "releaseDate": "2026-04-29",
+        "family": "mistral-medium",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistral-small-latest",
+        "name": "Mistral Small (latest)",
+        "toolCall": true,
+        "reasoning": true,
         "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 150000,
-        "cacheReadCostMicrosPerMillion": null,
+        "outputCostMicrosPerMillion": 600000,
+        "cacheReadCostMicrosPerMillion": 15000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "mistral-embed",
-        "name": "Mistral Embed",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8000
-      },
-      {
-        "id": "devstral-small-2505",
-        "name": "Devstral Small 2505",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 300000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
+        "contextWindow": 256000,
+        "maxOutput": 256000,
+        "effortLevels": [
+          "none",
+          "high"
+        ],
+        "releaseDate": "2026-03-16",
+        "family": "mistral-small",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "mistral-small-2603",
@@ -1922,97 +1892,44 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "reasoning": true,
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
-        "cacheReadCostMicrosPerMillion": null,
+        "cacheReadCostMicrosPerMillion": 15000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 256000
+        "contextWindow": 256000,
+        "maxOutput": 256000,
+        "effortLevels": [
+          "none",
+          "high"
+        ],
+        "releaseDate": "2026-03-16",
+        "family": "mistral-small",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "devstral-medium-2507",
-        "name": "Devstral Medium",
+        "id": "mistral-medium-2508",
+        "name": "Mistral Medium 3.1",
         "toolCall": true,
         "reasoning": false,
         "inputCostMicrosPerMillion": 400000,
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": null,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "magistral-small",
-        "name": "Magistral Small",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 500000,
-        "outputCostMicrosPerMillion": 1500000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "voxtral-mini-latest",
-        "name": "Voxtral Mini (latest)",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "labs-devstral-small-2512",
-        "name": "Devstral Small 2",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 0,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 256000
-      },
-      {
-        "id": "mistral-large-2512",
-        "name": "Mistral Large 3",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 500000,
-        "outputCostMicrosPerMillion": 1500000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "devstral-latest",
-        "name": "Devstral 2",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 400000,
-        "outputCostMicrosPerMillion": 2000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "devstral-small-2507",
-        "name": "Devstral Small",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 300000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "pixtral-large-latest",
-        "name": "Pixtral Large (latest)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
+        "contextWindow": 262144,
+        "maxOutput": 262144,
+        "releaseDate": "2025-08-12",
+        "family": "mistral-medium",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "voxtral-small-latest",
@@ -2023,18 +1940,17 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 300000,
         "cacheReadCostMicrosPerMillion": null,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 32000
-      },
-      {
-        "id": "open-mixtral-8x7b",
-        "name": "Mixtral 8x7B",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 700000,
-        "outputCostMicrosPerMillion": 700000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 32000
+        "contextWindow": 32000,
+        "maxOutput": 32000,
+        "releaseDate": "2025-07-15",
+        "family": "voxtral",
+        "inputs": [
+          "text",
+          "audio"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "mistral-small-2506",
@@ -2045,40 +1961,141 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 300000,
         "cacheReadCostMicrosPerMillion": null,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
+        "contextWindow": 128000,
+        "maxOutput": 16384,
+        "releaseDate": "2025-06-20",
+        "family": "mistral-small",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "zai-glm-5-3",
-        "name": "GLM-5.3",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1400000,
-        "outputCostMicrosPerMillion": 4400000,
-        "cacheReadCostMicrosPerMillion": 140000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "mistral-medium-2604",
-        "name": "Mistral Medium 3.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1500000,
-        "outputCostMicrosPerMillion": 7500000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "open-mistral-7b",
-        "name": "Mistral 7B",
+        "id": "mistral-medium-2505",
+        "name": "Mistral Medium 3",
         "toolCall": true,
         "reasoning": false,
-        "inputCostMicrosPerMillion": 250000,
-        "outputCostMicrosPerMillion": 250000,
+        "inputCostMicrosPerMillion": 400000,
+        "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": null,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8000
+        "contextWindow": 131072,
+        "maxOutput": 131072,
+        "releaseDate": "2025-05-07",
+        "family": "mistral-medium",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "magistral-medium-latest",
+        "name": "Magistral Medium (latest)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 5000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 16384,
+        "releaseDate": "2025-03-17",
+        "family": "magistral-medium",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistral-large-2411",
+        "name": "Mistral Large 2.1",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 16384,
+        "releaseDate": "2024-11-18",
+        "family": "mistral-large",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistral-large-latest",
+        "name": "Mistral Large (latest)",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 500000,
+        "outputCostMicrosPerMillion": 1500000,
+        "cacheReadCostMicrosPerMillion": 50000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 262144,
+        "releaseDate": "2024-11-01",
+        "family": "mistral-large",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistral-large-2512",
+        "name": "Mistral Large 3",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 500000,
+        "outputCostMicrosPerMillion": 1500000,
+        "cacheReadCostMicrosPerMillion": 50000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 262144,
+        "releaseDate": "2024-11-01",
+        "family": "mistral-large",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "pixtral-large-latest",
+        "name": "Pixtral Large (latest)",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 128000,
+        "releaseDate": "2024-11-01",
+        "family": "pixtral",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "ministral-3b-latest",
@@ -2089,72 +2106,8397 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 40000,
         "cacheReadCostMicrosPerMillion": null,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
+        "contextWindow": 128000,
+        "maxOutput": 128000,
+        "releaseDate": "2024-10-01",
+        "family": "ministral",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "mistral-medium-latest",
-        "name": "Mistral Medium (latest)",
+        "id": "ministral-8b-latest",
+        "name": "Ministral 8B (latest)",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 100000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 128000,
+        "releaseDate": "2024-10-01",
+        "family": "ministral",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "pixtral-12b",
+        "name": "Pixtral 12B",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 150000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 128000,
+        "releaseDate": "2024-09-01",
+        "family": "pixtral",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistral-nemo",
+        "name": "Mistral Nemo",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 150000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 128000,
+        "releaseDate": "2024-07-01",
+        "family": "mistral-nemo",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "codestral-latest",
+        "name": "Codestral (latest)",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 900000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000,
+        "maxOutput": 4096,
+        "releaseDate": "2024-05-29",
+        "family": "codestral",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "open-mixtral-8x22b",
+        "name": "Mixtral 8x22B",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 64000,
+        "maxOutput": 64000,
+        "releaseDate": "2024-04-17",
+        "family": "mixtral",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "open-mixtral-8x7b",
+        "name": "Mixtral 8x7B",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 700000,
+        "outputCostMicrosPerMillion": 700000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 32000,
+        "maxOutput": 32000,
+        "releaseDate": "2023-12-11",
+        "family": "mixtral",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "open-mistral-7b",
+        "name": "Mistral 7B",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 250000,
+        "outputCostMicrosPerMillion": 250000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8000,
+        "maxOutput": 8000,
+        "releaseDate": "2023-09-27",
+        "family": "mistral",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "openai",
+    "name": "OpenAI",
+    "env": [
+      "OPENAI_API_KEY"
+    ],
+    "doc": "https://platform.openai.com/docs/models",
+    "models": [
+      {
+        "id": "gpt-6.1-sol",
+        "name": "GPT-6.1 Sol",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-29",
+        "family": "gpt-sol",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-6-luna",
+        "name": "GPT-6 Luna",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 500000,
+        "cacheReadCostMicrosPerMillion": 10000,
+        "cacheWriteCostMicrosPerMillion": 125000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-22",
+        "family": "gpt-luna",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-6-sol",
+        "name": "GPT-6 Sol",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-22",
+        "family": "gpt-sol",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-6-astra",
+        "name": "GPT-6 Astra",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 10000000,
+        "outputCostMicrosPerMillion": 50000000,
+        "cacheReadCostMicrosPerMillion": 1000000,
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-04",
+        "family": "gpt-astra",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-daybreak-blue-latest",
+        "name": "Daybreak Blue",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 4000000,
+        "outputCostMicrosPerMillion": 20000000,
+        "cacheReadCostMicrosPerMillion": 400000,
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-08-07",
+        "family": "gpt-sol",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-daybreak-red-latest",
+        "name": "Daybreak Red",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 12500000,
+        "outputCostMicrosPerMillion": 75000000,
+        "cacheReadCostMicrosPerMillion": 1250000,
+        "cacheWriteCostMicrosPerMillion": 15625000,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-08-07",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5.6",
+        "name": "GPT-5.6",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 4000000,
+        "outputCostMicrosPerMillion": 20000000,
+        "cacheReadCostMicrosPerMillion": 400000,
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-07-09",
+        "family": "gpt-sol",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5.6-luna",
+        "name": "GPT-5.6 Luna",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 200000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 20000,
+        "cacheWriteCostMicrosPerMillion": 250000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-07-09",
+        "family": "gpt-luna",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5.6-sol",
+        "name": "GPT-5.6 Sol",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 4000000,
+        "outputCostMicrosPerMillion": 20000000,
+        "cacheReadCostMicrosPerMillion": 400000,
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-07-09",
+        "family": "gpt-sol",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5.6-terra",
+        "name": "GPT-5.6 Terra",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 12000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-07-09",
+        "family": "gpt-terra",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5.5",
+        "name": "GPT-5.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 30000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-04-23",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5.4-mini",
+        "name": "GPT-5.4 mini",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 750000,
+        "outputCostMicrosPerMillion": 4500000,
+        "cacheReadCostMicrosPerMillion": 75000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-03-17",
+        "family": "gpt-mini",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5.4-nano",
+        "name": "GPT-5.4 nano",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 200000,
+        "outputCostMicrosPerMillion": 1250000,
+        "cacheReadCostMicrosPerMillion": 20000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-03-17",
+        "family": "gpt-nano",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5.4",
+        "name": "GPT-5.4",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2500000,
+        "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": 250000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-03-05",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5.2",
+        "name": "GPT-5.2",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1750000,
+        "outputCostMicrosPerMillion": 14000000,
+        "cacheReadCostMicrosPerMillion": 175000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2025-12-11",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5.1",
+        "name": "GPT-5.1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 125000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-11-13",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5",
+        "name": "GPT-5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 125000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-08-07",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5-mini",
+        "name": "GPT-5 Mini",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 250000,
+        "outputCostMicrosPerMillion": 2000000,
+        "cacheReadCostMicrosPerMillion": 25000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-08-07",
+        "family": "gpt-mini",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-5-nano",
+        "name": "GPT-5 Nano",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 50000,
+        "outputCostMicrosPerMillion": 400000,
+        "cacheReadCostMicrosPerMillion": 5000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-08-07",
+        "family": "gpt-nano",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "o3",
+        "name": "o3",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 8000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000,
+        "maxOutput": 100000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-04-16",
+        "family": "o",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-4.1",
+        "name": "GPT-4.1",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 8000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1047576,
+        "maxOutput": 32768,
+        "releaseDate": "2025-04-14",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-4.1-mini",
+        "name": "GPT-4.1 mini",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 400000,
+        "outputCostMicrosPerMillion": 1600000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1047576,
+        "maxOutput": 32768,
+        "releaseDate": "2025-04-14",
+        "family": "gpt-mini",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-4o-2024-11-20",
+        "name": "GPT-4o (2024-11-20)",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2500000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 1250000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 16384,
+        "releaseDate": "2024-11-20",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-4o-2024-08-06",
+        "name": "GPT-4o (2024-08-06)",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2500000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 1250000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 16384,
+        "releaseDate": "2024-08-06",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-4o-mini",
+        "name": "GPT-4o mini",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 600000,
+        "cacheReadCostMicrosPerMillion": 75000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 16384,
+        "releaseDate": "2024-07-18",
+        "family": "gpt-mini",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "gpt-4o",
+        "name": "GPT-4o",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2500000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 1250000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 16384,
+        "releaseDate": "2024-05-13",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "env": [
+      "OPENROUTER_API_KEY"
+    ],
+    "doc": "https://openrouter.ai/models",
+    "models": [
+      {
+        "id": "inclusionai/ling-3.1-flash",
+        "name": "Ling 3.1 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-10-02",
+        "family": "ling",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "apodex/apodex-1.1-mini:free",
+        "name": "Apodex 1.1 Mini (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "releaseDate": "2026-10-01",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "unbiased/pareto-26.10-preview",
+        "name": "Pareto 26.10 Preview",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 800000,
+        "outputCostMicrosPerMillion": 3200000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "releaseDate": "2026-10-01",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-6.1-sol",
+        "name": "GPT-6.1 Sol",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-29",
+        "family": "gpt-sol",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-6.1-sol-pro",
+        "name": "GPT-6.1 Sol Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-29",
+        "family": "gpt",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-sonnet-5.5",
+        "name": "Claude Sonnet 5.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-28",
+        "family": "claude-sonnet",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "perceptron/perceptron-mk1.5",
+        "name": "Perceptron Mk1.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 1500000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 36864,
+        "maxOutput": 8192,
+        "effortLevels": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-09-25",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "fireworks/ember-1",
+        "name": "Ember-1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 3000000,
+        "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": 300000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-09-24",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "aion-labs/aion-3.5",
+        "name": "Aion 3.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 3000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 750000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-09-23",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "aion-labs/aion-3.5-mini",
+        "name": "Aion 3.5 Mini",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 700000,
+        "outputCostMicrosPerMillion": 1400000,
+        "cacheReadCostMicrosPerMillion": 180000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-09-23",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-5.3-prime",
+        "name": "GLM 5.3 Prime",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2800000,
+        "outputCostMicrosPerMillion": 8800000,
+        "cacheReadCostMicrosPerMillion": 560000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-09-23",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.8-max-prime",
+        "name": "Qwen 3.8 Max Prime",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 4000000,
+        "outputCostMicrosPerMillion": 12000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-09-23",
+        "family": "qwen3.8-max",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "upstage/solar-mini4",
+        "name": "Solar Mini 4",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 50000,
+        "outputCostMicrosPerMillion": 200000,
+        "cacheReadCostMicrosPerMillion": 5000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 524288,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-23",
+        "family": "solar",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-opus-5.5",
+        "name": "Claude Opus 5.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 4000000,
+        "outputCostMicrosPerMillion": 20000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-22",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "cohere/command-a-plus",
+        "name": "Command A+",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 1500000,
+        "cacheReadCostMicrosPerMillion": 150000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 192000,
+        "maxOutput": 64000,
+        "releaseDate": "2026-09-22",
+        "family": "command-a",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-6-luna",
+        "name": "GPT-6 Luna",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 500000,
+        "cacheReadCostMicrosPerMillion": 10000,
+        "cacheWriteCostMicrosPerMillion": 125000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-22",
+        "family": "gpt-luna",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-6-luna-pro",
+        "name": "GPT-6 Luna Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 500000,
+        "cacheReadCostMicrosPerMillion": 10000,
+        "cacheWriteCostMicrosPerMillion": 125000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-22",
+        "family": "gpt",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-6-sol",
+        "name": "GPT-6 Sol",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-22",
+        "family": "gpt-sol",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-6-sol-pro",
+        "name": "GPT-6 Sol Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-22",
+        "family": "gpt",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "xiaomi/mimo-v2.6-flash",
+        "name": "MiMo-V2.6-Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 140000,
+        "outputCostMicrosPerMillion": 280000,
+        "cacheReadCostMicrosPerMillion": 2800,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000,
+        "maxOutput": 131072,
+        "releaseDate": "2026-09-22",
+        "family": "mimo",
+        "inputs": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "xiaomi/mimo-v2.6-pro",
+        "name": "MiMo-V2.6-Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 435000,
+        "outputCostMicrosPerMillion": 870000,
+        "cacheReadCostMicrosPerMillion": 3600,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000,
+        "maxOutput": 131072,
+        "releaseDate": "2026-09-22",
+        "family": "mimo",
+        "inputs": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "x-ai/grok-4.7",
+        "name": "Grok 4.7",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 500000,
+        "maxOutput": 450000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-09-21",
+        "family": "grok",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "xiaomi/mimo-v2.6-pro-ultraspeed",
+        "name": "MiMo-V2.6-Pro-UltraSpeed",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 4350000,
+        "outputCostMicrosPerMillion": 8700000,
+        "cacheReadCostMicrosPerMillion": 36000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "releaseDate": "2026-09-21",
+        "family": "mimo",
+        "inputs": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-5.3-flashx",
+        "name": "GLM 5.3 FlashX",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 370000,
+        "outputCostMicrosPerMillion": 1250000,
+        "cacheReadCostMicrosPerMillion": 90000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-09-18",
+        "family": "glm",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "prism-ml/ternary-bonsai-2-27b",
+        "name": "Ternary Bonsai 2 27B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 75000,
+        "outputCostMicrosPerMillion": 500000,
+        "cacheReadCostMicrosPerMillion": 37500,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "effortLevels": [
+          "medium",
+          "xhigh"
+        ],
+        "releaseDate": "2026-09-18",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "unbiased/pareto",
+        "name": "Pareto",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2500000,
+        "outputCostMicrosPerMillion": 7500000,
+        "cacheReadCostMicrosPerMillion": 250000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 131072,
+        "releaseDate": "2026-09-17",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.8-omni-flash",
+        "name": "Qwen3.8 Omni Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 470000,
+        "cacheReadCostMicrosPerMillion": 16000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 131072,
+        "releaseDate": "2026-09-17",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~deepseek/deepseek-flash-latest",
+        "name": "DeepSeek Flash Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 19474,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 15000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-09-14",
+        "family": "deepseek-flash",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~deepseek/deepseek-pro-latest",
+        "name": "DeepSeek Pro Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 152000,
+        "outputCostMicrosPerMillion": 4200000,
+        "cacheReadCostMicrosPerMillion": 150000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 393216,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-09-14",
+        "family": "deepseek",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "sakana/fugu-max",
+        "name": "Fugu Max",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 250000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-11",
+        "family": "fugu",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "sakana/fugu-ultra-v2",
+        "name": "Fugu Ultra v2",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 30000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-11",
+        "family": "fugu",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~openai/gpt-astra-latest",
+        "name": "GPT Astra Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 10000000,
+        "outputCostMicrosPerMillion": 50000000,
+        "cacheReadCostMicrosPerMillion": 1000000,
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-11",
+        "family": "gpt-astra",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~openai/gpt-luna-latest",
+        "name": "GPT Luna Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 500000,
+        "cacheReadCostMicrosPerMillion": 10000,
+        "cacheWriteCostMicrosPerMillion": 125000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-11",
+        "family": "gpt-luna",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~openai/gpt-sol-latest",
+        "name": "GPT Sol Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-11",
+        "family": "gpt-sol",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~openai/gpt-terra-latest",
+        "name": "GPT Terra Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 12000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-11",
+        "family": "gpt-terra",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-v4.1-flash",
+        "name": "DeepSeek V4.1 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 21421,
+        "outputCostMicrosPerMillion": 1320000,
+        "cacheReadCostMicrosPerMillion": 16500,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-09-10",
+        "family": "deepseek-flash",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "inclusionai/ling-3.0-flash-vl",
+        "name": "Ling 3.0 Flash VL",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 21000,
+        "outputCostMicrosPerMillion": 61600,
+        "cacheReadCostMicrosPerMillion": 4200,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-09-10",
+        "family": "ling",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "inception/mercury-2.5",
+        "name": "Mercury 2.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 40000,
+        "outputCostMicrosPerMillion": 150000,
+        "cacheReadCostMicrosPerMillion": 4000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 260000,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-09-08",
+        "family": "mercury",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "nex-agi/nex-n2.5-pro",
+        "name": "Nex-N2.5-Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 75000,
+        "outputCostMicrosPerMillion": 250000,
+        "cacheReadCostMicrosPerMillion": 15000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "effortLevels": [
+          "none",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-09-08",
+        "family": "agi",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-6-astra",
+        "name": "GPT-6 Astra",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 10000000,
+        "outputCostMicrosPerMillion": 50000000,
+        "cacheReadCostMicrosPerMillion": 1000000,
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-04",
+        "family": "gpt-astra",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-6-astra-pro",
+        "name": "GPT-6 Astra Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 10000000,
+        "outputCostMicrosPerMillion": 50000000,
+        "cacheReadCostMicrosPerMillion": 1000000,
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-04",
+        "family": "gpt",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "inclusionai/ling-3.0-flash-sante:free",
+        "name": "Ling 3.0 Flash Sante (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-09-04",
+        "family": "ling",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-3.8-flash",
+        "name": "Gemini 3.8 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 750000,
+        "outputCostMicrosPerMillion": 3750000,
+        "cacheReadCostMicrosPerMillion": 75000,
+        "cacheWriteCostMicrosPerMillion": 41667,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-09-02",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "meta/muse-spark-1.3",
+        "name": "Muse Spark 1.3",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 4250000,
+        "cacheReadCostMicrosPerMillion": 150000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-02",
+        "family": "muse",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "meta/muse-spark-1.3-contributor",
+        "name": "Muse Spark 1.3 Contributor",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 200000,
+        "cacheReadCostMicrosPerMillion": 2000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-02",
+        "family": "muse",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.8-max-0902",
+        "name": "Qwen3.8 Max 0902",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 250000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1000000,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-09-02",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-fable-5.1",
+        "name": "Claude Fable 5.1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 10000000,
+        "outputCostMicrosPerMillion": 50000000,
+        "cacheReadCostMicrosPerMillion": 250000,
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-09-01",
+        "family": "claude-fable",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "ibm-granite/granite-4.2-8b",
+        "name": "Granite 4.2 8B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 60000,
+        "outputCostMicrosPerMillion": 250000,
+        "cacheReadCostMicrosPerMillion": 15000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 117964,
+        "effortLevels": [
+          "none",
+          "low",
+          "high"
+        ],
+        "releaseDate": "2026-08-31",
+        "family": "granite",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "tencent/hy4-preview",
+        "name": "Hy4 preview",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 834000,
+        "outputCostMicrosPerMillion": 2501000,
+        "cacheReadCostMicrosPerMillion": 42000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 64000,
+        "effortLevels": [
+          "none",
+          "low",
+          "high"
+        ],
+        "releaseDate": "2026-08-28",
+        "family": "Hy",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~z-ai/glm-flash-latest",
+        "name": "GLM Flash Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 24400,
+        "outputCostMicrosPerMillion": 500000,
+        "cacheReadCostMicrosPerMillion": 24400,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-27",
+        "family": "glm-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "inclusionai/ling-3.0-flash-fin",
+        "name": "Ling 3.0 Flash Fin",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 42000,
+        "outputCostMicrosPerMillion": 123200,
+        "cacheReadCostMicrosPerMillion": 8400,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-08-27",
+        "family": "ling",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-5.3-flash",
+        "name": "GLM-5.3-Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 500000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943717,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-26",
+        "family": "glm-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.8-flash",
+        "name": "Qwen3.8 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 470000,
+        "cacheReadCostMicrosPerMillion": 16000,
+        "cacheWriteCostMicrosPerMillion": 200000,
+        "contextWindow": 1000000,
+        "maxOutput": 131072,
+        "releaseDate": "2026-08-26",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-v4-flash-vision-exp",
+        "name": "DeepSeek V4 Flash Vision Exp",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 215600,
+        "outputCostMicrosPerMillion": 646800,
+        "cacheReadCostMicrosPerMillion": 6860,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 262144,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-21",
+        "family": "deepseek-flash",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "meta/muse-spark-1.2-contributor",
+        "name": "Muse Spark 1.2 Contributor",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 200000,
+        "cacheReadCostMicrosPerMillion": 2000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-08-21",
+        "family": "muse",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~z-ai/glm-latest",
+        "name": "GLM Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 30000,
+        "outputCostMicrosPerMillion": 12000000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-19",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "dots-studio/dots-3-note-preview:free",
+        "name": "Dots3-Note Preview (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 512000,
+        "maxOutput": 460800,
+        "releaseDate": "2026-08-14",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-5.3",
+        "name": "GLM-5.3",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 70000,
+        "outputCostMicrosPerMillion": 7000000,
+        "cacheReadCostMicrosPerMillion": 65000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-14",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.8-27b",
+        "name": "Qwen3.8 27B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 425000,
+        "outputCostMicrosPerMillion": 2550000,
+        "cacheReadCostMicrosPerMillion": 85000,
+        "cacheWriteCostMicrosPerMillion": 531250,
+        "contextWindow": 1000000,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "medium",
+          "xhigh"
+        ],
+        "releaseDate": "2026-08-14",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-3.7-flash",
+        "name": "Gemini 3.7 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 750000,
+        "outputCostMicrosPerMillion": 3750000,
+        "cacheReadCostMicrosPerMillion": 75000,
+        "cacheWriteCostMicrosPerMillion": 41667,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-08-13",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-v4-pro-0813",
+        "name": "DeepSeek V4 Pro 0813",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 660000,
+        "outputCostMicrosPerMillion": 1980000,
+        "cacheReadCostMicrosPerMillion": 22000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 393216,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-12",
+        "family": "deepseek-thinking",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "x-ai/grok-4.6",
+        "name": "Grok 4.6",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 500000,
+        "maxOutput": 450000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-08-12",
+        "family": "grok",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.8-2.4t-a95b",
+        "name": "Qwen3.8 2.4T A95B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 250000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "medium",
+          "xhigh"
+        ],
+        "releaseDate": "2026-08-12",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "bytedance-seed/seed-2-1-turbo",
+        "name": "Seed 2.1 Turbo",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 500000,
+        "outputCostMicrosPerMillion": 2500000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "releaseDate": "2026-08-12",
+        "family": "seed",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "liquid/lfm-2.5-2.6b:free",
+        "name": "LFM2.5-2.6B (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 65536,
+        "maxOutput": 8192,
+        "releaseDate": "2026-08-11",
+        "family": "liquid",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "nvidia/nemotron-3.5-lightning:free",
+        "name": "Nemotron 3.5 Lightning (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 65536,
+        "releaseDate": "2026-08-11",
+        "family": "nemotron",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "nvidia/nemotron-3.5-lightning",
+        "name": "Nemotron 3.5 Lightning 30B A3B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 60000,
+        "outputCostMicrosPerMillion": 160000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-08-11",
+        "family": "nemotron",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "meta/muse-glimmer-30b",
+        "name": "Muse Glimmer 30B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 40000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 16384,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-08-10",
+        "family": "muse",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "upstage/solar-pro4",
+        "name": "Solar Pro 4",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 90000,
+        "outputCostMicrosPerMillion": 360000,
+        "cacheReadCostMicrosPerMillion": 18000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 524288,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-08-10",
+        "family": "solar",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "meta/muse-spark-1.2",
+        "name": "Muse Spark 1.2",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 4250000,
+        "cacheReadCostMicrosPerMillion": 150000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-08-05",
+        "family": "muse",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "sakana/sakana-namazu",
+        "name": "Sakana Namazu",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 950000,
+        "outputCostMicrosPerMillion": 4000000,
+        "cacheReadCostMicrosPerMillion": 150000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "none",
+          "high"
+        ],
+        "releaseDate": "2026-08-03",
+        "family": "sakana-namazu",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~deepseek/deepseek-v4-flash-latest",
+        "name": "DeepSeek V4 Flash Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 13400,
+        "outputCostMicrosPerMillion": 1280000,
+        "cacheReadCostMicrosPerMillion": 13400,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-08-01",
+        "family": "deepseek",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-v4-flash-0731",
+        "name": "DeepSeek V4 Flash 0731",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 13400,
+        "outputCostMicrosPerMillion": 1280000,
+        "cacheReadCostMicrosPerMillion": 13400,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-07-31",
+        "family": "deepseek-flash",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "thinkingmachines/inkling-small",
+        "name": "Inkling Small",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 450000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 524288,
+        "maxOutput": 262144,
+        "effortLevels": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-07-30",
+        "family": "ling",
+        "inputs": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "thinkingmachines/inkling-small:free",
+        "name": "Inkling Small (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 262144,
+        "effortLevels": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-07-30",
+        "family": "ling",
+        "inputs": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-opus-5",
+        "name": "Claude Opus 5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 25000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-07-24",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "inclusionai/ling-3.0-flash",
+        "name": "Ling 3.0 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 21000,
+        "outputCostMicrosPerMillion": 63000,
+        "cacheReadCostMicrosPerMillion": 4200,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-07-23",
+        "family": "ling",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-3.5-flash-lite",
+        "name": "Gemini 3.5 Flash Lite",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 2500000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": 83333,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-07-21",
+        "family": "gemini-flash-lite",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-3.6-flash",
+        "name": "Gemini 3.6 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 750000,
+        "outputCostMicrosPerMillion": 3750000,
+        "cacheReadCostMicrosPerMillion": 75000,
+        "cacheWriteCostMicrosPerMillion": 41667,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-07-21",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "poolside/laguna-s-2.1",
+        "name": "Laguna S 2.1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 90000,
+        "outputCostMicrosPerMillion": 180000,
+        "cacheReadCostMicrosPerMillion": 9000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "releaseDate": "2026-07-21",
+        "family": "laguna-s",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "poolside/laguna-s-2.1:free",
+        "name": "Laguna S 2.1 (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-07-21",
+        "family": "laguna-s",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "meituan/longcat-2.0",
+        "name": "LongCat 2.0",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 6000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048756,
+        "maxOutput": 262144,
+        "releaseDate": "2026-07-20",
+        "family": "longcat",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "moonshotai/kimi-k3",
+        "name": "Kimi K3",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 950000,
+        "outputCostMicrosPerMillion": 14000000,
+        "cacheReadCostMicrosPerMillion": 310000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-07-16",
+        "family": "kimi-k3",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "thinkingmachines/inkling",
+        "name": "Inkling",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 950000,
+        "outputCostMicrosPerMillion": 4050000,
+        "cacheReadCostMicrosPerMillion": 160000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 524288,
+        "maxOutput": 262144,
+        "effortLevels": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-07-15",
+        "family": "ling",
+        "inputs": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "thinkingmachines/inkling:free",
+        "name": "Inkling (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 262144,
+        "effortLevels": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-07-15",
+        "family": "ling",
+        "inputs": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.7-flash",
+        "name": "Qwen3.7 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 30000,
+        "outputCostMicrosPerMillion": 130000,
+        "cacheReadCostMicrosPerMillion": 6000,
+        "cacheWriteCostMicrosPerMillion": 38000,
+        "contextWindow": 1000000,
+        "maxOutput": 65536,
+        "releaseDate": "2026-07-15",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "kwaipilot/kat-coder-pro-v2.5",
+        "name": "KAT-Coder-Pro V2.5",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 740000,
+        "outputCostMicrosPerMillion": 2960000,
+        "cacheReadCostMicrosPerMillion": 150000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "releaseDate": "2026-07-10",
+        "family": "kat-coder",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.6-luna",
+        "name": "GPT-5.6 Luna",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 200000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 20000,
+        "cacheWriteCostMicrosPerMillion": 250000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-07-09",
+        "family": "gpt-luna",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.6-luna-pro",
+        "name": "GPT-5.6 Luna Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 200000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 20000,
+        "cacheWriteCostMicrosPerMillion": 250000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-07-09",
+        "family": "gpt-luna",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.6-sol",
+        "name": "GPT-5.6 Sol",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-07-09",
+        "family": "gpt-sol",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.6-sol-pro",
+        "name": "GPT-5.6 Sol Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-07-09",
+        "family": "gpt-sol",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.6-terra",
+        "name": "GPT-5.6 Terra",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 12000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-07-09",
+        "family": "gpt-terra",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.6-terra-pro",
+        "name": "GPT-5.6 Terra Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 12000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-07-09",
+        "family": "gpt-terra",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "x-ai/grok-4.5",
+        "name": "Grok 4.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 300000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 500000,
+        "maxOutput": 450000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-07-08",
+        "family": "grok",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~x-ai/grok-latest",
+        "name": "Grok Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 500000,
+        "maxOutput": 450000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-07-08",
+        "family": "grok",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "aion-labs/aion-3.0",
+        "name": "Aion-3.0",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 3000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 750000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 32768,
+        "releaseDate": "2026-07-07",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "aion-labs/aion-3.0-mini",
+        "name": "Aion-3.0-Mini",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 700000,
+        "outputCostMicrosPerMillion": 1400000,
+        "cacheReadCostMicrosPerMillion": 180000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 32768,
+        "releaseDate": "2026-07-07",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "tencent/hy3",
+        "name": "Hy3",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 132000,
+        "outputCostMicrosPerMillion": 528000,
+        "cacheReadCostMicrosPerMillion": 33000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "high"
+        ],
+        "releaseDate": "2026-07-06",
+        "family": "Hy",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "poolside/laguna-xs-2.1",
+        "name": "Laguna XS 2.1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 60000,
+        "outputCostMicrosPerMillion": 120000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-07-02",
+        "family": "laguna",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "poolside/laguna-xs-2.1:free",
+        "name": "Laguna XS 2.1 (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-07-02",
+        "family": "laguna",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-sonnet-5",
+        "name": "Claude Sonnet 5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-06-30",
+        "family": "claude-sonnet",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "cohere/north-mini-code:free",
+        "name": "North Mini Code (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000,
+        "maxOutput": 64000,
+        "releaseDate": "2026-06-17",
+        "family": "north",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "sakana/fugu-ultra",
+        "name": "Fugu Ultra",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 30000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-06-15",
+        "family": "fugu",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-5.2",
+        "name": "GLM-5.2",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 152000,
+        "outputCostMicrosPerMillion": 12000000,
+        "cacheReadCostMicrosPerMillion": 150000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-06-13",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "moonshotai/kimi-k2.7-code",
+        "name": "Kimi K2.7 Code",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 671200,
+        "outputCostMicrosPerMillion": 3350000,
+        "cacheReadCostMicrosPerMillion": 180000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "releaseDate": "2026-06-12",
+        "family": "kimi-k2",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-fable-5",
+        "name": "Claude Fable 5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 10000000,
+        "outputCostMicrosPerMillion": 50000000,
+        "cacheReadCostMicrosPerMillion": 1000000,
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-06-09",
+        "family": "claude-fable",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~anthropic/claude-fable-latest",
+        "name": "Claude Fable Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 10000000,
+        "outputCostMicrosPerMillion": 50000000,
+        "cacheReadCostMicrosPerMillion": 250000,
+        "cacheWriteCostMicrosPerMillion": 12500000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-06-09",
+        "family": "claude-fable",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "name": "Nemotron 3 Ultra (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-06-04",
+        "family": "nemotron",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "nvidia/nemotron-3-ultra-550b-a55b",
+        "name": "Nemotron 3 Ultra 550B A55B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 500000,
+        "outputCostMicrosPerMillion": 2200000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 16384,
+        "effortLevels": [
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-06-04",
+        "family": "nemotron",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.7-plus",
+        "name": "Qwen3.7 Plus",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 320000,
+        "outputCostMicrosPerMillion": 1280000,
+        "cacheReadCostMicrosPerMillion": 64000,
+        "cacheWriteCostMicrosPerMillion": 400000,
+        "contextWindow": 1000000,
+        "maxOutput": 131072,
+        "releaseDate": "2026-06-02",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "minimax/minimax-m3",
+        "name": "MiniMax-M3",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 60000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 512000,
+        "releaseDate": "2026-06-01",
+        "family": "minimax",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "stepfun/step-3.7-flash",
+        "name": "Step 3.7 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 200000,
+        "outputCostMicrosPerMillion": 1150000,
+        "cacheReadCostMicrosPerMillion": 40000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 230400,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-05-29",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-opus-4.8",
+        "name": "Claude Opus 4.8",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 25000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-05-28",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.7-max",
+        "name": "Qwen3.7 Max",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1475000,
+        "outputCostMicrosPerMillion": 4425000,
+        "cacheReadCostMicrosPerMillion": 295000,
+        "cacheWriteCostMicrosPerMillion": 1843750,
+        "contextWindow": 1000000,
+        "maxOutput": 131072,
+        "releaseDate": "2026-05-21",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-3.5-flash",
+        "name": "Gemini 3.5 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1500000,
+        "outputCostMicrosPerMillion": 9000000,
+        "cacheReadCostMicrosPerMillion": 150000,
+        "cacheWriteCostMicrosPerMillion": 83333,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-05-19",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-3.1-flash-lite",
+        "name": "Gemini 3.1 Flash Lite",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 250000,
+        "outputCostMicrosPerMillion": 1500000,
+        "cacheReadCostMicrosPerMillion": 25000,
+        "cacheWriteCostMicrosPerMillion": 83333,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-05-07",
+        "family": "gemini-flash-lite",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-chat-latest",
+        "name": "GPT Chat Latest",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 30000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "releaseDate": "2026-05-05",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/mistral-medium-3-5",
+        "name": "Mistral Medium 3.5",
         "toolCall": true,
         "reasoning": true,
         "inputCostMicrosPerMillion": 1500000,
         "outputCostMicrosPerMillion": 7500000,
         "cacheReadCostMicrosPerMillion": null,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      }
-    ]
-  },
-  {
-    "id": "deepseek",
-    "name": "DeepSeek",
-    "env": [
-      "DEEPSEEK_API_KEY"
-    ],
-    "doc": "https://api-docs.deepseek.com/quick_start/pricing",
-    "models": [
-      {
-        "id": "deepseek-v4-flash-vision-exp",
-        "name": "DeepSeek V4 Flash Vision Exp",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 600000,
-        "cacheReadCostMicrosPerMillion": 3000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
+        "contextWindow": 262144,
+        "maxOutput": 209715,
+        "effortLevels": [
+          "none",
+          "high"
+        ],
+        "releaseDate": "2026-04-30",
+        "family": "mistral-medium",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "deepseek-flash",
-        "name": "DeepSeek V4.1 Flash",
+        "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "name": "Nemotron 3 Nano Omni (free)",
         "toolCall": true,
         "reasoning": true,
-        "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 600000,
-        "cacheReadCostMicrosPerMillion": 3000,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
+        "contextWindow": 256000,
+        "maxOutput": 65536,
+        "releaseDate": "2026-04-28",
+        "family": "nemotron",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "deepseek-v4-pro",
+        "id": "~anthropic/claude-haiku-latest",
+        "name": "Claude Haiku Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1000000,
+        "outputCostMicrosPerMillion": 5000000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": 1250000,
+        "contextWindow": 200000,
+        "maxOutput": 64000,
+        "releaseDate": "2026-04-27",
+        "family": "claude-haiku",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~anthropic/claude-sonnet-latest",
+        "name": "Claude Sonnet Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 2500000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-04-27",
+        "family": "claude-sonnet",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~google/gemini-flash-latest",
+        "name": "Gemini Flash Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 750000,
+        "outputCostMicrosPerMillion": 3750000,
+        "cacheReadCostMicrosPerMillion": 75000,
+        "cacheWriteCostMicrosPerMillion": 41667,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-04-27",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~google/gemini-pro-latest",
+        "name": "Gemini Pro Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 12000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 375000,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-04-27",
+        "family": "gemini-pro",
+        "inputs": [
+          "audio",
+          "pdf",
+          "image",
+          "text",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~openai/gpt-mini-latest",
+        "name": "GPT Mini Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 750000,
+        "outputCostMicrosPerMillion": 4500000,
+        "cacheReadCostMicrosPerMillion": 75000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-04-27",
+        "family": "gpt-mini",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~moonshotai/kimi-latest",
+        "name": "Kimi Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 830000,
+        "outputCostMicrosPerMillion": 13000000,
+        "cacheReadCostMicrosPerMillion": 450000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "low",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-04-27",
+        "family": "kimi",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.5-plus-20260420",
+        "name": "Qwen3.5 Plus 2026-04-20",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 1800000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": 375000,
+        "contextWindow": 1000000,
+        "maxOutput": 65536,
+        "releaseDate": "2026-04-27",
+        "family": "qwen3.5",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.6-flash",
+        "name": "Qwen3.6 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 187500,
+        "outputCostMicrosPerMillion": 1125000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": 234375,
+        "contextWindow": 1000000,
+        "maxOutput": 65536,
+        "releaseDate": "2026-04-27",
+        "family": "qwen3.6",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-v4-flash",
+        "name": "DeepSeek V4 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 12000,
+        "outputCostMicrosPerMillion": 1280000,
+        "cacheReadCostMicrosPerMillion": 12000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-04-24",
+        "family": "deepseek-flash",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-v4-pro",
         "name": "DeepSeek V4 Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 208800,
+        "outputCostMicrosPerMillion": 417600,
+        "cacheReadCostMicrosPerMillion": 17400,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 384000,
+        "effortLevels": [
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-04-24",
+        "family": "deepseek-thinking",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.5",
+        "name": "GPT-5.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 30000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-04-23",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.5-pro",
+        "name": "GPT-5.5 Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 30000000,
+        "outputCostMicrosPerMillion": 180000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-04-23",
+        "family": "gpt-pro",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "xiaomi/mimo-v2.5",
+        "name": "MiMo-V2.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 140000,
+        "outputCostMicrosPerMillion": 280000,
+        "cacheReadCostMicrosPerMillion": 2800,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000,
+        "maxOutput": 131072,
+        "releaseDate": "2026-04-22",
+        "family": "mimo",
+        "inputs": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "xiaomi/mimo-v2.5-pro",
+        "name": "MiMo-V2.5-Pro",
         "toolCall": true,
         "reasoning": true,
         "inputCostMicrosPerMillion": 435000,
         "outputCostMicrosPerMillion": 870000,
-        "cacheReadCostMicrosPerMillion": 3625,
+        "cacheReadCostMicrosPerMillion": 3600,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
+        "contextWindow": 1050000,
+        "maxOutput": 131072,
+        "releaseDate": "2026-04-22",
+        "family": "mimo",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "deepseek-v4-flash",
-        "name": "DeepSeek V4 Flash",
+        "id": "qwen/qwen3.6-27b",
+        "name": "Qwen3.6 27B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 320000,
+        "outputCostMicrosPerMillion": 3250000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 262140,
+        "releaseDate": "2026-04-22",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "~anthropic/claude-opus-latest",
+        "name": "Claude Opus Latest",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 4000000,
+        "outputCostMicrosPerMillion": 20000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 5000000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-04-21",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "moonshotai/kimi-k2.6",
+        "name": "Kimi K2.6",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 950000,
+        "outputCostMicrosPerMillion": 4000000,
+        "cacheReadCostMicrosPerMillion": 160000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "releaseDate": "2026-04-21",
+        "family": "kimi-k2",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "tencent/hy3-preview",
+        "name": "Hy3 preview",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 180000,
+        "outputCostMicrosPerMillion": 600000,
+        "cacheReadCostMicrosPerMillion": 60000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "effortLevels": [
+          "none",
+          "low",
+          "high"
+        ],
+        "releaseDate": "2026-04-20",
+        "family": "Hy",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.6-max-preview",
+        "name": "Qwen3.6 Max Preview",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1027000,
+        "outputCostMicrosPerMillion": 6162000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": 1283750,
+        "contextWindow": 262144,
+        "maxOutput": 65536,
+        "releaseDate": "2026-04-20",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "x-ai/grok-4.3",
+        "name": "Grok 4.3",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 2500000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 900000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-04-17",
+        "family": "grok",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.6-35b-a3b",
+        "name": "Qwen3.6 35B-A3B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 1000000,
+        "cacheReadCostMicrosPerMillion": 50000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "releaseDate": "2026-04-17",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-opus-4.7",
+        "name": "Claude Opus 4.7",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 25000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "releaseDate": "2026-04-16",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "x-ai/grok-build-0.1",
+        "name": "Grok Build 0.1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1000000,
+        "outputCostMicrosPerMillion": 2000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000,
+        "maxOutput": 230400,
+        "releaseDate": "2026-04-16",
+        "family": "grok-build",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "meta/muse-spark-1.1",
+        "name": "Muse Spark 1.1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 4250000,
+        "cacheReadCostMicrosPerMillion": 150000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 943718,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-04-08",
+        "family": "muse",
+        "inputs": [
+          "text",
+          "image",
+          "pdf",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-5.1",
+        "name": "GLM-5.1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1400000,
+        "outputCostMicrosPerMillion": 4400000,
+        "cacheReadCostMicrosPerMillion": 260000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 204800,
+        "maxOutput": 131072,
+        "releaseDate": "2026-04-07",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemma-4-26b-a4b-it:free",
+        "name": "Gemma 4 26B A4B  (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-04-02",
+        "family": "gemma",
+        "inputs": [
+          "image",
+          "text",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemma-4-26b-a4b-it",
+        "name": "Gemma 4 26B A4B IT",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 90000,
+        "outputCostMicrosPerMillion": 300000,
+        "cacheReadCostMicrosPerMillion": 50000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "releaseDate": "2026-04-02",
+        "family": "gemma",
+        "inputs": [
+          "image",
+          "text",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemma-4-31b-it:free",
+        "name": "Gemma 4 31B (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-04-02",
+        "family": "gemma",
+        "inputs": [
+          "image",
+          "text",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemma-4-31b-it",
+        "name": "Gemma 4 31B IT",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 90000,
+        "outputCostMicrosPerMillion": 340000,
+        "cacheReadCostMicrosPerMillion": 50000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 16384,
+        "releaseDate": "2026-04-02",
+        "family": "gemma",
+        "inputs": [
+          "image",
+          "text",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.6-plus",
+        "name": "Qwen3.6 Plus",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 325000,
+        "outputCostMicrosPerMillion": 1950000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": 406250,
+        "contextWindow": 1000000,
+        "maxOutput": 65536,
+        "releaseDate": "2026-04-02",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-5v-turbo",
+        "name": "GLM-5V-Turbo",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1200000,
+        "outputCostMicrosPerMillion": 4000000,
+        "cacheReadCostMicrosPerMillion": 240000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 202752,
+        "maxOutput": 131072,
+        "releaseDate": "2026-04-01",
+        "family": "glm",
+        "inputs": [
+          "image",
+          "text",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "arcee-ai/trinity-large-thinking",
+        "name": "Trinity Large Thinking",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 250000,
+        "outputCostMicrosPerMillion": 800000,
+        "cacheReadCostMicrosPerMillion": 60000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 80000,
+        "releaseDate": "2026-04-01",
+        "family": "trinity",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "x-ai/grok-4.20",
+        "name": "Grok 4.20",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 2500000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 2000000,
+        "maxOutput": 1800000,
+        "releaseDate": "2026-03-31",
+        "family": "grok",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "rekaai/reka-edge",
+        "name": "Reka Edge",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 100000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 16384,
+        "maxOutput": 14745,
+        "releaseDate": "2026-03-20",
+        "family": "reka",
+        "inputs": [
+          "image",
+          "text",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "minimax/minimax-m2.7",
+        "name": "MiniMax-M2.7",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 210000,
+        "outputCostMicrosPerMillion": 840000,
+        "cacheReadCostMicrosPerMillion": 42000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 204800,
+        "maxOutput": 176947,
+        "releaseDate": "2026-03-18",
+        "family": "minimax",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.4-mini",
+        "name": "GPT-5.4 mini",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 750000,
+        "outputCostMicrosPerMillion": 4500000,
+        "cacheReadCostMicrosPerMillion": 75000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-03-17",
+        "family": "gpt-mini",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.4-nano",
+        "name": "GPT-5.4 nano",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 200000,
+        "outputCostMicrosPerMillion": 1250000,
+        "cacheReadCostMicrosPerMillion": 20000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-03-17",
+        "family": "gpt-nano",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-5-turbo",
+        "name": "GLM-5-Turbo",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1200000,
+        "outputCostMicrosPerMillion": 4000000,
+        "cacheReadCostMicrosPerMillion": 240000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 202752,
+        "maxOutput": 131072,
+        "releaseDate": "2026-03-16",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/mistral-small-2603",
+        "name": "Mistral Small 4",
         "toolCall": true,
         "reasoning": true,
         "inputCostMicrosPerMillion": 150000,
         "outputCostMicrosPerMillion": 600000,
-        "cacheReadCostMicrosPerMillion": 3000,
+        "cacheReadCostMicrosPerMillion": 15000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
+        "contextWindow": 262144,
+        "maxOutput": 209715,
+        "effortLevels": [
+          "none",
+          "high"
+        ],
+        "releaseDate": "2026-03-16",
+        "family": "mistral-small",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "nvidia/nemotron-3-super-120b-a12b:free",
+        "name": "Nemotron 3 Super (free)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "effortLevels": [
+          "low",
+          "medium"
+        ],
+        "releaseDate": "2026-03-11",
+        "family": "nemotron",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "nvidia/nemotron-3-super-120b-a12b",
+        "name": "Nemotron 3 Super 120B A12B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 80000,
+        "outputCostMicrosPerMillion": 450000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "effortLevels": [
+          "low",
+          "medium"
+        ],
+        "releaseDate": "2026-03-11",
+        "family": "nemotron",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.4",
+        "name": "GPT-5.4",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2500000,
+        "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": 250000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-03-05",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.4-pro",
+        "name": "GPT-5.4 Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 30000000,
+        "outputCostMicrosPerMillion": 180000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1050000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-03-05",
+        "family": "gpt-pro",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "inception/mercury-2",
+        "name": "Mercury 2",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 250000,
+        "outputCostMicrosPerMillion": 750000,
+        "cacheReadCostMicrosPerMillion": 25000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 50000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-03-04",
+        "family": "mercury",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-3.1-flash-lite-preview",
+        "name": "Gemini 3.1 Flash Lite Preview",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 250000,
+        "outputCostMicrosPerMillion": 1500000,
+        "cacheReadCostMicrosPerMillion": 25000,
+        "cacheWriteCostMicrosPerMillion": 83333,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-03-03",
+        "family": "gemini-flash-lite",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.5-flash-02-23",
+        "name": "Qwen3.5-Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 65000,
+        "outputCostMicrosPerMillion": 260000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 65536,
+        "releaseDate": "2026-02-25",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "aion-labs/aion-2.0",
+        "name": "Aion-2.0",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 800000,
+        "outputCostMicrosPerMillion": 1600000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 32768,
+        "releaseDate": "2026-02-23",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.5-122b-a10b",
+        "name": "Qwen3.5 122B-A10B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 260000,
+        "outputCostMicrosPerMillion": 2080000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 65536,
+        "releaseDate": "2026-02-23",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.5-27b",
+        "name": "Qwen3.5 27B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 195000,
+        "outputCostMicrosPerMillion": 1560000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 65536,
+        "releaseDate": "2026-02-23",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.5-35b-a3b",
+        "name": "Qwen3.5 35B-A3B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 80000,
+        "outputCostMicrosPerMillion": 750000,
+        "cacheReadCostMicrosPerMillion": 40000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-02-23",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.5-9b",
+        "name": "Qwen3.5 9B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 150000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2026-02-23",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-3.1-pro-preview",
+        "name": "Gemini 3.1 Pro Preview",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 12000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 375000,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-02-19",
+        "family": "gemini-pro",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-3.1-pro-preview-customtools",
+        "name": "Gemini 3.1 Pro Preview Custom Tools",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 12000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": 375000,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-02-19",
+        "family": "gemini-pro",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-sonnet-4.6",
+        "name": "Claude Sonnet 4.6",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 3000000,
+        "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": 300000,
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-02-17",
+        "family": "claude-sonnet",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.5-plus-02-15",
+        "name": "Qwen3.5 Plus 2026-02-15",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 260000,
+        "outputCostMicrosPerMillion": 1560000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 65536,
+        "releaseDate": "2026-02-16",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3.5-397b-a17b",
+        "name": "Qwen3.5 397B-A17B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 450000,
+        "outputCostMicrosPerMillion": 3000000,
+        "cacheReadCostMicrosPerMillion": 220000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 81920,
+        "releaseDate": "2026-02-15",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "bytedance-seed/seed-2.0-code",
+        "name": "Seed 2.0 Code",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 500000,
+        "outputCostMicrosPerMillion": 3000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-02-14",
+        "family": "seed",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "bytedance-seed/seed-2.0-lite",
+        "name": "Seed 2.0 Lite",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 250000,
+        "outputCostMicrosPerMillion": 2000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-02-14",
+        "family": "seed",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "bytedance-seed/seed-2.0-mini",
+        "name": "Seed 2.0 Mini",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 400000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 131072,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-02-14",
+        "family": "seed",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-5",
+        "name": "GLM-5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 600000,
+        "outputCostMicrosPerMillion": 1920000,
+        "cacheReadCostMicrosPerMillion": 120000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 204800,
+        "maxOutput": 128000,
+        "releaseDate": "2026-02-12",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "minimax/minimax-m2.5",
+        "name": "MiniMax-M2.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 270000,
+        "outputCostMicrosPerMillion": 1080000,
+        "cacheReadCostMicrosPerMillion": 27000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 204800,
+        "maxOutput": 128000,
+        "releaseDate": "2026-02-12",
+        "family": "minimax",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-max-thinking",
+        "name": "Qwen3 Max Thinking",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 780000,
+        "outputCostMicrosPerMillion": 3900000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 65536,
+        "releaseDate": "2026-02-09",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-opus-4.6",
+        "name": "Claude Opus 4.6",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 25000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 1000000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "max"
+        ],
+        "releaseDate": "2026-02-05",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.3-codex",
+        "name": "GPT-5.3 Codex",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1750000,
+        "outputCostMicrosPerMillion": 14000000,
+        "cacheReadCostMicrosPerMillion": 175000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-02-05",
+        "family": "gpt-codex",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-coder-next",
+        "name": "Qwen3 Coder Next",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 120000,
+        "outputCostMicrosPerMillion": 800000,
+        "cacheReadCostMicrosPerMillion": 70000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "releaseDate": "2026-02-03",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openrouter/free",
+        "name": "Free Models Router",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 0,
+        "outputCostMicrosPerMillion": 0,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000,
+        "maxOutput": 8000,
+        "releaseDate": "2026-02-01",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "stepfun/step-3.5-flash",
+        "name": "Step 3.5 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 300000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 65536,
+        "releaseDate": "2026-01-29",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "upstage/solar-pro-3",
+        "name": "Solar Pro 3",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 600000,
+        "cacheReadCostMicrosPerMillion": 15000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 117964,
+        "effortLevels": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-01-27",
+        "family": "solar-pro",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-4.7-flash",
+        "name": "GLM-4.7-Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 60500,
+        "outputCostMicrosPerMillion": 400000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000,
+        "maxOutput": 117964,
+        "releaseDate": "2026-01-19",
+        "family": "glm-flash",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "minimax/minimax-m2.1",
+        "name": "MiniMax-M2.1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 204800,
+        "maxOutput": 131072,
+        "releaseDate": "2025-12-23",
+        "family": "minimax",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "bytedance-seed/seed-1.6",
+        "name": "Seed 1.6",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 250000,
+        "outputCostMicrosPerMillion": 2000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2025-12-23",
+        "family": "seed",
+        "inputs": [
+          "image",
+          "text",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "bytedance-seed/seed-1.6-flash",
+        "name": "Seed 1.6 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 75000,
+        "outputCostMicrosPerMillion": 300000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2025-12-23",
+        "family": "seed",
+        "inputs": [
+          "image",
+          "text",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-4.7",
+        "name": "GLM-4.7",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 600000,
+        "outputCostMicrosPerMillion": 2200000,
+        "cacheReadCostMicrosPerMillion": 110000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 204800,
+        "maxOutput": 131072,
+        "releaseDate": "2025-12-22",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-3-flash-preview",
+        "name": "Gemini 3 Flash Preview",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 500000,
+        "outputCostMicrosPerMillion": 3000000,
+        "cacheReadCostMicrosPerMillion": 50000,
+        "cacheWriteCostMicrosPerMillion": 83333,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-12-17",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "nvidia/nemotron-3-nano-30b-a3b",
+        "name": "Nemotron 3 Nano 30B A3B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 50000,
+        "outputCostMicrosPerMillion": 200000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "releaseDate": "2025-12-15",
+        "family": "nemotron",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.2",
+        "name": "GPT-5.2",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1750000,
+        "outputCostMicrosPerMillion": 14000000,
+        "cacheReadCostMicrosPerMillion": 175000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2025-12-11",
+        "family": "gpt",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.2-codex",
+        "name": "GPT-5.2 Codex",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1750000,
+        "outputCostMicrosPerMillion": 14000000,
+        "cacheReadCostMicrosPerMillion": 175000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2025-12-11",
+        "family": "gpt-codex",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.2-pro",
+        "name": "GPT-5.2 Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 21000000,
+        "outputCostMicrosPerMillion": 168000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2025-12-11",
+        "family": "gpt-pro",
+        "inputs": [
+          "image",
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.2-chat",
+        "name": "GPT-5.2 Chat",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 1750000,
+        "outputCostMicrosPerMillion": 14000000,
+        "cacheReadCostMicrosPerMillion": 175000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 32000,
+        "releaseDate": "2025-12-10",
+        "family": "gpt-codex",
+        "inputs": [
+          "pdf",
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/devstral-2512",
+        "name": "Devstral 2",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 400000,
+        "outputCostMicrosPerMillion": 2000000,
+        "cacheReadCostMicrosPerMillion": 40000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 209715,
+        "releaseDate": "2025-12-09",
+        "family": "devstral",
+        "inputs": [
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-4.6v",
+        "name": "GLM-4.6V",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 900000,
+        "cacheReadCostMicrosPerMillion": 50000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 32768,
+        "releaseDate": "2025-12-08",
+        "family": "glm",
+        "inputs": [
+          "text",
+          "image",
+          "video"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "relace/relace-search",
+        "name": "Relace Search",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 1000000,
+        "outputCostMicrosPerMillion": 3000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000,
+        "maxOutput": 128000,
+        "releaseDate": "2025-12-08",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/ministral-14b-2512",
+        "name": "Ministral 3 14B 2512",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 200000,
+        "outputCostMicrosPerMillion": 200000,
+        "cacheReadCostMicrosPerMillion": 20000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 209715,
+        "releaseDate": "2025-12-02",
+        "family": "ministral",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/ministral-3b-2512",
+        "name": "Ministral 3 3B 2512",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 100000,
+        "cacheReadCostMicrosPerMillion": 10000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 104857,
+        "releaseDate": "2025-12-02",
+        "family": "ministral",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/ministral-8b-2512",
+        "name": "Ministral 3 8B 2512",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 150000,
+        "cacheReadCostMicrosPerMillion": 15000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 209715,
+        "releaseDate": "2025-12-02",
+        "family": "ministral",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/mistral-large-2512",
+        "name": "Mistral Large 3",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 500000,
+        "outputCostMicrosPerMillion": 1500000,
+        "cacheReadCostMicrosPerMillion": 50000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 209715,
+        "releaseDate": "2025-12-02",
+        "family": "mistral-large",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "amazon/nova-2-lite-v1",
+        "name": "Nova 2 Lite",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 2500000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 65535,
+        "releaseDate": "2025-12-02",
+        "family": "nova",
+        "inputs": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-chat",
+        "name": "DeepSeek Chat",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 257400,
+        "outputCostMicrosPerMillion": 1028700,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 163840,
+        "maxOutput": 16000,
+        "releaseDate": "2025-12-01",
+        "family": "deepseek",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-v3.2",
+        "name": "DeepSeek V3.2",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 280000,
+        "outputCostMicrosPerMillion": 420000,
+        "cacheReadCostMicrosPerMillion": 28000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 163840,
+        "maxOutput": 65536,
+        "releaseDate": "2025-12-01",
+        "family": "deepseek",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-opus-4.5",
+        "name": "Claude Opus 4.5 (latest)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 25000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": 6250000,
+        "contextWindow": 200000,
+        "maxOutput": 64000,
+        "releaseDate": "2025-11-24",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.1",
+        "name": "GPT-5.1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 125000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-11-13",
+        "family": "gpt",
+        "inputs": [
+          "image",
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.1-codex",
+        "name": "GPT-5.1 Codex",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 130000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-11-13",
+        "family": "gpt-codex",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.1-codex-max",
+        "name": "GPT-5.1 Codex Max",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 125000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2025-11-13",
+        "family": "gpt-codex",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5.1-codex-mini",
+        "name": "GPT-5.1 Codex mini",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 250000,
+        "outputCostMicrosPerMillion": 2000000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-11-13",
+        "family": "gpt-codex",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "moonshotai/kimi-k2-thinking",
+        "name": "Kimi K2 Thinking",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 600000,
+        "outputCostMicrosPerMillion": 2500000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "releaseDate": "2025-11-06",
+        "family": "kimi-thinking",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "amazon/nova-premier-v1",
+        "name": "Nova Premier 1.0",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2500000,
+        "outputCostMicrosPerMillion": 12500000,
+        "cacheReadCostMicrosPerMillion": 625000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 32000,
+        "releaseDate": "2025-10-31",
+        "family": "nova",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-oss-safeguard-20b",
+        "name": "GPT OSS Safeguard 20B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 75000,
+        "outputCostMicrosPerMillion": 300000,
+        "cacheReadCostMicrosPerMillion": 37500,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 65536,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-10-29",
+        "family": "gpt-oss",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "minimax/minimax-m2",
+        "name": "MiniMax-M2",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 204800,
+        "maxOutput": 176947,
+        "releaseDate": "2025-10-27",
+        "family": "minimax",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-vl-32b-instruct",
+        "name": "Qwen3 VL 32B Instruct",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 104000,
+        "outputCostMicrosPerMillion": 416000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 32768,
+        "releaseDate": "2025-10-23",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-haiku-4.5",
+        "name": "Claude Haiku 4.5 (latest)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1000000,
+        "outputCostMicrosPerMillion": 5000000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": 1250000,
+        "contextWindow": 200000,
+        "maxOutput": 64000,
+        "releaseDate": "2025-10-15",
+        "family": "claude-haiku",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-vl-8b-instruct",
+        "name": "Qwen3 VL 8B Instruct",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 117000,
+        "outputCostMicrosPerMillion": 455000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2025-10-14",
+        "family": "qwen",
+        "inputs": [
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-vl-8b-thinking",
+        "name": "Qwen3 VL 8B Thinking",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 180000,
+        "outputCostMicrosPerMillion": 2100000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 32768,
+        "releaseDate": "2025-10-14",
+        "family": "qwen",
+        "inputs": [
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5-pro",
+        "name": "GPT-5 Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 15000000,
+        "outputCostMicrosPerMillion": 120000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "high"
+        ],
+        "releaseDate": "2025-10-06",
+        "family": "gpt-pro",
+        "inputs": [
+          "image",
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-vl-30b-a3b-instruct",
+        "name": "Qwen3 VL 30B A3B Instruct",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 600000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 16384,
+        "releaseDate": "2025-10-06",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-vl-30b-a3b-thinking",
+        "name": "Qwen3 VL 30B A3B Thinking",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 200000,
+        "outputCostMicrosPerMillion": 2400000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2025-10-06",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-4.6",
+        "name": "GLM-4.6",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 430000,
+        "outputCostMicrosPerMillion": 1750000,
+        "cacheReadCostMicrosPerMillion": 80000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 204800,
+        "maxOutput": 16384,
+        "releaseDate": "2025-09-30",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-sonnet-4.5",
+        "name": "Claude Sonnet 4.5 (latest)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 3000000,
+        "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": 300000,
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 1000000,
+        "maxOutput": 64000,
+        "releaseDate": "2025-09-29",
+        "family": "claude-sonnet",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-v3.2-exp",
+        "name": "DeepSeek V3.2 Exp",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 270000,
+        "outputCostMicrosPerMillion": 410000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 163840,
+        "maxOutput": 147456,
+        "releaseDate": "2025-09-29",
+        "family": "deepseek",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-max",
+        "name": "Qwen3 Max",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 780000,
+        "outputCostMicrosPerMillion": 3900000,
+        "cacheReadCostMicrosPerMillion": 156000,
+        "cacheWriteCostMicrosPerMillion": 975000,
+        "contextWindow": 262144,
+        "maxOutput": 65536,
+        "releaseDate": "2025-09-23",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-vl-235b-a22b-instruct",
+        "name": "Qwen3 VL 235B A22B Instruct",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 210000,
+        "outputCostMicrosPerMillion": 1900000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "releaseDate": "2025-09-23",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-vl-235b-a22b-thinking",
+        "name": "Qwen3 VL 235B A22B Thinking",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 400000,
+        "outputCostMicrosPerMillion": 4000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 32768,
+        "releaseDate": "2025-09-23",
+        "family": "qwen",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-v3.1-terminus",
+        "name": "DeepSeek V3.1 Terminus",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 270000,
+        "outputCostMicrosPerMillion": 1000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 163840,
+        "maxOutput": 147456,
+        "releaseDate": "2025-09-22",
+        "family": "deepseek",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen-plus-2025-07-28",
+        "name": "Qwen Plus 0728",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 260000,
+        "outputCostMicrosPerMillion": 780000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 32768,
+        "releaseDate": "2025-09-08",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "moonshotai/kimi-k2-0905",
+        "name": "Kimi K2 0905",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 600000,
+        "outputCostMicrosPerMillion": 2500000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 98304,
+        "releaseDate": "2025-09-04",
+        "family": "kimi-k2",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-30b-a3b-thinking-2507",
+        "name": "Qwen3 30B A3B Thinking 2507",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 200000,
+        "outputCostMicrosPerMillion": 2400000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 81920,
+        "maxOutput": 32768,
+        "releaseDate": "2025-08-28",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-chat-v3.1",
+        "name": "DeepSeek V3.1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 250000,
+        "outputCostMicrosPerMillion": 950000,
+        "cacheReadCostMicrosPerMillion": 130000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 163840,
+        "maxOutput": 32768,
+        "releaseDate": "2025-08-21",
+        "family": "deepseek",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/mistral-medium-3.1",
+        "name": "Mistral Medium 3.1",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 400000,
+        "outputCostMicrosPerMillion": 2000000,
+        "cacheReadCostMicrosPerMillion": 40000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 104857,
+        "releaseDate": "2025-08-13",
+        "family": "mistral-medium",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-4.5v",
+        "name": "GLM-4.5V",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 600000,
+        "outputCostMicrosPerMillion": 1800000,
+        "cacheReadCostMicrosPerMillion": 110000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 65536,
+        "maxOutput": 16384,
+        "releaseDate": "2025-08-11",
+        "family": "glm",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5",
+        "name": "GPT-5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 125000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-08-07",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5-mini",
+        "name": "GPT-5 Mini",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 250000,
+        "outputCostMicrosPerMillion": 2000000,
+        "cacheReadCostMicrosPerMillion": 25000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-08-07",
+        "family": "gpt-mini",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-5-nano",
+        "name": "GPT-5 Nano",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 50000,
+        "outputCostMicrosPerMillion": 400000,
+        "cacheReadCostMicrosPerMillion": 5000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 400000,
+        "maxOutput": 128000,
+        "effortLevels": [
+          "minimal",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-08-07",
+        "family": "gpt-nano",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-opus-4.1",
+        "name": "Claude Opus 4.1 (latest)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 15000000,
+        "outputCostMicrosPerMillion": 75000000,
+        "cacheReadCostMicrosPerMillion": 1500000,
+        "cacheWriteCostMicrosPerMillion": 18750000,
+        "contextWindow": 200000,
+        "maxOutput": 32000,
+        "releaseDate": "2025-08-05",
+        "family": "claude-opus",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-oss-120b",
+        "name": "GPT OSS 120B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 37000,
+        "outputCostMicrosPerMillion": 170000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 117964,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-08-05",
+        "family": "gpt-oss",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-oss-20b",
+        "name": "GPT OSS 20B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 18000,
+        "outputCostMicrosPerMillion": 90000,
+        "cacheReadCostMicrosPerMillion": 9000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 32768,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2025-08-05",
+        "family": "gpt-oss",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/codestral-2508",
+        "name": "Codestral 2508",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 900000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000,
+        "maxOutput": 204800,
+        "releaseDate": "2025-08-01",
+        "family": "codestral",
+        "inputs": [
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-30b-a3b-instruct-2507",
+        "name": "Qwen3 30B A3B Instruct 2507",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 300000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "releaseDate": "2025-07-29",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-4.5",
+        "name": "GLM-4.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 600000,
+        "outputCostMicrosPerMillion": 2200000,
+        "cacheReadCostMicrosPerMillion": 110000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 98304,
+        "releaseDate": "2025-07-28",
+        "family": "glm",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "z-ai/glm-4.5-air",
+        "name": "GLM-4.5-Air",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 130000,
+        "outputCostMicrosPerMillion": 850000,
+        "cacheReadCostMicrosPerMillion": 25000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 98304,
+        "releaseDate": "2025-07-28",
+        "family": "glm-air",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-coder-flash",
+        "name": "Qwen3 Coder Flash",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 195000,
+        "outputCostMicrosPerMillion": 975000,
+        "cacheReadCostMicrosPerMillion": 39000,
+        "cacheWriteCostMicrosPerMillion": 243750,
+        "contextWindow": 1000000,
+        "maxOutput": 65536,
+        "releaseDate": "2025-07-28",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-235b-a22b-thinking-2507",
+        "name": "Qwen3 235B A22B Thinking 2507",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 230000,
+        "outputCostMicrosPerMillion": 2300000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 117964,
+        "releaseDate": "2025-07-25",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-coder",
+        "name": "Qwen3 Coder 480B A35B",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 1000000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 65536,
+        "releaseDate": "2025-07-23",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-coder-plus",
+        "name": "Qwen3 Coder Plus",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 650000,
+        "outputCostMicrosPerMillion": 3250000,
+        "cacheReadCostMicrosPerMillion": 130000,
+        "cacheWriteCostMicrosPerMillion": 812500,
+        "contextWindow": 1000000,
+        "maxOutput": 65536,
+        "releaseDate": "2025-07-23",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-235b-a22b-2507",
+        "name": "Qwen3 235B A22B Instruct 2507",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 90000,
+        "outputCostMicrosPerMillion": 550000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 16384,
+        "releaseDate": "2025-07-21",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/voxtral-small-24b-2507",
+        "name": "Voxtral Small 24B 2507",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 300000,
+        "cacheReadCostMicrosPerMillion": 10000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 32768,
+        "maxOutput": 26214,
+        "releaseDate": "2025-07-15",
+        "family": "voxtral",
+        "inputs": [
+          "text",
+          "audio",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "moonshotai/kimi-k2",
+        "name": "Kimi K2 0711",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 570000,
+        "outputCostMicrosPerMillion": 2300000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 98304,
+        "releaseDate": "2025-07-11",
+        "family": "kimi-k2",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/mistral-small-3.2-24b-instruct",
+        "name": "Mistral Small 3.2 24B",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 93750,
+        "outputCostMicrosPerMillion": 250000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 256000,
+        "maxOutput": 16384,
+        "releaseDate": "2025-06-20",
+        "family": "mistral-small",
+        "inputs": [
+          "image",
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-2.5-flash",
+        "name": "Gemini 2.5 Flash",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 300000,
+        "outputCostMicrosPerMillion": 2500000,
+        "cacheReadCostMicrosPerMillion": 30000,
+        "cacheWriteCostMicrosPerMillion": 83333,
+        "contextWindow": 1048576,
+        "maxOutput": 65535,
+        "releaseDate": "2025-06-17",
+        "family": "gemini-flash",
+        "inputs": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-2.5-flash-lite",
+        "name": "Gemini 2.5 Flash-Lite",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 400000,
+        "cacheReadCostMicrosPerMillion": 10000,
+        "cacheWriteCostMicrosPerMillion": 83333,
+        "contextWindow": 1048576,
+        "maxOutput": 65535,
+        "releaseDate": "2025-06-17",
+        "family": "gemini-flash-lite",
+        "inputs": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 125000,
+        "cacheWriteCostMicrosPerMillion": 375000,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "releaseDate": "2025-06-17",
+        "family": "gemini-pro",
+        "inputs": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "minimax/minimax-m1",
+        "name": "MiniMax M1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 550000,
+        "outputCostMicrosPerMillion": 2200000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1000000,
+        "maxOutput": 40000,
+        "releaseDate": "2025-06-17",
+        "family": "minimax",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/o3-pro",
+        "name": "o3-pro",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 20000000,
+        "outputCostMicrosPerMillion": 80000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000,
+        "maxOutput": 100000,
+        "releaseDate": "2025-06-10",
+        "family": "o-pro",
+        "inputs": [
+          "text",
+          "pdf",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemini-2.5-pro-preview",
+        "name": "Gemini 2.5 Pro Preview 06-05",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1250000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 125000,
+        "cacheWriteCostMicrosPerMillion": 375000,
+        "contextWindow": 1048576,
+        "maxOutput": 65536,
+        "releaseDate": "2025-06-05",
+        "family": "gemini",
+        "inputs": [
+          "pdf",
+          "image",
+          "text",
+          "audio"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-r1-0528",
+        "name": "R1 0528",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 500000,
+        "outputCostMicrosPerMillion": 2150000,
+        "cacheReadCostMicrosPerMillion": 350000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 163840,
+        "maxOutput": 32768,
+        "releaseDate": "2025-05-28",
+        "family": "deepseek",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "anthropic/claude-sonnet-4",
+        "name": "Claude Sonnet 4",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 3000000,
+        "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": 300000,
+        "cacheWriteCostMicrosPerMillion": 3750000,
+        "contextWindow": 200000,
+        "maxOutput": 64000,
+        "releaseDate": "2025-05-22",
+        "family": "claude-sonnet",
+        "inputs": [
+          "image",
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/mistral-medium-3",
+        "name": "Mistral Medium 3",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 400000,
+        "outputCostMicrosPerMillion": 2000000,
+        "cacheReadCostMicrosPerMillion": 40000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 104857,
+        "releaseDate": "2025-05-07",
+        "family": "mistral-medium",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-14b",
+        "name": "Qwen3 14B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 120000,
+        "outputCostMicrosPerMillion": 240000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 16384,
+        "releaseDate": "2025-04-28",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-30b-a3b",
+        "name": "Qwen3 30B A3B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 120000,
+        "outputCostMicrosPerMillion": 500000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 16384,
+        "releaseDate": "2025-04-28",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-8b",
+        "name": "Qwen3 8B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 117000,
+        "outputCostMicrosPerMillion": 455000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 8192,
+        "releaseDate": "2025-04-28",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/o3",
+        "name": "o3",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 8000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000,
+        "maxOutput": 100000,
+        "releaseDate": "2025-04-16",
+        "family": "o",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/o4-mini-high",
+        "name": "o4 Mini High",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1100000,
+        "outputCostMicrosPerMillion": 4400000,
+        "cacheReadCostMicrosPerMillion": 275000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000,
+        "maxOutput": 100000,
+        "effortLevels": [
+          "high"
+        ],
+        "releaseDate": "2025-04-16",
+        "family": "o",
+        "inputs": [
+          "image",
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/o4-mini",
+        "name": "o4-mini",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1100000,
+        "outputCostMicrosPerMillion": 4400000,
+        "cacheReadCostMicrosPerMillion": 275000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000,
+        "maxOutput": 100000,
+        "releaseDate": "2025-04-16",
+        "family": "o-mini",
+        "inputs": [
+          "image",
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-4.1",
+        "name": "GPT-4.1",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 8000000,
+        "cacheReadCostMicrosPerMillion": 500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1047576,
+        "maxOutput": 32768,
+        "releaseDate": "2025-04-14",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-4.1-mini",
+        "name": "GPT-4.1 mini",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 400000,
+        "outputCostMicrosPerMillion": 1600000,
+        "cacheReadCostMicrosPerMillion": 100000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1047576,
+        "maxOutput": 32768,
+        "releaseDate": "2025-04-14",
+        "family": "gpt-mini",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-4.1-nano",
+        "name": "GPT-4.1 nano",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 400000,
+        "cacheReadCostMicrosPerMillion": 25000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1047576,
+        "maxOutput": 32768,
+        "releaseDate": "2025-04-14",
+        "family": "gpt-nano",
+        "inputs": [
+          "image",
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "meta-llama/llama-4-maverick",
+        "name": "Llama 4 Maverick",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 187500,
+        "outputCostMicrosPerMillion": 652500,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1048576,
+        "maxOutput": 16384,
+        "releaseDate": "2025-04-05",
+        "family": "llama",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "meta-llama/llama-4-scout",
+        "name": "Llama 4 Scout",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 300000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 1310720,
+        "maxOutput": 16384,
+        "releaseDate": "2025-04-05",
+        "family": "llama",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-chat-v3-0324",
+        "name": "DeepSeek V3 0324",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 290000,
+        "outputCostMicrosPerMillion": 1140000,
+        "cacheReadCostMicrosPerMillion": 110000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 163840,
+        "maxOutput": 115200,
+        "releaseDate": "2025-03-24",
+        "family": "deepseek",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/mistral-small-3.1-24b-instruct",
+        "name": "Mistral Small 3.1 24B",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 351000,
+        "outputCostMicrosPerMillion": 555000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 102400,
+        "releaseDate": "2025-03-17",
+        "family": "mistral-small",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemma-3-12b-it",
+        "name": "Gemma 3 12B IT",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 50000,
+        "outputCostMicrosPerMillion": 150000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 16384,
+        "releaseDate": "2025-03-12",
+        "family": "gemma",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "google/gemma-3-27b-it",
+        "name": "Gemma 3 27B IT",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 80000,
+        "outputCostMicrosPerMillion": 450000,
+        "cacheReadCostMicrosPerMillion": 40000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 117964,
+        "releaseDate": "2025-03-12",
+        "family": "gemma",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/mistral-saba",
+        "name": "Saba",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 200000,
+        "outputCostMicrosPerMillion": 600000,
+        "cacheReadCostMicrosPerMillion": 20000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 32768,
+        "maxOutput": 26214,
+        "releaseDate": "2025-02-17",
+        "family": "mistral",
+        "inputs": [
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/o3-mini-high",
+        "name": "o3 Mini High",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1100000,
+        "outputCostMicrosPerMillion": 4400000,
+        "cacheReadCostMicrosPerMillion": 550000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000,
+        "maxOutput": 100000,
+        "effortLevels": [
+          "high"
+        ],
+        "releaseDate": "2025-02-12",
+        "family": "o",
+        "inputs": [
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "deepseek/deepseek-r1",
+        "name": "DeepSeek-R1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 700000,
+        "outputCostMicrosPerMillion": 2500000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 64000,
+        "maxOutput": 16000,
+        "releaseDate": "2025-01-20",
+        "family": "deepseek-thinking",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/o3-mini",
+        "name": "o3-mini",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 1100000,
+        "outputCostMicrosPerMillion": 4400000,
+        "cacheReadCostMicrosPerMillion": 550000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000,
+        "maxOutput": 100000,
+        "releaseDate": "2024-12-20",
+        "family": "o-mini",
+        "inputs": [
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "meta-llama/llama-3.3-70b-instruct",
+        "name": "Llama-3.3-70B-Instruct",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 220000,
+        "outputCostMicrosPerMillion": 500000,
+        "cacheReadCostMicrosPerMillion": 110000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 16384,
+        "releaseDate": "2024-12-06",
+        "family": "llama",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "amazon/nova-lite-v1",
+        "name": "Nova Lite 1.0",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 60000,
+        "outputCostMicrosPerMillion": 240000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 300000,
+        "maxOutput": 5120,
+        "releaseDate": "2024-12-05",
+        "family": "nova-lite",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "amazon/nova-micro-v1",
+        "name": "Nova Micro 1.0",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 35000,
+        "outputCostMicrosPerMillion": 140000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 5120,
+        "releaseDate": "2024-12-05",
+        "family": "nova-micro",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "amazon/nova-pro-v1",
+        "name": "Nova Pro 1.0",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 800000,
+        "outputCostMicrosPerMillion": 3200000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 300000,
+        "maxOutput": 5120,
+        "releaseDate": "2024-12-05",
+        "family": "nova-pro",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/o1",
+        "name": "o1",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 15000000,
+        "outputCostMicrosPerMillion": 60000000,
+        "cacheReadCostMicrosPerMillion": 7500000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 200000,
+        "maxOutput": 100000,
+        "releaseDate": "2024-12-05",
+        "family": "o",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-4o-2024-11-20",
+        "name": "GPT-4o (2024-11-20)",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2500000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 1250000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 16384,
+        "releaseDate": "2024-11-20",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/mistral-large-2407",
+        "name": "Mistral Large 2407",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 104857,
+        "releaseDate": "2024-11-19",
+        "family": "mistral-large",
+        "inputs": [
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen-2.5-7b-instruct",
+        "name": "Qwen2.5 7B Instruct",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 200000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 32768,
+        "maxOutput": 29491,
+        "releaseDate": "2024-10-16",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen-2.5-72b-instruct",
+        "name": "Qwen2.5 72B Instruct",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 360000,
+        "outputCostMicrosPerMillion": 400000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 32768,
+        "maxOutput": 16384,
+        "releaseDate": "2024-09-19",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "cohere/command-r-08-2024",
+        "name": "Command R",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 600000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 4000,
+        "releaseDate": "2024-08-30",
+        "family": "command-r",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "cohere/command-r-plus-08-2024",
+        "name": "Command R+",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2500000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 4000,
+        "releaseDate": "2024-08-30",
+        "family": "command-r",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "sao10k/l3.1-euryale-70b",
+        "name": "Llama 3.1 Euryale 70B v2.2",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 850000,
+        "outputCostMicrosPerMillion": 850000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 16384,
+        "releaseDate": "2024-08-28",
+        "family": "llama",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-4o-2024-08-06",
+        "name": "GPT-4o (2024-08-06)",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2500000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 1250000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 16384,
+        "releaseDate": "2024-08-06",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "meta-llama/llama-3.1-70b-instruct",
+        "name": "Llama-3.1-70B-Instruct",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 400000,
+        "outputCostMicrosPerMillion": 400000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 16384,
+        "releaseDate": "2024-07-23",
+        "family": "llama",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "meta-llama/llama-3.1-8b-instruct",
+        "name": "Llama-3.1-8B-Instruct",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 50000,
+        "outputCostMicrosPerMillion": 80000,
+        "cacheReadCostMicrosPerMillion": 25000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 117964,
+        "releaseDate": "2024-07-23",
+        "family": "llama",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-4o-mini",
+        "name": "GPT-4o mini",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 600000,
+        "cacheReadCostMicrosPerMillion": 75000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 16384,
+        "releaseDate": "2024-07-18",
+        "family": "gpt-mini",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-4o-mini-2024-07-18",
+        "name": "GPT-4o-mini (2024-07-18)",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 600000,
+        "cacheReadCostMicrosPerMillion": 75000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 16384,
+        "releaseDate": "2024-07-18",
+        "family": "o-mini",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/mistral-nemo",
+        "name": "Mistral Nemo",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 19000,
+        "outputCostMicrosPerMillion": 30000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 16384,
+        "releaseDate": "2024-07-01",
+        "family": "mistral-nemo",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-4o",
+        "name": "GPT-4o",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2500000,
+        "outputCostMicrosPerMillion": 10000000,
+        "cacheReadCostMicrosPerMillion": 1250000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 16384,
+        "releaseDate": "2024-05-13",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-4o-2024-05-13",
+        "name": "GPT-4o (2024-05-13)",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 5000000,
+        "outputCostMicrosPerMillion": 15000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 4096,
+        "releaseDate": "2024-05-13",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/mixtral-8x22b-instruct",
+        "name": "Mixtral 8x22B Instruct",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 65536,
+        "maxOutput": 52428,
+        "releaseDate": "2024-04-17",
+        "family": "mistral",
+        "inputs": [
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "mistralai/mistral-large",
+        "name": "Mistral Large",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 200000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 102400,
+        "releaseDate": "2024-02-26",
+        "family": "mistral-large",
+        "inputs": [
+          "text",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-3.5-turbo-0613",
+        "name": "GPT-3.5 Turbo (older v0613)",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 1000000,
+        "outputCostMicrosPerMillion": 2000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 4095,
+        "maxOutput": 3685,
+        "releaseDate": "2024-01-25",
+        "family": "gpt",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen-plus",
+        "name": "Qwen Plus",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 260000,
+        "outputCostMicrosPerMillion": 780000,
+        "cacheReadCostMicrosPerMillion": 52000,
+        "cacheWriteCostMicrosPerMillion": 325000,
+        "contextWindow": 1000000,
+        "maxOutput": 32768,
+        "releaseDate": "2024-01-25",
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-4",
+        "name": "GPT-4",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 30000000,
+        "outputCostMicrosPerMillion": 60000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 8191,
+        "maxOutput": 4096,
+        "releaseDate": "2023-11-06",
+        "family": "gpt",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-4-turbo",
+        "name": "GPT-4 Turbo",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 10000000,
+        "outputCostMicrosPerMillion": 30000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 128000,
+        "maxOutput": 4096,
+        "releaseDate": "2023-11-06",
+        "family": "gpt",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-3.5-turbo-16k",
+        "name": "GPT-3.5 Turbo 16k",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 3000000,
+        "outputCostMicrosPerMillion": 4000000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 16385,
+        "maxOutput": 4096,
+        "releaseDate": "2023-08-28",
+        "family": "gpt",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "openai/gpt-3.5-turbo",
+        "name": "GPT-3.5-turbo",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 500000,
+        "outputCostMicrosPerMillion": 1500000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 16385,
+        "maxOutput": 4096,
+        "releaseDate": "2023-03-01",
+        "family": "gpt",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "moonshotai/kimi-k2.5",
+        "name": "Kimi K2.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 450000,
+        "outputCostMicrosPerMillion": 2250000,
+        "cacheReadCostMicrosPerMillion": 70000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "family": "kimi-k2",
+        "inputs": [
+          "text",
+          "image"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-235b-a22b",
+        "name": "Qwen3 235B-A22B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 455000,
+        "outputCostMicrosPerMillion": 1820000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 8192,
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-32b",
+        "name": "Qwen3 32B",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 80000,
+        "outputCostMicrosPerMillion": 280000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 131072,
+        "maxOutput": 16384,
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-coder-30b-a3b-instruct",
+        "name": "Qwen3-Coder 30B-A3B Instruct",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 70000,
+        "outputCostMicrosPerMillion": 280000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-next-80b-a3b-thinking",
+        "name": "Qwen3-Next 80B-A3B (Thinking)",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 150000,
+        "outputCostMicrosPerMillion": 1200000,
+        "cacheReadCostMicrosPerMillion": null,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 32768,
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "qwen/qwen3-next-80b-a3b-instruct",
+        "name": "Qwen3-Next 80B-A3B Instruct",
+        "toolCall": true,
+        "reasoning": false,
+        "inputCostMicrosPerMillion": 100000,
+        "outputCostMicrosPerMillion": 1100000,
+        "cacheReadCostMicrosPerMillion": 70000,
+        "cacheWriteCostMicrosPerMillion": null,
+        "contextWindow": 262144,
+        "maxOutput": 235929,
+        "family": "qwen",
+        "inputs": [
+          "text"
+        ],
+        "outputs": [
+          "text"
+        ]
       }
     ]
   },
@@ -2175,29 +10517,79 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 6000000,
         "cacheReadCostMicrosPerMillion": 500000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 500000
+        "contextWindow": 500000,
+        "maxOutput": 500000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-09-21",
+        "family": "grok",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "grok-imagine-image",
-        "name": "Grok Imagine Image",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
+        "id": "grok-4.6",
+        "name": "Grok 4.6",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 500000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 16000
+        "contextWindow": 500000,
+        "maxOutput": 500000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ],
+        "releaseDate": "2026-08-12",
+        "family": "grok",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "grok-imagine-video",
-        "name": "Grok Imagine Video",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
+        "id": "grok-4.5",
+        "name": "Grok 4.5",
+        "toolCall": true,
+        "reasoning": true,
+        "inputCostMicrosPerMillion": 2000000,
+        "outputCostMicrosPerMillion": 6000000,
+        "cacheReadCostMicrosPerMillion": 300000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1024
+        "contextWindow": 500000,
+        "maxOutput": 500000,
+        "effortLevels": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-07-08",
+        "family": "grok",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "grok-4.3",
@@ -2208,62 +10600,24 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 2500000,
         "cacheReadCostMicrosPerMillion": 200000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "grok-4.20-0309-reasoning",
-        "name": "Grok 4.20 (Reasoning)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1250000,
-        "outputCostMicrosPerMillion": 2500000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "grok-imagine-video-1.5",
-        "name": "Grok Imagine Video 1.5",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1024
-      },
-      {
-        "id": "grok-4.5",
-        "name": "Grok 4.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 500000
-      },
-      {
-        "id": "grok-4.20-0309-non-reasoning",
-        "name": "Grok 4.20 (Non-Reasoning)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 1250000,
-        "outputCostMicrosPerMillion": 2500000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "grok-imagine-image-quality",
-        "name": "Grok Imagine Image Quality",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": null,
-        "outputCostMicrosPerMillion": null,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 16000
+        "contextWindow": 1000000,
+        "maxOutput": 30000,
+        "effortLevels": [
+          "none",
+          "low",
+          "medium",
+          "high"
+        ],
+        "releaseDate": "2026-04-17",
+        "family": "grok",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
         "id": "grok-build-0.1",
@@ -2274,1579 +10628,62 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = [
         "outputCostMicrosPerMillion": 2000000,
         "cacheReadCostMicrosPerMillion": 200000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 256000
+        "contextWindow": 256000,
+        "maxOutput": 256000,
+        "releaseDate": "2026-04-16",
+        "family": "grok-build",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       },
       {
-        "id": "grok-4.20-multi-agent-0309",
-        "name": "Grok 4.20 Multi-Agent",
-        "toolCall": false,
-        "reasoning": true,
+        "id": "grok-4.20-0309-non-reasoning",
+        "name": "Grok 4.20 (Non-Reasoning)",
+        "toolCall": true,
+        "reasoning": false,
         "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 2500000,
         "cacheReadCostMicrosPerMillion": 200000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "grok-4.6",
-        "name": "Grok 4.6",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 500000
-      }
-    ]
-  },
-  {
-    "id": "fireworks-ai",
-    "name": "Fireworks AI",
-    "env": [
-      "FIREWORKS_API_KEY"
-    ],
-    "doc": "https://fireworks.ai/docs/",
-    "models": [
-      {
-        "id": "accounts/fireworks/models/nemotron-3-ultra-nvfp4",
-        "name": "Nemotron 3 Ultra 550B A55B",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 600000,
-        "outputCostMicrosPerMillion": 2400000,
-        "cacheReadCostMicrosPerMillion": 120000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "accounts/fireworks/models/kimi-k3",
-        "name": "Kimi K3",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "accounts/fireworks/models/qwen3p8-2p4t-a95b",
-        "name": "Qwen3.8 2.4T A95B",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "accounts/fireworks/models/ember-1",
-        "name": "Ember-1",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "accounts/fireworks/models/deepseek-v4p1-flash",
-        "name": "DeepSeek V4.1 Flash",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 220000,
-        "outputCostMicrosPerMillion": 660000,
-        "cacheReadCostMicrosPerMillion": 7000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "accounts/fireworks/models/glm-5p3",
-        "name": "GLM 5.3",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1400000,
-        "outputCostMicrosPerMillion": 4400000,
-        "cacheReadCostMicrosPerMillion": 260000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048573
-      },
-      {
-        "id": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
-        "name": "Nemotron 3.5 Lightning 30B A3B",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 50000,
-        "outputCostMicrosPerMillion": 200000,
-        "cacheReadCostMicrosPerMillion": 10000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "accounts/fireworks/models/inkling",
-        "name": "Inkling",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1000000,
-        "outputCostMicrosPerMillion": 4050000,
-        "cacheReadCostMicrosPerMillion": 170000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "accounts/fireworks/models/minimax-m3",
-        "name": "MiniMax-M3",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 300000,
-        "outputCostMicrosPerMillion": 1200000,
-        "cacheReadCostMicrosPerMillion": 60000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 512000
-      },
-      {
-        "id": "accounts/fireworks/models/glm-5p3-flash",
-        "name": "GLM 5.3 Flash",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 500000,
-        "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048573
-      },
-      {
-        "id": "accounts/fireworks/models/gpt-oss-120b",
-        "name": "GPT OSS 120B",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 600000,
-        "cacheReadCostMicrosPerMillion": 15000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "accounts/fireworks/models/qwen3p8-max",
-        "name": "Qwen3.8 Max",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "accounts/fireworks/routers/minimax-latest",
-        "name": "MiniMax Latest",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 300000,
-        "outputCostMicrosPerMillion": 1200000,
-        "cacheReadCostMicrosPerMillion": 60000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 512000
-      },
-      {
-        "id": "accounts/fireworks/routers/glm-flash-latest",
-        "name": "GLM Flash Latest (GLM 5.3 Flash)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 500000,
-        "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048573
-      },
-      {
-        "id": "accounts/fireworks/routers/glm-fast-latest",
-        "name": "GLM 5.3 Fast (Latest)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2100000,
-        "outputCostMicrosPerMillion": 6600000,
-        "cacheReadCostMicrosPerMillion": 390000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048572
-      },
-      {
-        "id": "accounts/fireworks/routers/kimi-k3-fast",
-        "name": "Kimi K3 Fast",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 4500000,
-        "outputCostMicrosPerMillion": 22500000,
-        "cacheReadCostMicrosPerMillion": 450000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "accounts/fireworks/routers/glm-5p3-fast",
-        "name": "GLM 5.3 Fast",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2100000,
-        "outputCostMicrosPerMillion": 6600000,
-        "cacheReadCostMicrosPerMillion": 390000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048572
-      },
-      {
-        "id": "accounts/fireworks/routers/kimi-fast-latest",
-        "name": "Kimi Fast Latest",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 4500000,
-        "outputCostMicrosPerMillion": 22500000,
-        "cacheReadCostMicrosPerMillion": 450000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "accounts/fireworks/routers/qwen-max-latest",
-        "name": "Qwen Max Latest (Qwen3.8 Max)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "accounts/fireworks/routers/kimi-latest",
-        "name": "Kimi Latest",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "accounts/fireworks/routers/deepseek-flash-latest",
-        "name": "DeepSeek Flash Latest",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 220000,
-        "outputCostMicrosPerMillion": 660000,
-        "cacheReadCostMicrosPerMillion": 7000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "accounts/fireworks/routers/glm-latest",
-        "name": "GLM Latest",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1400000,
-        "outputCostMicrosPerMillion": 4400000,
-        "cacheReadCostMicrosPerMillion": 260000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048573
-      }
-    ]
-  },
-  {
-    "id": "cerebras",
-    "name": "Cerebras",
-    "env": [
-      "CEREBRAS_API_KEY"
-    ],
-    "doc": "https://inference-docs.cerebras.ai/models/overview",
-    "models": [
-      {
-        "id": "qwen-3.8-27b",
-        "name": "Qwen3.8 27B",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 990000,
-        "outputCostMicrosPerMillion": 1490000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "gpt-oss-120b",
-        "name": "GPT OSS 120B",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 350000,
-        "outputCostMicrosPerMillion": 750000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      }
-    ]
-  },
-  {
-    "id": "azure",
-    "name": "Azure",
-    "env": [
-      "AZURE_RESOURCE_NAME",
-      "AZURE_API_KEY"
-    ],
-    "doc": "https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models",
-    "models": [
-      {
-        "id": "grok-4-1-fast-reasoning",
-        "name": "Grok 4.1 Fast (Reasoning)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 200000,
-        "outputCostMicrosPerMillion": 500000,
-        "cacheReadCostMicrosPerMillion": 50000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "gpt-5.4",
-        "name": "GPT-5.4",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2500000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "deepseek-v3.2-speciale",
-        "name": "DeepSeek-V3.2-Speciale",
-        "toolCall": false,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 580000,
-        "outputCostMicrosPerMillion": 1680000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "claude-haiku-4-5",
-        "name": "Claude Haiku 4.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1000000,
-        "outputCostMicrosPerMillion": 5000000,
-        "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": 1250000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "gpt-5.4-pro",
-        "name": "GPT-5.4 Pro",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 30000000,
-        "outputCostMicrosPerMillion": 180000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "grok-4-1-fast-non-reasoning",
-        "name": "Grok 4.1 Fast (Non-Reasoning)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 200000,
-        "outputCostMicrosPerMillion": 500000,
-        "cacheReadCostMicrosPerMillion": 50000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "phi-4-reasoning",
-        "name": "Phi-4-reasoning",
-        "toolCall": false,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 125000,
-        "outputCostMicrosPerMillion": 500000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 32000
-      },
-      {
-        "id": "text-embedding-3-small",
-        "name": "text-embedding-3-small",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 20000,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8192
-      },
-      {
-        "id": "gpt-5.4-nano",
-        "name": "GPT-5.4 Nano",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 200000,
-        "outputCostMicrosPerMillion": 1250000,
-        "cacheReadCostMicrosPerMillion": 20000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-5.2-codex",
-        "name": "GPT-5.2 Codex",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1750000,
-        "outputCostMicrosPerMillion": 14000000,
-        "cacheReadCostMicrosPerMillion": 175000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-5.1-codex",
-        "name": "GPT-5.1 Codex",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1250000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": 125000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-4o",
-        "name": "GPT-4o",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 2500000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "ministral-3b",
-        "name": "Ministral 3B",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 40000,
-        "outputCostMicrosPerMillion": 40000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "gpt-chat-latest",
-        "name": "GPT Chat Latest",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 30000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-5-codex",
-        "name": "GPT-5-Codex",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1250000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": 130000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-5-mini",
-        "name": "GPT-5 Mini",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 250000,
-        "outputCostMicrosPerMillion": 2000000,
-        "cacheReadCostMicrosPerMillion": 30000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-image-2",
-        "name": "GPT-Image-2",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 30000000,
-        "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "o4-mini",
-        "name": "o4-mini",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1100000,
-        "outputCostMicrosPerMillion": 4400000,
-        "cacheReadCostMicrosPerMillion": 275000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 200000
-      },
-      {
-        "id": "llama-4-maverick-17b-128e-instruct-fp8",
-        "name": "Llama 4 Maverick 17B 128E Instruct FP8",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 250000,
-        "outputCostMicrosPerMillion": 1000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "o3-mini",
-        "name": "o3-mini",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1100000,
-        "outputCostMicrosPerMillion": 4400000,
-        "cacheReadCostMicrosPerMillion": 550000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 200000
-      },
-      {
-        "id": "claude-opus-4-5",
-        "name": "Claude Opus 4.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 25000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "text-embedding-ada-002",
-        "name": "text-embedding-ada-002",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 8192
-      },
-      {
-        "id": "gpt-5.3-codex",
-        "name": "GPT-5.3 Codex",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1750000,
-        "outputCostMicrosPerMillion": 14000000,
-        "cacheReadCostMicrosPerMillion": 175000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-4.1-nano",
-        "name": "GPT-4.1 nano",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 400000,
-        "cacheReadCostMicrosPerMillion": 25000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1047576
-      },
-      {
-        "id": "gpt-5-nano",
-        "name": "GPT-5 Nano",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 50000,
-        "outputCostMicrosPerMillion": 400000,
-        "cacheReadCostMicrosPerMillion": 10000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "phi-4-multimodal",
-        "name": "Phi-4-multimodal",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 80000,
-        "outputCostMicrosPerMillion": 320000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "kimi-k2.6",
-        "name": "Kimi K2.6",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 950000,
-        "outputCostMicrosPerMillion": 4000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "claude-sonnet-4-5",
-        "name": "Claude Sonnet 4.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "claude-opus-5-5",
-        "name": "Claude Opus 5.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 4000000,
-        "outputCostMicrosPerMillion": 20000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 5000000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "gpt-image-2.5-flare",
-        "name": "GPT Image 2.5 Flare",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 30000000,
-        "cacheReadCostMicrosPerMillion": 1250000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "claude-fable-5-1",
-        "name": "Claude Fable 5.1",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 10000000,
-        "outputCostMicrosPerMillion": 50000000,
-        "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": 12500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "mistral-medium-2505",
-        "name": "Mistral Medium 3",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 400000,
-        "outputCostMicrosPerMillion": 2000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "cohere-embed-v3-multilingual",
-        "name": "Embed v3 Multilingual",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 0,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": null
-      },
-      {
-        "id": "o1",
-        "name": "o1",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 15000000,
-        "outputCostMicrosPerMillion": 60000000,
-        "cacheReadCostMicrosPerMillion": 7500000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 200000
-      },
-      {
-        "id": "codex-mini",
-        "name": "Codex Mini",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1500000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": 375000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 200000
-      },
-      {
-        "id": "phi-4-reasoning-plus",
-        "name": "Phi-4-reasoning-plus",
-        "toolCall": false,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 125000,
-        "outputCostMicrosPerMillion": 500000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 32000
-      },
-      {
-        "id": "claude-mythos-5",
-        "name": "Claude Mythos 5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 10000000,
-        "outputCostMicrosPerMillion": 50000000,
-        "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "gpt-5-pro",
-        "name": "GPT-5 Pro",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 15000000,
-        "outputCostMicrosPerMillion": 120000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-3.5-turbo-instruct",
-        "name": "GPT-3.5 Turbo Instruct",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 1500000,
-        "outputCostMicrosPerMillion": 2000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 4096
-      },
-      {
-        "id": "gpt-3.5-turbo-0125",
-        "name": "GPT-3.5 Turbo 0125",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 500000,
-        "outputCostMicrosPerMillion": 1500000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 16384
-      }
-    ]
-  },
-  {
-    "id": "amazon-bedrock",
-    "name": "Amazon Bedrock",
-    "env": [
-      "AWS_ACCESS_KEY_ID",
-      "AWS_SECRET_ACCESS_KEY",
-      "AWS_REGION",
-      "AWS_BEARER_TOKEN_BEDROCK"
-    ],
-    "doc": "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
-    "models": [
-      {
-        "id": "google.gemma-3-12b-it",
-        "name": "Gemma 3 12B IT",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 90000,
-        "outputCostMicrosPerMillion": 290000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "google.gemma-3-4b-it",
-        "name": "Gemma 3 4B IT",
-        "toolCall": false,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 40000,
-        "outputCostMicrosPerMillion": 80000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "eu.anthropic.claude-fable-5",
-        "name": "Claude Fable 5 (EU)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 11000000,
-        "outputCostMicrosPerMillion": 55000000,
-        "cacheReadCostMicrosPerMillion": 1100000,
-        "cacheWriteCostMicrosPerMillion": 13750000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "qwen.qwen3-coder-480b-a35b-v1:0",
-        "name": "Qwen3-Coder 480B-A35B Instruct",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 450000,
-        "outputCostMicrosPerMillion": 1800000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "google.gemma-4-31b",
-        "name": "Gemma 4 31B IT",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 140000,
-        "outputCostMicrosPerMillion": 400000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "us.writer.palmyra-x5-v1:0",
-        "name": "Palmyra X5 (US)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 600000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1040000
-      },
-      {
-        "id": "google.gemma-4-e2b",
-        "name": "Gemma 4 E2B IT",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 40000,
-        "outputCostMicrosPerMillion": 80000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 131072
-      },
-      {
-        "id": "us.anthropic.claude-opus-4-7",
-        "name": "Claude Opus 4.7 (US)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5500000,
-        "outputCostMicrosPerMillion": 27500000,
-        "cacheReadCostMicrosPerMillion": 550000,
-        "cacheWriteCostMicrosPerMillion": 6875000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "global.openai.gpt-6-astra",
-        "name": "GPT-6 Astra (Global)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 10000000,
-        "outputCostMicrosPerMillion": 50000000,
-        "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "eu.amazon.nova-lite-v1:0",
-        "name": "Nova Lite (EU)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 69000,
-        "outputCostMicrosPerMillion": 276000,
-        "cacheReadCostMicrosPerMillion": 17250,
-        "cacheWriteCostMicrosPerMillion": 69000,
-        "contextWindow": 300000
-      },
-      {
-        "id": "global.anthropic.claude-opus-5-5",
-        "name": "Claude Opus 5.5 (Global)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 4000000,
-        "outputCostMicrosPerMillion": 20000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 5000000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "deepseek.r1-v1:0",
-        "name": "DeepSeek-R1",
-        "toolCall": false,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1350000,
-        "outputCostMicrosPerMillion": 5400000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "openai.gpt-oss-safeguard-20b",
-        "name": "GPT OSS Safeguard 20B",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 70000,
-        "outputCostMicrosPerMillion": 200000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "anthropic.claude-opus-5-5",
-        "name": "Claude Opus 5.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 4000000,
-        "outputCostMicrosPerMillion": 20000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 5000000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "global.anthropic.claude-haiku-4-5-20251001-v1:0",
-        "name": "Claude Haiku 4.5 (Global)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1000000,
-        "outputCostMicrosPerMillion": 5000000,
-        "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": 1250000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "eu.amazon.nova-2-lite-v1:0",
-        "name": "Nova 2 Lite (EU)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 374000,
-        "outputCostMicrosPerMillion": 3157000,
-        "cacheReadCostMicrosPerMillion": 93500,
-        "cacheWriteCostMicrosPerMillion": 374000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "us.amazon.nova-pro-v1:0",
-        "name": "Nova Pro (US)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 800000,
-        "outputCostMicrosPerMillion": 3200000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 800000,
-        "contextWindow": 300000
-      },
-      {
-        "id": "jp.anthropic.claude-opus-5-5",
-        "name": "Claude Opus 5.5 (JP)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 4400000,
-        "outputCostMicrosPerMillion": 22000000,
-        "cacheReadCostMicrosPerMillion": 220000,
-        "cacheWriteCostMicrosPerMillion": 5500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "openai.gpt-5.6-luna",
-        "name": "GPT-5.6 Luna",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 220000,
-        "outputCostMicrosPerMillion": 1320000,
-        "cacheReadCostMicrosPerMillion": 22000,
-        "cacheWriteCostMicrosPerMillion": 275000,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "us.meta.llama4-maverick-17b-instruct-v1:0",
-        "name": "Llama 4 Maverick 17B Instruct (US)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 240000,
-        "outputCostMicrosPerMillion": 970000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "apac.amazon.nova-micro-v1:0",
-        "name": "Nova Micro (APAC)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 37000,
-        "outputCostMicrosPerMillion": 148000,
-        "cacheReadCostMicrosPerMillion": 9250,
-        "cacheWriteCostMicrosPerMillion": 37000,
-        "contextWindow": 128000
-      },
-      {
-        "id": "eu.anthropic.claude-sonnet-4-20250514-v1:0",
-        "name": "Claude Sonnet 4 (EU)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "eu.anthropic.claude-opus-4-5-20251101-v1:0",
-        "name": "Claude Opus 4.5 (EU)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5500000,
-        "outputCostMicrosPerMillion": 27500000,
-        "cacheReadCostMicrosPerMillion": 550000,
-        "cacheWriteCostMicrosPerMillion": 6875000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "global.openai.gpt-6-sol",
-        "name": "GPT-6 Sol (Global)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 2500000,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "qwen.qwen3-coder-30b-a3b-v1:0",
-        "name": "Qwen3-Coder 30B-A3B Instruct",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 600000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 262144
-      },
-      {
-        "id": "us.amazon.nova-premier-v1:0",
-        "name": "Nova Premier (US)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 2500000,
-        "outputCostMicrosPerMillion": 12500000,
-        "cacheReadCostMicrosPerMillion": 625000,
-        "cacheWriteCostMicrosPerMillion": 2500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "anthropic.claude-sonnet-4-6",
-        "name": "Claude Sonnet 4.6",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3300000,
-        "outputCostMicrosPerMillion": 16500000,
-        "cacheReadCostMicrosPerMillion": 330000,
-        "cacheWriteCostMicrosPerMillion": 4125000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "meta.llama3-1-70b-instruct-v1:0",
-        "name": "Llama 3.1 70B Instruct",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 720000,
-        "outputCostMicrosPerMillion": 720000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 128000
-      },
-      {
-        "id": "us.writer.palmyra-x4-v1:0",
-        "name": "Palmyra X4 (US)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2500000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 122880
-      },
-      {
-        "id": "apac.amazon.nova-pro-v1:0",
-        "name": "Nova Pro (APAC)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 840000,
-        "outputCostMicrosPerMillion": 3360000,
-        "cacheReadCostMicrosPerMillion": 210000,
-        "cacheWriteCostMicrosPerMillion": 840000,
-        "contextWindow": 300000
-      },
-      {
-        "id": "global.anthropic.claude-fable-5-1",
-        "name": "Claude Fable 5.1 (Global)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 10000000,
-        "outputCostMicrosPerMillion": 50000000,
-        "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": 12500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "us.anthropic.claude-sonnet-5",
-        "name": "Claude Sonnet 5 (US)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2200000,
-        "outputCostMicrosPerMillion": 11000000,
-        "cacheReadCostMicrosPerMillion": 220000,
-        "cacheWriteCostMicrosPerMillion": 2750000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "amazon.nova-micro-v1:0",
-        "name": "Nova Micro",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 35000,
-        "outputCostMicrosPerMillion": 140000,
-        "cacheReadCostMicrosPerMillion": 8750,
-        "cacheWriteCostMicrosPerMillion": 35000,
-        "contextWindow": 128000
-      },
-      {
-        "id": "minimax.minimax-m2.5",
-        "name": "MiniMax-M2.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 300000,
-        "outputCostMicrosPerMillion": 1200000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 196608
-      },
-      {
-        "id": "xai.grok-4.3",
-        "name": "Grok 4.3",
+        "contextWindow": 1000000,
+        "maxOutput": 30000,
+        "releaseDate": "2026-03-09",
+        "family": "grok",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
+      },
+      {
+        "id": "grok-4.20-0309-reasoning",
+        "name": "Grok 4.20 (Reasoning)",
         "toolCall": true,
         "reasoning": true,
         "inputCostMicrosPerMillion": 1250000,
         "outputCostMicrosPerMillion": 2500000,
         "cacheReadCostMicrosPerMillion": 200000,
         "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "us.amazon.nova-lite-v1:0",
-        "name": "Nova Lite (US)",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 60000,
-        "outputCostMicrosPerMillion": 240000,
-        "cacheReadCostMicrosPerMillion": 15000,
-        "cacheWriteCostMicrosPerMillion": 60000,
-        "contextWindow": 300000
-      },
-      {
-        "id": "amazon.nova-pro-v1:0",
-        "name": "Nova Pro",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 800000,
-        "outputCostMicrosPerMillion": 3200000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 800000,
-        "contextWindow": 300000
-      },
-      {
-        "id": "qwen.qwen3-32b-v1:0",
-        "name": "Qwen3 32B",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 150000,
-        "outputCostMicrosPerMillion": 600000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 32768
-      },
-      {
-        "id": "openai.gpt-5.5",
-        "name": "GPT-5.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5500000,
-        "outputCostMicrosPerMillion": 33000000,
-        "cacheReadCostMicrosPerMillion": 550000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "mistral.voxtral-small-24b-2507",
-        "name": "Voxtral Small 24B 2507",
-        "toolCall": true,
-        "reasoning": false,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 300000,
-        "cacheReadCostMicrosPerMillion": null,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 32768
-      }
-    ]
-  },
-  {
-    "id": "github-copilot",
-    "name": "GitHub Copilot",
-    "env": [
-      "GITHUB_TOKEN"
-    ],
-    "doc": "https://docs.github.com/en/copilot",
-    "models": [
-      {
-        "id": "gpt-5.4",
-        "name": "GPT-5.4",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2500000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "grok-4.7",
-        "name": "Grok 4.7",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 500000
-      },
-      {
-        "id": "gpt-5.4-nano",
-        "name": "GPT-5.4 nano",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 200000,
-        "outputCostMicrosPerMillion": 1250000,
-        "cacheReadCostMicrosPerMillion": 20000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "claude-opus-4.7",
-        "name": "Claude Opus 4.7",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 25000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "kimi-k3",
-        "name": "Kimi K3",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1048576
-      },
-      {
-        "id": "gpt-5-mini",
-        "name": "GPT-5 Mini",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 250000,
-        "outputCostMicrosPerMillion": 2000000,
-        "cacheReadCostMicrosPerMillion": 25000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 264000
-      },
-      {
-        "id": "claude-opus-4.8",
-        "name": "Claude Opus 4.8",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 25000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "gpt-5.3-codex",
-        "name": "GPT-5.3 Codex",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1750000,
-        "outputCostMicrosPerMillion": 14000000,
-        "cacheReadCostMicrosPerMillion": 175000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gemini-3.6-flash",
-        "name": "Gemini 3.6 Flash",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 750000,
-        "outputCostMicrosPerMillion": 3750000,
-        "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "mai-code-1-flash-picker",
-        "name": "MAI-Code-1-Flash",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 750000,
-        "outputCostMicrosPerMillion": 4500000,
-        "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 256000
-      },
-      {
-        "id": "mai-code-1.1-flash",
-        "name": "MAI-Code-1.1-Flash",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 200000,
-        "outputCostMicrosPerMillion": 1200000,
-        "cacheReadCostMicrosPerMillion": 20000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 256000
-      },
-      {
-        "id": "claude-haiku-4.5",
-        "name": "Claude Haiku 4.5 (latest)",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1000000,
-        "outputCostMicrosPerMillion": 5000000,
-        "cacheReadCostMicrosPerMillion": 100000,
-        "cacheWriteCostMicrosPerMillion": 1250000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "gpt-6-astra",
-        "name": "GPT-6 Astra",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 10000000,
-        "outputCostMicrosPerMillion": 50000000,
-        "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "grok-4.5",
-        "name": "Grok 4.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 500000
-      },
-      {
-        "id": "claude-opus-5",
-        "name": "Claude Opus 5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 25000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": 6250000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "gemini-3.5-flash",
-        "name": "Gemini 3.5 Flash",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 1500000,
-        "outputCostMicrosPerMillion": 9000000,
-        "cacheReadCostMicrosPerMillion": 150000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 200000
-      },
-      {
-        "id": "claude-fable-5.1",
-        "name": "Claude Fable 5.1",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 10000000,
-        "outputCostMicrosPerMillion": 50000000,
-        "cacheReadCostMicrosPerMillion": 250000,
-        "cacheWriteCostMicrosPerMillion": 12500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "claude-fable-5",
-        "name": "Claude Fable 5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 10000000,
-        "outputCostMicrosPerMillion": 50000000,
-        "cacheReadCostMicrosPerMillion": 1000000,
-        "cacheWriteCostMicrosPerMillion": 12500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "gpt-5.4-mini",
-        "name": "GPT-5.4 mini",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 750000,
-        "outputCostMicrosPerMillion": 4500000,
-        "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 400000
-      },
-      {
-        "id": "gpt-5.6-luna",
-        "name": "GPT-5.6 Luna",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 200000,
-        "outputCostMicrosPerMillion": 1200000,
-        "cacheReadCostMicrosPerMillion": 20000,
-        "cacheWriteCostMicrosPerMillion": 250000,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "gpt-5.5",
-        "name": "GPT-5.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 5000000,
-        "outputCostMicrosPerMillion": 30000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "claude-sonnet-5",
-        "name": "Claude Sonnet 5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 2500000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "gemini-3.7-flash",
-        "name": "Gemini 3.7 Flash",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 750000,
-        "outputCostMicrosPerMillion": 3750000,
-        "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "claude-sonnet-4.6",
-        "name": "Claude Sonnet 4.6",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 3000000,
-        "outputCostMicrosPerMillion": 15000000,
-        "cacheReadCostMicrosPerMillion": 300000,
-        "cacheWriteCostMicrosPerMillion": 3750000,
-        "contextWindow": 200000
-      },
-      {
-        "id": "gemini-3.8-flash",
-        "name": "Gemini 3.8 Flash",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 750000,
-        "outputCostMicrosPerMillion": 3750000,
-        "cacheReadCostMicrosPerMillion": 75000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "gpt-6-luna",
-        "name": "GPT-6 Luna",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 100000,
-        "outputCostMicrosPerMillion": 500000,
-        "cacheReadCostMicrosPerMillion": 10000,
-        "cacheWriteCostMicrosPerMillion": 125000,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "claude-opus-5.5",
-        "name": "Claude Opus 5.5",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 4000000,
-        "outputCostMicrosPerMillion": 20000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 5000000,
-        "contextWindow": 1000000
-      },
-      {
-        "id": "gpt-5.6-terra",
-        "name": "GPT-5.6 Terra",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 12000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 2500000,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "kimi-k2.7-code",
-        "name": "Kimi K2.7 Code",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 950000,
-        "outputCostMicrosPerMillion": 4000000,
-        "cacheReadCostMicrosPerMillion": 190000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 256000
-      },
-      {
-        "id": "grok-4.6",
-        "name": "Grok 4.6",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 6000000,
-        "cacheReadCostMicrosPerMillion": 500000,
-        "cacheWriteCostMicrosPerMillion": null,
-        "contextWindow": 500000
-      },
-      {
-        "id": "gpt-5.6-sol",
-        "name": "GPT-5.6 Sol",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 4000000,
-        "outputCostMicrosPerMillion": 20000000,
-        "cacheReadCostMicrosPerMillion": 400000,
-        "cacheWriteCostMicrosPerMillion": 5000000,
-        "contextWindow": 1050000
-      },
-      {
-        "id": "gpt-6-sol",
-        "name": "GPT-6 Sol",
-        "toolCall": true,
-        "reasoning": true,
-        "inputCostMicrosPerMillion": 2000000,
-        "outputCostMicrosPerMillion": 10000000,
-        "cacheReadCostMicrosPerMillion": 200000,
-        "cacheWriteCostMicrosPerMillion": 2500000,
-        "contextWindow": 1050000
+        "contextWindow": 1000000,
+        "maxOutput": 30000,
+        "releaseDate": "2026-03-09",
+        "family": "grok",
+        "inputs": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "outputs": [
+          "text"
+        ]
       }
     ]
   }

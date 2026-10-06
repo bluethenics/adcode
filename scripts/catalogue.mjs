@@ -1,8 +1,8 @@
 /**
  * Regenerate the bundled model catalogue.
  *
- * `models.dev` publishes what every provider offers - 194 providers and about four
- * megabytes of it. Fetching that at runtime is the right thing to do and cannot be the
+ * `models.dev` publishes what every provider offers - over two hundred providers and about
+ * five megabytes of it. Fetching that at runtime is the right thing to do and cannot be the
  * *only* thing: the connection screen has to be usable on a first launch with no network,
  * and a model list that is empty until a request succeeds looks broken rather than offline.
  *
@@ -11,9 +11,11 @@
  *
  *     node scripts/catalogue.mjs
  *
- * Trimmed hard on purpose. Only the providers most people reach for, and only the fields
- * the connection screen and the agent actually read - which turns four megabytes into a
- * file that is reasonable to commit and to parse on every launch.
+ * The snapshot is cut by the same rules the app applies to the live list - `parseCatalogue`
+ * and `usableCatalogue`, imported from the source rather than copied, so the two can never
+ * disagree about which models a person may pick. That means: providers ADCode can address,
+ * and of their models only those that write text, call tools, are not retired and do not
+ * need an API this editor does not speak - every one of them, newest first.
  *
  * Written as TypeScript rather than JSON so that importing it needs no `resolveJsonModule`
  * and every bundler here treats it as ordinary source.
@@ -21,42 +23,10 @@
 import { writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseCatalogue, usableCatalogue } from "../packages/ai/src/catalogue.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TARGET = resolve(HERE, "..", "packages", "ai", "src", "catalogueSnapshot.ts");
-
-/**
- * The providers worth shipping offline.
- *
- * Everything else is one network request away. This list is "what somebody is likely to
- * connect on their first evening", not a judgement about the rest.
- */
-const KEEP = [
-  "anthropic",
-  "openai",
-  "google",
-  "ollama",
-  "openrouter",
-  "groq",
-  "mistral",
-  "deepseek",
-  "xai",
-  "together",
-  "fireworks-ai",
-  "cerebras",
-  "azure",
-  "amazon-bedrock",
-  "github-copilot",
-];
-
-/** Models per provider, newest first as the source orders them. */
-const MAX_MODELS = 40;
-
-const priceMicros = (value) => {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
-  const micros = Math.round(value * 1_000_000);
-  return Number.isSafeInteger(micros) ? micros : null;
-};
 
 async function main() {
   const response = await fetch("https://models.dev/api.json", {
@@ -68,43 +38,10 @@ async function main() {
     process.exit(1);
   }
 
-  const all = await response.json();
-  const providers = [];
-
-  for (const id of KEEP) {
-    const source = all[id];
-    if (source === undefined) continue;
-
-    const models = Object.values(source.models ?? {})
-      .slice(0, MAX_MODELS)
-      .map((model) => {
-        const cost = model.cost ?? {};
-        return {
-          id: model.id,
-          name: model.name ?? model.id,
-          // The capabilities decide what a role may use; optional prices make automatic
-          // routing cost-aware without pretending missing catalogue data is free.
-          toolCall: model.tool_call === true,
-          reasoning: model.reasoning === true,
-          inputCostMicrosPerMillion: priceMicros(cost.input),
-          outputCostMicrosPerMillion: priceMicros(cost.output),
-          cacheReadCostMicrosPerMillion: priceMicros(cost.cache_read),
-          cacheWriteCostMicrosPerMillion: priceMicros(cost.cache_write),
-          // When a conversation has to be compacted depends on this; absent means unknown.
-          contextWindow:
-            Number.isSafeInteger(model.limit?.context) && model.limit.context >= 1000 ? model.limit.context : null,
-        };
-      });
-
-    if (models.length === 0) continue;
-
-    providers.push({
-      id: source.id ?? id,
-      name: source.name ?? id,
-      env: Array.isArray(source.env) ? source.env : [],
-      doc: typeof source.doc === "string" ? source.doc : null,
-      models,
-    });
+  const providers = usableCatalogue(parseCatalogue(await response.json()));
+  if (providers.length === 0) {
+    process.stderr.write("models.dev answered, but nothing in it is usable - the snapshot was left alone\n");
+    process.exit(1);
   }
 
   const takenOn = new Date().toISOString().slice(0, 10);
@@ -125,6 +62,7 @@ export const SNAPSHOT_PROVIDERS: readonly CatalogueProvider[] = ${JSON.stringify
   process.stdout.write(
     `catalogue: ${String(providers.length)} providers, ${String(models)} models -> ${join("packages", "ai", "src", "catalogueSnapshot.ts")}\n`,
   );
+  for (const provider of providers) process.stdout.write(`  ${provider.id}: ${String(provider.models.length)}\n`);
 }
 
 await main();

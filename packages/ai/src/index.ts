@@ -88,17 +88,25 @@ export {
   BUNDLED_CATALOGUE,
   DEFAULT_CONTEXT_WINDOW,
   SNAPSHOT_TAKEN_ON,
+  RECOMMENDED_MODELS,
   baseUrlFor,
   contextWindowOf,
+  isUsableModel,
   mergeCatalogue,
   parseCatalogue,
   providerIn,
+  recommendedModel,
   searchCatalogue,
+  traitsOf,
   transportFor,
+  usableCatalogue,
   type CatalogueModel,
   type CatalogueProvider,
   type Transport,
 } from "./catalogue.ts";
+export { effortFor } from "./effort.ts";
+export { allowedOutputSize } from "./outputSize.ts";
+export { THINKING_FILLED_ALLOWANCE } from "./agent.ts";
 
 export {
   pruneSessions,

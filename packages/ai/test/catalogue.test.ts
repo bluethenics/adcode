@@ -5,11 +5,15 @@ import {
   SNAPSHOT_TAKEN_ON,
   contextWindowOf,
   baseUrlFor,
+  isUsableModel,
   mergeCatalogue,
   parseCatalogue,
   providerIn,
+  recommendedModel,
   searchCatalogue,
+  traitsOf,
   transportFor,
+  usableCatalogue,
   type CatalogueProvider,
 } from "@adcode/ai";
 
@@ -222,5 +226,88 @@ describe("context size", () => {
 
   it("assumes 128k for models nobody published a size for", () => {
     expect(DEFAULT_CONTEXT_WINDOW).toBe(128_000);
+  });
+});
+
+/*
+ * The list a person picks from, and only that.
+ *
+ * Reported: "for a lot of models I am getting errors". The list held whatever models.dev
+ * published first for each provider - embeddings, Whisper, speech, image and video
+ * generators, models retired upstream, OpenAI's Responses-only Pro and Codex models - and
+ * providers ADCode has no address for. Every one of those failed the moment it was chosen.
+ */
+describe("the models a person can use", () => {
+  const model = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    name: id,
+    tool_call: true,
+    modalities: { input: ["text"], output: ["text"] },
+    ...extra,
+  });
+  const raw = {
+    openai: {
+      id: "openai",
+      name: "OpenAI",
+      models: {
+        a: model("gpt-6.1-sol", { release_date: "2026-09-29", limit: { context: 1050000, output: 128000 }, reasoning: true, reasoning_options: [{ type: "effort", values: ["low", "medium", "high", "xhigh", "max"] }] }),
+        b: model("gpt-4.1", { release_date: "2025-04-14" }),
+        c: model("text-embedding-3-small", { tool_call: false }),
+        d: model("gpt-image-2", { modalities: { input: ["text"], output: ["image"] } }),
+        e: model("gpt-realtime-2.1", { modalities: { input: ["text", "audio"], output: ["text", "audio"] } }),
+        f: model("gpt-5.4-pro", { family: "gpt-pro" }),
+        g: model("gpt-5.3-codex", { family: "gpt-codex" }),
+        h: model("gpt-3.5-turbo", { status: "deprecated" }),
+        i: model("whisper-large-v3"),
+      },
+    },
+    azure: { id: "azure", name: "Azure", models: { a: model("gpt-6.1-sol") } },
+    "amazon-bedrock": { id: "amazon-bedrock", name: "Amazon Bedrock", models: { a: model("anthropic.claude-opus-5-5") } },
+  };
+
+  it("keeps chat models that call tools, through an API ADCode speaks", () => {
+    const usable = usableCatalogue(parseCatalogue(raw));
+    expect(usable.map((one) => one.id)).toEqual(["openai"]);
+    expect(usable[0]?.models.map((one) => one.id)).toEqual(["gpt-6.1-sol", "gpt-4.1"]);
+  });
+
+  it("reads what the request needs: release date, output limit and effort levels", () => {
+    const sol = usableCatalogue(parseCatalogue(raw))[0]?.models[0];
+    expect(sol?.releaseDate).toBe("2026-09-29");
+    expect(sol?.maxOutput).toBe(128000);
+    expect(sol?.effortLevels).toEqual(["low", "medium", "high", "xhigh", "max"]);
+    expect(traitsOf(usableCatalogue(parseCatalogue(raw)), "openai", "gpt-6.1-sol")).toEqual({
+      reasoning: true,
+      effortLevels: ["low", "medium", "high", "xhigh", "max"],
+      maxOutput: 128000,
+    });
+    expect(traitsOf(usableCatalogue(parseCatalogue(raw)), "openai", "nope")).toBeUndefined();
+  });
+
+  it("keeps Pro models where the provider translates them, as OpenRouter does", () => {
+    const usable = usableCatalogue(parseCatalogue({
+      openrouter: { id: "openrouter", name: "OpenRouter", models: { a: model("openai/gpt-6.1-sol-pro", { family: "gpt-pro" }) } },
+    }));
+    expect(usable[0]?.models.map((one) => one.id)).toEqual(["openai/gpt-6.1-sol-pro"]);
+  });
+
+  it("starts each provider on a model it recommends, or its newest that can use tools", () => {
+    const catalogue = usableCatalogue(parseCatalogue({
+      google: { id: "google", name: "Google", models: { a: model("gemini-3.8-flash", { release_date: "2026-09-02" }), b: model("gemini-flash-latest", { release_date: "2026-08-13" }) } },
+      xai: { id: "xai", name: "xAI", models: { a: model("grok-9", { release_date: "2027-01-01" }), b: model("grok-8", { release_date: "2026-12-01" }) } },
+    }));
+    expect(recommendedModel(catalogue, "google")).toBe("gemini-flash-latest");
+    expect(recommendedModel(catalogue, "xai")).toBe("grok-9");
+    expect(recommendedModel(catalogue, "nobody")).toBeNull();
+  });
+
+  it("ships a snapshot of usable models only", () => {
+    const ids = BUNDLED_CATALOGUE.map((one) => one.id);
+    expect(ids).not.toContain("azure");
+    expect(ids).not.toContain("amazon-bedrock");
+    expect(ids).not.toContain("github-copilot");
+    for (const provider of BUNDLED_CATALOGUE) {
+      for (const one of provider.models) expect(isUsableModel(provider.id, one), `${provider.id}/${one.id}`).toBe(true);
+    }
   });
 });

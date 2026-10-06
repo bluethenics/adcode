@@ -19,6 +19,19 @@ export interface CatalogueModel {
   readonly cacheWriteCostMicrosPerMillion?: number | null;
   /** How many tokens the model reads at once, where models.dev publishes it. */
   readonly contextWindow?: number | null;
+  /** The most tokens one reply may contain. Decides how far a cut-off reply is given room. */
+  readonly maxOutput?: number | null;
+  /** The reasoning-effort levels the model accepts, in its own words. Absent: none. */
+  readonly effortLevels?: readonly string[];
+  /** "YYYY-MM-DD", for newest-first order and the New badge. */
+  readonly releaseDate?: string;
+  /** Upstream's word on the model's standing: "alpha", "beta" or "deprecated". */
+  readonly status?: string;
+  /** The model's family as models.dev names it ("gpt-codex", "claude-sonnet"). */
+  readonly family?: string;
+  /** What it reads ("text", "image", "pdf"...) and writes, where published. */
+  readonly inputs?: readonly string[];
+  readonly outputs?: readonly string[];
 }
 
 export interface CatalogueProvider {

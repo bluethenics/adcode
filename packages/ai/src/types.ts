@@ -68,6 +68,28 @@ export interface ToolCallBlock {
   readonly input: Record<string, unknown>;
   /** Adapter validation failure. The agent returns it to the model without running the tool. */
   readonly inputError?: string;
+  /**
+   * An opaque signature the provider requires back with this call - Gemini's thought
+   * signature. Gemini 3 refuses the next request with "Function call is missing a
+   * thought_signature" when it is dropped.
+   */
+  readonly signature?: string;
+  /**
+   * Reasoning the provider requires back with the message that made this call: OpenRouter's
+   * `reasoning_details`, DeepSeek's `reasoning_content`. Carried on the first call of the
+   * message, and sent only to the provider and model that produced it.
+   */
+  readonly reasoning?: ProviderReasoning;
+}
+
+/** Reasoning state one provider asked to be handed back verbatim. Never shown, never edited. */
+export interface ProviderReasoning {
+  readonly provider: string;
+  readonly model: string;
+  /** Plain reasoning text, where the provider streamed it as a string. */
+  readonly text?: string;
+  /** Structured reasoning items, exactly as the provider sent them. */
+  readonly details?: readonly unknown[];
 }
 
 export interface ToolResultBlock {
@@ -198,6 +220,25 @@ export interface Provider {
   readonly models: readonly string[];
   stream(request: ProviderRequest, signal: AbortSignal): AsyncIterable<ProviderEvent>;
 }
+
+/**
+ * What the catalogue knows about a model that changes how it has to be asked.
+ *
+ * A model's reasoning levels and output ceiling are facts about that model, not about the
+ * provider, and sending a level a model does not have is a 400 - so adapters look these up
+ * per request instead of assuming one shape per vendor.
+ */
+export interface ModelTraits {
+  /** The model reasons before answering. */
+  readonly reasoning?: boolean;
+  /** The reasoning-effort levels it accepts, in its own words ("minimal", "xhigh"...). */
+  readonly effortLevels?: readonly string[] | null;
+  /** The most output tokens one response may contain. */
+  readonly maxOutput?: number | null;
+}
+
+/** A model's traits, or undefined when the catalogue does not know the model. */
+export type TraitsLookup = (model: string) => ModelTraits | undefined;
 
 /** Where a provider's key comes from. Never settings JSON (§5.2). */
 export interface KeyStore {

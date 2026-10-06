@@ -57,7 +57,30 @@ export interface AgentCompaction {
  */
 export const MAX_TURNS = 50;
 
-const DEFAULT_MAX_TOKENS = 8192;
+/**
+ * The output allowance a request starts with.
+ *
+ * It was 8,192, which most providers share between the visible answer and the model's
+ * hidden reasoning: a reasoning model asked for a whole game spent all of it thinking,
+ * wrote nothing, and the chat could only offer a Continue that hit the same wall.
+ */
+const DEFAULT_MAX_TOKENS = 16_384;
+
+/** How far the allowance grows for a model whose ceiling nobody told this loop. */
+const DEFAULT_OUTPUT_CEILING = 32_768;
+
+/** Times one send carries on a reply the output limit cut off before saying so. */
+const MAX_CONTINUATIONS = 3;
+
+/** Times one send asks again after a reply that was all thinking and no answer. */
+const MAX_EMPTY_RETRIES = 2;
+
+/** The note that asks for the rest of a reply the limit cut off. Prefill is gone from new models. */
+const CONTINUE_PROMPT =
+  "[Your previous reply was cut off by the output limit. Continue exactly where it stopped - do not repeat anything already written.]";
+
+export const THINKING_FILLED_ALLOWANCE =
+  "The model spent its whole output allowance thinking and wrote nothing. Lower Thinking effort in Connect a model, or choose another model.";
 
 const DEFAULT_SYSTEM = [
   "You are the coding assistant built into ADCode, an AI-native IDE.",
@@ -134,6 +157,11 @@ export interface AgentDeps {
   /** Fresh host context on every round-trip; never persisted as a user message. */
   readonly context?: () => string | Promise<string>;
   readonly maxTokens?: number;
+  /**
+   * The most output one request may ask for once a reply has been cut off - the model's own
+   * ceiling from the catalogue. The allowance starts at `maxTokens` and doubles toward this.
+   */
+  readonly maxOutputTokens?: number;
   /** Reasoning effort, or undefined for the provider's own default (Auto). */
   readonly effort?: Effort | undefined;
   /** Return a user-facing reason to block this provider request, or null to allow it. */
@@ -358,6 +386,15 @@ export function createAgent(deps: AgentDeps): Agent {
     let compactionFailed = false;
     let justCompacted = false;
     let reactiveTried = false;
+    // The output allowance for this send: it starts where the host set it and doubles toward
+    // the model's ceiling each time a reply is cut off.
+    const ceiling = Math.max(maxOutput, deps.maxOutputTokens ?? DEFAULT_OUTPUT_CEILING);
+    let budget = maxOutput;
+    let continuations = 0;
+    let emptyRetries = 0;
+    const grow = (): void => {
+      budget = Math.min(ceiling, budget * 2);
+    };
     const abortFromExternal = (): void => controller?.abort();
     if (externalSignal?.aborted === true) controller.abort();
     else externalSignal?.addEventListener("abort", abortFromExternal, { once: true });
@@ -420,7 +457,7 @@ export function createAgent(deps: AgentDeps): Agent {
           system,
           messages: lean ? leanHistory(messages) : messages,
           tools,
-          maxTokens: deps.maxTokens ?? DEFAULT_MAX_TOKENS,
+          maxTokens: budget,
           ...(deps.effort === undefined ? {} : { effort: deps.effort }),
         };
         const blocked = (await deps.beforeRequest?.(request)) ?? null;
@@ -517,12 +554,39 @@ export function createAgent(deps: AgentDeps): Agent {
 
       if (pendingCalls.length === 0) {
         if (stop === "max-tokens") {
+          const wrote = assistantContent.some((block) => block.type === "text" && block.text.trim().length > 0);
+          if (!wrote) {
+            // All thinking, no answer: nothing to keep, so ask the same question with more
+            // room. A whitespace-only reply comes back out - a history ending on the
+            // assistant is a prefill, which new models refuse.
+            if (assistantContent.length > 0) messages.pop();
+            if (budget < ceiling && emptyRetries < MAX_EMPTY_RETRIES) {
+              emptyRetries += 1;
+              grow();
+              yield { kind: "status", text: "The model used its whole allowance thinking - asking again with more room" };
+              continue;
+            }
+            yield { kind: "error", detail: THINKING_FILLED_ALLOWANCE };
+            return;
+          }
+          // A reply cut off part way: keep it, and ask for the rest with more room.
+          if (continuations < MAX_CONTINUATIONS) {
+            continuations += 1;
+            grow();
+            messages.push({ role: "user", content: [{ type: "text", text: CONTINUE_PROMPT }] });
+            yield { kind: "status", text: "The reply reached the output limit - continuing" };
+            continue;
+          }
           yield { kind: "error", detail: "The model reached its response limit before completing this turn. Review the partial answer and continue with a narrower request." };
           return;
         }
         yield { kind: "turn-end", reason: stop };
         return;
       }
+
+      // A tool call the limit cut off is answered with an error that asks for smaller writes;
+      // the next request also gets more room, so the retry is not cut off the same way.
+      if (stop === "max-tokens") grow();
 
       // Run every call from this turn, then return all results in one user message -
       // splitting them across messages trains the model out of parallel tool use.

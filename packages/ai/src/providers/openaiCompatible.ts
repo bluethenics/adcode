@@ -9,10 +9,27 @@
  * Written against `fetch` rather than the OpenAI SDK: taking a second vendor SDK to
  * speak a format this simple would add a dependency to serve one adapter, and the local
  * endpoint is frequently not OpenAI at all.
+ *
+ * "Compatible" covers less than the name suggests, and each gap broke real chats. The
+ * differences live in one table, `profileFor`, rather than in ifs scattered through the
+ * request: OpenAI's own reasoning models refuse `max_tokens`; OpenRouter reads effort as
+ * `reasoning.effort` and needs its `reasoning_details` back during a tool loop; DeepSeek's
+ * thinking mode needs `reasoning_content` back the same way. Which effort levels a model
+ * accepts is a fact about the model, so it comes from the catalogue (`traits`), never a guess.
  */
-import type { Provider, ProviderEvent, ProviderId, ProviderRequest, ToolCallBlock } from "../types.ts";
+import { effortFor } from "../effort.ts";
+import { allowedOutputSize } from "../outputSize.ts";
+import type {
+  Provider,
+  ProviderEvent,
+  ProviderId,
+  ProviderReasoning,
+  ProviderRequest,
+  ToolCallBlock,
+  TraitsLookup,
+} from "../types.ts";
 
-export const OPENAI_MODELS = ["gpt-6-astra", "gpt-5.4", "gpt-5-mini"] as const;
+export const OPENAI_MODELS = ["gpt-6-astra", "gpt-5.6", "gpt-5-mini"] as const;
 export const OLLAMA_MODELS = ["qwen3-coder:30b", "qwen3.6:27b", "deepseek-coder-v2:16b"] as const;
 
 export const OPENAI_BASE_URL = "https://api.openai.com/v1";
@@ -24,6 +41,8 @@ export interface OpenAiCompatibleDeps {
   readonly baseUrl: string;
   readonly apiKey: string;
   readonly models: readonly string[];
+  /** What the catalogue knows about each model: its effort levels above all. */
+  readonly traits?: TraitsLookup;
   /** Injectable for tests. */
   readonly fetchImpl?: typeof fetch;
 }
@@ -32,6 +51,32 @@ interface ToolCallAccumulator {
   id: string;
   name: string;
   args: string;
+}
+
+/** How one provider departs from the plain chat-completions request. */
+interface WireProfile {
+  /** GPT-5.x and the o-series refuse `max_tokens` and want `max_completion_tokens`. */
+  readonly sizeField: "max_tokens" | "max_completion_tokens";
+  /** How effort travels: OpenAI's field, OpenRouter's object, or not at all. */
+  readonly effort: "reasoning_effort" | "openrouter" | "none";
+  /** Reasoning the provider requires back on the assistant message during a tool loop. */
+  readonly echo: "none" | "reasoning_details" | "reasoning_content";
+}
+
+function profileFor(id: string): WireProfile {
+  switch (id) {
+    case "openai":
+      return { sizeField: "max_completion_tokens", effort: "reasoning_effort", echo: "none" };
+    case "openrouter":
+      return { sizeField: "max_tokens", effort: "openrouter", echo: "reasoning_details" };
+    case "deepseek":
+      return { sizeField: "max_tokens", effort: "reasoning_effort", echo: "reasoning_content" };
+    case "ollama":
+      // A local server mostly ignores effort, and a strict one rejects a field it does not know.
+      return { sizeField: "max_tokens", effort: "none", echo: "none" };
+    default:
+      return { sizeField: "max_tokens", effort: "reasoning_effort", echo: "none" };
+  }
 }
 
 /**
@@ -66,11 +111,32 @@ export function providerErrorMessage(payload: unknown): string | null {
   return null;
 }
 
-/** Translate our neutral message shape into the chat-completions one. */
-function toWireMessages(request: ProviderRequest): unknown[] {
-  const wire: unknown[] = [{ role: "system", content: request.system }];
+/** The effort level to send this model, or undefined to send none. */
+function effortLevel(profile: WireProfile, deps: OpenAiCompatibleDeps, request: ProviderRequest): string | undefined {
+  if (profile.effort === "none" || request.effort === undefined) return undefined;
+  const traits = deps.traits?.(request.model);
+  if (traits !== undefined) return effortFor(request.effort, traits.effortLevels);
+  // A model the catalogue does not know: only OpenAI's own reasoning families have a scale
+  // worth assuming - the three levels every one of them has accepted since o1.
+  if (deps.id === "openai" && /^(?:o\d|gpt-5)/i.test(request.model)) return effortFor(request.effort, ["low", "medium", "high"]);
+  return undefined;
+}
 
-  for (const message of request.messages) {
+/** Where the current question starts: after it, reasoning still belongs to the work in hand. */
+function currentTurnStart(request: ProviderRequest): number {
+  for (let index = request.messages.length - 1; index >= 0; index--) {
+    const message = request.messages[index]!;
+    if (message.role === "user" && message.content.some((block) => block.type === "text" || block.type === "image")) return index;
+  }
+  return -1;
+}
+
+/** Translate our neutral message shape into the chat-completions one. */
+function toWireMessages(request: ProviderRequest, providerId: string, profile: WireProfile): unknown[] {
+  const wire: unknown[] = [{ role: "system", content: request.system }];
+  const turnStart = currentTurnStart(request);
+
+  for (const [index, message] of request.messages.entries()) {
     const textParts = message.content.filter((b) => b.type === "text");
     const imageParts = message.content.filter((b) => b.type === "image");
     const toolCalls = message.content.filter((b) => b.type === "tool-call");
@@ -89,6 +155,11 @@ function toWireMessages(request: ProviderRequest): unknown[] {
     if (textParts.length === 0 && toolCalls.length === 0) continue;
 
     if (message.role === "assistant") {
+      // Reasoning goes back only to the provider and model that wrote it, and only for the
+      // question in hand: DeepSeek rejects reasoning from earlier questions outright.
+      const reasoning = profile.echo === "none" || index < turnStart
+        ? undefined
+        : toolCalls.find((call) => call.reasoning?.provider === providerId && call.reasoning.model === request.model)?.reasoning;
       wire.push({
         role: "assistant",
         content: textParts.map((b) => b.text).join("") || null,
@@ -101,6 +172,11 @@ function toWireMessages(request: ProviderRequest): unknown[] {
                 function: { name: call.name, arguments: JSON.stringify(call.input) },
               })),
             }),
+        ...(reasoning === undefined
+          ? {}
+          : profile.echo === "reasoning_details"
+            ? reasoning.details === undefined ? {} : { reasoning_details: reasoning.details }
+            : reasoning.text === undefined ? {} : { reasoning_content: reasoning.text }),
       });
     } else if (imageParts.length === 0) {
       wire.push({ role: "user", content: textParts.map((b) => b.text).join("") });
@@ -126,8 +202,43 @@ function toWireMessages(request: ProviderRequest): unknown[] {
   return wire;
 }
 
+/**
+ * OpenRouter's reasoning items, rebuilt from their streamed fragments.
+ *
+ * Each delta carries pieces of items keyed by `index`: text arrives a few words at a time
+ * and the signature last. Handing back the pieces would not match what the model produced,
+ * so fragments of one item are joined into the item a non-streaming reply would have held.
+ */
+function createDetailMerger(): { add(item: unknown): void; items(): Array<Record<string, unknown>> } {
+  const ordered: Array<Record<string, unknown>> = [];
+  const byIndex = new Map<number, Record<string, unknown>>();
+  return {
+    add(item) {
+      if (typeof item !== "object" || item === null || Array.isArray(item)) return;
+      const fragment = item as Record<string, unknown>;
+      const key = typeof fragment["index"] === "number" ? fragment["index"] : null;
+      const existing = key === null ? undefined : byIndex.get(key);
+      if (existing === undefined) {
+        const copy = { ...fragment };
+        ordered.push(copy);
+        if (key !== null) byIndex.set(key, copy);
+        return;
+      }
+      for (const [field, value] of Object.entries(fragment)) {
+        if (typeof value === "string" && (field === "text" || field === "summary" || field === "data")) {
+          existing[field] = `${typeof existing[field] === "string" ? existing[field] : ""}${value}`;
+        } else if (value !== null && value !== undefined) {
+          existing[field] = value;
+        }
+      }
+    },
+    items: () => ordered,
+  };
+}
+
 export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Provider {
   const doFetch = deps.fetchImpl ?? fetch;
+  const profile = profileFor(deps.id);
 
   return {
     id: deps.id,
@@ -139,26 +250,20 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
       // to a referer fail without it. Sent only there — an arbitrary custom
       // endpoint gets nothing beyond the bearer it was given.
       const viaOpenRouter = deps.baseUrl.includes("openrouter.ai");
-      const response = await doFetch(`${deps.baseUrl}/chat/completions`, {
-        method: "POST",
-        signal,
-        headers: {
-          "content-type": "application/json",
-          // A local Ollama needs no key; sending an empty bearer would be rejected.
-          ...(deps.apiKey.length > 0 ? { authorization: `Bearer ${deps.apiKey}` } : {}),
-          ...(viaOpenRouter ? { "HTTP-Referer": "https://adcode.dev", "X-Title": "ADCode" } : {}),
-        },
-        body: JSON.stringify({
+      const level = effortLevel(profile, deps, request);
+      const messages = toWireMessages(request, deps.id, profile);
+
+      const body = (size: number): string =>
+        JSON.stringify({
           model: request.model,
           stream: true,
-          max_tokens: request.maxTokens,
-          messages: toWireMessages(request),
-          // Reasoning effort, only where it belongs: OpenAI-family reasoning
-          // models read it, and a local Ollama mostly does not - sending an
-          // unknown field to a strict local server turns a good request bad.
-          ...(request.effort === undefined || deps.id === "ollama"
+          [profile.sizeField]: size,
+          messages,
+          ...(level === undefined
             ? {}
-            : { reasoning_effort: request.effort }),
+            : profile.effort === "openrouter"
+              ? { reasoning: { effort: level } }
+              : { reasoning_effort: level }),
           ...(request.tools.length === 0
             ? {}
             : {
@@ -171,10 +276,24 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
                   },
                 })),
               }),
-        }),
-      });
+        });
 
-      if (!response.ok || response.body === null) {
+      let size = request.maxTokens;
+      let response: Response;
+      for (let attempt = 0; ; attempt++) {
+        response = await doFetch(`${deps.baseUrl}/chat/completions`, {
+          method: "POST",
+          signal,
+          headers: {
+            "content-type": "application/json",
+            // A local Ollama needs no key; sending an empty bearer would be rejected.
+            ...(deps.apiKey.length > 0 ? { authorization: `Bearer ${deps.apiKey}` } : {}),
+            ...(viaOpenRouter ? { "HTTP-Referer": "https://adcode.dev", "X-Title": "ADCode" } : {}),
+          },
+          body: body(size),
+        });
+        if (response.ok && response.body !== null) break;
+
         // HTTP errors carry the provider's own explanation as JSON ("model not
         // found", "insufficient credits", "does not support tool use"). A bare
         // status leaves the user with nothing to act on.
@@ -191,15 +310,26 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
         } catch {
           // A body that cannot be read has nothing to say.
         }
+
+        // Asked for more output than the model allows or the balance covers: ask once more,
+        // at the size the refusal names.
+        const allowed = attempt === 0 ? allowedOutputSize(detail) : null;
+        if (allowed !== null && allowed >= 256 && allowed < size) {
+          size = allowed;
+          continue;
+        }
+
         throw Object.assign(
           new Error(`${deps.displayName} returned HTTP ${response.status}${detail ? `: ${detail}` : ""}`),
           { status: response.status, retryAfter: response.headers.get("retry-after") },
         );
       }
 
-      const reader = response.body.getReader();
+      const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       const pending = new Map<number, ToolCallAccumulator>();
+      const details = createDetailMerger();
+      let reasoningText = "";
 
       let buffer = "";
       let finish: string | null = null;
@@ -261,9 +391,18 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
             yield { kind: "text", text: delta["content"] };
           }
 
-          // Some servers stream a reasoning channel; surface it for the trace widget.
-          if (typeof delta["reasoning_content"] === "string" && delta["reasoning_content"].length > 0) {
-            yield { kind: "thinking", text: delta["reasoning_content"] };
+          // Reasoning arrives as `reasoning_content` (DeepSeek, Qwen, many local servers) or
+          // `reasoning` (OpenRouter, Groq). Either way it is for the trace, and - for the
+          // providers that ask for it - for handing back during the tool loop.
+          const thought = typeof delta["reasoning_content"] === "string"
+            ? delta["reasoning_content"]
+            : typeof delta["reasoning"] === "string" ? delta["reasoning"] : "";
+          if (thought.length > 0) {
+            reasoningText += thought;
+            yield { kind: "thinking", text: thought };
+          }
+          if (Array.isArray(delta["reasoning_details"])) {
+            for (const item of delta["reasoning_details"]) details.add(item);
           }
 
           const calls = delta["tool_calls"] as Array<Record<string, unknown>> | undefined;
@@ -282,6 +421,14 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
 
       if (signal.aborted) return;
 
+      const reasoning: ProviderReasoning | undefined =
+        profile.echo === "reasoning_details" && details.items().length > 0
+          ? { provider: deps.id, model: request.model, details: details.items() }
+          : profile.echo === "reasoning_content" && reasoningText.length > 0
+            ? { provider: deps.id, model: request.model, text: reasoningText }
+            : undefined;
+
+      let firstCall = true;
       for (const accumulator of pending.values()) {
         let input: Record<string, unknown> = {};
         let inputError: string | undefined;
@@ -309,7 +456,9 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
           name: accumulator.name,
           input,
           ...(inputError === undefined ? {} : { inputError }),
+          ...(firstCall && reasoning !== undefined ? { reasoning } : {}),
         };
+        firstCall = false;
         yield { kind: "tool-call", call: toolCall };
       }
 

@@ -493,3 +493,240 @@ describe("reasoning effort", () => {
     expect(sent.body?.["reasoning_effort"]).toBeUndefined();
   });
 });
+
+/* ── What each provider expects on the wire ─────────────────────────────── */
+
+const data = (payload: unknown): string => `data: ${JSON.stringify(payload)}`;
+const STOP = [data({ choices: [{ delta: {}, finish_reason: "stop" }] })];
+
+/** Records every request body and answers each with the next scripted response. */
+function scripted(responses: Array<() => Response>, bodies: Array<Record<string, unknown>>): typeof fetch {
+  let index = 0;
+  return (async (_url: string, init: RequestInit) => {
+    bodies.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+    const next = responses[Math.min(index, responses.length - 1)]!;
+    index += 1;
+    return next();
+  }) as unknown as typeof fetch;
+}
+
+function stream(lines: string[]): () => Response {
+  return () =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          const encoder = new TextEncoder();
+          for (const line of lines) controller.enqueue(encoder.encode(`${line}\n`));
+          controller.close();
+        },
+      }),
+      { status: 200 },
+    );
+}
+
+const failure = (status: number, message: string) => () =>
+  new Response(JSON.stringify({ error: { message, code: status } }), { status });
+
+function provider(id: string, bodies: Array<Record<string, unknown>>, responses: Array<() => Response>, traits?: Parameters<typeof createOpenAiCompatibleProvider>[0]["traits"]) {
+  return createOpenAiCompatibleProvider({
+    id,
+    displayName: id,
+    baseUrl: "https://example.test/v1",
+    apiKey: "k",
+    models: [],
+    fetchImpl: scripted(responses, bodies),
+    ...(traits === undefined ? {} : { traits }),
+  });
+}
+
+describe("output size", () => {
+  // GPT-5.x and the o-series refuse max_tokens outright and want max_completion_tokens -
+  // which is why most current OpenAI models failed on their very first message.
+  it("asks OpenAI for max_completion_tokens", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    await collect(provider("openai", bodies, [stream(STOP)]).stream(request, new AbortController().signal));
+    expect(bodies[0]?.["max_completion_tokens"]).toBe(1024);
+    expect(bodies[0]).not.toHaveProperty("max_tokens");
+  });
+
+  it("keeps max_tokens for every other provider", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    await collect(provider("groq", bodies, [stream(STOP)]).stream(request, new AbortController().signal));
+    expect(bodies[0]?.["max_tokens"]).toBe(1024);
+    expect(bodies[0]).not.toHaveProperty("max_completion_tokens");
+  });
+
+  it("asks again within what an OpenRouter balance can pay for", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const events = await collect(
+      provider("openrouter", bodies, [
+        failure(402, "This request requires more credits, or fewer max_tokens. You requested up to 16384 tokens, but can only afford 3000."),
+        stream([data({ choices: [{ delta: { content: "ok" } }] }), ...STOP]),
+      ]).stream({ ...request, maxTokens: 16384 }, new AbortController().signal),
+    );
+    expect(events.some((event) => event.kind === "text")).toBe(true);
+    expect(bodies).toHaveLength(2);
+    expect(Number(bodies[1]?.["max_tokens"])).toBeLessThanOrEqual(3000);
+    expect(Number(bodies[1]?.["max_tokens"])).toBeGreaterThan(2000);
+  });
+
+  it("asks again within the model's own limit when the size is too large", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    await collect(
+      provider("openai", bodies, [
+        failure(400, "max_tokens is too large: 65536. This model supports at most 32768 completion tokens, whereas you provided 65536."),
+        stream(STOP),
+      ]).stream({ ...request, maxTokens: 65536 }, new AbortController().signal),
+    );
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]?.["max_completion_tokens"]).toBe(32768);
+  });
+
+  it("does not loop on a size refusal it cannot read", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    await expect(
+      collect(provider("groq", bodies, [failure(400, "something else entirely")]).stream(request, new AbortController().signal)),
+    ).rejects.toThrow(/something else entirely/);
+    expect(bodies).toHaveLength(1);
+  });
+});
+
+describe("effort, in each model's own levels", () => {
+  it("gives Max the model's highest level", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    await collect(
+      provider("openai", bodies, [stream(STOP)], () => ({ reasoning: true, effortLevels: ["minimal", "low", "medium", "high"] }))
+        .stream({ ...request, effort: "max" }, new AbortController().signal),
+    );
+    expect(bodies[0]?.["reasoning_effort"]).toBe("high");
+  });
+
+  it("sends no effort to a model that has no levels", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    await collect(
+      provider("openai", bodies, [stream(STOP)], () => ({ reasoning: false, effortLevels: null }))
+        .stream({ ...request, model: "gpt-4.1", effort: "high" }, new AbortController().signal),
+    );
+    expect(bodies[0]).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("sends no effort to a provider's model the catalogue does not know", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    await collect(provider("mistral", bodies, [stream(STOP)]).stream({ ...request, effort: "high" }, new AbortController().signal));
+    expect(bodies[0]).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("tells OpenRouter as reasoning.effort, which is the shape it reads", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    await collect(
+      provider("openrouter", bodies, [stream(STOP)], () => ({ reasoning: true, effortLevels: ["low", "medium", "high"] }))
+        .stream({ ...request, effort: "max" }, new AbortController().signal),
+    );
+    expect(bodies[0]?.["reasoning"]).toEqual({ effort: "high" });
+    expect(bodies[0]).not.toHaveProperty("reasoning_effort");
+  });
+});
+
+describe("reasoning handed back during a tool loop", () => {
+  const toolTurn = [
+    data({ choices: [{ delta: { reasoning: "Need the file. ", reasoning_details: [{ type: "reasoning.text", text: "Need the ", index: 0, format: "anthropic-claude-v1" }] } }] }),
+    data({ choices: [{ delta: { reasoning: "Reading it.", reasoning_details: [{ type: "reasoning.text", text: "file.", index: 0, signature: "sig-9" }] } }] }),
+    data({ choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "read_file", arguments: "{\"path\":\"a\"}" } }] } }] }),
+    data({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }),
+  ];
+
+  it("shows OpenRouter's reasoning text in the trace", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const events = await collect(provider("openrouter", bodies, [stream(toolTurn)]).stream(request, new AbortController().signal));
+    expect(events.filter((event) => event.kind === "thinking").map((event) => (event as { text: string }).text).join(""))
+      .toBe("Need the file. Reading it.");
+  });
+
+  it("keeps OpenRouter's reasoning_details with the call they led to, merged by index", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const events = await collect(provider("openrouter", bodies, [stream(toolTurn)]).stream({ ...request, model: "anthropic/claude-sonnet-5" }, new AbortController().signal));
+    const call = events.find((event) => event.kind === "tool-call");
+    expect(call?.kind === "tool-call" ? call.call.reasoning : undefined).toEqual({
+      provider: "openrouter",
+      model: "anthropic/claude-sonnet-5",
+      details: [{ type: "reasoning.text", text: "Need the file.", index: 0, format: "anthropic-claude-v1", signature: "sig-9" }],
+    });
+  });
+
+  const history = (model: string): ProviderRequest => ({
+    ...request,
+    model,
+    messages: [
+      { role: "user", content: [{ type: "text", text: "read a" }] },
+      {
+        role: "assistant",
+        content: [{
+          type: "tool-call",
+          id: "c1",
+          name: "read_file",
+          input: { path: "a" },
+          reasoning: { provider: "openrouter", model: "anthropic/claude-sonnet-5", details: [{ type: "reasoning.text", text: "x", signature: "s" }] },
+        }],
+      },
+      { role: "user", content: [{ type: "tool-result", toolCallId: "c1", content: "A", isError: false }] },
+    ],
+  });
+
+  it("hands reasoning_details back on the assistant message that made the call", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    await collect(provider("openrouter", bodies, [stream(STOP)]).stream(history("anthropic/claude-sonnet-5"), new AbortController().signal));
+    const assistant = (bodies[0]?.["messages"] as Array<Record<string, unknown>>).find((message) => message["role"] === "assistant");
+    expect(assistant?.["reasoning_details"]).toEqual([{ type: "reasoning.text", text: "x", signature: "s" }]);
+  });
+
+  it("never hands one model's reasoning to another", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    await collect(provider("openrouter", bodies, [stream(STOP)]).stream(history("google/gemini-3.5-flash"), new AbortController().signal));
+    const assistant = (bodies[0]?.["messages"] as Array<Record<string, unknown>>).find((message) => message["role"] === "assistant");
+    expect(assistant).not.toHaveProperty("reasoning_details");
+  });
+
+  it("keeps DeepSeek's reasoning_content with its call and sends it back in the same turn", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const events = await collect(
+      provider("deepseek", bodies, [stream([
+        data({ choices: [{ delta: { reasoning_content: "Look first." } }] }),
+        data({ choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "read_file", arguments: "{}" } }] } }] }),
+        data({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }),
+      ])]).stream({ ...request, model: "deepseek-v4-pro" }, new AbortController().signal),
+    );
+    const call = events.find((event) => event.kind === "tool-call");
+    const reasoning = call?.kind === "tool-call" ? call.call.reasoning : undefined;
+    expect(reasoning).toEqual({ provider: "deepseek", model: "deepseek-v4-pro", text: "Look first." });
+
+    const next: Array<Record<string, unknown>> = [];
+    await collect(provider("deepseek", next, [stream(STOP)]).stream({
+      ...request,
+      model: "deepseek-v4-pro",
+      messages: [
+        { role: "user", content: [{ type: "text", text: "go" }] },
+        { role: "assistant", content: [{ type: "tool-call", id: "c1", name: "read_file", input: {}, ...(reasoning === undefined ? {} : { reasoning }) }] },
+        { role: "user", content: [{ type: "tool-result", toolCallId: "c1", content: "A", isError: false }] },
+      ],
+    }, new AbortController().signal));
+    const assistant = (next[0]?.["messages"] as Array<Record<string, unknown>>).find((message) => message["role"] === "assistant");
+    expect(assistant?.["reasoning_content"]).toBe("Look first.");
+  });
+
+  it("does not send DeepSeek the reasoning of an earlier question", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    await collect(provider("deepseek", bodies, [stream(STOP)]).stream({
+      ...request,
+      model: "deepseek-v4-pro",
+      messages: [
+        { role: "user", content: [{ type: "text", text: "first question" }] },
+        { role: "assistant", content: [{ type: "tool-call", id: "c1", name: "read_file", input: {}, reasoning: { provider: "deepseek", model: "deepseek-v4-pro", text: "old" } }] },
+        { role: "user", content: [{ type: "tool-result", toolCallId: "c1", content: "A", isError: false }] },
+        { role: "assistant", content: [{ type: "text", text: "done" }] },
+        { role: "user", content: [{ type: "text", text: "second question" }] },
+      ],
+    }, new AbortController().signal));
+    const assistants = (bodies[0]?.["messages"] as Array<Record<string, unknown>>).filter((message) => message["role"] === "assistant");
+    expect(assistants.every((message) => !("reasoning_content" in message))).toBe(true);
+  });
+});

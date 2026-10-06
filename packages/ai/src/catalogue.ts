@@ -17,6 +17,7 @@
  */
 import { SNAPSHOT_PROVIDERS, SNAPSHOT_TAKEN_ON } from "./catalogueSnapshot.ts";
 import type { CatalogueModel, CatalogueProvider } from "./catalogueTypes.ts";
+import type { ModelTraits } from "./types.ts";
 
 export type { CatalogueModel, CatalogueProvider } from "./catalogueTypes.ts";
 
@@ -62,6 +63,16 @@ function modelsFrom(raw: unknown): CatalogueModel[] {
     const name = entry["name"];
     const cost = isRecord(entry["cost"]) ? entry["cost"] : {};
     const limit = isRecord(entry["limit"]) ? entry["limit"] : {};
+    const modalities = isRecord(entry["modalities"]) ? entry["modalities"] : {};
+    // Optional facts appear only when upstream published them, so an entry without them reads
+    // exactly as it always did.
+    const maxOutput = contextTokens(limit["output"]);
+    const effortLevels = effortLevelsOf(entry["reasoning_options"]);
+    const releaseDate = typeof entry["release_date"] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(entry["release_date"]) ? entry["release_date"] : null;
+    const status = typeof entry["status"] === "string" && entry["status"].length > 0 ? entry["status"] : null;
+    const family = typeof entry["family"] === "string" && entry["family"].length > 0 ? entry["family"] : null;
+    const inputs = stringList(modalities["input"]);
+    const outputs = stringList(modalities["output"]);
     models.push({
       id,
       name: typeof name === "string" && name.length > 0 ? name : id,
@@ -72,10 +83,32 @@ function modelsFrom(raw: unknown): CatalogueModel[] {
       cacheReadCostMicrosPerMillion: costMicros(cost["cache_read"]),
       cacheWriteCostMicrosPerMillion: costMicros(cost["cache_write"]),
       contextWindow: contextTokens(limit["context"]),
+      ...(maxOutput === null ? {} : { maxOutput }),
+      ...(effortLevels === null ? {} : { effortLevels }),
+      ...(releaseDate === null ? {} : { releaseDate }),
+      ...(status === null ? {} : { status }),
+      ...(family === null ? {} : { family }),
+      ...(inputs === null ? {} : { inputs }),
+      ...(outputs === null ? {} : { outputs }),
     });
   }
 
   return models;
+}
+
+function stringList(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  const list = raw.filter((one): one is string => typeof one === "string" && one.length > 0 && one.length < 40);
+  return list.length > 0 ? list : null;
+}
+
+/** The effort levels from models.dev's `reasoning_options`, or null when it lists none. */
+function effortLevelsOf(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  for (const option of raw) {
+    if (isRecord(option) && option["type"] === "effort") return stringList(option["values"]);
+  }
+  return null;
 }
 
 /**
@@ -220,4 +253,90 @@ export type Transport = "native" | "openai-compatible" | "unsupported";
 export function transportFor(providerId: string): Transport {
   if (providerId === "anthropic" || providerId === "google") return "native";
   return BASE_URLS.has(providerId) ? "openai-compatible" : "unsupported";
+}
+
+/*
+ * The list a person picks from.
+ *
+ * models.dev describes everything a provider sells, and most of it cannot hold a
+ * conversation with tools: embeddings, speech, image and video generators, realtime audio,
+ * moderation filters. Upstream also keeps retired models, and OpenAI sells Pro and Codex
+ * models only through its Responses API, which this editor does not speak. Each of those was
+ * on the list, and each failed the moment somebody chose it.
+ */
+
+/** Ids that name something other than a chat model, whatever else upstream says about them. */
+const NOT_A_CHAT_MODEL =
+  /(?:^|[-/._])(?:embed|embedding|embeddings|whisper|tts|transcribe|transcription|realtime|moderation|guard|computer-use|lyria|veo|imagen|image|audio|speech)(?:$|[-/._:])/i;
+
+/** OpenAI families sold only through the Responses API. OpenRouter and others translate them. */
+const RESPONSES_ONLY = new Set(["gpt-pro", "o-pro", "gpt-codex", "codex"]);
+
+/** Whether ADCode can hold a conversation with this model, tools included. */
+export function isUsableModel(providerId: string, model: CatalogueModel): boolean {
+  if (!model.toolCall) return false;
+  if (model.status === "deprecated") return false;
+  if (model.outputs !== undefined && !model.outputs.every((kind) => kind === "text")) return false;
+  if (NOT_A_CHAT_MODEL.test(model.id)) return false;
+  if (providerId === "openai" && (RESPONSES_ONLY.has(model.family ?? "") || /(?:-pro|codex)(?:$|-)/i.test(model.id))) return false;
+  return true;
+}
+
+/**
+ * Reachable providers and their usable models, newest first.
+ *
+ * Ollama is left out on purpose: models.dev's Ollama models are a cloud catalogue, while the
+ * ones that matter here are whatever this machine has pulled, which the host asks Ollama for.
+ */
+export function usableCatalogue(providers: readonly CatalogueProvider[]): CatalogueProvider[] {
+  const usable: CatalogueProvider[] = [];
+  for (const provider of providers) {
+    if (provider.id === "ollama" || transportFor(provider.id) === "unsupported") continue;
+    const models = provider.models
+      .filter((model) => isUsableModel(provider.id, model))
+      .sort((a, b) => (b.releaseDate ?? "").localeCompare(a.releaseDate ?? "") || a.name.localeCompare(b.name));
+    if (models.length > 0) usable.push({ ...provider, models });
+  }
+  return usable.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * The model each provider starts on, best first; the first one the catalogue has wins.
+ *
+ * Without this a provider started on whatever came first in upstream's order - for
+ * OpenRouter a stealth preview few people would choose, which then filled every reply with
+ * "I stopped at a limit". The admin catalogue can override it without a release.
+ */
+export const RECOMMENDED_MODELS: Readonly<Record<string, readonly string[]>> = {
+  anthropic: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-sonnet-5", "claude-sonnet-4-6"],
+  openai: ["gpt-6.1-sol", "gpt-6-sol", "gpt-5.6", "gpt-5.5"],
+  google: ["gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash"],
+  openrouter: ["anthropic/claude-sonnet-5.5", "google/gemini-3.8-flash", "openai/gpt-6.1-sol", "anthropic/claude-sonnet-5"],
+  groq: ["openai/gpt-oss-120b", "qwen/qwen3.8-27b"],
+  xai: ["grok-4.7", "grok-4.6"],
+  deepseek: ["deepseek-v4-pro", "deepseek-flash"],
+  mistral: ["mistral-medium-latest", "mistral-small-latest"],
+  cerebras: ["gpt-oss-120b", "qwen-3.8-27b"],
+  "fireworks-ai": ["accounts/fireworks/routers/glm-latest", "accounts/fireworks/models/glm-5p3"],
+};
+
+/** The model to start a provider on, or null when the catalogue has none for it. */
+export function recommendedModel(
+  catalogue: readonly CatalogueProvider[],
+  providerId: string,
+  preferences: Readonly<Record<string, readonly string[]>> = RECOMMENDED_MODELS,
+): string | null {
+  const provider = providerIn(catalogue, providerId);
+  if (provider === undefined) return null;
+  for (const id of preferences[providerId] ?? []) {
+    if (provider.models.some((model) => model.id === id)) return id;
+  }
+  return (provider.models.find((model) => model.toolCall) ?? provider.models[0])?.id ?? null;
+}
+
+/** What a request to this model has to respect, or undefined when the catalogue does not know it. */
+export function traitsOf(catalogue: readonly CatalogueProvider[], providerId: string, modelId: string): ModelTraits | undefined {
+  const model = providerIn(catalogue, providerId)?.models.find((one) => one.id === modelId);
+  if (model === undefined) return undefined;
+  return { reasoning: model.reasoning, effortLevels: model.effortLevels ?? null, maxOutput: model.maxOutput ?? null };
 }
