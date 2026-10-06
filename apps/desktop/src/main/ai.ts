@@ -158,7 +158,9 @@ let catalogueIsLive = false;
 export async function refreshCatalogue(): Promise<void> {
   try {
     const response = await fetch("https://models.dev/api.json", {
-      signal: AbortSignal.timeout(8000),
+      // Five megabytes: eight seconds was not enough on an ordinary connection, so most
+      // launches silently kept the bundled list. It runs in the background either way.
+      signal: AbortSignal.timeout(45_000),
     });
     if (!response.ok) return;
 

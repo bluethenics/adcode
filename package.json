@@ -45,7 +45,8 @@
     "web:preview": "npm --prefix apps/web run preview",
     "web:deploy": "npm --prefix apps/web run deploy",
     "seo-audit": "node scripts/seo-audit.mjs",
-    "smoke:vibe": "node scripts/smoke-vibe.mjs"
+    "smoke:vibe": "node scripts/smoke-vibe.mjs",
+    "models:check": "node scripts/models-check.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
