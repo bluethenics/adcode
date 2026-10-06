@@ -86,6 +86,14 @@ await writeFile(
   "utf8",
 );
 
+// An install that has already had its first success. Since the newcomer hold (70d6d56), a
+// brand-new profile shows no ad until its first working assistant turn or fifteen minutes -
+// correct for people, and the reason this run saw only "newcomer" ticks and no card.
+const longAgo = Date.now() - 86_400_000;
+await writeFile(join(userData, "milestones.json"), JSON.stringify({ firstLaunchAt: longAgo, firstValueAt: longAgo, pending: [] }), "utf8");
+// ...and has been welcomed, so the welcome sheet is not drawn over the card being checked.
+await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: true, at: longAgo }), "utf8");
+
 const child = spawn(
   electronPath,
   [...appArgs, "--enable-logging", `--remote-debugging-port=${PORT}`, `--user-data-dir=${userData}`],
@@ -266,6 +274,21 @@ const toast = await evaluate(
 );
 
 checks.toastAppeared = toast !== null && typeof toast === "object";
+
+// A picture of the card as people see it, when ADCODE_SHOTS names a folder.
+if (checks.toastAppeared && process.env.ADCODE_SHOTS) {
+  await sleep(400);
+  const shot = await send("Page.captureScreenshot", { format: "png" });
+  if (shot?.result?.data) await writeFile(join(process.env.ADCODE_SHOTS, "sponsored-card.png"), Buffer.from(shot.result.data, "base64"));
+}
+// The card's own parts: the earnings line and the countdown that pauses on hover.
+checks.toastShowsTheShare = await evaluate(`/Half of what it earns is yours/.test(document.querySelector('.toast-sponsored .toast-sponsored-earn')?.textContent ?? '')`);
+checks.toastCountsDown = await evaluate(`(() => {
+  const bar = document.querySelector('.toast-sponsored .toast-sponsored-timer');
+  if (bar === null) return 'no countdown bar';
+  const animation = bar.getAnimations()[0];
+  return animation !== undefined && animation.playState === 'running';
+})()`);
 
 if (checks.toastAppeared) {
   checks.toastOnScreen = toast.onScreen;

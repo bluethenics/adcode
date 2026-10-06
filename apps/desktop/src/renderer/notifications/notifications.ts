@@ -308,6 +308,16 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       label.className = "toast-sponsored-label";
       label.textContent = "Sponsored";
 
+      // Why the card is worth a glance: the same promise the welcome makes, and true - half
+      // of what a card earns is credited to the person who sees it.
+      const earn = document.createElement("span");
+      earn.className = "toast-sponsored-earn";
+      earn.textContent = "Half of what it earns is yours";
+
+      const meta = document.createElement("div");
+      meta.className = "toast-sponsored-meta";
+      meta.append(label, earn);
+
       const title = document.createElement("p");
       title.className = "toast-title";
       const advertiser = document.createElement("span");
@@ -332,7 +342,10 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       visit.className = "toast-sponsored-cta";
       visit.setAttribute("aria-label", `Visit ${toast.advertiser}'s website`);
       visit.append("Visit site", createIcon(ICON.external));
-      content.append(visit);
+      const actions = document.createElement("div");
+      actions.className = "toast-sponsored-actions";
+      actions.append(visit);
+      content.append(actions);
 
       const close = iconButton("Dismiss", ICON.close, "toast-close");
       close.addEventListener("click", (event) => {
@@ -340,7 +353,14 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
         teardown(toast.creativeId, true);
       });
 
-      card.append(logo, label, close, content);
+      // How long the card stays, drawn: it drains over the auto-dismiss time and stops while
+      // the pointer or keyboard focus is on the card, exactly as the timer below does.
+      const timer = document.createElement("div");
+      timer.className = "toast-sponsored-timer";
+      timer.setAttribute("aria-hidden", "true");
+      card.style.setProperty("--toast-duration", `${String(toast.autoDismissMs)}ms`);
+
+      card.append(logo, meta, close, content, timer);
 
       const openSponsor = (): void => {
         window.adcode.ads.clicked(toast.creativeId);
@@ -367,13 +387,31 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
         timerId = window.setTimeout(() => teardown(toast.creativeId, true), remaining);
       };
 
-      card.addEventListener("mouseenter", () => {
-        clearTimer();
-        remaining = Math.max(0, remaining - (Date.now() - startedAt));
-      });
-
-      card.addEventListener("mouseleave", () => {
-        if (live !== null && live.creativeId === toast.creativeId && remaining > 0) arm();
+      // Paused while the pointer is on the card or keyboard focus is inside it - somebody
+      // reading, or tabbing to Visit site, should not watch it vanish.
+      let hovered = false;
+      let focused = false;
+      let paused = false;
+      const sync = (): void => {
+        const held = hovered || focused;
+        if (held && !paused) {
+          paused = true;
+          clearTimer();
+          remaining = Math.max(0, remaining - (Date.now() - startedAt));
+          card.dataset["paused"] = "true";
+        } else if (!held && paused) {
+          paused = false;
+          delete card.dataset["paused"];
+          if (live !== null && live.creativeId === toast.creativeId && remaining > 0) arm();
+        }
+      };
+      card.addEventListener("mouseenter", () => { hovered = true; sync(); });
+      card.addEventListener("mouseleave", () => { hovered = false; sync(); });
+      card.addEventListener("focusin", () => { focused = true; sync(); });
+      card.addEventListener("focusout", (event) => {
+        if (event.relatedTarget instanceof Node && card.contains(event.relatedTarget)) return;
+        focused = false;
+        sync();
       });
 
       // Always the notification layer, which is on the right in both windows. Vibe used to
