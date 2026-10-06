@@ -1325,6 +1325,52 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
       };
     },
 
+    async recordModelOutcomes(day, items) {
+      const db = await lazy();
+      // Loaded the way the client is: only when this adapter is actually used.
+      const { FieldValue } = await import("firebase-admin/firestore");
+      const batch = db.batch();
+      const grouped = new Map<string, { provider: string; model: string; outcome: string; count: number; totalMs: number }>();
+      for (const item of items) {
+        const key = [item.provider, item.model, item.outcome].join("|");
+        const row = grouped.get(key) ?? { provider: item.provider, model: item.model, outcome: item.outcome, count: 0, totalMs: 0 };
+        row.count += 1;
+        row.totalMs += item.ms;
+        grouped.set(key, row);
+      }
+      for (const row of grouped.values()) {
+        const id = encodeURIComponent([day, row.provider, row.model, row.outcome].join("|"));
+        batch.set(
+          db.collection("modelOutcomes").doc(id),
+          {
+            day,
+            provider: row.provider,
+            model: row.model,
+            outcome: row.outcome,
+            count: FieldValue.increment(row.count),
+            totalMs: FieldValue.increment(row.totalMs),
+          },
+          { merge: true },
+        );
+      }
+      await batch.commit();
+    },
+
+    async modelOutcomesSince(day) {
+      const snap = await (await lazy()).collection("modelOutcomes").where("day", ">=", day).limit(20_000).get();
+      return snap.docs.map((doc) => {
+        const raw = doc.data();
+        return {
+          day: String(raw["day"]),
+          provider: String(raw["provider"]),
+          model: String(raw["model"]),
+          outcome: String(raw["outcome"]),
+          count: Number(raw["count"] ?? 0),
+          totalMs: Number(raw["totalMs"] ?? 0),
+        };
+      });
+    },
+
     async getModelCatalog() {
       const snap = await (await lazy()).collection("config").doc("modelCatalog").get();
       const raw = snap.data();

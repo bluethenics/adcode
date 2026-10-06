@@ -1141,6 +1141,29 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       if (error !== null) fail("putConfig", error);
     },
 
+    // One editor's batch: a function rather than an upsert so concurrent flushes add up.
+    async recordModelOutcomes(day, items) {
+      const { error } = await (await lazy()).rpc("record_model_outcomes", {
+        p_items: items.map((item) => ({ day, provider: item.provider, model: item.model, outcome: item.outcome, ms: item.ms })),
+      });
+      if (error !== null) fail("recordModelOutcomes", error);
+    },
+
+    async modelOutcomesSince(day) {
+      const rows = await many<{ day: string; provider: string; model: string; outcome: string; count: number; total_ms: number | string }>(
+        "modelOutcomesSince",
+        (db) => db.from("model_outcomes").select("day, provider, model, outcome, count, total_ms").gte("day", day).limit(20_000),
+      );
+      return rows.map((row) => ({
+        day: row.day,
+        provider: row.provider,
+        model: row.model,
+        outcome: row.outcome,
+        count: Number(row.count),
+        totalMs: Number(row.total_ms),
+      }));
+    },
+
     /*
      * The admin panel's model list curation: one row, id 1. The document was validated by
      * `parseModelCatalog` before it reached here; jsonb keeps it whole.

@@ -10,6 +10,7 @@ import { utcDay } from "./day.ts";
 import { countDevelopers, sightings, summarizeGrowth, type MilestoneRow } from "./growth.ts";
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "./ledger.ts";
 import type { ModelCatalogRecord } from "./modelCatalog.ts";
+import type { ModelOutcomeRow } from "./modelOutcomes.ts";
 import type {
   ActivityDay,
   AdminRecord,
@@ -103,6 +104,7 @@ export function createMemoryStore(): Store & { reset(): void } {
   let admins = new Map<string, AdminRecord>();
   let config: ServingConfig = { ...DEFAULT_CONFIG };
   let modelCatalog: ModelCatalogRecord | null = null;
+  let modelOutcomes = new Map<string, ModelOutcomeRow>();
 
   return {
     reset() {
@@ -136,6 +138,7 @@ export function createMemoryStore(): Store & { reset(): void } {
       admins = new Map();
       config = { ...DEFAULT_CONFIG };
       modelCatalog = null;
+      modelOutcomes = new Map();
     },
 
     async getUser(uid) {
@@ -759,6 +762,20 @@ export function createMemoryStore(): Store & { reset(): void } {
 
     async putConfig(next) {
       config = next;
+    },
+
+    async recordModelOutcomes(day, items) {
+      for (const item of items) {
+        const key = [day, item.provider, item.model, item.outcome].join(" ");
+        const row = modelOutcomes.get(key) ?? { day, provider: item.provider, model: item.model, outcome: item.outcome, count: 0, totalMs: 0 };
+        row.count += 1;
+        row.totalMs += item.ms;
+        modelOutcomes.set(key, row);
+      }
+    },
+
+    async modelOutcomesSince(day) {
+      return [...modelOutcomes.values()].filter((row) => row.day >= day).map((row) => ({ ...row }));
     },
 
     async getModelCatalog() {

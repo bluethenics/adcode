@@ -733,6 +733,11 @@ export interface Store {
   getConfig(): Promise<ServingConfig>;
   putConfig(config: ServingConfig): Promise<void>;
 
+  /** Adds one editor's batch of finished turns to that day's per-model counts. */
+  recordModelOutcomes(day: string, items: readonly import("./modelOutcomes.ts").ModelOutcomeItem[]): Promise<void>;
+  /** Every day's per-model counts from `day` (YYYY-MM-DD, inclusive) on. */
+  modelOutcomesSince(day: string): Promise<import("./modelOutcomes.ts").ModelOutcomeRow[]>;
+
   /** The admin panel's curation of the model list; null until it is first saved. */
   getModelCatalog(): Promise<import("./modelCatalog.ts").ModelCatalogRecord | null>;
   putModelCatalog(record: import("./modelCatalog.ts").ModelCatalogRecord): Promise<void>;

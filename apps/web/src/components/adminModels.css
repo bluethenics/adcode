@@ -133,3 +133,36 @@
   gap: 4px;
   font-size: 12px;
 }
+
+/* How a model's turns ended for people: green when it nearly always works. */
+.admin-models-works[data-tone="good"] { color: var(--ok, #3fb877); font-weight: 600; }
+.admin-models-works[data-tone="warn"] { color: var(--warn, #d9a03f); font-weight: 600; }
+.admin-models-works[data-tone="bad"] { color: var(--danger, #e5534b); font-weight: 600; }
+.admin-models-works[data-tone="none"] { color: var(--muted, var(--text-secondary, inherit)); }
+
+.admin-models-failing {
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--danger, #e5534b) 40%, transparent);
+  border-radius: 14px;
+}
+
+.admin-models-failing h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.admin-models-failing ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-models-failing li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}

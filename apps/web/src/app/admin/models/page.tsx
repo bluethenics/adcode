@@ -38,6 +38,41 @@ interface SavedCatalog {
   updatedBy: string;
 }
 
+/** How a model's turns ended for real people (GET /v1/admin/model-health). */
+interface ModelHealth {
+  provider: string;
+  model: string;
+  turns: number;
+  ok: number;
+  okAvgMs: number | null;
+  outcomes: Record<string, number>;
+}
+
+/** Below this many turns a percentage says more about luck than about the model. */
+const ENOUGH_TURNS = 10;
+
+function worksLabel(health: ModelHealth | undefined): { text: string; tone: "good" | "warn" | "bad" | "none" } {
+  if (health === undefined || health.turns === 0) return { text: "—", tone: "none" };
+  const share = Math.round((health.ok / health.turns) * 100);
+  const text = `${String(share)}% of ${String(health.turns)}`;
+  if (health.turns < ENOUGH_TURNS) return { text, tone: "none" };
+  return { text, tone: share >= 90 ? "good" : share >= 70 ? "warn" : "bad" };
+}
+
+/** The outcome a failing model fails with most, in words. */
+function worstOutcome(health: ModelHealth): string {
+  const words: Record<string, string> = {
+    auth: "key refused", credits: "out of credit", rate_limit: "rate limited", too_large: "request too large",
+    model_missing: "model unavailable", no_tools: "cannot use tools", tool_format: "broken tool calls", network: "network",
+    server: "provider errors", output_limit: "output limit", thinking_limit: "thinks without answering", history: "history refused",
+    refused: "declined", other: "other errors",
+  };
+  const [outcome] = Object.entries(health.outcomes)
+    .filter(([name]) => name !== "ok" && name !== "cancelled")
+    .sort((a, b) => b[1] - a[1])[0] ?? [];
+  return outcome === undefined ? "" : (words[outcome] ?? outcome);
+}
+
 /** Rows shown per provider before "Show all": OpenRouter alone lists over three hundred. */
 const PAGE = 30;
 const NEW_FOR_DAYS = 30;
@@ -73,9 +108,18 @@ function ModelsEditor() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [health, setHealth] = useState<Map<string, ModelHealth>>(new Map());
 
   useEffect(() => {
     let active = true;
+    void (async () => {
+      try {
+        const result = await apiFetch<{ models: ModelHealth[] }>({ path: "/admin/model-health?days=7", token: await token() });
+        if (active && result.ok) setHealth(new Map(result.value.models.map((one) => [modelKey(one.provider, one.model), one])));
+      } catch {
+        // The column stays empty; the list still works.
+      }
+    })();
     void (async () => {
       try {
         const result = await apiFetch<SavedCatalog>({ path: "/admin/models", token: await token() });
@@ -174,6 +218,8 @@ function ModelsEditor() {
         {" "}{draft.hidden.length} hidden · {draft.featured.length} featured · {Object.keys(draft.recommended).length} start-here choices · {draft.added.length} added
       </p>
 
+      <FailingModels health={[...health.values()]} hidden={draft.hidden} onHide={(key) => setDraft((current) => ({ ...current, hidden: toggleKey(current.hidden, key) }))} />
+
       {catalogFailed && <div className="notice" data-tone="error" role="alert">models.dev did not answer, so the list cannot be shown. Your saved choices are untouched.</div>}
       {providers === null && !catalogFailed && <p className="lede">Reading models.dev…</p>}
 
@@ -198,6 +244,7 @@ function ModelsEditor() {
                     <th scope="col">Released</th>
                     <th scope="col">Context</th>
                     <th scope="col">Price in / out (1M)</th>
+                    <th scope="col" title="Turns that ended with an answer, last 7 days">Works</th>
                     <th scope="col">Starts here</th>
                     <th scope="col">Featured</th>
                     <th scope="col">Hidden</th>
@@ -222,6 +269,10 @@ function ModelsEditor() {
                         <td>{model.releaseDate ?? "—"}</td>
                         <td>{tokens(model.contextWindow)}</td>
                         <td>{dollars(model.inputPrice)} / {dollars(model.outputPrice)}</td>
+                        <td>{(() => {
+                          const works = worksLabel(health.get(key));
+                          return <span className="admin-models-works" data-tone={works.tone}>{works.text}</span>;
+                        })()}</td>
                         <td><input type="radio" name={`start-${provider.id}`} checked={start === model.id} onChange={() => setRecommended(provider.id, model.id)} aria-label={`Start ${provider.name} on ${model.name}`} /></td>
                         <td><input type="checkbox" checked={draft.featured.includes(key)} onChange={() => setDraft((current) => ({ ...current, featured: toggleKey(current.featured, key) }))} aria-label={`Feature ${model.name}`} /></td>
                         <td><input type="checkbox" checked={hidden} onChange={() => setDraft((current) => ({ ...current, hidden: toggleKey(current.hidden, key) }))} aria-label={`Hide ${model.name}`} /></td>
@@ -243,6 +294,38 @@ function ModelsEditor() {
 
       <AddModel providers={providers ?? []} onAdd={(added) => setDraft((current) => ({ ...current, added: [...current.added.filter((one) => !(one.provider === added.provider && one.id === added.id)), added] }))} />
     </div>
+  );
+}
+
+/** Models that fail for people most often, with a one-click hide - the evidence first. */
+function FailingModels({ health, hidden, onHide }: { health: ModelHealth[]; hidden: string[]; onHide: (key: string) => void }) {
+  const failing = health
+    .filter((one) => one.turns >= ENOUGH_TURNS && one.ok / one.turns < 0.7)
+    .sort((a, b) => a.ok / a.turns - b.ok / b.turns)
+    .slice(0, 8);
+  if (health.length === 0) {
+    return <p className="admin-models-meta">How each model does for people appears here once editors on this version report finished turns.</p>;
+  }
+  if (failing.length === 0) {
+    return <p className="admin-models-meta">No model with {ENOUGH_TURNS} or more turns in the last 7 days worked less than 70% of the time.</p>;
+  }
+  return (
+    <section className="admin-models-failing">
+      <h3>Failing for people, last 7 days</h3>
+      <ul>
+        {failing.map((one) => {
+          const key = modelKey(one.provider, one.model);
+          const isHidden = hidden.includes(key);
+          return (
+            <li key={key}>
+              <span className="admin-models-id">{key}</span>
+              <span>{String(Math.round((one.ok / one.turns) * 100))}% of {String(one.turns)} worked · mostly {worstOutcome(one)}</span>
+              <button type="button" className="btn" onClick={() => onHide(key)}>{isHidden ? "Unhide" : "Hide"}</button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

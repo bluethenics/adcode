@@ -106,6 +106,7 @@ import type { Clock, IdGen, Store } from "./store.ts";
 import { parseWebsiteEvents, summarizeWebsiteEvents, type WebsiteAnalyticsStore } from "./websiteAnalytics.ts";
 import { growthToWire } from "./growth.ts";
 import { parseModelCatalog, readModelCatalog, saveModelCatalog } from "./modelCatalog.ts";
+import { parseModelOutcomes, readModelHealth, recordModelOutcomes } from "./modelOutcomes.ts";
 
 export interface ApiServer {
   url: string;
@@ -622,6 +623,12 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       const now = clock.now();
       await store.writeAudit({ adminUid: auth.uid, action: "read-growth", subjectUid: "*", at: now });
       send(res, 200, { ...growthToWire(await store.growthStats(now)), asOf: now }, { ...cors, "cache-control": "no-store" });
+      return;
+    }
+
+    if (path === "/v1/admin/model-health" && req.method === "GET") {
+      const days = Math.min(90, daysFrom(url, 7));
+      send(res, 200, { days, models: await readModelHealth({ store, clock }, days) }, { ...cors, "cache-control": "no-store" });
       return;
     }
 
@@ -1248,6 +1255,20 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
     }
 
     /* ── First-session milestones ───────────────────────────────────── */
+
+    // How an editor's assistant turns ended, per model: counts only, no account attached.
+    if (path === "/v1/model-outcomes" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const items = parseModelOutcomes(raw);
+      if (items === null) {
+        send(res, 400, { error: "malformed outcomes" }, cors);
+        return;
+      }
+      await recordModelOutcomes({ store, clock }, items);
+      send(res, 200, { ok: true }, cors);
+      return;
+    }
 
     if (path === "/v1/milestones" && req.method === "POST") {
       const raw = await jsonBodyOr400();
