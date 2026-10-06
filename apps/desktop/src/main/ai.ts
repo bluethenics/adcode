@@ -137,6 +137,8 @@ import { createAiAutomationService, type AiAutomationService } from "./aiAutomat
 import { toAiAutomationView } from "./aiAutomationViews.ts";
 import { askOllama, localModels, startOllama } from "./localModels.ts";
 import { apiBaseUrl } from "./backend.ts";
+import { recordModelOutcome } from "./modelOutcomes.ts";
+import { outcomeOfError } from "../shared/modelOutcomes.ts";
 import { preferredOllamaModel } from "../shared/quickConnect.ts";
 
 const keys = createKeychainStore();
@@ -1284,6 +1286,8 @@ export async function aiSend(
     let paragraphBreak = false;
     let turnSucceeded = true;
     let cancelled = false;
+    let refused = false;
+    let lastError: string | null = null;
     let modelTraceRecorded = false;
     const turnStarted = Date.now();
     let toolCalls = 0;
@@ -1326,7 +1330,18 @@ export async function aiSend(
         turnSucceeded = false;
       }
       if (event.kind === "cancelled") cancelled = true;
+      if (event.kind === "error") lastError = event.detail;
+      if (event.kind === "refusal") refused = true;
     }
+
+    // How the turn ended, as one fixed word, for the admin panel's per-model health. Never
+    // the prompt, the reply or the provider's own message.
+    recordModelOutcome(
+      providerId,
+      model,
+      cancelled ? "cancelled" : refused ? "refused" : lastError !== null ? outcomeOfError(lastError) : "ok",
+      Date.now() - turnStarted,
+    );
 
     let agentEditRecorded = false;
     if (turnSucceeded && activeTaskId !== null) {
