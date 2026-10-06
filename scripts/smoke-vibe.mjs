@@ -64,6 +64,15 @@ const ollama = createServer(async (req, res) => {
     return;
   }
   chatRequests.push({ script, maxTokens: request.max_tokens ?? null });
+  if (script === "slow") {
+    if (/make it dark/i.test(userText)) {
+      sse(res, [{ choices: [{ delta: { content: "Follow-up answer." }, finish_reason: "stop" }] }]);
+      return;
+    }
+    await sleep(3000);
+    sse(res, [{ choices: [{ delta: { content: "Slow answer." }, finish_reason: "stop" }] }]);
+    return;
+  }
   if (script === "build") {
     buildStep += 1;
     if (buildStep === 1) {
@@ -193,6 +202,24 @@ try {
   checks.roomGrew = build.length === 3 && build[1] > build[0];
   await shot("01-finished-answer");
 
+  /* The model chip switches model from a small menu, not the full Connect screen. */
+  await evaluate("document.querySelector('.chat-model')?.click()");
+  await sleep(600);
+  checks.modelMenu = await evaluate(`(() => {
+    const panel = document.querySelector('.menu-panel');
+    const labels = [...(panel?.querySelectorAll('.menu-item') ?? [])].map((item) => item.textContent ?? '');
+    return {
+      open: !!panel,
+      offersCurrent: labels.some((label) => label.includes('qwen2.5-coder:7b')),
+      offersMore: labels.some((label) => label.includes('More models and providers')),
+      connectStayedShut: !document.querySelector('dialog[data-popup-id="connect"][open]'),
+      chip: document.querySelector('.chat-model')?.textContent ?? null,
+    };
+  })()`);
+  await shot("01b-model-menu");
+  await evaluate("document.querySelector('.menu-panel')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await sleep(300);
+
   /* 2. A reply that never fits: Continue once, then the chat says what will help. */
   script = "endless";
   await sendPrompt("Write the longest essay you can.");
@@ -203,7 +230,19 @@ try {
   checks.noSecondContinue = await evaluate("document.querySelectorAll('[data-nudge=\"continue\"]').length <= 1");
   await shot("03-limit-explained");
 
-  /* 3. Connect says what is true of Ollama: running, with its one chat model. */
+  /* 3. A follow-up typed while the assistant works is queued - it used to stop the turn. */
+  script = "slow";
+  await sendPrompt("Take your time with this one.");
+  await sleep(800);
+  await sendPrompt("And make it dark.");
+  checks.followUpQueued = await waitFor("document.querySelector('.chat-queued-item') !== null", 5_000);
+  await shot("04-follow-up-queued");
+  checks.turnNotStopped = await evaluate("document.querySelector('.chat-interrupted') === null");
+  checks.slowAnswerFinished = await waitFor(`/Slow answer\\./.test(${transcript})`, 30_000);
+  checks.followUpSentAfter = await waitFor(`/Follow-up answer\\./.test(${transcript})`, 30_000);
+  checks.queueEmptied = await evaluate("document.querySelector('.chat-queued-item') === null");
+
+  /* 4. Connect says what is true of Ollama: running, with its one chat model. */
   const ollamaRow = `(async () => {
     const status = await window.adcode.ai.status();
     const local = status.providers.find((one) => one.id === 'ollama');
@@ -238,6 +277,13 @@ const ok =
   checks.roomGrew === true &&
   checks.firstLimitOffersContinue === true &&
   checks.secondLimitExplains === true &&
+  checks.modelMenu?.open === true &&
+  checks.modelMenu?.offersMore === true &&
+  checks.modelMenu?.connectStayedShut === true &&
+  checks.followUpQueued === true &&
+  checks.turnNotStopped === true &&
+  checks.followUpSentAfter === true &&
+  checks.queueEmptied === true &&
   checks.ollamaRunningIsTrue === true &&
   checks.ollamaStoppedIsTrue === true &&
   checks.notReadyWithoutOllama === true;

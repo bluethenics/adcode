@@ -14,6 +14,8 @@
  * never with `left`/`top`, so dragging never triggers layout.
  */
 import { describeAiFailure, OUTPUT_LIMIT_AGAIN } from "./aiFailure.ts";
+import { createChatQueue, type QueuedMessage } from "./chatQueue.ts";
+import { chipLabel, modelChoices, rememberModel, type ModelChoice } from "./modelSwitch.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { createChatPreview } from "./chatPreview.ts";
 import { createAgentViewCard, createPlanCard, planStepsFrom, type AgentViewCard, type PlanCard } from "./chatAgentCards.ts";
@@ -51,7 +53,7 @@ import {
 } from "./composerMenu.ts";
 import { runChatWidgetIntent } from "./chatWidgetIntents.ts";
 import { createIcon, ICON } from "../workbench/icons.ts";
-import { createContextMenu, attachContextMenuDismissal } from "../workbench/contextMenu.ts";
+import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "../workbench/contextMenu.ts";
 import { compactCommand, contextMeterModel, createContextMeter } from "./contextMeter.ts";
 import { markFor } from "../motionFlip.ts";
 import { button as dialogButton, el as dialogEl, openFormModal } from "../dialogs/formDialog.ts";
@@ -345,7 +347,76 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   modelLabel.className = "chat-model";
   modelLabel.title = "Choose a provider and model (Connect)";
   modelLabel.setAttribute("aria-label", "Choose a provider and model");
-  modelLabel.addEventListener("click", () => deps.openConnect());
+  modelLabel.setAttribute("aria-haspopup", "menu");
+  modelLabel.setAttribute("aria-expanded", "false");
+
+  /*
+   * The chip switches model from a small menu, as Claude, Codex and Cursor do: what can
+   * answer now - the model in use, each connected provider's recommended model, the ones
+   * used recently - with everything else under "More models and providers".
+   */
+  const modelMenu = createContextMenu(document.body);
+  attachContextMenuDismissal(modelMenu, () => modelLabel.focus(), false);
+  const RECENT_MODELS = "adcode.chat.recentModels";
+  const readRecentModels = (): string[] => {
+    try {
+      const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_MODELS) ?? "[]");
+      return Array.isArray(parsed) ? parsed.filter((one): one is string => typeof one === "string") : [];
+    } catch {
+      return [];
+    }
+  };
+  const writeRecentModels = (list: readonly string[]): void => {
+    try {
+      localStorage.setItem(RECENT_MODELS, JSON.stringify(list));
+    } catch {
+      // Storage off: the menu still offers recommended models.
+    }
+  };
+  async function switchModel(choice: ModelChoice): Promise<void> {
+    if (choice.current) return;
+    await window.adcode.settings.write("adcode.ai.provider", choice.provider);
+    await window.adcode.settings.write("adcode.ai.model", choice.model);
+    writeRecentModels(rememberModel(readRecentModels(), choice.provider, choice.model));
+    await refreshModelStatus();
+    modeNote(`Now using ${choice.modelName} on ${choice.providerName}. The conversation carries on.`);
+  }
+  async function openModelMenu(): Promise<void> {
+    const status = await window.adcode.ai.status().catch(() => null);
+    const choices = status === null ? [] : modelChoices(status, readRecentModels());
+    if (choices.length === 0) {
+      deps.openConnect();
+      return;
+    }
+    const nodes: ContextMenuNode[] = [];
+    let lastProvider = "";
+    for (const choice of choices) {
+      if (choice.provider !== lastProvider) {
+        nodes.push({ kind: "heading", label: choice.providerName });
+        lastProvider = choice.provider;
+      }
+      nodes.push({
+        label: choice.modelName,
+        accelerator: choice.current ? "✓" : choice.recommended ? "Recommended" : choice.free ? "Free" : "",
+        run: () => void switchModel(choice).catch(() => deps.openConnect()),
+      });
+    }
+    nodes.push({ kind: "separator" }, { label: "More models and providers…", run: () => deps.openConnect() });
+    const rect = modelLabel.getBoundingClientRect();
+    modelLabel.setAttribute("aria-expanded", "true");
+    modelMenu.open(rect.left, rect.top - 4, nodes, () => modelLabel.setAttribute("aria-expanded", "false"));
+  }
+  let modelMenuWasOpen = false;
+  modelLabel.addEventListener("pointerdown", () => { modelMenuWasOpen = modelMenu.isOpen(); });
+  modelLabel.addEventListener("click", () => {
+    if (modelMenuWasOpen) { modelMenuWasOpen = false; return; }
+    // Not connected yet: the chip is the way to connect, so it opens Connect itself.
+    if (modelLabel.dataset["ready"] !== "true") {
+      deps.openConnect();
+      return;
+    }
+    void openModelMenu();
+  });
   const queueLabel = document.createElement("span");
   queueLabel.className = "chat-queue-status";
   queueLabel.setAttribute("role", "status");
@@ -370,14 +441,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       const active = status.providers.find((provider) => provider.id === status.activeProvider);
       const saved = status.providers.some((provider) => provider.hasKey && provider.needsKey);
       const label = status.ready
-        ? `${active?.displayName ?? status.activeProvider} / ${status.activeModel}`
+        ? chipLabel(status)
         : saved ? "Select a saved connection" : "Connect a model to begin";
       // No flicker: only touch the DOM when the label actually changed.
       if (modelLabel.textContent !== label) modelLabel.textContent = label;
       connectButton.textContent = status.ready || saved ? "Models" : "Connect";
       modelLabel.dataset["ready"] = String(status.ready);
       modelLabel.title = status.ready
-        ? `${status.activeModel} — change provider or model (Connect)`
+        ? `${active?.displayName ?? status.activeProvider} / ${status.activeModel} — switch model`
         : "Choose a provider and model (Connect)";
       modelLabel.setAttribute("aria-label", status.ready
         ? `Model: ${status.activeModel}. Change provider or model`
@@ -1284,6 +1355,47 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   // stopped turn should not eat the screenshot it was about.
   let pending: PendingAttachment[] = [];
 
+  /* ── Follow-ups typed while the assistant works ───────────────────── */
+
+  // Enter while a turn runs queues the message instead of stopping the work it is about.
+  // Each one goes, in order, when the turn before it finishes; Send now and × act on one.
+  const followUps = createChatQueue<PendingAttachment>();
+  /** A follow-up waiting for the turn it interrupted to finish cancelling. */
+  let sendAfterCancel: QueuedMessage<PendingAttachment> | null = null;
+  const queueStrip = document.createElement("div");
+  queueStrip.className = "chat-queued";
+  queueStrip.hidden = true;
+  queueStrip.setAttribute("aria-label", "Queued messages");
+  followUps.onChange((items) => {
+    queueStrip.replaceChildren();
+    queueStrip.hidden = items.length === 0;
+    for (const item of items) {
+      const row = document.createElement("div");
+      row.className = "chat-queued-item";
+      const label = document.createElement("span");
+      label.className = "chat-queued-label";
+      label.textContent = "Queued";
+      const text = document.createElement("span");
+      text.className = "chat-queued-text";
+      text.textContent = item.text.trim() || `${String(item.attachments.length)} attachment${item.attachments.length === 1 ? "" : "s"}`;
+      text.title = item.text;
+      const now = document.createElement("button");
+      now.type = "button";
+      now.className = "chat-queued-now";
+      now.textContent = "Send now";
+      now.title = "Stop the current step and send this now";
+      now.addEventListener("click", () => sendFollowUpNow(item.id));
+      const drop = document.createElement("button");
+      drop.type = "button";
+      drop.className = "chat-queued-remove";
+      drop.textContent = "×";
+      drop.setAttribute("aria-label", "Remove this queued message");
+      drop.addEventListener("click", () => followUps.remove(item.id));
+      row.append(label, text, now, drop);
+      queueStrip.append(row);
+    }
+  });
+
   const attachmentStrip = document.createElement("div");
   attachmentStrip.className = "chat-attachments";
   attachmentStrip.hidden = true;
@@ -1611,7 +1723,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   void window.adcode.chat.current().then((session) => {
     currentSummary = session?.summary?.text ?? null;
   }, () => undefined);
-  composer.append(input, attachmentStrip, composerNotice, toolbar, composerFooter, filePicker);
+  composer.append(queueStrip, input, attachmentStrip, composerNotice, toolbar, composerFooter, filePicker);
 
   /* ── Typed menus: `/` runs a command, `@` adds a file ─────────────────── */
 
@@ -3572,8 +3684,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (mode === "stop") workingText.textContent = "Thinking";
     sendButton.dataset["mode"] = mode;
     // Cursor-style stop: while a turn runs the button stops it, so it stays
-    // enabled and wears a spinner ring (CSS) rather than going dead. New sends
-    // are what get disabled — Enter while running stops, never queues.
+    // enabled and wears a spinner ring (CSS) rather than going dead. Enter with
+    // something typed queues it for when the turn finishes; with nothing, it stops.
     sendButton.disabled = false;
     sendButton.setAttribute("aria-busy", String(mode === "stop"));
     input.setAttribute("aria-busy", String(mode === "stop"));
@@ -3586,6 +3698,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       sendButton.title = "Send (Enter)";
       sendButton.setAttribute("aria-label", "Send message");
     }
+    refreshStopTitle();
     paintWorkingStatus();
   }
 
@@ -3755,6 +3868,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         // or, with Keep going until done on, continue without asking (five times at most).
         if (/step limit|response limit/i.test(detail)) {
           trace("Error", detail, "error");
+          // A follow-up the person queued steers better than "continue": send it instead.
+          if (/step limit/i.test(detail) && drainFollowUps()) break;
           if (keepGoing && /step limit/i.test(detail) && keptGoing < KEEP_GOING_LIMIT) {
             keptGoing += 1;
             modeNote(`Reached the step limit - keeping going (${keptGoing} of ${KEEP_GOING_LIMIT}).`);
@@ -3783,6 +3898,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         streamingBubble = null;
         finishActivity();
         setSendMode("send");
+        // Stopped to send a queued follow-up now: the follow-up is the way forward.
+        if (sendAfterCancel !== null) {
+          const item = sendAfterCancel;
+          sendAfterCancel = null;
+          window.setTimeout(() => sendQueued(item), 250);
+          break;
+        }
         interruptedBanner();
         break;
 
@@ -3799,6 +3921,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           scrollToEnd();
         }
         void refreshHistory();
+        // A follow-up typed while this turn ran goes now.
+        drainFollowUps();
         break;
       }
     }
@@ -3891,12 +4015,26 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /* ── Sending ──────────────────────────────────────────────────────────── */
 
-  function submit(): void {
+  /**
+   * Send what the composer holds. `fromKey` is Enter: while a turn runs, Enter with something
+   * typed queues it for when the turn finishes, and the button - a stop square - still stops.
+   */
+  function submit(fromKey = false): void {
     closeOpenMenu();
     // A person stepping in resets Keep going's count, whether to stop or to redirect.
     keptGoing = 0;
-    // Cursor-style stop: while a turn is running the send key stops it.
     if (sendButton.dataset["mode"] === "stop") {
+      if (fromKey && (input.value.trim().length > 0 || pending.length > 0)) {
+        if (followUps.add(input.value, pending) !== null) {
+          input.value = "";
+          autogrowComposer();
+          pending = [];
+          renderAttachments();
+          refreshStopTitle();
+        }
+        return;
+      }
+      // Cursor-style stop: with nothing typed, the send key stops the running turn.
       window.adcode.ai.cancel();
       return;
     }
@@ -4061,11 +4199,70 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       return;
     }
     // Enter sends, Shift+Enter is a newline - the convention every chat surface uses.
+    // While the assistant works, Enter queues what was typed for when it finishes.
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      submit();
+      submit(true);
     }
   });
+  input.addEventListener("input", () => refreshStopTitle());
+
+  /** The stop button says what Enter would do while a turn runs. */
+  function refreshStopTitle(): void {
+    if (sendButton.dataset["mode"] !== "stop") return;
+    const typed = input.value.trim().length > 0 || pending.length > 0;
+    sendButton.title = typed ? "Stop this turn - Enter queues your message for when it finishes" : "Stop this turn";
+  }
+
+  /** Send a queued follow-up as its own turn, retrying while the last turn finishes returning. */
+  function sendQueued(item: QueuedMessage<PendingAttachment>, attempts = 12): void {
+    const payload: AiAttachmentView[] = item.attachments.map((one) => ({ name: one.name, kind: one.kind, mediaType: one.mediaType, data: one.data }));
+    const text = item.text.trim();
+    if (attempts === 12) {
+      bubble("user", text, payload);
+      rememberSent(item.text);
+      setSendMode("stop");
+      streamingBubble = null;
+      resetActivity();
+      ensureActivity();
+    }
+    void window.adcode.ai.send(text, payload.length === 0 ? undefined : payload, currentEditorContext()).then(
+      (ok) => {
+        if (!ok) {
+          finishActivityFailed();
+          setSendMode("send");
+        }
+      },
+      (error: unknown) => {
+        if (attempts > 0 && /already handling/i.test(String(error))) {
+          window.setTimeout(() => sendQueued(item, attempts - 1), 400);
+          return;
+        }
+        finishActivityFailed();
+        setSendMode("send");
+      },
+    );
+  }
+
+  /** The next queued follow-up, once the turn before it has finished well. */
+  function drainFollowUps(): boolean {
+    const next = followUps.next();
+    if (next === undefined) return false;
+    window.setTimeout(() => sendQueued(next), 250);
+    return true;
+  }
+
+  /** Send now: stop the running turn, then send this one. */
+  function sendFollowUpNow(id: number): void {
+    const item = followUps.take(id);
+    if (item === undefined) return;
+    if (sendButton.dataset["mode"] === "stop") {
+      sendAfterCancel = item;
+      window.adcode.ai.cancel();
+      return;
+    }
+    sendQueued(item);
+  }
 
   function canOfferAnotherTeam(): boolean {
     return (

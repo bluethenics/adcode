@@ -1514,6 +1514,78 @@ button.chat-model[data-ready="false"]::before {
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
+/* ── Follow-ups queued while the assistant works ────────────────────── */
+
+.chat-queued {
+  flex: 1 0 100%;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chat-queued[hidden] {
+  display: none;
+}
+
+.chat-queued-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 6px 6px 10px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border-hairline));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-hover));
+  animation: chat-queued-in 180ms ease-out;
+}
+
+.chat-queued-label {
+  flex: none;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chat-queued-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: var(--text-xs, 12px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-queued-now,
+.chat-queued-remove {
+  flex: none;
+  padding: 3px 8px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 7px;
+  background: var(--bg-app);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chat-queued-now:hover,
+.chat-queued-remove:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+@keyframes chat-queued-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-queued-item { animation: none; }
+}
+
 /* ── Attachments: the pending strip, its chips, and the drop highlight ── */
 
 .chat-attachments {

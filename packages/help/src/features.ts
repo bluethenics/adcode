@@ -294,6 +294,12 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "adcode.ai.editPolicy": {
     keywords: ["auto apply", "apply automatically", "stop asking to approve", "approve edits", "review ai changes", "undo ai changes", "undo turn", "auto mode"],
   },
+  "adcode.ai.chatWidget": {
+    keywords: ["queue a message", "follow up while it works", "send while working", "message while busy", "send now", "queued message"],
+  },
+  "adcode.ai.model": {
+    keywords: ["switch model", "change model", "model menu", "quick model switch", "recent models", "recommended model"],
+  },
   "adcode.ai.keepGoing": {
     keywords: ["dont stop", "step limit", "finish the job", "work until done", "carry on by itself"],
   },

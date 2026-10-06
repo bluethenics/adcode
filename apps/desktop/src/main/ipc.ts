@@ -87,7 +87,7 @@ import { registerGitIpc } from "./gitIpc.ts";
 import { installApplicationMenu } from "./menu.ts";
 import { clearRecents, forgetRecent, recentFolders, rememberRecent } from "./recents.ts";
 import { collabFileChanged, disposeCollab, registerCollabIpc } from "./collabIpc.ts";
-import { invalidateFileCache } from "./sourceControl.ts";
+import { gitAt, invalidateFileCache } from "./sourceControl.ts";
 import {
   aiAnswerAnyway,
   aiUndoCheckpoint,
@@ -370,6 +370,9 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
    */
   ipcMain.handle(CHANNELS.workspaceCreateProject, async (event, idea: unknown) => {
     const root = await createProjectFolder(isString(idea) ? idea.slice(0, 500) : "");
+    // Tracked from the first file, so Changes shows what the assistant built and every edit
+    // can be reverted or committed. A machine without git still gets its project.
+    await gitAt(root).init().catch(() => undefined);
     const opened = openWorkspaceAt(root);
     if (opened !== null) {
       await remember(opened.root);

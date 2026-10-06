@@ -54,6 +54,11 @@ export function gitForWorkspace(): Git | null {
   return services()?.git ?? null;
 }
 
+/** Git for a folder that is not open yet - a project ADCode is creating. */
+export function gitAt(root: string): Git {
+  return createGit({ exec: loggingGitExec, root });
+}
+
 /** Git for who commits are recorded as: the workspace's, or the home folder's when none is open. */
 export function gitForIdentity(): Git {
   return gitForWorkspace() ?? createGit({ exec: loggingGitExec, root: homedir() });
