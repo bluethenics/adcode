@@ -1915,6 +1915,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   const setupConnectItem = document.createElement("li");
   setupConnectItem.className = "chat-setup-step";
+  setupConnectItem.style.setProperty("--i", "1");
   const setupConnect = document.createElement("button");
   setupConnect.type = "button";
   setupConnect.className = "chat-send chat-setup-action";
@@ -1928,6 +1929,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   const setupAskItem = document.createElement("li");
   setupAskItem.className = "chat-setup-step";
+  setupAskItem.style.setProperty("--i", "2");
   const setupAsk = document.createElement("button");
   setupAsk.type = "button";
   setupAsk.className = "ghost-button chat-setup-action";
@@ -2046,10 +2048,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (startersFor === hasFolder) return;
     startersFor = hasFolder;
     quickActions.replaceChildren(continueAction);
-    for (const starter of hasFolder ? projectStarters : ideaStarters) {
+    for (const [index, starter] of (hasFolder ? projectStarters : ideaStarters).entries()) {
       const action = document.createElement("button");
       action.type = "button";
       action.className = "chat-quick-action";
+      // Their place in the row, for the arrival stagger in motion.css.
+      action.style.setProperty("--i", String(index + 1));
       action.textContent = starter.label;
       const hint = document.createElement("small");
       hint.textContent = starter.hint;

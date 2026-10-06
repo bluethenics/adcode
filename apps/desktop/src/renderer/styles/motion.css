@@ -75,11 +75,38 @@
   }
 
   /* Press feel: the button gives a little under the pointer. */
-  :root:not([data-reduced-motion="true"]) :is(.agents-page, .tools-page, .chat-toolbar, .vibe-sidebar) button {
-    transition: scale 90ms ease-out;
+  :root:not([data-reduced-motion="true"]) :is(.agents-page, .tools-page, .chat-toolbar, .vibe-sidebar, .chat-conversation, .connect-view, .quick-connect) button {
+    transition: scale 90ms ease-out, translate 140ms var(--motion-curve), background-color 140ms ease, border-color 140ms ease;
   }
-  :root:not([data-reduced-motion="true"]) :is(.agents-page, .tools-page, .chat-toolbar, .vibe-sidebar) button:active:not(:disabled) {
+  :root:not([data-reduced-motion="true"]) :is(.agents-page, .tools-page, .chat-toolbar, .vibe-sidebar, .chat-conversation, .connect-view, .quick-connect) button:active:not(:disabled) {
     scale: var(--motion-press);
+  }
+
+  /*
+   * The ways forward arrive rather than pop in: a failure card, the stopped-turn banner, a
+   * note about how the assistant now works, a queued follow-up.
+   */
+  :root:not([data-reduced-motion="true"]) :is(.chat-failure, .chat-interrupted, .chat-mode-note) {
+    animation: motion-rise var(--motion-enter) var(--motion-curve) backwards;
+  }
+
+  /* An empty chat: its checklist and starters come in one after another, and lift on hover. */
+  :root:not([data-reduced-motion="true"]) :is(.chat-setup-step, .chat-quick-action) {
+    animation: motion-rise var(--motion-enter) var(--motion-curve) backwards;
+    animation-delay: calc(var(--i, 0) * var(--motion-stagger) * 2);
+  }
+  :root:not([data-reduced-motion="true"]) .chat-quick-action:hover:not(:disabled) {
+    translate: 0 -1px;
+  }
+
+  /* Menus - the model switch, Auto, right-click - open out of the control that asked. */
+  :root:not([data-reduced-motion="true"]) .menu-panel[data-context] {
+    animation: motion-grow 150ms var(--motion-curve) backwards;
+  }
+
+  /* Connect: the provider list and the model rows answer the pointer. */
+  :root:not([data-reduced-motion="true"]) :is(.connect-row, .connect-model):hover:not(:disabled) {
+    translate: 2px 0;
   }
 }
 
