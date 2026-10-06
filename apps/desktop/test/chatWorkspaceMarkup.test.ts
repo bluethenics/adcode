@@ -299,7 +299,7 @@ describe("long chat memory in the chat", () => {
   });
 
   it("makes room on /compact instead of sending it, before any connect nudge", () => {
-    const submit = source.slice(source.indexOf("  function submit(): void {"));
+    const submit = source.slice(source.indexOf("  function submit(fromKey = false): void {"));
     expect(submit.indexOf("compactCommand(text)")).toBeGreaterThan(0);
     expect(submit.indexOf("compactCommand(text)")).toBeLessThan(submit.indexOf("connectNudge("));
   });
