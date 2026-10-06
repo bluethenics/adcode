@@ -12,6 +12,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import { createCommandLineReader, detectAgent, type DetectedAgent } from "@adcode/ai/agents";
 import type { ThemeChoice } from "../../shared/api.ts";
+import { handleClipboardKey } from "./terminalClipboardKeys.ts";
 
 export interface TerminalHost {
   dispose(): void;
@@ -252,45 +253,16 @@ export async function createTerminalHost(
     return true;
   }
 
-  /*
-   * Why this is a custom key handler rather than a keybinding.
-   *
-   * In a terminal, Ctrl+V and Ctrl+C are *control characters the shell wants* - Ctrl+C is
-   * how you interrupt a running program, and taking it away would be worse than having no
-   * clipboard at all. So:
-   *
-   * - **Ctrl+Shift+V** always pastes. It is the terminal convention on Windows and Linux.
-   * - **Ctrl+V** also pastes, because on Windows people expect it to and no shell reads
-   *   Ctrl+V as anything meaningful.
-   * - **Ctrl+Shift+C** copies the selection.
-   * - **Ctrl+C** is left alone entirely unless there is a selection, and even then it only
-   *   copies when something is actually selected - otherwise it interrupts, as it must.
-   *
-   * Returning `false` tells xterm not to also handle the key, which is what stops the
-   * character reaching the pty as well.
-   */
-  terminal.attachCustomKeyEventHandler((event) => {
-    if (event.type !== "keydown") return true;
-
-    const mod = platformIsMac() ? event.metaKey : event.ctrlKey;
-    if (!mod) return true;
-
-    const key = event.key.toLowerCase();
-
-    if (key === "v") {
-      void paste();
-      return false;
-    }
-
-    if (key === "c") {
-      // With no selection this has to fall through, or Ctrl+C stops interrupting.
-      if (terminal.getSelection().length === 0) return true;
-      void copySelection();
-      return false;
-    }
-
-    return true;
-  });
+  // A custom key handler rather than a keybinding: Ctrl+C and Ctrl+V are control characters
+  // the shell wants. `terminalClipboardKeys.ts` says which keys are taken and why.
+  terminal.attachCustomKeyEventHandler((event) =>
+    handleClipboardKey(event, {
+      isMac: platformIsMac(),
+      hasSelection: () => terminal.getSelection().length > 0,
+      paste: () => void paste(),
+      copy: () => void copySelection(),
+    }),
+  );
 
   // The second route in: a real paste event, which is what a middle-click and the Edit menu
   // produce. Without this, those do nothing at all.
