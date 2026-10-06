@@ -11,6 +11,7 @@
  */
 import type { AiWorkspaceTaskView, GitStatusView } from "../../shared/api.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
+import { askGitIdentity } from "../dialogs/gitIdentityDialog.ts";
 import { attachContextMenuDismissal, createContextMenu, type ContextMenuNode } from "./contextMenu.ts";
 import { fileIcon } from "./fileIcons.ts";
 import { createIcon, ICON } from "./icons.ts";
@@ -129,7 +130,14 @@ export function createChangesView(deps: ChangesDeps): ChangesView {
         const staged = await window.adcode.git.stage(entries.map((entry) => entry.path));
         if (!staged.ok) return staged.message;
       }
-      const committed = await window.adcode.git.commit(text);
+      let committed = await window.adcode.git.commit(text);
+      // Git does not know who is committing: ask here, save it, and carry on with the commit.
+      if (!committed.ok && committed.reason === "identity") {
+        if (!(await askGitIdentity({ reason: "Git records a name and email with every commit, and it does not have yours yet." }))) {
+          return "Not committed - git still needs your name and email.";
+        }
+        committed = await window.adcode.git.commit(text);
+      }
       if (!committed.ok) return committed.message;
       message = "";
       messageOpen = false;

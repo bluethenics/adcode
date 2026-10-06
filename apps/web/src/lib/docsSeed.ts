@@ -884,6 +884,17 @@ export const DOC_SEED: readonly DocSeed[] = [
     related: ["git-gutter-diff", "git-branch-switcher"],
   },
   {
+    slug: "git-identity",
+    title: "Your name and email for commits",
+    section: "Git",
+    description: "The name and email git writes on every commit you make, set in a small form instead of a terminal.",
+    why: "Git refuses to commit until it knows who you are, and its own fix is two commands typed exactly right. A slip such as user.mail instead of user.email leaves git with no email even though you set one, and other tools hide that by supplying their own.",
+    how: "Commit as usual. If git does not know who you are, Commit and Commit & Push open a form with your name and an email filled in from your git settings and your earlier commits; pick one, keep Use for all my projects ticked, and press Save and continue - the commit goes ahead. To change it any time, run Git: Set Your Name and Email from the command palette. It is saved in git's own settings, so VS Code and the terminal use the same name.",
+    keywords: ["Your name and email for commits", "Git", "git config", "user.name", "user.email", "user.mail", "author", "who am i", "please tell me who you are", "commit identity", "git needs a name and email", "commit fails"],
+    access: ["All Features → Your name and email for commits", "Set name and email (command:git.setIdentity)"],
+    related: ["git-stage-commit-ui", "workbench-changes"],
+  },
+  {
     slug: "session-auto-save",
     title: "Auto-save after delay",
     section: "Your session",

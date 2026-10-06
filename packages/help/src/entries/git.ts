@@ -72,4 +72,14 @@ export const GIT_ENTRIES: readonly HelpEntry[] = [
     settingIds: ["adcode.git.fileTimeline"],
     related: ["adcode.session.localFileHistory", "adcode.git.blame"],
   },
+  {
+    id: "adcode.git.identity",
+    title: "Your name and email for commits",
+    plain: "The name and email git writes on every commit you make, set in a small form instead of a terminal.",
+    why: "Git refuses to commit until it knows who you are, and its own fix is two commands typed exactly right. A slip such as user.mail instead of user.email leaves git with no email even though you set one, and other tools hide that by supplying their own.",
+    how: "Commit as usual. If git does not know who you are, Commit and Commit & Push open a form with your name and an email filled in from your git settings and your earlier commits; pick one, keep Use for all my projects ticked, and press Save and continue - the commit goes ahead. To change it any time, run Git: Set Your Name and Email from the command palette. It is saved in git's own settings, so VS Code and the terminal use the same name.",
+    group: "git",
+    settingIds: [],
+    related: ["adcode.git.stageCommitUi", "workbench.changes"],
+  },
 ];

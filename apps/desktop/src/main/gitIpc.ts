@@ -8,8 +8,8 @@
  */
 import { ipcMain, shell } from "electron";
 import { githubRepositoryUrl } from "../shared/githubRepository.ts";
-import { CHANNELS, type GitOutcome, type GitStatusView } from "../shared/api.ts";
-import { gitForWorkspace, invalidateFileCache, quickOpen, searchForWorkspace } from "./sourceControl.ts";
+import { CHANNELS, type GitIdentityView, type GitOutcome, type GitStatusView } from "../shared/api.ts";
+import { gitForIdentity, gitForWorkspace, invalidateFileCache, quickOpen, searchForWorkspace } from "./sourceControl.ts";
 
 const isString = (value: unknown): value is string => typeof value === "string";
 
@@ -93,6 +93,16 @@ export function registerGitIpc(): void {
   ipcMain.handle(CHANNELS.gitInit, async () => gitForWorkspace()?.init() ?? NO_WORKSPACE);
   // The folder is the open workspace, never a path from the renderer.
   ipcMain.handle(CHANNELS.gitTrust, async () => gitForWorkspace()?.trust() ?? NO_WORKSPACE);
+
+  // Who commits are recorded as. With no folder open, only the global identity exists.
+  ipcMain.handle(CHANNELS.gitIdentity, async (): Promise<GitIdentityView> => gitForIdentity().identity());
+  ipcMain.handle(CHANNELS.gitSetIdentity, async (_event, name: unknown, email: unknown, scope: unknown): Promise<GitOutcome> => {
+    if (!isString(name) || !isString(email) || (scope !== "local" && scope !== "global")) {
+      return { ok: false, message: "Expected a name, an email and where to save them." };
+    }
+    if (scope === "local" && gitForWorkspace() === null) return NO_WORKSPACE;
+    return gitForIdentity().setIdentity(name, email, scope);
+  });
 
   ipcMain.handle(CHANNELS.gitClone, async (_event, url: unknown, target: unknown): Promise<GitOutcome> => {
     const git = gitForWorkspace();

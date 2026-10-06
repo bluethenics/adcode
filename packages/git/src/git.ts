@@ -20,6 +20,7 @@ import type {
   GitCommitDetail,
   GitCommitFile,
   GitExec,
+  GitIdentity,
   GitRemote,
   GitResult,
   GitStatus,
@@ -28,6 +29,7 @@ import type {
 } from "./types.ts";
 
 export type {
+  GitIdentity,
   BlameLine,
   FileChange,
   GitBranch,
@@ -48,6 +50,15 @@ const RECORD = "\u001e";
 
 const ok = (message = ""): GitResult => ({ ok: true, message });
 const fail = (message: string): GitResult => ({ ok: false, message });
+
+/** Git's ways of saying it does not know who is committing, across the versions in use. */
+const IDENTITY_REFUSAL =
+  /identity unknown|tell me who you are|auto-detect email|empty ident|no email was given|no name was given|user\.useConfigOnly/i;
+
+/** An address with a name, an @ and a dotted domain - enough to catch a slip, not a validator. */
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value) && value.length <= 254;
+}
 
 /** Porcelain v2 status letters, in the order git documents them. */
 function toFileChange(code: string): FileChange {
@@ -92,6 +103,10 @@ export interface Git {
   unstage(paths: readonly string[]): Promise<GitResult>;
   discard(paths: readonly string[]): Promise<GitResult>;
   commit(message: string): Promise<GitResult>;
+  /** Who a commit would be recorded as, with what to suggest when git cannot tell. */
+  identity(): Promise<GitIdentity>;
+  /** Record a name and email for this project (`local`) or every project (`global`). */
+  setIdentity(name: string, email: string, scope: "local" | "global"): Promise<GitResult>;
 
   push(): Promise<GitResult>;
   pull(): Promise<GitResult>;
@@ -436,14 +451,79 @@ export function createGit(deps: GitDeps): Git {
        */
       const identity = await run("var", "GIT_COMMITTER_IDENT");
       if (identity.code !== 0) {
-        return fail(
-          "Git needs a name and email before it can record who made this commit. " +
-            'Open the terminal and run: git config --global user.name "Your Name" ' +
+        // Only an identity problem is reported as one. Anything else - a broken config file,
+        // a git that would not start - is git's to explain, in its own words.
+        if (!IDENTITY_REFUSAL.test(`${identity.stderr}\n${identity.stdout}`)) {
+          return fail(identity.stderr.trim() || identity.stdout.trim() || "git could not check who is committing");
+        }
+        return {
+          ok: false,
+          reason: "identity",
+          message:
+            "Git needs a name and email before it can record who made this commit. " +
+            'Add them here, or open the terminal and run: git config --global user.name "Your Name" ' +
             'and git config --global user.email "you@example.com"',
-        );
+        };
       }
 
       return runResult(["commit", "-m", message], "Committed.");
+    },
+
+    async identity(): Promise<GitIdentity> {
+      const configured = async (key: string): Promise<string | null> => {
+        const result = await run("config", "--get", key);
+        const value = result.code === 0 ? result.stdout.trim() : "";
+        return value.length > 0 ? value : null;
+      };
+      const [name, email, mail] = await Promise.all([configured("user.name"), configured("user.email"), configured("user.mail")]);
+
+      // What git itself resolves - config, environment, or its own detection - is the answer
+      // to "can this commit"; the config keys are only what to prefill when it cannot.
+      const resolved = await run("var", "GIT_COMMITTER_IDENT");
+      const parsed = /^(.*?)\s*<([^>]*)>/.exec(resolved.stdout.trim());
+      const resolvedName = resolved.code === 0 ? (parsed?.[1]?.trim() ?? "") : "";
+      const resolvedEmail = resolved.code === 0 ? (parsed?.[2]?.trim() ?? "") : "";
+      const complete = resolvedName.length > 0 && resolvedEmail.length > 0;
+
+      // Earlier commits here by this person carry the email they actually use.
+      const history = await run("log", "-30", `--format=%an${FIELD}%ae`);
+      const authors = history.code === 0
+        ? history.stdout.split(/\r?\n/).map((line) => line.split(FIELD)).filter((pair) => pair.length === 2)
+        : [];
+      const lowerName = (name ?? "").toLowerCase();
+      const mine = authors.filter(([author]) => lowerName.length > 0 && author?.toLowerCase() === lowerName);
+      const pool = mine.length > 0 ? mine : authors;
+
+      const suggestedEmails: string[] = [];
+      for (const candidate of [mail, email, ...pool.map(([, address]) => address ?? "")]) {
+        if (candidate !== null && looksLikeEmail(candidate) && !suggestedEmails.includes(candidate)) suggestedEmails.push(candidate);
+      }
+
+      return {
+        name: complete ? resolvedName : name,
+        email: complete ? resolvedEmail : email,
+        complete,
+        suggestedName: name ?? pool[0]?.[0] ?? null,
+        suggestedEmails: suggestedEmails.slice(0, 5),
+        typo: mail !== null && email === null ? { key: "user.mail", value: mail } : null,
+      };
+    },
+
+    async setIdentity(name: string, email: string, scope: "local" | "global"): Promise<GitResult> {
+      const cleanName = name.trim();
+      const cleanEmail = email.trim();
+      // Values go to git as arguments, never through a shell - but one that starts with a dash
+      // would still be read as an option, and a newline would end the config line early.
+      const unsafe = (value: string): boolean => value.startsWith("-") || /[\r\n\0]/.test(value);
+      if (cleanName.length === 0 || cleanName.length > 200 || unsafe(cleanName)) return fail("Enter the name to record commits under.");
+      if (!looksLikeEmail(cleanEmail) || unsafe(cleanEmail)) return fail("Enter a valid email address, like you@example.com.");
+
+      const where = scope === "global" ? "--global" : "--local";
+      const named = await runResult(["config", where, "user.name", cleanName]);
+      if (!named.ok) return named;
+      const addressed = await runResult(["config", where, "user.email", cleanEmail]);
+      if (!addressed.ok) return addressed;
+      return ok(scope === "global" ? `Commits from this computer are now recorded as ${cleanName}.` : `Commits in this project are now recorded as ${cleanName}.`);
     },
 
     /**

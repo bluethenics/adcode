@@ -106,4 +106,23 @@ export interface BlameLine {
 export interface GitResult {
   readonly ok: boolean;
   readonly message: string;
+  /**
+   * Set when the failure has a fix the window can offer, not just words to show.
+   * `identity`: git does not know who is committing - offer the name and email form.
+   */
+  readonly reason?: "identity";
+}
+
+/** Who git will record a commit as, and what to offer when it cannot tell. */
+export interface GitIdentity {
+  readonly name: string | null;
+  readonly email: string | null;
+  /** Git can record a commit as somebody with a name and an email. */
+  readonly complete: boolean;
+  /** The name to prefill: the configured one, or the author of recent commits here. */
+  readonly suggestedName: string | null;
+  /** Emails to offer, best first: a misspelt key's value, then recent commits by this name. */
+  readonly suggestedEmails: readonly string[];
+  /** A key git ignores that was almost certainly meant as `user.email` (`user.mail`). */
+  readonly typo: { readonly key: string; readonly value: string } | null;
 }

@@ -438,6 +438,10 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("git.timeline", "Show the timeline")],
     keywords: ["file history", "past versions", "when did this change"],
   },
+  "adcode.git.identity": {
+    actions: [command("git.setIdentity", "Set name and email")],
+    keywords: ["git config", "user.name", "user.email", "user.mail", "author", "who am i", "please tell me who you are", "commit identity", "git needs a name and email", "commit fails"],
+  },
 
   /* ── Session and updates ───────────────────────────────────────────────── */
 

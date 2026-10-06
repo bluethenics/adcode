@@ -137,6 +137,7 @@ import { MAX_TERMINAL_TEAM_AGENTS, buildTerminalTeamPlan } from "@adcode/ai/term
 import { createReportDialog } from "./dialogs/reportDialog.ts";
 import { createMissingRuntimeDialog } from "./dialogs/missingRuntimeDialog.ts";
 import { createShortcutsDialog } from "./dialogs/shortcutsDialog.ts";
+import { askGitIdentity } from "./dialogs/gitIdentityDialog.ts";
 import { createHelpGuide } from "./help/helpGuide.ts";
 import { createFeatureLibrary } from "./features/featureLibrary.ts";
 import { featureFor, featureRecords, type FeatureAction } from "@adcode/help";
@@ -5873,6 +5874,16 @@ function registerCommands(): void {
       setStatus(messageFor(CHECKS.timeline, commits.length), 5000);
     }),
   );
+
+  // Who commits are recorded as. A commit asks by itself when git does not know; this is the
+  // way to see or change it without committing.
+  add("git.setIdentity", "Git: Set Your Name and Email", async () => {
+    const saved = await askGitIdentity({
+      reason: "Commits you make are recorded under this name and email.",
+      allowLocal: workspaceRoot !== null,
+    });
+    if (saved) setStatus("Saved. New commits use this name and email.", 4000);
+  });
 
   /*
    * Local file history, given a door.

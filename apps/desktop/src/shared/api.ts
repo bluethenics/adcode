@@ -603,6 +603,8 @@ export const CHANNELS = {
   gitFetch: "git:fetch",
   gitInit: "git:init",
   gitTrust: "git:trust",
+  gitIdentity: "git:identity",
+  gitSetIdentity: "git:set-identity",
   gitClone: "git:clone",
   gitAddRemote: "git:add-remote",
   gitRemotes: "git:remotes",
@@ -875,6 +877,19 @@ export interface GitBranchView {
 export interface GitOutcome {
   readonly ok: boolean;
   readonly message: string;
+  /** `identity`: git does not know who is committing - offer the name and email form. */
+  readonly reason?: "identity";
+}
+
+/** Who git records commits as, and what to prefill when it cannot tell. */
+export interface GitIdentityView {
+  readonly name: string | null;
+  readonly email: string | null;
+  readonly complete: boolean;
+  readonly suggestedName: string | null;
+  readonly suggestedEmails: readonly string[];
+  /** A key git ignores that was meant as `user.email` - `user.mail` is the usual slip. */
+  readonly typo: { readonly key: string; readonly value: string } | null;
 }
 
 export interface LineChangeView {
@@ -1831,6 +1846,10 @@ export interface AdcodeApi {
      * `safe.directory` in the global git config. Only ever on the user's explicit choice.
      */
     trust(): Promise<GitOutcome>;
+    /** Who commits are recorded as: the open folder's repository, or the global config when none is open. */
+    identity(): Promise<GitIdentityView>;
+    /** Save the name and email commits are recorded under, for this project or every project. */
+    setIdentity(name: string, email: string, scope: "local" | "global"): Promise<GitOutcome>;
     clone(url: string, target: string): Promise<GitOutcome>;
     /** Connect this repository to a remote, or correct the URL of one it already has. */
     addRemote(name: string, url: string): Promise<GitOutcome>;

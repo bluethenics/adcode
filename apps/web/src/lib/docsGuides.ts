@@ -1257,6 +1257,24 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Repo-wide history forces you to filter noise yourself. File-level timeline is the shape of the question 'what happened to this', which is the question you actually had.",
   },
 
+  "git-identity": {
+    steps: [
+      "Commit as usual - from Changes with Commit & Push, or from the Source Control panel.",
+      "If git does not know who you are, a small form opens instead of an error. Your name and an email are already filled in, taken from your git settings and the commits you made in this project before.",
+      "Pick the email you want on your commits, or type another.",
+      "Keep Use for all my projects ticked to save it for every project on this computer, or untick it to use it for this project only.",
+      "Press Save and continue. The commit goes ahead straight away.",
+      "To change the name or email later, run Git: Set Your Name and Email from the command palette.",
+    ],
+    benefits: [
+      "No terminal and no exact command to type before your first commit.",
+      "It spots the classic slip - user.mail instead of user.email - and fixes it, instead of telling you to set something you think you already set.",
+      "It is saved in git's own settings, so VS Code, the terminal and every other tool record the same name.",
+    ],
+    betterThan:
+      "Most editors pass on git's refusal - four paragraphs ending in two commands - and leave you to work out why your setup did not count. ADCode asks for the two values it needs, suggests the ones you have used before, and carries on with the commit you asked for.",
+  },
+
   "git-gutter-diff": {
     steps: [
       "On by default - the left margin of the editor shows your uncommitted changes.",

@@ -917,6 +917,17 @@ How to use it: On by default. Open the Source Control panel in the activity bar.
 
 Access: `All Features → Stage, unstage, and commit`; `Commit`; `Stage all`; `Unstage all`; `Push`; `Pull`; `Fetch`; `Initialise a repository`; `Clone a repository`; `Open Source Control`; `Turn on or off`; `Settings`.
 
+<!-- feature:adcode.git.identity -->
+### Your name and email for commits
+
+The name and email git writes on every commit you make, set in a small form instead of a terminal.
+
+Why use it: Git refuses to commit until it knows who you are, and its own fix is two commands typed exactly right. A slip such as user.mail instead of user.email leaves git with no email even though you set one, and other tools hide that by supplying their own.
+
+How to use it: Commit as usual. If git does not know who you are, Commit and Commit & Push open a form with your name and an email filled in from your git settings and your earlier commits; pick one, keep Use for all my projects ticked, and press Save and continue - the commit goes ahead. To change it any time, run Git: Set Your Name and Email from the command palette. It is saved in git's own settings, so VS Code and the terminal use the same name.
+
+Access: `All Features → Your name and email for commits`; `Set name and email`.
+
 ## Your session
 
 <!-- feature:adcode.session.autoSave -->

@@ -767,6 +767,19 @@ textarea.form-input { resize: vertical; line-height: 1.5; }
 .form-notice { margin: 0; color: var(--danger, #c24b40); font-size: 12px; }
 .form-notice[hidden] { display: none; }
 
+/* The name-and-email form a commit opens when git cannot say who it is from. */
+.git-identity-typo {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  background: var(--bg-elevated, var(--bg-editor));
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.git-identity-scope[hidden] { display: none; }
+
 /* ── The welcome: "What do you want to build?" ─────────────────────────
    One box and a few ideas, then (only if needed) connecting the AI. Wider
    than the old tour because the idea is typed here, and the quick-connect

@@ -8,6 +8,7 @@
 import type { GitOutcome, GitStatusView } from "../../shared/api.ts";
 import { githubRepositoryUrl, type GitHubDestination } from "../../shared/githubRepository.ts";
 import type { GitResult } from "../dialogs/resultDialog.ts";
+import { askGitIdentity } from "../dialogs/gitIdentityDialog.ts";
 import { createCommitBrowser, type CommitBrowserDeps } from "./commitBrowser.ts";
 import { ICON, createIcon } from "../workbench/icons.ts";
 import {
@@ -535,14 +536,22 @@ export function createSourceControlPanel(deps: SourceControlDeps): SourceControl
     commitButton.disabled = true;
     commitButton.textContent = "Committing…";
 
-    void window.adcode.git
-      .commit(text)
-      .then(
+    const commitOnce = (): Promise<GitOutcome> =>
+      window.adcode.git.commit(text).then(
         (result): GitOutcome => result,
         (error: unknown): GitOutcome => ({
           ok: false,
           message: error instanceof Error ? error.message : String(error),
         }),
+      );
+
+    void commitOnce()
+      // Git does not know who is committing: ask here, save it, and commit again.
+      .then(async (outcome) =>
+        !outcome.ok && outcome.reason === "identity" &&
+        (await askGitIdentity({ reason: "Git records a name and email with every commit, and it does not have yours yet." }))
+          ? commitOnce()
+          : outcome,
       )
       .then(async (outcome) => {
         // Only clear the box on success. Losing a written message to a failed commit is

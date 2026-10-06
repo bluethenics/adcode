@@ -4,6 +4,7 @@
  * Both are rebuilt when the workspace changes, and both fail soft: a directory that is
  * not a repository, or a git that is not installed, has to leave the editor working.
  */
+import { homedir } from "node:os";
 import { createGit, nodeGitExec, type Git } from "@adcode/git";
 import { appendOutput, appendOutputEvent } from "./output.ts";
 import { createWorkspaceSearch, rankCandidates, type WorkspaceSearch } from "@adcode/search";
@@ -51,6 +52,11 @@ const loggingGitExec: typeof nodeGitExec = {
 
 export function gitForWorkspace(): Git | null {
   return services()?.git ?? null;
+}
+
+/** Git for who commits are recorded as: the workspace's, or the home folder's when none is open. */
+export function gitForIdentity(): Git {
+  return gitForWorkspace() ?? createGit({ exec: loggingGitExec, root: homedir() });
 }
 
 export function searchForWorkspace(): WorkspaceSearch | null {
