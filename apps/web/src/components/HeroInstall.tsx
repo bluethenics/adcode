@@ -34,7 +34,7 @@ export function HeroInstall({ source = "hero", advertise = true }: { source?: st
   ) : null;
 
   if (route === "store") return <WindowsInstall source={source} secondary={secondary} />;
-  if (route === "download") return <LinuxInstall secondary={secondary} />;
+  if (route === "download") return <LinuxInstall source={source} secondary={secondary} />;
   if (route === "send") return <SendToDesktop secondary={secondary} />;
 
   if (route === "soon") {
@@ -83,7 +83,7 @@ function WindowsInstall({ source, secondary }: { source: string; secondary: Reac
           href={MICROSOFT_STORE.installerUrl(source)}
           className="marketplace-primary install-cta"
           onClick={() => {
-            trackWebsiteEvent("download_click");
+            trackWebsiteEvent("download_click", 0, undefined, source);
             setStarted(true);
           }}
         >
@@ -119,13 +119,13 @@ function WindowsInstall({ source, secondary }: { source: string; secondary: Reac
   );
 }
 
-function LinuxInstall({ secondary }: { secondary: React.ReactNode }) {
+function LinuxInstall({ source, secondary }: { source: string; secondary: React.ReactNode }) {
   const [terminal, setTerminal] = useState(false);
   const downloads = LINUX_DOWNLOADS(GITHUB_REPO);
   return (
     <div className="hero-install">
       <div className="marketplace-hero-actions">
-        <a href={downloads.deb} className="marketplace-primary install-cta" onClick={() => trackWebsiteEvent("download_click")}>
+        <a href={downloads.deb} className="marketplace-primary install-cta" onClick={() => trackWebsiteEvent("download_click", 0, undefined, source)}>
           <span className="install-cta-label">
             Download for Ubuntu / Debian
             <small>Free · .deb · x86_64</small>
@@ -134,7 +134,7 @@ function LinuxInstall({ secondary }: { secondary: React.ReactNode }) {
         {secondary}
       </div>
       <p className="hero-install-note">
-        Another distribution? <a href={downloads.appImage} onClick={() => trackWebsiteEvent("download_click")}>Download the AppImage</a>.{" "}
+        Another distribution? <a href={downloads.appImage} onClick={() => trackWebsiteEvent("download_click", 0, undefined, source)}>Download the AppImage</a>.{" "}
         <button type="button" className="install-link-button" aria-expanded={terminal} onClick={() => setTerminal((open) => !open)}>
           {terminal ? "Hide the terminal command" : "Prefer a terminal?"}
         </button>

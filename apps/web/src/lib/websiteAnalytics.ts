@@ -3,7 +3,7 @@ export type WebsiteEventName = "page_view" | "install_copy" | "download_click" |
 export type AnalyticsChoice = "accepted" | "declined";
 const consentKey = "adcode.website-analytics";
 const sessionKey = "adcode.website-session";
-interface Event { id: string; session: string; name: WebsiteEventName; path: string; source: string; campaign: string; device: string; value: number }
+interface Event { id: string; session: string; name: WebsiteEventName; path: string; source: string; campaign: string; device: string; value: number; placement?: string }
 let queue: Event[] = [];
 let timer: ReturnType<typeof setTimeout> | undefined;
 let volatileSession: { id: string; source: string; campaign: string; last: number } | undefined;
@@ -60,7 +60,8 @@ export function flushWebsiteAnalytics() {
   // No auth token, cookies, or unbounded retry queue. Telemetry cannot block the page.
   void fetch("/v1/website-events", { method: "POST", headers: { "content-type": "application/json" }, credentials: "omit", referrerPolicy: "no-referrer", body, keepalive: true }).catch(() => {});
 }
-export function trackWebsiteEvent(name: WebsiteEventName, value = 0, pathOverride?: string) {
+/** `placement` names the button an action came from ("hero", "closing"), so each install button is measured on its own. */
+export function trackWebsiteEvent(name: WebsiteEventName, value = 0, pathOverride?: string, placement?: string) {
   try {
     if (analyticsChoice() !== "accepted") return;
     const path = analyticsPath(pathOverride ?? location.pathname);
@@ -69,7 +70,8 @@ export function trackWebsiteEvent(name: WebsiteEventName, value = 0, pathOverrid
     if (queue.length && queue[0]?.session !== visit.id) flushWebsiteAnalytics();
     const ua = navigator.userAgent;
     const device = /ipad|tablet/i.test(ua) ? "tablet" : /mobi|android/i.test(ua) ? "mobile" : "desktop";
-    queue.push({ id: crypto.randomUUID(), session: visit.id, name, path, source: visit.source, campaign: visit.campaign, device, value: Math.max(0, Math.min(value, 3600000)) });
+    const where = placement !== undefined && /^[a-z0-9-]{1,40}$/.test(placement) ? { placement } : {};
+    queue.push({ id: crypto.randomUUID(), session: visit.id, name, path, source: visit.source, campaign: visit.campaign, device, value: Math.max(0, Math.min(value, 3600000)), ...where });
     if (queue.length >= 20) flushWebsiteAnalytics();
     else if (!timer) timer = setTimeout(flushWebsiteAnalytics, 3000);
   } catch { /* Analytics must never break an action. */ }
@@ -80,6 +82,8 @@ export interface WebsiteAnalyticsReport {
   daily: { day: string; views: number; sessions: number }[];
   funnels: { label: string; steps: { label: string; sessions: number; lost: number }[] }[];
   pages: Ranking[]; sources: Ranking[]; campaigns: Ranking[]; devices: Ranking[]; events: Ranking[];
+  /** Install actions by the button they came from. Absent from a server older than the placement change. */
+  placements?: Ranking[];
   metrics: { name: string; samples: number; p75: number | null }[];
 }
 export interface Ranking { label: string; count: number }

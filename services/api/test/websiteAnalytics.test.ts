@@ -53,4 +53,31 @@ describe("website analytics", () => {
     const entry = { ...event, path: "/portal", receivedAt: 1000 };
     expect(summarizeWebsiteEvents([entry], 0, 86400000, false).funnels[1]?.steps.map(step => step.sessions)).toEqual([1, 0]);
   });
+
+  /*
+   * Which button on the page a download came from. The home page has two install buttons -
+   * the hero and the closing one - and a change to either could only be judged by the total
+   * until each said which it was.
+   */
+  it("keeps which button an event came from, as a short word", () => {
+    expect(parseWebsiteEvents([{ ...event, name: "download_click", placement: "hero" }], 1000)?.[0]?.placement).toBe("hero");
+    expect(parseWebsiteEvents([event], 1000)?.[0]?.placement).toBe("");
+    for (const placement of ["Hero Button", "x".repeat(41), "<script>", 3]) {
+      expect(parseWebsiteEvents([{ ...event, placement }], 1000)).toBeNull();
+    }
+  });
+
+  it("ranks install actions by the button they came from", () => {
+    const events = parseWebsiteEvents([
+      { ...event, id: "33333333-3333-4333-8333-333333333333", name: "download_click", placement: "hero" },
+      { ...event, id: "44444444-4444-4444-8444-444444444444", name: "download_click", placement: "hero" },
+      { ...event, id: "55555555-5555-4555-8555-555555555555", name: "download_click", placement: "closing" },
+      { ...event, id: "66666666-6666-4666-8666-666666666666", name: "install_copy" },
+    ], 1000)!;
+    expect(summarizeWebsiteEvents(events, 0, 86400000, false).placements).toEqual([
+      { label: "hero", count: 2 },
+      { label: "closing", count: 1 },
+      { label: "(none)", count: 1 },
+    ]);
+  });
 });

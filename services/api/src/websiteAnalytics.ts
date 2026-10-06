@@ -3,13 +3,15 @@ export const WEBSITE_EVENTS = ["page_view", "install_copy", "download_click", "s
 export interface WebsiteEvent {
   id: string; session: string; name: string; path: string;
   source: string; campaign: string; device: string; value: number; receivedAt: number;
+  /** Which button on the page it came from ("hero", "closing"), or "" when it was not a button. */
+  placement?: string;
 }
 export interface WebsiteAnalyticsStore {
   append(events: WebsiteEvent[]): Promise<void>;
   read(start: number, end: number): Promise<{ events: WebsiteEvent[]; truncated: boolean }>;
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const keys = new Set(["id", "session", "name", "path", "source", "campaign", "device", "value"]);
+const keys = new Set(["id", "session", "name", "path", "source", "campaign", "device", "value", "placement"]);
 export function parseWebsiteEvents(raw: unknown, now: number): WebsiteEvent[] | null {
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > 20) return null;
   const result: WebsiteEvent[] = [];
@@ -22,8 +24,9 @@ export function parseWebsiteEvents(raw: unknown, now: number): WebsiteEvent[] | 
         (/^\/portal\/campaigns\//.test(e.path) && !["/portal/campaigns/new", "/portal/campaigns/detail"].includes(e.path)) ||
         typeof e.source !== "string" || !/^[a-zA-Z0-9._-]{1,80}$/.test(e.source) ||
         typeof e.campaign !== "string" || !/^[a-zA-Z0-9._-]{0,80}$/.test(e.campaign) ||
-        typeof e.device !== "string" || !["desktop", "mobile", "tablet"].includes(e.device) || typeof e.value !== "number" || !Number.isFinite(e.value) || e.value < 0 || e.value > 3600000) return null;
-    result.push({ id: e.id, session: e.session, name: e.name, path: e.path, source: e.source, campaign: e.campaign, device: String(e.device), value: e.value, receivedAt: now });
+        typeof e.device !== "string" || !["desktop", "mobile", "tablet"].includes(e.device) || typeof e.value !== "number" || !Number.isFinite(e.value) || e.value < 0 || e.value > 3600000 ||
+        (e.placement !== undefined && (typeof e.placement !== "string" || !/^[a-z0-9-]{0,40}$/.test(e.placement)))) return null;
+    result.push({ id: e.id, session: e.session, name: e.name, path: e.path, source: e.source, campaign: e.campaign, device: String(e.device), value: e.value, receivedAt: now, placement: typeof e.placement === "string" ? e.placement : "" });
   }
   return result;
 }
@@ -31,7 +34,7 @@ export function summarizeWebsiteEvents(input: WebsiteEvent[], start: number, end
   const events = [...new Map(input.filter(e => e.receivedAt >= start && e.receivedAt < end).map(e => [e.id, e])).values()];
   const views = events.filter(e => e.name === "page_view");
   const sessions = (items: WebsiteEvent[]) => new Set(items.map(e => e.session)).size;
-  const rank = (items: WebsiteEvent[], field: "path" | "source" | "campaign" | "device" | "name") => {
+  const rank = (items: WebsiteEvent[], field: "path" | "source" | "campaign" | "device" | "name" | "placement") => {
     const counts = new Map<string, number>();
     for (const e of items) { const key = e[field] || "(none)"; counts.set(key, (counts.get(key) ?? 0) + 1); }
     return [...counts].map(([label, count]) => ({ label, count })).sort((a,b) => b.count - a.count).slice(0, 20);
@@ -71,5 +74,7 @@ export function summarizeWebsiteEvents(input: WebsiteEvent[], start: number, end
   return { start, end, truncated, totalEvents: events.length, pageViews: views.length, sessions: sessions(views), installSessions,
     errorCount: events.filter(e => e.name === "js_error").length,
     engagementSeconds: Math.round(events.filter(e => e.name === "engagement").reduce((n,e) => n + e.value, 0) / 1000),
-    daily, funnels, pages: rank(views, "path"), sources: rank(views, "source"), campaigns: rank(views, "campaign"), devices: rank(views, "device"), events: rank(events.filter(e => !["page_view", "engagement", "LCP", "CLS", "INP", "FCP", "TTFB"].includes(e.name)), "name"), metrics };
+    daily, funnels, pages: rank(views, "path"), sources: rank(views, "source"), campaigns: rank(views, "campaign"), devices: rank(views, "device"), events: rank(events.filter(e => !["page_view", "engagement", "LCP", "CLS", "INP", "FCP", "TTFB"].includes(e.name)), "name"), metrics,
+    // Install actions by the button they came from: each install button judged on its own.
+    placements: rank(events.filter(e => ["download_click", "install_copy", "send_to_desktop"].includes(e.name)), "placement") };
 }
