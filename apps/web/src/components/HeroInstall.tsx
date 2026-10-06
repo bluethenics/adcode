@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { detectPlatform, installCommand, installRoute, LINUX_DOWNLOADS, MICROSOFT_STORE, type Platform } from "@/lib/platform";
+import { installLinkFor, SEND_SUBJECT, SEND_TEXT, sendInstallLink } from "@/lib/sendToDesktop";
 import { GITHUB_REPO, SITE } from "@/lib/site";
 import { trackWebsiteEvent } from "@/lib/websiteAnalytics";
 
@@ -35,7 +36,7 @@ export function HeroInstall({ source = "hero", advertise = true }: { source?: st
 
   if (route === "store") return <WindowsInstall source={source} secondary={secondary} />;
   if (route === "download") return <LinuxInstall source={source} secondary={secondary} />;
-  if (route === "send") return <SendToDesktop secondary={secondary} />;
+  if (route === "send") return <SendToDesktop source={source} secondary={secondary} />;
 
   if (route === "soon") {
     return (
@@ -145,31 +146,18 @@ function LinuxInstall({ source, secondary }: { source: string; secondary: React.
 }
 
 /**
- * A phone cannot install a desktop editor, and asking someone who tapped a post to come
- * back later on another device mostly means they will not. Sending themselves the link
- * while they still care is the next best thing - through the share sheet where there is one,
- * by copying it where there is not, or by email.
+ * A phone cannot install a desktop editor, so it gets a way to send the link to the
+ * reader's computer - share sheet or clipboard (sendToDesktop.ts), or email.
  */
-function SendToDesktop({ secondary }: { secondary: React.ReactNode }) {
+function SendToDesktop({ source, secondary }: { source: string; secondary: React.ReactNode }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
-  const link = `${SITE.origin}/versions?utm_source=send-to-desktop`;
-  const subject = "Install ADCode on my computer";
-  const body = `ADCode - the free AI code editor that pays you to build.\n\nInstall it here: ${link}`;
+  const link = installLinkFor(SITE.origin);
+  const body = `${SEND_TEXT}\n\nInstall it here: ${link}`;
 
   async function send(): Promise<void> {
-    trackWebsiteEvent("send_to_desktop");
-    try {
-      if (typeof navigator.share === "function") {
-        await navigator.share({ title: subject, text: "ADCode - the free AI code editor that pays you to build.", url: link });
-        return;
-      }
-      await navigator.clipboard.writeText(link);
-      setState("copied");
-    } catch (error) {
-      // Dismissing the share sheet is not a failure; there is nothing to report.
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setState("failed");
-    }
+    trackWebsiteEvent("send_to_desktop", 0, undefined, source);
+    const outcome = await sendInstallLink(navigator, link);
+    if (outcome === "copied" || outcome === "failed") setState(outcome);
   }
 
   return (
@@ -183,8 +171,8 @@ function SendToDesktop({ secondary }: { secondary: React.ReactNode }) {
         </button>
         <a
           className="marketplace-secondary"
-          href={`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
-          onClick={() => trackWebsiteEvent("send_to_desktop")}
+          href={`mailto:?subject=${encodeURIComponent(SEND_SUBJECT)}&body=${encodeURIComponent(body)}`}
+          onClick={() => trackWebsiteEvent("send_to_desktop", 0, undefined, source)}
         >
           Email me the link
         </a>

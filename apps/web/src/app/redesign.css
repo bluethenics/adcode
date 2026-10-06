@@ -478,10 +478,15 @@ body:has(.auth-screen) .website-consent { position: static; margin: 24px auto; b
 .versions-install .hero-install { margin: 8px 0 0; justify-items: start; text-align: left; max-width: 640px; }
 .versions-install .marketplace-hero-actions { justify-content: flex-start; margin-top: 0; }
 
+/*
+ * Phones: one full-width button per row. A row, not the column the older phone rules give
+ * every action group - in a wrapping column the 100% basis pushed the second button into a
+ * second column, off the right edge of the closing section and /versions.
+ */
 @media (max-width: 640px) {
   .install-cta { flex: 1 1 100%; justify-content: center; }
-  .studio-hero .marketplace-hero-actions { flex-wrap: wrap; }
-  .studio-hero .marketplace-hero-actions .marketplace-secondary { flex: 1 1 100%; }
+  .hero-install .marketplace-hero-actions { flex-direction: row; flex-wrap: wrap; }
+  .hero-install .marketplace-hero-actions .marketplace-secondary { flex: 1 1 100%; }
   .nav-download { display: none; }
 }
 
