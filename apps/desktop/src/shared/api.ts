@@ -350,6 +350,38 @@ export interface EarningsPreset {
   readonly projectionLabel: string | null;
 }
 
+/**
+ * This account's invite, as `GET /v1/referrals` describes it. Money stays a decimal string
+ * of micros, as everywhere the client shows money: §1, the client never computes it.
+ */
+export interface ReferralView {
+  readonly code: string;
+  readonly link: string;
+  readonly showName: boolean;
+  /** Exactly what this account's invite page says at the top. */
+  readonly inviterPreview: string;
+  /** Whether this account came in through an invite. */
+  readonly claimed: boolean;
+  /** The first name of whoever invited it, when they let it show. */
+  readonly invitedBy: string | null;
+  readonly canClaim: boolean;
+  readonly claimEndsAt: number;
+  readonly people: { readonly claimed: number; readonly seen: number; readonly cameBack: number };
+  readonly advertisers: number;
+  readonly earnedMicros: string;
+  readonly last30Micros: string;
+  readonly rates: { readonly userPercent: number; readonly advertiserPercent: number; readonly windowDays: number };
+}
+
+/**
+ * Why a claim did not go through. The first four are the server's; `invalid` is text that
+ * is not a code, `offline` is no answer, `unavailable` is a service without invites yet.
+ */
+export type InviteClaimError = "unknown-code" | "already-claimed" | "too-late" | "own-code" | "invalid" | "offline" | "unavailable";
+export type InviteClaimResult = { readonly ok: true; readonly inviterName: string | null } | { readonly ok: false; readonly error: InviteClaimError };
+/** The welcome's clipboard look. Never the clipboard's contents: those stay in main. */
+export type ClipboardInviteResult = { readonly claimed: true; readonly inviterName: string | null } | { readonly claimed: false };
+
 export interface EarningsSnapshot {
   /** Preformatted by the ledger. The renderer never does arithmetic on money (§1). */
   readonly availableLabel: string;
@@ -714,6 +746,10 @@ export const CHANNELS = {
   debugSave: "debug:save",
   activityReport: "activity:report",
   milestoneRecord: "milestone:record",
+  referralsGet: "referrals:get",
+  referralsClaim: "referrals:claim",
+  referralsCheckClipboard: "referrals:check-clipboard",
+  referralsSetShowName: "referrals:set-show-name",
   onboardingState: "onboarding:state",
   onboardingComplete: "onboarding:complete",
   pinPromptOffer: "pin:offer",
@@ -2137,6 +2173,19 @@ export interface AdcodeApi {
      * else. Fire and forget; repeats within one launch are ignored.
      */
     record(name: MilestoneName): void;
+  };
+  readonly referrals: {
+    /** Your invite: link, who joined, what it earned. Null when invites are unavailable. */
+    get(): Promise<ReferralView | null>;
+    /** Claim a code someone typed or pasted into the invite box. */
+    claim(text: string): Promise<InviteClaimResult>;
+    /**
+     * Look once for an invite the invite page put on the clipboard, and claim it. The
+     * clipboard is read in main and only an exact invite is ever sent; nothing comes back
+     * here but whether it worked.
+     */
+    checkClipboard(): Promise<ClipboardInviteResult>;
+    setShowName(show: boolean): Promise<ReferralView | null>;
   };
   readonly ads: {
     /** The main process asks the renderer to show a toast. */
