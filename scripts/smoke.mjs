@@ -3689,13 +3689,16 @@ try {
    * the second copy came from the browser's own paste, which only the real key triggers.
    * So this presses Ctrl+V in the focused terminal and counts how many times the pasted
    * command ran.
+   *
+   * A count of one proves nothing if a CDP key press never triggers the browser's paste, so
+   * the same press is made first with the bug put back - the browser's default let through -
+   * and must count two. `seesTheBug: false` means this check is blind, not that all is well.
    */
   checks.terminalCtrlVPastesOnce = await (async () => {
-    const marker = join(REPO, "smoke-paste-once.txt");
-    await rm(marker, { force: true }).catch(() => {});
-    await evaluate(
-      `window.adcode.clipboard.writeText('echo pasteonce >> smoke-paste-once.txt' + String.fromCharCode(10))`,
-    );
+    // The Paste check above writes the pty directly and needs no terminal on screen; a key
+    // press does. A fresh terminal is shown and active.
+    await runCommand("new terminal");
+    await sleep(800);
     const point = await evaluate(
       `(() => {
          const surface = [...document.querySelectorAll('.terminal-pane .xterm')]
@@ -3706,21 +3709,47 @@ try {
        })()`,
     );
     if (point === null) return { terminalVisible: false };
-    await clickAt(point.x, point.y);
-    await sleep(300);
-    await pressChord("v");
 
     const { existsSync, readFileSync } = await import("node:fs");
-    let runs = 0;
-    for (let attempt = 0; attempt < 16; attempt += 1) {
-      await sleep(500);
-      if (!existsSync(marker)) continue;
-      // Windows PowerShell writes UTF-16 with `>>`; dropping the NULs reads either encoding.
-      runs = (readFileSync(marker, "latin1").replace(/\u0000/g, "").match(/pasteonce/g) ?? []).length;
-      if (runs > 0 && attempt >= 6) break;
+    async function pasteAndCount(name) {
+      const marker = join(REPO, name);
+      await rm(marker, { force: true }).catch(() => {});
+      await evaluate(
+        `window.adcode.clipboard.writeText('echo pasteonce >> ${name}' + String.fromCharCode(10))`,
+      );
+      await clickAt(point.x, point.y);
+      await sleep(300);
+      await pressChord("v");
+      let runs = 0;
+      for (let attempt = 0; attempt < 16; attempt += 1) {
+        await sleep(500);
+        if (!existsSync(marker)) continue;
+        // Windows PowerShell writes UTF-16 with `>>`; dropping the NULs reads either encoding.
+        runs = (readFileSync(marker, "latin1").replace(/\u0000/g, "").match(/pasteonce/g) ?? []).length;
+        if (runs > 0 && attempt >= 6) break;
+      }
+      await rm(marker, { force: true }).catch(() => {});
+      return runs;
     }
-    await rm(marker, { force: true }).catch(() => {});
-    return { ranOnce: runs === 1, runs };
+
+    await evaluate(
+      `(() => {
+         const original = KeyboardEvent.prototype.preventDefault;
+         window.__smokeRestorePreventDefault = () => { KeyboardEvent.prototype.preventDefault = original; };
+         KeyboardEvent.prototype.preventDefault = function () {
+           if (this.type === 'keydown' && this.ctrlKey && this.key.toLowerCase() === 'v') return;
+           return original.call(this);
+         };
+       })()`,
+    );
+    let runsWithTheBug = 0;
+    try {
+      runsWithTheBug = await pasteAndCount("smoke-paste-twice.txt");
+    } finally {
+      await evaluate(`window.__smokeRestorePreventDefault?.()`);
+    }
+    const runs = await pasteAndCount("smoke-paste-once.txt");
+    return { seesTheBug: runsWithTheBug === 2, ranOnce: runs === 1, runsWithTheBug, runs };
   })();
 
   /* ── Terminal agent detection ─────────────────────────────────────────── */
