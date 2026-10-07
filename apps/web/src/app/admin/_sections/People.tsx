@@ -24,6 +24,35 @@ interface UserRow {
   photoUrl?: string;
 }
 
+interface InviteAttribution {
+  subjectKind: "user" | "advertiser";
+  subjectId: string;
+  code: string;
+  referrerUid: string | null;
+  how: string;
+  claimedAt: number;
+}
+
+interface InvitesView {
+  invitedBy: InviteAttribution | null;
+  invited: InviteAttribution[];
+}
+
+/** "Invited by … · Invited 3 people and 1 advertiser", or null when neither applies. */
+function invitesLine(view: InvitesView): string | null {
+  const parts: string[] = [];
+  if (view.invitedBy !== null) {
+    const by = view.invitedBy.referrerUid === null ? `campaign ${view.invitedBy.code}` : `${view.invitedBy.referrerUid} (${view.invitedBy.code})`;
+    parts.push(`Invited by ${by}, ${when(view.invitedBy.claimedAt)}`);
+  }
+  const people = view.invited.filter((a) => a.subjectKind === "user").length;
+  const advertisers = view.invited.length - people;
+  if (view.invited.length > 0) {
+    parts.push(`Invited ${people} ${people === 1 ? "person" : "people"}${advertisers > 0 ? ` and ${advertisers} advertiser${advertisers === 1 ? "" : "s"}` : ""}`);
+  }
+  return parts.length === 0 ? null : parts.join(" · ");
+}
+
 export function UsersBody({ initialQuery = "" }: { initialQuery?: string }) {
   const { token } = useAuth();
   const [rows, setRows] = useState<UserRow[]>([]);
@@ -33,6 +62,7 @@ export function UsersBody({ initialQuery = "" }: { initialQuery?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [ledger, setLedger] = useState<LedgerRowView[]>([]);
+  const [invites, setInvites] = useState<InvitesView | null>(null);
   const [query, setQuery] = useState(initialQuery);
 
   const load = useCallback(async () => {
@@ -77,13 +107,17 @@ export function UsersBody({ initialQuery = "" }: { initialQuery?: string }) {
     }
     setOpen(uid);
     setLedger([]);
+    setInvites(null);
 
-    const found = await apiFetch<LedgerPageView>({
-      path: `/admin/users/${encodeURIComponent(uid)}/ledger?limit=25`,
-      token: await token(),
-    });
+    const t = await token();
+    const [found, referred] = await Promise.all([
+      apiFetch<LedgerPageView>({ path: `/admin/users/${encodeURIComponent(uid)}/ledger?limit=25`, token: t }),
+      // Who brought them and whom they brought. Quietly absent before the invites migration.
+      apiFetch<InvitesView>({ path: `/admin/users/${encodeURIComponent(uid)}/referrals`, token: t }),
+    ]);
     if (found.ok) setLedger(found.value.rows);
     else setError(MESSAGES[found.error]);
+    if (referred.ok) setInvites(referred.value);
   };
 
   /*
@@ -202,6 +236,7 @@ export function UsersBody({ initialQuery = "" }: { initialQuery?: string }) {
 
               {open === row.uid && (
                 <div style={{ padding: "0 18px 18px" }}>
+                  {invites !== null && invitesLine(invites) !== null && <p className="field-hint">{invitesLine(invites)}</p>}
                   {ledger.length === 0 ? (
                     <p className="field-hint">No entries on this account.</p>
                   ) : (

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/AdminShell";
 import { GrowthPanel } from "@/components/GrowthPanel";
+import { SourcesPanel } from "@/components/SourcesPanel";
 import { useAuth } from "@/components/AuthProvider";
 import { TimeChart } from "@/components/charts/TimeChart";
 import { apiFetch } from "@/lib/api";
@@ -10,7 +11,7 @@ import { browserExcluded, setBrowserExcluded, type Ranking, type WebsiteAnalytic
 import "@/components/websiteAnalytics.css";
 
 export default function AnalyticsPage() {
-  return <AdminShell title="Analytics" subtitle="Who uses ADCode, what it showed them, and how the website converts."><GrowthPanel /><h2 className="growth-website-heading">Website</h2><Reports /></AdminShell>;
+  return <AdminShell title="Analytics" subtitle="Who uses ADCode, where they came from, what it showed them, and how the website converts."><GrowthPanel /><SourcesPanel /><h2 className="growth-website-heading">Website</h2><Reports /></AdminShell>;
 }
 function RankingTable({ title, rows, unit = "Page views" }: { title: string; rows: Ranking[]; unit?: string }) {
   return <section className="website-analytics-card"><h2>{title}</h2>{rows.length ? <table><thead><tr><th scope="col">{title}</th><th scope="col">{unit}</th></tr></thead><tbody>{rows.map(row => <tr key={row.label}><td>{row.label.replaceAll("_", " ")}</td><td>{row.count.toLocaleString()}</td></tr>)}</tbody></table> : <p className="website-analytics-note">No measurements yet.</p>}</section>;
