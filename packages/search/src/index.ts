@@ -23,6 +23,8 @@ export {
 
 export { loadDirectoryFilter, SKIP_DIRECTORY_NAMES, type DirectoryFilter } from "./ignore.ts";
 
+export { isBinaryByName } from "./binary.ts";
+
 export {
   createUniversalSearchCoordinator,
   rankUniversalItems,

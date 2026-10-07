@@ -57,6 +57,13 @@ describe("listing files", () => {
     expect((await search.listFiles())[0]).toBe("src/deep/c.ts");
   });
 
+  it("still lists images, so Go to File can open them", async () => {
+    await write("a.ts", "x");
+    await write("shot.png", "x");
+
+    expect((await search.listFiles()).sort()).toEqual(["a.ts", "shot.png"]);
+  });
+
   it("excludes nested worktrees and deployment caches from search", async () => {
     await write("src/main.ts", "needle");
     await write(".worktrees/old/src/main.ts", "needle");
@@ -241,6 +248,20 @@ describe("what it refuses to read", () => {
     expect(results.every((r) => r.path !== "image.png")).toBe(true);
   });
 
+  it("never opens an image, video or font - even one whose bytes would pass for text", async () => {
+    // The NUL check needs the file read first, which for a format that is never text is
+    // pure cost: a project with a few hundred screenshots spent most of every search,
+    // Go to Symbol included, reading PNGs it was always going to throw away.
+    await write("shot.png", "target\n");
+    await write("clip.mp4", "target\n");
+    await write("font.woff2", "target\n");
+    await write("icon.svg", "<svg>target</svg>\n");
+    await write("a.ts", "target\n");
+
+    const results = await collect(search.search({ pattern: "target" }));
+    expect(results.map((r) => r.path).sort()).toEqual(["a.ts", "icon.svg"]);
+  });
+
   it("skips a file larger than the cap", async () => {
     await write("huge.ts", `${"x".repeat(3_000_000)}\ntarget\n`);
     await write("a.ts", "target\n");
@@ -355,6 +376,14 @@ describe("replaceAll", () => {
 
     const summary = await search.replaceAll({ pattern: "t" }, "x");
     expect(summary.files).toBe(0);
+  });
+
+  it("never rewrites a file whose name says it is binary", async () => {
+    await write("shot.png", "t\n");
+
+    const summary = await search.replaceAll({ pattern: "t" }, "x");
+    expect(summary.files).toBe(0);
+    expect(await read("shot.png")).toBe("t\n");
   });
 
   it("refuses an empty pattern rather than rewriting every file", async () => {

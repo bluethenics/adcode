@@ -10,6 +10,7 @@
  */
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
+import { isBinaryByName } from "./binary.ts";
 import { loadDirectoryFilter, type DirectoryFilter } from "./ignore.ts";
 
 /** Past this, a file is a build artefact or a blob, not something a person is reading. */
@@ -269,6 +270,7 @@ export function createWorkspaceSearch(deps: WorkspaceSearchDeps): WorkspaceSearc
 
         if (include !== null && !include.test(path)) continue;
         if (exclude !== null && exclude.test(path)) continue;
+        if (isBinaryByName(path)) continue;
 
         const full = join(deps.root, path);
 
@@ -333,6 +335,8 @@ export function createWorkspaceSearch(deps: WorkspaceSearchDeps): WorkspaceSearc
 
         if (include !== null && !include.test(path)) continue;
         if (exclude !== null && exclude.test(path)) continue;
+        // Before the read, which is the whole point (binary.ts).
+        if (isBinaryByName(path)) continue;
 
         let contents: string;
         try {

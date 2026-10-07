@@ -227,6 +227,14 @@ describe("search", () => {
     const result = await runner.run(call("search", { pattern: "add(", literal: true }), signal());
     expect(result.content).not.toContain("blob.bin");
   });
+
+  it("never opens an image to search it, even one whose bytes would pass for text", async () => {
+    // The same rule as the editor's own search (@adcode/search), so the two cannot disagree.
+    await writeFile(join(root, "src", "shot.png"), "add(\n", "utf8");
+    const { runner } = direct();
+    const result = await runner.run(call("search", { pattern: "add(", literal: true }), signal());
+    expect(result.content).not.toContain("shot.png");
+  });
 });
 
 describe("update_plan", () => {

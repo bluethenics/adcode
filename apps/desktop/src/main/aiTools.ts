@@ -17,7 +17,7 @@ import { mkdir, readFile, readdir, rename, rm, rmdir, stat } from "node:fs/promi
 import { dirname, extname, isAbsolute, join, relative, sep } from "node:path";
 import { computeHunks, type AiFileChange, type ImageMediaType, type ToolCallBlock, type ToolRunner, type ToolRunResult } from "@adcode/ai";
 import type { NodeMemory } from "@adcode/memory";
-import { loadDirectoryFilter, type DirectoryFilter } from "@adcode/search";
+import { isBinaryByName, loadDirectoryFilter, type DirectoryFilter } from "@adcode/search";
 import { resolveSandboxPath } from "./aiSandbox.ts";
 import { clipOutput, createCommandRunner, looksLikeServer, timeoutFrom, MAX_TIMEOUT_SECONDS, type CommandReading, type CommandRunner } from "./aiCommands.ts";
 import { parseViewPageInput, type ViewPageRequest } from "./agentBrowserModel.ts";
@@ -714,7 +714,9 @@ export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
           await walk(base, root, files);
           const candidates = files
             .sort()
-            .filter((relativePath) => include === null || include.test(relativePath) || include.test(relativePath.split("/").pop() ?? ""));
+            .filter((relativePath) => include === null || include.test(relativePath) || include.test(relativePath.split("/").pop() ?? ""))
+            // Never opened: the same rule as the editor's search, so the two cannot disagree.
+            .filter((relativePath) => !isBinaryByName(relativePath));
 
           /** The matching line numbers of one file; null for a file that is not text. */
           async function scan(relativePath: string): Promise<{ lines: string[]; hits: number[] } | null> {
