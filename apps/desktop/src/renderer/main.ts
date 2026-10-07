@@ -35,6 +35,8 @@ import "./styles/licences.css";
 import "./styles/floatingPanel.css";
 import "./styles/agents.css";
 import "./styles/tools.css";
+// The chat's single spacing system: one column, one rhythm, three control heights.
+import "./styles/conversation.css";
 // Last: its reduced-motion-guarded rules refine the entrances the sheets above declare.
 import "./styles/motion.css";
 import { createFrameTask } from "./frameTask.ts";

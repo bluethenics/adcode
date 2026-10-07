@@ -1,0 +1,447 @@
+/*
+ * Conversation rhythm - the one place the chat's spacing is decided.
+ *
+ * The chat had been restyled five times (ai.css twice, interface.css, workspaceModes.css,
+ * vibeWorkspace.css, professionalShell.css), and each pass set its own numbers. The result
+ * was visible in the window: the messages and the composer ran to different right edges
+ * (the transcript's scrollbar gutter took 10px from one side only), a user bubble was
+ * 12px, 14px or 18px round depending on the mode, buttons in the same card were 28, 30 and
+ * 36px tall with 11px, 12px and 13px labels, and paragraphs, list items and headings each
+ * had their own idea of a gap.
+ *
+ * This sheet is imported after all of them and sets one system:
+ *
+ *   - one reading column, shared by the transcript and the composer, so every edge lines up;
+ *   - a 4px grid: 4 / 8 / 12 / 16 / 24 / 32, nothing in between;
+ *   - three control heights: 28 (chips and inline actions), 32 (buttons in a message or
+ *     card), 36 (the main action of a dialog), with one radius and one label size each;
+ *   - prose that reads like prose: 15px at 1.7, 16px between paragraphs, headings that
+ *     sit closer to what they introduce than to what came before.
+ *
+ * Why the odd prefix. The rules it replaces live under selectors as specific as
+ * `body[data-workspace-mode="vibe"] .vibe-workspace .chat-card .chat-composer` (0,4,1).
+ * `:is()` takes the specificity of its most specific argument whichever one matched, so
+ * `:is(body[data-workspace-mode] .vibe-workspace, html body)` weighs (0,2,1) while still
+ * matching every chat card in the document - the Vibe page, the IDE's assistant dock and
+ * the pop-out alike. Loaded last, that is enough to win without `!important`, and without
+ * a third copy of each selector per mode.
+ */
+
+:root {
+  --chat-column: 768px;
+  --chat-gutter: 24px;
+  --chat-scrollbar: 10px;
+  --chat-turn-gap: 24px;
+  --chat-prose-size: 15px;
+  --chat-prose-leading: 1.7;
+  --chat-block-gap: 16px;
+  --control-sm: 28px;
+  --control-md: 32px;
+  --control-lg: 36px;
+  --control-radius: 8px;
+  --chat-bubble-fill: color-mix(in srgb, var(--text-primary) 7%, var(--bg-app));
+}
+
+/* ── The column ────────────────────────────────────────────────────────── */
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-transcript {
+  gap: var(--chat-turn-gap);
+  /* Both edges, so the scrollbar's room is taken from each side and the column stays
+     centred over the composer instead of drifting 10px left of it. The padding gives that
+     room back (design-system.css draws a 10px scrollbar), so text and composer share
+     both edges exactly. */
+  padding: 32px max(var(--chat-gutter), calc((100% - var(--chat-column)) / 2 - var(--chat-scrollbar))) 24px;
+  scrollbar-gutter: stable both-edges;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-composer,
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-conversation[data-empty="true"] > .chat-composer {
+  box-sizing: border-box;
+  width: min(var(--chat-column), calc(100% - 2 * var(--chat-gutter)));
+  margin: 0 auto 16px;
+  padding: 12px 12px 8px 16px;
+  gap: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  background: var(--bg-elevated);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 0.08);
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-composer:focus-within {
+  border-color: color-mix(in srgb, var(--text-primary) 34%, transparent);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 0.1);
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-memory {
+  box-sizing: border-box;
+  width: min(var(--chat-column), calc(100% - 2 * var(--chat-gutter)));
+  margin-inline: auto;
+  padding: 8px 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-quick-actions {
+  box-sizing: border-box;
+  width: min(var(--chat-column), calc(100% - 2 * var(--chat-gutter)));
+  margin-inline: auto;
+  gap: 8px;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-conversation[data-empty="true"] > .chat-welcome {
+  width: min(var(--chat-column), calc(100% - 2 * var(--chat-gutter)));
+  margin-bottom: 24px;
+}
+
+/* ── Messages ──────────────────────────────────────────────────────────── */
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-bubble {
+  font-size: var(--chat-prose-size);
+  line-height: var(--chat-prose-leading);
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-bubble-user {
+  align-self: flex-end;
+  width: fit-content;
+  max-width: min(85%, 640px);
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--chat-bubble-fill);
+  line-height: 1.6;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-bubble-assistant {
+  padding: 0;
+}
+
+/* The hover row belongs to the message above it: 8px under it, not a full turn away. */
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-bubble + .chat-message-actions {
+  margin-top: calc(8px - var(--chat-turn-gap));
+  gap: 2px;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-message-action {
+  min-width: var(--control-sm);
+  min-height: var(--control-sm);
+  padding: 0 8px;
+  border-radius: var(--control-radius);
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-message-action.chat-message-icon {
+  padding: 0;
+}
+
+/* The turn's working cards (activity, plan, live preview, Undo) brought their own outer
+   margins on top of the transcript's gap, so a plan sat 35px under "Worked for" and the
+   preview 50px under the plan. The gap is the only spacing between blocks. */
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-transcript > :is(.chat-activity, .chat-plan, .chat-live-preview, .chat-checkpoint, .chat-failure) {
+  margin-block: 0;
+}
+
+/* The hover row already sits between this message and the next, so the next one needs
+   less of the turn gap: 8px, the row, 16px - not 8px, the row, and a full 24px. The
+   class list in `:is()` is there for weight, to outrank the reset just above. */
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-transcript > .chat-message-actions + :is(.chat-bubble, .chat-activity, .chat-plan, .chat-live-preview, .chat-checkpoint, .chat-failure, *) {
+  margin-top: calc(16px - var(--chat-turn-gap));
+}
+
+/* Consecutive tool rows read as one list of steps, not as separate turns. */
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .trace-entry + .trace-entry {
+  margin-top: calc(4px - var(--chat-turn-gap));
+}
+
+/* ── Prose inside a reply ──────────────────────────────────────────────── */
+
+.chat-card .chat-bubble .chat-md-para {
+  margin: 0 0 var(--chat-block-gap);
+}
+
+.chat-card .chat-bubble .chat-md-heading {
+  margin: 24px 0 8px;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.005em;
+}
+
+.chat-card .chat-bubble .chat-md-heading[data-level="1"] {
+  margin-top: 28px;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+
+.chat-card .chat-bubble .chat-md-heading[data-level="3"] {
+  margin-top: 20px;
+  font-size: var(--chat-prose-size);
+}
+
+.chat-card .chat-bubble .chat-md-list {
+  display: block;
+  margin: 0 0 var(--chat-block-gap);
+  padding-left: 24px;
+}
+
+.chat-card .chat-bubble .chat-md-list > li {
+  padding-left: 4px;
+  line-height: 1.65;
+}
+
+.chat-card .chat-bubble .chat-md-list > li + li {
+  margin-top: 6px;
+}
+
+.chat-card .chat-bubble .chat-md-list > li::marker {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-card .chat-bubble .chat-md-quote {
+  margin: 0 0 var(--chat-block-gap);
+  padding: 2px 0 2px 16px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.chat-card .chat-bubble .chat-md-rule {
+  height: 1px;
+  margin: 24px 0;
+  border: 0;
+  background: var(--border-hairline);
+}
+
+/* A heading at the very top of a reply has nothing above it to keep its distance from;
+   the last block keeps none below, so the turn gap alone separates messages. */
+.chat-card .chat-bubble > :first-child,
+.chat-card .chat-bubble .chat-md-heading:first-child {
+  margin-top: 0;
+}
+
+.chat-card .chat-bubble > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-card .chat-bubble .chat-inline-code {
+  padding: 0.12em 0.4em;
+  border: 1px solid var(--border-hairline);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  font-size: 0.86em;
+  font-weight: 400;
+}
+
+.chat-card .chat-bubble .chat-codeblock {
+  margin: 4px 0 var(--chat-block-gap);
+  border-radius: 12px;
+}
+
+.chat-card .chat-bubble .chat-codeblock-header {
+  min-height: var(--control-lg);
+  box-sizing: border-box;
+  padding: 4px 6px 4px 16px;
+}
+
+.chat-card .chat-bubble .chat-codeblock-lang {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chat-card .chat-bubble .chat-codeblock-copy {
+  min-height: var(--control-sm);
+  padding: 0 10px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chat-card .chat-bubble .chat-codeblock-copy:hover {
+  border-color: transparent;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.chat-card .chat-bubble .chat-codeblock-body {
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ── The composer's controls ───────────────────────────────────────────── */
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-input {
+  min-height: 52px;
+  padding: 4px 4px 0 0;
+  font-size: var(--chat-prose-size);
+  line-height: 1.6;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-toolbar {
+  gap: 4px;
+  align-items: center;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-toolbar :is(.chat-team-button, .chat-mode-pill, .chat-model) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--control-md);
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--control-radius);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* "Tools" is a <details>, so its summary is the button - same size as its neighbours. */
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-toolbar .composer-tools > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-md);
+  padding: 0 10px;
+  border-radius: var(--control-radius);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+/* The menu opens just above the 32px row, not into it. */
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-toolbar .composer-tools-menu {
+  bottom: calc(var(--control-md) + 4px);
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-toolbar .chat-team-button {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-toolbar :is(.chat-team-button, .composer-tools > summary):hover {
+  border-color: transparent;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-toolbar .chat-model {
+  border-color: var(--border-hairline);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-toolbar .chat-model:hover {
+  background: var(--bg-hover);
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-composer .chat-send {
+  width: var(--control-md);
+  height: var(--control-md);
+  border-radius: 10px;
+  font-size: 17px;
+  box-shadow: none;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-composer-footer {
+  padding: 0 4px;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  line-height: 16px;
+}
+
+/* ── Buttons inside the conversation ───────────────────────────────────── */
+
+/*
+ * `.chat-send` doubles as the conversation's primary button and `.ghost-button` as its
+ * secondary one (Continue, Switch model, Try again, Connect...). Outside the composer
+ * they are one size: 32px, 14px of side padding, a 13px label.
+ */
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-transcript :is(.chat-send, .ghost-button, .chat-failure-button),
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-connect-banner :is(.chat-send, .ghost-button),
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-welcome :is(.chat-send, .ghost-button) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--control-md);
+  padding: 0 14px;
+  border-radius: var(--control-radius);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-nudge-row {
+  gap: 8px;
+  margin-top: 12px;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-nudge-row .chat-nudge-action,
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-nudge-action {
+  margin-top: 12px;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-nudge-row .chat-nudge-action {
+  margin-top: 0;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-failure {
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-failure-title {
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-failure-actions {
+  gap: 8px;
+  margin-top: 12px;
+}
+
+:is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-quick-action {
+  min-height: var(--control-md);
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ── The welcome and Connect dialogs ───────────────────────────────────── */
+
+/* A dialog's buttons are its decisions: one height, one radius, one label size, whether
+   they are the main action, the free key, a local model or a pasted key. */
+:is(.onboarding, .quick-connect) :is(.chat-send, .ghost-button, .onboarding-next) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--control-lg);
+  padding: 0 16px;
+  border-radius: var(--control-radius);
+  font-size: 13px;
+  font-weight: 560;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+:is(.onboarding, .quick-connect) .onboarding-idea-chip {
+  min-height: var(--control-sm);
+  padding: 0 12px;
+  font-size: 12.5px;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --chat-gutter: 16px;
+    --chat-turn-gap: 20px;
+  }
+}

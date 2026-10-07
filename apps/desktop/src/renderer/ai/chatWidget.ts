@@ -791,6 +791,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (near) pendingUnread = 0;
     const hasContent = transcript.childElementCount > 0;
     scrollButton.hidden = near || !hasContent;
+    // A fixed offset put the pill on top of the composer's text whenever the composer was
+    // taller than 86px - which, with its toolbar and hint row, it always is. Sit it 12px
+    // above whatever height the composer has right now.
+    const composerBox = scrollButton.parentElement?.querySelector<HTMLElement>(":scope > .chat-composer");
+    if (!scrollButton.hidden && composerBox) {
+      const below = Number.parseFloat(getComputedStyle(composerBox).marginBottom) || 0;
+      scrollButton.style.bottom = `${String(Math.round(composerBox.offsetHeight + below + 12))}px`;
+    }
     if (scrollButtonLabel !== null) {
       scrollButtonLabel.textContent = pendingUnread > 0 ? `Jump to latest · ${String(pendingUnread)} new` : "Jump to latest";
     }
@@ -2079,6 +2087,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     welcome.hidden = !empty;
     quickActions.hidden = !empty;
     conversation.dataset["empty"] = String(empty);
+    // A cleared transcript has nothing below to jump to. Without this the pill kept its
+    // "Jump to latest · 7 new" from the last conversation over a brand-new, empty one.
+    if (empty) {
+      pendingUnread = 0;
+      stickToBottom = true;
+    }
+    updateScrollButton();
   };
   new MutationObserver(refreshWelcome).observe(transcript, { childList: true });
   // Floating "go to bottom" pill, anchored to the conversation above the

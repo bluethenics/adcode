@@ -79,6 +79,15 @@ function renderBold(escaped: string): string {
 }
 
 /**
+ * `*word*` as emphasis. Underscores are left alone on purpose: `snake_case_names` are
+ * everywhere in a coding chat, and turning half of one italic is worse than never
+ * italicising `_this_`. The asterisks must hug the words, so `2 * 3 * 4` stays maths.
+ */
+function renderItalic(html: string): string {
+  return html.replace(/(^|[^*\w])\*(?=\S)([^*\n]*?\S)\*(?![*\w])/g, "$1<em>$2</em>");
+}
+
+/**
  * Images the assistant itself produced, rendered as a rounded result card.
  *
  * Markdown `![alt](src)` is the only image syntax honoured — raw `<img>` HTML
@@ -142,40 +151,94 @@ export function renderChatInline(escaped: string): string {
       if (part.startsWith("`") && part.endsWith("`") && part.length >= 2) {
         return `<code class="chat-inline-code">${part.slice(1, -1)}</code>`;
       }
-      return renderReferenceButtons(renderBold(part));
+      return renderReferenceButtons(renderItalic(renderBold(part)));
     })
     .join("");
 }
 
+type LineKind = "ol" | "ul" | "quote" | "heading" | "rule" | "text";
+
+// Three digits at most, so a sentence that opens with a year ("2026. was...") stays prose.
+const ORDERED = /^\s*(\d{1,3})[.)]\s+(?=\S)/;
+const BULLET = /^\s*[-*•+]\s+(?=\S)/;
+const QUOTE = /^\s*>\s?/;
+const HEADING = /^\s*(#{1,6})\s+(?=\S)/;
+const RULE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
+
+function lineKind(line: string): LineKind {
+  if (RULE.test(line)) return "rule";
+  if (HEADING.test(line)) return "heading";
+  if (QUOTE.test(line)) return "quote";
+  if (ORDERED.test(line)) return "ol";
+  if (BULLET.test(line)) return "ul";
+  return "text";
+}
+
+/**
+ * One paragraph-separated block, read line by line, the way a model actually writes:
+ * a heading straight above its list, a sentence that introduces the bullets under it,
+ * a quote in the middle of an explanation. The old renderer only recognised a block that
+ * was *all* list or *all* heading, so "## What I'll build" followed by "1. ..." printed
+ * the hashes, and "> note" printed the angle bracket.
+ *
+ * A line that is not a new item continues the item above it (a wrapped bullet); runs of
+ * plain lines stay one paragraph with their line breaks.
+ */
 function renderTextBlock(block: string): string {
-  const lines = block.split("\n").map((line) => line.trimEnd());
-  const nonEmpty = lines.filter((line) => line.trim().length > 0);
-  if (nonEmpty.length === 0) return "";
-
-  const numbered = nonEmpty.every((line) => /^\s*\d+[.)]\s+\S/.test(line));
-  if (numbered) {
-    const items = nonEmpty
-      .map((line) => line.replace(/^\s*\d+[.)]\s+/, ""))
-      .map((item) => `<li>${renderChatInline(escapeHtml(item))}</li>`)
-      .join("");
-    return `<ol class="chat-md-list">${items}</ol>`;
+  const lines = block.split("\n").map((line) => line.trimEnd()).filter((line) => line.trim().length > 0);
+  if (lines.length === 0) return "";
+  const out: string[] = [];
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index] as string;
+    const kind = lineKind(line);
+    if (kind === "rule") {
+      out.push(`<hr class="chat-md-rule">`);
+      index += 1;
+      continue;
+    }
+    if (kind === "heading") {
+      const level = Math.min(3, (HEADING.exec(line)?.[1] ?? "##").length);
+      const text = line.replace(HEADING, "");
+      out.push(`<h${level + 2} class="chat-md-heading" data-level="${level}">${renderChatInline(escapeHtml(text))}</h${level + 2}>`);
+      index += 1;
+      continue;
+    }
+    if (kind === "quote") {
+      const quoted: string[] = [];
+      while (index < lines.length && lineKind(lines[index] as string) === "quote") {
+        quoted.push((lines[index] as string).replace(QUOTE, ""));
+        index += 1;
+      }
+      out.push(`<blockquote class="chat-md-quote">${renderChatInline(escapeHtml(quoted.join("\n"))).replace(/\n/g, "<br>")}</blockquote>`);
+      continue;
+    }
+    if (kind === "ol" || kind === "ul") {
+      const marker = kind === "ol" ? ORDERED : BULLET;
+      const items: string[] = [];
+      const start = kind === "ol" ? Number(ORDERED.exec(line)?.[1] ?? "1") : 1;
+      while (index < lines.length) {
+        const current = lines[index] as string;
+        const currentKind = lineKind(current);
+        if (currentKind === kind) items.push(current.replace(marker, ""));
+        else if (currentKind === "text" && items.length > 0 && /^\s+/.test(current)) items[items.length - 1] += ` ${current.trim()}`;
+        else break;
+        index += 1;
+      }
+      const tag = kind;
+      const startAttribute = tag === "ol" && start !== 1 ? ` start="${String(start)}"` : "";
+      const body = items.map((item) => `<li>${renderChatInline(escapeHtml(item))}</li>`).join("");
+      out.push(`<${tag} class="chat-md-list"${startAttribute}>${body}</${tag}>`);
+      continue;
+    }
+    const paragraph: string[] = [];
+    while (index < lines.length && lineKind(lines[index] as string) === "text") {
+      paragraph.push(lines[index] as string);
+      index += 1;
+    }
+    out.push(renderInlineWithImages(paragraph.join("\n")));
   }
-
-  const bulleted = nonEmpty.every((line) => /^\s*[-*•]\s+\S/.test(line));
-  if (bulleted) {
-    const items = nonEmpty
-      .map((line) => line.replace(/^\s*[-*•]\s+/, ""))
-      .map((item) => `<li>${renderChatInline(escapeHtml(item))}</li>`)
-      .join("");
-    return `<ul class="chat-md-list">${items}</ul>`;
-  }
-
-  if (nonEmpty.length === 1 && /^#{1,3}\s+\S/.test(nonEmpty[0] as string)) {
-    const heading = (nonEmpty[0] as string).replace(/^#{1,3}\s+/, "");
-    return `<p class="chat-md-heading">${renderChatInline(escapeHtml(heading))}</p>`;
-  }
-
-  return renderInlineWithImages(block);
+  return out.join("");
 }
 
 function renderCodeSegment(segment: ChatCodeSegment): string {
