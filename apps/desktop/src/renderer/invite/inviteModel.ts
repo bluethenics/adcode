@@ -61,5 +61,8 @@ export function claimMessage(result: InviteClaimResult): string {
 }
 
 export function namePreview(view: ReferralView): string {
-  return `Your invite page says: “${view.inviterPreview}”`;
+  const says = `Your invite page says: “${view.inviterPreview}”`;
+  // Allowed to show a name, and still none: an anonymous account has no name to show.
+  const nameless = view.showName && view.inviterPreview.startsWith("A developer ");
+  return nameless ? `${says} - sign in to show your first name.` : says;
 }

@@ -77,4 +77,11 @@ describe("the name switch", () => {
   it("previews the exact sentence the invite page will show", () => {
     expect(namePreview(view())).toBe("Your invite page says: “Sam invited you to ADCode”");
   });
+
+  it("explains why the name is missing when there is none to show", () => {
+    expect(namePreview(view({ inviterPreview: "A developer invited you to ADCode" })))
+      .toBe("Your invite page says: “A developer invited you to ADCode” - sign in to show your first name.");
+    expect(namePreview(view({ showName: false, inviterPreview: "A developer invited you to ADCode" })))
+      .toBe("Your invite page says: “A developer invited you to ADCode”");
+  });
 });

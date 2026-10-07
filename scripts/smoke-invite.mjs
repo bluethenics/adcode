@@ -156,7 +156,14 @@ try {
   /* The panel's Copy puts the account's own link on the clipboard. */
   await evaluate("document.querySelector('.invite-copy')?.click()");
   await sleep(800);
-  checks.copiedLink = onWindows ? (powershell("Get-Clipboard -Raw").stdout ?? "").trim() : "skipped";
+  // Read back through the app: PowerShell's Get-Clipboard can come back empty while another process holds the clipboard.
+  checks.copiedLink = await evaluate("window.adcode.clipboard.readText()");
+
+  /* And the visible close button closes it. */
+  await evaluate("document.querySelector('.invite-close')?.click()");
+  // Closed, or closing: the exit animation that finishes the close can be throttled in a window
+  // automation has not brought to the front, so a requested close counts.
+  checks.closes = await waitFor("(() => { const dialog = document.querySelector('.invite-card')?.closest('dialog'); return !dialog || !dialog.open || dialog.dataset.closing === 'true'; })()", 5_000);
 
   checks.accountMadeLocally = backend.server.signUpCount() >= 1;
 } catch (error) {
@@ -181,6 +188,8 @@ const ok =
   checks.panel?.invitedBy === "Invited by Sam" &&
   checks.panel?.claimBoxShown === false &&
   checks.panel?.terms?.length === 3 &&
+  checks.copiedLink === "https://adcode.bluethenics.com/i/mylocal" &&
+  checks.closes === true &&
   checks.accountMadeLocally === true;
 if (!ok) console.log(output.slice(-3000));
 process.exit(ok ? 0 : 1);

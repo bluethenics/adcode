@@ -120,6 +120,19 @@ describe("the clipboard check", () => {
     expect(await h.client.checkClipboard()).toEqual({ claimed: true, inviterName: null });
   });
 
+  it("tries again later when the service has no invites yet, rather than burning the code", async () => {
+    // A desktop release can reach people before the database migration: a 503 is not the code's fault.
+    let live = false;
+    const h = harness({
+      clipboard: "ADCode invite: k7p4qzm",
+      respond: () => (live ? { status: 200, body: { ok: true, inviterName: "Sam" } } : { status: 503, body: { error: "referrals-unavailable" } }),
+    });
+    expect(await h.client.checkClipboard()).toEqual({ claimed: false });
+    expect(h.state().done).toBe(false);
+    live = true;
+    expect(await h.client.checkClipboard()).toEqual({ claimed: true, inviterName: "Sam" });
+  });
+
   it("remembers every account this machine has held and sends the earlier ones", async () => {
     const h = harness({ clipboard: "ADCode invite: k7p4qzm" });
     await h.client.get(); // seen as "me"

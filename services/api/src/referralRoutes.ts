@@ -444,8 +444,11 @@ export async function awardReport(deps: { store: Store; clock: Clock }, adminUid
   };
   try {
     await deps.store.appendEntryAndUpdateBalance(entry);
-  } catch {
-    return { ok: false, error: "already-awarded" };
+  } catch (error) {
+    // Every store reports a duplicate entry id the same way; anything else is a real failure,
+    // and saying "already thanked" about it would hide that the person was never paid.
+    if (error instanceof Error && /already exists/.test(error.message)) return { ok: false, error: "already-awarded" };
+    throw error;
   }
   await deps.store.setReportStatus(reportId, "closed");
   await deps.store.writeAudit({ adminUid, action: "award-report", subjectUid: report.uid, at: deps.clock.now() });

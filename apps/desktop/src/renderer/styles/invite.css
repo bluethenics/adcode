@@ -265,3 +265,38 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+
+.invite-kicker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* Drawn like every other close button (see `.earnings-close` and `icons.ts`). */
+.invite-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.invite-close:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.invite-close svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}

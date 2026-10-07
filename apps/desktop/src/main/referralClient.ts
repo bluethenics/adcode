@@ -204,8 +204,9 @@ export function createReferralClient(deps: ReferralClientDeps): ReferralClient {
       await deps.save(tried);
       const result = await sendClaim(code, "clipboard", tried);
 
-      if (!result.ok && result.error === "offline") {
-        // Not the code's fault: let the next look try it again.
+      if (!result.ok && (result.error === "offline" || result.error === "unavailable")) {
+        // Not the code's fault - no network, or a service without invites yet (a desktop
+        // release can arrive before the database migration). Let the next look try it again.
         await deps.save({ ...tried, tried: tried.tried.filter((t) => t !== code) });
         return { claimed: false };
       }

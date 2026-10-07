@@ -8,6 +8,7 @@
  */
 import type { ReferralView } from "../../shared/api.ts";
 import { advertiserPitch, inviteLink, withBuiltWithLine } from "../../shared/invite.ts";
+import { ICON, iconButton } from "../workbench/icons.ts";
 import { claimMessage, earnedLine, howItWorks, invitedLine, namePreview, peopleLine } from "./inviteModel.ts";
 
 export interface InvitePanelDeps {
@@ -15,6 +16,8 @@ export interface InvitePanelDeps {
   readonly notify: (text: string) => void;
   /** The open project's folder, for the "Built with ADCode" line. Null with no project open. */
   readonly workspaceRoot: () => string | null;
+  /** The visible close button; the popup shell owns every other way out. */
+  readonly onRequestClose: () => void;
 }
 
 export interface InvitePanel {
@@ -38,10 +41,11 @@ export function createInvitePanel(deps: InvitePanelDeps): InvitePanel {
   card.dataset["state"] = "loading";
 
   const hero = el("header", "invite-hero");
-  hero.append(
-    el("p", "invite-kicker", "Invite & earn"),
-    el("h2", "invite-title", "Bring people to ADCode. Earn from what they bring in."),
-  );
+  const close = iconButton("Close Invite & earn", ICON.close, "invite-close");
+  close.addEventListener("click", deps.onRequestClose);
+  const kickerRow = el("div", "invite-kicker-row");
+  kickerRow.append(el("p", "invite-kicker", "Invite & earn"), close);
+  hero.append(kickerRow, el("h2", "invite-title", "Bring people to ADCode. Earn from what they bring in."));
 
   const linkRow = el("div", "invite-link-row");
   const link = el("code", "invite-link", "…");

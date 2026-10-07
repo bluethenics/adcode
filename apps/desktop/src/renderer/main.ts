@@ -5066,7 +5066,11 @@ earningsActivity.addEventListener("click", () =>
  * Invite & earn. Anchored to the Earnings button because that is the door people already
  * use for money; the command palette, the feature library and the earnings card all open it.
  */
-const invitePanel = createInvitePanel({ notify: (text) => setStatus(text, 4000), workspaceRoot: () => workspaceRoot });
+const invitePanel = createInvitePanel({
+  notify: (text) => setStatus(text, 4000),
+  workspaceRoot: () => workspaceRoot,
+  onRequestClose: () => closePrimaryPopup("invite"),
+});
 const inviteShell = createPopupShell({
   id: "invite",
   title: "Invite & earn",

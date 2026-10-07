@@ -248,6 +248,31 @@ describe("admin", () => {
   });
 });
 
+describe("an award the database could not write", () => {
+  it("is an error, not a claim that the report was already thanked", async () => {
+    const base = createMemoryStore();
+    let failing = false;
+    const flaky: Store = new Proxy(base, {
+      get(target, key, receiver) {
+        const value = Reflect.get(target, key, receiver);
+        if (key !== "appendEntryAndUpdateBalance") return value;
+        return async (...args: unknown[]) => {
+          if (failing) throw new Error("supabase appendEntryAndUpdateBalance: connection reset");
+          return (value as (...a: unknown[]) => Promise<void>).apply(target, args);
+        };
+      },
+    });
+    const { call } = setup(flaky);
+    await flaky.addAdmin({ email: "owner@site.test", addedBy: "setup", addedAt: 0 });
+    const report = await call("POST", "/reports", "newbie", { kind: "bug", title: "T", body: "B", appVersion: "1", platform: "win32" });
+    failing = true;
+    const result = await call("POST", `/admin/reports/${report.body.reportId as string}/award`, "owner", { micros: "1000000" });
+    expect(result.status).toBe(500);
+    failing = false;
+    expect((await call("POST", `/admin/reports/${report.body.reportId as string}/award`, "owner", { micros: "1000000" })).status).toBe(200);
+  });
+});
+
 describe("before the migration is applied", () => {
   it("keeps every other endpoint working and says invites are unavailable", async () => {
     const base = createMemoryStore();
