@@ -101,7 +101,23 @@ import {
   type WithdrawalRow,
   type ServeRow,
   type UserRow,
+  ATTRIBUTION_COLS,
+  REF_CODE_COLS,
+  REFERRAL_CONFIG_COLS,
+  fromAttribution,
+  fromRefCode,
+  fromReferralConfig,
+  toAttribution,
+  toRefCode,
+  toReferralConfig,
+  toReferrerSummary,
+  toSourceFact,
+  type AttributionRow,
+  type RefCodeRow,
+  type ReferralConfigRow,
+  type SourceFactRow,
 } from "./supabaseRows.ts";
+import { DEFAULT_REFERRAL_CONFIG, type AttributionRecord } from "../src/store.ts";
 import type {
   ActivityDay,
   CampaignStats,
@@ -831,6 +847,13 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       return { rows: kept.map(toReport), nextCursor };
     },
 
+    async getReport(reportId) {
+      const row = await maybe<ReportRow>("getReport", (db) =>
+        db.from("reports").select(REPORT_COLS).eq("report_id", reportId).maybeSingle(),
+      );
+      return row === null ? null : toReport(row);
+    },
+
     async setReportStatus(reportId, status) {
       const rows = await many<{ report_id: string }>("setReportStatus", (db) =>
         db.from("reports").update({ status }).eq("report_id", reportId).select("report_id"),
@@ -1195,6 +1218,105 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
         updated_by: record.updatedBy,
       });
       if (error !== null) fail("putModelCatalog", error);
+    },
+
+    /* ── Referrals: `20261007120000_referrals.sql` ─────────────────────── */
+
+    async getReferralConfig() {
+      const row = await maybe<ReferralConfigRow>("getReferralConfig", (db) =>
+        db.from("referral_config").select(REFERRAL_CONFIG_COLS).eq("id", 1).maybeSingle(),
+      );
+      return row === null ? { ...DEFAULT_REFERRAL_CONFIG, houseAdvertiserIds: [] } : toReferralConfig(row);
+    },
+
+    async putReferralConfig(config) {
+      const { error } = await (await lazy()).from("referral_config").upsert(fromReferralConfig(config));
+      if (error !== null) fail("putReferralConfig", error);
+    },
+
+    async getRefCode(code) {
+      const row = await maybe<RefCodeRow>("getRefCode", (db) =>
+        db.from("ref_codes").select(REF_CODE_COLS).eq("code", code).maybeSingle(),
+      );
+      return row === null ? null : toRefCode(row);
+    },
+
+    async refCodeForOwner(uid) {
+      const row = await maybe<RefCodeRow>("refCodeForOwner", (db) =>
+        db.from("ref_codes").select(REF_CODE_COLS).eq("owner_uid", uid).maybeSingle(),
+      );
+      return row === null ? null : toRefCode(row);
+    },
+
+    async createRefCode(record) {
+      // The primary key and `ref_codes_owner_idx` are what refuse a duplicate, including the
+      // second of two first requests racing to make one account's code.
+      const { error } = await (await lazy()).from("ref_codes").insert(fromRefCode(record));
+      if (error === null) return true;
+      if (error.code === UNIQUE_VIOLATION) return false;
+      fail("createRefCode", error);
+    },
+
+    async updateRefCode(code, patch) {
+      const changes: Record<string, unknown> = {};
+      if (patch.label !== undefined) changes["label"] = patch.label;
+      if (patch.active !== undefined) changes["active"] = patch.active;
+      if (patch.showName !== undefined) changes["show_name"] = patch.showName;
+      const rows = await many<RefCodeRow>("updateRefCode", (db) =>
+        db.from("ref_codes").update(changes).eq("code", code).select(REF_CODE_COLS),
+      );
+      const row = rows[0];
+      return row === undefined ? null : toRefCode(row);
+    },
+
+    async listCampaignCodes() {
+      const rows = await many<RefCodeRow>("listCampaignCodes", (db) =>
+        db.from("ref_codes").select(REF_CODE_COLS).is("owner_uid", null).order("created_at", { ascending: false }),
+      );
+      return rows.map(toRefCode);
+    },
+
+    async getAttribution(kind, subjectId) {
+      const row = await maybe<AttributionRow>("getAttribution", (db) =>
+        db.from("attributions").select(ATTRIBUTION_COLS).eq("subject_kind", kind).eq("subject_id", subjectId).maybeSingle(),
+      );
+      return row === null ? null : toAttribution(row);
+    },
+
+    async createAttribution(record) {
+      const { error } = await (await lazy()).from("attributions").insert(fromAttribution(record));
+      if (error === null) return true;
+      if (error.code === UNIQUE_VIOLATION) return false;
+      fail("createAttribution", error);
+    },
+
+    async settleReferrals(day, now) {
+      const raw = await scalar<{ referrers: number; micros: string }>("settleReferrals", (db) =>
+        db.rpc("settle_referrals", { p_day: day, p_now: now }),
+      );
+      return { referrers: Number(raw.referrers), micros: toMicros(raw.micros) };
+    },
+
+    async referralSummary(uid, now) {
+      const raw = await scalar<Parameters<typeof toReferrerSummary>[0]>("referralSummary", (db) =>
+        db.rpc("referral_summary", { p_uid: uid, p_now: now }),
+      );
+      return toReferrerSummary(raw);
+    },
+
+    async referralSourceFacts(since) {
+      const rows = await many<SourceFactRow>("referralSourceFacts", (db) =>
+        db.rpc("referral_source_facts", { p_since: since }),
+      );
+      return rows.map(toSourceFact);
+    },
+
+    async referralsForUser(uid) {
+      const raw = await scalar<{ invitedBy: AttributionRecord | null; invited: AttributionRecord[] }>(
+        "referralsForUser",
+        (db) => db.rpc("referrals_for_user", { p_uid: uid }),
+      );
+      return { invitedBy: raw.invitedBy ?? null, invited: raw.invited ?? [] };
     },
 
     async writeAudit(record) {

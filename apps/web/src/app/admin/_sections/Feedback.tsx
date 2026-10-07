@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
-import { when } from "@/components/money";
+import { dollarsToMicros, moneyExact, when } from "@/components/money";
 
 /**
  * Bugs, requests and questions filed from inside the editor.
@@ -66,6 +66,10 @@ export function ReportsBody({ initialQuery = "" }: { initialQuery?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  // Thank-you awards: which report has the picker open, what was given, and a custom amount.
+  const [awarding, setAwarding] = useState<string | null>(null);
+  const [awarded, setAwarded] = useState<Record<string, string>>({});
+  const [customAward, setCustomAward] = useState("");
   // Open first, because the queue is the reason to be here. A pasted id widens it, or the
   // row somebody followed a link to would be hidden by a filter they did not choose.
   const [filter, setFilter] = useState<Filter>(initialQuery === "" ? "open" : "all");
@@ -102,6 +106,33 @@ export function ReportsBody({ initialQuery = "" }: { initialQuery?: string }) {
     // Locally, rather than reloading: the list is long and the row you just acted on
     // should not jump because a hundred others were re-fetched around it.
     setRows((current) => current.map((r) => (r.reportId === reportId ? { ...r, status } : r)));
+  };
+
+  /*
+   * Thank the person who filed it, into their ADCode balance - once per report, and the
+   * report is closed by it. Money moves, so the amount is chosen, never defaulted.
+   */
+  const award = async (reportId: string, micros: string | null): Promise<void> => {
+    if (micros === null) {
+      setError("Enter an amount like 2.50 - at most $100.");
+      return;
+    }
+    setBusy(reportId);
+    const result = await apiFetch<{ ok: true; micros: string }>({
+      path: `/admin/reports/${encodeURIComponent(reportId)}/award`,
+      token: await token(),
+      method: "POST",
+      body: { micros },
+    });
+    setBusy(null);
+    setAwarding(null);
+    setCustomAward("");
+    if (!result.ok) {
+      setError(result.error === "invalid-state" ? "That report has already been thanked." : MESSAGES[result.error]);
+      return;
+    }
+    setAwarded((current) => ({ ...current, [reportId]: result.value.micros }));
+    setRows((current) => current.map((r) => (r.reportId === reportId ? { ...r, status: "closed" } : r)));
   };
 
   const remove = async (reportId: string): Promise<void> => {
@@ -227,6 +258,34 @@ export function ReportsBody({ initialQuery = "" }: { initialQuery?: string }) {
                   onClick={() => void setStatus(report.reportId, "open")}
                 >
                   Reopen
+                </button>
+              )}
+
+              {awarded[report.reportId] !== undefined ? (
+                <span className="pill" data-tone="live">Thanked {moneyExact(awarded[report.reportId] ?? "0")}</span>
+              ) : awarding === report.reportId ? (
+                <>
+                  {[["$0.50", "500000"], ["$1", "1000000"], ["$5", "5000000"]].map(([label, micros]) => (
+                    <button key={label} className="btn btn-outline btn-small" disabled={busy === report.reportId} onClick={() => void award(report.reportId, micros ?? null)}>
+                      {label}
+                    </button>
+                  ))}
+                  <input
+                    className="input"
+                    style={{ width: 90 }}
+                    aria-label="Custom award in dollars"
+                    placeholder="$ other"
+                    value={customAward}
+                    onChange={(event) => setCustomAward(event.target.value)}
+                  />
+                  <button className="btn btn-primary btn-small" disabled={busy === report.reportId || customAward.trim() === ""} onClick={() => void award(report.reportId, dollarsToMicros(customAward))}>
+                    Thank
+                  </button>
+                  <button className="btn btn-outline btn-small" onClick={() => setAwarding(null)}>Cancel</button>
+                </>
+              ) : (
+                <button className="btn btn-outline btn-small" onClick={() => setAwarding(report.reportId)}>
+                  Thank with an award
                 </button>
               )}
 

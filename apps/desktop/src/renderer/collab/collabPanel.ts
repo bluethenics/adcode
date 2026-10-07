@@ -18,6 +18,7 @@
  * it is the one that stops being about text: it hands someone a shell on this machine.
  */
 import { abbreviateInvite } from "@adcode/collab";
+import { INVITE_ORIGIN, collabInviteText, inviteLink } from "../../shared/invite.ts";
 import { ICON, iconButton } from "../workbench/icons.ts";
 import type {
   CollabParticipantView,
@@ -160,6 +161,15 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
 
   inviteRow.append(inviteText, copyButton);
 
+  /*
+   * A guest has to have ADCode to join, so for someone who does not, the message that
+   * matters is "install it, then paste this" - and the install link is the host's invite.
+   */
+  const newcomerButton = document.createElement("button");
+  newcomerButton.type = "button";
+  newcomerButton.className = "ghost-button collab-newcomer";
+  newcomerButton.textContent = "Invite someone who doesn't have ADCode yet";
+
   /**
    * Which address to publish.
    *
@@ -173,7 +183,7 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
   const exposure = document.createElement("p");
   exposure.className = "collab-warning";
 
-  inviteSection.body.append(inviteRow, addressPicker, exposure);
+  inviteSection.body.append(inviteRow, newcomerButton, addressPicker, exposure);
 
   const rosterSection = section("People");
   const roster = document.createElement("ul");
@@ -270,6 +280,18 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
 
     void window.adcode.clipboard.writeText(code);
     deps.notify("Invite code copied. Send it to whoever is joining.");
+  });
+
+  newcomerButton.addEventListener("click", () => {
+    const code = latest?.invite;
+    if (code === undefined || code === null) return;
+    void (async () => {
+      // Your own invite link when there is one; the plain install page when invites are down.
+      const view = await window.adcode.referrals.get().catch(() => null);
+      const link = view === null ? `${INVITE_ORIGIN}/versions` : inviteLink(view.code, "collab");
+      await window.adcode.clipboard.writeText(collabInviteText(link, code));
+      deps.notify("Copied: how to install ADCode, then how to join. They need to be on your network.");
+    })();
   });
 
   addressPicker.addEventListener("change", () => {

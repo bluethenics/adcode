@@ -6,6 +6,21 @@ import { detectPlatform, installCommand, installRoute, LINUX_DOWNLOADS, MICROSOF
 import { installLinkFor, SEND_SUBJECT, SEND_TEXT, sendInstallLink } from "@/lib/sendToDesktop";
 import { GITHUB_REPO, SITE } from "@/lib/site";
 import { trackWebsiteEvent } from "@/lib/websiteAnalytics";
+import { inviteLine } from "@/lib/invite";
+
+/**
+ * Puts the invite on the clipboard as the download starts, where the editor's welcome
+ * looks for it. Fire and forget: a blocked clipboard must never block the download, and
+ * the page shows the code to paste either way.
+ */
+function carryInvite(invite: string | undefined): void {
+  if (invite === undefined) return;
+  try {
+    void navigator.clipboard?.writeText(inviteLine(invite)).catch(() => undefined);
+  } catch {
+    // No clipboard API: the code on the page is the fallback.
+  }
+}
 
 /**
  * The one thing the page asks a visitor to do, chosen for the machine they are on.
@@ -23,7 +38,7 @@ import { trackWebsiteEvent } from "@/lib/websiteAnalytics";
  * it. Before hydration it renders the neutral choice, so first paint is honest and only
  * gets more specific once JavaScript runs.
  */
-export function HeroInstall({ source = "hero", advertise = true }: { source?: string; advertise?: boolean }) {
+export function HeroInstall({ source = "hero", advertise = true, invite }: { source?: string; advertise?: boolean; invite?: string }) {
   const [platform, setPlatform] = useState<Platform>("unknown");
   useEffect(() => setPlatform(detectPlatform(navigator.userAgent, navigator.maxTouchPoints)), []);
 
@@ -34,9 +49,9 @@ export function HeroInstall({ source = "hero", advertise = true }: { source?: st
     </a>
   ) : null;
 
-  if (route === "store") return <WindowsInstall source={source} secondary={secondary} />;
-  if (route === "download") return <LinuxInstall source={source} secondary={secondary} />;
-  if (route === "send") return <SendToDesktop source={source} secondary={secondary} />;
+  if (route === "store") return <WindowsInstall source={source} secondary={secondary} invite={invite} />;
+  if (route === "download") return <LinuxInstall source={source} secondary={secondary} invite={invite} />;
+  if (route === "send") return <SendToDesktop source={source} secondary={secondary} invite={invite} />;
 
   if (route === "soon") {
     return (
@@ -73,7 +88,7 @@ function WindowsLogo() {
   );
 }
 
-function WindowsInstall({ source, secondary }: { source: string; secondary: React.ReactNode }) {
+function WindowsInstall({ source, secondary, invite }: { source: string; secondary: React.ReactNode; invite: string | undefined }) {
   const [started, setStarted] = useState(false);
   const [terminal, setTerminal] = useState(false);
 
@@ -85,6 +100,7 @@ function WindowsInstall({ source, secondary }: { source: string; secondary: Reac
           className="marketplace-primary install-cta"
           data-tracked
           onClick={() => {
+            carryInvite(invite);
             trackWebsiteEvent("download_click", 0, undefined, source);
             setStarted(true);
           }}
@@ -121,13 +137,13 @@ function WindowsInstall({ source, secondary }: { source: string; secondary: Reac
   );
 }
 
-function LinuxInstall({ source, secondary }: { source: string; secondary: React.ReactNode }) {
+function LinuxInstall({ source, secondary, invite }: { source: string; secondary: React.ReactNode; invite: string | undefined }) {
   const [terminal, setTerminal] = useState(false);
   const downloads = LINUX_DOWNLOADS(GITHUB_REPO);
   return (
     <div className="hero-install">
       <div className="marketplace-hero-actions">
-        <a href={downloads.deb} className="marketplace-primary install-cta" data-tracked onClick={() => trackWebsiteEvent("download_click", 0, undefined, source)}>
+        <a href={downloads.deb} className="marketplace-primary install-cta" data-tracked onClick={() => { carryInvite(invite); trackWebsiteEvent("download_click", 0, undefined, source); }}>
           <span className="install-cta-label">
             Download for Ubuntu / Debian
             <small>Free · .deb · x86_64</small>
@@ -136,7 +152,7 @@ function LinuxInstall({ source, secondary }: { source: string; secondary: React.
         {secondary}
       </div>
       <p className="hero-install-note">
-        Another distribution? <a href={downloads.appImage} data-tracked onClick={() => trackWebsiteEvent("download_click", 0, undefined, source)}>Download the AppImage</a>.{" "}
+        Another distribution? <a href={downloads.appImage} data-tracked onClick={() => { carryInvite(invite); trackWebsiteEvent("download_click", 0, undefined, source); }}>Download the AppImage</a>.{" "}
         <button type="button" className="install-link-button" aria-expanded={terminal} onClick={() => setTerminal((open) => !open)}>
           {terminal ? "Hide the terminal command" : "Prefer a terminal?"}
         </button>
@@ -154,9 +170,10 @@ function LinuxInstall({ source, secondary }: { source: string; secondary: React.
  * pressed, so a dismissed sheet or a blocked clipboard is not a sent link. The email link
  * counts on the click: whether the message went is the mail app's to know.
  */
-function SendToDesktop({ source, secondary }: { source: string; secondary: React.ReactNode }) {
+function SendToDesktop({ source, secondary, invite }: { source: string; secondary: React.ReactNode; invite: string | undefined }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
-  const link = installLinkFor(SITE.origin);
+  // An invite has to survive the hop from phone to computer, so the link sent is the invite.
+  const link = invite === undefined ? installLinkFor(SITE.origin) : `${SITE.origin}/i/${invite}?utm_source=send-to-desktop`;
   const body = `${SEND_TEXT}\n\nInstall it here: ${link}`;
 
   async function send(): Promise<void> {

@@ -188,6 +188,11 @@ export function createReportDialog(
   footnote.className = "report-footnote";
   footnote.textContent = FOOTNOTE;
 
+  // No amount, and no promise: an award is a thank-you somebody decides on, not a bounty.
+  const thanks = document.createElement("p");
+  thanks.className = "report-footnote report-thanks";
+  thanks.textContent = "Confirmed bugs and ideas we build can earn a thank-you in your ADCode balance.";
+
   /* ── Buttons ──────────────────────────────────────────────────────────── */
 
   const buttons = document.createElement("div");
@@ -204,7 +209,7 @@ export function createReportDialog(
   send.textContent = "Send";
 
   buttons.append(cancel, send);
-  form.append(kinds, summary, detail, logOption, status, footnote, buttons);
+  form.append(kinds, summary, detail, logOption, status, footnote, thanks, buttons);
   card.append(title, form);
   dialog.append(card);
   host.append(dialog);

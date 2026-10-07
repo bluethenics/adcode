@@ -347,6 +347,8 @@ export function parseActivity(raw: unknown): ActivityBody | null {
  */
 export interface CreateAdvertiserBody {
   name: string;
+  /** The invite they followed, if any. Never able to fail the sign-up. */
+  ref?: string;
 }
 
 export interface CampaignBody {
@@ -417,7 +419,10 @@ function logoSource(value: unknown): string | null {
 export function parseCreateAdvertiser(raw: unknown): CreateAdvertiserBody | null {
   if (!isRecord(raw)) return null;
   const name = boundedText(raw["name"], ADVERTISER_LIMITS.name);
-  return name === null ? null : { name };
+  if (name === null) return null;
+  // A bad ref is dropped, not refused: the advertiser still gets their account.
+  const ref = raw["ref"];
+  return typeof ref === "string" && ref.length > 0 && ref.length <= 200 ? { name, ref } : { name };
 }
 
 export function parseCampaign(raw: unknown): CampaignBody | null {

@@ -14,6 +14,15 @@ import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../sr
 import { utcDay } from "../src/day.ts";
 import { countDevelopers, sightings, summarizeGrowth, type ActivityRow, type MilestoneRow, type PresenceRow } from "../src/growth.ts";
 import {
+  BAD_ORDER_STATUSES,
+  DAY_MS,
+  entriesForShares,
+  planReferralShares,
+  sourceFactsFrom,
+  summarizeReferrer,
+} from "../src/referrals.ts";
+import { DEFAULT_REFERRAL_CONFIG, type AttributionRecord, type RefCodeRecord, type ReferralShareRecord } from "../src/store.ts";
+import {
   decryptDestination,
   encryptDestination,
   maskDestination,
@@ -1033,6 +1042,11 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
       return { rows, nextCursor: more && last !== undefined ? last.reportId : null };
     },
 
+    async getReport(reportId: string) {
+      const snap = await (await lazy()).collection("reports").doc(reportId).get();
+      return snap.exists ? (snap.data() as ReportRecord) : null;
+    },
+
     async setReportStatus(reportId: string, status: ReportRecord["status"]) {
       const doc = (await lazy()).collection("reports").doc(reportId);
       const snap = await doc.get();
@@ -1487,6 +1501,212 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
     async countAdmins() {
       const snap = await (await lazy()).collection("admins").get();
       return snap.size;
+    },
+
+    /*
+     * Referrals. This adapter is kept compiling and correct for the emulator suite, not for
+     * production (which is Postgres), so the rules come from `referrals.ts` and the reads are
+     * whole collections - the same trade `growthStats` above makes.
+     */
+
+    async getReferralConfig() {
+      const raw = (await (await lazy()).collection("config").doc("referral").get()).data();
+      if (raw === undefined) return { ...DEFAULT_REFERRAL_CONFIG, houseAdvertiserIds: [] };
+      return {
+        userPercent: toMicros(raw["userPercent"]),
+        advertiserPercent: toMicros(raw["advertiserPercent"]),
+        windowDays: Number(raw["windowDays"]),
+        claimDays: Number(raw["claimDays"]),
+        houseAdvertiserIds: Array.isArray(raw["houseAdvertiserIds"]) ? raw["houseAdvertiserIds"].map(String) : [],
+      };
+    },
+
+    async putReferralConfig(config) {
+      await (await lazy()).collection("config").doc("referral").set({
+        ...config,
+        userPercent: fromMicros(config.userPercent),
+        advertiserPercent: fromMicros(config.advertiserPercent),
+      });
+    },
+
+    async getRefCode(code) {
+      const snap = await (await lazy()).collection("refCodes").doc(code).get();
+      return snap.exists ? (snap.data() as RefCodeRecord) : null;
+    },
+
+    async refCodeForOwner(uid) {
+      const snap = await (await lazy()).collection("refCodes").where("ownerUid", "==", uid).limit(1).get();
+      return snap.empty ? null : (snap.docs[0]!.data() as RefCodeRecord);
+    },
+
+    async createRefCode(record) {
+      const database = await lazy();
+      try {
+        // One document per owner as well as per code: Firestore has no unique index, and the
+        // `create` on the owner marker is what refuses a second code for the same account.
+        await database.runTransaction(async (tx) => {
+          const codeRef = database.collection("refCodes").doc(record.code);
+          const ownerRef = record.ownerUid === null ? null : database.collection("refCodeOwners").doc(record.ownerUid);
+          tx.create(codeRef, record);
+          if (ownerRef !== null) tx.create(ownerRef, { code: record.code });
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+
+    async updateRefCode(code, patch) {
+      const ref = (await lazy()).collection("refCodes").doc(code);
+      const snap = await ref.get();
+      if (!snap.exists) return null;
+      const next: RefCodeRecord = {
+        ...(snap.data() as RefCodeRecord),
+        ...(patch.label !== undefined ? { label: patch.label } : {}),
+        ...(patch.active !== undefined ? { active: patch.active } : {}),
+        ...(patch.showName !== undefined ? { showName: patch.showName } : {}),
+      };
+      await ref.set(next);
+      return next;
+    },
+
+    async listCampaignCodes() {
+      const snap = await (await lazy()).collection("refCodes").where("ownerUid", "==", null).get();
+      return snap.docs.map((d) => d.data() as RefCodeRecord).sort((a, b) => b.createdAt - a.createdAt || a.code.localeCompare(b.code));
+    },
+
+    async getAttribution(kind, subjectId) {
+      const snap = await (await lazy()).collection("attributions").doc(`${kind}_${subjectId}`).get();
+      return snap.exists ? (snap.data() as AttributionRecord) : null;
+    },
+
+    async createAttribution(record) {
+      try {
+        await (await lazy()).collection("attributions").doc(`${record.subjectKind}_${record.subjectId}`).create(record);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+
+    async settleReferrals(day, now) {
+      const database = await lazy();
+      const start = Date.parse(`${day}T00:00:00.000Z`);
+      const [config, receipts, campaigns, attributions, users, orders] = await Promise.all([
+        store.getReferralConfig(),
+        database.collection("receipts").where("createdAt", ">=", start).where("createdAt", "<", start + DAY_MS).get(),
+        database.collection("campaigns").select("advertiserId").get(),
+        database.collection("attributions").get(),
+        database.collection("users").select("status").get(),
+        database.collection("creditOrders").select("advertiserId", "status").get(),
+      ]);
+      const shares = planReferralShares({
+        day,
+        config,
+        receipts: receipts.docs.map((d) => {
+          const raw = d.data();
+          return { ...(raw as ReceiptRecord), costMicros: toMicros(raw["costMicros"]), creditedMicros: toMicros(raw["creditedMicros"]) };
+        }),
+        campaignAdvertiser: new Map(campaigns.docs.map((d) => [d.id, String(d.data()["advertiserId"])])),
+        attributions: attributions.docs.map((d) => d.data() as AttributionRecord),
+        userStatus: new Map(users.docs.map((d) => [d.id, d.data()["status"] === "banned" ? "banned" : "active"])),
+        badAdvertisers: new Set(
+          orders.docs.filter((d) => BAD_ORDER_STATUSES.includes(String(d.data()["status"]))).map((d) => String(d.data()["advertiserId"])),
+        ),
+      });
+
+      let referrers = 0;
+      let micros = 0n;
+      for (const entry of entriesForShares(day, now, shares)) {
+        try {
+          await store.appendEntryAndUpdateBalance(entry);
+        } catch {
+          continue; // Already paid: the entry id exists.
+        }
+        const batch = database.batch();
+        for (const share of shares.filter((s) => s.referrerUid === entry.uid)) {
+          batch.set(database.collection("referralShares").doc(`${day}_${share.referrerUid}_${share.subjectKind}_${share.subjectId}`), {
+            ...share,
+            baseMicros: fromMicros(share.baseMicros),
+            shareMicros: fromMicros(share.shareMicros),
+          });
+        }
+        await batch.commit();
+        referrers += 1;
+        micros += entry.micros;
+      }
+      return { referrers, micros };
+    },
+
+    async referralSummary(uid, now) {
+      const database = await lazy();
+      const [attributions, entries, serves, activity, milestones] = await Promise.all([
+        database.collection("attributions").where("referrerUid", "==", uid).get(),
+        database.collection("ledger").where("uid", "==", uid).where("kind", "==", "referral").get(),
+        database.collection("serves").select("uid", "servedAt", "test").get(),
+        database.collection("activity").select("uid", "day").get(),
+        database.collection("milestones").select("uid", "name", "firstAt", "lastAt").get(),
+      ]);
+      return summarizeReferrer({
+        uid,
+        now,
+        attributions: attributions.docs.map((d) => d.data() as AttributionRecord),
+        sightings: sightings({
+          serves: serves.docs.map((d) => ({ uid: String(d.data()["uid"]), servedAt: Number(d.data()["servedAt"]), test: d.data()["test"] === true }) as ServeRecord),
+          activity: activity.docs.map((d) => ({ uid: String(d.data()["uid"]), day: String(d.data()["day"]) })),
+          milestones: milestones.docs.map((d) => d.data() as MilestoneRow),
+        }),
+        entries: entries.docs.map((d) => ({ ...(d.data() as LedgerEntry), micros: toMicros(d.data()["micros"]) })),
+      });
+    },
+
+    async referralSourceFacts(since) {
+      const database = await lazy();
+      const [config, users, attributions, serves, activity, milestones, receipts, campaigns, shares] = await Promise.all([
+        store.getReferralConfig(),
+        database.collection("users").select("status", "createdAt").get(),
+        database.collection("attributions").get(),
+        database.collection("serves").select("uid", "servedAt", "test").get(),
+        database.collection("activity").select("uid", "day").get(),
+        database.collection("milestones").select("uid", "name", "firstAt", "lastAt").get(),
+        database.collection("receipts").get(),
+        database.collection("campaigns").select("advertiserId").get(),
+        database.collection("referralShares").get(),
+      ]);
+      return sourceFactsFrom({
+        since,
+        users: users.docs.map((d) => ({ uid: d.id, status: d.data()["status"], createdAt: Number(d.data()["createdAt"] ?? 0) }) as UserRecord),
+        attributions: attributions.docs.map((d) => d.data() as AttributionRecord),
+        sightings: sightings({
+          serves: serves.docs.map((d) => ({ uid: String(d.data()["uid"]), servedAt: Number(d.data()["servedAt"]), test: d.data()["test"] === true }) as ServeRecord),
+          activity: activity.docs.map((d) => ({ uid: String(d.data()["uid"]), day: String(d.data()["day"]) })),
+          milestones: milestones.docs.map((d) => d.data() as MilestoneRow),
+        }),
+        receipts: receipts.docs.map((d) => {
+          const raw = d.data();
+          return { ...(raw as ReceiptRecord), costMicros: toMicros(raw["costMicros"]), creditedMicros: toMicros(raw["creditedMicros"]) };
+        }),
+        campaignAdvertiser: new Map(campaigns.docs.map((d) => [d.id, String(d.data()["advertiserId"])])),
+        houseAdvertiserIds: config.houseAdvertiserIds,
+        shares: shares.docs.map((d) => {
+          const raw = d.data();
+          return { ...(raw as ReferralShareRecord), baseMicros: toMicros(raw["baseMicros"]), shareMicros: toMicros(raw["shareMicros"]) };
+        }),
+      });
+    },
+
+    async referralsForUser(uid) {
+      const database = await lazy();
+      const [invitedBy, invited] = await Promise.all([
+        store.getAttribution("user", uid),
+        database.collection("attributions").where("referrerUid", "==", uid).get(),
+      ]);
+      return {
+        invitedBy,
+        invited: invited.docs
+          .map((d) => d.data() as AttributionRecord)
+          .sort((a, b) => b.claimedAt - a.claimedAt || a.subjectId.localeCompare(b.subjectId)),
+      };
     },
   };
 

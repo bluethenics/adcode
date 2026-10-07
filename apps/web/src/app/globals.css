@@ -5331,3 +5331,30 @@ body { background: var(--surface); }
 @media (prefers-reduced-motion: reduce) {
   .codebox-copy { transition: none; }
 }
+
+/* ── Dashboard: invites ───────────────────────────────────────────────── */
+.invite-panel { display: flex; flex-direction: column; gap: 14px; }
+.invite-panel-share { display: flex; flex-wrap: wrap; gap: 8px; }
+.invite-panel-people, .invite-panel-earned, .invite-panel-invited, .invite-panel-preview { margin: 0; }
+.invite-panel-people { font-size: 17px; }
+.invite-panel-earned { color: var(--market-green, #42d878); font-variant-numeric: tabular-nums; }
+.invite-panel-terms { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
+.invite-panel-name { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.invite-panel-preview { color: var(--muted); font-size: 13px; }
+
+/* ── Admin: Sources and invite settings ───────────────────────────────── */
+.sources-panel { display: grid; gap: 14px; margin-top: 28px; }
+.sources-scroll { overflow-x: auto; }
+.sources-card table th[scope="row"] { text-align: left; font-weight: 600; white-space: nowrap; }
+.sources-card table td { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sources-card tr[data-kind="unknown"] { color: var(--muted); }
+.sources-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.sources-form label { display: grid; gap: 4px; font-size: 13px; }
+.sources-made { word-break: break-all; }
+.referral-settings { display: grid; gap: 16px; }
+.referral-settings-form { display: grid; gap: 12px; max-width: 640px; }
+.referral-settings-form label { display: grid; gap: 4px; font-size: 14px; }
+.referral-settings-form fieldset { display: grid; gap: 8px; border: 1px solid var(--line, rgba(255,255,255,.12)); border-radius: 10px; padding: 12px; }
+.referral-house { display: flex !important; align-items: center; gap: 8px; }
+.invite-panel-progress { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: rgba(66,216,120,.08); }
+.invite-panel-progress-text { margin: 0; font-size: 14px; }

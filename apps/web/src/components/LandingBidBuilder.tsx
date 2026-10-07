@@ -13,6 +13,7 @@ import {
   type CheckoutView,
   type CreativeView,
 } from "@/lib/api";
+import { signupRefBody } from "@/lib/invite";
 import { campaignNumbers, formatUsdMicros } from "@/lib/campaignPricing";
 import { AdPreviewMark } from "./AdPreviewMark";
 import { trackWebsiteEvent, trackWebsiteEventOnce } from "@/lib/websiteAnalytics";
@@ -96,7 +97,7 @@ export function LandingBidBuilder() {
         path: "/portal/advertiser",
         token: authToken,
         method: "POST",
-        body: { name: brand },
+        body: { name: brand, ...signupRefBody() },
       });
       if (!account.ok && account.error !== "already-advertiser") {
         setBusy(false);

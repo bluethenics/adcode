@@ -105,7 +105,7 @@ export const MESSAGES: Record<ApiError, string> = {
 export interface ApiCall {
   path: string;
   token: string | null;
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PATCH";
   body?: unknown;
 }
 
@@ -359,4 +359,21 @@ export interface AdminPayoutCorridorView extends PayoutCorridorView {
   verifiedAt: number | null;
   updatedAt: number;
   updatedBy: string;
+}
+
+/** `GET /v1/referrals`: this account's invite. Money as decimal strings of micros. */
+export interface ReferralView {
+  code: string;
+  link: string;
+  showName: boolean;
+  inviterPreview: string;
+  claimed: boolean;
+  invitedBy: string | null;
+  canClaim: boolean;
+  claimEndsAt: number;
+  people: { claimed: number; seen: number; cameBack: number };
+  advertisers: number;
+  earnedMicros: string;
+  last30Micros: string;
+  rates: { userPercent: number; advertiserPercent: number; windowDays: number };
 }

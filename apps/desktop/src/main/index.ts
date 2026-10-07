@@ -22,6 +22,8 @@ import { registerSupportIpc } from "./supportIpc.ts";
 import { registerActivityIpc } from "./activity.ts";
 import { registerOnboardingIpc } from "./onboarding.ts";
 import { registerMilestoneIpc } from "./milestones.ts";
+import { registerReferralIpc } from "./referrals.ts";
+import { registerRatingIpc } from "./ratingAsk.ts";
 import { registerPinPromptIpc } from "./pinPrompt.ts";
 import { onUpdateStatus, registerUpdateIpc, startAutoUpdate } from "./autoUpdate.ts";
 import { startNoticePolling } from "./notices.ts";
@@ -294,6 +296,8 @@ void app.whenReady().then(() => {
   registerActivityIpc();
   registerOnboardingIpc();
   registerMilestoneIpc();
+  registerReferralIpc();
+  registerRatingIpc();
   registerPinPromptIpc();
   registerUpdateIpc();
   registerAccountIpc();

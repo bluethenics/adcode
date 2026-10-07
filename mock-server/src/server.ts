@@ -91,6 +91,13 @@ export interface MockServer {
   corruptNext(count: number): void;
   /** Delay the next `count` requests by `ms`, for timeout tests. */
   hangNext(count: number, ms: number): void;
+  /**
+   * Invite claims this mock has accepted, in order. The smoke run puts an invite line on the
+   * clipboard and reads this to prove the app sent exactly that code and nothing else.
+   */
+  claims(): { code: string; how: string }[];
+  /** Another live code, with the first name its invite page shows. */
+  seedInvite(code: string, inviterName: string): void;
 }
 
 interface State {
@@ -108,6 +115,11 @@ interface State {
   failures: { remaining: number; status: number };
   corruptions: number;
   hangs: { remaining: number; ms: number };
+  /** Live codes and the first name each shows. One account per mock, so one claim. */
+  invites: Map<string, string>;
+  claim: { code: string; how: string } | null;
+  claims: { code: string; how: string }[];
+  showName: boolean;
 }
 
 function freshState(): State {
@@ -125,7 +137,25 @@ function freshState(): State {
     failures: { remaining: 0, status: 500 },
     corruptions: 0,
     hangs: { remaining: 0, ms: 0 },
+    invites: new Map([["smoke-invite", "Sam"]]),
+    claim: null,
+    claims: [],
+    showName: true,
   };
+}
+
+/** The mock's invite code: one account per mock server, so one code. */
+const MY_CODE = "mylocal";
+const INVITE_LINE = /^adcode invite:\s*([a-z0-9-]+)$/i;
+const INVITE_LINK = /^(?:https?:\/\/)?(?:www\.)?adcode\.bluethenics\.com\/i\/([a-z0-9-]+)\/?(?:[?#].*)?$/i;
+
+/** Written from the contract, not imported from the service: see this file's header. */
+function inviteCode(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const text = raw.trim();
+  const found = INVITE_LINE.exec(text)?.[1] ?? INVITE_LINK.exec(text)?.[1] ?? (/^[a-z0-9-]+$/i.test(text) ? text : null);
+  const code = found?.toLowerCase() ?? null;
+  return code !== null && /^[a-z0-9][a-z0-9-]{2,31}$/.test(code) ? code : null;
 }
 
 function defaultInventory(assetOrigin: string): ServedCreative[] {
@@ -279,6 +309,15 @@ export async function createMockServer(options: { port?: number } = {}): Promise
       return;
     }
 
+    // Public in the real service too: an invite page is read by someone with no account.
+    const inviteLookup = /^\/v1\/invite\/([^/]+)$/.exec(path);
+    if (inviteLookup !== null && req.method === "GET") {
+      const code = inviteCode(decodeURIComponent(inviteLookup[1] ?? ""));
+      const name = code === null ? undefined : state.invites.get(code);
+      send(res, 200, name === undefined ? { valid: false, inviterName: null, kind: null } : { valid: true, inviterName: name, kind: "user" });
+      return;
+    }
+
     if (!hasBearer(req)) {
       send(res, 401, { error: "missing bearer token" });
       return;
@@ -396,6 +435,56 @@ export async function createMockServer(options: { port?: number } = {}): Promise
       return;
     }
 
+    if (path === "/v1/referrals" && (req.method === "GET" || req.method === "PATCH")) {
+      if (req.method === "PATCH") {
+        const parsed = JSON.parse((await readBody(req)) || "{}") as Record<string, unknown>;
+        if (typeof parsed["showName"] !== "boolean") {
+          send(res, 400, { error: "malformed change" });
+          return;
+        }
+        state.showName = parsed["showName"];
+      }
+      send(res, 200, {
+        code: MY_CODE,
+        link: `https://adcode.bluethenics.com/i/${MY_CODE}`,
+        showName: state.showName,
+        inviterPreview: "A developer invited you to ADCode",
+        claimed: state.claim !== null,
+        invitedBy: state.claim === null ? null : (state.invites.get(state.claim.code) ?? null),
+        canClaim: state.claim === null,
+        claimEndsAt: Date.now() + 14 * 86_400_000,
+        people: { claimed: 0, seen: 0, cameBack: 0 },
+        advertisers: 0,
+        earnedMicros: "0",
+        last30Micros: "0",
+        rates: { userPercent: 10, advertiserPercent: 5, windowDays: 365 },
+      });
+      return;
+    }
+
+    if (path === "/v1/referrals/claim" && req.method === "POST") {
+      const parsed = JSON.parse((await readBody(req)) || "{}") as Record<string, unknown>;
+      const code = inviteCode(parsed["code"]);
+      const how = parsed["how"];
+      if (code === null || (how !== "clipboard" && how !== "paste" && how !== "web")) {
+        send(res, 400, { error: "malformed claim" });
+        return;
+      }
+      if (state.claim !== null) {
+        send(res, 409, { error: "already-claimed" });
+        return;
+      }
+      const name = state.invites.get(code);
+      if (name === undefined) {
+        send(res, 409, { error: "unknown-code" });
+        return;
+      }
+      state.claim = { code, how };
+      state.claims.push({ code, how });
+      send(res, 200, { ok: true, inviterName: name });
+      return;
+    }
+
     send(res, 404, { error: "not found" });
   }
 
@@ -435,6 +524,10 @@ export async function createMockServer(options: { port?: number } = {}): Promise
     },
     hangNext: (count, ms) => {
       state.hangs = { remaining: count, ms };
+    },
+    claims: () => state.claims.map((c) => ({ ...c })),
+    seedInvite: (code, inviterName) => {
+      state.invites.set(code, inviterName);
     },
   };
 }

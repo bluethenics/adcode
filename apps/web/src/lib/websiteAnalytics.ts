@@ -1,3 +1,4 @@
+import { campaignFor } from "./invite";
 /** Only this small, explicit event vocabulary can leave the browser. */
 export type WebsiteEventName = "page_view" | "install_copy" | "download_click" | "send_to_desktop" | "advertise_click" | "sign_in" | "sign_up" | "advertiser_created" | "campaign_created" | "support_sent" | "outbound_click" | "scroll_50" | "scroll_90" | "engagement" | "js_error" | "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
 export type WebVitalName = "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
@@ -89,7 +90,8 @@ function attribution(): { source: string; campaign: string } {
   if (!source) {
     try { const ref = new URL(document.referrer); source = ref.origin === location.origin ? "" : token(ref.hostname); } catch { /* direct visit */ }
   }
-  return { source: source || "direct", campaign: token(query.get("utm_campaign")) };
+  // An invite page counts for its own code unless a utm_campaign says otherwise.
+  return { source: source || "direct", campaign: campaignFor(location.pathname, token(query.get("utm_campaign"))) };
 }
 /**
  * Where this page load came from, read as the page opens. It stays in memory - nothing is

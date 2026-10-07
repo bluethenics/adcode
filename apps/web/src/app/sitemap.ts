@@ -71,6 +71,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly" as const,
       priority: page.authored ? 0.7 : 0.6,
     })),
+    { url: url("/invite"), lastModified: at("2026-10-07"), changeFrequency: "monthly", priority: 0.5 },
     { url: url("/privacy"), lastModified: at(PRIVACY_UPDATED.iso), changeFrequency: "yearly", priority: 0.3 },
     { url: url("/terms"), lastModified: at(TERMS_UPDATED.iso), changeFrequency: "yearly", priority: 0.3 },
   ];

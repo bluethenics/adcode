@@ -10,6 +10,16 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  ATTRIBUTION_COLS,
+  REF_CODE_COLS,
+  fromAttribution,
+  fromRefCode,
+  fromReferralConfig,
+  toAttribution,
+  toRefCode,
+  toReferralConfig,
+  toReferrerSummary,
+  toSourceFact,
   fromAdvertiser,
   fromConfig,
   fromMicros,
@@ -154,6 +164,15 @@ describe("optional fields stay absent", () => {
     expect(entry.refId).toBeNull();
   });
 
+  it("reads invite earnings and awards back as themselves, not as adjustments", () => {
+    const row = {
+      entry_id: "referral:u1:2026-10-06", uid: "u1", micros: "800", ref_id: "2026-10-06", created_at: 1,
+      description: "Invites on 2026-10-06: 1 person", reason: null, admin_uid: null, provider_ref: null, currency: null,
+    };
+    expect(toEntry({ ...row, kind: "referral" }).kind).toBe("referral");
+    expect(toEntry({ ...row, kind: "contribution" }).kind).toBe("contribution");
+  });
+
   it("omits an unset cap rather than reporting it as undefined", () => {
     const config = toConfig({
       kill_switch: false,
@@ -272,5 +291,40 @@ describe("a value outside the known set does not become one", () => {
     });
     // The direction matters: an unrecognised status must never be the one that serves.
     expect(creative.status).toBe("pending");
+  });
+});
+
+describe("referral rows", () => {
+  it("reads the terms with money-sized percents exact and the house list intact", () => {
+    const config = toReferralConfig({ user_percent: "10", advertiser_percent: "5", window_days: 365, claim_days: 14, house_advertiser_ids: ["adv-house"] });
+    expect(config).toEqual({ userPercent: 10n, advertiserPercent: 5n, windowDays: 365, claimDays: 14, houseAdvertiserIds: ["adv-house"] });
+    expect(toReferralConfig({ user_percent: "10", advertiser_percent: "5", window_days: 365, claim_days: 14, house_advertiser_ids: null }).houseAdvertiserIds).toEqual([]);
+    expect(fromReferralConfig(config)).toEqual({ id: 1, user_percent: "10", advertiser_percent: "5", window_days: 365, claim_days: 14, house_advertiser_ids: ["adv-house"] });
+  });
+
+  it("round-trips a code, owned or not", () => {
+    const owned = { code: "k7p4qzm", ownerUid: "sam", label: "", active: true, showName: false, createdAt: 5 };
+    expect(toRefCode(fromRefCode(owned))).toEqual(owned);
+    const campaign = { ...owned, code: "threads-oct06", ownerUid: null, label: "Threads" };
+    expect(toRefCode(fromRefCode(campaign))).toEqual(campaign);
+    expect(REF_CODE_COLS).toBe("code,owner_uid,label,active,show_name,created_at");
+  });
+
+  it("round-trips an attribution", () => {
+    const a = { subjectKind: "advertiser" as const, subjectId: "adv-x", code: "k7p4qzm", referrerUid: null, how: "portal" as const, claimedAt: 9 };
+    expect(toAttribution(fromAttribution(a))).toEqual(a);
+    expect(ATTRIBUTION_COLS).toBe("subject_kind,subject_id,code,referrer_uid,how,claimed_at");
+  });
+
+  it("reads a facts row with its money exact", () => {
+    expect(toSourceFact({
+      code: null, subject_kind: "user", subject_id: "u", referrer_uid: null, at: 7, seen: true, came_back: false,
+      gross_micros: "9007199254740993", credited_micros: "1", paid_micros: "0",
+    })).toEqual({ code: null, subjectKind: "user", subjectId: "u", referrerUid: null, at: 7, seen: true, cameBack: false, grossMicros: 9007199254740993n, creditedMicros: 1n, paidMicros: 0n });
+  });
+
+  it("reads the summary's money as bigints", () => {
+    expect(toReferrerSummary({ claimed: 3, seen: 2, cameBack: 1, advertisers: 1, earnedMicros: "1100", last30Micros: "300" }))
+      .toEqual({ claimed: 3, seen: 2, cameBack: 1, advertisers: 1, earnedMicros: 1100n, last30Micros: 300n });
   });
 });

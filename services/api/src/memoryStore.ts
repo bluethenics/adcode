@@ -9,6 +9,20 @@
 import { utcDay } from "./day.ts";
 import { countDevelopers, sightings, summarizeGrowth, type MilestoneRow, type PresenceRow } from "./growth.ts";
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "./ledger.ts";
+import {
+  BAD_ORDER_STATUSES,
+  entriesForShares,
+  planReferralShares,
+  sourceFactsFrom,
+  summarizeReferrer,
+} from "./referrals.ts";
+import {
+  DEFAULT_REFERRAL_CONFIG,
+  type AttributionRecord,
+  type RefCodeRecord,
+  type ReferralConfig,
+  type ReferralShareRecord,
+} from "./store.ts";
 import type { ModelCatalogRecord } from "./modelCatalog.ts";
 import type { ModelOutcomeRow } from "./modelOutcomes.ts";
 import type {
@@ -109,6 +123,17 @@ export function createMemoryStore(): Store & { reset(): void } {
   let config: ServingConfig = { ...DEFAULT_CONFIG };
   let modelCatalog: ModelCatalogRecord | null = null;
   let modelOutcomes = new Map<string, ModelOutcomeRow>();
+  let referralConfig: ReferralConfig = { ...DEFAULT_REFERRAL_CONFIG, houseAdvertiserIds: [] };
+  let refCodes = new Map<string, RefCodeRecord>();
+  // Keyed kind NUL subject id, like the table's composite primary key.
+  let attributions = new Map<string, AttributionRecord>();
+  let referralShares: ReferralShareRecord[] = [];
+
+  const allSightings = (): { uid: string; at: number }[] =>
+    sightings({ serves: serves.values(), activity: activityRows(), milestones: milestones.values(), milestoneDays: milestoneDays.values() });
+  const campaignAdvertiser = (): Map<string, string> =>
+    new Map([...campaigns.values()].map((c) => [c.campaignId, c.advertiserId]));
+  const attributionKey = (kind: string, subjectId: string): string => `${kind}\u0000${subjectId}`;
 
   return {
     reset() {
@@ -145,6 +170,10 @@ export function createMemoryStore(): Store & { reset(): void } {
       config = { ...DEFAULT_CONFIG };
       modelCatalog = null;
       modelOutcomes = new Map();
+      referralConfig = { ...DEFAULT_REFERRAL_CONFIG, houseAdvertiserIds: [] };
+      refCodes = new Map();
+      attributions = new Map();
+      referralShares = [];
     },
 
     async getUser(uid) {
@@ -603,6 +632,11 @@ export function createMemoryStore(): Store & { reset(): void } {
       return { rows, nextCursor: more && last !== undefined ? last.reportId : null };
     },
 
+    async getReport(reportId) {
+      const found = reports.get(reportId);
+      return found === undefined ? null : { ...found };
+    },
+
     async setReportStatus(reportId, status) {
       const found = reports.get(reportId);
       if (found === undefined) return false;
@@ -800,6 +834,125 @@ export function createMemoryStore(): Store & { reset(): void } {
 
     async putModelCatalog(record) {
       modelCatalog = structuredClone(record);
+    },
+
+    async getReferralConfig() {
+      return { ...referralConfig, houseAdvertiserIds: [...referralConfig.houseAdvertiserIds] };
+    },
+
+    async putReferralConfig(next) {
+      referralConfig = { ...next, houseAdvertiserIds: [...next.houseAdvertiserIds] };
+    },
+
+    async getRefCode(code) {
+      const found = refCodes.get(code);
+      return found === undefined ? null : { ...found };
+    },
+
+    async refCodeForOwner(uid) {
+      for (const record of refCodes.values()) if (record.ownerUid === uid) return { ...record };
+      return null;
+    },
+
+    async createRefCode(record) {
+      // The primary key and the unique owner index, both, as the table enforces them.
+      if (refCodes.has(record.code)) return false;
+      if (record.ownerUid !== null && [...refCodes.values()].some((r) => r.ownerUid === record.ownerUid)) return false;
+      refCodes.set(record.code, { ...record });
+      return true;
+    },
+
+    async updateRefCode(code, patch) {
+      const current = refCodes.get(code);
+      if (current === undefined) return null;
+      const next: RefCodeRecord = {
+        ...current,
+        ...(patch.label !== undefined ? { label: patch.label } : {}),
+        ...(patch.active !== undefined ? { active: patch.active } : {}),
+        ...(patch.showName !== undefined ? { showName: patch.showName } : {}),
+      };
+      refCodes.set(code, next);
+      return { ...next };
+    },
+
+    async listCampaignCodes() {
+      return [...refCodes.values()]
+        .filter((r) => r.ownerUid === null)
+        .sort((a, b) => b.createdAt - a.createdAt || a.code.localeCompare(b.code))
+        .map((r) => ({ ...r }));
+    },
+
+    async getAttribution(kind, subjectId) {
+      const found = attributions.get(attributionKey(kind, subjectId));
+      return found === undefined ? null : { ...found };
+    },
+
+    async createAttribution(record) {
+      const key = attributionKey(record.subjectKind, record.subjectId);
+      if (attributions.has(key)) return false;
+      attributions.set(key, { ...record });
+      return true;
+    },
+
+    async settleReferrals(day, now) {
+      const shares = planReferralShares({
+        day,
+        config: referralConfig,
+        receipts: receipts.values(),
+        campaignAdvertiser: campaignAdvertiser(),
+        attributions: attributions.values(),
+        userStatus: new Map([...users.values()].map((u) => [u.uid, u.status])),
+        badAdvertisers: new Set(
+          [...creditOrders.values()].filter((o) => BAD_ORDER_STATUSES.includes(o.status)).map((o) => o.advertiserId),
+        ),
+      });
+
+      let referrers = 0;
+      let micros = 0n;
+      for (const entry of entriesForShares(day, now, shares)) {
+        // The entry id is the idempotency, exactly as the table's primary key is.
+        if (entries.some((e) => e.entryId === entry.entryId)) continue;
+        entries.push(entry);
+        balances.set(entry.uid, applyEntry(balances.get(entry.uid) ?? EMPTY_BALANCE, entry));
+        referralShares.push(...shares.filter((s) => s.referrerUid === entry.uid));
+        referrers += 1;
+        micros += entry.micros;
+      }
+      return { referrers, micros };
+    },
+
+    async referralSummary(uid, now) {
+      return summarizeReferrer({
+        uid,
+        now,
+        attributions: attributions.values(),
+        sightings: allSightings(),
+        entries: entries.filter((e) => e.uid === uid),
+      });
+    },
+
+    async referralSourceFacts(since) {
+      return sourceFactsFrom({
+        since,
+        users: users.values(),
+        attributions: attributions.values(),
+        sightings: allSightings(),
+        receipts: receipts.values(),
+        campaignAdvertiser: campaignAdvertiser(),
+        houseAdvertiserIds: referralConfig.houseAdvertiserIds,
+        shares: referralShares,
+      });
+    },
+
+    async referralsForUser(uid) {
+      const invitedBy = attributions.get(attributionKey("user", uid));
+      return {
+        invitedBy: invitedBy === undefined ? null : { ...invitedBy },
+        invited: [...attributions.values()]
+          .filter((a) => a.referrerUid === uid)
+          .sort((a, b) => b.claimedAt - a.claimedAt || a.subjectId.localeCompare(b.subjectId))
+          .map((a) => ({ ...a })),
+      };
     },
 
     async writeAudit(record) {

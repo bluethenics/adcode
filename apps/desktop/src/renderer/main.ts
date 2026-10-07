@@ -12,6 +12,7 @@ import "./styles/panels.css";
 import "./styles/structure.css";
 import "./styles/popupShell.css";
 import "./styles/popups.css";
+import "./styles/invite.css";
 import "./styles/menubar.css";
 import "./styles/dialogs.css";
 import "./styles/help.css";
@@ -90,6 +91,7 @@ import { createStructurePanel } from "./panels/structurePanel.ts";
 import { createProjectMap } from "./panels/projectMap.ts";
 import { createStructurePopup } from "./panels/structurePopup.ts";
 import { createEarningsPopover } from "./panels/earningsPopover.ts";
+import { createInvitePanel } from "./invite/invitePanel.ts";
 import { createCollabPanel } from "./collab/collabPanel.ts";
 import { createCollabSession } from "./collab/collabSession.ts";
 import { createPreviewPane } from "./preview/previewPane.ts";
@@ -3273,6 +3275,11 @@ const PIN_PROMPT_DELAY_MS = 1_200;
 const pinPromptCard = createPinPromptCard(document.body);
 
 const onboarding = createOnboardingSheet({
+  invite: () =>
+    window.adcode.referrals.checkClipboard().then(
+      (found) => (found.claimed ? { inviterName: found.inviterName } : null),
+      () => null,
+    ),
   aiReady: () => window.adcode.ai.status().then((status) => status.ready),
   build: (idea, send) => buildFromIdea(idea, send),
   openFolder: () => void openFolder(),
@@ -4800,6 +4807,44 @@ function setRendererWorkspace(root: string | null): void {
 const notifications = createNotificationCentre(el("toast-layer"));
 
 /*
+ * Once, ever: the first time something ADCode built opens in a preview. The moment somebody
+ * is pleased with a result is the moment they would tell a friend; any other time it is a nag.
+ */
+window.adcode.referrals.onShareMoment(() => {
+  notifications.show({
+    title: "Nice build. Know someone who'd like ADCode?",
+    body: "Send them your invite link. You get a share of what ADCode earns from them for a year, and they keep all of theirs.",
+    tone: "success",
+    actions: [
+      {
+        label: "Copy my invite link",
+        run: () =>
+          void window.adcode.referrals.get().then((view) => {
+            if (view === null) return;
+            void window.adcode.clipboard.writeText(view.link).then(() => setStatus("Invite link copied.", 3000));
+          }),
+      },
+      { label: "Invite & earn", run: () => openInvite("pointer") },
+    ],
+  });
+});
+
+/*
+ * Once, ever, and never for a reward (Store rules): a Store install that has built
+ * something and come back on three different days. The answer is never asked for again.
+ */
+window.adcode.rating.onAsk(() => {
+  notifications.show({
+    title: "Enjoying ADCode?",
+    body: "A rating in the Microsoft Store helps other developers find it. It takes a few seconds.",
+    actions: [
+      { label: "Rate ADCode", run: () => void window.adcode.rating.open() },
+      { label: "Not now", run: () => undefined },
+    ],
+  });
+});
+
+/*
  * The update the window can see: "Updating 42%", then "Restart to update" in the status
  * bar, and one quiet card per version. See updates/updatePrompt.ts.
  */
@@ -4998,6 +5043,7 @@ window.adcode.collab.onCommitRequest((request) => {
 const earningsPopover = createEarningsPopover({
   onRequestClose: () => closePrimaryPopup("earnings"),
   openSettings: () => openSettings("pointer"),
+  openInvite: () => openInvite("pointer"),
 });
 
 const earningsShell = createPopupShell({
@@ -5015,6 +5061,31 @@ const earningsActivity = el<HTMLButtonElement>("open-earnings");
 earningsActivity.addEventListener("click", () =>
   togglePrimaryPopup("earnings", earningsShell, earningsActivity, "pointer"),
 );
+
+/*
+ * Invite & earn. Anchored to the Earnings button because that is the door people already
+ * use for money; the command palette, the feature library and the earnings card all open it.
+ */
+const invitePanel = createInvitePanel({
+  notify: (text) => setStatus(text, 4000),
+  workspaceRoot: () => workspaceRoot,
+  onRequestClose: () => closePrimaryPopup("invite"),
+});
+const inviteShell = createPopupShell({
+  id: "invite",
+  title: "Invite & earn",
+  size: "medium",
+  modal: true,
+  host: popupPrimaryHost,
+  content: invitePanel.element,
+  initialFocus: () => invitePanel.element.querySelector<HTMLElement>(".invite-copy"),
+  onRequestClose: () => closePrimaryPopup("invite"),
+});
+registerPrimaryPopup("invite", inviteShell, invitePanel);
+
+function openInvite(input: LayoutInput = "keyboard"): void {
+  openPrimaryPopup("invite", inviteShell, earningsActivity, input);
+}
 
 window.adcode.ads.onEarnings((earnings) => {
   // A cached mirror of a server value (§1). The renderer never computes money.
@@ -5590,6 +5661,7 @@ function registerCommands(): void {
   add("view.earnings", "Earnings", () =>
     openPrimaryPopup("earnings", earningsShell, earningsActivity, "keyboard"),
   );
+  add("invite.open", "Invite & Earn", () => openInvite("keyboard"));
   add("collab.panel", "Live Session: Share or Join", () =>
     collabPanel.toggle(),
   );

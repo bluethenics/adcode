@@ -124,6 +124,99 @@ export interface ReceiptRecord {
   createdAt: number;
 }
 
+/**
+ * An invite code: one per account that has ever looked for theirs, plus the ones the
+ * operators make for their own posts and ads.
+ *
+ * One namespace for both, so a link is a link - `/i/<code>` does not need to know which
+ * kind it is to work. `ownerUid` null is the whole difference: a campaign code earns
+ * nobody anything, it only tells the Sources report where people came from.
+ */
+export interface RefCodeRecord {
+  code: string;
+  ownerUid: string | null;
+  label: string;
+  active: boolean;
+  /** Whether the invite page may say "Sinan invited you". The owner's choice. */
+  showName: boolean;
+  createdAt: number;
+}
+
+export type AttributionKind = "user" | "advertiser";
+export type AttributionHow = "clipboard" | "paste" | "web" | "portal";
+
+/**
+ * Who arrived through which code. Written once and never changed.
+ *
+ * `referrerUid` is copied off the code at claim time rather than looked up later, so
+ * nothing that happens to a code afterwards can change who earns from a claim.
+ */
+export interface AttributionRecord {
+  subjectKind: AttributionKind;
+  subjectId: string;
+  code: string;
+  referrerUid: string | null;
+  how: AttributionHow;
+  claimedAt: number;
+}
+
+/**
+ * The referral programme's terms. Its own record, not more columns on `ServingConfig`:
+ * that row is read on every serve with a fixed column list, and a deploy that ran ahead
+ * of the migration would have broken serving to add a feature nobody had used yet.
+ */
+export interface ReferralConfig {
+  /** Of the cost of every paid view an invited person sees. Whole percent. */
+  userPercent: bigint;
+  /** Of what a referred advertiser spends. Whole percent. */
+  advertiserPercent: bigint;
+  /** How long a claim earns, from the moment it was made. Days, so SQL and TS agree exactly. */
+  windowDays: number;
+  /** How long after an account is made it may still claim a code. */
+  claimDays: number;
+  /** ADCode's own advertisers. Their spend is ADCode paying itself, so it never pays a share. */
+  houseAdvertiserIds: string[];
+}
+
+export const DEFAULT_REFERRAL_CONFIG: ReferralConfig = {
+  userPercent: 10n,
+  advertiserPercent: 5n,
+  windowDays: 365,
+  claimDays: 14,
+  houseAdvertiserIds: [],
+};
+
+/** Why a referrer was paid what they were for one day: one row per person or advertiser. */
+export interface ReferralShareRecord {
+  day: string;
+  referrerUid: string;
+  subjectKind: AttributionKind;
+  subjectId: string;
+  /** What the views were billed. */
+  baseMicros: bigint;
+  /** The referrer's cut of it. */
+  shareMicros: bigint;
+}
+
+/** One person or advertiser as the Sources report sees them. */
+export interface SourceFact {
+  /** Null for an account nobody invited - the "Unknown" row. */
+  code: string | null;
+  subjectKind: AttributionKind;
+  subjectId: string;
+  referrerUid: string | null;
+  /** When they were claimed, or for Unknown, when the account was made. */
+  at: number;
+  seen: boolean;
+  cameBack: boolean;
+  /** Billed, non-house views they saw (a person) or bought (an advertiser) since `at`. */
+  grossMicros: bigint;
+  /** What developers were credited on those views. */
+  creditedMicros: bigint;
+  /** Referral shares paid on them. */
+  paidMicros: bigint;
+}
+
 /** Privacy-safe hourly aggregate used by the public market chart. */
 export interface MarketPricePoint {
   at: number;
@@ -675,6 +768,7 @@ export interface Store {
 
   createReport(report: ReportRecord): Promise<void>;
   listReports(page: Page): Promise<ReportPage>;
+  getReport(reportId: string): Promise<ReportRecord | null>;
   /** False when there is no such report. Triage, so a queue can be worked through. */
   setReportStatus(reportId: string, status: ReportRecord["status"]): Promise<boolean>;
   /** False when there was nothing to delete. The one record here that is really removed. */
@@ -746,6 +840,33 @@ export interface Store {
   /** The admin panel's curation of the model list; null until it is first saved. */
   getModelCatalog(): Promise<ModelCatalogRecord | null>;
   putModelCatalog(record: ModelCatalogRecord): Promise<void>;
+
+  /* ── Referrals (see `referrals.ts`) ─────────────────────────────────── */
+
+  /** The programme's terms. The defaults until an admin first saves them. */
+  getReferralConfig(): Promise<ReferralConfig>;
+  putReferralConfig(config: ReferralConfig): Promise<void>;
+  getRefCode(code: string): Promise<RefCodeRecord | null>;
+  refCodeForOwner(uid: string): Promise<RefCodeRecord | null>;
+  /** False when the code exists, or this owner already has one. Two racing requests get one code. */
+  createRefCode(record: RefCodeRecord): Promise<boolean>;
+  /** The updated code, or null when there is no such code. */
+  updateRefCode(code: string, patch: { label?: string; active?: boolean; showName?: boolean }): Promise<RefCodeRecord | null>;
+  /** Codes with no owner, newest first. */
+  listCampaignCodes(): Promise<RefCodeRecord[]>;
+  getAttribution(kind: AttributionKind, subjectId: string): Promise<AttributionRecord | null>;
+  /** True when written; false when the subject already had one. The first claim wins. */
+  createAttribution(record: AttributionRecord): Promise<boolean>;
+  /**
+   * Pays one UTC day of invites: a `referral` ledger entry per referrer, its share rows, and
+   * the balance, together. Running a day again pays nobody twice.
+   */
+  settleReferrals(day: string, now: number): Promise<{ referrers: number; micros: bigint }>;
+  referralSummary(uid: string, now: number): Promise<import("./referralTypes.ts").ReferrerSummary>;
+  /** Every attribution made since `since`, and every unclaimed account made since then. */
+  referralSourceFacts(since: number): Promise<SourceFact[]>;
+  /** Admin: who invited this account, and whom it invited, newest first. */
+  referralsForUser(uid: string): Promise<{ invitedBy: AttributionRecord | null; invited: AttributionRecord[] }>;
 
   writeAudit(record: AuditRecord): Promise<void>;
   listAudit(): Promise<AuditRecord[]>;

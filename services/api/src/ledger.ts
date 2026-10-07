@@ -16,7 +16,11 @@ export type LedgerKind =
   | "adjustment"
   | "withdrawal_requested"
   | "withdrawal_paid"
-  | "withdrawal_failed";
+  | "withdrawal_failed"
+  /** A day of invite earnings - see `referrals.ts`. One per referrer per day. */
+  | "referral"
+  /** A thank-you an admin awarded for a report or idea that shipped. One per report. */
+  | "contribution";
 
 export interface LedgerEntry {
   entryId: string;
@@ -66,6 +70,10 @@ export function applyEntry(balance: Balance, entry: LedgerEntry): Balance {
     case "impression":
     case "click":
     case "reversal":
+    // Earned, not corrected: an invite that paid and an award for a fixed bug are both
+    // things the person did, so they count toward the lifetime figure too.
+    case "referral":
+    case "contribution":
       return {
         ...balance,
         availableMicros: balance.availableMicros + micros,

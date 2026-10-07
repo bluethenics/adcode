@@ -107,6 +107,30 @@ import { isAutomatedAgent, parseWebsiteEvents, summarizeWebsiteEvents, type Webs
 import { growthToWire } from "./growth.ts";
 import { parseModelCatalog, readModelCatalog, saveModelCatalog } from "./modelCatalog.ts";
 import { parseModelOutcomes, readModelHealth, recordModelOutcomes } from "./modelOutcomes.ts";
+import {
+  ReferralsUnavailable,
+  attributeAdvertiser,
+  awardReport,
+  claimReferral,
+  createCampaignCode,
+  listCampaignCodes,
+  lookupInvite,
+  parseAward,
+  parseClaim,
+  parseCodePatch,
+  parseNewCampaignCode,
+  parseReferralConfig,
+  parseSettleDay,
+  parseShowName,
+  readMyReferrals,
+  readReferralConfig,
+  readSources,
+  readUserReferrals,
+  saveReferralConfig,
+  setShowName,
+  settleDay,
+  updateCampaignCode,
+} from "./referralRoutes.ts";
 
 export interface ApiServer {
   url: string;
@@ -539,6 +563,38 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
+    const referralDeps = { store, clock, siteOrigin };
+
+    /** Invites live in tables of their own; when they cannot answer, only they say so. */
+    const referralsUnavailable = (error: unknown): boolean => {
+      if (!(error instanceof ReferralsUnavailable)) return false;
+      send(res, 503, { error: "referrals-unavailable" }, cors);
+      return true;
+    };
+
+    /*
+     * GET /v1/invite/:code - what an invite page shows: whether the code is live, and the
+     * inviter's first name if they let it be shown. Public, because the person reading the
+     * page has no account yet; cached, because a post can send a crowd to one link. One
+     * shared ceiling bounds anyone walking the code space - 600 lookups a minute would take
+     * longer than the universe has left to try every seven-character code.
+     */
+    const inviteLookup = /^\/v1\/invite\/([^/]+)$/.exec(path);
+    if (inviteLookup !== null && req.method === "GET") {
+      try {
+        const minute = Math.floor(clock.now() / 60_000) * 60_000;
+        if ((await store.bumpRequestCount("invite-lookup", minute)) > 600) {
+          send(res, 429, { error: "rate-limited" }, { ...cors, "retry-after": "60" });
+          return;
+        }
+        const raw = decodeURIComponent(inviteLookup[1] ?? "");
+        send(res, 200, await lookupInvite(referralDeps, raw), { ...cors, "cache-control": "public, max-age=300" });
+      } catch (error) {
+        if (!referralsUnavailable(error)) throw error;
+      }
+      return;
+    }
+
     /*
      * Authentication and the serving config go out together: neither depends on the
      * other, and each costs a full database round trip. Serve has to fit inside the
@@ -620,6 +676,123 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       const start = end - days * 86400000;
       const result = await options.websiteAnalytics.read(start, end);
       send(res, 200, summarizeWebsiteEvents(result.events, start, end, result.truncated), { ...cors, "cache-control": "no-store" });
+      return;
+    }
+
+    /* ── Admin: invites ─────────────────────────────────────────────── */
+
+    if (path === "/v1/admin/sources" && req.method === "GET") {
+      const raw = url.searchParams.get("days");
+      const days = raw === "0" ? 0 : Math.min(365, daysFrom(url, 30));
+      try {
+        await store.writeAudit({ adminUid: auth.uid, action: "read-sources", subjectUid: "*", at: clock.now() });
+        send(res, 200, await readSources({ ...referralDeps, websiteAnalytics: options.websiteAnalytics }, days), { ...cors, "cache-control": "no-store" });
+      } catch (error) {
+        if (!referralsUnavailable(error)) throw error;
+      }
+      return;
+    }
+
+    if (path === "/v1/admin/ref-codes" && (req.method === "GET" || req.method === "POST")) {
+      try {
+        if (req.method === "GET") {
+          send(res, 200, await listCampaignCodes(referralDeps), cors);
+          return;
+        }
+        const raw = await jsonBodyOr400();
+        if (raw === undefined) return;
+        const input = parseNewCampaignCode(raw);
+        if (input === null) {
+          send(res, 400, { error: "malformed code" }, cors);
+          return;
+        }
+        const created = await createCampaignCode(referralDeps, input);
+        await store.writeAudit({ adminUid: auth.uid, action: "create-ref-code", subjectUid: input.code, at: clock.now() });
+        if (created === null) send(res, 409, { error: "code-taken" }, cors);
+        else send(res, 200, created, cors);
+      } catch (error) {
+        if (!referralsUnavailable(error)) throw error;
+      }
+      return;
+    }
+
+    const refCodeEdit = /^\/v1\/admin\/ref-codes\/([^/]+)$/.exec(path);
+    if (refCodeEdit !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const patch = parseCodePatch(raw);
+      if (patch === null) {
+        send(res, 400, { error: "malformed change" }, cors);
+        return;
+      }
+      try {
+        const updated = await updateCampaignCode(referralDeps, decodeURIComponent(refCodeEdit[1] ?? ""), patch);
+        if (updated === null) send(res, 404, { error: "not-found" }, cors);
+        else send(res, 200, updated, cors);
+      } catch (error) {
+        if (!referralsUnavailable(error)) throw error;
+      }
+      return;
+    }
+
+    if (path === "/v1/admin/referral-config" && (req.method === "GET" || req.method === "POST")) {
+      try {
+        if (req.method === "GET") {
+          send(res, 200, await readReferralConfig(referralDeps), cors);
+          return;
+        }
+        const raw = await jsonBodyOr400();
+        if (raw === undefined) return;
+        const config = parseReferralConfig(raw);
+        if (config === null) {
+          send(res, 400, { error: "malformed config" }, cors);
+          return;
+        }
+        send(res, 200, await saveReferralConfig(referralDeps, auth.uid, config), cors);
+      } catch (error) {
+        if (!referralsUnavailable(error)) throw error;
+      }
+      return;
+    }
+
+    if (path === "/v1/admin/referrals/settle" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const day = parseSettleDay(raw, clock.now());
+      if (day === null) {
+        send(res, 400, { error: "a finished UTC day, YYYY-MM-DD" }, cors);
+        return;
+      }
+      try {
+        send(res, 200, await settleDay(referralDeps, auth.uid, day), cors);
+      } catch (error) {
+        if (!referralsUnavailable(error)) throw error;
+      }
+      return;
+    }
+
+    const userReferrals = /^\/v1\/admin\/users\/([^/]+)\/referrals$/.exec(path);
+    if (userReferrals !== null && req.method === "GET") {
+      try {
+        send(res, 200, await readUserReferrals(referralDeps, decodeURIComponent(userReferrals[1] ?? "")), cors);
+      } catch (error) {
+        if (!referralsUnavailable(error)) throw error;
+      }
+      return;
+    }
+
+    const reportAward = /^\/v1\/admin\/reports\/([^/]+)\/award$/.exec(path);
+    if (reportAward !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const micros = parseAward(raw);
+      if (micros === null) {
+        send(res, 400, { error: "an award is whole micros, above 0 and at most $100" }, cors);
+        return;
+      }
+      const outcome = await awardReport({ store, clock }, auth.uid, decodeURIComponent(reportAward[1] ?? ""), micros);
+      if (outcome.ok) send(res, 200, outcome, cors);
+      else send(res, outcome.error === "not-found" ? 404 : 409, { error: outcome.error }, cors);
       return;
     }
 
@@ -1297,6 +1470,46 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       return;
     }
 
+    /* ── Your invite ────────────────────────────────────────────────── */
+
+    if (path === "/v1/referrals" && (req.method === "GET" || req.method === "PATCH")) {
+      try {
+        if (req.method === "GET") {
+          send(res, 200, await readMyReferrals(referralDeps, auth.uid), cors);
+          return;
+        }
+        const raw = await jsonBodyOr400();
+        if (raw === undefined) return;
+        const showName = parseShowName(raw);
+        if (showName === null) {
+          send(res, 400, { error: "malformed change" }, cors);
+          return;
+        }
+        send(res, 200, await setShowName(referralDeps, auth.uid, showName), cors);
+      } catch (error) {
+        if (!referralsUnavailable(error)) throw error;
+      }
+      return;
+    }
+
+    if (path === "/v1/referrals/claim" && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const body = parseClaim(raw);
+      if (body === null) {
+        send(res, 400, { error: "malformed claim" }, cors);
+        return;
+      }
+      try {
+        const outcome = await claimReferral(referralDeps, auth.uid, body);
+        if (outcome.ok) send(res, 200, outcome, cors);
+        else send(res, 409, { error: outcome.error }, cors);
+      } catch (error) {
+        if (!referralsUnavailable(error)) throw error;
+      }
+      return;
+    }
+
     /* ── Advertiser portal ──────────────────────────────────────────── */
 
     const advertiserDeps = { store, clock, ids };
@@ -1325,7 +1538,10 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         send(res, 400, { error: "malformed advertiser" }, cors);
         return;
       }
-      settle(await createAdvertiser(advertiserDeps, auth.uid, body));
+      const created = await createAdvertiser(advertiserDeps, auth.uid, body);
+      // Who brought them, if a valid invite did. Never able to fail the sign-up.
+      if (created.ok) await attributeAdvertiser(referralDeps, created.value.advertiserId, [auth.uid], body.ref);
+      settle(created);
       return;
     }
 

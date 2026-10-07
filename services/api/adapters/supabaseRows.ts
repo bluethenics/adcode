@@ -18,8 +18,13 @@
  * them as numbers keeps them the `number` the domain model uses.
  */
 import type { LedgerEntry } from "../src/ledger.ts";
+import type { ReferrerSummary } from "../src/referrals.ts";
 import type {
   ActivityDay,
+  AttributionRecord,
+  RefCodeRecord,
+  ReferralConfig,
+  SourceFact,
   AdvertiserRecord,
   AdminRecord,
   AuditRecord,
@@ -488,6 +493,8 @@ const LEDGER_KINDS = new Set([
   "withdrawal_requested",
   "withdrawal_paid",
   "withdrawal_failed",
+  "referral",
+  "contribution",
 ]);
 
 export function toEntry(row: LedgerRow): LedgerEntry {
@@ -913,5 +920,153 @@ export function fromWithdrawal(w: WithdrawalRecord): WithdrawalRow {
     decided_by: w.decidedBy,
     provider_ref: w.providerRef,
     note: w.note,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Referrals. Their own tables, so none of the column lists above had to change: a deploy
+// that runs ahead of `20261007120000_referrals.sql` breaks invites and nothing else.
+// ---------------------------------------------------------------------------
+
+export const REFERRAL_CONFIG_COLS = "user_percent::text,advertiser_percent::text,window_days,claim_days,house_advertiser_ids";
+export const REF_CODE_COLS = "code,owner_uid,label,active,show_name,created_at";
+export const ATTRIBUTION_COLS = "subject_kind,subject_id,code,referrer_uid,how,claimed_at";
+
+export interface ReferralConfigRow {
+  user_percent: string;
+  advertiser_percent: string;
+  window_days: number;
+  claim_days: number;
+  house_advertiser_ids: string[] | null;
+}
+
+export interface RefCodeRow {
+  code: string;
+  owner_uid: string | null;
+  label: string;
+  active: boolean;
+  show_name: boolean;
+  created_at: number;
+}
+
+export interface AttributionRow {
+  subject_kind: string;
+  subject_id: string;
+  code: string;
+  referrer_uid: string | null;
+  how: string;
+  claimed_at: number;
+}
+
+/** `referral_source_facts`: money as text, so it survives JSON whole. */
+export interface SourceFactRow {
+  code: string | null;
+  subject_kind: string;
+  subject_id: string;
+  referrer_uid: string | null;
+  at: number;
+  seen: boolean;
+  came_back: boolean;
+  gross_micros: string;
+  credited_micros: string;
+  paid_micros: string;
+}
+
+export function toReferralConfig(row: ReferralConfigRow): ReferralConfig {
+  return {
+    userPercent: toMicros(row.user_percent),
+    advertiserPercent: toMicros(row.advertiser_percent),
+    windowDays: row.window_days,
+    claimDays: row.claim_days,
+    houseAdvertiserIds: [...(row.house_advertiser_ids ?? [])],
+  };
+}
+
+export function fromReferralConfig(config: ReferralConfig): ReferralConfigRow & { id: number } {
+  return {
+    id: 1,
+    user_percent: fromMicros(config.userPercent),
+    advertiser_percent: fromMicros(config.advertiserPercent),
+    window_days: config.windowDays,
+    claim_days: config.claimDays,
+    house_advertiser_ids: [...config.houseAdvertiserIds],
+  };
+}
+
+export function toRefCode(row: RefCodeRow): RefCodeRecord {
+  return {
+    code: row.code,
+    ownerUid: row.owner_uid,
+    label: row.label,
+    active: row.active,
+    showName: row.show_name,
+    createdAt: row.created_at,
+  };
+}
+
+export function fromRefCode(record: RefCodeRecord): RefCodeRow {
+  return {
+    code: record.code,
+    owner_uid: record.ownerUid,
+    label: record.label,
+    active: record.active,
+    show_name: record.showName,
+    created_at: record.createdAt,
+  };
+}
+
+export function toAttribution(row: AttributionRow): AttributionRecord {
+  return {
+    subjectKind: row.subject_kind === "advertiser" ? "advertiser" : "user",
+    subjectId: row.subject_id,
+    code: row.code,
+    referrerUid: row.referrer_uid,
+    how: row.how === "clipboard" || row.how === "web" || row.how === "portal" ? row.how : "paste",
+    claimedAt: row.claimed_at,
+  };
+}
+
+export function fromAttribution(record: AttributionRecord): AttributionRow {
+  return {
+    subject_kind: record.subjectKind,
+    subject_id: record.subjectId,
+    code: record.code,
+    referrer_uid: record.referrerUid,
+    how: record.how,
+    claimed_at: record.claimedAt,
+  };
+}
+
+export function toSourceFact(row: SourceFactRow): SourceFact {
+  return {
+    code: row.code,
+    subjectKind: row.subject_kind === "advertiser" ? "advertiser" : "user",
+    subjectId: row.subject_id,
+    referrerUid: row.referrer_uid,
+    at: Number(row.at),
+    seen: row.seen,
+    cameBack: row.came_back,
+    grossMicros: toMicros(row.gross_micros),
+    creditedMicros: toMicros(row.credited_micros),
+    paidMicros: toMicros(row.paid_micros),
+  };
+}
+
+/** `referral_summary` is jsonb: counts as numbers, money as strings. */
+export function toReferrerSummary(raw: {
+  claimed: number;
+  seen: number;
+  cameBack: number;
+  advertisers: number;
+  earnedMicros: string;
+  last30Micros: string;
+}): ReferrerSummary {
+  return {
+    claimed: Number(raw.claimed),
+    seen: Number(raw.seen),
+    cameBack: Number(raw.cameBack),
+    advertisers: Number(raw.advertisers),
+    earnedMicros: toMicros(raw.earnedMicros),
+    last30Micros: toMicros(raw.last30Micros),
   };
 }

@@ -348,6 +348,18 @@ const api: AdcodeApi = {
   milestones: {
     record: (name) => ipcRenderer.send(CHANNELS.milestoneRecord, name),
   },
+  referrals: {
+    get: () => ipcRenderer.invoke(CHANNELS.referralsGet),
+    claim: (text) => ipcRenderer.invoke(CHANNELS.referralsClaim, text),
+    checkClipboard: () => ipcRenderer.invoke(CHANNELS.referralsCheckClipboard),
+    setShowName: (show) => ipcRenderer.invoke(CHANNELS.referralsSetShowName, show),
+    share: (target) => ipcRenderer.invoke(CHANNELS.referralsShare, target),
+    onShareMoment: (listener) => subscribe(CHANNELS.referralsShareMoment, listener),
+  },
+  rating: {
+    onAsk: (listener) => subscribe(CHANNELS.ratingAsk, listener),
+    open: () => ipcRenderer.invoke(CHANNELS.ratingOpen),
+  },
   ads: {
     onShow: (listener) => subscribe(CHANNELS.adShow, listener),
     onEarnings: (listener) => subscribe(CHANNELS.earningsChanged, listener),

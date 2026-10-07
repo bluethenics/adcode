@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell, type SideNavGroup } from "@/components/AppShell";
 import { useAuth } from "@/components/AuthProvider";
 import { CopyField } from "@/components/CopyField";
+import { InvitePanel } from "@/components/InvitePanel";
 import { LedgerRows } from "@/components/LedgerRows";
 import { PayoutPanel } from "@/components/PayoutPanel";
 import { Donut } from "@/components/charts/Donut";
@@ -21,7 +22,7 @@ import {
 } from "@/lib/api";
 
 /** What counts as earning: exactly the kinds `lifetimeMicros` folds. */
-const EARNING_KINDS: ReadonlySet<string> = new Set(["impression", "click", "reversal"]);
+const EARNING_KINDS: ReadonlySet<string> = new Set(["impression", "click", "reversal", "referral", "contribution"]);
 
 /** Manual and agent are two halves of one measure, so they take adjacent palette slots. */
 const MANUAL = seriesColor(0);
@@ -38,6 +39,7 @@ const DASHBOARD_SIDEBAR: SideNavGroup[] = [
     items: [
       { href: "/dashboard", label: "Overview", icon: "grid" },
       { href: "/dashboard#earnings", label: "Earnings", icon: "chart" },
+      { href: "/dashboard#invites", label: "Invites", icon: "person" },
       { href: "/dashboard#payouts", label: "Payouts", icon: "send" },
       { href: "/dashboard#activity", label: "Activity", icon: "clock" },
       { href: "/dashboard#ledger", label: "Ledger", icon: "list" },
@@ -244,6 +246,11 @@ function DashboardBody() {
             .
           </div>
         </>
+      </section>
+
+      <section className="workspace-section" id="invites" aria-labelledby="invites-title">
+        <h2 className="workspace-section-title" id="invites-title">Invites</h2>
+        <InvitePanel progress={{ activeMs: activity?.totals.activeMs ?? 0, lifetimeMicros: balance?.lifetimeMicros ?? "0" }} />
       </section>
 
       <section className="workspace-section" id="payouts" aria-labelledby="payouts-title">
