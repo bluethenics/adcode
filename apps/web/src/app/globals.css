@@ -5331,3 +5331,13 @@ body { background: var(--surface); }
 @media (prefers-reduced-motion: reduce) {
   .codebox-copy { transition: none; }
 }
+
+/* ── Dashboard: invites ───────────────────────────────────────────────── */
+.invite-panel { display: flex; flex-direction: column; gap: 14px; }
+.invite-panel-share { display: flex; flex-wrap: wrap; gap: 8px; }
+.invite-panel-people, .invite-panel-earned, .invite-panel-invited, .invite-panel-preview { margin: 0; }
+.invite-panel-people { font-size: 17px; }
+.invite-panel-earned { color: var(--market-green, #42d878); font-variant-numeric: tabular-nums; }
+.invite-panel-terms { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
+.invite-panel-name { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.invite-panel-preview { color: var(--muted); font-size: 13px; }

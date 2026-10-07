@@ -1,3 +1,4 @@
+import { campaignFor } from "./invite";
 /** Only this small, explicit event vocabulary can leave the browser. */
 export type WebsiteEventName = "page_view" | "install_copy" | "download_click" | "send_to_desktop" | "advertise_click" | "sign_in" | "sign_up" | "advertiser_created" | "campaign_created" | "support_sent" | "outbound_click" | "scroll_50" | "scroll_90" | "engagement" | "js_error" | "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
 export type AnalyticsChoice = "accepted" | "declined";
@@ -44,7 +45,7 @@ function session() {
     if (!source) {
       try { const ref = new URL(document.referrer); source = ref.origin === location.origin ? "direct" : token(ref.hostname); } catch { /* direct visit */ }
     }
-    volatileSession = { id: crypto.randomUUID(), source: source || "direct", campaign: token(query.get("utm_campaign")), last: now };
+    volatileSession = { id: crypto.randomUUID(), source: source || "direct", campaign: campaignFor(location.pathname, token(query.get("utm_campaign"))), last: now };
   }
   volatileSession.last = now;
   try { sessionStorage.setItem(sessionKey, JSON.stringify(volatileSession)); } catch { /* in-memory session works */ }

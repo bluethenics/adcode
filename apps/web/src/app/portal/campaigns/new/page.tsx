@@ -15,6 +15,7 @@ import {
   type CampaignView,
   type CreativeView,
 } from "@/lib/api";
+import { signupRefBody } from "@/lib/invite";
 import { ECONOMICS, formatMicros } from "@/lib/site";
 
 /**
@@ -116,7 +117,7 @@ export function NewCampaignForm() {
       path: "/portal/advertiser",
       token: t,
       method: "POST",
-      body: { name: trimmedBrand },
+      body: { name: trimmedBrand, ...signupRefBody() },
     });
 
     // Already having one is the normal case on the second campaign, not a failure.
