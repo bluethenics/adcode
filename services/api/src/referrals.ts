@@ -4,7 +4,7 @@
  * Every decision about an invite lives here: what counts as a code, who may claim one,
  * what a day of invites pays, and how the Sources report adds people up. The in-memory
  * and Firestore stores call these directly; Postgres implements settlement and the report
- * facts in SQL (`supabase/migrations/20261006180000_referrals.sql`), and that SQL is held
+ * facts in SQL (`supabase/migrations/20261007120000_referrals.sql`), and that SQL is held
  * to the same cases as `test/referrals.test.ts`. Two definitions of money that drift apart
  * are a bug that pays somebody the wrong amount every night, silently.
  *

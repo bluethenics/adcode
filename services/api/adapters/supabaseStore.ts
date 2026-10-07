@@ -1213,7 +1213,7 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       if (error !== null) fail("putModelCatalog", error);
     },
 
-    /* ── Referrals: `20261006180000_referrals.sql` ─────────────────────── */
+    /* ── Referrals: `20261007120000_referrals.sql` ─────────────────────── */
 
     async getReferralConfig() {
       const row = await maybe<ReferralConfigRow>("getReferralConfig", (db) =>

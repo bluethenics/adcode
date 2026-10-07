@@ -6,7 +6,7 @@
  * the answer for the wire - money as decimal strings, as everywhere else in this service.
  *
  * Every handler here can throw `ReferralsUnavailable` when the store cannot answer - which
- * is what a deploy that ran ahead of `20261006180000_referrals.sql` looks like. The router
+ * is what a deploy that ran ahead of `20261007120000_referrals.sql` looks like. The router
  * turns it into a 503 for these endpoints only, so serving, receipts and balances never
  * notice that invites are not there yet.
  */

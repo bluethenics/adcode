@@ -925,7 +925,7 @@ export function fromWithdrawal(w: WithdrawalRecord): WithdrawalRow {
 
 // ---------------------------------------------------------------------------
 // Referrals. Their own tables, so none of the column lists above had to change: a deploy
-// that runs ahead of `20261006180000_referrals.sql` breaks invites and nothing else.
+// that runs ahead of `20261007120000_referrals.sql` breaks invites and nothing else.
 // ---------------------------------------------------------------------------
 
 export const REFERRAL_CONFIG_COLS = "user_percent::text,advertiser_percent::text,window_days,claim_days,house_advertiser_ids";
