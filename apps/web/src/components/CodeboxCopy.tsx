@@ -53,7 +53,7 @@ export function CodeboxCopy() {
       const text = code.textContent ?? "";
       const path = location.pathname;
       void copyText(text).then((ok) => {
-        if (ok && isInstallCommand(text, SITE.origin)) trackWebsiteEvent("install_copy", 0, path);
+        if (ok && isInstallCommand(text, SITE.origin)) trackWebsiteEvent("install_copy", 0, path, "docs-codebox");
         button.textContent = ok ? "Copied" : "Copy failed";
         button.dataset.copied = ok ? "true" : "false";
         clearTimeout(timers.get(button));

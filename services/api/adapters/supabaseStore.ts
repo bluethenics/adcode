@@ -411,11 +411,18 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
     async growthStats(now): Promise<GrowthStats> {
       // Counted in Postgres (`growth_stats`): distinct-user windows cannot be expressed as
       // PostgREST head counts, and the alternative ships every serve across the wire.
-      const raw = await scalar<Omit<GrowthStats, "creditedMicros"> & { creditedMicros: string }>(
+      const raw = await scalar<Omit<GrowthStats, "creditedMicros" | "paidOutMicros"> & { creditedMicros: string; paidOutMicros?: string }>(
         "growthStats",
         (db) => db.rpc("growth_stats", { p_now: now }),
       );
-      return { ...raw, creditedMicros: toMicros(raw.creditedMicros) };
+      // `paidOutMicros` and the first-day journey arrive with migration 20261006180000; until
+      // it is applied the older function answers without them.
+      return {
+        ...raw,
+        creditedMicros: toMicros(raw.creditedMicros),
+        paidOutMicros: toMicros(raw.paidOutMicros ?? "0"),
+        funnel: { ...raw.funnel, journey: raw.funnel?.journey ?? [] },
+      };
     },
 
     async statsForCampaign(campaignId): Promise<CampaignStats> {

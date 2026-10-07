@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { watchUser, firebaseConfigured, type User } from "@/lib/firebase";
+import { excludeBrowserByDefault } from "@/lib/websiteAnalytics";
 
 /**
  * Who is signed in, and a fresh ID token on demand.
@@ -20,6 +21,12 @@ interface AuthState {
   configured: boolean;
   token: () => Promise<string | null>;
   isAdmin: boolean;
+  /**
+   * True while the server is still being asked whether this account is an admin. Signing in
+   * finishes first, so without this an administrator was told "Not an admin account" for the
+   * moment between the two.
+   */
+  adminLoading: boolean;
 }
 
 const Ctx = createContext<AuthState>({
@@ -28,12 +35,14 @@ const Ctx = createContext<AuthState>({
   configured: false,
   token: async () => null,
   isAdmin: false,
+  adminLoading: false,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminLoading, setAdminLoading] = useState(false);
   const userRef = useRef<User | null>(null);
 
   useEffect(() => {
@@ -44,8 +53,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (next === null) {
         setIsAdmin(false);
+        setAdminLoading(false);
         return;
       }
+      setAdminLoading(true);
 
       /*
        * Ask the server, because the browser cannot work this out.
@@ -63,8 +74,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       void next
         .getIdToken()
         .then((token) => apiFetch<{ uid: string; isAdmin: boolean }>({ path: "/me", token }))
-        .then((result) => setIsAdmin(result.ok && result.value.isAdmin))
-        .catch(() => setIsAdmin(false));
+        .then((result) => {
+          // Only the answer for whoever is signed in now: a slow reply for the previous
+          // account must not decide what this one is shown.
+          if (userRef.current !== next) return;
+          const admin = result.ok && result.value.isAdmin;
+          setIsAdmin(admin);
+          // An administrator's own visits are not an audience. Excluded on this browser
+          // from here on, unless Admin > Analytics was told to count it.
+          if (admin) excludeBrowserByDefault();
+        })
+        .catch(() => { if (userRef.current === next) setIsAdmin(false); })
+        .finally(() => { if (userRef.current === next) setAdminLoading(false); });
     });
   }, []);
 
@@ -79,8 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ user, loading, configured: firebaseConfigured, token, isAdmin }),
-    [user, loading, token, isAdmin],
+    () => ({ user, loading, configured: firebaseConfigured, token, isAdmin, adminLoading }),
+    [user, loading, token, isAdmin, adminLoading],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

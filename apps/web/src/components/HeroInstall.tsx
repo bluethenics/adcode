@@ -29,7 +29,7 @@ export function HeroInstall({ source = "hero", advertise = true }: { source?: st
 
   const route = installRoute(platform);
   const secondary = advertise ? (
-    <a href="/#advertise" className="marketplace-secondary" onClick={() => trackWebsiteEvent("advertise_click")}>
+    <a href="/#advertise" className="marketplace-secondary" data-tracked onClick={() => trackWebsiteEvent("advertise_click", 0, undefined, source)}>
       Advertise to developers <span aria-hidden="true">↘</span>
     </a>
   ) : null;
@@ -83,6 +83,7 @@ function WindowsInstall({ source, secondary }: { source: string; secondary: Reac
         <a
           href={MICROSOFT_STORE.installerUrl(source)}
           className="marketplace-primary install-cta"
+          data-tracked
           onClick={() => {
             trackWebsiteEvent("download_click", 0, undefined, source);
             setStarted(true);
@@ -115,7 +116,7 @@ function WindowsInstall({ source, secondary }: { source: string; secondary: Reac
         </p>
       )}
 
-      {terminal && !started && <TerminalCommand platform="windows" />}
+      {terminal && !started && <TerminalCommand platform="windows" source={source} />}
     </div>
   );
 }
@@ -126,7 +127,7 @@ function LinuxInstall({ source, secondary }: { source: string; secondary: React.
   return (
     <div className="hero-install">
       <div className="marketplace-hero-actions">
-        <a href={downloads.deb} className="marketplace-primary install-cta" onClick={() => trackWebsiteEvent("download_click", 0, undefined, source)}>
+        <a href={downloads.deb} className="marketplace-primary install-cta" data-tracked onClick={() => trackWebsiteEvent("download_click", 0, undefined, source)}>
           <span className="install-cta-label">
             Download for Ubuntu / Debian
             <small>Free · .deb · x86_64</small>
@@ -135,12 +136,12 @@ function LinuxInstall({ source, secondary }: { source: string; secondary: React.
         {secondary}
       </div>
       <p className="hero-install-note">
-        Another distribution? <a href={downloads.appImage} onClick={() => trackWebsiteEvent("download_click", 0, undefined, source)}>Download the AppImage</a>.{" "}
+        Another distribution? <a href={downloads.appImage} data-tracked onClick={() => trackWebsiteEvent("download_click", 0, undefined, source)}>Download the AppImage</a>.{" "}
         <button type="button" className="install-link-button" aria-expanded={terminal} onClick={() => setTerminal((open) => !open)}>
           {terminal ? "Hide the terminal command" : "Prefer a terminal?"}
         </button>
       </p>
-      {terminal && <TerminalCommand platform="linux" />}
+      {terminal && <TerminalCommand platform="linux" source={source} />}
     </div>
   );
 }
@@ -148,6 +149,10 @@ function LinuxInstall({ source, secondary }: { source: string; secondary: React.
 /**
  * A phone cannot install a desktop editor, so it gets a way to send the link to the
  * reader's computer - share sheet or clipboard (sendToDesktop.ts), or email.
+ *
+ * Counted when it worked - the sheet was used or the link copied - not when the button was
+ * pressed, so a dismissed sheet or a blocked clipboard is not a sent link. The email link
+ * counts on the click: whether the message went is the mail app's to know.
  */
 function SendToDesktop({ source, secondary }: { source: string; secondary: React.ReactNode }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
@@ -155,8 +160,8 @@ function SendToDesktop({ source, secondary }: { source: string; secondary: React
   const body = `${SEND_TEXT}\n\nInstall it here: ${link}`;
 
   async function send(): Promise<void> {
-    trackWebsiteEvent("send_to_desktop", 0, undefined, source);
     const outcome = await sendInstallLink(navigator, link);
+    if (outcome === "shared" || outcome === "copied") trackWebsiteEvent("send_to_desktop", 0, undefined, source);
     if (outcome === "copied" || outcome === "failed") setState(outcome);
   }
 
@@ -183,7 +188,7 @@ function SendToDesktop({ source, secondary }: { source: string; secondary: React
   );
 }
 
-function TerminalCommand({ platform }: { platform: "windows" | "linux" }) {
+function TerminalCommand({ platform, source }: { platform: "windows" | "linux"; source: string }) {
   const command = installCommand(platform, SITE.origin)!;
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -199,7 +204,7 @@ function TerminalCommand({ platform }: { platform: "windows" | "linux" }) {
     setFailed(false);
     try {
       await navigator.clipboard.writeText(command);
-      trackWebsiteEvent("install_copy");
+      trackWebsiteEvent("install_copy", 0, undefined, source);
       setCopied(true);
     } catch {
       // A denied clipboard permission. The command is selectable either way.

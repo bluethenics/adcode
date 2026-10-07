@@ -70,13 +70,15 @@ export function StickyInstall() {
       <a
         className="sticky-install-cta"
         href={action.href}
+        data-tracked
         tabIndex={shown ? 0 : -1}
         onClick={(event) => {
           if (action.kind === "download") trackWebsiteEvent("download_click", 0, undefined, "sticky");
           if (action.kind === "send") {
             event.preventDefault();
-            trackWebsiteEvent("send_to_desktop", 0, undefined, "sticky");
             void sendInstallLink(navigator, installLinkFor(SITE.origin)).then((outcome) => {
+              // Counted when the link went somewhere, not when the bar was tapped.
+              if (outcome === "shared" || outcome === "copied") trackWebsiteEvent("send_to_desktop", 0, undefined, "sticky");
               if (outcome === "copied") setCopied(true);
               // Neither share nor copy: the hero offers email and shows the link.
               if (outcome === "failed") document.getElementById("earn")?.scrollIntoView({ behavior: "smooth", block: "start" });

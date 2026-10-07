@@ -3,19 +3,21 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useReportWebVitals } from "next/web-vitals";
-import { analyticsChoice, analyticsPath, flushWebsiteAnalytics, setAnalyticsChoice, trackWebsiteEvent, type AnalyticsChoice } from "@/lib/websiteAnalytics";
+import { analyticsChoice, analyticsPath, browserExcluded, flushWebsiteAnalytics, setAnalyticsChoice, touchWebsiteSession, trackWebsiteEvent, trackWebsiteVital, type AnalyticsChoice, type WebVitalName } from "@/lib/websiteAnalytics";
 import "./websiteAnalytics.css";
 
 // Web Vitals describe the document load, not whichever client route is open later.
 let documentPath: string | undefined;
-const reportedVitals = new Set<string>();
 function reportVital(metric: { id: string; name: string; value: number }) {
-  if (analyticsChoice() !== "accepted" || !documentPath || reportedVitals.has(metric.id)) return;
+  if (analyticsChoice() !== "accepted" || !documentPath) return;
   if (!["LCP", "CLS", "INP", "FCP", "TTFB"].includes(metric.name)) return;
-  reportedVitals.add(metric.id);
-  trackWebsiteEvent(metric.name as "LCP" | "CLS" | "INP" | "FCP" | "TTFB", metric.value, documentPath);
+  // CLS and INP report again when they change; each report replaces the last for this metric id.
+  trackWebsiteVital(metric.name as WebVitalName, metric.value, documentPath, metric.id);
   flushWebsiteAnalytics();
 }
+
+/** Engaged time stops counting this long after the last scroll, click, key press or pointer movement. */
+const IDLE_MS = 60_000;
 
 export function WebsiteAnalytics() {
   const pathname = usePathname();
@@ -34,24 +36,43 @@ export function WebsiteAnalytics() {
   }, []);
 
   useEffect(() => {
-    if (!ready || choice !== "accepted" || !analyticsPath(pathname)) return;
+    if (!ready || choice !== "accepted" || !analyticsPath(pathname) || browserExcluded()) return;
     trackWebsiteEvent("page_view", 0, pathname);
-    let visibleSince = document.visibilityState === "visible" ? performance.now() : null;
+    /*
+     * Engaged time, not merely visible time: each stretch between two signs of somebody
+     * there counts for at most a minute, so a tab left open on a page overnight is a minute,
+     * not eight hours.
+     */
+    let mark = document.visibilityState === "visible" ? performance.now() : null;
+    let engagedMs = 0;
+    let lastInput = 0;
+    const accrue = () => {
+      if (mark === null) return;
+      const now = performance.now();
+      engagedMs += Math.min(now - mark, IDLE_MS);
+      mark = now;
+    };
+    const engagement = () => {
+      accrue();
+      if (engagedMs >= 1000) trackWebsiteEvent("engagement", engagedMs, pathname);
+      engagedMs = 0;
+    };
+    const input = () => {
+      const now = performance.now();
+      if (now - lastInput < 1000) return;
+      lastInput = now;
+      accrue();
+      touchWebsiteSession();
+    };
     const milestones = new Set<number>();
     let errors = 0;
-    const engagement = () => {
-      if (visibleSince !== null) {
-        const elapsed = performance.now() - visibleSince;
-        if (elapsed >= 1000) trackWebsiteEvent("engagement", elapsed, pathname);
-        visibleSince = null;
-      }
-    };
     const visibility = () => {
-      if (document.visibilityState === "hidden") { engagement(); flushWebsiteAnalytics(); }
-      else visibleSince = performance.now();
+      if (document.visibilityState === "hidden") { engagement(); mark = null; flushWebsiteAnalytics(); }
+      else mark = performance.now();
     };
     const pagehide = () => { engagement(); flushWebsiteAnalytics(); };
     const scroll = () => {
+      input();
       const available = document.documentElement.scrollHeight - innerHeight;
       if (available <= 0) return;
       const percent = scrollY / available * 100;
@@ -61,7 +82,9 @@ export function WebsiteAnalytics() {
     };
     const click = (event: MouseEvent) => {
       const anchor = event.target instanceof Element ? event.target.closest("a") : null;
-      if (!anchor) return;
+      // A link that records its own click (an install button, with the button's placement)
+      // says so, and is not counted a second time here.
+      if (!anchor || anchor.dataset.tracked !== undefined) return;
       try {
         const target = new URL(anchor.href);
         if (!["http:", "https:"].includes(target.protocol)) return;
@@ -75,6 +98,7 @@ export function WebsiteAnalytics() {
     window.addEventListener("pagehide", pagehide);
     window.addEventListener("scroll", scroll, { passive: true });
     document.addEventListener("click", click);
+    for (const name of ["pointerdown", "pointermove", "keydown", "touchstart"] as const) window.addEventListener(name, input, { passive: true });
     window.addEventListener("error", error);
     window.addEventListener("unhandledrejection", error);
     return () => {
@@ -83,6 +107,7 @@ export function WebsiteAnalytics() {
       window.removeEventListener("pagehide", pagehide);
       window.removeEventListener("scroll", scroll);
       document.removeEventListener("click", click);
+      for (const name of ["pointerdown", "pointermove", "keydown", "touchstart"] as const) window.removeEventListener(name, input);
       window.removeEventListener("error", error);
       window.removeEventListener("unhandledrejection", error);
     };

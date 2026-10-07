@@ -12,7 +12,7 @@
  */
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../src/ledger.ts";
 import { utcDay } from "../src/day.ts";
-import { countDevelopers, summarizeGrowth, type MilestoneRow } from "../src/growth.ts";
+import { countDevelopers, sightings, summarizeGrowth, type ActivityRow, type MilestoneRow, type PresenceRow } from "../src/growth.ts";
 import {
   decryptDestination,
   encryptDestination,
@@ -98,6 +98,47 @@ function fromWithdrawalDoc(raw: Record<string, unknown>, key: string): Withdrawa
 }
 
 const fromMicros = (v: bigint): string => v.toString();
+
+/**
+ * Everything `sightings` reads, from every collection that says an account was seen. This
+ * adapter is not what production runs on (Supabase counts it in SQL), so whole-collection
+ * reads are an acceptable price for one definition shared with the other stores.
+ */
+async function readSightings(database: Firestore): Promise<{
+  serves: ServeRecord[];
+  activity: ActivityRow[];
+  milestones: MilestoneRow[];
+  milestoneDays: PresenceRow[];
+}> {
+  const [serves, activity, milestones, days] = await Promise.all([
+    database.collection("serves").select("uid", "servedAt", "test").get(),
+    database.collection("activity").select("uid", "day", "firstAt", "updatedAt").get(),
+    database.collection("milestones").select("uid", "name", "firstAt", "lastAt").get(),
+    database.collection("milestoneDays").select("uid", "day", "firstAt", "lastAt").get(),
+  ]);
+  const time = (value: unknown): number | null => (typeof value === "number" ? value : null);
+  return {
+    serves: serves.docs.map((doc) => ({ uid: String(doc.data()["uid"]), servedAt: Number(doc.data()["servedAt"]), test: doc.data()["test"] === true }) as ServeRecord),
+    activity: activity.docs.map((doc) => ({
+      uid: String(doc.data()["uid"]),
+      day: String(doc.data()["day"]),
+      firstAt: time(doc.data()["firstAt"]),
+      lastAt: time(doc.data()["updatedAt"]),
+    })),
+    milestones: milestones.docs.map((doc): MilestoneRow => ({
+      uid: String(doc.data()["uid"]),
+      name: String(doc.data()["name"]),
+      firstAt: Number(doc.data()["firstAt"] ?? 0),
+      lastAt: Number(doc.data()["lastAt"] ?? 0),
+    })),
+    milestoneDays: days.docs.map((doc): PresenceRow => ({
+      uid: String(doc.data()["uid"]),
+      day: String(doc.data()["day"]),
+      firstAt: Number(doc.data()["firstAt"] ?? 0),
+      lastAt: Number(doc.data()["lastAt"] ?? 0),
+    })),
+  };
+}
 
 export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: string): Store {
   let db: Firestore | undefined = injected;
@@ -200,20 +241,17 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
       // Developers are accounts that have done something, the rule `growthStats` uses. This
       // adapter is not what production runs on (Supabase counts it in SQL), so reading the
       // uids of every serve, activity day and milestone is an acceptable price here.
-      const [receipts, campaigns, users, serves, activity, milestones] = await Promise.all([
+      const [receipts, campaigns, users, sources] = await Promise.all([
         database.collection("receipts").where("costMicros", ">", "0").select("outcome").get(),
         database.collection("campaigns").where("status", "==", "active").count().get(),
         database.collection("users").select("status", "createdAt").get(),
-        database.collection("serves").where("test", "==", false).select("uid").get(),
-        database.collection("activity").select("uid").get(),
-        database.collection("milestones").select("uid").get(),
+        readSightings(database),
       ]);
       const clicks = receipts.docs.filter((doc) => doc.data()["outcome"] === "click").length;
-      const seen = [...serves.docs, ...activity.docs, ...milestones.docs].map((doc) => ({ uid: String(doc.data()["uid"]) }));
       const developers = countDevelopers(
         now,
         users.docs.map((doc) => ({ uid: doc.id, status: doc.data()["status"], createdAt: Number(doc.data()["createdAt"] ?? 0) }) as UserRecord),
-        seen,
+        sightings(sources),
       );
       return { impressions: receipts.size - clicks, clicks, activeCampaigns: campaigns.data().count, ...developers };
     },
@@ -222,30 +260,23 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
       const database = await lazy();
       // Admin-only and read on demand, so whole-collection reads are acceptable here: "ever
       // seen" and "came back" reach back to each sign-up, not just the 30-day window.
-      const [users, serves, receipts, activity, milestones] = await Promise.all([
+      const [users, receipts, sources, paid] = await Promise.all([
         database.collection("users").select("status", "createdAt").get(),
-        database.collection("serves").select("uid", "servedAt", "test").get(),
         database.collection("receipts").where("costMicros", ">", "0").select("outcome", "costMicros", "creditedMicros", "createdAt").get(),
-        database.collection("activity").select("uid", "day").get(),
-        database.collection("milestones").select("uid", "name", "firstAt", "lastAt").get(),
+        readSightings(database),
+        database.collection("withdrawals").where("status", "==", "paid").select("amountMicros", "status").get(),
       ]);
       return summarizeGrowth({
         now,
         users: users.docs.map((doc) => ({ uid: doc.id, status: doc.data()["status"], createdAt: Number(doc.data()["createdAt"] ?? 0) }) as UserRecord),
-        serves: serves.docs.map((doc) => ({ uid: String(doc.data()["uid"]), servedAt: Number(doc.data()["servedAt"]), test: doc.data()["test"] === true }) as ServeRecord),
         receipts: receipts.docs.map((doc) => ({
           outcome: String(doc.data()["outcome"]),
           costMicros: toMicros(doc.data()["costMicros"]),
           creditedMicros: toMicros(doc.data()["creditedMicros"]),
           createdAt: Number(doc.data()["createdAt"] ?? 0),
         }) as ReceiptRecord),
-        activity: activity.docs.map((doc) => ({ uid: String(doc.data()["uid"]), day: String(doc.data()["day"]) })),
-        milestones: milestones.docs.map((doc): MilestoneRow => ({
-          uid: String(doc.data()["uid"]),
-          name: String(doc.data()["name"]),
-          firstAt: Number(doc.data()["firstAt"] ?? 0),
-          lastAt: Number(doc.data()["lastAt"] ?? 0),
-        })),
+        ...sources,
+        withdrawals: paid.docs.map((doc) => ({ amountMicros: toMicros(doc.data()["amountMicros"]), status: String(doc.data()["status"]) })),
       });
     },
 
@@ -612,6 +643,7 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
             filesTouched: delta.filesTouched,
             activeMs: delta.activeMs,
             sessions: delta.sessions,
+            firstAt: delta.at,
             updatedAt: delta.at,
           });
           return;
@@ -631,7 +663,9 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
           filesTouched: Math.max(at("filesTouched"), delta.filesTouched),
           activeMs: at("activeMs") + delta.activeMs,
           sessions: at("sessions") + delta.sessions,
-          updatedAt: delta.at,
+          // When the day was first reported; a row written before this field counts from its update.
+          firstAt: Number(raw["firstAt"] ?? raw["updatedAt"] ?? delta.at),
+          updatedAt: Math.max(at("updatedAt"), delta.at),
         });
       });
     },
@@ -653,6 +687,18 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
                 lastAt: Math.max(Number(raw["lastAt"] ?? item.at), item.at),
                 count: Number(raw["count"] ?? 0) + 1,
               });
+        });
+        // And the day it happened on, so a day between the first and the latest is not lost.
+        const day = utcDay(item.at);
+        const dayRef = database.collection("milestoneDays").doc(`${uid}_${day}`);
+        await database.runTransaction(async (tx) => {
+          const raw = (await tx.get(dayRef)).data();
+          tx.set(dayRef, {
+            uid,
+            day,
+            firstAt: Math.min(Number(raw?.["firstAt"] ?? item.at), item.at),
+            lastAt: Math.max(Number(raw?.["lastAt"] ?? item.at), item.at),
+          });
         });
       }
     },

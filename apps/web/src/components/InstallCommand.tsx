@@ -10,7 +10,7 @@ import { trackWebsiteEvent } from "@/lib/websiteAnalytics";
  * is unambiguous at a glance, a tick is a thing you have to interpret. It reverts after a
  * moment so the control goes back to describing what it will do next.
  */
-export function InstallCommand({ command, label }: { command: string; label?: string }) {
+export function InstallCommand({ command, label, placement }: { command: string; label?: string; /** Which install block this is, for the analytics placement ranking. */ placement?: string }) {
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -24,7 +24,7 @@ export function InstallCommand({ command, label }: { command: string; label?: st
     setFailed(false);
     try {
       await navigator.clipboard.writeText(command);
-      trackWebsiteEvent("install_copy");
+      trackWebsiteEvent("install_copy", 0, undefined, placement);
       setCopied(true);
     } catch {
       // Clipboard access can be refused outright. The command is on screen and

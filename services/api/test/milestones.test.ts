@@ -45,7 +45,7 @@ describe("the milestones route", () => {
     const growth = async () => {
       await store.addAdmin({ email: "owner@site.test", addedBy: "setup", addedAt: 0 });
       const response = await handler(new Request("https://site.test/v1/admin/growth", { headers: { authorization: "Bearer owner" } }));
-      return (await response.json()) as { developers: number; funnel: { base: number; steps: { name: string; accounts: number }[] } };
+      return (await response.json()) as { developers: number; daily: { active: number }[]; funnel: { base: number; steps: { name: string; accounts: number }[] } };
     };
     return { post, growth };
   }
@@ -75,9 +75,14 @@ describe("the milestones route", () => {
     const { post, growth } = setup();
     await post({ milestones: [{ name: "welcome_shown", at: NOW + 365 * DAY }, { name: "turn_ok", at: 1 }] });
     const stats = await growth();
-    // Both were clamped into the last week, so both count for this month's funnel.
-    expect(stats.funnel.steps.find((step) => step.name === "welcome_shown")?.accounts).toBe(1);
+    // Both were clamped into the last week. The ancient one became a week ago - so the
+    // account is one of this month's new developers rather than one from 1970 - and the
+    // future one became now, which lands it in today rather than next year.
+    expect(stats.funnel.base).toBe(1);
     expect(stats.funnel.steps.find((step) => step.name === "turn_ok")?.accounts).toBe(1);
+    expect(stats.daily.at(-1)?.active).toBe(1);
+    // A week after being first seen is not the first day.
+    expect(stats.funnel.steps.find((step) => step.name === "welcome_shown")?.accounts).toBe(0);
   });
 });
 

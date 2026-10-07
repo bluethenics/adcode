@@ -140,11 +140,11 @@ export default async function VersionsPage() {
           <dl>
             <div>
               <dt>Windows, in PowerShell</dt>
-              <dd><InstallCommand command={WINDOWS_COMMAND} /></dd>
+              <dd><InstallCommand command={WINDOWS_COMMAND} placement="versions-windows" /></dd>
             </div>
             <div>
               <dt>Linux</dt>
-              <dd><InstallCommand command={LINUX_COMMAND} /></dd>
+              <dd><InstallCommand command={LINUX_COMMAND} placement="versions-linux" /></dd>
             </div>
             <div>
               <dt>macOS</dt>

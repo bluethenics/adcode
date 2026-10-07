@@ -60,27 +60,38 @@ function GrowthReport({ growth }: { growth: Growth }) {
       "Developers",
       growth.accounts === null
         ? `+${growth.joined7d.toLocaleString()} this week · +${growth.joined30d.toLocaleString()} in 30 days`
-        : `Did something at least once · ${growth.accounts.toLocaleString()} accounts in all · +${growth.joined7d.toLocaleString()} this week`,
+        : `Did something at least once · ${growth.accounts.toLocaleString()} accounts in all · +${growth.joined7d.toLocaleString()} first seen in 7 days`,
     ],
-    [growth.active1d.toLocaleString(), "Active today", "Opened ADCode in the last 24 hours"],
+    [growth.active1d.toLocaleString(), "Active, last 24 hours", "Seen in the past 24 hours - a rolling window, not the UTC day"],
     growth.returning7d === null
-      ? [growth.active7d.toLocaleString(), "Active this week", "Last 7 days"]
-      : [growth.returning7d.toLocaleString(), "Came back this week", `Of ${growth.active7d.toLocaleString()} active - seen again at least a day after joining`],
-    [growth.active30d.toLocaleString(), "Active this month", "Last 30 days"],
-    [growth.adsShown.toLocaleString(), "Ads shown", `${growth.adsShown7d.toLocaleString()} this week · ${growth.clicks.toLocaleString()} clicks`],
-    [dollars(growth.creditedMicros), "Paid to developers", "Credited across every billed view and click"],
+      ? [growth.active7d.toLocaleString(), "Active, last 7 days", "Rolling 7 days"]
+      : [growth.returning7d.toLocaleString(), "Came back, last 7 days", `Of ${growth.active7d.toLocaleString()} active - seen again at least a day after first using the editor`],
+    [growth.active30d.toLocaleString(), "Active, last 30 days", "Rolling 30 days"],
+    [growth.adsShown.toLocaleString(), "Ads shown", `${growth.adsShown7d.toLocaleString()} in 7 days · ${growth.clicks.toLocaleString()} clicks`],
+    [dollars(growth.creditedMicros), "Earned by developers", "Credited from every billed view and click - not all of it withdrawn"],
+    ...(growth.paidOutMicros === null ? [] : [[dollars(growth.paidOutMicros), "Paid out", "Withdrawals actually sent to developers"] as [string, string, string]]),
   ];
+  // Fields this build reads that the API did not send: the report is from an older API or
+  // an unapplied migration, and its numbers follow the older rules.
+  const behind = growth.accounts === null || growth.paidOutMicros === null || growth.funnel === null || growth.funnel.journey === null;
   const hasReturning = growth.daily.some((d) => d.returning !== null);
 
   return (
     <>
+      {behind && (
+        <p className="notice" data-tone="info" role="status">
+          This report comes from an API that predates the current growth rules, so some figures below follow the older definitions
+          (a developer measured from account creation, cohorts that shift daily, paid-out money missing). Apply migrations
+          20261003120000 and 20261006180000 and deploy the API, then refresh.
+        </p>
+      )}
       <div className="admin-tiles growth-tiles">
         {tiles.map(([value, label, note]) => (
           <div className="admin-tile" key={label}><strong>{value}</strong><span>{label}</span><small>{note}</small></div>
         ))}
       </div>
       <p className="website-analytics-note">
-        A developer is an account that fetched an ad, reported editor activity or reached a first-session milestone at least once; an account that never did is counted only in the total. Came back means seen again at least a day after the account was made - the number that says whether people stay. An ad shown means a sponsored card was seen and billed, not merely fetched.
+        A developer is an account that fetched an ad, reported editor activity or reached a first-session milestone at least once; an account that never did - most are web-only, such as advertisers - is counted only in the total. A developer joins the first time they are seen, not when the account was made, so somebody who signed up on the website and opened the editor days later is new on that day. Came back means seen again at least a day after first being seen - the number that says whether people stay. An ad shown means a sponsored card was seen and billed, not merely fetched. Earned is what developers were credited; paid out is what was withdrawn.
       </p>
       <section className="website-analytics-card">
         <h2>Last 30 days</h2>
@@ -113,7 +124,7 @@ function CohortTable({ growth }: { growth: Growth }) {
   };
   return (
     <section className="website-analytics-card" aria-labelledby="growth-cohorts-heading">
-      <h2 id="growth-cohorts-heading">Who came back, by the week they joined</h2>
+      <h2 id="growth-cohorts-heading">Who came back, by the week they started</h2>
       <table>
         <thead>
           <tr><th>Week of</th><th>Joined</th><th>Back after a day</th><th>Back after a week</th></tr>
@@ -132,33 +143,54 @@ function CohortTable({ growth }: { growth: Growth }) {
           })}
         </tbody>
       </table>
-      <p className="website-analytics-note">Back after a day: seen again at least 24 hours after joining. Back after a week: at least 7 days after. A week is marked too early until everybody in it has had that long.</p>
+      <p className="website-analytics-note">Calendar weeks, Monday to Sunday (UTC), so a week holds the same people in every report; this week is still filling. Back after a day: seen again at least 24 hours after first being seen. Back after a week: at least 7 days after. A week is marked too early until everybody in it has had that long.</p>
     </section>
   );
 }
 
-/** How far the last 30 days' new developers got through a first session. */
+/** One row per step: the label, a bar, and the count with its share of the base. */
+function FunnelSteps({ steps, base }: { steps: { name: string; accounts: number }[]; base: number }) {
+  return (
+    <ol className="growth-funnel">
+      {steps.map((step) => {
+        const share = percent(step.accounts, base) ?? 0;
+        return (
+          <li key={step.name}>
+            <span className="growth-funnel-label">{MILESTONE_LABELS[step.name] ?? step.name}</span>
+            <span className="growth-funnel-bar" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
+            <span className="growth-funnel-value">{step.accounts.toLocaleString()} <small>{share}%</small></span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * How far the last 30 days' new developers got in their first day: the main path, in order,
+ * then every milestone on its own. A milestone from a later day is a later session and is not
+ * counted here.
+ */
 function FunnelCard({ funnel }: { funnel: GrowthFunnel }) {
   const counted = funnel.steps.some((step) => step.accounts > 0);
   return (
     <section className="website-analytics-card" aria-labelledby="growth-funnel-heading">
-      <h2 id="growth-funnel-heading">First session, last 30 days</h2>
+      <h2 id="growth-funnel-heading">{funnel.journey === null ? "First session, last 30 days" : "First day, last 30 days"}</h2>
       {!counted && (
         <p className="website-analytics-note">No milestones yet. They are reported by the desktop release that adds the new welcome and free AI setup; installs before it report none.</p>
       )}
-      <ol className="growth-funnel">
-        {funnel.steps.map((step) => {
-          const share = percent(step.accounts, funnel.base) ?? 0;
-          return (
-            <li key={step.name}>
-              <span className="growth-funnel-label">{MILESTONE_LABELS[step.name] ?? step.name}</span>
-              <span className="growth-funnel-bar" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
-              <span className="growth-funnel-value">{step.accounts.toLocaleString()} <small>{share}%</small></span>
-            </li>
-          );
-        })}
-      </ol>
-      <p className="website-analytics-note">Out of {funnel.base.toLocaleString()} developers who joined in the last 30 days. Each step counts people who reached it at least once.</p>
+      {funnel.journey !== null && (
+        <>
+          <h3 className="growth-funnel-heading">The main path, in order</h3>
+          <FunnelSteps steps={funnel.journey} base={funnel.base} />
+          <p className="website-analytics-note">Each step counts people who reached it after the step before, within 24 hours of first being seen, so the numbers can only fall.</p>
+          <h3 className="growth-funnel-heading">Every milestone in the first day</h3>
+        </>
+      )}
+      <FunnelSteps steps={funnel.steps} base={funnel.base} />
+      <p className="website-analytics-note">Out of {funnel.base.toLocaleString()} developers first seen in the last 30 days. {funnel.journey === null
+        ? "Each step counts people who reached it at least once."
+        : "Each milestone counts people who reached it within 24 hours of first being seen, in any order; some are alternatives (finish or skip the welcome, three ways to connect AI) and some are detours (an AI error)."}</p>
     </section>
   );
 }
@@ -274,7 +306,7 @@ function ShareCard({ growth }: { growth: Growth }) {
       <p className="website-analytics-note">Pick up to four figures. The first is the headline. Download the image, then post the text with it.</p>
       <fieldset className="growth-share-picks">
         <legend className="sr-only">Figures to include</legend>
-        {SHARE_METRICS.map((metric) => {
+        {SHARE_METRICS.filter((metric) => metric !== "paidOut" || growth.paidOutMicros !== null).map((metric) => {
           const line = shareLine(growth, metric);
           const checked = metrics.includes(metric);
           return (

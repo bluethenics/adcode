@@ -22,6 +22,7 @@ import {
   GoogleAuthProvider,
   GithubAuthProvider,
   signInWithPopup,
+  getAdditionalUserInfo,
   type Auth,
   type User,
 } from "firebase/auth";
@@ -54,16 +55,25 @@ export function watchUser(listener: (user: User | null) => void): () => void {
   return onAuthStateChanged(auth(), listener);
 }
 
-export async function signInEmail(email: string, password: string): Promise<void> {
+/*
+ * Each sign-in resolves to whether it made a new account. Google and GitHub create one on
+ * first use from the same button that signs a returning person in, so only Firebase can say
+ * which it was - and the website's sign-up count has to ask it, or every Google and GitHub
+ * sign-up is counted as a sign-in.
+ */
+
+export async function signInEmail(email: string, password: string): Promise<boolean> {
   await signInWithEmailAndPassword(auth(), email, password);
+  return false;
 }
 
-export async function registerEmail(email: string, password: string): Promise<void> {
+export async function registerEmail(email: string, password: string): Promise<boolean> {
   await createUserWithEmailAndPassword(auth(), email, password);
+  return true;
 }
 
-export async function signInGoogle(): Promise<void> {
-  await signInWithPopup(auth(), new GoogleAuthProvider());
+export async function signInGoogle(): Promise<boolean> {
+  return getAdditionalUserInfo(await signInWithPopup(auth(), new GoogleAuthProvider()))?.isNewUser === true;
 }
 
 /**
@@ -74,8 +84,8 @@ export async function signInGoogle(): Promise<void> {
  * `repo` or `read:user` would put a consent screen listing someone's private
  * repositories in front of a button whose only job is to say hello.
  */
-export async function signInGithub(): Promise<void> {
-  await signInWithPopup(auth(), new GithubAuthProvider());
+export async function signInGithub(): Promise<boolean> {
+  return getAdditionalUserInfo(await signInWithPopup(auth(), new GithubAuthProvider()))?.isNewUser === true;
 }
 
 export async function signOutNow(): Promise<void> {
