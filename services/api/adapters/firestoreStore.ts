@@ -996,6 +996,11 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
       return { rows, nextCursor: more && last !== undefined ? last.reportId : null };
     },
 
+    async getReport(reportId: string) {
+      const snap = await (await lazy()).collection("reports").doc(reportId).get();
+      return snap.exists ? (snap.data() as ReportRecord) : null;
+    },
+
     async setReportStatus(reportId: string, status: ReportRecord["status"]) {
       const doc = (await lazy()).collection("reports").doc(reportId);
       const snap = await doc.get();

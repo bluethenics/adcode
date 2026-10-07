@@ -763,6 +763,7 @@ export interface Store {
 
   createReport(report: ReportRecord): Promise<void>;
   listReports(page: Page): Promise<ReportPage>;
+  getReport(reportId: string): Promise<ReportRecord | null>;
   /** False when there is no such report. Triage, so a queue can be worked through. */
   setReportStatus(reportId: string, status: ReportRecord["status"]): Promise<boolean>;
   /** False when there was nothing to delete. The one record here that is really removed. */

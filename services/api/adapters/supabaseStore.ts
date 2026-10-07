@@ -840,6 +840,13 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       return { rows: kept.map(toReport), nextCursor };
     },
 
+    async getReport(reportId) {
+      const row = await maybe<ReportRow>("getReport", (db) =>
+        db.from("reports").select(REPORT_COLS).eq("report_id", reportId).maybeSingle(),
+      );
+      return row === null ? null : toReport(row);
+    },
+
     async setReportStatus(reportId, status) {
       const rows = await many<{ report_id: string }>("setReportStatus", (db) =>
         db.from("reports").update({ status }).eq("report_id", reportId).select("report_id"),

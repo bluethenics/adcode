@@ -616,6 +616,11 @@ export function createMemoryStore(): Store & { reset(): void } {
       return { rows, nextCursor: more && last !== undefined ? last.reportId : null };
     },
 
+    async getReport(reportId) {
+      const found = reports.get(reportId);
+      return found === undefined ? null : { ...found };
+    },
+
     async setReportStatus(reportId, status) {
       const found = reports.get(reportId);
       if (found === undefined) return false;
