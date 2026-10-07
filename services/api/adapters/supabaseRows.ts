@@ -488,6 +488,8 @@ const LEDGER_KINDS = new Set([
   "withdrawal_requested",
   "withdrawal_paid",
   "withdrawal_failed",
+  "referral",
+  "contribution",
 ]);
 
 export function toEntry(row: LedgerRow): LedgerEntry {

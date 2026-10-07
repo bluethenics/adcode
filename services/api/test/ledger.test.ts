@@ -24,6 +24,12 @@ describe("foldBalance", () => {
     expect(b.lifetimeMicros).toBe(5000n);
   });
 
+  it("counts invite earnings and thank-you awards as earnings, toward available and lifetime", () => {
+    const b = foldBalance([entry("referral", 800n), entry("contribution", 1_000_000n)]);
+    expect(b.availableMicros).toBe(1_000_800n);
+    expect(b.lifetimeMicros).toBe(1_000_800n);
+  });
+
   it("subtracts a reversal from available and from lifetime", () => {
     // Lifetime is 'what you actually earned', so a clawback must reduce it too -
     // otherwise a fraudulent user keeps a lifetime figure they never legitimately earned.

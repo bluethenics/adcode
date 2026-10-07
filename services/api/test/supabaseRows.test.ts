@@ -154,6 +154,15 @@ describe("optional fields stay absent", () => {
     expect(entry.refId).toBeNull();
   });
 
+  it("reads invite earnings and awards back as themselves, not as adjustments", () => {
+    const row = {
+      entry_id: "referral:u1:2026-10-06", uid: "u1", micros: "800", ref_id: "2026-10-06", created_at: 1,
+      description: "Invites on 2026-10-06: 1 person", reason: null, admin_uid: null, provider_ref: null, currency: null,
+    };
+    expect(toEntry({ ...row, kind: "referral" }).kind).toBe("referral");
+    expect(toEntry({ ...row, kind: "contribution" }).kind).toBe("contribution");
+  });
+
   it("omits an unset cap rather than reporting it as undefined", () => {
     const config = toConfig({
       kill_switch: false,
