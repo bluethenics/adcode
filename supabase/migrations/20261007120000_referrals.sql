@@ -91,7 +91,8 @@ alter table public.ledger_entries add constraint ledger_entries_kind_check check
 ));
 
 -- Distinct UTC days each of these accounts was seen on: a non-test serve, a day of editor
--- activity, or a milestone's first or last time - the same sightings as `developer_counts`.
+-- activity, a milestone's first or last time, or a day a milestone was reported on - the same
+-- sightings `growth.ts` counts, reduced to days.
 create or replace function public.referral_seen_days(p_uids text[])
 returns table (uid text, days bigint)
 language sql
@@ -109,6 +110,9 @@ as $$
     select m.uid, m.first_at / 86400000 from public.milestones m where m.uid = any(p_uids)
     union
     select m.uid, m.last_at / 86400000 from public.milestones m where m.uid = any(p_uids)
+    union
+    -- Every day a milestone was reported on (20261006180000_growth_first_seen.sql).
+    select d.uid, (extract(epoch from d.day::date) / 86400)::bigint from public.milestone_days d where d.uid = any(p_uids)
   )
   select sighting.uid, count(distinct sighting.d) from sighting group by sighting.uid;
 $$;

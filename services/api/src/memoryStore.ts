@@ -130,7 +130,7 @@ export function createMemoryStore(): Store & { reset(): void } {
   let referralShares: ReferralShareRecord[] = [];
 
   const allSightings = (): { uid: string; at: number }[] =>
-    sightings({ serves: serves.values(), activity: activityRows(), milestones: milestones.values() });
+    sightings({ serves: serves.values(), activity: activityRows(), milestones: milestones.values(), milestoneDays: milestoneDays.values() });
   const campaignAdvertiser = (): Map<string, string> =>
     new Map([...campaigns.values()].map((c) => [c.campaignId, c.advertiserId]));
   const attributionKey = (kind: string, subjectId: string): string => `${kind}\u0000${subjectId}`;
