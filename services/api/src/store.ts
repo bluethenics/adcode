@@ -835,6 +835,33 @@ export interface Store {
   getModelCatalog(): Promise<import("./modelCatalog.ts").ModelCatalogRecord | null>;
   putModelCatalog(record: import("./modelCatalog.ts").ModelCatalogRecord): Promise<void>;
 
+  /* ── Referrals (see `referrals.ts`) ─────────────────────────────────── */
+
+  /** The programme's terms. The defaults until an admin first saves them. */
+  getReferralConfig(): Promise<ReferralConfig>;
+  putReferralConfig(config: ReferralConfig): Promise<void>;
+  getRefCode(code: string): Promise<RefCodeRecord | null>;
+  refCodeForOwner(uid: string): Promise<RefCodeRecord | null>;
+  /** False when the code exists, or this owner already has one. Two racing requests get one code. */
+  createRefCode(record: RefCodeRecord): Promise<boolean>;
+  /** The updated code, or null when there is no such code. */
+  updateRefCode(code: string, patch: { label?: string; active?: boolean; showName?: boolean }): Promise<RefCodeRecord | null>;
+  /** Codes with no owner, newest first. */
+  listCampaignCodes(): Promise<RefCodeRecord[]>;
+  getAttribution(kind: AttributionKind, subjectId: string): Promise<AttributionRecord | null>;
+  /** True when written; false when the subject already had one. The first claim wins. */
+  createAttribution(record: AttributionRecord): Promise<boolean>;
+  /**
+   * Pays one UTC day of invites: a `referral` ledger entry per referrer, its share rows, and
+   * the balance, together. Running a day again pays nobody twice.
+   */
+  settleReferrals(day: string, now: number): Promise<{ referrers: number; micros: bigint }>;
+  referralSummary(uid: string, now: number): Promise<import("./referrals.ts").ReferrerSummary>;
+  /** Every attribution made since `since`, and every unclaimed account made since then. */
+  referralSourceFacts(since: number): Promise<SourceFact[]>;
+  /** Admin: who invited this account, and whom it invited, newest first. */
+  referralsForUser(uid: string): Promise<{ invitedBy: AttributionRecord | null; invited: AttributionRecord[] }>;
+
   writeAudit(record: AuditRecord): Promise<void>;
   listAudit(): Promise<AuditRecord[]>;
 
