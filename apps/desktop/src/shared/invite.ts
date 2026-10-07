@@ -51,3 +51,15 @@ export function inviteLink(code: string, from?: string): string {
 export function inviteLine(code: string): string {
   return `${INVITE_PREFIX}${code}`;
 }
+
+export type ShareTarget = "x" | "threads" | "email";
+
+/** The line that goes with a shared link: what ADCode is, in the words a person would use. */
+export const SHARE_TEXT = "I code in ADCode - the AI is free and the ads pay me. Here's my invite:";
+
+/** Where each share button goes. Built in main from the account's own code, never from the renderer. */
+export function shareUrl(target: ShareTarget, link: string): string {
+  if (target === "x") return `https://x.com/intent/post?text=${encodeURIComponent(`${SHARE_TEXT} ${link}`)}`;
+  if (target === "threads") return `https://www.threads.com/intent/post?text=${encodeURIComponent(`${SHARE_TEXT} ${link}`)}`;
+  return `mailto:?subject=${encodeURIComponent("Try ADCode with me")}&body=${encodeURIComponent(`${SHARE_TEXT}\n\n${link}`)}`;
+}

@@ -5,6 +5,7 @@ export type PopupId =
   | "settings"
   | "structure"
   | "earnings"
+  | "invite"
   | "connect"
   | "help"
   | "agents"

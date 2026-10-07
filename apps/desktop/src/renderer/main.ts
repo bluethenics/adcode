@@ -12,6 +12,7 @@ import "./styles/panels.css";
 import "./styles/structure.css";
 import "./styles/popupShell.css";
 import "./styles/popups.css";
+import "./styles/invite.css";
 import "./styles/menubar.css";
 import "./styles/dialogs.css";
 import "./styles/help.css";
@@ -90,6 +91,7 @@ import { createStructurePanel } from "./panels/structurePanel.ts";
 import { createProjectMap } from "./panels/projectMap.ts";
 import { createStructurePopup } from "./panels/structurePopup.ts";
 import { createEarningsPopover } from "./panels/earningsPopover.ts";
+import { createInvitePanel } from "./invite/invitePanel.ts";
 import { createCollabPanel } from "./collab/collabPanel.ts";
 import { createCollabSession } from "./collab/collabSession.ts";
 import { createPreviewPane } from "./preview/previewPane.ts";
@@ -3273,6 +3275,11 @@ const PIN_PROMPT_DELAY_MS = 1_200;
 const pinPromptCard = createPinPromptCard(document.body);
 
 const onboarding = createOnboardingSheet({
+  invite: () =>
+    window.adcode.referrals.checkClipboard().then(
+      (found) => (found.claimed ? { inviterName: found.inviterName } : null),
+      () => null,
+    ),
   aiReady: () => window.adcode.ai.status().then((status) => status.ready),
   build: (idea, send) => buildFromIdea(idea, send),
   openFolder: () => void openFolder(),
@@ -4998,6 +5005,7 @@ window.adcode.collab.onCommitRequest((request) => {
 const earningsPopover = createEarningsPopover({
   onRequestClose: () => closePrimaryPopup("earnings"),
   openSettings: () => openSettings("pointer"),
+  openInvite: () => openInvite("pointer"),
 });
 
 const earningsShell = createPopupShell({
@@ -5015,6 +5023,27 @@ const earningsActivity = el<HTMLButtonElement>("open-earnings");
 earningsActivity.addEventListener("click", () =>
   togglePrimaryPopup("earnings", earningsShell, earningsActivity, "pointer"),
 );
+
+/*
+ * Invite & earn. Anchored to the Earnings button because that is the door people already
+ * use for money; the command palette, the feature library and the earnings card all open it.
+ */
+const invitePanel = createInvitePanel({ notify: (text) => setStatus(text, 4000) });
+const inviteShell = createPopupShell({
+  id: "invite",
+  title: "Invite & earn",
+  size: "medium",
+  modal: true,
+  host: popupPrimaryHost,
+  content: invitePanel.element,
+  initialFocus: () => invitePanel.element.querySelector<HTMLElement>(".invite-copy"),
+  onRequestClose: () => closePrimaryPopup("invite"),
+});
+registerPrimaryPopup("invite", inviteShell, invitePanel);
+
+function openInvite(input: LayoutInput = "keyboard"): void {
+  openPrimaryPopup("invite", inviteShell, earningsActivity, input);
+}
 
 window.adcode.ads.onEarnings((earnings) => {
   // A cached mirror of a server value (§1). The renderer never computes money.
@@ -5590,6 +5619,7 @@ function registerCommands(): void {
   add("view.earnings", "Earnings", () =>
     openPrimaryPopup("earnings", earningsShell, earningsActivity, "keyboard"),
   );
+  add("invite.open", "Invite & Earn", () => openInvite("keyboard"));
   add("collab.panel", "Live Session: Share or Join", () =>
     collabPanel.toggle(),
   );

@@ -1743,6 +1743,25 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "A balance figure on any platform is only as trustworthy as the promise not to change it. An append-only ledger removes the need for trust entirely - the balance is the rows.",
   },
 
+  "account-invite": {
+    steps: [
+      "Open Invite & earn - from the Earnings card in the title bar, or by typing \"invite\" in the command palette.",
+      "Copy your link, or use Post on X, Post on Threads or Email it to send it with a ready-made line.",
+      "Your friend opens the link and downloads ADCode. The page copies your invite as the download starts, and ADCode picks it up by itself the first time it opens.",
+      "From then on, for 365 days, you get 10% of what ADCode earns from the ads they see. It lands in your balance the day after.",
+      "Know a company that sells to developers? Send them your link too: you get 5% of what they spend on ads.",
+      "Someone sent you a code instead? Paste it into the box under Got an invite code? in your first 14 days.",
+    ],
+    benefits: [
+      "It costs the person you invite nothing. Your share comes out of ADCode's half, and they keep every cent of theirs.",
+      "It keeps paying for a year while they use ADCode, instead of once at sign-up.",
+      "The panel shows who joined with your link and who is actually using it, before it shows money - so you can see it working while the amounts are still small.",
+      "You decide whether your invite page shows your first name.",
+    ],
+    betterThan:
+      "Most referral programmes pay a one-off credit you can only spend in the product, and only after someone pays. Here the reward is the same money your ad earnings are - withdrawable - and it follows what the people you invite actually do, so it keeps paying while they keep coding.",
+  },
+
   "account-sign-in": {
     steps: [
       "Click the account button in the title bar.",

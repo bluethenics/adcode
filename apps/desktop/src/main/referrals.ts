@@ -9,7 +9,8 @@
  */
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { app, clipboard, ipcMain } from "electron";
+import { app, clipboard, ipcMain, shell } from "electron";
+import { formatMicros, micros } from "@adcode/ads";
 import { CHANNELS } from "../shared/api.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock } from "./adPorts.ts";
 import { apiBaseUrl, backendAccount, createBackendTokens } from "./backend.ts";
@@ -56,6 +57,8 @@ function referralClient(): ReferralClient {
       }
     },
     fetch: (input, init) => fetch(input, init),
+    format: (value) => formatMicros(micros(value)),
+    openExternal: (url) => shell.openExternal(url),
   });
   return client;
 }
@@ -68,5 +71,8 @@ export function registerReferralIpc(): void {
   ipcMain.handle(CHANNELS.referralsCheckClipboard, () => referralClient().checkClipboard());
   ipcMain.handle(CHANNELS.referralsSetShowName, (_event, show: unknown) =>
     typeof show === "boolean" ? referralClient().setShowName(show) : null,
+  );
+  ipcMain.handle(CHANNELS.referralsShare, (_event, target: unknown) =>
+    target === "x" || target === "threads" || target === "email" ? referralClient().share(target) : false,
   );
 }

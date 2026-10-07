@@ -14,7 +14,7 @@
  *   for an invite again.
  */
 import type { ClipboardInviteResult, InviteClaimError, InviteClaimResult, ReferralView } from "../shared/api.ts";
-import { parseInviteInput, parseInviteText } from "../shared/invite.ts";
+import { inviteLink, parseInviteInput, parseInviteText, shareUrl, type ShareTarget } from "../shared/invite.ts";
 
 export interface ReferralLocalState {
   /** Every account this machine has used, so a reset cannot invite itself. */
@@ -35,6 +35,9 @@ export interface ReferralClientDeps {
   load: () => Promise<ReferralLocalState>;
   save: (state: ReferralLocalState) => Promise<void>;
   fetch: typeof fetch;
+  /** Money for display. In main, so the renderer never does arithmetic on money (§1). */
+  format: (micros: bigint) => string;
+  openExternal: (url: string) => Promise<void>;
 }
 
 export interface ReferralClient {
@@ -42,7 +45,12 @@ export interface ReferralClient {
   claim(text: string): Promise<InviteClaimResult>;
   checkClipboard(): Promise<ClipboardInviteResult>;
   setShowName(show: boolean): Promise<ReferralView | null>;
+  /** Opens a share target for this account's own link. False when there is no link yet. */
+  share(target: ShareTarget): Promise<boolean>;
 }
+
+/** A server view with its money formatted for display. */
+type ServerView = Omit<ReferralView, "earnedLabel" | "last30Label">;
 
 const TIMEOUT_MS = 10_000;
 const MAX_TRIED = 20;
@@ -116,18 +124,41 @@ export function createReferralClient(deps: ReferralClientDeps): ReferralClient {
   const settles = (result: InviteClaimResult): boolean =>
     result.ok || result.error === "already-claimed" || result.error === "too-late";
 
+  const money = (raw: unknown): string => {
+    try {
+      return deps.format(BigInt(typeof raw === "string" ? raw : "0"));
+    } catch {
+      return deps.format(0n);
+    }
+  };
+
+  const decorate = (view: ServerView): ReferralView => ({
+    ...view,
+    earnedLabel: money(view.earnedMicros),
+    last30Label: money(view.last30Micros),
+  });
+
+  async function get(): Promise<ReferralView | null> {
+    const local = await state();
+    try {
+      const reply = await request("GET", "/referrals");
+      if (reply.status !== 200) return null;
+      const view = reply.json as ServerView;
+      if ((view.claimed || !view.canClaim) && !local.done) await deps.save({ ...local, done: true });
+      return decorate(view);
+    } catch {
+      return null;
+    }
+  }
+
   return {
-    async get() {
-      const local = await state();
-      try {
-        const reply = await request("GET", "/referrals");
-        if (reply.status !== 200) return null;
-        const view = reply.json as ReferralView;
-        if ((view.claimed || !view.canClaim) && !local.done) await deps.save({ ...local, done: true });
-        return view;
-      } catch {
-        return null;
-      }
+    get,
+
+    async share(target) {
+      const view = await get();
+      if (view === null || typeof view.code !== "string") return false;
+      await deps.openExternal(shareUrl(target, inviteLink(view.code)));
+      return true;
     },
 
     async claim(text) {
@@ -168,7 +199,7 @@ export function createReferralClient(deps: ReferralClientDeps): ReferralClient {
     async setShowName(show) {
       try {
         const reply = await request("PATCH", "/referrals", { showName: show });
-        return reply.status === 200 ? (reply.json as ReferralView) : null;
+        return reply.status === 200 ? decorate(reply.json as ServerView) : null;
       } catch {
         return null;
       }

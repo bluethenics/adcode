@@ -370,6 +370,9 @@ export interface ReferralView {
   readonly advertisers: number;
   readonly earnedMicros: string;
   readonly last30Micros: string;
+  /** `earnedMicros` and `last30Micros`, formatted in main - exact, never rounded to $0.00. */
+  readonly earnedLabel: string;
+  readonly last30Label: string;
   readonly rates: { readonly userPercent: number; readonly advertiserPercent: number; readonly windowDays: number };
 }
 
@@ -750,6 +753,7 @@ export const CHANNELS = {
   referralsClaim: "referrals:claim",
   referralsCheckClipboard: "referrals:check-clipboard",
   referralsSetShowName: "referrals:set-show-name",
+  referralsShare: "referrals:share",
   onboardingState: "onboarding:state",
   onboardingComplete: "onboarding:complete",
   pinPromptOffer: "pin:offer",
@@ -2186,6 +2190,11 @@ export interface AdcodeApi {
      */
     checkClipboard(): Promise<ClipboardInviteResult>;
     setShowName(show: boolean): Promise<ReferralView | null>;
+    /**
+     * Open a share target for your own link. The renderer names the target; main builds the
+     * URL from the account's own code, so this cannot be used to open anything else.
+     */
+    share(target: "x" | "threads" | "email"): Promise<boolean>;
   };
   readonly ads: {
     /** The main process asks the renderer to show a toast. */

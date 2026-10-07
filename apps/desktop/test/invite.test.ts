@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { inviteLine, inviteLink, parseInviteInput, parseInviteText } from "../src/shared/invite.ts";
+import { SHARE_TEXT, inviteLine, inviteLink, parseInviteInput, parseInviteText, shareUrl } from "../src/shared/invite.ts";
+import { formatMicros, micros } from "@adcode/ads";
 import { createReferralClient, type ReferralLocalState } from "../src/main/referralClient.ts";
 
 describe("what counts as an invite on the clipboard", () => {
@@ -42,7 +43,7 @@ describe("links and lines", () => {
   });
 });
 
-function harness(options: { clipboard?: string; respond?: (path: string, body: unknown) => { status: number; body: unknown } } = {}) {
+function harness(options: { clipboard?: string; open?: (url: string) => Promise<void>; respond?: (path: string, body: unknown) => { status: number; body: unknown } } = {}) {
   let state: ReferralLocalState = { heldUids: [], tried: [], done: false };
   const requests: { path: string; method: string; body: unknown }[] = [];
   let clipboard = options.clipboard ?? "";
@@ -55,6 +56,8 @@ function harness(options: { clipboard?: string; respond?: (path: string, body: u
     token: async () => "tok",
     currentUid: () => uid,
     readClipboard: () => clipboard,
+    format: (value) => formatMicros(micros(value)),
+    openExternal: options.open ?? (async () => undefined),
     load: async () => structuredClone(state),
     save: async (next) => { state = structuredClone(next); },
     fetch: (async (url: string, init?: RequestInit) => {
@@ -151,8 +154,8 @@ describe("the paste box", () => {
 
 describe("reading your invite", () => {
   it("returns the server's view, and null when invites are unavailable", async () => {
-    const view = { code: "k7p4qzm", claimed: false, canClaim: true };
-    expect(await harness({ respond: () => ({ status: 200, body: view }) }).client.get()).toEqual(view);
+    const view = { code: "k7p4qzm", claimed: false, canClaim: true, earnedMicros: "0", last30Micros: "0" };
+    expect(await harness({ respond: () => ({ status: 200, body: view }) }).client.get()).toEqual({ ...view, earnedLabel: "$0.00", last30Label: "$0.00" });
     expect(await harness({ respond: () => ({ status: 503, body: {} }) }).client.get()).toBeNull();
   });
 
@@ -166,8 +169,40 @@ describe("reading your invite", () => {
   });
 
   it("saves the name switch", async () => {
-    const h = harness({ respond: () => ({ status: 200, body: { showName: false } }) });
-    expect(await h.client.setShowName(false)).toEqual({ showName: false });
+    const h = harness({ respond: () => ({ status: 200, body: { showName: false, earnedMicros: "0", last30Micros: "0" } }) });
+    expect(await h.client.setShowName(false)).toMatchObject({ showName: false });
     expect(h.requests[0]).toEqual({ path: "/referrals", method: "PATCH", body: { showName: false } });
+  });
+});
+
+describe("sharing", () => {
+  it("builds each share target from the link, with the line people see", () => {
+    const link = "https://adcode.bluethenics.com/i/k7p4qzm";
+    expect(shareUrl("x", link)).toBe(`https://x.com/intent/post?text=${encodeURIComponent(`${SHARE_TEXT} ${link}`)}`);
+    expect(shareUrl("threads", link)).toBe(`https://www.threads.com/intent/post?text=${encodeURIComponent(`${SHARE_TEXT} ${link}`)}`);
+    expect(shareUrl("email", link)).toBe(
+      `mailto:?subject=${encodeURIComponent("Try ADCode with me")}&body=${encodeURIComponent(`${SHARE_TEXT}\n\n${link}`)}`,
+    );
+  });
+
+  it("opens only a target it built from this account's own link", async () => {
+    const opened: string[] = [];
+    const h = harness({ open: async (url) => { opened.push(url); } });
+    expect(await h.client.share("threads")).toBe(true);
+    expect(opened).toEqual([shareUrl("threads", "https://adcode.bluethenics.com/i/mine123")]);
+  });
+
+  it("opens nothing when there is no link to share", async () => {
+    const opened: string[] = [];
+    const h = harness({ open: async (url) => { opened.push(url); }, respond: () => ({ status: 503, body: {} }) });
+    expect(await h.client.share("x")).toBe(false);
+    expect(opened).toEqual([]);
+  });
+});
+
+describe("money labels", () => {
+  it("formats the server's micros in main, so the renderer never does arithmetic on money", async () => {
+    const h = harness({ respond: () => ({ status: 200, body: { code: "x", claimed: false, canClaim: true, earnedMicros: "4200", last30Micros: "1200" } }) });
+    expect(await h.client.get()).toMatchObject({ earnedLabel: "$0.0042", last30Label: "$0.0012" });
   });
 });

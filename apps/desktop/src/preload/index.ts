@@ -353,6 +353,7 @@ const api: AdcodeApi = {
     claim: (text) => ipcRenderer.invoke(CHANNELS.referralsClaim, text),
     checkClipboard: () => ipcRenderer.invoke(CHANNELS.referralsCheckClipboard),
     setShowName: (show) => ipcRenderer.invoke(CHANNELS.referralsSetShowName, show),
+    share: (target) => ipcRenderer.invoke(CHANNELS.referralsShare, target),
   },
   ads: {
     onShow: (listener) => subscribe(CHANNELS.adShow, listener),

@@ -36,6 +36,8 @@ export interface EarningsPopoverDeps {
   readonly onRequestClose: () => void;
   /** Opens Settings at the ads group, for the one action this panel offers. */
   readonly openSettings: () => void;
+  /** Opens Invite & earn. */
+  readonly openInvite: () => void;
 }
 
 export interface AnchoredTool {
@@ -377,9 +379,25 @@ export function createEarningsPopover(deps: EarningsPopoverDeps): EarningsPopove
 
   footer.append(settingsButton, note);
 
+  /*
+   * The other way to earn. Here because this is where somebody already thinking about money
+   * looks, and a feature nobody can find does not exist.
+   */
+  const invite = document.createElement("button");
+  invite.type = "button";
+  invite.className = "earnings-invite";
+  const inviteLabel = document.createElement("span");
+  inviteLabel.textContent = "Invite & earn";
+  const inviteHint = document.createElement("span");
+  inviteHint.className = "earnings-invite-hint";
+  // No rate here: the terms live on the server and the panel states them live.
+  inviteHint.textContent = "Earn from the people you bring →";
+  invite.append(inviteLabel, inviteHint);
+  invite.addEventListener("click", () => deps.openInvite());
+
   const body = document.createElement("div");
   body.className = "earnings-body";
-  body.append(hero, facts, accountRow, presetSection, footer);
+  body.append(hero, facts, invite, accountRow, presetSection, footer);
 
   card.append(header, body);
 

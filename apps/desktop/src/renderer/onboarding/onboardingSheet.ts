@@ -47,6 +47,11 @@ export interface OnboardingDeps {
   openAllProviders: () => void;
   /** Settings, at the ads section. */
   openAdSettings: () => void;
+  /**
+   * Look once for an invite the invite page put on the clipboard, and claim it. Who invited
+   * them, if one was claimed now; null otherwise. The clipboard itself is read in main.
+   */
+  invite?: () => Promise<{ inviterName: string | null } | null>;
 }
 
 /** Ideas that build into something the preview shows straight away. */
@@ -86,8 +91,36 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
   footer.className = "onboarding-footer";
   footer.append(skip, dots, next);
 
-  dialog.append(body, footer);
+  /*
+   * "Sam invited you." A familiar name in the first minute is a reason to stay past it,
+   * and the first five minutes are where most installs were lost.
+   */
+  const invited = document.createElement("p");
+  invited.className = "onboarding-invited";
+  invited.setAttribute("role", "status");
+  invited.hidden = true;
+
+  dialog.append(invited, body, footer);
   document.body.append(dialog);
+
+  /**
+   * The invite page copies `ADCode invite: <code>` as the download starts, so it is usually
+   * still on the clipboard the first time ADCode opens - and if someone copies it from the
+   * page afterwards, they come back to this window, which is the focus check.
+   */
+  const lookForInvite = (): void => {
+    if (deps.invite === undefined || !invited.hidden) return;
+    void deps.invite().then((found) => {
+      if (found === null || !dialog.open) return;
+      invited.textContent = found.inviterName === null
+        ? "You came with an invite - welcome to ADCode."
+        : `${found.inviterName} invited you - welcome to ADCode.`;
+      invited.hidden = false;
+    });
+  };
+  const onFocus = (): void => {
+    if (dialog.open) lookForInvite();
+  };
 
   /** Close the sheet; `outcome` says which milestone the person reached. */
   const finish = (outcome: "welcome_done" | "welcome_skipped"): void => {
@@ -260,6 +293,9 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
       render();
       dialog.showModal();
       window.adcode.milestones.record("welcome_shown");
+      lookForInvite();
+      window.addEventListener("focus", onFocus);
+      dialog.addEventListener("close", () => window.removeEventListener("focus", onFocus), { once: true });
     },
     close() {
       if (dialog.open) dialog.close();

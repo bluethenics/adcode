@@ -158,6 +158,10 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("view.earnings", "Open")],
     keywords: ["ads", "money", "balance", "ledger"],
   },
+  "account.invite": {
+    actions: [command("invite.open", "Open")],
+    keywords: ["invite", "referral", "refer a friend", "invite link", "share adcode", "earn more", "invite code", "bring an advertiser", "affiliate"],
+  },
   "account.signIn": {
     actions: [command("account.open", "Open account")],
     keywords: ["login", "google", "github", "email"],
