@@ -67,7 +67,8 @@ export function Nav() {
         Compare
       </Link>
       <Link href="/support" className="glass-nav-link" aria-current={pathname === "/support" ? "page" : undefined}>Support</Link>
-      <Link href="/versions" className="glass-nav-link" aria-current={pathname === "/versions" ? "page" : undefined}>Download</Link>
+      {/* The desktop bar has its own Download button; a second "Download" beside it split one action in two. Phones hide that button, so the sheet keeps this. */}
+      <Link href="/versions" className="glass-nav-link nav-mobile-only" aria-current={pathname === "/versions" ? "page" : undefined}>Download</Link>
       {isAdmin && <Link href="/admin" className="glass-nav-link">Admin</Link>}
       {!loading && (user === null ? (
         <Link href="/dashboard" className="glass-auth-control">Sign in</Link>

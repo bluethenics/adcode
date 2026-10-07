@@ -13,11 +13,17 @@ export interface ShowcaseImage {
   readonly height: number;
 }
 
-const light: ShowcaseImage = { src: "/images/editor-light.png", width: 1917, height: 1020 };
-const dark: ShowcaseImage = { src: "/images/editor-dark.png", width: 1917, height: 1012 };
+/*
+ * Vibe, mid-build: the prompt, the finished plan and the game it made, running in the live
+ * preview. Captured from the real app (a scripted local model calling the real tools), so
+ * the picture under "Describe your idea and watch it get built" is that sentence happening.
+ * The old shots showed the code editor and an earnings panel - true, but not the promise.
+ */
+const light: ShowcaseImage = { src: "/images/vibe-light.webp", width: 1920, height: 1200 };
+const dark: ShowcaseImage = { src: "/images/vibe-dark.webp", width: 1920, height: 1200 };
 
 export const showcase: { light: ShowcaseImage | null; dark: ShowcaseImage | null; alt: string } = {
   light,
   dark,
-  alt: "ADCode editor with project files, code, and the earnings panel",
+  alt: "ADCode in Vibe: a request for a snake game, the three-step plan it finished, and the game running in the live preview",
 };

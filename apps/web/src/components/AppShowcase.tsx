@@ -25,8 +25,8 @@ export function AppShowcase() {
   return <figure className="app-showcase" id="product">
     <div className="showcase-stage">
       {lightImage && darkImage ? <div className="showcase-images" style={{ aspectRatio: frameRatio }}>
-        <img className="showcase-image-light" src={lightImage.src} alt={showcase.alt} width={lightImage.width} height={lightImage.height} loading="lazy" decoding="async" />
-        <img className="showcase-image-dark" src={darkImage.src} alt={showcase.alt} width={darkImage.width} height={darkImage.height} loading="lazy" decoding="async" />
+        <img className="showcase-image-light" src={lightImage.src} alt={showcase.alt} width={lightImage.width} height={lightImage.height} decoding="async" />
+        <img className="showcase-image-dark" src={darkImage.src} alt={showcase.alt} width={darkImage.width} height={darkImage.height} decoding="async" />
       </div> : <div className="editor-preview" aria-label="Illustrative ADCode workspace preview">
         <div className="editor-titlebar"><span className="window-dots" aria-hidden="true"><i /><i /><i /></span><span>ADCode <span className="editor-title-project">/ something-great</span></span><span className="preview-badge">Workspace preview</span></div>
         <div className="editor-workspace">
@@ -36,6 +36,6 @@ export function AppShowcase() {
         </div><div className="editor-statusbar"><span>⑂ main &nbsp; ✓ No problems</span><span>TypeScript &nbsp; UTF-8 &nbsp; ADCode</span></div>
       </div>}
     </div>
-    <figcaption><span>Your editor. Your flow. Your share.</span><span>AI, terminal, and Git. Together in one workspace.</span></figcaption>
+    <figcaption><span>One sentence in. A planned, written and running game out.</span><span>Real files on your computer, with Undo on every turn.</span></figcaption>
   </figure>;
 }

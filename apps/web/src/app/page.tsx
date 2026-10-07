@@ -52,12 +52,44 @@ export default function Home() {
         and the promise that follows is what earns the click.
       */}
       <h1>The free AI code editor<br />that pays you to build.</h1>
-      <p>Describe your idea and watch it get built - with AI agents, real terminals and git. Free from the first line, with a free AI key in about a minute and no card, and it pays you half of the ad revenue it earns.</p>
-      <HeroInstall source="hero" />
+      <p>Describe your idea and watch it get built - AI agents write the code, run it in a live preview and keep it in git. Free from the first line, and it pays you half of the ad revenue it earns.</p>
+      {/*
+        The three doubts that stop a first install, answered before the button: does it cost
+        anything, is the AI part a second bill, and can I see what it does on my machine.
+      */}
+      <ul className="hero-proof" aria-label="Before you install">
+        <li>No card, no trial - free</li>
+        <li>A free AI key in about a minute</li>
+        <li>Open source, Apache-2.0</li>
+      </ul>
+      <HeroInstall source="hero" tour="#how-it-works" />
       </div><DeveloperCounter /></div>
       <AppShowcase />
       <HeroCounter />
       </div>
+      </section>
+
+      {/*
+        Median time on this page was under five seconds (30 days to 2026-10-07), and 57% of
+        desktop visits saw no second page. What a visitor needs in that time is how far away
+        a working app is: three steps, each one a thing they will actually do.
+      */}
+      <section className="first-build marketplace-wrap" id="how-it-works" aria-labelledby="first-build-heading">
+        <h2 id="first-build-heading">From download to a running app in three steps.</h2>
+        <ol>
+          <li>
+            <h3>Install</h3>
+            <p>One click from the Microsoft Store on Windows 10 and 11, or a .deb or AppImage on Linux. Updates arrive on their own.</p>
+          </li>
+          <li>
+            <h3>Connect a free AI</h3>
+            <p>Get a free Google Gemini key in about a minute, run a model on your own computer with Ollama, or paste a key you already have.</p>
+          </li>
+          <li>
+            <h3>Describe it</h3>
+            <p>Say what you want in a sentence. Agents plan it, write the code and open it running in the preview, with Undo on every turn.</p>
+          </li>
+        </ol>
       </section>
 
       <ModeShowcase />
@@ -81,6 +113,15 @@ export default function Home() {
       </p>
       </section>
 
+      <HomeFaq />
+      <section className="closing-cta marketplace-wrap"><p className="marketplace-eyebrow">YOUR NEXT CHAPTER</p><h2>Your first app is<br />one sentence away.</h2><HeroInstall source="closing" advertise={false} /><p>Free to build, no card, and half the ad revenue is yours.</p></section>
+
+      {/*
+        Advertisers are a second audience with their own nav button and their own page. The
+        builder used to sit between the product story and the FAQ, so a developer deciding
+        whether to install scrolled through a bid form to reach the answers; now the
+        developer story ends with its install, and the advertiser half starts here.
+      */}
       <section className="marketplace-bid" id="advertise">
       <div className="marketplace-wrap marketplace-bid-grid">
       <header className="marketplace-section-intro">
@@ -96,9 +137,6 @@ export default function Home() {
       <section className="marketplace-principles" aria-label="How ADCode works">
       <div className="marketplace-wrap"><p><span>01</span><strong>Verified attention</strong><small>Only a real, eligible view can bill.</small></p><p><span>02</span><strong>Second-price auction</strong><small>Win at your maximum; often pay less.</small></p><p><span>03</span><strong>Human review</strong><small>Every creative is checked before delivery.</small></p></div>
       </section>
-
-      <HomeFaq />
-      <section className="closing-cta marketplace-wrap"><p className="marketplace-eyebrow">YOUR NEXT CHAPTER</p><h2>Good things start<br />with a line of code.</h2><HeroInstall source="closing" advertise={false} /><p>Free to build. Yours to make.</p></section>
       <StickyInstall />
       </div>
     );

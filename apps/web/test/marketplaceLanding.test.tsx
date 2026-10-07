@@ -92,4 +92,24 @@ describe("landing page focus", () => {
     expect(markup).toContain("Advertise on ADCode");
     expect(markup).not.toContain('class="market-panel"');
   });
+
+  it("tells a developer how far away a working app is before asking anything else", () => {
+    const markup = renderToStaticMarkup(<Home />);
+    const at = (needle: string): number => {
+      const index = markup.indexOf(needle);
+      expect(index, needle).toBeGreaterThan(-1);
+      return index;
+    };
+
+    // The hero's second button explains the product instead of switching audience...
+    expect(markup).toContain('href="#how-it-works"');
+    expect(markup).toContain("See how it works");
+    expect(markup).not.toContain("Advertise to developers");
+    // ...and advertisers keep a tracked line in the hero and their whole section.
+    expect(markup).toContain("Start a campaign from $1");
+    // Proof, then steps, then the developer story's close, then the advertiser half.
+    expect(at('class="hero-proof"')).toBeLessThan(at('id="how-it-works"'));
+    expect(at('id="how-it-works"')).toBeLessThan(at('class="closing-cta'));
+    expect(at('class="closing-cta')).toBeLessThan(at('id="advertise"'));
+  });
 });

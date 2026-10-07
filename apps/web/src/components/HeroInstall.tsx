@@ -38,20 +38,37 @@ function carryInvite(invite: string | undefined): void {
  * it. Before hydration it renders the neutral choice, so first paint is honest and only
  * gets more specific once JavaScript runs.
  */
-export function HeroInstall({ source = "hero", advertise = true, invite }: { source?: string; advertise?: boolean; invite?: string }) {
+export function HeroInstall({ source = "hero", advertise = true, tour, invite }: { source?: string; advertise?: boolean; tour?: string; invite?: string }) {
   const [platform, setPlatform] = useState<Platform>("unknown");
   useEffect(() => setPlatform(detectPlatform(navigator.userAgent, navigator.maxTouchPoints)), []);
 
   const route = installRoute(platform);
-  const secondary = advertise ? (
-    <a href="/#advertise" className="marketplace-secondary" data-tracked onClick={() => trackWebsiteEvent("advertise_click", 0, undefined, source)}>
+  const trackAdvertise = (): void => trackWebsiteEvent("advertise_click", 0, undefined, source);
+  /*
+   * With a tour, the button beside the install is "See how it works" and advertising drops
+   * to a line under it. The hero used to put "Advertise to developers" there: 30 days of
+   * home-page visits (to 2026-10-07) produced 11 advertiser clicks against 7 install clicks, from
+   * a page whose job is to install the editor, and a median visit of under five seconds
+   * has no time to choose between two audiences. Advertisers keep their nav button, this
+   * line and the whole #advertise section; the hero's second button now answers the
+   * question a hesitant developer actually has.
+   */
+  const secondary = tour !== undefined ? (
+    <a href={tour} className="marketplace-secondary">See how it works</a>
+  ) : advertise ? (
+    <a href="/#advertise" className="marketplace-secondary" data-tracked onClick={trackAdvertise}>
       Advertise to developers <span aria-hidden="true">↘</span>
     </a>
   ) : null;
+  const advertiseNote = advertise && tour !== undefined ? (
+    <p className="hero-install-advertise">
+      Advertising to developers? <a href="/#advertise" data-tracked onClick={trackAdvertise}>Start a campaign from $1</a>
+    </p>
+  ) : null;
 
-  if (route === "store") return <WindowsInstall source={source} secondary={secondary} invite={invite} />;
-  if (route === "download") return <LinuxInstall source={source} secondary={secondary} invite={invite} />;
-  if (route === "send") return <SendToDesktop source={source} secondary={secondary} invite={invite} />;
+  if (route === "store") return <WindowsInstall source={source} secondary={secondary} advertiseNote={advertiseNote} invite={invite} />;
+  if (route === "download") return <LinuxInstall source={source} secondary={secondary} advertiseNote={advertiseNote} invite={invite} />;
+  if (route === "send") return <SendToDesktop source={source} advertise={advertise} invite={invite} />;
 
   if (route === "soon") {
     return (
@@ -64,6 +81,7 @@ export function HeroInstall({ source = "hero", advertise = true, invite }: { sou
           macOS builds are waiting on Apple notarisation. ADCode installs on Windows and Linux
           today. See <Link href="/versions">every install option</Link>.
         </p>
+        {advertiseNote}
       </div>
     );
   }
@@ -76,6 +94,7 @@ export function HeroInstall({ source = "hero", advertise = true, invite }: { sou
         </Link>
         {secondary}
       </div>
+      {advertiseNote}
     </div>
   );
 }
@@ -88,7 +107,7 @@ function WindowsLogo() {
   );
 }
 
-function WindowsInstall({ source, secondary, invite }: { source: string; secondary: React.ReactNode; invite: string | undefined }) {
+function WindowsInstall({ source, secondary, advertiseNote, invite }: { source: string; secondary: React.ReactNode; advertiseNote: React.ReactNode; invite: string | undefined }) {
   const [started, setStarted] = useState(false);
   const [terminal, setTerminal] = useState(false);
 
@@ -133,11 +152,12 @@ function WindowsInstall({ source, secondary, invite }: { source: string; seconda
       )}
 
       {terminal && !started && <TerminalCommand platform="windows" source={source} />}
+      {advertiseNote}
     </div>
   );
 }
 
-function LinuxInstall({ source, secondary, invite }: { source: string; secondary: React.ReactNode; invite: string | undefined }) {
+function LinuxInstall({ source, secondary, advertiseNote, invite }: { source: string; secondary: React.ReactNode; advertiseNote: React.ReactNode; invite: string | undefined }) {
   const [terminal, setTerminal] = useState(false);
   const downloads = LINUX_DOWNLOADS(GITHUB_REPO);
   return (
@@ -158,6 +178,7 @@ function LinuxInstall({ source, secondary, invite }: { source: string; secondary
         </button>
       </p>
       {terminal && <TerminalCommand platform="linux" source={source} />}
+      {advertiseNote}
     </div>
   );
 }
@@ -170,7 +191,7 @@ function LinuxInstall({ source, secondary, invite }: { source: string; secondary
  * pressed, so a dismissed sheet or a blocked clipboard is not a sent link. The email link
  * counts on the click: whether the message went is the mail app's to know.
  */
-function SendToDesktop({ source, secondary, invite }: { source: string; secondary: React.ReactNode; invite: string | undefined }) {
+function SendToDesktop({ source, advertise, invite }: { source: string; advertise: boolean; invite: string | undefined }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   // An invite has to survive the hop from phone to computer, so the link sent is the invite.
   const link = invite === undefined ? installLinkFor(SITE.origin) : `${SITE.origin}/i/${invite}?utm_source=send-to-desktop`;
@@ -200,7 +221,7 @@ function SendToDesktop({ source, secondary, invite }: { source: string; secondar
         </a>
       </div>
       {state === "failed" && <p className="hero-install-note" role="status">Sharing was blocked. The link is {link}</p>}
-      {secondary !== null && <p className="hero-install-note">Advertising instead? <a href="/#advertise">Reach developers while they build</a>.</p>}
+      {advertise && <p className="hero-install-note">Advertising instead? <a href="/#advertise">Reach developers while they build</a>.</p>}
     </div>
   );
 }

@@ -597,3 +597,35 @@ body:has(.auth-screen) .website-consent { position: static; margin: 24px auto; b
   .mw-sponsor { position: static; width: auto; }
   .mw-float { width: 62%; top: 76px; }
 }
+
+/*
+ * Home, conversion pass (2026-10-07). What 30 days of consenting home-page visits showed:
+ * a median visit under five seconds, 57% of desktop visits ending on this page, and more
+ * advertiser clicks than install clicks. So the hero answers the three
+ * doubts before the button, its second button explains instead of switching audience, and
+ * a three-step section says how far away a working app is.
+ */
+.hero-proof { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 20px 0 0; padding: 0; list-style: none; color: var(--muted); font-size: 13px; line-height: 20px; }
+.hero-proof li { display: inline-flex; align-items: center; gap: 8px; }
+.hero-proof li::before { content: "\2713"; color: var(--money); font-weight: 700; }
+.studio-hero .hero-install { margin-top: 24px; }
+.hero-install-advertise { margin: 0; color: var(--faint); font-size: 12px; line-height: 18px; }
+.hero-install-advertise a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.hero-install-advertise a:hover { color: var(--text); }
+
+.first-build { padding-block: 96px 8px; scroll-margin-top: 96px; }
+.first-build h2 { max-width: 24ch; margin: 0; color: var(--text); font-size: clamp(28px, 2.7vw, 38px); font-weight: 400; letter-spacing: -.025em; line-height: 1.2; }
+.first-build ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 40px 0 0; padding: 0; list-style: none; counter-reset: first-build; }
+.first-build li { counter-increment: first-build; padding: 28px; border-radius: 5px; background: var(--card); }
+.first-build li::before { content: counter(first-build); display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border-strong); border-radius: 50%; color: var(--text); font-size: 13px; font-weight: 550; font-variant-numeric: tabular-nums; }
+.first-build h3 { margin: 20px 0 8px; color: var(--text); font-size: 19px; font-weight: 500; letter-spacing: -.015em; line-height: 1.3; }
+.first-build p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
+@media (max-width: 900px) {
+  .first-build { padding-block: 64px 0; }
+  .first-build ol { grid-template-columns: 1fr; margin-top: 28px; }
+  .first-build li { padding: 24px; }
+}
+@media (max-width: 640px) {
+  .hero-proof { gap: 6px 16px; margin-top: 16px; font-size: 12.5px; }
+  .first-build { padding-block: 56px 0; }
+}
