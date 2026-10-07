@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SHARE_TEXT, collabInviteText, inviteLine, inviteLink, parseInviteInput, parseInviteText, shareUrl, withBuiltWithLine } from "../src/shared/invite.ts";
+import { SHARE_TEXT, advertiserPitch, collabInviteText, inviteLine, inviteLink, parseInviteInput, parseInviteText, shareUrl, withBuiltWithLine } from "../src/shared/invite.ts";
 import { formatMicros, micros } from "@adcode/ads";
 import { createReferralClient, type ReferralLocalState } from "../src/main/referralClient.ts";
 
@@ -235,5 +235,16 @@ describe("the build share moment", () => {
     expect(await h.client.takeBuildShareMoment(1000)).toBe(true);
     expect(await h.client.takeBuildShareMoment(1000)).toBe(false);
     expect(h.state().buildShareOffered).toBe(true);
+  });
+});
+
+describe("the pitch for a company", () => {
+  it("says what ADCode is and what it costs, with only published facts, and the advertiser link", () => {
+    const pitch = advertiserPitch("https://adcode.bluethenics.com/i/k7p4qzm?for=ads");
+    expect(pitch).toContain("ADCode");
+    expect(pitch).toContain("$1 per 500 verified views");
+    expect(pitch).toContain("https://adcode.bluethenics.com/i/k7p4qzm?for=ads");
+    // No invented reach figures: nothing that looks like a user count.
+    expect(pitch).not.toMatch(/\d[\d,]*\s+(developers|users|people)/);
   });
 });

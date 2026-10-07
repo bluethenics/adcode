@@ -14,6 +14,7 @@ import {
   inviteTerms,
   inviteShareLinks,
   progressPost,
+  adsHeadline,
 } from "@/lib/invite";
 
 function memoryStorage(): Storage {
@@ -144,5 +145,15 @@ describe("the progress post", () => {
     expect(progressPost({ activeMs: 3_600_000, lifetimeMicros: "0", link })).toBe(
       `I've coded 1 hour in ADCode this month. The AI is free and the ads pay me. Try it: ${link}`,
     );
+  });
+});
+
+describe("an advertiser invite's headline", () => {
+  it("says who sent it when they allow it, and falls back to the plain offer", () => {
+    expect(adsHeadline({ valid: true, inviterName: "Sam", kind: "user" })).toBe("Sam thinks you should advertise on ADCode");
+    expect(adsHeadline({ valid: true, inviterName: null, kind: "user" })).toBe("A developer who uses ADCode sent you this");
+    expect(adsHeadline({ valid: true, inviterName: null, kind: "campaign" })).toBe("Advertise on ADCode");
+    expect(adsHeadline({ valid: false, inviterName: null, kind: null })).toBe("Advertise on ADCode");
+    expect(adsHeadline(null)).toBe("Advertise on ADCode");
   });
 });

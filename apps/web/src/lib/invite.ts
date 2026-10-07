@@ -164,3 +164,9 @@ export function progressPost(input: { activeMs: number; lifetimeMicros: string; 
     : "";
   return `${coded}${paid}. The AI is free and the ads pay me. Try it: ${input.link}`;
 }
+
+/** The eyebrow over the advertiser section when it was reached from `/i/<code>?for=ads`. */
+export function adsHeadline(lookup: InviteLookup | null): string {
+  if (lookup === null || !lookup.valid || lookup.kind !== "user") return "Advertise on ADCode";
+  return lookup.inviterName === null ? "A developer who uses ADCode sent you this" : `${lookup.inviterName} thinks you should advertise on ADCode`;
+}

@@ -7,7 +7,7 @@
  * URL from this account's own code - the renderer can name X, Threads or email, never a URL.
  */
 import type { ReferralView } from "../../shared/api.ts";
-import { inviteLink, withBuiltWithLine } from "../../shared/invite.ts";
+import { advertiserPitch, inviteLink, withBuiltWithLine } from "../../shared/invite.ts";
 import { claimMessage, earnedLine, howItWorks, invitedLine, namePreview, peopleLine } from "./inviteModel.ts";
 
 export interface InvitePanelDeps {
@@ -101,9 +101,21 @@ export function createInvitePanel(deps: InvitePanelDeps): InvitePanel {
   badgeStatus.setAttribute("role", "status");
   badge.append(badgeButton, badgeStatus);
 
+  /*
+   * Users bring advertisers: someone who knows a dev-tool company is a better salesperson than
+   * an ad. The pitch states only published facts, and the link opens the advertiser page with
+   * this account's code, so the company's spend is credited.
+   */
+  const pitch = el("div", "invite-pitch");
+  const pitchTitle = el("p", "invite-pitch-title", "Know a company that sells to developers?");
+  const pitchText = el("p", "invite-pitch-text", "Send them a short pitch with your link. You get a share of what they spend.");
+  const pitchButton = el("button", "ghost-button invite-pitch-button", "Copy a pitch to send them");
+  pitchButton.type = "button";
+  pitch.append(pitchTitle, pitchText, pitchButton);
+
   const unavailable = el("p", "invite-unavailable", "Invites aren't available right now. Try again in a little while.");
 
-  card.append(hero, linkRow, share, people, earned, how, invited, claim, nameRow, nameNote, badge, unavailable);
+  card.append(hero, linkRow, share, people, earned, how, invited, claim, nameRow, nameNote, pitch, badge, unavailable);
 
   let view: ReferralView | null = null;
   let loading: Promise<void> | null = null;
@@ -111,7 +123,7 @@ export function createInvitePanel(deps: InvitePanelDeps): InvitePanel {
   function render(): void {
     card.dataset["state"] = view === null ? "unavailable" : "ready";
     unavailable.hidden = view !== null;
-    for (const node of [linkRow, share, people, earned, how, invited, claim, nameRow, nameNote, badge]) node.hidden = view === null;
+    for (const node of [linkRow, share, people, earned, how, invited, claim, nameRow, nameNote, pitch, badge]) node.hidden = view === null;
     if (view === null) return;
 
     link.textContent = view.link.replace(/^https:\/\//, "");
@@ -129,6 +141,13 @@ export function createInvitePanel(deps: InvitePanelDeps): InvitePanel {
     nameNote.textContent = namePreview(view);
     badge.hidden = deps.workspaceRoot() === null;
   }
+
+  pitchButton.addEventListener("click", () => {
+    if (view === null) return;
+    void window.adcode.clipboard.writeText(advertiserPitch(`${inviteLink(view.code)}?for=ads`)).then(() => {
+      deps.notify("Pitch copied, with your advertiser link. Paste it into an email or a DM.");
+    });
+  });
 
   badgeButton.addEventListener("click", () => {
     const root = deps.workspaceRoot();

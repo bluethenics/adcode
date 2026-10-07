@@ -90,3 +90,18 @@ export function collabInviteText(link: string, sessionCode: string): string {
     `2. Open Live Session, choose Join, and paste: ${sessionCode}`,
   ].join("\n");
 }
+
+/**
+ * A short message someone can send a company that sells to developers. Only published facts:
+ * the price floor and the split are on the website, and a reach figure is left out because
+ * advertisers buy on numbers and an invented one would be a lie with money attached.
+ */
+export function advertiserPitch(link: string): string {
+  return [
+    "Hi - I code in ADCode, a free AI code editor. It shows developers one small sponsored card now and then while they build, and pays them half of the ad revenue.",
+    "",
+    "If you want to reach developers, campaigns start from $1 per 500 verified views, targeted by the language or framework they have open - and you only pay for views that were really seen.",
+    "",
+    `Have a look: ${link}`,
+  ].join("\n");
+}

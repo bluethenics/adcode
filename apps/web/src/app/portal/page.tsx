@@ -20,6 +20,7 @@ import { BillingBody } from "./billing/page";
 import { NewCampaignForm } from "./campaigns/new/page";
 import { CreativeForm } from "./campaigns/[id]/CreativeForm";
 import { campaignRowToggle, loadPortalReport } from "@/lib/portalReport";
+import { ReferAdvertiser } from "@/components/ReferAdvertiser";
 
 type Window = "7" | "30" | "90";
 
@@ -434,6 +435,8 @@ function PortalBody() {
         <h2 className="workspace-section-title" id="new-campaign-title">Create a campaign</h2>
         <NewCampaignForm />
       </section>
+
+      <ReferAdvertiser />
     </>
   );
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AdvertiseInvite } from "@/components/AdvertiseInvite";
 import { AppShowcase } from "@/components/AppShowcase";
 import { isInviteCode } from "@/lib/invite";
 import { pageMetadata } from "@/lib/seo";
@@ -29,10 +30,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function InvitePage({ params }: Props) {
+export default async function InvitePage({ params, searchParams }: Props) {
   const raw = (await params).code.toLowerCase();
   // A malformed code still sells ADCode: it just carries no invite.
   const code = isInviteCode(raw) ? raw : null;
+  // A link from the pitch for companies: the advertiser offer, credited to whoever sent it.
+  if ((await searchParams)["for"] === "ads") {
+    return (
+      <div className="marketplace-home">
+        <AdvertiseInvite code={code} />
+      </div>
+    );
+  }
   return (
     <div className="marketplace-home">
       <InviteHero code={code}>
