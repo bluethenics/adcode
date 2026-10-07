@@ -7,7 +7,7 @@
  * more permissive than production tests nothing worth testing.
  */
 import { utcDay } from "./day.ts";
-import { countDevelopers, sightings, summarizeGrowth, type MilestoneRow } from "./growth.ts";
+import { countDevelopers, sightings, summarizeGrowth, type MilestoneRow, type PresenceRow } from "./growth.ts";
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "./ledger.ts";
 import {
   BAD_ORDER_STATUSES,
@@ -92,11 +92,15 @@ export function createMemoryStore(): Store & { reset(): void } {
   let activity = new Map<string, ActivityDay>();
   // Keyed uid NUL name, like the table's composite primary key.
   let milestones = new Map<string, MilestoneRow>();
+  // When each activity day's first and latest flush arrived, keyed like `activity`.
+  let activitySeen = new Map<string, { firstAt: number; lastAt: number }>();
+  // Keyed uid NUL day: each UTC day a milestone was reported on, like `milestone_days`.
+  let milestoneDays = new Map<string, PresenceRow>();
   let entries: LedgerEntry[] = [];
 
   /** Activity rows with their uid. Keyed uid NUL day, as `addActivity` writes them; the uid is not stored on the row. */
-  const activityRows = (): { uid: string; day: string }[] =>
-    [...activity.entries()].map(([key, day]) => ({ uid: key.slice(0, key.indexOf("\u0000")), day: day.day }));
+  const activityRows = (): { uid: string; day: string; firstAt?: number; lastAt?: number }[] =>
+    [...activity.entries()].map(([key, day]) => ({ uid: key.slice(0, key.indexOf("\u0000")), day: day.day, ...activitySeen.get(key) }));
   let balances = new Map<string, Balance>();
   let spend = new Map<string, bigint>();
   let requestCounts = new Map<string, number>();
@@ -141,7 +145,9 @@ export function createMemoryStore(): Store & { reset(): void } {
       serves = new Map();
       receipts = new Map();
       activity = new Map();
+      activitySeen = new Map();
       milestones = new Map();
+      milestoneDays = new Map();
       entries = [];
       balances = new Map();
       spend = new Map();
@@ -213,7 +219,7 @@ export function createMemoryStore(): Store & { reset(): void } {
       return {
         impressions: paid.length - clicks, clicks, activeCampaigns:
           [...campaigns.values()].filter((campaign) => campaign.status === "active").length,
-        ...countDevelopers(now, users.values(), sightings({ serves: serves.values(), activity: activityRows(), milestones: milestones.values() })),
+        ...countDevelopers(now, users.values(), sightings({ serves: serves.values(), activity: activityRows(), milestones: milestones.values(), milestoneDays: milestoneDays.values() })),
       };
     },
 
@@ -225,6 +231,8 @@ export function createMemoryStore(): Store & { reset(): void } {
         receipts: receipts.values(),
         activity: activityRows(),
         milestones: milestones.values(),
+        milestoneDays: milestoneDays.values(),
+        withdrawals: withdrawals.values(),
       });
     },
 
@@ -402,6 +410,8 @@ export function createMemoryStore(): Store & { reset(): void } {
     async addActivity(delta) {
       const key = `${delta.uid} ${delta.day}`;
       const current = activity.get(key);
+      const seenAt = activitySeen.get(key);
+      activitySeen.set(key, { firstAt: seenAt?.firstAt ?? delta.at, lastAt: Math.max(seenAt?.lastAt ?? delta.at, delta.at) });
 
       if (current === undefined) {
         const { uid: _uid, at: _at, ...day } = delta;
@@ -439,6 +449,12 @@ export function createMemoryStore(): Store & { reset(): void } {
         milestones.set(key, current === undefined
           ? { uid, name: item.name, firstAt: item.at, lastAt: item.at }
           : { uid, name: item.name, firstAt: Math.min(current.firstAt, item.at), lastAt: Math.max(current.lastAt, item.at) });
+        const day = utcDay(item.at);
+        const dayKey = `${uid}\u0000${day}`;
+        const onDay = milestoneDays.get(dayKey);
+        milestoneDays.set(dayKey, onDay === undefined
+          ? { uid, day, firstAt: item.at, lastAt: item.at }
+          : { uid, day, firstAt: Math.min(onDay.firstAt, item.at), lastAt: Math.max(onDay.lastAt, item.at) });
       }
     },
 

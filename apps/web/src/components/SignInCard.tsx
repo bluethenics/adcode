@@ -24,13 +24,13 @@ export function SignInCard({ heading = "Sign in" }: { heading?: string }) {
 
   const run = async (
     which: "google" | "github" | "email",
-    action: () => Promise<void>,
+    action: () => Promise<boolean>,
   ) => {
     setBusy(which);
     setError(null);
     try {
-      await action();
-      trackWebsiteEvent(which === "email" && mode === "up" ? "sign_up" : "sign_in");
+      const created = await action();
+      trackWebsiteEvent(created ? "sign_up" : "sign_in");
     } catch (cause) {
       setError(authMessage(cause));
     } finally {

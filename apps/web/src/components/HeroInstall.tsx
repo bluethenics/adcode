@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { detectPlatform, installCommand, installRoute, LINUX_DOWNLOADS, MICROSOFT_STORE, type Platform } from "@/lib/platform";
+import { installLinkFor, SEND_SUBJECT, SEND_TEXT, sendInstallLink } from "@/lib/sendToDesktop";
 import { GITHUB_REPO, SITE } from "@/lib/site";
 import { trackWebsiteEvent } from "@/lib/websiteAnalytics";
 import { inviteLine } from "@/lib/invite";
@@ -43,14 +44,14 @@ export function HeroInstall({ source = "hero", advertise = true, invite }: { sou
 
   const route = installRoute(platform);
   const secondary = advertise ? (
-    <a href="/#advertise" className="marketplace-secondary" onClick={() => trackWebsiteEvent("advertise_click")}>
+    <a href="/#advertise" className="marketplace-secondary" data-tracked onClick={() => trackWebsiteEvent("advertise_click", 0, undefined, source)}>
       Advertise to developers <span aria-hidden="true">↘</span>
     </a>
   ) : null;
 
   if (route === "store") return <WindowsInstall source={source} secondary={secondary} invite={invite} />;
   if (route === "download") return <LinuxInstall source={source} secondary={secondary} invite={invite} />;
-  if (route === "send") return <SendToDesktop secondary={secondary} invite={invite} />;
+  if (route === "send") return <SendToDesktop source={source} secondary={secondary} invite={invite} />;
 
   if (route === "soon") {
     return (
@@ -97,6 +98,7 @@ function WindowsInstall({ source, secondary, invite }: { source: string; seconda
         <a
           href={MICROSOFT_STORE.installerUrl(source)}
           className="marketplace-primary install-cta"
+          data-tracked
           onClick={() => {
             carryInvite(invite);
             trackWebsiteEvent("download_click", 0, undefined, source);
@@ -130,7 +132,7 @@ function WindowsInstall({ source, secondary, invite }: { source: string; seconda
         </p>
       )}
 
-      {terminal && !started && <TerminalCommand platform="windows" />}
+      {terminal && !started && <TerminalCommand platform="windows" source={source} />}
     </div>
   );
 }
@@ -141,7 +143,7 @@ function LinuxInstall({ source, secondary, invite }: { source: string; secondary
   return (
     <div className="hero-install">
       <div className="marketplace-hero-actions">
-        <a href={downloads.deb} className="marketplace-primary install-cta" onClick={() => { carryInvite(invite); trackWebsiteEvent("download_click", 0, undefined, source); }}>
+        <a href={downloads.deb} className="marketplace-primary install-cta" data-tracked onClick={() => { carryInvite(invite); trackWebsiteEvent("download_click", 0, undefined, source); }}>
           <span className="install-cta-label">
             Download for Ubuntu / Debian
             <small>Free · .deb · x86_64</small>
@@ -150,45 +152,34 @@ function LinuxInstall({ source, secondary, invite }: { source: string; secondary
         {secondary}
       </div>
       <p className="hero-install-note">
-        Another distribution? <a href={downloads.appImage} onClick={() => { carryInvite(invite); trackWebsiteEvent("download_click", 0, undefined, source); }}>Download the AppImage</a>.{" "}
+        Another distribution? <a href={downloads.appImage} data-tracked onClick={() => { carryInvite(invite); trackWebsiteEvent("download_click", 0, undefined, source); }}>Download the AppImage</a>.{" "}
         <button type="button" className="install-link-button" aria-expanded={terminal} onClick={() => setTerminal((open) => !open)}>
           {terminal ? "Hide the terminal command" : "Prefer a terminal?"}
         </button>
       </p>
-      {terminal && <TerminalCommand platform="linux" />}
+      {terminal && <TerminalCommand platform="linux" source={source} />}
     </div>
   );
 }
 
 /**
- * A phone cannot install a desktop editor, and asking someone who tapped a post to come
- * back later on another device mostly means they will not. Sending themselves the link
- * while they still care is the next best thing - through the share sheet where there is one,
- * by copying it where there is not, or by email.
+ * A phone cannot install a desktop editor, so it gets a way to send the link to the
+ * reader's computer - share sheet or clipboard (sendToDesktop.ts), or email.
+ *
+ * Counted when it worked - the sheet was used or the link copied - not when the button was
+ * pressed, so a dismissed sheet or a blocked clipboard is not a sent link. The email link
+ * counts on the click: whether the message went is the mail app's to know.
  */
-function SendToDesktop({ secondary, invite }: { secondary: React.ReactNode; invite: string | undefined }) {
+function SendToDesktop({ source, secondary, invite }: { source: string; secondary: React.ReactNode; invite: string | undefined }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   // An invite has to survive the hop from phone to computer, so the link sent is the invite.
-  const link = invite === undefined
-    ? `${SITE.origin}/versions?utm_source=send-to-desktop`
-    : `${SITE.origin}/i/${invite}?utm_source=send-to-desktop`;
-  const subject = "Install ADCode on my computer";
-  const body = `ADCode - the free AI code editor that pays you to build.\n\nInstall it here: ${link}`;
+  const link = invite === undefined ? installLinkFor(SITE.origin) : `${SITE.origin}/i/${invite}?utm_source=send-to-desktop`;
+  const body = `${SEND_TEXT}\n\nInstall it here: ${link}`;
 
   async function send(): Promise<void> {
-    trackWebsiteEvent("send_to_desktop");
-    try {
-      if (typeof navigator.share === "function") {
-        await navigator.share({ title: subject, text: "ADCode - the free AI code editor that pays you to build.", url: link });
-        return;
-      }
-      await navigator.clipboard.writeText(link);
-      setState("copied");
-    } catch (error) {
-      // Dismissing the share sheet is not a failure; there is nothing to report.
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setState("failed");
-    }
+    const outcome = await sendInstallLink(navigator, link);
+    if (outcome === "shared" || outcome === "copied") trackWebsiteEvent("send_to_desktop", 0, undefined, source);
+    if (outcome === "copied" || outcome === "failed") setState(outcome);
   }
 
   return (
@@ -202,8 +193,8 @@ function SendToDesktop({ secondary, invite }: { secondary: React.ReactNode; invi
         </button>
         <a
           className="marketplace-secondary"
-          href={`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
-          onClick={() => trackWebsiteEvent("send_to_desktop")}
+          href={`mailto:?subject=${encodeURIComponent(SEND_SUBJECT)}&body=${encodeURIComponent(body)}`}
+          onClick={() => trackWebsiteEvent("send_to_desktop", 0, undefined, source)}
         >
           Email me the link
         </a>
@@ -214,7 +205,7 @@ function SendToDesktop({ secondary, invite }: { secondary: React.ReactNode; invi
   );
 }
 
-function TerminalCommand({ platform }: { platform: "windows" | "linux" }) {
+function TerminalCommand({ platform, source }: { platform: "windows" | "linux"; source: string }) {
   const command = installCommand(platform, SITE.origin)!;
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -230,7 +221,7 @@ function TerminalCommand({ platform }: { platform: "windows" | "linux" }) {
     setFailed(false);
     try {
       await navigator.clipboard.writeText(command);
-      trackWebsiteEvent("install_copy");
+      trackWebsiteEvent("install_copy", 0, undefined, source);
       setCopied(true);
     } catch {
       // A denied clipboard permission. The command is selectable either way.

@@ -16,7 +16,7 @@ import {
 import { signupRefBody } from "@/lib/invite";
 import { campaignNumbers, formatUsdMicros } from "@/lib/campaignPricing";
 import { AdPreviewMark } from "./AdPreviewMark";
-import { analyticsChoice, trackWebsiteEvent } from "@/lib/websiteAnalytics";
+import { trackWebsiteEvent, trackWebsiteEventOnce } from "@/lib/websiteAnalytics";
 
 const DEFAULT_LOGO =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -39,7 +39,6 @@ export function LandingBidBuilder() {
   const [error, setError] = useState<string | null>(null);
   const [preparedCampaignId, setPreparedCampaignId] = useState<string | null>(null);
   const authPanel = useRef<HTMLDivElement>(null);
-  const entryTracked = useRef(false);
 
   useEffect(() => {
     if (!showAuth || user !== null) return;
@@ -47,11 +46,10 @@ export function LandingBidBuilder() {
     authPanel.current?.scrollIntoView({ block: "nearest" });
   }, [showAuth, user]);
 
-  const trackEntry = () => {
-    if (entryTracked.current || analyticsChoice() !== "accepted") return;
-    trackWebsiteEvent("advertise_click");
-    entryTracked.current = true;
-  };
+  // Once per visit, not once per mounted form: a visit that resumes after half an hour, or
+  // consent given halfway down the form, records the entry again, so a campaign created
+  // afterwards always has its entry in the same session.
+  const trackEntry = () => trackWebsiteEventOnce("landing-bid-entry", "advertise_click", "landing-form");
 
   const numbers = useMemo(() => campaignNumbers(bid, blocks), [bid, blocks]);
 
@@ -109,6 +107,7 @@ export function LandingBidBuilder() {
       }
       if (account.ok) trackWebsiteEvent("advertiser_created");
 
+      trackEntry();
       setStatus("Creating your campaign…");
       const campaign = await apiFetch<CampaignView>({
         path: "/portal/campaigns",

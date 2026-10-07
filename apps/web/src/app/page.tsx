@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { HeroInstall } from "@/components/HeroInstall";
+import { StickyInstall } from "@/components/StickyInstall";
 import { LandingBidBuilder } from "@/components/LandingBidBuilder";
 import { DeveloperCounter } from "@/components/DeveloperCounter";
 import { HeroCounter } from "@/components/HeroCounter";
@@ -98,6 +99,7 @@ export default function Home() {
 
       <HomeFaq />
       <section className="closing-cta marketplace-wrap"><p className="marketplace-eyebrow">YOUR NEXT CHAPTER</p><h2>Good things start<br />with a line of code.</h2><HeroInstall source="closing" advertise={false} /><p>Free to build. Yours to make.</p></section>
+      <StickyInstall />
       </div>
     );
   }

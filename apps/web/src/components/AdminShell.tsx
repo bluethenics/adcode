@@ -193,7 +193,7 @@ export function AdminShell({
   actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { user, loading, configured, isAdmin, token } = useAuth();
+  const { user, loading, configured, isAdmin, adminLoading, token } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -241,12 +241,14 @@ export function AdminShell({
     );
   }
 
-  if (loading) {
+  // Signed in but not yet answered whether this is an admin: still loading, not a refusal.
+  if (loading || (user !== null && adminLoading && !isAdmin)) {
     return (
       <section className="band">
         <div className="wrap">
           <div className="skeleton skeleton-title" />
           <div className="skeleton skeleton-card" />
+          <span className="sr-only">Checking your access…</span>
         </div>
       </section>
     );

@@ -9,6 +9,7 @@
  * Implementations: `memoryStore.ts` for tests, `adapters/supabaseStore.ts` for production.
  */
 import type { Balance, LedgerEntry } from "./ledger.ts";
+import type { ModelCatalogRecord } from "./modelCatalogTypes.ts";
 
 export interface Clock {
   now(): number;
@@ -242,32 +243,34 @@ export interface GrowthDay {
   day: string;
   /** Accounts that fetched ads, reported editor activity or reached a milestone that day. */
   active: number;
-  /** Of those, accounts at least a day old: people who came back, not that day's arrivals. */
+  /** Of those, accounts first seen at least a day earlier: people who came back, not that day's arrivals. */
   returning: number;
-  /** Developers (accounts that did something) created that day. */
+  /** Developers first seen that day. */
   joined: number;
   /** Ads shown and billed that day - not serves, most of which expire unseen. */
   adsShown: number;
 }
 
-/** One week of sign-ups, and how many of them came back. */
+/** One calendar week of new developers, and how many of them came back. */
 export interface GrowthCohort {
-  /** The first UTC day of the seven. */
+  /** The Monday (UTC) the week starts on. */
   weekStart: string;
-  /** Developers created that week. */
+  /** Developers first seen that week. */
   joined: number;
-  /** Of them, seen again at least a day after their account was made. */
+  /** Of them, seen again at least a day after they were first seen. */
   back1d: number;
-  /** Of them, seen again at least a week after their account was made. */
+  /** Of them, seen again at least a week after they were first seen. */
   back7d: number;
 }
 
-/** How far the last 30 days' new developers got, milestone by milestone. */
+/** How far the last 30 days' new developers got in their first day. */
 export interface GrowthFunnel {
-  /** Developers created in the last 30 days: everyone the steps are counted out of. */
+  /** Developers first seen in the last 30 days: everyone the steps are counted out of. */
   base: number;
-  /** In the fixed order of `MILESTONES`. */
+  /** Each milestone, in the fixed order of `MILESTONES`: who reached it within a day of being first seen. */
   steps: { name: string; accounts: number }[];
+  /** The main path (`FIRST_DAY_JOURNEY`), each step counting only those who reached it after the one before. */
+  journey: { name: string; accounts: number }[];
 }
 
 /**
@@ -292,18 +295,20 @@ export interface GrowthStats {
   active1d: number;
   active7d: number;
   active30d: number;
-  /** Active in the window, and at least a day older than the visit that counted. */
+  /** Active in the window, on a visit at least a day after they were first seen. */
   returning1d: number;
   returning7d: number;
   adsShown: number;
   adsShown7d: number;
   adsShown30d: number;
   clicks: number;
-  /** Credited to developers across every billed receipt. */
+  /** Credited to developers across every billed receipt - earned, not necessarily withdrawn. */
   creditedMicros: bigint;
+  /** Withdrawals actually paid out to developers. */
+  paidOutMicros: bigint;
   /** The last 30 UTC days, oldest first, today last. */
   daily: GrowthDay[];
-  /** The last six weeks of sign-ups, oldest first. */
+  /** The last six calendar weeks of new developers, oldest first, this week last. */
   cohorts: GrowthCohort[];
   funnel: GrowthFunnel;
 }
@@ -833,8 +838,8 @@ export interface Store {
   modelOutcomesSince(day: string): Promise<import("./modelOutcomes.ts").ModelOutcomeRow[]>;
 
   /** The admin panel's curation of the model list; null until it is first saved. */
-  getModelCatalog(): Promise<import("./modelCatalog.ts").ModelCatalogRecord | null>;
-  putModelCatalog(record: import("./modelCatalog.ts").ModelCatalogRecord): Promise<void>;
+  getModelCatalog(): Promise<ModelCatalogRecord | null>;
+  putModelCatalog(record: ModelCatalogRecord): Promise<void>;
 
   /* ── Referrals (see `referrals.ts`) ─────────────────────────────────── */
 

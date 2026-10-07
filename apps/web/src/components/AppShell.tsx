@@ -233,7 +233,7 @@ export function AppShell({
   requireAdmin?: boolean;
   children: React.ReactNode;
 }) {
-  const { user, loading, configured, isAdmin } = useAuth();
+  const { user, loading, configured, isAdmin, adminLoading } = useAuth();
   const pathname = usePathname();
 
   const [drawer, setDrawer] = useState(false);
@@ -286,7 +286,9 @@ export function AppShell({
     );
   }
 
-  if (loading) {
+  // An admin page waits for the admin answer too: signing in finishes before it arrives,
+  // and "Not an admin account" flashed at administrators in between.
+  if (loading || (requireAdmin && user !== null && adminLoading && !isAdmin)) {
     return (
       <section className="band">
         <div className="wrap">

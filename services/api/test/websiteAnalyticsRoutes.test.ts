@@ -16,7 +16,7 @@ async function setup() {
       async read() { return { events: [...records.values()], truncated: false }; },
     },
   });
-  const post = (events = [event], requestOrigin = origin) => handler(new Request(`${origin}/v1/website-events`, { method: "POST", headers: { origin: requestOrigin, "content-type": "application/json" }, body: JSON.stringify(events) }));
+  const post = (events: unknown[] = [event], requestOrigin = origin, agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0") => handler(new Request(`${origin}/v1/website-events`, { method: "POST", headers: { origin: requestOrigin, "content-type": "application/json", "user-agent": agent }, body: JSON.stringify(events) }));
   const report = (token: string) => handler(new Request(`${origin}/v1/admin/website-analytics?days=7`, { headers: { authorization: `Bearer ${token}` } }));
   return { records, post, report };
 }
@@ -39,5 +39,18 @@ describe("website analytics routes", () => {
     expect((await api.post([event, { ...event, session: "33333333-3333-4333-8333-333333333333" }])).status).toBe(400);
     for (let i = 0; i < 30; i++) await api.post();
     expect((await api.post()).status).toBe(429);
+  });
+  it("stores nothing from a crawler or a scripted browser, and gives it no reason to retry", async () => {
+    const api = await setup();
+    const response = await api.post([event], origin, "Mozilla/5.0 (X11; Linux x86_64) HeadlessChrome/126.0");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ accepted: 0 });
+    expect(api.records.size).toBe(0);
+  });
+  it("dates events by the age the browser sent", async () => {
+    const api = await setup();
+    expect((await api.post([{ ...event, age: 90_000 }])).status).toBe(200);
+    const stored = [...api.records.values()][0]!;
+    expect(stored.receivedAt - stored.occurredAt).toBe(90_000);
   });
 });

@@ -103,7 +103,7 @@ import { PAYOUT_FIELD_KINDS } from "./payoutCorridors.ts";
 import { createMemoryStore } from "./memoryStore.ts";
 import { isSafeAssetKey } from "./assets.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
-import { parseWebsiteEvents, summarizeWebsiteEvents, type WebsiteAnalyticsStore } from "./websiteAnalytics.ts";
+import { isAutomatedAgent, parseWebsiteEvents, summarizeWebsiteEvents, type WebsiteAnalyticsStore } from "./websiteAnalytics.ts";
 import { growthToWire } from "./growth.ts";
 import { parseModelCatalog, readModelCatalog, saveModelCatalog } from "./modelCatalog.ts";
 import { parseModelOutcomes, readModelHealth, recordModelOutcomes } from "./modelOutcomes.ts";
@@ -545,6 +545,10 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       if (!options.websiteAnalytics) { send(res, 503, { error: "analytics-unavailable" }, cors); return; }
       const raw = await jsonBodyOr400();
       if (raw === undefined) return;
+      // A crawler or a scripted browser that clicked through the consent banner is not a
+      // visitor. Answered as accepted so it has no reason to retry, and stored nowhere.
+      const agent = req.headers["user-agent"];
+      if (isAutomatedAgent(Array.isArray(agent) ? agent[0] : agent)) { send(res, 200, { accepted: 0 }, { ...cors, "cache-control": "no-store" }); return; }
       const events = parseWebsiteEvents(raw, clock.now());
       if (!events) { send(res, 400, { error: "malformed events" }, cors); return; }
       // A shared, persistent ceiling bounds anonymous writes even if session IDs rotate.

@@ -31,6 +31,18 @@ describe("admin growth numbers", () => {
     expect(growth?.daily[0]?.returning).toBe(2);
     expect(growth?.cohorts).toEqual([{ weekStart: "2026-09-28", joined: 48, back1d: 1, back7d: 0 }]);
     expect(growth?.funnel?.base).toBe(283);
+    expect(growth?.funnel?.journey).toBeNull(); // an API from before the first-day journey
+  });
+
+  it("reads what was paid out and the first-day journey, when the API reports them", () => {
+    const growth = parseGrowth({
+      ...wire,
+      paidOutMicros: "5000000",
+      funnel: { base: 10, steps: [{ name: "welcome_shown", accounts: 9 }], journey: [{ name: "welcome_shown", accounts: 9 }, { name: "prompt_sent", accounts: 4 }] },
+    });
+    expect(growth?.paidOutMicros).toBe(5_000_000n);
+    expect(growth?.funnel?.journey).toEqual([{ name: "welcome_shown", accounts: 9 }, { name: "prompt_sent", accounts: 4 }]);
+    expect(parseGrowth(wire)?.paidOutMicros).toBeNull();
   });
 
   it("still reads an API deployed before those numbers existed", () => {
@@ -70,7 +82,10 @@ describe("the post", () => {
 
   it("labels each figure for what it counts", () => {
     expect(shareLine(growth, "adsShown")).toEqual({ metric: "adsShown", value: "194", label: "sponsored cards shown" });
-    expect(shareLine(growth, "credited").value).toBe("$0.22");
+    expect(shareLine(growth, "credited")).toEqual({ metric: "credited", value: "$0.22", label: "earned by developers" });
+    // Credited money is earned, not paid; and the last 24 hours are not "today".
+    expect(shareLine(growth, "active1d").label).toBe("active in the last 24 hours");
+    expect(shareLine({ ...growth, paidOutMicros: 1_500_000n }, "paidOut")).toEqual({ metric: "paidOut", value: "$1.50", label: "paid out to developers" });
   });
 
   it("opens X's compose window rather than posting anything itself", () => {

@@ -6,7 +6,7 @@ import { GrowthPanel } from "@/components/GrowthPanel";
 import { useAuth } from "@/components/AuthProvider";
 import { TimeChart } from "@/components/charts/TimeChart";
 import { apiFetch } from "@/lib/api";
-import type { Ranking, WebsiteAnalyticsReport } from "@/lib/websiteAnalytics";
+import { browserExcluded, setBrowserExcluded, type Ranking, type WebsiteAnalyticsReport } from "@/lib/websiteAnalytics";
 import "@/components/websiteAnalytics.css";
 
 export default function AnalyticsPage() {
@@ -38,6 +38,34 @@ function FunnelCard({ funnel }: { funnel: WebsiteAnalyticsReport["funnels"][numb
     <p className="website-analytics-note">Same-session steps in order. Drop-off shows sessions lost from the previous step. These actions do not confirm installation or payment.</p>
   </section>;
 }
+/**
+ * Whether this browser's own visits are counted. An administrator's browser is left out once
+ * they sign in here, so checking the site does not show up as an audience; this is the switch
+ * for a setup check that needs to see its own events arrive.
+ */
+function ThisBrowser() {
+  const [excluded, setExcluded] = useState<boolean | null>(null);
+  const [automated, setAutomated] = useState(false);
+  useEffect(() => {
+    const sync = () => {
+      setExcluded(browserExcluded());
+      let chosen = false;
+      try { chosen = localStorage.getItem("adcode.website-analytics-exclude") === "1"; } catch { /* storage disabled */ }
+      setAutomated(browserExcluded() && !chosen);
+    };
+    sync();
+    window.addEventListener("website-analytics-choice", sync);
+    return () => window.removeEventListener("website-analytics-choice", sync);
+  }, []);
+  if (excluded === null) return null;
+  return <p className="website-analytics-note" role="status">
+    {automated
+      ? "This browser is automated or identifies as a crawler, so its visits are never counted."
+      : excluded
+        ? <>This browser&apos;s visits are not counted - administrators&apos; own visits are left out. <button type="button" className="install-link-button" onClick={() => setBrowserExcluded(false)}>Count this browser</button> to check that events arrive.</>
+        : <>This browser&apos;s visits are counted, if it allowed analytics. <button type="button" className="install-link-button" onClick={() => setBrowserExcluded(true)}>Stop counting this browser</button></>}
+  </p>;
+}
 function Reports() {
   const { token } = useAuth();
   const [days, setDays] = useState(30);
@@ -66,6 +94,7 @@ function Reports() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   return <>
+    <ThisBrowser />
     <div className="website-analytics-controls"><label>Period <select value={days} onChange={e => setDays(Number(e.target.value))}><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option></select></label><button type="button" className="btn btn-small" disabled={loading} onClick={() => setRefresh(n => n + 1)}>Refresh</button><button type="button" className="btn btn-small" disabled={!report} onClick={exportReport}>Export report</button></div>
     {loading && <p role="status">Loading website analytics…</p>}
     {error && <p role="alert">Analytics could not be loaded. Retry, or check that the website analytics database migration has been applied.</p>}
@@ -77,11 +106,11 @@ function Reports() {
         ["Install intent", report.sessions ? `${(report.installSessions / report.sessions * 100).toFixed(1)}%` : "—"],
         ["Browser errors", report.errorCount.toLocaleString()],
       ].map(([label, value]) => <div className="admin-tile" key={label}><strong>{value}</strong><span>{label}</span></div>)}</div>
-      <p className="website-analytics-note">Consenting visits only; admin pages are excluded. Sessions expire after 30 minutes of inactivity and are not unique people. Install intent means a session with a copied install command or download click, not a completed installation. Dates use UTC.</p>
+      <p className="website-analytics-note">Only visitors who allowed analytics are measured; how many declined is deliberately not recorded. Admin pages, administrators&apos; browsers, automated browsers and crawlers are excluded. A session ends after 30 minutes with nobody scrolling, clicking or typing, and is not a unique person; one that resumes later starts a new session with its own page view. Install intent means a session with a copied install command or download click, not a completed installation - website visits are not linked to installs. Events are dated by when they happened, in UTC days; the growth figures above use rolling windows instead (last 24 hours, 7 and 30 days). Traffic sources group the spellings of one place - t.co, x.com and twitter count as x, l.threads.com as threads. Raw events are kept for 90 days.</p>
       <section className="website-analytics-card"><h2>Traffic over time</h2><TimeChart days={report.daily.map(d => d.day)} series={[{ label: "Page views", color: "#78a9ff", values: report.daily.map(d => d.views) }, { label: "Sessions", color: "#55c9a2", values: report.daily.map(d => d.sessions) }]} summary={`Daily traffic: ${report.pageViews} page views and ${report.sessions} sessions in the selected period.`} /></section>
       <div className="website-analytics-grid">{report.funnels.map(funnel => <FunnelCard key={funnel.label} funnel={funnel} />)}</div>
       <div className="website-analytics-grid"><RankingTable title="Top pages" rows={report.pages} /><RankingTable title="Traffic sources" rows={report.sources} /><RankingTable title="Campaigns" rows={report.campaigns} /><RankingTable title="Devices" rows={report.devices} /><RankingTable title="Actions and conversions" rows={report.events} unit="Events" />{report.placements !== undefined && <RankingTable title="Install buttons" rows={report.placements} unit="Install actions" />}
-        <section className="website-analytics-card"><h2>Page performance</h2><table><thead><tr><th scope="col">Metric</th><th scope="col">Samples</th><th scope="col">75th percentile</th></tr></thead><tbody>{report.metrics.map(metric => <tr key={metric.name}><th scope="row">{metric.name}</th><td>{metric.samples}</td><td>{metric.p75 === null ? "—" : metric.name === "CLS" ? metric.p75.toFixed(3) : `${Math.round(metric.p75).toLocaleString()} ms`}</td></tr>)}</tbody></table><p className="website-analytics-note">LCP: main content loading. INP: interaction delay. CLS: layout movement. FCP: first content. TTFB: server response. Browser support and consent affect sample coverage.</p><p className="website-analytics-note">Visible engagement: {Math.round(report.engagementSeconds / 60).toLocaleString()} minutes.</p></section>
+        <section className="website-analytics-card"><h2>Page performance</h2><table><thead><tr><th scope="col">Metric</th><th scope="col">Samples</th><th scope="col">75th percentile</th></tr></thead><tbody>{report.metrics.map(metric => <tr key={metric.name}><th scope="row">{metric.name}</th><td>{metric.samples}</td><td>{metric.p75 === null ? "—" : metric.name === "CLS" ? metric.p75.toFixed(3) : `${Math.round(metric.p75).toLocaleString()} ms`}</td></tr>)}</tbody></table><p className="website-analytics-note">LCP: main content loading. INP: interaction delay. CLS: layout movement. FCP: first content. TTFB: server response. Browser support and consent affect sample coverage.</p><p className="website-analytics-note">CLS and INP are the latest value each visit reported, not the first. Engaged time: {Math.round(report.engagementSeconds / 60).toLocaleString()} minutes - time with the page visible, counting at most a minute past the last scroll, click, key press or pointer movement. Browser errors count at most five per page.</p></section>
       </div>
     </>}
   </>;

@@ -13,38 +13,10 @@
  * again on its side (`packages/ai/src/catalogueOverrides.ts`), forgivingly - a bad document
  * there means no overrides, never a broken list.
  */
+import type { AddedModel, ModelCatalog, ModelCatalogRecord } from "./modelCatalogTypes.ts";
 import type { AuditRecord } from "./store.ts";
 
-export interface AddedModel {
-  provider: string;
-  id: string;
-  name: string;
-  contextWindow?: number;
-  maxOutput?: number;
-  reasoning?: boolean;
-  effortLevels?: string[];
-  /** USD per million tokens. */
-  inputPrice?: number;
-  outputPrice?: number;
-  releaseDate?: string;
-}
-
-export interface ModelCatalog {
-  /** provider id -> the model it starts on. */
-  recommended: Record<string, string>;
-  /** "provider:model" keys. */
-  hidden: string[];
-  featured: string[];
-  /** "provider:model" -> one line shown with the model. */
-  notes: Record<string, string>;
-  added: AddedModel[];
-}
-
-export interface ModelCatalogRecord {
-  overrides: ModelCatalog;
-  updatedAt: number;
-  updatedBy: string;
-}
+export type { AddedModel, ModelCatalog, ModelCatalogRecord } from "./modelCatalogTypes.ts";
 
 export const EMPTY_MODEL_CATALOG: ModelCatalog = { recommended: {}, hidden: [], featured: [], notes: {}, added: [] };
 

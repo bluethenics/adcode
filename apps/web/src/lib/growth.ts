@@ -9,11 +9,15 @@ import { SITE } from "./site";
 
 export interface GrowthDay { day: string; active: number; joined: number; adsShown: number; returning: number | null }
 
-/** One week of sign-ups and how many came back. */
+/** One calendar week (Monday first) of new developers and how many came back. */
 export interface GrowthCohort { weekStart: string; joined: number; back1d: number; back7d: number }
 
-/** How far the last 30 days' new developers got, step by step. */
-export interface GrowthFunnel { base: number; steps: { name: string; accounts: number }[] }
+/**
+ * How far the last 30 days' new developers got in their first day. `steps` is each milestone
+ * on its own; `journey` is the main path in order, each step needing the one before. A null
+ * journey means an API older than the first-day rules.
+ */
+export interface GrowthFunnel { base: number; steps: { name: string; accounts: number }[]; journey: { name: string; accounts: number }[] | null }
 
 /**
  * What each first-session milestone means, in the order a first session goes.
@@ -42,6 +46,8 @@ export interface Growth {
   accounts: number | null;
   /** Accounts that did something at least once. */
   developers: number;
+  /** Withdrawals actually paid out, as opposed to earnings credited. Null from an older API. */
+  paidOutMicros: bigint | null;
   /** Seen in the window at least a day after sign-up. Null from an older API. */
   returning1d: number | null;
   returning7d: number | null;
@@ -94,7 +100,13 @@ export function parseGrowth(value: unknown): Growth | null {
       const { name, accounts } = (step ?? {}) as Record<string, unknown>;
       return typeof name === "string" && isCount(accounts) ? [{ name, accounts }] : [];
     });
-    funnel = { base: rawFunnel.base, steps };
+    const journey = Array.isArray(rawFunnel.journey)
+      ? (rawFunnel.journey as unknown[]).flatMap((step) => {
+          const { name, accounts } = (step ?? {}) as Record<string, unknown>;
+          return typeof name === "string" && isCount(accounts) ? [{ name, accounts }] : [];
+        })
+      : null;
+    funnel = { base: rawFunnel.base, steps, journey: journey !== null && journey.length > 0 ? journey : null };
   }
 
   const counts = Object.fromEntries(COUNT_KEYS.map((key) => [key, data[key] as number])) as Record<(typeof COUNT_KEYS)[number], number>;
@@ -106,6 +118,7 @@ export function parseGrowth(value: unknown): Growth | null {
     cohorts,
     funnel,
     creditedMicros: BigInt(data.creditedMicros),
+    paidOutMicros: typeof data.paidOutMicros === "string" && /^\d+$/.test(data.paidOutMicros) ? BigInt(data.paidOutMicros) : null,
     daily,
   };
 }
@@ -121,7 +134,7 @@ export function dollars(micros: bigint): string {
   return `$${(cents / 100n).toLocaleString("en-US")}.${(cents % 100n).toString().padStart(2, "0")}`;
 }
 
-export type ShareMetric = "developers" | "joined7d" | "joined30d" | "active1d" | "active7d" | "active30d" | "adsShown" | "adsShown30d" | "credited";
+export type ShareMetric = "developers" | "joined7d" | "joined30d" | "active1d" | "active7d" | "active30d" | "adsShown" | "adsShown30d" | "credited" | "paidOut";
 
 export interface ShareLine { metric: ShareMetric; value: string; label: string }
 
@@ -132,16 +145,20 @@ export function shareLine(growth: Growth, metric: ShareMetric): ShareLine {
     case "developers": return { metric, value: n(growth.developers), label: "developers on ADCode" };
     case "joined7d": return { metric, value: `+${n(growth.joined7d)}`, label: "joined this week" };
     case "joined30d": return { metric, value: `+${n(growth.joined30d)}`, label: "joined this month" };
-    case "active1d": return { metric, value: n(growth.active1d), label: "active today" };
+    // A rolling 24 hours, not the calendar day - "today" would claim something else.
+    case "active1d": return { metric, value: n(growth.active1d), label: "active in the last 24 hours" };
     case "active7d": return { metric, value: n(growth.active7d), label: "active this week" };
     case "active30d": return { metric, value: n(growth.active30d), label: "active this month" };
     case "adsShown": return { metric, value: n(growth.adsShown), label: "sponsored cards shown" };
     case "adsShown30d": return { metric, value: n(growth.adsShown30d), label: "ads shown this month" };
-    case "credited": return { metric, value: dollars(growth.creditedMicros), label: "paid to developers" };
+    // Credited is what developers have earned; it is not money that has left. "Paid" is
+    // only ever the withdrawals that were actually paid out.
+    case "credited": return { metric, value: dollars(growth.creditedMicros), label: "earned by developers" };
+    case "paidOut": return { metric, value: dollars(growth.paidOutMicros ?? 0n), label: "paid out to developers" };
   }
 }
 
-export const SHARE_METRICS: readonly ShareMetric[] = ["developers", "joined7d", "joined30d", "active1d", "active7d", "active30d", "adsShown", "adsShown30d", "credited"];
+export const SHARE_METRICS: readonly ShareMetric[] = ["developers", "joined7d", "joined30d", "active1d", "active7d", "active30d", "adsShown", "adsShown30d", "credited", "paidOut"];
 export const DEFAULT_SHARE: readonly ShareMetric[] = ["developers", "joined7d", "active30d"];
 
 /** The post, ready for X: the figures, one line of what ADCode is, and the link. */

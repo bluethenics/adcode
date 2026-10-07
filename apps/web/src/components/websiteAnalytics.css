@@ -38,6 +38,8 @@
 .growth-cohort-early { color: var(--muted, #999); font-size: 12px; }
 .website-analytics-card td small { color: var(--muted, #999); }
 .growth-funnel { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.growth-funnel-heading { margin: 16px 0 8px; font-size: 13px; font-weight: 600; color: var(--muted, #999); }
+.growth-funnel-heading:first-of-type { margin-top: 4px; }
 .growth-funnel li { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(80px, 2fr) 78px; align-items: center; gap: 12px; font-size: 13px; }
 .growth-funnel-bar { height: 8px; border-radius: 999px; background: var(--control, #262626); overflow: hidden; }
 .growth-funnel-bar span { display: block; height: 100%; border-radius: inherit; background: #55c9a2; }
