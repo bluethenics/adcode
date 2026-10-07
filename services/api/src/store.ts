@@ -9,6 +9,7 @@
  * Implementations: `memoryStore.ts` for tests, `adapters/supabaseStore.ts` for production.
  */
 import type { Balance, LedgerEntry } from "./ledger.ts";
+import type { ModelCatalogRecord } from "./modelCatalogTypes.ts";
 
 export interface Clock {
   now(): number;
@@ -743,8 +744,8 @@ export interface Store {
   modelOutcomesSince(day: string): Promise<import("./modelOutcomes.ts").ModelOutcomeRow[]>;
 
   /** The admin panel's curation of the model list; null until it is first saved. */
-  getModelCatalog(): Promise<import("./modelCatalog.ts").ModelCatalogRecord | null>;
-  putModelCatalog(record: import("./modelCatalog.ts").ModelCatalogRecord): Promise<void>;
+  getModelCatalog(): Promise<ModelCatalogRecord | null>;
+  putModelCatalog(record: ModelCatalogRecord): Promise<void>;
 
   writeAudit(record: AuditRecord): Promise<void>;
   listAudit(): Promise<AuditRecord[]>;
