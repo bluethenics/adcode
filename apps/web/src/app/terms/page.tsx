@@ -106,6 +106,17 @@ A few things follow from that:
 - **Balances are an amount we owe you, not money held for you.** Until a withdrawal completes, your balance is a debt we owe, not funds segregated in your name. If we became insolvent you would be an ordinary creditor. We would rather say this plainly than have you assume otherwise.
 - **Earnings are not wages.** Using ADCode does not make you an employee, contractor, agent or partner of ours.
 
+## Invites
+
+You can invite people to ADCode with your own invite link. While these terms apply:
+
+- **What you earn.** For 365 days from the moment someone joins with your link, you are credited 10% of the cost of every paid view they see. If an advertiser signs up with your link, you are credited 5% of what it spends on views for 365 days. These come out of ADCode's share; the person you invited keeps their own share in full.
+- **When it arrives.** Invite earnings are worked out once a day for the day before, and appear in your ledger as one entry per day.
+- **What does not count.** Test views, ADCode's own advertising, views by accounts that are suspended, and spend by an advertiser whose payment was disputed or reversed earn no invite share. A code must be added within 14 days of an account being made, and an account can only ever have one.
+- **No inviting yourself.** Using a second account, a reset editor or anybody else to claim your own code is manufacturing earnings; see below. We reverse invite earnings that come from it.
+- **The rates can change.** A change applies to days worked out after it, never to invite earnings already credited.
+- **Thank-you awards.** We sometimes credit a person whose bug report or idea we act on. Awards are at our discretion; reporting something is never a promise of one.
+
 ## What is not allowed
 
 Do not try to manufacture views. Concretely: automating the editor to generate impressions, running it purely to accrue credit, submitting receipts for cards that were not shown, or operating multiple accounts to multiply earnings.

@@ -55,6 +55,14 @@ There is no field in this request for a filename, a path, a repository, a symbol
 
 A receipt contains an identifier for the card, how long it was on screen, whether you clicked or dismissed it, and your theme. This is what your earnings are calculated from.
 
+### Invites
+
+When you open Invite & earn, the editor asks the service for your invite code, and the service makes one for your account the first time. The code is random and says nothing about you.
+
+When ADCode first opens, and when you open Invite & earn on a new account, the editor looks at your clipboard once, on your computer, for an ADCode invite: exactly the line an invite page copies (\`ADCode invite:\` and a code) or an ADCode invite link. If the clipboard holds anything else, nothing is sent and nothing is kept. If it holds an invite, only the code is sent, to connect your account to whoever invited you.
+
+With a claim, the editor also sends the identifiers of other ADCode accounts this computer has used, so that resetting the editor cannot be used to invite yourself. It keeps that list on your computer.
+
 ### When you send feedback
 
 If you use the feedback button, we receive what you typed, the app version, and your operating system name. Nothing else about your machine or your work is attached.
@@ -77,6 +85,7 @@ If you later choose to withdraw money, you can attach an email address to that s
 - Your ledger: one row per credit, reversal, adjustment, or withdrawal, with the amount and a short description.
 - Records of ads served to you, kept briefly, so a receipt can be checked against a real serve.
 - Feedback you send, if you send any.
+- **If you use invites:** your invite code, which code you joined with and when, and who joined with yours - the record your invite earnings are worked out from. Your invite page shows your first name only if you allow it, which you can turn off in Invite & earn. People you invite see that name, if shown; you see how many people joined and used ADCode, never who they are.
 - **If, and only if, you ask to be paid:** the payout details you enter — the full name on the receiving account, the country and currency, and either the email address on your Wise account or the bank details you give us. We store them so a person can make the transfer, and a copy is attached to each request so that editing your details later cannot redirect a payment already in progress. You can change or clear them at any time from the Payouts tab.
 
 ## Cookies and analytics
@@ -88,6 +97,8 @@ If you allow website analytics, we send measurements to our own service: page pa
 Your choice is saved in local storage. An anonymous session identifier and campaign attribution are saved in session storage, with a new session after 30 minutes of inactivity. Analytics sets no cookies. You can change your choice using **Analytics preferences** at the bottom of the site. Declining stops future collection and clears the session identifier; previously collected events are not linked to your account. We also respect Do Not Track and Global Privacy Control browser signals.
 
 Website measurements are stored in our Supabase database and shown as aggregate reports to authorised administrators. Our hosting infrastructure necessarily receives network requests; the analytics event records do not contain IP addresses or full user-agent strings.
+
+An invite page remembers its code in this browser's local storage for 30 days, so that signing in to the dashboard or signing up as an advertiser credits whoever invited you. It is removed once it has been used. It is not analytics and is not sent anywhere until you sign in or sign up.
 
 The signed-in areas — the dashboard, advertiser portal, and admin panel — use a session cookie strictly to keep you signed in.
 
