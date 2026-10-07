@@ -755,6 +755,8 @@ export const CHANNELS = {
   referralsSetShowName: "referrals:set-show-name",
   referralsShare: "referrals:share",
   referralsShareMoment: "referrals:share-moment",
+  ratingAsk: "rating:ask",
+  ratingOpen: "rating:open",
   onboardingState: "onboarding:state",
   onboardingComplete: "onboarding:complete",
   pinPromptOffer: "pin:offer",
@@ -2198,6 +2200,12 @@ export interface AdcodeApi {
     share(target: "x" | "threads" | "email"): Promise<boolean>;
     /** A good moment to mention the invite link - once, after the first build that previewed. */
     onShareMoment(listener: (moment: "build") => void): () => void;
+  };
+  readonly rating: {
+    /** Once, ever: a Store install that has built something and come back on three days. */
+    onAsk(listener: () => void): () => void;
+    /** Opens the Microsoft Store's review page for ADCode. Main names the URL. */
+    open(): Promise<void>;
   };
   readonly ads: {
     /** The main process asks the renderer to show a toast. */

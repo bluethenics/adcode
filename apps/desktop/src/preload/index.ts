@@ -356,6 +356,10 @@ const api: AdcodeApi = {
     share: (target) => ipcRenderer.invoke(CHANNELS.referralsShare, target),
     onShareMoment: (listener) => subscribe(CHANNELS.referralsShareMoment, listener),
   },
+  rating: {
+    onAsk: (listener) => subscribe(CHANNELS.ratingAsk, listener),
+    open: () => ipcRenderer.invoke(CHANNELS.ratingOpen),
+  },
   ads: {
     onShow: (listener) => subscribe(CHANNELS.adShow, listener),
     onEarnings: (listener) => subscribe(CHANNELS.earningsChanged, listener),

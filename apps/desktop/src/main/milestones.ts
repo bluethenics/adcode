@@ -161,3 +161,8 @@ export function registerMilestoneIpc(): void {
   // Anything a previous launch could not send goes now.
   void load().then(() => scheduleFlush(FLUSH_DELAY_MS));
 }
+
+/** When this install first had an assistant turn that worked, or null if it never has. */
+export async function firstValueAt(): Promise<number | null> {
+  return (await load()).firstValueAt;
+}

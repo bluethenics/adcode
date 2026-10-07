@@ -4830,6 +4830,21 @@ window.adcode.referrals.onShareMoment(() => {
 });
 
 /*
+ * Once, ever, and never for a reward (Store rules): a Store install that has built
+ * something and come back on three different days. The answer is never asked for again.
+ */
+window.adcode.rating.onAsk(() => {
+  notifications.show({
+    title: "Enjoying ADCode?",
+    body: "A rating in the Microsoft Store helps other developers find it. It takes a few seconds.",
+    actions: [
+      { label: "Rate ADCode", run: () => void window.adcode.rating.open() },
+      { label: "Not now", run: () => undefined },
+    ],
+  });
+});
+
+/*
  * The update the window can see: "Updating 42%", then "Restart to update" in the status
  * bar, and one quiet card per version. See updates/updatePrompt.ts.
  */
