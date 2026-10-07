@@ -7,11 +7,14 @@
  * URL from this account's own code - the renderer can name X, Threads or email, never a URL.
  */
 import type { ReferralView } from "../../shared/api.ts";
+import { inviteLink, withBuiltWithLine } from "../../shared/invite.ts";
 import { claimMessage, earnedLine, howItWorks, invitedLine, namePreview, peopleLine } from "./inviteModel.ts";
 
 export interface InvitePanelDeps {
   /** A short message in the status bar, for copy confirmations. */
   readonly notify: (text: string) => void;
+  /** The open project's folder, for the "Built with ADCode" line. Null with no project open. */
+  readonly workspaceRoot: () => string | null;
 }
 
 export interface InvitePanel {
@@ -86,9 +89,21 @@ export function createInvitePanel(deps: InvitePanelDeps): InvitePanel {
   nameRow.append(nameToggle, document.createTextNode(" Show my first name on my invite page"));
   const nameNote = el("p", "invite-name-preview");
 
+  /*
+   * "Built with ADCode", on request. New projects start empty on purpose, so the line goes
+   * in only when somebody presses this - and then it is a link people who see the project
+   * can follow, carrying this account's code.
+   */
+  const badge = el("div", "invite-badge");
+  const badgeButton = el("button", "ghost-button invite-badge-button", "Add “Built with ADCode” to this project's README");
+  badgeButton.type = "button";
+  const badgeStatus = el("p", "invite-badge-status");
+  badgeStatus.setAttribute("role", "status");
+  badge.append(badgeButton, badgeStatus);
+
   const unavailable = el("p", "invite-unavailable", "Invites aren't available right now. Try again in a little while.");
 
-  card.append(hero, linkRow, share, people, earned, how, invited, claim, nameRow, nameNote, unavailable);
+  card.append(hero, linkRow, share, people, earned, how, invited, claim, nameRow, nameNote, badge, unavailable);
 
   let view: ReferralView | null = null;
   let loading: Promise<void> | null = null;
@@ -96,7 +111,7 @@ export function createInvitePanel(deps: InvitePanelDeps): InvitePanel {
   function render(): void {
     card.dataset["state"] = view === null ? "unavailable" : "ready";
     unavailable.hidden = view !== null;
-    for (const node of [linkRow, share, people, earned, how, invited, claim, nameRow, nameNote]) node.hidden = view === null;
+    for (const node of [linkRow, share, people, earned, how, invited, claim, nameRow, nameNote, badge]) node.hidden = view === null;
     if (view === null) return;
 
     link.textContent = view.link.replace(/^https:\/\//, "");
@@ -112,7 +127,32 @@ export function createInvitePanel(deps: InvitePanelDeps): InvitePanel {
     claim.hidden = !view.canClaim;
     nameToggle.checked = view.showName;
     nameNote.textContent = namePreview(view);
+    badge.hidden = deps.workspaceRoot() === null;
   }
+
+  badgeButton.addEventListener("click", () => {
+    const root = deps.workspaceRoot();
+    if (view === null || root === null) return;
+    const readme = `${root.replace(/[\\/]+$/, "")}/README.md`;
+    const link = inviteLink(view.code, "readme");
+    badgeButton.disabled = true;
+    void (async () => {
+      let current: string | null = null;
+      try {
+        current = (await window.adcode.files.read(readme)).text;
+      } catch {
+        current = null; // No README yet: the line becomes one.
+      }
+      const next = withBuiltWithLine(current, link);
+      if (next === null) {
+        badgeStatus.textContent = "This project's README already says it was built with ADCode.";
+      } else {
+        const saved = await window.adcode.files.write(readme, next).catch(() => ({ ok: false }));
+        badgeStatus.textContent = saved.ok ? "Added to README.md." : "Couldn't write README.md.";
+      }
+      badgeButton.disabled = false;
+    })();
+  });
 
   async function refresh(): Promise<void> {
     loading ??= window.adcode.referrals.get().then((next) => {

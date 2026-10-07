@@ -141,3 +141,26 @@ export function signupRefBody(): { ref?: string } {
     return {};
   }
 }
+
+/**
+ * A ready-to-post line about what ADCode has done for this person this month, with their
+ * invite link - or null when there is not yet an hour of coding to mention.
+ *
+ * Money appears only from $1: "it's paid me $0.04" undersells the product, and an honest
+ * small number is better left out than rounded up.
+ */
+export function progressPost(input: { activeMs: number; lifetimeMicros: string; link: string }): string | null {
+  const hours = Math.floor(input.activeMs / 3_600_000);
+  if (hours < 1) return null;
+  const coded = `I've coded ${hours} ${hours === 1 ? "hour" : "hours"} in ADCode this month`;
+  let micros = 0n;
+  try {
+    micros = BigInt(input.lifetimeMicros || "0");
+  } catch {
+    micros = 0n;
+  }
+  const paid = micros >= 1_000_000n
+    ? ` and it's paid me $${(micros / 1_000_000n).toString()}.${((micros % 1_000_000n) / 10_000n).toString().padStart(2, "0")} so far`
+    : "";
+  return `${coded}${paid}. The AI is free and the ads pay me. Try it: ${input.link}`;
+}

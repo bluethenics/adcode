@@ -13,6 +13,7 @@ import {
   invitePeopleLine,
   inviteTerms,
   inviteShareLinks,
+  progressPost,
 } from "@/lib/invite";
 
 function memoryStorage(): Storage {
@@ -122,5 +123,26 @@ describe("the dashboard's invite words", () => {
       threads: `https://www.threads.com/intent/post?text=${encodeURIComponent(`I code in ADCode - the AI is free and the ads pay me. Here's my invite: ${link}`)}`,
       email: `mailto:?subject=${encodeURIComponent("Try ADCode with me")}&body=${encodeURIComponent(`I code in ADCode - the AI is free and the ads pay me. Here's my invite:\n\n${link}`)}`,
     });
+  });
+});
+
+describe("the progress post", () => {
+  const link = "https://adcode.bluethenics.com/i/k7p4qzm";
+
+  it("brags about hours, and about money only once it is worth saying", () => {
+    expect(progressPost({ activeMs: 14 * 3_600_000, lifetimeMicros: "420000", link }))
+      .toBe(`I've coded 14 hours in ADCode this month. The AI is free and the ads pay me. Try it: ${link}`);
+    expect(progressPost({ activeMs: 14 * 3_600_000, lifetimeMicros: "2500000", link }))
+      .toBe(`I've coded 14 hours in ADCode this month and it's paid me $2.50 so far. The AI is free and the ads pay me. Try it: ${link}`);
+  });
+
+  it("says nothing when there is nothing to brag about yet", () => {
+    expect(progressPost({ activeMs: 30 * 60_000, lifetimeMicros: "0", link })).toBeNull();
+  });
+
+  it("says one hour, not one hours", () => {
+    expect(progressPost({ activeMs: 3_600_000, lifetimeMicros: "0", link })).toBe(
+      `I've coded 1 hour in ADCode this month. The AI is free and the ads pay me. Try it: ${link}`,
+    );
   });
 });

@@ -5,7 +5,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { CopyField } from "@/components/CopyField";
 import { moneyExact } from "@/components/money";
 import { apiFetch, type ReferralView } from "@/lib/api";
-import { clearRef, invitePeopleLine, inviteShareLinks, inviteTerms, readRef } from "@/lib/invite";
+import { clearRef, invitePeopleLine, inviteShareLinks, inviteTerms, progressPost, readRef } from "@/lib/invite";
 
 /**
  * The dashboard's invites: the same link, numbers and terms as the editor's Invite & earn.
@@ -14,7 +14,7 @@ import { clearRef, invitePeopleLine, inviteShareLinks, inviteTerms, readRef } fr
  * and then signed in here - rather than letting the editor pick the code off the clipboard -
  * has the code remembered by the invite page; it is claimed once, here, and then forgotten.
  */
-export function InvitePanel() {
+export function InvitePanel({ progress }: { progress?: { activeMs: number; lifetimeMicros: string } }) {
   const { token } = useAuth();
   const [view, setView] = useState<ReferralView | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "unavailable">("loading");
@@ -71,6 +71,8 @@ export function InvitePanel() {
   }
 
   const share = inviteShareLinks(view.link);
+  // Something true and specific to post, with the link in it - shown once there is an hour to mention.
+  const post = progress === undefined ? null : progressPost({ ...progress, link: view.link });
   const earned = view.earnedMicros === "0" ? null : `${moneyExact(view.earnedMicros)} earned from invites`;
 
   return (
@@ -92,6 +94,15 @@ export function InvitePanel() {
         {inviteTerms(view.rates).map((line) => <li key={line}>{line}</li>)}
       </ul>
       {view.claimed && <p className="invite-panel-invited">{view.invitedBy === null ? "You joined with an invite." : `Invited by ${view.invitedBy}.`}</p>}
+      {post !== null && (
+        <div className="invite-panel-progress">
+          <p className="invite-panel-progress-text">{post}</p>
+          <div className="invite-panel-share">
+            <button type="button" className="btn btn-small" onClick={() => void navigator.clipboard.writeText(post).catch(() => undefined)}>Copy</button>
+            <a className="btn btn-small" href={`https://x.com/intent/post?text=${encodeURIComponent(post)}`} target="_blank" rel="noreferrer">Post on X</a>
+          </div>
+        </div>
+      )}
       <label className="invite-panel-name">
         <input type="checkbox" checked={view.showName} disabled={busy} onChange={(event) => void toggleName(event.target.checked)} />{" "}
         Show my first name on my invite page

@@ -148,7 +148,7 @@ export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
     title: "Invite & earn",
     plain: "Send your invite link to a friend, and you get a share of the ad money ADCode makes when they use it.",
     why: "If someone you know would like a free AI code editor, this pays you for telling them, and it costs them nothing: they keep every cent of their own earnings.",
-    how: "Open Invite & earn from the Earnings card or the command palette. Copy your link, or post it on X or Threads, or email it. When someone installs ADCode from your link, the editor picks the invite up by itself. For 365 days you get 10% of what ADCode earns from the ads they see, and 5% of what any advertiser you bring spends. Both come out of ADCode's half, never theirs. Earnings arrive the day after the ads were seen. If a friend sent you a code, paste it into the box in your first 14 days.",
+    how: "Open Invite & earn from the Earnings card or the command palette. Copy your link, or post it on X or Threads, or email it. When someone installs ADCode from your link, the editor picks the invite up by itself. For 365 days you get 10% of what ADCode earns from the ads they see, and 5% of what any advertiser you bring spends. Both come out of ADCode's half, never theirs. Earnings arrive the day after the ads were seen. If a friend sent you a code, paste it into the box in your first 14 days. With a project open, the panel can add a \"Built with ADCode\" line to its README, linked to your invite. In a live session, \"Invite someone who doesn't have ADCode yet\" copies how to install and join.",
     group: "account",
     settingIds: [],
     related: ["account.earnings", "account.signIn"],

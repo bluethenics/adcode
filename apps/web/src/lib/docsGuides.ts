@@ -1751,6 +1751,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "From then on, for 365 days, you get 10% of what ADCode earns from the ads they see. It lands in your balance the day after.",
       "Know a company that sells to developers? Send them your link too: you get 5% of what they spend on ads.",
       "Someone sent you a code instead? Paste it into the box under Got an invite code? in your first 14 days.",
+      "Built something you are proud of? With the project open, press Add \"Built with ADCode\" to this project's README - the line links to your invite.",
     ],
     benefits: [
       "It costs the person you invite nothing. Your share comes out of ADCode's half, and they keep every cent of theirs.",

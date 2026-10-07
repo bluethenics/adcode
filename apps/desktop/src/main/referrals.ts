@@ -9,7 +9,8 @@
  */
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { app, clipboard, ipcMain, shell } from "electron";
+import { app, BrowserWindow, clipboard, ipcMain, shell } from "electron";
+import { isAgentBrowserWindow } from "./agentBrowser.ts";
 import { formatMicros, micros } from "@adcode/ads";
 import { CHANNELS } from "../shared/api.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock } from "./adPorts.ts";
@@ -43,6 +44,7 @@ function referralClient(): ReferralClient {
           heldUids: Array.isArray(parsed.heldUids) ? parsed.heldUids.filter((u): u is string => typeof u === "string") : [],
           tried: Array.isArray(parsed.tried) ? parsed.tried.filter((c): c is string => typeof c === "string") : [],
           done: parsed.done === true,
+          buildShareOffered: parsed.buildShareOffered === true,
         };
       } catch {
         return { ...EMPTY_REFERRAL_STATE };
@@ -61,6 +63,24 @@ function referralClient(): ReferralClient {
     openExternal: (url) => shell.openExternal(url),
   });
   return client;
+}
+
+/**
+ * A preview opened. If ADCode has already built something for this person and the card has
+ * never been offered, ask one editor window - not every window, one card - to offer it.
+ */
+export function noteBuildPreview(firstValueAt: number | null): void {
+  void referralClient()
+    .takeBuildShareMoment(firstValueAt)
+    .then((offer) => {
+      if (!offer) return;
+      const focused = BrowserWindow.getFocusedWindow();
+      const target = focused !== null && !focused.isDestroyed() && !isAgentBrowserWindow(focused)
+        ? focused
+        : BrowserWindow.getAllWindows().find((window) => !window.isDestroyed() && !isAgentBrowserWindow(window));
+      target?.webContents.send(CHANNELS.referralsShareMoment, "build");
+    })
+    .catch(() => undefined);
 }
 
 export function registerReferralIpc(): void {

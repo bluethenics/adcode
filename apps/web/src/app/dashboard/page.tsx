@@ -250,7 +250,7 @@ function DashboardBody() {
 
       <section className="workspace-section" id="invites" aria-labelledby="invites-title">
         <h2 className="workspace-section-title" id="invites-title">Invites</h2>
-        <InvitePanel />
+        <InvitePanel progress={{ activeMs: activity?.totals.activeMs ?? 0, lifetimeMicros: balance?.lifetimeMicros ?? "0" }} />
       </section>
 
       <section className="workspace-section" id="payouts" aria-labelledby="payouts-title">

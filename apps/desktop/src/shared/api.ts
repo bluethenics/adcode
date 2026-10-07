@@ -754,6 +754,7 @@ export const CHANNELS = {
   referralsCheckClipboard: "referrals:check-clipboard",
   referralsSetShowName: "referrals:set-show-name",
   referralsShare: "referrals:share",
+  referralsShareMoment: "referrals:share-moment",
   onboardingState: "onboarding:state",
   onboardingComplete: "onboarding:complete",
   pinPromptOffer: "pin:offer",
@@ -2195,6 +2196,8 @@ export interface AdcodeApi {
      * URL from the account's own code, so this cannot be used to open anything else.
      */
     share(target: "x" | "threads" | "email"): Promise<boolean>;
+    /** A good moment to mention the invite link - once, after the first build that previewed. */
+    onShareMoment(listener: (moment: "build") => void): () => void;
   };
   readonly ads: {
     /** The main process asks the renderer to show a toast. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SHARE_TEXT, inviteLine, inviteLink, parseInviteInput, parseInviteText, shareUrl } from "../src/shared/invite.ts";
+import { SHARE_TEXT, collabInviteText, inviteLine, inviteLink, parseInviteInput, parseInviteText, shareUrl, withBuiltWithLine } from "../src/shared/invite.ts";
 import { formatMicros, micros } from "@adcode/ads";
 import { createReferralClient, type ReferralLocalState } from "../src/main/referralClient.ts";
 
@@ -44,7 +44,7 @@ describe("links and lines", () => {
 });
 
 function harness(options: { clipboard?: string; open?: (url: string) => Promise<void>; respond?: (path: string, body: unknown) => { status: number; body: unknown } } = {}) {
-  let state: ReferralLocalState = { heldUids: [], tried: [], done: false };
+  let state: ReferralLocalState = { heldUids: [], tried: [], done: false, buildShareOffered: false };
   const requests: { path: string; method: string; body: unknown }[] = [];
   let clipboard = options.clipboard ?? "";
   let uid: string | null = "me";
@@ -204,5 +204,36 @@ describe("money labels", () => {
   it("formats the server's micros in main, so the renderer never does arithmetic on money", async () => {
     const h = harness({ respond: () => ({ status: 200, body: { code: "x", claimed: false, canClaim: true, earnedMicros: "4200", last30Micros: "1200" } }) });
     expect(await h.client.get()).toMatchObject({ earnedLabel: "$0.0042", last30Label: "$0.0012" });
+  });
+});
+
+describe("Built with ADCode", () => {
+  const link = "https://adcode.bluethenics.com/i/k7p4qzm?from=readme";
+
+  it("adds one line to a README, or makes one, and never adds it twice", () => {
+    expect(withBuiltWithLine(null, link)).toBe(`Built with [ADCode](${link})\n`);
+    expect(withBuiltWithLine("# My app\n\nA thing.\n", link)).toBe(`# My app\n\nA thing.\n\nBuilt with [ADCode](${link})\n`);
+    expect(withBuiltWithLine("# My app\r\n\r\nA thing.", link)).toBe(`# My app\r\n\r\nA thing.\r\n\r\nBuilt with [ADCode](${link})\r\n`);
+    expect(withBuiltWithLine(`# My app\n\nBuilt with [ADCode](https://adcode.bluethenics.com/i/other12)\n`, link)).toBeNull();
+  });
+});
+
+describe("a live session invite for someone without ADCode", () => {
+  it("says how to install and how to join, in that order", () => {
+    expect(collabInviteText("https://adcode.bluethenics.com/i/k7p4qzm", "ABCD-1234")).toBe(
+      "Join my live coding session in ADCode.\n\n" +
+      "1. Install ADCode (free): https://adcode.bluethenics.com/i/k7p4qzm\n" +
+      "2. Open Live Session, choose Join, and paste: ABCD-1234",
+    );
+  });
+});
+
+describe("the build share moment", () => {
+  it("offers once, and only after ADCode has built something", async () => {
+    const h = harness();
+    expect(await h.client.takeBuildShareMoment(null)).toBe(false);
+    expect(await h.client.takeBuildShareMoment(1000)).toBe(true);
+    expect(await h.client.takeBuildShareMoment(1000)).toBe(false);
+    expect(h.state().buildShareOffered).toBe(true);
   });
 });

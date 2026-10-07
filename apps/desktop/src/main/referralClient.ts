@@ -23,9 +23,11 @@ export interface ReferralLocalState {
   tried: string[];
   /** No more clipboard checks: claimed, or past the window. */
   done: boolean;
+  /** The "nice build - know someone?" card has been offered. Once, ever. */
+  buildShareOffered: boolean;
 }
 
-export const EMPTY_REFERRAL_STATE: ReferralLocalState = { heldUids: [], tried: [], done: false };
+export const EMPTY_REFERRAL_STATE: ReferralLocalState = { heldUids: [], tried: [], done: false, buildShareOffered: false };
 
 export interface ReferralClientDeps {
   apiBaseUrl: () => string;
@@ -47,6 +49,13 @@ export interface ReferralClient {
   setShowName(show: boolean): Promise<ReferralView | null>;
   /** Opens a share target for this account's own link. False when there is no link yet. */
   share(target: ShareTarget): Promise<boolean>;
+  /**
+   * Whether to offer the share card now that a preview has opened. True once, and only
+   * after ADCode has built something for this person (`firstValueAt` set by the first
+   * successful turn) - asking a newcomer to recommend something before it has worked for
+   * them is how a prompt becomes a nag.
+   */
+  takeBuildShareMoment(firstValueAt: number | null): Promise<boolean>;
 }
 
 /** A server view with its money formatted for display. */
@@ -153,6 +162,14 @@ export function createReferralClient(deps: ReferralClientDeps): ReferralClient {
 
   return {
     get,
+
+    async takeBuildShareMoment(firstValueAt) {
+      if (firstValueAt === null) return false;
+      const local = await state();
+      if (local.buildShareOffered) return false;
+      await deps.save({ ...local, buildShareOffered: true });
+      return true;
+    },
 
     async share(target) {
       const view = await get();

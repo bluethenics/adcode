@@ -22,6 +22,7 @@ import { CHANNELS } from "../shared/api.ts";
 import { isMilestone, newcomerHold, type FirstRunState, type MilestoneName } from "../shared/milestones.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock } from "./adPorts.ts";
 import { apiBaseUrl, createBackendTokens } from "./backend.ts";
+import { noteBuildPreview } from "./referrals.ts";
 
 const FLUSH_DELAY_MS = 3_000;
 const RETRY_MS = 60_000;
@@ -133,6 +134,8 @@ export function recordMilestone(name: MilestoneName): void {
     const at = Date.now();
     if (current.pending.length < MAX_PENDING) current.pending.push({ name, at });
     if (name === "turn_ok" && current.firstValueAt === null) current.firstValueAt = at;
+    // Something ADCode built is on screen: the one moment worth mentioning the invite link.
+    if (name === "preview_opened") noteBuildPreview(current.firstValueAt);
     await save();
     scheduleFlush(FLUSH_DELAY_MS);
   })().catch(() => undefined);

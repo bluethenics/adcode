@@ -222,3 +222,24 @@
     transform: translateY(-4px);
   }
 }
+
+.invite-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.invite-badge-status {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* Live session: the invite for someone who has to install ADCode first. */
+.collab-newcomer {
+  align-self: flex-start;
+  font-size: var(--text-sm);
+}

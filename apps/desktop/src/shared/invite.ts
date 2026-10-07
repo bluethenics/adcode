@@ -63,3 +63,30 @@ export function shareUrl(target: ShareTarget, link: string): string {
   if (target === "threads") return `https://www.threads.com/intent/post?text=${encodeURIComponent(`${SHARE_TEXT} ${link}`)}`;
   return `mailto:?subject=${encodeURIComponent("Try ADCode with me")}&body=${encodeURIComponent(`${SHARE_TEXT}\n\n${link}`)}`;
 }
+
+const BUILT_WITH = /Built with \[ADCode\]\(/;
+
+/**
+ * A README with one "Built with ADCode" line added, or null when it already has one.
+ *
+ * Only ever done when the person presses the button for it. New projects start as empty
+ * folders on purpose (`main/newProject.ts`), and a line nobody asked for in somebody's
+ * README is not a loop, it is graffiti.
+ */
+export function withBuiltWithLine(readme: string | null, link: string): string | null {
+  const line = `Built with [ADCode](${link})`;
+  if (readme === null || readme.trim() === "") return `${line}\n`;
+  if (BUILT_WITH.test(readme)) return null;
+  const nl = readme.includes("\r\n") ? "\r\n" : "\n";
+  return `${readme.replace(/(\r?\n)+$/, "")}${nl}${nl}${line}${nl}`;
+}
+
+/** What to send someone who has to install ADCode before they can join a live session. */
+export function collabInviteText(link: string, sessionCode: string): string {
+  return [
+    "Join my live coding session in ADCode.",
+    "",
+    `1. Install ADCode (free): ${link}`,
+    `2. Open Live Session, choose Join, and paste: ${sessionCode}`,
+  ].join("\n");
+}

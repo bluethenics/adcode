@@ -354,6 +354,7 @@ const api: AdcodeApi = {
     checkClipboard: () => ipcRenderer.invoke(CHANNELS.referralsCheckClipboard),
     setShowName: (show) => ipcRenderer.invoke(CHANNELS.referralsSetShowName, show),
     share: (target) => ipcRenderer.invoke(CHANNELS.referralsShare, target),
+    onShareMoment: (listener) => subscribe(CHANNELS.referralsShareMoment, listener),
   },
   ads: {
     onShow: (listener) => subscribe(CHANNELS.adShow, listener),

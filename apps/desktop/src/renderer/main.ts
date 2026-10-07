@@ -4807,6 +4807,29 @@ function setRendererWorkspace(root: string | null): void {
 const notifications = createNotificationCentre(el("toast-layer"));
 
 /*
+ * Once, ever: the first time something ADCode built opens in a preview. The moment somebody
+ * is pleased with a result is the moment they would tell a friend; any other time it is a nag.
+ */
+window.adcode.referrals.onShareMoment(() => {
+  notifications.show({
+    title: "Nice build. Know someone who'd like ADCode?",
+    body: "Send them your invite link. You get a share of what ADCode earns from them for a year, and they keep all of theirs.",
+    tone: "success",
+    actions: [
+      {
+        label: "Copy my invite link",
+        run: () =>
+          void window.adcode.referrals.get().then((view) => {
+            if (view === null) return;
+            void window.adcode.clipboard.writeText(view.link).then(() => setStatus("Invite link copied.", 3000));
+          }),
+      },
+      { label: "Invite & earn", run: () => openInvite("pointer") },
+    ],
+  });
+});
+
+/*
  * The update the window can see: "Updating 42%", then "Restart to update" in the status
  * bar, and one quiet card per version. See updates/updatePrompt.ts.
  */
@@ -5028,7 +5051,7 @@ earningsActivity.addEventListener("click", () =>
  * Invite & earn. Anchored to the Earnings button because that is the door people already
  * use for money; the command palette, the feature library and the earnings card all open it.
  */
-const invitePanel = createInvitePanel({ notify: (text) => setStatus(text, 4000) });
+const invitePanel = createInvitePanel({ notify: (text) => setStatus(text, 4000), workspaceRoot: () => workspaceRoot });
 const inviteShell = createPopupShell({
   id: "invite",
   title: "Invite & earn",
