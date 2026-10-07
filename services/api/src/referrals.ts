@@ -14,6 +14,9 @@
  * person's own share is never touched - nothing here reads or writes it.
  */
 import type { LedgerEntry } from "./ledger.ts";
+import type { ReferrerSummary } from "./referralTypes.ts";
+
+export type { ReferrerSummary };
 import type {
   AttributionKind,
   AttributionRecord,
@@ -249,17 +252,6 @@ function seenDays(sightings: Iterable<{ uid: string; at: number }>): Map<string,
   return days;
 }
 
-export interface ReferrerSummary {
-  /** People who claimed this account's code. */
-  claimed: number;
-  /** Of them, seen using ADCode at least once. */
-  seen: number;
-  /** Of them, seen on two or more different days. */
-  cameBack: number;
-  advertisers: number;
-  earnedMicros: bigint;
-  last30Micros: bigint;
-}
 
 export function summarizeReferrer(input: {
   uid: string;

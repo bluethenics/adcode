@@ -862,7 +862,7 @@ export interface Store {
    * the balance, together. Running a day again pays nobody twice.
    */
   settleReferrals(day: string, now: number): Promise<{ referrers: number; micros: bigint }>;
-  referralSummary(uid: string, now: number): Promise<import("./referrals.ts").ReferrerSummary>;
+  referralSummary(uid: string, now: number): Promise<import("./referralTypes.ts").ReferrerSummary>;
   /** Every attribution made since `since`, and every unclaimed account made since then. */
   referralSourceFacts(since: number): Promise<SourceFact[]>;
   /** Admin: who invited this account, and whom it invited, newest first. */
