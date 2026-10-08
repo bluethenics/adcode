@@ -8,6 +8,8 @@ export function agentEventTrace(event: AgentEvent): AgentEventTrace | null {
     case "text":
     case "thinking":
     case "status":
+    // A live draft of code is for the window that shows it being typed, never a trace.
+    case "tool-draft":
       return null;
     case "tool-call": {
       const input = event.call.input;

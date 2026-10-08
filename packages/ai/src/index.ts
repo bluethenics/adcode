@@ -16,6 +16,8 @@ export * from "./teamMerge.ts";
 export * from "./automation.ts";
 export * from "./continuation.ts";
 export * from "./terminalTeam.ts";
+export * from "./teamMailbox.ts";
+export * from "./toolDraft.ts";
 export * from "./adapter.ts";
 
 export {
@@ -66,6 +68,10 @@ export {
   GET_OUTLINE,
   RUN_COMMAND,
   FETCH_URL,
+  MESSAGE_TEAMMATE,
+  READ_MESSAGES,
+  TEAM_TOOLS,
+  MEMORY_TOOLS,
 } from "./tools.ts";
 
 export {

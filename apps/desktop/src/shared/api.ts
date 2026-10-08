@@ -54,6 +54,7 @@ import type { ActivityDelta } from "./activity.ts";
 import type { MilestoneName } from "./milestones.ts";
 import type { AssistantControlAction, AssistantControlsView } from "./assistantControls.ts";
 import type { McpNodeCheck } from "./mcpNode.ts";
+import type { LiveAgentEventView } from "./liveAgents.ts";
 
 export type { ActivityDelta };
 
@@ -619,6 +620,7 @@ export const CHANNELS = {
   aiTeamCancel: "ai-team:cancel",
   aiTeamTraces: "ai-team:traces",
   aiTeamChanged: "ai-team:changed",
+  aiLive: "ai:live",
   aiAutomationCreate: "ai-automation:create",
   aiAutomationList: "ai-automation:list",
   aiAutomationClaim: "ai-automation:claim",
@@ -1891,6 +1893,10 @@ export interface AdcodeApi {
     cancel(id: string): Promise<AiTeamView>;
     traces(id: string): Promise<readonly AiTeamTraceView[]>;
     onChanged(listener: (team: AiTeamView) => void): () => void;
+  };
+  /** What background agents are doing right now, for the chat's live room. */
+  readonly aiLive: {
+    onEvent(listener: (event: LiveAgentEventView) => void): () => void;
   };
   readonly aiAutomation: {
     create(input: AiAutomationCreateInputView): Promise<AiAutomationView>;

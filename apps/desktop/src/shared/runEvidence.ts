@@ -37,6 +37,11 @@ interface ChangeLike {
 /** Commands that check the work rather than change it or look around. */
 const CHECK = /\b(test|tests|vitest|jest|mocha|pytest|tsc|typecheck|type-check|lint|eslint|ruff|mypy|build|check|vet)\b/i;
 
+/** Whether running this command checks the work - a test, typecheck, lint or build. */
+export function isCheckCommand(command: string): boolean {
+  return CHECK.test(command);
+}
+
 export function checksFromTraces(traces: readonly TraceLike[]): RunCheck[] {
   const ordered = [...traces].sort((a, b) => a.at - b.at);
   const pending: string[] = [];

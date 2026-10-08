@@ -923,6 +923,25 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     betterThan: "Running separate chats requires manually copying instructions and results between them. ADCode assigns named agents to a shared task, passes task handoffs through the team scheduler, and brings proposals back into one review workflow.",
   },
 
+  "ai-live-agents": {
+    steps: [
+      "Ask the assistant to build or change something. The moment it starts writing a file, a live window opens in the conversation with the file's name, and the code types in as the model writes it.",
+      "When it runs a command - a test, a build, a dev server - the same window switches to the command and its output as it prints.",
+      "Start a Team, a race or a solo agent from the Agents page, or Team in the terminal from a terminal's menu. A live room appears above the chat: each agent's mascot on a strip, and a window for each agent showing what it is doing right now.",
+      "Watch the strip. When one agent messages another (\"API done, endpoints in src/api.ts\"), hands its work on, or edits a file a teammate already edited, the sender turns to the receiver, a speech bubble crosses between them, and the line stays underneath.",
+      "Click a mascot or a window's title bar to fill the room with that agent; click again to see them all. Hide windows keeps just the mascots.",
+      "Read the bottom of each window before you trust the result: Checks passed, Check failed or Unverified comes from the commands the agent actually ran.",
+      "Prefer a quieter chat? Turn it off in Settings > AI > Live agent view.",
+    ],
+    benefits: [
+      "See code as it is written instead of a finished file appearing all at once - and stop a wrong direction early.",
+      "Several agents at once stay readable: one window each, with the file, command or plan they are on.",
+      "Agents on a Team really talk: they message each other mid-task, share the project's memory, and are warned before two of them edit the same file.",
+      "Proof you can check: a window says Unverified until the agent has run the project's tests, typecheck or linter.",
+    ],
+    betterThan: "Most AI editors show a spinner and then a finished diff, and when several agents run you get several spinners. ADCode shows the code being typed, each agent's terminal output, and the messages agents pass to each other while they work - and it marks work that was never tested, instead of taking the agent's word for it.",
+  },
+
   "ai-auto-compact": {
     steps: [
       "Just keep chatting. The ring beside the chat's composer shows how full the model's context is - Context 34%, say - and hovering it gives the numbers.",

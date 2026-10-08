@@ -1,0 +1,12 @@
+/* "Watch it for real." - the recording of the desktop live room. */
+
+.live-recording { display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); gap: clamp(32px, 5vw, 80px); align-items: center; padding-block: 72px 24px; }
+.live-recording-copy h2 { margin: 18px 0 0; color: var(--text); font-size: clamp(30px, 3.1vw, 44px); font-weight: 400; letter-spacing: -.03em; line-height: 1.12; }
+.live-recording-copy p:not(.marketplace-eyebrow) { max-width: 44ch; margin: 18px 0 0; color: var(--muted); font-size: 15px; line-height: 1.7; }
+.live-recording-frame { margin: 0; min-width: 0; }
+.live-recording-frame video { display: block; width: 100%; height: auto; border: 1px solid var(--border-strong); border-radius: 12px; background: #14120b; box-shadow: 0 24px 65px light-dark(#25334c30, #0007); }
+.live-recording-frame figcaption { margin-top: 12px; color: var(--faint); font-size: 12px; line-height: 1.6; }
+
+@media (max-width: 1080px) {
+  .live-recording { grid-template-columns: 1fr; padding-block: 56px 8px; }
+}

@@ -163,6 +163,18 @@ export type AgentEvent =
   /** Transient progress to show, never to keep: "waiting out a rate limit". */
   | { readonly kind: "status"; readonly text: string }
   | { readonly kind: "tool-call"; readonly call: ToolCallBlock }
+  /**
+   * Code a writing tool is producing, before its call is complete - for a live window, never
+   * recorded. `append` is what arrived since the previous draft of the same call and edit.
+   */
+  | {
+      readonly kind: "tool-draft";
+      readonly id: string;
+      readonly name: string;
+      readonly path: string | null;
+      readonly edit: number;
+      readonly append: string;
+    }
   | {
       readonly kind: "tool-result";
       readonly toolCallId: string;
@@ -211,6 +223,8 @@ export type ProviderEvent =
   /** Host-side progress (the request scheduler waiting), passed through, never recorded. */
   | { readonly kind: "status"; readonly text: string }
   | { readonly kind: "tool-call"; readonly call: ToolCallBlock }
+  /** One streamed fragment of a call's JSON arguments, passed through as it arrives. */
+  | { readonly kind: "tool-input"; readonly index: number; readonly id: string; readonly name: string; readonly fragment: string }
   | { readonly kind: "stop"; readonly reason: StopReason; readonly detail?: string };
 
 export interface Provider {

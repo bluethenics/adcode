@@ -3,6 +3,10 @@ import type { AgentEvent } from "@adcode/ai";
 import { agentEventTrace, describeActivity } from "../src/main/aiEventTrace.ts";
 
 describe("durable AI event trace summaries", () => {
+  it("never records a live draft of code", () => {
+    expect(agentEventTrace({ kind: "tool-draft", id: "c1", name: "propose_edit", path: "a.ts", edit: 0, append: "secret=1" })).toBeNull();
+  });
+
   it("records tool identity and path without persisting model-visible file contents", () => {
     const event: AgentEvent = {
       kind: "tool-call",

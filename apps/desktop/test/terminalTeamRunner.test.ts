@@ -96,6 +96,40 @@ function finishes(nodeId: string): string {
 }
 
 describe("createTerminalTeamRunner", () => {
+  it("reports each node live: start, output, finish, and the handoff to what waited on it", async () => {
+    const h = harness();
+    const runner = createTerminalTeamRunner(h.port);
+    const live: unknown[] = [];
+    runner.onLive((update) => live.push(update));
+    await runner.start(plan(), assignments);
+
+    expect(live).toEqual([
+      { kind: "start", teamId: "terminal-team-1", nodeId: "docs", roleId: "docs", roleLabel: "Docs", agentId: "kimi" },
+      { kind: "start", teamId: "terminal-team-1", nodeId: "tokens", roleId: "styles", roleLabel: "Styles", agentId: "grok" },
+    ]);
+    live.length = 0;
+
+    runner.observe(2, "\u001b[32mediting\u001b[0m a.css\r\n");
+    expect(live).toEqual([{ kind: "output", teamId: "terminal-team-1", nodeId: "tokens", text: "editing a.css\n" }]);
+    live.length = 0;
+
+    runner.observe(2, finishes("tokens"));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(live).toContainEqual({ kind: "end", teamId: "terminal-team-1", nodeId: "tokens", ok: true });
+    expect(live).toContainEqual(expect.objectContaining({ kind: "handoff", teamId: "terminal-team-1", from: "tokens", to: ["wire"] }));
+  });
+
+  it("reports a closed pane as a node that ended without finishing", async () => {
+    const h = harness();
+    const runner = createTerminalTeamRunner(h.port);
+    const live: unknown[] = [];
+    await runner.start(plan(), assignments);
+    runner.onLive((update) => live.push(update));
+    runner.paneClosed(1);
+    expect(live).toContainEqual({ kind: "end", teamId: "terminal-team-1", nodeId: "docs", ok: false });
+  });
+
   it("opens a pane per ready node and types the CLI before the brief", async () => {
     const h = harness();
     const runner = createTerminalTeamRunner(h.port);

@@ -23,6 +23,12 @@ import {
   SNAPSHOT_TAKEN_ON,
   TOOLS_WITHOUT_MEMORY,
   AGENT_RUN_TOOLS,
+  MEMORY_TOOLS,
+  TEAM_TOOLS,
+  UPDATE_PLAN,
+  createOverlapTracker,
+  createTeamMailbox,
+  type AgentEvent,
   baseUrlFor,
   buildInlineEditRequest,
   cleanInlineEditAnswer,
@@ -113,6 +119,8 @@ import { createSlotPool } from "./slotPool.ts";
 import { createStuckDetector } from "./stuckDetector.ts";
 import { compactThreshold, contextWindowFor, keptUserTurns, parseCompactFocus } from "./chatCompaction.ts";
 import { checksFromTraces, holdReason, riskFlags } from "../shared/runEvidence.ts";
+import { createLiveBatcher, liveEventFrom, type LiveEventView, type LiveSourceView } from "../shared/liveAgents.ts";
+import { createTeamRoleRunner } from "./teamRoleRunner.ts";
 import { normalizeForCompare } from "./pathSafety.ts";
 import { recoverableDrafts } from "./history.ts";
 import { workspaceHasUnsavedDraft, summarizeUnsavedDrafts } from "./aiWorkspaceDrafts.ts";
@@ -334,7 +342,15 @@ function aiTeamService(): AiTeamService {
     teamService = createAiTeamService({
       userDataDirectory: app.getPath("userData"),
       workspaceService: aiWorkspaceService(),
-      onChanged: (team) => broadcast(CHANNELS.aiTeamChanged, teamView(team)),
+      onChanged: (team) => {
+        const view = teamView(team);
+        broadcast(CHANNELS.aiTeamChanged, view);
+        // A finished team has nobody left to read its messages.
+        if (view.state === "completed" || view.state === "failed" || view.state === "cancelled") {
+          teamMailbox.clear(team.id);
+          teamOverlaps.clear(team.id);
+        }
+      },
     });
     teamRecovery = teamService.recoverActive().then(() => undefined);
   }
@@ -672,6 +688,35 @@ function broadcast(channel: string, ...args: unknown[]): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send(channel, ...args);
   }
+}
+
+/** About one frame: code drafts arriving faster than this are merged into one message. */
+const LIVE_FRAME_MS = 33;
+
+/** The chat's events, with code drafts coalesced so a fast model does not flood the window. */
+const chatEvents = createLiveBatcher<AgentEvent>(
+  (event) => broadcast(CHANNELS.aiEvent, event),
+  (flush) => { setTimeout(flush, LIVE_FRAME_MS); },
+);
+
+/** What Team and solo agents say to each other, and what each one's edits run into. */
+const teamMailbox = createTeamMailbox();
+const teamOverlaps = createOverlapTracker();
+const liveBatchers = new Map<string, ReturnType<typeof createLiveBatcher<LiveEventView>>>();
+
+/** Report a background agent's activity to the chat's live room. */
+function broadcastLive(source: LiveSourceView, event: LiveEventView): void {
+  const key = `${source.teamId}/${source.nodeId}`;
+  let batcher = liveBatchers.get(key);
+  if (batcher === undefined) {
+    batcher = createLiveBatcher<LiveEventView>(
+      (out) => broadcast(CHANNELS.aiLive, { source, event: out }),
+      (flush) => { setTimeout(flush, LIVE_FRAME_MS); },
+    );
+    liveBatchers.set(key, batcher);
+  }
+  batcher.push(event);
+  if (event.kind === "end") liveBatchers.delete(key);
 }
 
 function activeProvider(): string {
@@ -1297,7 +1342,8 @@ export async function aiSend(
     recordDebug("info", "ai", `Turn started: ${providerId} / ${model}`);
 
     for await (const event of ready.send(turnText, { images })) {
-      broadcast(CHANNELS.aiEvent, event);
+      chatEvents.push(event);
+      if (event.kind === "tool-draft") continue;
       if (event.kind === "compacted") await recordCompaction(ready, event);
       // What the debug log keeps of a turn: which tools failed and why, and how it ended.
       // Never the prompt, the answer, or a file's contents.
@@ -1333,6 +1379,7 @@ export async function aiSend(
       if (event.kind === "error") lastError = event.detail;
       if (event.kind === "refusal") refused = true;
     }
+    chatEvents.flush();
 
     // How the turn ended, as one fixed word, for the admin panel's per-model health. Never
     // the prompt, the reply or the provider's own message.
@@ -1588,10 +1635,25 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
       sandboxRoot: join(app.getPath("userData"), "ai-workspaces", "sandboxes", task.id),
       humanRoot: task.workspaceRoot,
     };
-    const runner = createAiToolRunner({
+    // Every agent shares the project's memory, as the chat does - unless capture is off.
+    const memoryOn = currentSettings()["adcode.ai.memoryCapture"] !== false;
+    const onTeam = input.kind === "team";
+    const teamRecord = onTeam ? await (await readyAiTeamService()).read(input.teamId) : null;
+    const roles = teamRecord?.plan.roles ?? [input.context.role];
+    const labelFor = (roleId: string): string => roles.find((role) => role.id === roleId)?.label ?? roleId;
+    const liveSource: LiveSourceView = {
+      teamId: input.teamId,
+      nodeId: input.node.id,
+      roleId: input.context.role.id,
+      label: input.context.role.label,
+      model: input.route.modelId,
+      kind: input.kind,
+    };
+    const live = (event: LiveEventView): void => broadcastLive(liveSource, event);
+    const fileRunner = createAiToolRunner({
       workspace: async () => fixedWorkspace,
       workspaceUnavailableMessage: () => "This Team role's isolated workspace is unavailable.",
-      memory: () => null,
+      memory: () => (memoryOn ? memoryForWorkspace() : null),
       writeSandboxFile: async (path, contents) => {
         const updated = await service.writeFromSandboxBase(task.id, path, contents);
         const change = updated.changes.find((candidate) => candidate.path === path);
@@ -1601,6 +1663,18 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
       // Individual lanes remain in Team traces. Only the combined task becomes a human
       // review diff, so concurrent role proposals never appear as if they were ready to apply.
       onProposedEdit: () => undefined,
+    });
+    const runner = createTeamRoleRunner({
+      inner: fileRunner,
+      teamId: input.teamId,
+      roleId: input.context.role.id,
+      roster: roles.map((role) => role.id),
+      labelFor,
+      mailbox: teamMailbox,
+      overlaps: onTeam ? teamOverlaps : null,
+      teamTools: onTeam,
+      now: Date.now,
+      onLive: live,
     });
     const roleProvider = createBudgetedTeamProvider(provider, input.route, input.reserveRequest);
     // A saved agent's tool access is enforced here, before the agent exists: a read-only
@@ -1614,27 +1688,39 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
         outcome: "blocked",
       });
     }
+    // One working routine for every agent, so each one behaves like a professional on a
+    // team: learn what is known, plan, keep teammates informed, prove it, report honestly.
+    const routine = [
+      ...(memoryOn ? ["Start with project_context to learn what this project has already decided, and record any new decision or gotcha with memory_write."] : []),
+      "If the work has more than two steps, post your plan with update_plan and keep it current.",
+      "Before you finish, prove it works: run the project's own checks that apply - its tests, type checker or linter (look in package.json or the equivalent) - with run_command, and fix any failure you caused. If there are none, say so plainly.",
+    ];
+    const teammates = roles.filter((role) => role.id !== input.context.role.id);
     const system = input.kind === "solo"
       ? [
         "You are an ADCode agent working on one task in an isolated copy of the project.",
         `Agent: ${input.context.role.label}`,
         `Your standing instructions: ${input.context.role.objective}`,
         "Do the task end to end with the file tools you have.",
-        "Before you finish, prove it works: run the project's own checks that apply - its tests, type checker or linter (look in package.json or the equivalent) - with run_command, and fix any failure you caused. If there are none, say so.",
-        "Finish with a concise summary of what you changed and anything the user should check. Your edits are applied or reviewed when you finish.",
+        ...routine,
+        "Finish with a concise summary of what you changed, how you checked it, and anything the user should check. Your edits are applied or reviewed when you finish.",
       ]
       : [
         "You are one isolated role inside an explicitly confirmed ADCode Team.",
-        `Role: ${input.context.role.label}`,
+        `Role: ${input.context.role.label} (id ${input.context.role.id})`,
         `Role objective: ${input.context.role.objective}`,
+        `Your teammates, working at the same time: ${teammates.map((role) => `${role.label} (id ${role.id})`).join(", ") || "none"}.`,
         "Work only on this node. Use the isolated file tools; never assume another role's transcript.",
-        "Finish with a concise outcome summary. All edits remain review-only until the Team merge.",
+        "Talk to your teammates with message_teammate: tell them when you finish something they depend on (an API, a schema, a rename), and ask before changing a file their piece obviously owns. Their messages arrive with your tool results - follow them.",
+        ...routine,
+        "Finish with a concise outcome summary: what you changed and how you checked it. All edits remain review-only until the Team merge.",
       ];
+    const planTool = access.tools.some((tool) => tool.name === UPDATE_PLAN.name) ? [] : [UPDATE_PLAN];
     const roleAgent = createAgent({
       provider: roleProvider,
       model: input.route.modelId,
       compaction: compactionFor(input.route.providerId, input.route.modelId),
-      tools: access.tools,
+      tools: [...access.tools, ...planTool, ...(memoryOn ? MEMORY_TOOLS : []), ...(onTeam ? TEAM_TOOLS : [])],
       runner,
       effort: configuredEffort(),
       system: system.join("\n"),
@@ -1654,53 +1740,63 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
     input.signal.addEventListener("abort", forward, { once: true });
     const stuck = createStuckDetector();
     let stuckReason: string | null = null;
+    // The chat's live room shows this agent from its first step to its last.
+    live({ kind: "start" });
+    let liveOk = false;
     try {
-      for await (const event of roleAgent.send(compactPrompt, { signal: local.signal })) {
-        const activity = agentEventTrace(event);
-        if (activity !== null) {
-          await service.recordTrace(task.id, activity);
-          const line = describeActivity(activity);
-          if (line !== null) noteTeamActivity(input.teamId, input.node.id, line);
-          if (event.kind === "tool-call" && (event.call.name === "edit_file" || event.call.name === "propose_edit") && activity.detail) {
-            noteTeamTouched(input.teamId, activity.detail);
+      try {
+        for await (const event of roleAgent.send(compactPrompt, { signal: local.signal })) {
+          const view = liveEventFrom(event);
+          if (view !== null) live(view);
+          const activity = agentEventTrace(event);
+          if (activity !== null) {
+            await service.recordTrace(task.id, activity);
+            const line = describeActivity(activity);
+            if (line !== null) noteTeamActivity(input.teamId, input.node.id, line);
+            if (event.kind === "tool-call" && (event.call.name === "edit_file" || event.call.name === "propose_edit") && activity.detail) {
+              noteTeamTouched(input.teamId, activity.detail);
+            }
+            const verdict = stuck.observe(activity);
+            if (verdict !== null) {
+              stuckReason = verdict;
+              local.abort();
+              break;
+            }
           }
-          const verdict = stuck.observe(activity);
-          if (verdict !== null) {
-            stuckReason = verdict;
-            local.abort();
-            break;
-          }
+          if (event.kind === "text") answer += event.text;
+          if (event.kind === "error") failure = new Error(event.detail);
+          if (event.kind === "refusal") failure = new Error(event.detail);
+          if (event.kind === "cancelled") failure = new DOMException("Team role cancelled", "AbortError");
         }
-        if (event.kind === "text") answer += event.text;
-        if (event.kind === "error") failure = new Error(event.detail);
-        if (event.kind === "refusal") failure = new Error(event.detail);
-        if (event.kind === "cancelled") failure = new DOMException("Team role cancelled", "AbortError");
+      } finally {
+        input.signal.removeEventListener("abort", forward);
       }
-    } finally {
-      input.signal.removeEventListener("abort", forward);
-    }
-    if (input.signal.aborted) throw new DOMException("Team role cancelled", "AbortError");
-    if (stuckReason !== null) {
-      await service.recordTrace(task.id, { kind: "error", summary: "Stopped: the agent looked stuck", detail: stuckReason, outcome: "blocked" });
-      throw new Error(`Stuck: ${stuckReason}`);
-    }
-    if (failure !== null) throw failure;
+      if (input.signal.aborted) throw new DOMException("Team role cancelled", "AbortError");
+      if (stuckReason !== null) {
+        await service.recordTrace(task.id, { kind: "error", summary: "Stopped: the agent looked stuck", detail: stuckReason, outcome: "blocked" });
+        throw new Error(`Stuck: ${stuckReason}`);
+      }
+      if (failure !== null) throw failure;
 
-    const after = await service.read(task.id);
-    if (after === null) throw new Error("Team role workspace disappeared");
-    const changedPaths = roleHandoffChangedPaths(after.changes);
-    const summary = answer.trim().slice(0, 2_000) || `${input.node.title} completed.`;
-    return createTeamHandoff({
-      nodeId: input.node.id,
-      summary,
-      findings: [],
-      decisions: [],
-      changedPaths,
-      tests: [],
-      blockers: [],
-      deadEnds: [],
-      completedAt: Date.now(),
-    });
+      const after = await service.read(task.id);
+      if (after === null) throw new Error("Team role workspace disappeared");
+      const changedPaths = roleHandoffChangedPaths(after.changes);
+      const summary = answer.trim().slice(0, 2_000) || `${input.node.title} completed.`;
+      liveOk = true;
+      return createTeamHandoff({
+        nodeId: input.node.id,
+        summary,
+        findings: [],
+        decisions: [],
+        changedPaths,
+        tests: [],
+        blockers: [],
+        deadEnds: [],
+        completedAt: Date.now(),
+      });
+    } finally {
+      live({ kind: "end", ok: liveOk });
+    }
   };
 }
 

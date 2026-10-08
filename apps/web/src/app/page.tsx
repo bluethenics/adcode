@@ -6,6 +6,9 @@ import { DeveloperCounter } from "@/components/DeveloperCounter";
 import { HeroCounter } from "@/components/HeroCounter";
 import { AppShowcase } from "@/components/AppShowcase";
 import { ModeShowcase } from "@/components/ModeShowcase";
+import { LiveAgentsShowcase } from "@/components/LiveAgentsShowcase";
+import { LiveRecording } from "@/components/LiveRecording";
+import { DocsShowcase } from "@/components/DocsShowcase";
 import Link from "next/link";
 import { HomeFaq } from "@/components/HomeFaq";
 import { JsonLd } from "@/components/JsonLd";
@@ -92,6 +95,9 @@ export default function Home() {
         </ol>
       </section>
 
+      <LiveAgentsShowcase />
+      <LiveRecording />
+
       <ModeShowcase />
 
       <section className="product-story marketplace-wrap" aria-labelledby="product-story-heading">
@@ -137,6 +143,8 @@ export default function Home() {
       <section className="marketplace-principles" aria-label="How ADCode works">
       <div className="marketplace-wrap"><p><span>01</span><strong>Verified attention</strong><small>Only a real, eligible view can bill.</small></p><p><span>02</span><strong>Second-price auction</strong><small>Win at your maximum; often pay less.</small></p><p><span>03</span><strong>Human review</strong><small>Every creative is checked before delivery.</small></p></div>
       </section>
+      {/* Last on the page: whoever read this far is checking it will hold up - the manual says so. */}
+      <DocsShowcase />
       <StickyInstall />
       </div>
     );

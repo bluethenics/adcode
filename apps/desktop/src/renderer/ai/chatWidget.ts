@@ -19,6 +19,7 @@ import { chipLabel, modelChoices, rememberModel, switchedFrom, type ModelChoice,
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { createChatPreview } from "./chatPreview.ts";
 import { createAgentViewCard, createPlanCard, planStepsFrom, type AgentViewCard, type PlanCard } from "./chatAgentCards.ts";
+import { createChatLiveRoom } from "../liveAgents/chatLiveRoom.ts";
 import { createTaskDetailsDialog } from "./taskDetailsDialog.ts";
 import { createTasksPopupDialog } from "./tasksPopupDialog.ts";
 import type { PreviewStatus } from "../../shared/api.ts";
@@ -760,6 +761,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /* ── Transcript ───────────────────────────────────────────────────────── */
 
   const transcript = document.createElement("div");
+  // Agents at work: the room of background agents above the transcript, and the
+  // assistant's own live window inside it.
+  const live = createChatLiveRoom();
   const chatPreview = createChatPreview(transcript);
   const previewCalls = new Set<string>();
   /*
@@ -2132,7 +2136,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     input.focus({ preventScroll: true });
   });
   transcript.addEventListener("scroll", () => updateScrollButton(), { passive: true });
-  conversation.append(memory, connectBanner, folderBanner, welcome, transcript, scrollButton, composer, quickActions);
+  conversation.append(memory, connectBanner, folderBanner, welcome, live.element, transcript, scrollButton, composer, quickActions);
   refreshWelcome();
   const working = document.createElement("div");
   working.className = "chat-working";
@@ -3820,10 +3824,23 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       // A new turn gets its own plan and its own view, below its own question.
       planCard = null;
       viewCard = null;
+      live.chatWindow.reset();
     } else if (ending && turnActive) {
       turnActive = false;
+      live.chatWindow.finish(event.kind === "turn-end");
       void offerStagedChanges(turnStartedAt);
     }
+
+    // Code being written or a command running: watch it in the turn's live window.
+    const liveWindow = live.chatWindow.handle(event);
+    if (liveWindow !== null) {
+      ensureActivity();
+      streamingBubble?.classList.remove("is-streaming");
+      streamingBubble = null;
+      transcript.append(liveWindow);
+      scrollToEnd();
+    }
+    if (event.kind === "tool-draft") return;
 
     switch (event.kind) {
       case "text": {

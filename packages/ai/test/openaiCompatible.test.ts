@@ -139,7 +139,7 @@ describe("tool calls", () => {
       `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] })}`,
     ]));
     const events = await collect(provider.stream(request, new AbortController().signal));
-    expect(events[0]).toMatchObject({ kind: "tool-call", call: { input: {}, inputError: expect.any(String) } });
+    expect(events.find((event) => event.kind === "tool-call")).toMatchObject({ kind: "tool-call", call: { input: {}, inputError: expect.any(String) } });
   });
 
   it.each(['{"path":"index.html","contents":"unfinished', '{"path":"index.html","contents":"short"}'])(
@@ -150,7 +150,7 @@ describe("tool calls", () => {
         `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "length" }] })}`,
       ]));
       const events = await collect(provider.stream(request, new AbortController().signal));
-      expect(events[0]).toMatchObject({ kind: "tool-call", call: { input: {}, inputError: expect.stringContaining("response limit") } });
+      expect(events.find((event) => event.kind === "tool-call")).toMatchObject({ kind: "tool-call", call: { input: {}, inputError: expect.stringContaining("response limit") } });
       expect(events.at(-1)).toEqual({ kind: "stop", reason: "max-tokens" });
     },
   );
