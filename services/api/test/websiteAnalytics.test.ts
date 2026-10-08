@@ -31,6 +31,17 @@ describe("website analytics", () => {
     expect(parseWebsiteEvents([event], 10_000)?.[0]?.occurredAt).toBe(10_000);
     for (const age of [-1, 86_400_001, Number.NaN, "5"]) expect(parseWebsiteEvents([{ ...event, age }], 10_000)).toBeNull();
   });
+  it("counts invite-page visits by the loop that sent them, and nothing else", () => {
+    const ids = (n: number) => `${String(n).padStart(8, "0")}-1111-4111-8111-111111111111`;
+    const report = summarizeWebsiteEvents([
+      row({ id: ids(1), path: "/i/abc1234", source: "readme" }),
+      row({ id: ids(2), path: "/i/abc1234", source: "readme" }),
+      row({ id: ids(3), path: "/i/zz-code/", source: "t.co" }),
+      row({ id: ids(4), path: "/invite", source: "readme" }),
+      row({ id: ids(5), path: "/i/abc1234", source: "readme", name: "scroll_50" }),
+    ], 0, 86400000, false);
+    expect(report.invitePages).toEqual([{ label: "readme", count: 2 }, { label: "x", count: 1 }]);
+  });
   it("orders a funnel by when things happened, not by which request arrived first", () => {
     // The download's request landed before the page view's, but happened after it.
     const view = row({ at: 5000 });

@@ -84,9 +84,21 @@ export function analyticsPath(path: string): string | null {
 }
 const token = (value: string | null) => value && /^[a-zA-Z0-9._-]{1,80}$/.test(value) ? value : "";
 
+/**
+ * Which growth loop an invite link came from. The editor tags each place it hands out a
+ * link (`?from=build`, `readme`, `collab`, `x`...), the dashboard tags its own, and the
+ * advertiser pitch says `?for=ads`. Read only on invite pages, where those parameters
+ * mean that, and ahead of the referrer: a README link opened from github.com is the README
+ * loop working, not GitHub sending traffic. Admin > Growth > Loops counts visits by it.
+ */
+export function inviteLoopSource(pathname: string, query: URLSearchParams): string {
+  if (!/^\/i\/[a-z0-9-]+\/?$/i.test(pathname)) return "";
+  return token(query.get("from")) || (query.get("for") === "ads" ? "advertiser-pitch" : "");
+}
+
 function attribution(): { source: string; campaign: string } {
   const query = new URLSearchParams(location.search);
-  let source = token(query.get("utm_source"));
+  let source = token(query.get("utm_source")) || inviteLoopSource(location.pathname, query);
   if (!source) {
     try { const ref = new URL(document.referrer); source = ref.origin === location.origin ? "" : token(ref.hostname); } catch { /* direct visit */ }
   }
@@ -301,6 +313,8 @@ export interface WebsiteAnalyticsReport {
   pages: Ranking[]; sources: Ranking[]; campaigns: Ranking[]; devices: Ranking[]; events: Ranking[];
   /** Install actions by the button they came from. Absent from a server older than the placement change. */
   placements?: Ranking[];
+  /** Invite-page visits by the loop that sent them (`?from=`). Absent from a server older than Growth > Loops. */
+  invitePages?: Ranking[];
   metrics: { name: string; samples: number; p75: number | null }[];
 }
 export interface Ranking { label: string; count: number }

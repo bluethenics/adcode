@@ -12,7 +12,7 @@ you. Design: `docs/superpowers/specs/2026-10-06-referrals-and-growth-loops-desig
   sees, for 365 days from the claim. **Whoever brings an advertiser** is credited 5% of
   what it spends, for 365 days. Both come out of ADCode's half; the invited person's own
   50% is never touched.
-- **Campaign codes** are codes with no owner, made in Admin > Analytics > Sources for your
+- **Campaign codes** are codes with no owner, made in Admin > Growth > Links for your
   own posts and ads (`threads-oct06`). They pay nobody; they only say where people came from.
 - **Thank-you awards**: Admin > Feedback > Thank with an award credits the person who filed a
   report (`contribution` ledger entry, once per report, at most $100).
@@ -34,21 +34,34 @@ The Microsoft Store installer drops a link's query string, so the code travels b
    `20261006180000_growth_first_seen.sql` (for `milestone_days`), which is already applied.
    Until it is, every invite endpoint answers 503 `referrals-unavailable` and the desktop and
    web hide their invite UI; serving, receipts and balances are unaffected.
-2. **Admin > Money > Invites**: tick ADCode's own advertiser as house, so its spend never
+2. **Admin > Growth > Terms**: tick ADCode's own advertiser as house, so its spend never
    pays a share. Check the terms (10 / 5 / 365 / 14) and save.
 3. **Deploy the web** (the API ships with it).
-4. **Settle a day by hand** once (Admin > Money > Invites > Settle a day, yesterday) to see
+4. **Settle a day by hand** once (Admin > Growth > Terms > Settle a day, yesterday) to see
    it run. After that pg_cron does it at 00:30 UTC for the previous seven days; a day that
    was already paid pays nothing again.
 5. **Release the desktop** - Invite & earn, the clipboard pickup, the build share card, the
    live-session invite and the Store rating ask are in the app.
-6. Make campaign codes for your posts in Admin > Analytics > Sources and put their links in
+6. Make campaign links for your posts in Admin > Growth > Links and put their links in
    the posts instead of the bare homepage.
 7. Optional: give the house campaign an "Invite & earn" creative pointing at `/invite`.
 
+## Where it lives in the admin
+
+Everything is under **Growth** in the admin sidebar: Overview (what is left to set up, the
+headline numbers and the Sources table), Partners (who invites and what they brought),
+Links (campaign links for your own posts), Loops (every place ADCode asks people to share,
+with invite-page visits per loop) and Terms (rates, house advertisers, settling a day).
+
+Loops are measured by the tag on the link each one hands out: the editor adds
+`?from=build`, `readme`, `collab`, `x`, `threads` or `email`, the dashboard `?from=dashboard`,
+the portal `?from=portal`, and the advertiser pitch `?for=ads`. The invite page records that
+as the visit's source. The catalogue is `apps/web/src/lib/loops.ts`; a new loop gets a tag
+and an entry there.
+
 ## Reading Sources
 
-Admin > Analytics > Sources, by when people arrived (7 / 30 / 90 days, all time):
+Admin > Growth > Overview (partners in Growth > Partners), by when people arrived (7 / 30 / 90 days, all time):
 
 | Column | Meaning |
 |---|---|

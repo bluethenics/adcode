@@ -37,7 +37,7 @@ export function ReferAdvertiser() {
           Know another company that sells to developers? When they advertise through your link, you get{" "}
           <strong>{view.rates.advertiserPercent}% of what they spend</strong> for {span}, paid to your ADCode balance.
         </p>
-        <CopyField label="Your advertiser invite link" value={`${view.link}?for=ads`} />
+        <CopyField label="Your advertiser invite link" value={`${view.link}?for=ads&from=portal`} />
       </div>
     </section>
   );

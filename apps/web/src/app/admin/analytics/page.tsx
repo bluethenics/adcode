@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminShell } from "@/components/AdminShell";
 import { GrowthPanel } from "@/components/GrowthPanel";
-import { SourcesPanel } from "@/components/SourcesPanel";
+import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { TimeChart } from "@/components/charts/TimeChart";
 import { apiFetch } from "@/lib/api";
@@ -11,7 +11,11 @@ import { browserExcluded, setBrowserExcluded, type Ranking, type WebsiteAnalytic
 import "@/components/websiteAnalytics.css";
 
 export default function AnalyticsPage() {
-  return <AdminShell title="Analytics" subtitle="Who uses ADCode, where they came from, what it showed them, and how the website converts."><GrowthPanel /><SourcesPanel /><h2 className="growth-website-heading">Website</h2><Reports /></AdminShell>;
+  return <AdminShell title="Analytics" subtitle="Who uses ADCode, where they came from, what it showed them, and how the website converts."><GrowthPanel /><SourcesMoved /><h2 className="growth-website-heading">Website</h2><Reports /></AdminShell>;
+}
+/** Sources, campaign links and partners have their own section now; this is the way there. */
+function SourcesMoved() {
+  return <p className="website-analytics-note">Where new people came from, campaign links, partners and loops are in <Link href="/admin/growth">Growth</Link>.</p>;
 }
 function RankingTable({ title, rows, unit = "Page views" }: { title: string; rows: Ranking[]; unit?: string }) {
   return <section className="website-analytics-card"><h2>{title}</h2>{rows.length ? <table><thead><tr><th scope="col">{title}</th><th scope="col">{unit}</th></tr></thead><tbody>{rows.map(row => <tr key={row.label}><td>{row.label.replaceAll("_", " ")}</td><td>{row.count.toLocaleString()}</td></tr>)}</tbody></table> : <p className="website-analytics-note">No measurements yet.</p>}</section>;
@@ -110,7 +114,7 @@ function Reports() {
       <p className="website-analytics-note">Only visitors who allowed analytics are measured; how many declined is deliberately not recorded. Admin pages, administrators&apos; browsers, automated browsers and crawlers are excluded. A session ends after 30 minutes with nobody scrolling, clicking or typing, and is not a unique person; one that resumes later starts a new session with its own page view. Install intent means a session with a copied install command or download click, not a completed installation - website visits are not linked to installs. Events are dated by when they happened, in UTC days; the growth figures above use rolling windows instead (last 24 hours, 7 and 30 days). Traffic sources group the spellings of one place - t.co, x.com and twitter count as x, l.threads.com as threads. Raw events are kept for 90 days.</p>
       <section className="website-analytics-card"><h2>Traffic over time</h2><TimeChart days={report.daily.map(d => d.day)} series={[{ label: "Page views", color: "#78a9ff", values: report.daily.map(d => d.views) }, { label: "Sessions", color: "#55c9a2", values: report.daily.map(d => d.sessions) }]} summary={`Daily traffic: ${report.pageViews} page views and ${report.sessions} sessions in the selected period.`} /></section>
       <div className="website-analytics-grid">{report.funnels.map(funnel => <FunnelCard key={funnel.label} funnel={funnel} />)}</div>
-      <div className="website-analytics-grid"><RankingTable title="Top pages" rows={report.pages} /><RankingTable title="Traffic sources" rows={report.sources} /><RankingTable title="Campaigns" rows={report.campaigns} /><RankingTable title="Devices" rows={report.devices} /><RankingTable title="Actions and conversions" rows={report.events} unit="Events" />{report.placements !== undefined && <RankingTable title="Install buttons" rows={report.placements} unit="Install actions" />}
+      <div className="website-analytics-grid"><RankingTable title="Top pages" rows={report.pages} /><RankingTable title="Traffic sources" rows={report.sources} /><RankingTable title="Campaigns" rows={report.campaigns} />{report.invitePages !== undefined && <RankingTable title="Invite pages, by loop" rows={report.invitePages} />}<RankingTable title="Devices" rows={report.devices} /><RankingTable title="Actions and conversions" rows={report.events} unit="Events" />{report.placements !== undefined && <RankingTable title="Install buttons" rows={report.placements} unit="Install actions" />}
         <section className="website-analytics-card"><h2>Page performance</h2><table><thead><tr><th scope="col">Metric</th><th scope="col">Samples</th><th scope="col">75th percentile</th></tr></thead><tbody>{report.metrics.map(metric => <tr key={metric.name}><th scope="row">{metric.name}</th><td>{metric.samples}</td><td>{metric.p75 === null ? "—" : metric.name === "CLS" ? metric.p75.toFixed(3) : `${Math.round(metric.p75).toLocaleString()} ms`}</td></tr>)}</tbody></table><p className="website-analytics-note">LCP: main content loading. INP: interaction delay. CLS: layout movement. FCP: first content. TTFB: server response. Browser support and consent affect sample coverage.</p><p className="website-analytics-note">CLS and INP are the latest value each visit reported, not the first. Engaged time: {Math.round(report.engagementSeconds / 60).toLocaleString()} minutes - time with the page visible, counting at most a minute past the last scroll, click, key press or pointer movement. Browser errors count at most five per page.</p></section>
       </div>
     </>}

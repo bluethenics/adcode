@@ -174,7 +174,8 @@ export function createReferralClient(deps: ReferralClientDeps): ReferralClient {
     async share(target) {
       const view = await get();
       if (view === null || typeof view.code !== "string") return false;
-      await deps.openExternal(shareUrl(target, inviteLink(view.code)));
+      // Tagged with where it went, so Admin > Growth > Loops can count each share button.
+      await deps.openExternal(shareUrl(target, inviteLink(view.code, target)));
       return true;
     },
 

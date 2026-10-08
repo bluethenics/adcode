@@ -96,17 +96,18 @@ describe("the admin jump box", () => {
 describe("the admin rail", () => {
   /*
    * The panel used to be six pages with a second level hidden inside them; it then
-   * spent a while as one page of disclosures. It is now thirteen destinations in six
+   * spent a while as one page of disclosures. It is now nineteen destinations in seven
    * groups - one row per real job, each with its own URL, so the rail reads like a
    * table of contents and the browser's back button works inside the panel.
    */
   const items = ADMIN_NAV.flatMap((group) => group.items);
 
-  it("includes website analytics alongside the existing destinations in six groups", () => {
+  it("includes website analytics and growth alongside the existing destinations in seven groups", () => {
     expect(ADMIN_NAV.map((group) => group.label)).toEqual([
       "Now",
       "Queues",
       "Money",
+      "Growth",
       "People",
       "Publishing",
       "Tools",
@@ -120,6 +121,11 @@ describe("the admin rail", () => {
       "/admin/money",
       "/admin/money?tab=advertisers",
       "/admin/money?tab=countries",
+      "/admin/growth",
+      "/admin/growth?tab=partners",
+      "/admin/growth?tab=links",
+      "/admin/growth?tab=loops",
+      "/admin/growth?tab=terms",
       "/admin/people",
       "/admin/people?tab=admins",
       "/admin/content",
@@ -155,6 +161,7 @@ describe("the admin rail", () => {
     expect(items.filter((item) => item.href === "/admin").map((i) => i.tab)).toEqual([undefined]);
     expect(items.find((i) => i.href === "/admin/review")?.tab).toBe("creatives");
     expect(items.find((i) => i.href === "/admin/money")?.tab).toBe("payouts");
+    expect(items.find((i) => i.href === "/admin/growth")?.tab).toBe("overview");
     expect(items.find((i) => i.href === "/admin/people")?.tab).toBe("users");
     expect(items.find((i) => i.href === "/admin/content")?.tab).toBe("writing");
   });

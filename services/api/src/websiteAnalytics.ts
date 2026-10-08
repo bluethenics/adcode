@@ -122,5 +122,7 @@ export function summarizeWebsiteEvents(input: WebsiteEvent[], start: number, end
     engagementSeconds: Math.round(events.filter(e => e.name === "engagement").reduce((n,e) => n + e.value, 0) / 1000),
     daily, funnels, pages: rank(views, "path"), sources: rank(views, "source"), campaigns: rank(views, "campaign"), devices: rank(views, "device"), events: rank(events.filter(e => !["page_view", "engagement", ...WEB_VITALS].includes(e.name)), "name"), metrics,
     // Install actions by the button they came from: each install button judged on its own.
-    placements: rank(events.filter(e => ["download_click", "install_copy", "send_to_desktop"].includes(e.name)), "placement") };
+    placements: rank(events.filter(e => ["download_click", "install_copy", "send_to_desktop"].includes(e.name)), "placement"),
+    // Invite-page visits by the loop that handed the link out (the page reads `?from=` as the source).
+    invitePages: rank(views.filter(e => /^\/i\/[^/]+\/?$/.test(e.path)), "source") };
 }

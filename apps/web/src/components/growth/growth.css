@@ -1,0 +1,41 @@
+/* Admin > Growth. Built from the admin's own cards and tiles; only what is new is here. */
+
+.growth-overview,
+.growth-partners,
+.growth-links,
+.growth-loops { display: grid; gap: 16px; }
+
+/* Setup: a short checklist, done steps quiet, open steps with their one action. */
+.growth-setup h2 { margin: 0 0 4px; font-size: 16px; }
+.growth-steps { display: grid; gap: 0; margin: 8px 0 12px; padding: 0; list-style: none; }
+.growth-steps li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--hairline); }
+.growth-steps li:first-child { border-top: 0; }
+.growth-steps strong { display: block; font-size: 14px; font-weight: 600; }
+.growth-steps p { margin: 2px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.growth-step-mark { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--border-strong); border-radius: 50%; color: var(--money); font-size: 13px; font-weight: 700; }
+.growth-steps li[data-done="true"] .growth-step-mark { border-color: color-mix(in srgb, var(--money) 55%, transparent); background: color-mix(in srgb, var(--money) 12%, transparent); }
+.growth-steps li[data-done="true"] strong { color: var(--muted); font-weight: 500; }
+
+.growth-empty h2 { margin: 0 0 4px; font-size: 16px; }
+.growth-empty .btn { justify-self: start; margin-top: 8px; }
+.growth-links tr[data-active="false"] { color: var(--muted); }
+
+/* Loops: one card each, two columns where there is room. */
+.growth-loop-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.growth-loop { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin: 0; }
+.growth-loop-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; }
+.growth-loop h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.growth-loop > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.growth-loop-surface { flex: none; padding: 3px 9px; border: 1px solid var(--hairline); border-radius: 999px; color: var(--muted); font-size: 11.5px; font-weight: 550; white-space: nowrap; }
+.growth-loop-surface[data-surface="editor"] { color: var(--text); }
+.growth-loop-facts { display: grid; gap: 6px; width: 100%; margin: 0; }
+.growth-loop-facts > div { display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 12px; font-size: 13px; }
+.growth-loop-facts dt { color: var(--faint); }
+.growth-loop-facts dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.growth-loop .btn { margin-top: auto; }
+
+@media (max-width: 640px) {
+  .growth-steps li { grid-template-columns: 24px minmax(0, 1fr); }
+  .growth-steps li .btn { grid-column: 2; justify-self: start; }
+  .growth-loop-facts > div { grid-template-columns: 1fr; gap: 0; }
+}

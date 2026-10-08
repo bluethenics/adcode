@@ -70,14 +70,16 @@ export function InvitePanel({ progress }: { progress?: { activeMs: number; lifet
     return <p className="lede">Invites aren&apos;t available right now. Try again in a little while.</p>;
   }
 
-  const share = inviteShareLinks(view.link);
+  // Tagged so Admin > Growth > Loops counts the dashboard as a loop of its own.
+  const link = `${view.link}?from=dashboard`;
+  const share = inviteShareLinks(link);
   // Something true and specific to post, with the link in it - shown once there is an hour to mention.
-  const post = progress === undefined ? null : progressPost({ ...progress, link: view.link });
+  const post = progress === undefined ? null : progressPost({ ...progress, link });
   const earned = view.earnedMicros === "0" ? null : `${moneyExact(view.earnedMicros)} earned from invites`;
 
   return (
     <div className="ios-card invite-panel">
-      <CopyField label="Your invite link" value={view.link} />
+      <CopyField label="Your invite link" value={link} />
       <div className="invite-panel-share">
         <a className="btn btn-small" href={share.x} target="_blank" rel="noreferrer">Post on X</a>
         <a className="btn btn-small" href={share.threads} target="_blank" rel="noreferrer">Post on Threads</a>

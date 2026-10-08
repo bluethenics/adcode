@@ -158,6 +158,7 @@ import { scaffoldFor, todoMarksIn } from "@adcode/structure";
 import { createAccountMenu } from "./workbench/accountMenu.ts";
 import { createOnboardingSheet } from "./onboarding/onboardingSheet.ts";
 import { firstBuildPrompt } from "../shared/firstBuild.ts";
+import { inviteLink } from "../shared/invite.ts";
 import { createPinPromptCard } from "./onboarding/pinPromptCard.ts";
 import {
   createContextMenu,
@@ -4823,7 +4824,9 @@ window.adcode.referrals.onShareMoment(() => {
         run: () =>
           void window.adcode.referrals.get().then((view) => {
             if (view === null) return;
-            void window.adcode.clipboard.writeText(view.link).then(() => setStatus("Invite link copied.", 3000));
+            // Tagged, so Admin > Growth > Loops can tell this moment's invites from the rest.
+            const link = typeof view.code === "string" ? inviteLink(view.code, "build") : view.link;
+            void window.adcode.clipboard.writeText(link).then(() => setStatus("Invite link copied.", 3000));
           }),
       },
       { label: "Invite & earn", run: () => openInvite("pointer") },

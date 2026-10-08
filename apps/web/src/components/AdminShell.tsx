@@ -104,6 +104,16 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     ],
   },
   {
+    label: "Growth",
+    items: [
+      { href: "/admin/growth", label: "Overview", hint: "Setup, and where new people came from", tab: "overview", icon: "chart" },
+      { href: "/admin/growth?tab=partners", label: "Partners", hint: "Who invites, and what they brought", tab: "partners", icon: "person" },
+      { href: "/admin/growth?tab=links", label: "Links", hint: "A link for each post you run", tab: "links", icon: "tag" },
+      { href: "/admin/growth?tab=loops", label: "Loops", hint: "Every place ADCode asks people to share", tab: "loops", icon: "send" },
+      { href: "/admin/growth?tab=terms", label: "Terms", hint: "Rates, house advertisers, settling", tab: "terms", icon: "card" },
+    ],
+  },
+  {
     label: "People",
     items: [
       {

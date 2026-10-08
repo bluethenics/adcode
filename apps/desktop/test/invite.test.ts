@@ -202,7 +202,8 @@ describe("sharing", () => {
     const opened: string[] = [];
     const h = harness({ open: async (url) => { opened.push(url); } });
     expect(await h.client.share("threads")).toBe(true);
-    expect(opened).toEqual([shareUrl("threads", "https://adcode.bluethenics.com/i/mine123")]);
+    // Tagged with where it went, so Admin > Growth > Loops counts each share button.
+    expect(opened).toEqual([shareUrl("threads", "https://adcode.bluethenics.com/i/mine123?from=threads")]);
   });
 
   it("opens nothing when there is no link to share", async () => {
