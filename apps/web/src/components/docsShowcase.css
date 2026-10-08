@@ -1,0 +1,24 @@
+/* The docs, last on the homepage. */
+
+.docs-showcase { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: clamp(32px, 5vw, 80px); padding-block: 112px 120px; scroll-margin-top: 96px; }
+.docs-showcase-head h2 { margin: 18px 0 0; color: var(--text); font-size: clamp(30px, 3.1vw, 44px); font-weight: 400; letter-spacing: -.03em; line-height: 1.12; }
+.docs-showcase-head p:not(.marketplace-eyebrow) { max-width: 40ch; margin: 18px 0 0; color: var(--muted); font-size: 15px; line-height: 1.7; }
+.docs-showcase-all { display: inline-flex; align-items: center; gap: 8px; margin-top: 28px; padding: 11px 18px; border-radius: 99px; background: var(--text); color: var(--surface); font-size: 14px; font-weight: 550; text-decoration: none; }
+.docs-showcase-all:hover { opacity: .9; }
+.docs-showcase-all:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.docs-showcase-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.docs-showcase-grid a { display: grid; align-content: start; gap: 8px; height: 100%; padding: 22px; border: 1px solid transparent; border-radius: 12px; background: var(--card); color: inherit; text-decoration: none; transition: border-color 200ms ease, translate 200ms ease; }
+.docs-showcase-grid a:hover { border-color: var(--border-strong); translate: 0 -2px; }
+.docs-showcase-grid a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.docs-showcase-section { color: var(--faint); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.docs-showcase-grid strong { color: var(--text); font-size: 17px; font-weight: 500; letter-spacing: -.01em; }
+.docs-showcase-text { color: var(--muted); font-size: 14px; line-height: 1.6; }
+.docs-showcase-read { margin-top: 6px; color: var(--text); font-size: 13px; font-weight: 550; }
+
+@media (max-width: 1080px) {
+  .docs-showcase { grid-template-columns: 1fr; padding-block: 88px 96px; }
+}
+@media (max-width: 640px) {
+  .docs-showcase-grid { grid-template-columns: 1fr; }
+}

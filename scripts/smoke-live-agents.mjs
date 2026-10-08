@@ -12,10 +12,15 @@
  *    The room must show all three, and animate the message and the handoff.
  *
  *   npm run desktop:build && node scripts/smoke-live-agents.mjs
+ *
+ * With `--record`, journey 2 is also filmed (CDP screencast, ffmpeg from
+ * marketing/ad-payback/.tools) into the website's recording: apps/web/public/videos/live-room.*
+ * and the dimensions in apps/web/src/lib/liveRecording.ts.
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
@@ -32,6 +37,9 @@ await writeFile(join(userData, "session.json"), JSON.stringify({ state: { root: 
 await writeFile(join(userData, "onboarding.json"), JSON.stringify({ completed: true, at: Date.now() }));
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+const record = process.argv.includes("--record");
+/** Device pixels per CSS pixel while recording, so the cropped room is sharp at 1280 wide. */
+const RECORD_SCALE = 1.6;
 
 /* ── The fake model ───────────────────────────────────────────────────────── */
 
@@ -101,6 +109,64 @@ const fake = createServer(async (req, res) => {
 await new Promise((done) => fake.listen(0, "127.0.0.1", done));
 const endpoint = `http://127.0.0.1:${fake.address().port}/v1`;
 
+/* ── Filming (--record) ───────────────────────────────────────────────────── */
+
+/**
+ * Crop the room out of the screencast and write the website's recording: an H.264 MP4, a
+ * VP9 WebM and a WebP poster of the last frame, 1280 wide.
+ */
+async function encodeRecording(frames, box, ms) {
+  if (frames.length < 10 || box === null) return { error: `only ${frames.length} frames` };
+  const ffmpeg = [resolve(root, "marketing/ad-payback/.tools/ffmpeg.exe"), resolve(root, "../../../marketing/ad-payback/.tools/ffmpeg.exe")]
+    .find((path) => existsSync(path));
+  if (ffmpeg === undefined) return { error: "no ffmpeg: run node marketing/ad-payback/fetch-tools.mjs" };
+  const sharp = require("sharp");
+  const dir = await mkdtemp(join(tmpdir(), "adcode-live-frames-"));
+  const names = [];
+  for (const [index, frame] of frames.entries()) {
+    const name = `f${String(index).padStart(5, "0")}.jpg`;
+    await writeFile(join(dir, name), Buffer.from(frame.data, "base64"));
+    names.push(name);
+  }
+  const list = [];
+  frames.forEach((frame, index) => {
+    const next = frames[index + 1];
+    list.push(`file '${names[index]}'`, `duration ${(next === undefined ? 0.6 : Math.max(0.001, next.at - frame.at)).toFixed(4)}`);
+  });
+  list.push(`file '${names.at(-1)}'`);
+  await writeFile(join(dir, "list.txt"), list.join("\n"));
+
+  // Screencast frames are in device pixels; the room's box is in CSS pixels.
+  const first = await sharp(join(dir, names[0])).metadata();
+  const scale = first.width / 1360;
+  const pad = 14;
+  const even = (value) => Math.max(0, Math.round(value / 2) * 2);
+  const crop = {
+    left: even((box.x - pad) * scale),
+    top: even((box.y - pad) * scale),
+    width: even(Math.min(box.width + pad * 2, 1360 - box.x + pad) * scale),
+    height: even(Math.min(box.height + pad * 2, 900 - box.y + pad) * scale),
+  };
+  const width = 1280;
+  const height = even((crop.height * width) / crop.width);
+  const filter = `crop=${crop.width}:${crop.height}:${crop.left}:${crop.top},scale=${width}:${height}:flags=lanczos,fps=30,format=yuv420p`;
+  const out = resolve(root, "apps/web/public/videos");
+  await mkdir(out, { recursive: true });
+  const encode = (args) => {
+    const run = spawnSync(ffmpeg, ["-y", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", join(dir, "list.txt"), "-vf", filter, "-an", ...args], { stdio: "inherit" });
+    if (run.status !== 0) throw new Error(`ffmpeg ${args.at(-1)} failed`);
+  };
+  encode(["-c:v", "libx264", "-preset", "slow", "-crf", "24", "-movflags", "+faststart", join(out, "live-room.mp4")]);
+  encode(["-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "36", "-row-mt", "1", join(out, "live-room.webm")]);
+  await sharp(join(dir, names.at(-1))).extract(crop).resize(width, height).webp({ quality: 82 }).toFile(join(out, "live-room.webp"));
+
+  const lib = resolve(root, "apps/web/src/lib/liveRecording.ts");
+  const source = await readFile(lib, "utf8");
+  await writeFile(lib, source.replace(/width: \d+,/, `width: ${width},`).replace(/height: \d+,/, `height: ${height},`));
+  const size = async (file) => Math.round((await readFile(join(out, file))).length / 1024);
+  return { frames: frames.length, seconds: Math.round(ms / 100) / 10, width, height, mp4KB: await size("live-room.mp4"), webmKB: await size("live-room.webm"), posterKB: await size("live-room.webp") };
+}
+
 /* ── The app ──────────────────────────────────────────────────────────────── */
 
 const env = { ...process.env, ADCODE_AD_SERVER: "http://127.0.0.1:9" };
@@ -133,8 +199,14 @@ try {
     socket.addEventListener("open", done, { once: true });
     socket.addEventListener("error", reject, { once: true });
   });
+  const frames = [];
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data);
+    if (message.method === "Page.screencastFrame") {
+      frames.push({ data: message.params.data, at: message.params.metadata.timestamp });
+      socket.send(JSON.stringify({ id: ++sequence, method: "Page.screencastFrameAck", params: { sessionId: message.params.sessionId } }));
+      return;
+    }
     pending.get(message.id)?.(message);
   });
   const send = (method, params = {}) => new Promise((done, reject) => {
@@ -168,7 +240,7 @@ try {
 
   await waitFor("document.body.dataset.sessionReady === 'true'", 90_000);
   await evaluate("document.querySelector('dialog.onboarding')?.close()");
-  await send("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false });
+  await send("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: record ? RECORD_SCALE : 1, mobile: false });
   await evaluate(`(async () => {
     await window.adcode.settings.write('adcode.ai.customBaseUrl', ${JSON.stringify(endpoint)});
     await window.adcode.settings.write('adcode.ai.provider', 'custom');
@@ -180,7 +252,8 @@ try {
   if (!(await evaluate("Boolean(document.querySelector('.chat-card')?.getClientRects().length)"))) await evaluate("document.getElementById('ai-toggle')?.click()");
   await waitFor("Boolean(document.querySelector('.chat-card')?.getClientRects().length)", 15_000);
 
-  /* 1. The chat assistant, typing a file. */
+  /* 1. The chat assistant, typing a file. (Not filmed: when recording it only settles the layout.) */
+  {
   await evaluate("void window.adcode.ai.send('live-chat-smoke: write app.js and check it'); true");
   results.chatWindowAppeared = await waitFor("Boolean(document.querySelector('.chat-transcript .live-window'))", 20_000);
   const lengths = new Set();
@@ -211,6 +284,7 @@ try {
   })()`));
   await sleep(400);
   await screenshot("chat-settled");
+  }
 
   /* 2. A real Team. */
   const team = await evaluate(`window.adcode.aiTeam.configure({
@@ -231,23 +305,33 @@ try {
     tokenLimit: 200000,
     costMicrosLimit: 20000000,
   }).then((view) => view.id)`);
+  if (record) await send("Page.startScreencast", { format: "jpeg", quality: 92, everyNthFrame: 1 });
+  const recordStarted = Date.now();
   await evaluate(`window.adcode.aiTeam.start(${JSON.stringify(team)}).then(() => true)`);
   results.roomShown = await waitFor("Boolean(document.querySelector('.live-room:not([hidden])'))", 30_000);
   let most = 0;
   let roomShot = false;
+  let roomBox = null;
   const teamUntil = Date.now() + 120_000;
   while (Date.now() < teamUntil) {
     const view = await evaluate(`(() => {
       const room = document.querySelector('.live-room');
-      return { windows: room?.querySelectorAll('.live-window').length ?? 0, members: room?.querySelectorAll('.live-member').length ?? 0, working: Number(room?.dataset.working ?? 0) };
+      const box = room?.getBoundingClientRect();
+      return { windows: room?.querySelectorAll('.live-window').length ?? 0, members: room?.querySelectorAll('.live-member').length ?? 0, working: Number(room?.dataset.working ?? 0), box: box ? { x: box.x, y: box.y, width: box.width, height: box.height } : null };
     })()`);
     most = Math.max(most, view.members);
+    if (view.box !== null && view.box.height > (roomBox?.height ?? 0)) roomBox = view.box;
     if (!roomShot && view.working >= 2) { await sleep(700); await screenshot("room-working"); roomShot = true; }
     const state = await evaluate(`window.adcode.aiTeam.read(${JSON.stringify(team)}).then((view) => view?.state ?? 'gone')`);
     if (!["configured", "preparing", "running", "merging"].includes(state)) { results.teamState = state; break; }
     await sleep(250);
   }
   await sleep(1_500);
+  if (record) {
+    await sleep(1_500);
+    await send("Page.stopScreencast");
+    results.recording = await encodeRecording(frames, roomBox, Date.now() - recordStarted);
+  }
   Object.assign(results, await evaluate(`(() => {
     const room = document.querySelector('.live-room');
     return {
