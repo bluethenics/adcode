@@ -536,6 +536,7 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
   },
   bool("adcode.ai.memoryCapture", "ai", "Memory capture", "Record decisions and conventions to the shared project memory.", true, true),
   bool("adcode.ai.mcpServer", "ai", "MCP server", "Let external agents read and write the same memory.", true, true),
+  bool("adcode.ai.liveAgentView", "ai", "Live agent view", "Show every agent at work in the chat: code typing in as it is written, commands running, and the messages agents send each other.", true, true),
 ];
 
 const BY_ID = new Map<SettingId, Setting>(SETTINGS_SCHEMA.map((s) => [s.id, s]));

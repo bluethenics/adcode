@@ -3,6 +3,7 @@ import {
   addLiveSignal,
   applyLiveEvent,
   emptyLiveRoom,
+  formatLiveDuration,
   ensureLiveAgent,
   settleLiveGroup,
   pruneLiveRoom,
@@ -164,6 +165,16 @@ describe("team members before and after they work", () => {
     state = ensureLiveAgent(state, who("check", "other"), "Waiting", 1);
     state = settleLiveGroup(state, "t1");
     expect(state.agents.map((agent) => agent.id)).toEqual([build.id, "other/check"]);
+  });
+});
+
+describe("formatLiveDuration", () => {
+  it("reads like a stopwatch", () => {
+    expect(formatLiveDuration(0)).toBe("0s");
+    expect(formatLiveDuration(12_400)).toBe("12s");
+    expect(formatLiveDuration(72_000)).toBe("1m 12s");
+    expect(formatLiveDuration(3_725_000)).toBe("1h 2m");
+    expect(formatLiveDuration(-5)).toBe("0s");
   });
 });
 

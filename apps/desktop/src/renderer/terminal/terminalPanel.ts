@@ -10,6 +10,7 @@
  */
 import { createTerminalHost, type TerminalHost } from "./terminalHost.ts";
 import { uniqueTerminalTitle } from "./terminalTitles.ts";
+import { createTerminalLiveBridge } from "../liveAgents/terminalLive.ts";
 import { terminalMenuModel } from "./terminalMenu.ts";
 import {
   createTerminalTeamRunner,
@@ -370,6 +371,8 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
   }
 
   team.onChanged(renderTeamStrip);
+  // What each pane's agent is doing, for the chat's live room.
+  team.onLive(createTerminalLiveBridge());
 
   function paneById(id: number): Pane | undefined {
     for (const tab of tabs) {

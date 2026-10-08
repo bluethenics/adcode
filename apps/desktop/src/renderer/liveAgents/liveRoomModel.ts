@@ -289,6 +289,15 @@ export function settleLiveGroup(state: LiveRoomState, group: string): LiveRoomSt
   return agents.length === state.agents.length ? state : { ...state, agents };
 }
 
+/** How long an agent has worked, as a stopwatch reads: "12s", "1m 12s", "1h 2m". */
+export function formatLiveDuration(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1_000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
 /** Drop agents that finished more than `keepMs` ago. */
 export function pruneLiveRoom(state: LiveRoomState, now: number, keepMs: number): LiveRoomState {
   const agents = state.agents.filter((agent) => agent.endedAt === null || now - agent.endedAt <= keepMs);

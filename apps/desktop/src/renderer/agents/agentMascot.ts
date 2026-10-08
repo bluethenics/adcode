@@ -87,10 +87,16 @@ export const MASCOT_FACES: Readonly<Record<AgentMood, readonly { readonly d: str
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+export type MascotGaze = "left" | "right" | "ahead";
+
 export interface AgentMascot {
   readonly element: HTMLElement;
   setMood(mood: AgentMood): void;
   setLook(look: MascotLook): void;
+  /** Turn towards a teammate, or back to face the user. */
+  setGaze(gaze: MascotGaze): void;
+  /** One small nod: a message received. */
+  nod(): void;
 }
 
 export function createAgentMascot(options: { readonly look: MascotLook; readonly mood: AgentMood; readonly size?: number }): AgentMascot {
@@ -139,7 +145,20 @@ export function createAgentMascot(options: { readonly look: MascotLook; readonly
     }));
   }
 
+  function setGaze(gaze: MascotGaze): void {
+    if (gaze === "ahead") delete element.dataset["gaze"];
+    else element.dataset["gaze"] = gaze;
+  }
+
+  function nod(): void {
+    element.classList.remove("is-nodding");
+    // Reading layout restarts the animation when a second message lands mid-nod.
+    void element.offsetWidth;
+    element.classList.add("is-nodding");
+    element.addEventListener("animationend", () => element.classList.remove("is-nodding"), { once: true });
+  }
+
   setLook(options.look);
   setMood(options.mood);
-  return { element, setMood, setLook };
+  return { element, setMood, setLook, setGaze, nod };
 }
