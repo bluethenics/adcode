@@ -47,6 +47,9 @@ export interface AiFailure {
 export const OUTPUT_LIMIT_AGAIN =
   "The reply reached the model's output limit again, even after continuing.";
 
+/** What picks a stopped turn back up: the conversation already holds the request and the work so far. */
+export const CONTINUE_PROMPT = "Continue from where you stopped and finish the remaining steps.";
+
 /** "Groq returned HTTP 429: ..." -> "Groq". Falls back to a neutral noun. */
 export function providerFrom(detail: string): string {
   // A display name is capitalised and followed by ": " - which keeps "connect ECONNREFUSED
@@ -147,4 +150,20 @@ export function describeAiFailure(raw: string): AiFailure {
     return make("server", `${who} is having trouble`, "This is on the provider's side. Try again shortly, or switch to another model.", ["retry", "models"]);
   }
   return make("unknown", "The assistant stopped with an error", "Try again. If it keeps happening, report it - the debug log shows exactly what failed.", ["retry", "report"]);
+}
+
+/**
+ * What to send once another model is chosen after this failure, or null when another model
+ * is not one of its fixes.
+ *
+ * Reported: after "out of credit" the user picked another model and nothing happened - they
+ * had to ask again. Choosing the model was the answer to the card. The provider refused a
+ * request that was already recorded, so the new model is asked to carry on, which also keeps
+ * any work done before the failure. "No model connected" is the exception: that turn stopped
+ * before the request was recorded, so the request itself goes.
+ */
+export function resumeAfterModelSwitch(failure: AiFailure, request: string): string | null {
+  if (!failure.actions.includes("models")) return null;
+  if (failure.kind === "no-key") return request.trim().length > 0 ? request : null;
+  return CONTINUE_PROMPT;
 }

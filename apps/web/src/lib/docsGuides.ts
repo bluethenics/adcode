@@ -808,7 +808,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "As soon as the assistant writes again, the block before it collapses to Worked for Ns - select its header to expand that step's trace again.",
       "Scroll up mid-stream and the view stays pinned while a Jump to latest pill appears with a count of new messages - select it to return to the tail.",
       "If you stop a turn, the interrupted banner offers Edit prompt (your last message back in the composer) and Try again.",
-      "If a turn fails, a card in the conversation names the problem - a rate limit, a request too large for the model, a rejected key, a broken tool call or a network problem - with Try again, Switch model, Start fresh or Report problem, and the provider’s exact message under Details.",
+      "If a turn fails, a card in the conversation names the problem - a rate limit, a request too large for the model, a rejected key, a broken tool call or a network problem - with Try again, Switch model, Start fresh or Report problem, and the provider’s exact message under Details. Choose another model after an out-of-credit or rejected-key card and the request carries on with it by itself - no need to ask again.",
       "Read answers with labelled code blocks, inline commands, and numbered steps. Use the icon row under each response to Copy, Read aloud, mark helpful or not helpful, or Retry - with relative time like just now.",
       "Use History for past conversations. Team setup, schedules and live activity open in a floating panel, and the Agents page shows every agent at work - the conversation keeps its full width.",
       "Press Escape to dismiss it; the conversation survives dismissal.",

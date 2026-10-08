@@ -13,9 +13,9 @@
  * Only `transform` and `opacity` animate (§1) - the card is positioned with a translate,
  * never with `left`/`top`, so dragging never triggers layout.
  */
-import { describeAiFailure, OUTPUT_LIMIT_AGAIN } from "./aiFailure.ts";
+import { CONTINUE_PROMPT, describeAiFailure, OUTPUT_LIMIT_AGAIN, resumeAfterModelSwitch, type AiFailure } from "./aiFailure.ts";
 import { createChatQueue, type QueuedMessage } from "./chatQueue.ts";
-import { chipLabel, modelChoices, rememberModel, type ModelChoice } from "./modelSwitch.ts";
+import { chipLabel, modelChoices, rememberModel, switchedFrom, type ModelChoice, type ModelInUse } from "./modelSwitch.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { createChatPreview } from "./chatPreview.ts";
 import { createAgentViewCard, createPlanCard, planStepsFrom, type AgentViewCard, type PlanCard } from "./chatAgentCards.ts";
@@ -110,6 +110,8 @@ export interface ChatWidget {
   openTasksPopup(): void;
   /** Prepare editable instructions; never sends or interrupts a running turn. */
   draft(question: string): void;
+  /** Connect a model closed: a turn waiting on a model switch can go now. */
+  modelPickerClosed(): void;
   setDocked(docked: boolean, historyHost?: HTMLElement): void;
   shown(focus?: boolean): void;
   hidden(): void;
@@ -176,6 +178,8 @@ export interface ChatWidgetDeps {
   readonly openCodeReference?: (reference: CodeReference) => void;
   /** Open the Connect screen, which owns providers, keys and models. */
   readonly openConnect: () => void;
+  /** Whether Connect is open: someone choosing a model there may not have picked the last one yet. */
+  readonly modelPickerOpen?: () => boolean;
   /** Save every open editor, so the isolated task can start from current files. */
   readonly saveAllOpenFiles: () => void;
   /** The coordinator owns the workspace shell and all dismissal. */
@@ -373,12 +377,20 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       // Storage off: the menu still offers recommended models.
     }
   };
+  /** Mid-switch: the provider is written before the model, and the pair is not a choice yet. */
+  let choosingModel = false;
   async function switchModel(choice: ModelChoice): Promise<void> {
     if (choice.current) return;
-    await window.adcode.settings.write("adcode.ai.provider", choice.provider);
-    await window.adcode.settings.write("adcode.ai.model", choice.model);
+    choosingModel = true;
+    try {
+      await window.adcode.settings.write("adcode.ai.provider", choice.provider);
+      await window.adcode.settings.write("adcode.ai.model", choice.model);
+    } finally {
+      choosingModel = false;
+    }
     writeRecentModels(rememberModel(readRecentModels(), choice.provider, choice.model));
     await refreshModelStatus();
+    if (await resumeIfSwitched()) return;
     modeNote(`Now using ${choice.modelName} on ${choice.providerName}. The conversation carries on.`);
   }
   async function openModelMenu(): Promise<void> {
@@ -2216,6 +2228,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   let lastUserPrompt = "";
+  /**
+   * A turn the model could not run, waiting for another model to be chosen. Cleared as soon
+   * as any turn starts: whatever was sent instead is where the conversation went.
+   */
+  let resumeOnSwitch: { readonly card: HTMLElement; readonly failedOn: ModelInUse; readonly prompt: string } | null = null;
 
   /* ── Agent activity: one collapsible block per assistant turn ──────────
    *
@@ -2701,7 +2718,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     action.textContent = "Continue";
     action.title = "Pick up where the assistant stopped";
     action.addEventListener("click", () => {
-      if (resend("Continue from where you stopped and finish the remaining steps.")) {
+      if (resend(CONTINUE_PROMPT)) {
         element.dataset["nudge"] = "continue-sent";
         action.disabled = true;
       }
@@ -2722,6 +2739,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const failure = describeAiFailure(detail);
     const last = transcript.lastElementChild;
     if (last instanceof HTMLElement && last.dataset["failureDetail"] === failure.detail) {
+      resumeAfterSwitchOf(last, failure);
       scrollToEnd(true);
       return;
     }
@@ -2762,7 +2780,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         const retry = action("Try again", () => { if (resend(lastUserPrompt)) retry.disabled = true; }, primary);
         retry.disabled = lastUserPrompt.trim().length === 0;
       } else if (kind === "models") {
-        action("Switch model", () => deps.openConnect(), primary);
+        action("Switch model", () => deps.openConnect(), primary).title = "Choose another model - the request carries on with it";
       } else if (kind === "new-conversation") {
         // A fresh conversation carries no history, which is the fix; the request comes along.
         action("Start fresh with this request", () => {
@@ -2790,7 +2808,56 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     body.append(heading, text, actions, details);
     card.append(icon, body);
     transcript.append(card);
+    resumeAfterSwitchOf(card, failure);
     scrollToEnd(true);
+  }
+
+  /*
+   * A turn the model could not run - out of credit, key refused, model withdrawn - picks
+   * itself back up once another model is chosen, wherever it is chosen: the card's Switch
+   * model, the model chip, Connect or Settings. Reported: the user switched model after
+   * "out of credit" and nothing happened until they asked again.
+   */
+  function resumeAfterSwitchOf(card: HTMLElement, failure: AiFailure): void {
+    const prompt = resumeAfterModelSwitch(failure, lastUserPrompt);
+    if (prompt === null) return;
+    void window.adcode.ai.status().then((status) => {
+      // Something was sent meanwhile: that turn, not this card, is where the conversation is.
+      if (!card.isConnected || sendButton.dataset["mode"] === "stop") return;
+      resumeOnSwitch = { card, failedOn: { provider: status.activeProvider, model: status.activeModel }, prompt };
+    }, () => undefined);
+  }
+
+  let resumeTimer: number | null = null;
+  function scheduleResume(): void {
+    if (resumeOnSwitch === null) return;
+    if (resumeTimer !== null) window.clearTimeout(resumeTimer);
+    // Let a switch settle first: Connect and Settings write the provider, then the model.
+    resumeTimer = window.setTimeout(() => {
+      resumeTimer = null;
+      void resumeIfSwitched();
+    }, 400);
+  }
+  window.adcode.settings.onChanged(() => scheduleResume());
+
+  /** Send the waiting turn if the model has changed to one that can answer. True when it went. */
+  async function resumeIfSwitched(): Promise<boolean> {
+    const pending = resumeOnSwitch;
+    if (pending === null || choosingModel) return false;
+    // A new conversation, or the old one reopened: the card it belonged to has gone.
+    if (!pending.card.isConnected) {
+      resumeOnSwitch = null;
+      return false;
+    }
+    // Still choosing in Connect: wait for it to close, so the turn runs on the model picked last.
+    if (deps.modelPickerOpen?.() === true) return false;
+    const status = await window.adcode.ai.status().catch(() => null);
+    if (status === null || resumeOnSwitch !== pending || !switchedFrom(pending.failedOn, status)) return false;
+    resumeOnSwitch = null;
+    pending.card.dataset["resumed"] = "true";
+    modeNote(`Now using ${chipLabel(status)} - picking up where it stopped.`);
+    resend(pending.prompt);
+    return true;
   }
 
   function reportFailure(title: string, detail: string): void {
@@ -3692,6 +3759,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   function setSendMode(mode: "send" | "stop"): void {
     working.hidden = mode !== "stop";
     if (mode === "stop") {
+      resumeOnSwitch = null;
       transcript.append(working);
       scrollToEnd();
     } else {
@@ -3892,7 +3960,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           if (keepGoing && /step limit/i.test(detail) && keptGoing < KEEP_GOING_LIMIT) {
             keptGoing += 1;
             modeNote(`Reached the step limit - keeping going (${keptGoing} of ${KEEP_GOING_LIMIT}).`);
-            continueWhenIdle("Continue from where you stopped and finish the remaining steps.");
+            continueWhenIdle(CONTINUE_PROMPT);
             break;
           }
           // The agent already continued a cut-off reply by itself, with more room each time.
@@ -4372,6 +4440,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       input.value = [input.value.trim(), question.trim()].filter(Boolean).join("\n\n");
       autogrowComposer();
       input.focus();
+    },
+    modelPickerClosed(): void {
+      scheduleResume();
     },
     reviewTask(task): void {
       api.open();

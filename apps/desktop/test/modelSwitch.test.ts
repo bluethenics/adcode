@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { modelChoices, chipLabel, rememberModel } from "../src/renderer/ai/modelSwitch.ts";
+import { modelChoices, chipLabel, rememberModel, switchedFrom } from "../src/renderer/ai/modelSwitch.ts";
 import type { AiProviderInfo, AiStatus } from "../src/shared/api.ts";
 
 /**
@@ -86,5 +86,20 @@ describe("chipLabel", () => {
 
   it("falls back to the id for a model the list does not know", () => {
     expect(chipLabel(status([provider("openai")], "openai", "gpt-x"))).toBe("gpt-x · Openai");
+  });
+});
+
+describe("switchedFrom", () => {
+  const failedOn = { provider: "openrouter", model: "openrouter-new" };
+  const providers = [provider("openrouter"), provider("groq")];
+
+  it("is a switch once another model, or the same model elsewhere, can answer", () => {
+    expect(switchedFrom(failedOn, status(providers, "groq", "groq-new"))).toBe(true);
+    expect(switchedFrom(failedOn, status(providers, "openrouter", "openrouter-old"))).toBe(true);
+  });
+
+  it("is not a switch to choose the same model again, or one that cannot answer yet", () => {
+    expect(switchedFrom(failedOn, status(providers, "openrouter", "openrouter-new"))).toBe(false);
+    expect(switchedFrom(failedOn, { ...status(providers, "groq", "groq-new"), ready: false })).toBe(false);
   });
 });

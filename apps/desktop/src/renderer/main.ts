@@ -4559,6 +4559,8 @@ const chat = createChatWidget({
   // The assistant opened a particular page: an open preview follows it there.
   showPreviewPage: (url) => previewPane.navigate(url),
   openConnect: () => openConnectFromChat(),
+  // The layer state, not the dialogs: a closing dialog stays open through its animation.
+  modelPickerOpen: () => popupLayerState.dependent === "connect" || popupLayerState.primary === "connect",
   saveAllOpenFiles: () => {
     void commands.run("file.saveAll");
   },
@@ -4756,7 +4758,13 @@ const connectShell = createPopupShell({
     dependentConnectView.element.querySelector<HTMLElement>(".settings-search"),
   onRequestClose: () => closeDependentPopup("connect"),
 });
-registerDependentPopup("connect", connectShell, dependentConnectView);
+registerDependentPopup("connect", connectShell, {
+  shown: () => dependentConnectView.shown(),
+  hidden: () => {
+    dependentConnectView.hidden();
+    chat.modelPickerClosed();
+  },
+});
 
 function openConnectFromChat(): void {
   if (assistantDock?.isDocked()) { openIndependentConnect("pointer"); return; }
@@ -4782,6 +4790,7 @@ registerPrimaryPopup("connect", connectPrimaryShell, {
   shown: () => connectView.shown(),
   hidden: () => {
     connectView.hidden();
+    chat.modelPickerClosed();
     editorHost.focus();
   },
 });

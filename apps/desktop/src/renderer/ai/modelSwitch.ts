@@ -77,6 +77,20 @@ export function rememberModel(recent: readonly string[], provider: string, model
   return [entry, ...recent.filter((one) => one !== entry)].slice(0, RECENT_KEPT);
 }
 
+/** The provider and model a turn ran on. */
+export interface ModelInUse {
+  readonly provider: string;
+  readonly model: string;
+}
+
+/**
+ * Whether the model has changed since a turn failed on `failedOn`, to one that can answer.
+ * Choosing the same model again, or a provider still waiting for its key, is not a switch yet.
+ */
+export function switchedFrom(failedOn: ModelInUse, status: AiStatus): boolean {
+  return status.ready && (status.activeProvider !== failedOn.provider || status.activeModel !== failedOn.model);
+}
+
 /** What the chip says: the model's own name, then a short provider name. */
 export function chipLabel(status: AiStatus): string {
   const provider = status.providers.find((one) => one.id === status.activeProvider);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeAiFailure, OUTPUT_LIMIT_AGAIN, providerFrom } from "../src/renderer/ai/aiFailure.ts";
+import { CONTINUE_PROMPT, describeAiFailure, OUTPUT_LIMIT_AGAIN, providerFrom, resumeAfterModelSwitch } from "../src/renderer/ai/aiFailure.ts";
 
 describe("assistant failure explanations", () => {
   it("names the provider from its own error", () => {
@@ -93,5 +93,32 @@ describe("assistant failure explanations", () => {
     const failure = describeAiFailure("something odd happened");
     expect(failure).toMatchObject({ kind: "unknown", actions: ["retry", "report"], detail: "something odd happened" });
     expect(describeAiFailure("  ").detail).toBe("The assistant stopped without saying why.");
+  });
+});
+
+/*
+ * Reported: after "OpenRouter account is out of credit" the user picked another model, and
+ * nothing happened - they had to ask again. Choosing the model was the answer to the card.
+ */
+describe("picking a failed turn back up after a model switch", () => {
+  it("carries on when the provider refused a request it had already been given", () => {
+    const failure = describeAiFailure("OpenRouter returned HTTP 402: Insufficient credits. Add more using https://openrouter.ai/settings/credits");
+    expect(failure.kind).toBe("credits");
+    expect(resumeAfterModelSwitch(failure, "build a todo app")).toBe(CONTINUE_PROMPT);
+  });
+
+  it("resends the request itself when no model was connected, since it never reached the conversation", () => {
+    const failure = describeAiFailure("No API key for OpenRouter. Add one in Connect a model.");
+    expect(failure.kind).toBe("no-key");
+    expect(resumeAfterModelSwitch(failure, "build a todo app")).toBe("build a todo app");
+    expect(resumeAfterModelSwitch(failure, "   ")).toBeNull();
+  });
+
+  it("does nothing for a failure another model would not fix", () => {
+    expect(resumeAfterModelSwitch(describeAiFailure("something odd happened"), "build a todo app")).toBeNull();
+    expect(resumeAfterModelSwitch(
+      describeAiFailure("Google returned HTTP 400: Function call is missing a thought_signature in functionCall parts."),
+      "build a todo app",
+    )).toBeNull();
   });
 });
