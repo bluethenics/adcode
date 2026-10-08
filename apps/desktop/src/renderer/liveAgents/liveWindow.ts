@@ -102,6 +102,9 @@ export function createLiveWindow(options: LiveWindowOptions): LiveWindowHandle {
 
   // Code view, built once and refilled.
   const code = make("div", "live-code");
+  // Typed a character at a time, inside the transcript's live region: a screen reader would
+  // read every keystroke. The step line and the footer say what it wrote.
+  code.setAttribute("aria-hidden", "true");
   const codeTab = make("div", "live-code-tab");
   const codeLines = make("pre", "live-code-lines");
   code.append(codeTab, codeLines);

@@ -34,7 +34,8 @@ export function identityForSource(source: LiveSourceView): LiveAgentIdentity {
   return { id: `${source.teamId}/${source.nodeId}`, label: source.label, role: source.roleId, model: source.model, lookKey: source.roleId, group: source.teamId };
 }
 
-const FINISHED: ReadonlySet<string> = new Set(["completed", "failed", "cancelled"]);
+// No member starts after these: a held, conflicted or merging team has run everything it will.
+const FINISHED: ReadonlySet<string> = new Set(["completed", "failed", "cancelled", "review", "conflict", "merging"]);
 
 export function createChatLiveRoom(): ChatLiveRoom {
   let enabled = true;
