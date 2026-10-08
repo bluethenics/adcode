@@ -68,7 +68,17 @@ export interface TerminalTeamRunner {
   status(): TerminalTeamStatus | null;
   isRunning(): boolean;
   onChanged(listener: () => void): () => void;
+  /** What each pane's agent is doing, for the chat's live room. */
+  onLive(listener: (update: TerminalTeamLiveUpdate) => void): () => void;
 }
+
+/** One pane's progress, as the live room hears it. */
+export type TerminalTeamLiveUpdate =
+  | { readonly kind: "start"; readonly teamId: string; readonly nodeId: string; readonly roleId: string; readonly roleLabel: string; readonly agentId: AgentId }
+  | { readonly kind: "output"; readonly teamId: string; readonly nodeId: string; readonly text: string }
+  | { readonly kind: "end"; readonly teamId: string; readonly nodeId: string; readonly ok: boolean }
+  /** A finished node's last words reaching the nodes that waited for it. */
+  | { readonly kind: "handoff"; readonly teamId: string; readonly from: string; readonly to: readonly string[]; readonly summary: string };
 
 /** Per-pane bookkeeping the pure engine deliberately knows nothing about. */
 interface PaneWatch {
@@ -88,6 +98,10 @@ export function createTerminalTeamRunner(port: TerminalTeamPort): TerminalTeamRu
 
   const changed = (): void => {
     for (const listener of listeners) listener();
+  };
+  const liveListeners = new Set<(update: TerminalTeamLiveUpdate) => void>();
+  const emitLive = (update: TerminalTeamLiveUpdate): void => {
+    for (const listener of liveListeners) listener(update);
   };
 
   /**
@@ -131,6 +145,7 @@ export function createTerminalTeamRunner(port: TerminalTeamPort): TerminalTeamRu
       port.label(paneId, `${role.label} · ${node.title}`);
       port.send(paneId, agentCommand(dispatch.agentId));
       port.send(paneId, brief);
+      emitLive({ kind: "start", teamId: team.id, nodeId: dispatch.nodeId, roleId: role.id, roleLabel: role.label, agentId: dispatch.agentId });
       changed();
     }
 
@@ -149,6 +164,12 @@ export function createTerminalTeamRunner(port: TerminalTeamPort): TerminalTeamRu
     if (team === null) return;
     team = completeTerminalTeamNode(team, nodeId, summary, port.now());
     watches.delete(paneId);
+    emitLive({ kind: "end", teamId: team.id, nodeId, ok: true });
+    const waiting = team.plan.nodes.filter((node) => node.dependsOn.includes(nodeId)).map((node) => node.id);
+    if (waiting.length > 0) {
+      const said = summary.trim().split("\n").filter((line) => line.trim().length > 0).at(-2) ?? "Finished";
+      emitLive({ kind: "handoff", teamId: team.id, from: nodeId, to: waiting, summary: said.trim().slice(0, 160) });
+    }
     changed();
     void pump();
   }
@@ -168,6 +189,11 @@ export function createTerminalTeamRunner(port: TerminalTeamPort): TerminalTeamRu
 
       watch.lastOutputAt = port.now();
       watch.tail = `${watch.tail}${data.replace(ANSI, "")}`.slice(-TAIL_LIMIT);
+      const running = team.running.find((candidate) => candidate.paneId === paneId);
+      if (running !== undefined && liveListeners.size > 0) {
+        const text = data.replace(ANSI, "").replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+        if (text.length > 0) emitLive({ kind: "output", teamId: team.id, nodeId: running.nodeId, text });
+      }
 
       const finished = watch.watcher.push(data);
       if (finished === null) return;
@@ -187,6 +213,7 @@ export function createTerminalTeamRunner(port: TerminalTeamPort): TerminalTeamRu
       if (run === undefined) return;
 
       team = failTerminalTeamNode(team, run.nodeId, "The terminal was closed", port.now());
+      emitLive({ kind: "end", teamId: team.id, nodeId: run.nodeId, ok: false });
       port.notify(`${run.nodeId} stopped because its terminal was closed.`);
       changed();
       void pump();
@@ -247,6 +274,11 @@ export function createTerminalTeamRunner(port: TerminalTeamPort): TerminalTeamRu
     onChanged(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
+    },
+
+    onLive(listener) {
+      liveListeners.add(listener);
+      return () => liveListeners.delete(listener);
     },
   };
 }

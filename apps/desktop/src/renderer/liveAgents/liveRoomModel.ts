@@ -40,8 +40,15 @@ export interface LiveFile {
 
 export type LiveProof = "passed" | "failed" | "unverified";
 
+/**
+ * Everything a window can be told: the shared live events, plus a terminal pane's raw output,
+ * which only the renderer sees (Team in the terminal runs here, not in the main process).
+ */
+export type LiveRoomEvent = LiveEventView | { readonly kind: "output"; readonly command: string; readonly text: string };
+
 export interface LiveAgent extends LiveAgentIdentity {
-  readonly status: "working" | "done" | "failed";
+  /** "waiting": a Team member whose turn has not come yet. */
+  readonly status: "waiting" | "working" | "done" | "failed";
   /** One line: what it is doing now. */
   readonly step: string;
   readonly activity: LiveActivity;
@@ -159,12 +166,24 @@ function recipients(state: LiveRoomState, from: LiveAgent, role: string): string
     .map((agent) => agent.id);
 }
 
-function reduceAgent(agent: LiveAgent, event: LiveEventView, now: number): LiveAgent {
+/** The last line a terminal printed, as the window's step: the closest a CLI comes to saying what it is doing. */
+function lastLine(output: string, fallback: string): string {
+  const lines = output.split("\n").map((line) => line.trim()).filter((line) => line.length > 0);
+  const last = lines.at(-1);
+  return last === undefined ? fallback : last.slice(0, 80);
+}
+
+function reduceAgent(agent: LiveAgent, event: LiveRoomEvent, now: number): LiveAgent {
   const activity = agent.activity;
   const busy = (activity.kind === "code" || activity.kind === "command") && !activity.final;
   switch (event.kind) {
     case "start":
       return agent;
+    case "output": {
+      const before = activity.kind === "command" && activity.toolId === "pane" ? activity.output : "";
+      const output = `${before}${event.text}`.slice(-OUTPUT_LIMIT);
+      return { ...agent, step: lastLine(output, `${event.command} is working`), activity: { kind: "command", toolId: "pane", command: event.command, output, final: false } };
+    }
     case "thinking":
       return { ...agent, step: busy ? agent.step : "Thinking", activity: activity.kind === "idle" || activity.kind === "text" ? { kind: "thinking" } : activity };
     case "text": {
@@ -230,10 +249,10 @@ function reduceAgent(agent: LiveAgent, event: LiveEventView, now: number): LiveA
 }
 
 /** Apply one event from one agent. Unknown agents are added; a finished agent that starts again starts fresh. */
-export function applyLiveEvent(state: LiveRoomState, identity: LiveAgentIdentity, event: LiveEventView, now: number): LiveRoomState {
+export function applyLiveEvent(state: LiveRoomState, identity: LiveAgentIdentity, event: LiveRoomEvent, now: number): LiveRoomState {
   const index = state.agents.findIndex((agent) => agent.id === identity.id);
   const existing = index === -1 ? null : state.agents[index]!;
-  const restart = existing !== null && existing.status !== "working" && event.kind === "start";
+  const restart = existing !== null && (existing.status === "waiting" || (existing.status !== "working" && event.kind === "start"));
   const base = existing === null || restart ? fresh(identity, now) : { ...existing, label: identity.label, model: identity.model };
   const agent = reduceAgent(base, event, now);
   const agents = index === -1 ? [...state.agents, agent] : state.agents.map((candidate, at) => (at === index ? agent : candidate));
@@ -256,6 +275,18 @@ export function addLiveSignal(state: LiveRoomState, signal: Omit<LiveSignal, "id
 export function takeLiveSignals(state: LiveRoomState): [LiveRoomState, LiveSignal[]] {
   if (state.signals.length === 0) return [state, []];
   return [{ ...state, signals: [] }, [...state.signals]];
+}
+
+/** Show a Team member before its turn, so the whole team is on the strip from the start. */
+export function ensureLiveAgent(state: LiveRoomState, identity: LiveAgentIdentity, step: string, now: number): LiveRoomState {
+  if (state.agents.some((agent) => agent.id === identity.id)) return state;
+  return { ...state, agents: [...state.agents, { ...fresh(identity, now), status: "waiting", step }] };
+}
+
+/** A team has finished: members still waiting never will start. */
+export function settleLiveGroup(state: LiveRoomState, group: string): LiveRoomState {
+  const agents = state.agents.filter((agent) => agent.group !== group || agent.status !== "waiting");
+  return agents.length === state.agents.length ? state : { ...state, agents };
 }
 
 /** Drop agents that finished more than `keepMs` ago. */

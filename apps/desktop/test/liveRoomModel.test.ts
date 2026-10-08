@@ -3,6 +3,8 @@ import {
   addLiveSignal,
   applyLiveEvent,
   emptyLiveRoom,
+  ensureLiveAgent,
+  settleLiveGroup,
   pruneLiveRoom,
   takeLiveSignals,
   type LiveAgentIdentity,
@@ -138,6 +140,30 @@ describe("signals between agents", () => {
     for (let index = 0; index < 30; index += 1) state = addLiveSignal(state, { kind: "message", from: build.id, to: [check.id], text: String(index), at: index });
     expect(state.log).toHaveLength(20);
     expect(state.log.at(-1)?.text).toBe("29");
+  });
+});
+
+describe("team members before and after they work", () => {
+  it("shows a member that has not started as waiting, and starts it fresh", () => {
+    let state = ensureLiveAgent(emptyLiveRoom(), check, "Waiting for BUILD", 1);
+    expect(agentOf(state, check)).toMatchObject({ status: "waiting", step: "Waiting for BUILD" });
+    expect(ensureLiveAgent(state, check, "again", 2)).toBe(state);
+    state = applyLiveEvent(state, check, { kind: "start" }, 3);
+    expect(agentOf(state, check)).toMatchObject({ status: "working", startedAt: 3 });
+  });
+
+  it("streams a terminal pane into a command window", () => {
+    let state = applyLiveEvent(emptyLiveRoom(), build, { kind: "output", command: "claude", text: "Reading files\n" }, 1);
+    state = applyLiveEvent(state, build, { kind: "output", command: "claude", text: "Editing a.ts" }, 2);
+    expect(agentOf(state, build).activity).toEqual({ kind: "command", toolId: "pane", command: "claude", output: "Reading files\nEditing a.ts", final: false });
+  });
+
+  it("removes a finished team's members that never started, and nobody else", () => {
+    let state = ensureLiveAgent(emptyLiveRoom(), check, "Waiting", 1);
+    state = applyLiveEvent(state, build, { kind: "start" }, 1);
+    state = ensureLiveAgent(state, who("check", "other"), "Waiting", 1);
+    state = settleLiveGroup(state, "t1");
+    expect(state.agents.map((agent) => agent.id)).toEqual([build.id, "other/check"]);
   });
 });
 
