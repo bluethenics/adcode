@@ -31,6 +31,8 @@ export type LiveEventView =
       readonly command: string | null;
       readonly added: number;
       readonly removed: number;
+      /** The tail of the code an edit writes, for a window that saw no draft of it. Empty otherwise. */
+      readonly preview: string;
     }
   | {
       readonly kind: "tool-draft";
@@ -100,6 +102,20 @@ function planSteps(raw: unknown): LivePlanStep[] {
   });
 }
 
+/** The new code an edit writes: a whole file, or each replacement with a marker between them. */
+export function codeWritten(name: string, input: Readonly<Record<string, unknown>>): string {
+  if (name === "propose_edit") return typeof input["contents"] === "string" ? input["contents"] : "";
+  if (name !== "edit_file") return "";
+  const edits = Array.isArray(input["edits"]) ? (input["edits"] as unknown[]) : [input];
+  return edits
+    .map((edit) => (typeof edit === "object" && edit !== null && typeof (edit as Record<string, unknown>)["new_string"] === "string" ? (edit as Record<string, string>)["new_string"] : null))
+    .filter((text): text is string => text !== null)
+    .join(EDIT_SEPARATOR);
+}
+
+/** What separates two replacements of one edit_file call in a live window. */
+export const EDIT_SEPARATOR = "\n⋯\n";
+
 /** The subset of an agent event this module reads - structural, so no package import is needed. */
 export type LiveAgentEventLike =
   | { readonly kind: "text"; readonly text: string }
@@ -117,7 +133,13 @@ export function liveEventFrom(event: LiveAgentEventLike): LiveEventView | null {
     return { kind: "plan", steps: planSteps(event.call.input["steps"]) };
   }
   if (event.kind === "tool-call" && "call" in event) {
-    return { kind: "tool-call", id: event.call.id, name: event.call.name, ...toolCallSummary(event.call.name, event.call.input) };
+    return {
+      kind: "tool-call",
+      id: event.call.id,
+      name: event.call.name,
+      ...toolCallSummary(event.call.name, event.call.input),
+      preview: codeWritten(event.call.name, event.call.input).slice(-OUTPUT_LIMIT),
+    };
   }
   if (event.kind === "tool-draft" && "append" in event) {
     return { kind: "tool-draft", id: event.id, name: event.name, path: event.path, edit: event.edit, append: event.append };

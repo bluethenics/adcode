@@ -27,7 +27,16 @@ describe("toolCallSummary", () => {
 describe("liveEventFrom", () => {
   it("maps a tool call to its summary, never its contents", () => {
     const event = liveEventFrom({ kind: "tool-call", call: { id: "c1", name: "propose_edit", input: { path: "a.ts", contents: "secret\nline" } } });
-    expect(event).toEqual({ kind: "tool-call", id: "c1", name: "propose_edit", path: "a.ts", command: null, added: 2, removed: 0 });
+    expect(event).toMatchObject({ kind: "tool-call", id: "c1", name: "propose_edit", path: "a.ts", command: null, added: 2, removed: 0 });
+  });
+
+  it("carries the tail of the new code, so a provider that never streamed still has code to show", () => {
+    const whole = liveEventFrom({ kind: "tool-call", call: { id: "c1", name: "propose_edit", input: { path: "a.ts", contents: `${"x".repeat(5000)}END` } } });
+    expect(whole?.kind === "tool-call" && whole.preview.endsWith("END") && whole.preview.length <= 4000).toBe(true);
+    const edits = liveEventFrom({ kind: "tool-call", call: { id: "c2", name: "edit_file", input: { path: "a.ts", edits: [{ old_string: "a", new_string: "one" }, { old_string: "b", new_string: "two" }] } } });
+    expect(edits?.kind === "tool-call" && edits.preview).toBe("one\n⋯\ntwo");
+    const read = liveEventFrom({ kind: "tool-call", call: { id: "c3", name: "read_file", input: { path: "a.ts" } } });
+    expect(read?.kind === "tool-call" && read.preview).toBe("");
   });
 
   it("turns update_plan into the plan's steps, dropping malformed ones", () => {
