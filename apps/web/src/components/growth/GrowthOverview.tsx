@@ -69,7 +69,7 @@ export function GrowthOverview() {
                 <strong>{step.title}</strong>
                 <p>{step.detail}</p>
               </div>
-              {!step.done && step.action !== undefined && <Link className="btn btn-small" href={step.action.href}>{step.action.label}</Link>}
+              {!step.done && step.action !== undefined && <Link className="btn btn-small btn-outline" href={step.action.href}>{step.action.label}</Link>}
               <span className="sr-only">{step.done ? "Done" : "Not done"}</span>
             </li>
           ))}

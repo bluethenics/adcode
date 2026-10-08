@@ -9,6 +9,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import { CodeboxCopy } from "@/components/CodeboxCopy";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { THEME_SCRIPT } from "@/lib/theme";
+import { STALE_DEPLOY_SCRIPT } from "@/lib/staleDeploy";
 import { organisation, softwareApplication, webSite } from "@/lib/schema";
 import "./globals.css";
 import "./design-system.css";
@@ -125,7 +126,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning className={`${display.variable} ${body.variable} ${mono.variable}`}>
-      <head><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /></head>
+      <head><script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} /><script dangerouslySetInnerHTML={{ __html: STALE_DEPLOY_SCRIPT }} /></head>
       <body>
         <JsonLd data={organisation()} />
         <JsonLd data={webSite()} />

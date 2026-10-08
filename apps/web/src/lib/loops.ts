@@ -145,6 +145,13 @@ export const SURFACE_LABEL: Record<LoopSurface, string> = {
   admin: "You",
 };
 
+/** The query parameter a tag travels in, as an operator would look for it in a link. */
+export function tagParameter(tag: string): string {
+  if (tag === "advertiser-pitch") return "for=ads";
+  if (tag === "send-to-desktop") return "utm_source=send-to-desktop";
+  return `from=${tag}`;
+}
+
 /** Invite-page visits for one loop, from the report's `invitePages` ranking. */
 export function loopVisits(loop: GrowthLoop, invitePages: readonly { label: string; count: number }[] | undefined): number | null {
   if (loop.tags.length === 0 || invitePages === undefined) return null;

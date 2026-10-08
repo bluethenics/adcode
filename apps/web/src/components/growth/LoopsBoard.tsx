@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { GROWTH_LOOPS, loopVisits, SURFACE_LABEL, untaggedVisits } from "@/lib/loops";
+import { GROWTH_LOOPS, loopVisits, SURFACE_LABEL, tagParameter, untaggedVisits } from "@/lib/loops";
 import { useWebsiteReport, WindowPicker } from "./useGrowthData";
 
 /**
@@ -45,10 +45,10 @@ export function LoopsBoard() {
                       : loop.measure}
                   </dd>
                 </div>
-                {loop.tags.length > 0 && <div><dt>Link tag</dt><dd className="mono">{loop.tags.map((tag) => (tag === "advertiser-pitch" ? "for=ads" : `from=${tag}`)).join(", ")}</dd></div>}
+                {loop.tags.length > 0 && <div><dt>Link tag</dt><dd className="mono">{loop.tags.map(tagParameter).join(", ")}</dd></div>}
               </dl>
               {loop.editorAfter !== undefined && <p className="website-analytics-note">In the editor from the first desktop release after {loop.editorAfter}.</p>}
-              {loop.manage !== undefined && <Link className="btn btn-small" href={loop.manage.href}>{loop.manage.label}</Link>}
+              {loop.manage !== undefined && <Link className="btn btn-small btn-outline" href={loop.manage.href}>{loop.manage.label}</Link>}
             </li>
           );
         })}

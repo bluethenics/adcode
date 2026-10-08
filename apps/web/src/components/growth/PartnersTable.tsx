@@ -33,7 +33,7 @@ export function PartnersTable() {
             Everyone with an account has an invite link - in the editor&apos;s Invite &amp; earn and on their dashboard.
             A partner appears here once someone claims their code. Try All time, or see which loops are sending visits in Loops.
           </p>
-          <Link className="btn btn-small" href="/admin/growth?tab=loops">Open Loops</Link>
+          <Link className="btn btn-small btn-outline" href="/admin/growth?tab=loops">Open Loops</Link>
         </section>
       )}
 
