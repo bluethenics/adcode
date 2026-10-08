@@ -389,6 +389,37 @@ export const PROJECT_CONTEXT: ToolDefinition = {
   concurrent: true,
 };
 
+/* ── Team messages ─────────────────────────────────────────────────────── */
+
+export const MESSAGE_TEAMMATE: ToolDefinition = {
+  name: "message_teammate",
+  description:
+    "Send a short message to a teammate on this Team while you both work - an API you finished, a file you are about to change, a decision they should follow, or a question. It reaches them at their next step. Keep it to what they need; do not narrate your progress.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      to: { type: "string", description: "The teammate's role id, or all" },
+      text: { type: "string", description: "The message, one or two sentences" },
+    },
+    required: ["to", "text"],
+  },
+  mutating: false,
+};
+
+export const READ_MESSAGES: ToolDefinition = {
+  name: "read_messages",
+  description: "Read the messages your teammates sent you that you have not seen yet.",
+  inputSchema: { type: "object", properties: {} },
+  mutating: false,
+  concurrent: true,
+};
+
+/** What a Team role adds to its tools, so its teammates can hear from it mid-run. */
+export const TEAM_TOOLS: readonly ToolDefinition[] = [MESSAGE_TEAMMATE, READ_MESSAGES];
+
+/** The memory tools, for agents that run outside the chat. */
+export const MEMORY_TOOLS: readonly ToolDefinition[] = [PROJECT_CONTEXT, MEMORY_SEARCH, MEMORY_WRITE];
+
 /** Every tool the chat assistant has. */
 export const BUILT_IN_TOOLS: readonly ToolDefinition[] = [
   READ_FILE,
