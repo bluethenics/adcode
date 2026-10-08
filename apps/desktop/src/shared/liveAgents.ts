@@ -41,11 +41,18 @@ export type LiveEventView =
       readonly append: string;
     }
   | { readonly kind: "tool-result"; readonly id: string; readonly name: string; readonly ok: boolean; readonly output: string }
+  /** The agent posted or updated its plan. */
+  | { readonly kind: "plan"; readonly steps: readonly LivePlanStep[] }
   /** This agent sent a teammate a message. `to` is a role id, or "all". */
   | { readonly kind: "message"; readonly to: string; readonly text: string }
-  /** This agent edited a path another agent on its team had already edited. */
-  | { readonly kind: "overlap"; readonly withNode: string; readonly path: string }
+  /** This agent edited a path another role on its team had already edited. */
+  | { readonly kind: "overlap"; readonly withRole: string; readonly path: string }
   | { readonly kind: "end"; readonly ok: boolean };
+
+export interface LivePlanStep {
+  readonly step: string;
+  readonly status: "pending" | "in_progress" | "done";
+}
 
 export interface LiveAgentEventView {
   readonly source: LiveSourceView;
@@ -81,6 +88,18 @@ export function toolCallSummary(
   return { path, command, added, removed };
 }
 
+function planSteps(raw: unknown): LivePlanStep[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, 12).flatMap((item) => {
+    if (typeof item !== "object" || item === null) return [];
+    const record = item as Record<string, unknown>;
+    const step = typeof record["step"] === "string" ? record["step"].trim().slice(0, 200) : "";
+    const status = record["status"];
+    if (step.length === 0 || (status !== "pending" && status !== "in_progress" && status !== "done")) return [];
+    return [{ step, status }];
+  });
+}
+
 /** The subset of an agent event this module reads - structural, so no package import is needed. */
 export type LiveAgentEventLike =
   | { readonly kind: "text"; readonly text: string }
@@ -94,6 +113,9 @@ export type LiveAgentEventLike =
 export function liveEventFrom(event: LiveAgentEventLike): LiveEventView | null {
   if (event.kind === "text" && "text" in event) return { kind: "text", text: event.text };
   if (event.kind === "thinking") return { kind: "thinking" };
+  if (event.kind === "tool-call" && "call" in event && event.call.name === "update_plan") {
+    return { kind: "plan", steps: planSteps(event.call.input["steps"]) };
+  }
   if (event.kind === "tool-call" && "call" in event) {
     return { kind: "tool-call", id: event.call.id, name: event.call.name, ...toolCallSummary(event.call.name, event.call.input) };
   }

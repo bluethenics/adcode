@@ -30,6 +30,11 @@ describe("liveEventFrom", () => {
     expect(event).toEqual({ kind: "tool-call", id: "c1", name: "propose_edit", path: "a.ts", command: null, added: 2, removed: 0 });
   });
 
+  it("turns update_plan into the plan's steps, dropping malformed ones", () => {
+    const event = liveEventFrom({ kind: "tool-call", call: { id: "p1", name: "update_plan", input: { steps: [{ step: "Add API", status: "done" }, { step: "Test it", status: "in_progress" }, { step: 3, status: "x" }] } } });
+    expect(event).toEqual({ kind: "plan", steps: [{ step: "Add API", status: "done" }, { step: "Test it", status: "in_progress" }] });
+  });
+
   it("keeps only the tail of a tool's output", () => {
     const event = liveEventFrom({ kind: "tool-result", toolCallId: "c1", name: "run_command", content: `${"a".repeat(9000)}END`, isError: false });
     expect(event?.kind).toBe("tool-result");
@@ -43,8 +48,10 @@ describe("liveEventFrom", () => {
   it("passes drafts through and drops events a window does not show", () => {
     expect(liveEventFrom({ kind: "tool-draft", id: "c1", name: "edit_file", path: null, edit: 1, append: "x" })).toEqual({ kind: "tool-draft", id: "c1", name: "edit_file", path: null, edit: 1, append: "x" });
     expect(liveEventFrom({ kind: "thinking", text: "hmm" })).toEqual({ kind: "thinking" });
-    expect(liveEventFrom({ kind: "status", text: "waiting" })).toBeNull();
-    expect(liveEventFrom({ kind: "context", tokens: 1, contextWindow: 2 })).toBeNull();
+    const status = { kind: "status", text: "waiting" };
+    const context = { kind: "context", tokens: 1, contextWindow: 2 };
+    expect(liveEventFrom(status)).toBeNull();
+    expect(liveEventFrom(context)).toBeNull();
   });
 });
 

@@ -196,6 +196,9 @@ const api: AdcodeApi = {
     traces: (id) => ipcRenderer.invoke(CHANNELS.aiTeamTraces, id),
     onChanged: (listener) => subscribe(CHANNELS.aiTeamChanged, listener),
   },
+  aiLive: {
+    onEvent: (listener) => subscribe(CHANNELS.aiLive, listener),
+  },
   aiAutomation: {
     create: (input) => ipcRenderer.invoke(CHANNELS.aiAutomationCreate, input),
     list: () => ipcRenderer.invoke(CHANNELS.aiAutomationList),
