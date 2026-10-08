@@ -588,7 +588,7 @@ Access: `All Features → AI file tools`; `Turn on or off`; `Settings`.
 <!-- feature:ai.team -->
 ### AI Team
 
-Create named agents with their own instructions and models, then let a team divide a task and bring its results back for review.
+Create named agents with their own instructions and models, then let a team divide a task - messaging each other as they work and sharing the project's memory - and bring its results back for review.
 
 Why use it: Independent research, coding, and checking can finish faster without making one assistant carry every detail in the same context.
 
@@ -694,6 +694,17 @@ Why use it: Long builds - a whole site, a refactor across many files - can need 
 How to use it: On by default. Turn it off from the approval menu in the chat's composer or in Settings. When a turn ends at the step limit, ADCode sends Continue for you, up to five times in a row, and says so in the conversation each time. Sending your own message or pressing Stop resets the count. With it off, the assistant stops at its step limit and a Continue button picks up where it left off. Together with Apply automatically, and Automations to schedule the job, work runs start to finish without you.
 
 Access: `All Features → Keep going until done`; `Turn on or off`; `Settings`.
+
+<!-- feature:ai.liveAgents -->
+### Live agent view
+
+Watch every agent at work in the chat: the code it is writing types in as the model produces it, commands show their output as they run, and agents on a Team pass messages you can see.
+
+Why use it: An agent working out of sight is hard to trust and hard to stop in time. Seeing the code appear line by line, and seeing teammates tell each other what they changed, shows you what is happening while there is still time to step in.
+
+How to use it: On by default. When the assistant writes a file or runs a command, a live window appears in the conversation: the file's name, the code typing in, then the files it touched and whether it ran checks. When agents from the Agents page, a Team, a race or Team in the terminal are working, a live room sits above the chat with their mascots side by side and a window for each. When one agent messages another, hands off its work, or edits a file a teammate already edited, the sender turns to the receiver and a speech bubble crosses between them; the line under the mascots keeps what was said. Click a mascot or a window's title bar to fill the room with that agent, and Hide windows to keep just the mascots. Each window shows Checks passed, Check failed or Unverified, from the commands the agent actually ran - never from what it claims. Turn it off in Settings > AI > Live agent view.
+
+Access: `All Features → Live agent view`; `Turn on or off`; `Settings`.
 
 <!-- feature:ai.autoCompact -->
 ### Long chat memory and auto-compact

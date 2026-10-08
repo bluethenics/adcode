@@ -27,7 +27,7 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
   {
     id: "ai.team",
     title: "AI Team",
-    plain: "Create named agents with their own instructions and models, then let a team divide a task and bring its results back for review.",
+    plain: "Create named agents with their own instructions and models, then let a team divide a task - messaging each other as they work and sharing the project's memory - and bring its results back for review.",
     why: "Independent research, coding, and checking can finish faster without making one assistant carry every detail in the same context.",
     how: "Open Agents from the Vibe sidebar or the command palette. Create agents under Your agents with a name, look, instructions, connection, model and the tools they may use. Enable Run after teammates for an agent that should receive others' handoffs first. Choose Select for a Team, tick two to four agents, press Set up Team and describe the shared task. The Team appears as one box under Needs you with its members' mascots; press Start to begin. Select the box to see each step it took. Review combined changes before applying them, or Stop a running team. Requests share each connection's rate limit, and Teams count towards Agents working at once. The assistant can also suggest a Team for a big request in the chat.",
     group: "ai",
@@ -130,6 +130,19 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     group: "ai",
     settingIds: [],
     related: ["ai.team", "adcode.ai.terminalAgentDetection", "adcode.ai.autoContinue"],
+  },
+  {
+    id: "ai.liveAgents",
+    title: "Live agent view",
+    plain:
+      "Watch every agent at work in the chat: the code it is writing types in as the model produces it, commands show their output as they run, and agents on a Team pass messages you can see.",
+    why:
+      "An agent working out of sight is hard to trust and hard to stop in time. Seeing the code appear line by line, and seeing teammates tell each other what they changed, shows you what is happening while there is still time to step in.",
+    how:
+      "On by default. When the assistant writes a file or runs a command, a live window appears in the conversation: the file's name, the code typing in, then the files it touched and whether it ran checks. When agents from the Agents page, a Team, a race or Team in the terminal are working, a live room sits above the chat with their mascots side by side and a window for each. When one agent messages another, hands off its work, or edits a file a teammate already edited, the sender turns to the receiver and a speech bubble crosses between them; the line under the mascots keeps what was said. Click a mascot or a window's title bar to fill the room with that agent, and Hide windows to keep just the mascots. Each window shows Checks passed, Check failed or Unverified, from the commands the agent actually ran - never from what it claims. Turn it off in Settings > AI > Live agent view.",
+    group: "ai",
+    settingIds: ["adcode.ai.liveAgentView"],
+    related: ["ai.team", "ai.terminalTeam", "ai.raceMode"],
   },
   {
     id: "adcode.ai.autoContinue",

@@ -239,6 +239,9 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("agents.race", "Start a race")],
     keywords: ["race", "best of n", "compare models", "several models", "multiple models", "try different models", "pick the best", "a/b", "parallel attempts"],
   },
+  "ai.liveAgents": {
+    keywords: ["live", "watch agents", "see what the agent is doing", "live coding", "typing", "real time", "realtime", "agents talking", "agent messages", "team chat", "mission control", "lanes", "progress", "what is it doing", "unverified", "proof"],
+  },
   "ai.agentMascots": {
     actions: [command("agents.newAgent", "Create an agent")],
     keywords: ["mascot", "avatar", "character", "agent look", "shape", "colour", "color", "face", "bloub"],
