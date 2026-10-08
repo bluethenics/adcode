@@ -413,8 +413,11 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
             const existing = pending.get(index) ?? { id: "", name: "", args: "" };
             if (typeof call["id"] === "string") existing.id = call["id"];
             if (typeof fn?.["name"] === "string") existing.name = fn["name"];
-            if (typeof fn?.["arguments"] === "string") existing.args += fn["arguments"];
             pending.set(index, existing);
+            if (typeof fn?.["arguments"] === "string" && fn["arguments"].length > 0) {
+              existing.args += fn["arguments"];
+              yield { kind: "tool-input", index, id: existing.id, name: existing.name, fragment: fn["arguments"] };
+            }
           }
         }
       }

@@ -100,7 +100,12 @@ async function* readStream(stream: ClaudeStream, signal: AbortSignal, reading: {
           if (delta.thinking.length > 0) yield { kind: "thinking", text: delta.thinking };
         } else if (delta.type === "input_json_delta") {
           const accumulator = pending.get(event.index);
-          if (accumulator) accumulator.json += delta.partial_json;
+          if (accumulator) {
+            accumulator.json += delta.partial_json;
+            if (delta.partial_json.length > 0) {
+              yield { kind: "tool-input", index: event.index, id: accumulator.id, name: accumulator.name, fragment: delta.partial_json };
+            }
+          }
         }
         break;
       }

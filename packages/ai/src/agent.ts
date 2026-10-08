@@ -26,6 +26,7 @@ import type {
   ContentBlock,
 } from "./types.ts";
 import { isRequestTooLarge, LEAN_SYSTEM, leanHistory, leanTools } from "./requestSize.ts";
+import { createToolDraftReader, type ToolDraftReader } from "./toolDraft.ts";
 import {
   compactedHistory,
   compactionDue,
@@ -466,11 +467,28 @@ export function createAgent(deps: AgentDeps): Agent {
           return;
         }
         const stream = deps.provider.stream(request, signal);
+        // One reader per streaming call, keyed by the provider's index: an OpenAI-compatible
+        // stream may name the call's id only after its first fragment.
+        const drafts = new Map<number, { readonly reader: ToolDraftReader | null; id: string }>();
 
         for await (const event of stream) {
           if (signal.aborted) break;
 
           switch (event.kind) {
+            case "tool-input": {
+              let draft = drafts.get(event.index);
+              if (draft === undefined) {
+                draft = { reader: createToolDraftReader(event.name), id: event.id };
+                drafts.set(event.index, draft);
+              }
+              if (event.id.length > 0) draft.id = event.id;
+              if (draft.reader === null) break;
+              for (const update of draft.reader.push(event.fragment)) {
+                yield { kind: "tool-draft", id: draft.id, name: event.name, path: update.path, edit: update.edit, append: update.append };
+              }
+              break;
+            }
+
             case "text":
               assistantContent.push({ type: "text", text: event.text });
               yield { kind: "text", text: event.text };
