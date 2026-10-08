@@ -57,7 +57,8 @@ export function createChatLiveWindow(options: ChatLiveWindowOptions): ChatLiveWi
   return {
     handle(event) {
       const live = liveEventFrom(event as LiveAgentEventLike);
-      if (live === null) return null;
+      // The chat prints the assistant's words itself; the window keeps showing its work.
+      if (live === null || live.kind === "text") return null;
       if (state.agents.length === 0) state = applyLiveEvent(state, identity(), { kind: "start" }, Date.now());
       state = applyLiveEvent(state, identity(), live, Date.now());
       let created: HTMLElement | null = null;
