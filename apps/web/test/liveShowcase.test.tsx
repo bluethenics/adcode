@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import Home from "../src/app/page";
@@ -53,9 +52,8 @@ describe("the recording", () => {
   });
 
   it("points at files that exist", () => {
-    const publicDir = join(import.meta.dirname, "../public");
     for (const file of [liveRecording.poster, liveRecording.webm, liveRecording.mp4]) {
-      expect(existsSync(join(publicDir, file)), file).toBe(true);
+      expect(existsSync(new URL(`../public${file}`, import.meta.url)), file).toBe(true);
     }
   });
 });
