@@ -2379,10 +2379,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    */
   function ensureActivity(): ActivityBlockHandle {
     if (activeActivity !== null) return activeActivity;
-    // The activity block is the turn's status line — the legacy dot-pulse
-    // working row would read as a second, competing "Thinking" underneath it.
-    working.hidden = true;
-    working.remove();
+    // The activity block names the step, so the "is writing" row underneath drops its own
+    // step text rather than read as a second, competing "Thinking" - but it stays, because
+    // it carries who is working, for how long, and Stop.
+    working.dataset["activity"] = "open";
     const block = createActivityBlock({ label: "Thinking" });
     transcript.append(block.element);
     activeActivity = block;
@@ -2392,6 +2392,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /** Text is starting: the work before it is done. A "Thinking" placeholder with no steps just goes. */
   function closeActivitySegment(): void {
+    delete working.dataset["activity"];
     if (activeActivity === null) return;
     if (activityToolRows.size === 0) {
       activeActivity.destroy();
@@ -2402,6 +2403,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   function finishActivity(label?: string): void {
+    delete working.dataset["activity"];
     if (activeActivity === null) return;
     // A block with no steps in it has nothing to report: "Worked for 3s" over an empty box
     // is noise, and it used to leave a second mascot behind. A failure keeps its block.
@@ -2419,6 +2421,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /** Drop a live block without finalizing (reset / resume replace the transcript). */
   function resetActivity(): void {
+    delete working.dataset["activity"];
     streamPaint.cancel();
     dirtyMessages.clear();
     if (activeActivity !== null) {
@@ -3953,6 +3956,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (!ending && !turnActive) {
       turnActive = true;
       turnStartedAt = Date.now();
+      // A turn this composer did not start - the other window's, a schedule's - can still
+      // be stopped from here: it is the same assistant, and it needs the same Stop.
+      if (sendButton.dataset["mode"] !== "stop") setSendMode("stop");
       ensureAuthor();
       // A new turn gets its own plan and its own view, below its own question.
       planCard = null;

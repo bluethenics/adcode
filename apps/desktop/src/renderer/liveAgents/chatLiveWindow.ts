@@ -33,8 +33,6 @@ export interface ChatLiveWindowOptions {
   label(): string;
   model(): string;
   enabled(): boolean;
-  /** Stop the turn, the same as the chat's stop button. */
-  stop?(): void;
   onMenu?(agent: LiveAgent, anchor: HTMLElement): void;
 }
 
@@ -68,11 +66,12 @@ export function createChatLiveWindow(options: ChatLiveWindowOptions): ChatLiveWi
       let created: HTMLElement | null = null;
       const watchable = live.kind === "tool-draft" || (live.kind === "tool-call" && WATCHED_TOOLS.has(live.name));
       if (window_ === null && watchable && options.enabled()) {
-        const stop = options.stop;
+        // No Stop in this window's bar: the "is writing" row right under it and the
+        // composer's stop square already stop this turn, and three Stops in one view is
+        // clutter. Its ⋯ menu still offers Stop.
         window_ = createLiveWindow({
           look: options.look(),
           lines: 16,
-          ...(stop === undefined ? {} : { stop: () => ({ label: "Stop", run: () => stop() }) }),
           ...(options.onMenu === undefined ? {} : { onMenu: options.onMenu }),
         });
         window_.element.classList.add("live-window-inline");

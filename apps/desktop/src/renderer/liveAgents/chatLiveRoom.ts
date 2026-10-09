@@ -158,7 +158,6 @@ export function createChatLiveRoom(deps: ChatLiveRoomDeps = {}): ChatLiveRoom {
     label: () => appearance.name,
     model: () => model,
     enabled: () => enabled,
-    stop: () => deps.stopChat?.(),
     onMenu: openAgentMenu,
   });
 

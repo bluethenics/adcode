@@ -287,7 +287,6 @@ const chatControls = await evaluate(`(async () => {
   const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const card = document.querySelector('.chat-card');
-  const working = card?.querySelector('.chat-working');
   // The accent as the page paints it, to compare a menu row's background against.
   const probe = document.createElement('span');
   probe.style.background = 'var(--accent)';
@@ -307,7 +306,9 @@ const chatControls = await evaluate(`(async () => {
   const menuEvidence = {
     focusedBackground: focused ? getComputedStyle(focused).backgroundColor : null,
     dangerBackground: danger ? getComputedStyle(danger).backgroundColor : null,
-    alignedToButton: !!menu && !!options && Math.abs(menu.getBoundingClientRect().left - options.getBoundingClientRect().left) <= 2,
+    // The position it was given, not its box: menus scale in, and mid-animation the box is not where it lands.
+    menuLeft: menu ? parseFloat(menu.style.left) : null,
+    buttonLeft: options ? options.getBoundingClientRect().left : null,
   };
   document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
   await frame();
@@ -356,11 +357,11 @@ const chatControls = await evaluate(`(async () => {
   const usageView = await window.adcode.aiUsage.read('7d');
 
   return {
-    stopInWorkingRow: !!working?.querySelector('.chat-working-stop') && working.hidden === true,
-    workingNamesTheAssistant: (working?.querySelector('.chat-working-name')?.textContent ?? '').length > 0,
+    // Idle: no "is writing" row in the conversation. smoke:live checks it while a turn runs.
+    noWorkingRowWhileIdle: !card?.querySelector('.chat-transcript .chat-working:not([hidden])'),
     menuRowsNotFilledWithAccent: !!focused && menuEvidence.focusedBackground !== accent,
     dangerRowNotSolidRed: !danger || menuEvidence.dangerBackground !== dangerColour,
-    menuOpensUnderTheButton: !row || menuEvidence.alignedToButton,
+    menuOpensUnderTheButton: !row || (menuEvidence.menuLeft !== null && menuEvidence.buttonLeft !== null && Math.abs(menuEvidence.menuLeft - menuEvidence.buttonLeft) <= 2),
     usageDialogOpens: usage?.tabs === 4 && usage.selected.length > 0,
     usageIpcAnswers: typeof usageView === 'object' && usageView !== null && typeof usageView.totals?.requests === 'number',
     customiseDialogOpens: appearance?.shapes === 8 && appearance.colours === 10 && appearance.styles === 3 && appearance.previewAuthor.length > 0,

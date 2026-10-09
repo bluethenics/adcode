@@ -127,6 +127,9 @@ body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row {
   white-space: nowrap;
 }
 
+/* The open activity block above already names the step; this row keeps who, how long, Stop. */
+.chat-card .chat-working[data-activity="open"] .chat-working-text { display: none; }
+
 .chat-working-dots {
   display: inline-flex;
   gap: 3px;
