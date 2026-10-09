@@ -45,13 +45,16 @@ export function HeroInstall({ source = "hero", advertise = true, tour, invite }:
   const route = installRoute(platform);
   const trackAdvertise = (): void => trackWebsiteEvent("advertise_click", 0, undefined, source);
   /*
-   * With a tour, the button beside the install is "See how it works" and advertising drops
-   * to a line under it. The hero used to put "Advertise to developers" there: 30 days of
-   * home-page visits (to 2026-10-07) produced 11 advertiser clicks against 7 install clicks, from
-   * a page whose job is to install the editor, and a median visit of under five seconds
-   * has no time to choose between two audiences. Advertisers keep their nav button, this
-   * line and the whole #advertise section; the hero's second button now answers the
-   * question a hesitant developer actually has.
+   * With a tour, the button beside the install is "See how it works" and advertising gets
+   * its own pill under the buttons. The hero used to put "Advertise to developers" there: 30
+   * days of home-page visits (to 2026-10-07) produced 11 advertiser clicks against 7 install
+   * clicks, from a page whose job is to install the editor, and a median visit of under five
+   * seconds has no time to choose between two audiences beside one button.
+   *
+   * It then shrank to a line of small print, and advertisers said they could not find it.
+   * So it is a real control again, but a different kind: Download stays the one filled
+   * button, and the advertiser pill is labelled for its audience and drawn in the money
+   * colour, so each reader sees which one is theirs.
    */
   const secondary = tour !== undefined ? (
     <a href={tour} className="marketplace-secondary">See how it works</a>
@@ -60,11 +63,7 @@ export function HeroInstall({ source = "hero", advertise = true, tour, invite }:
       Advertise to developers <span aria-hidden="true">↘</span>
     </a>
   ) : null;
-  const advertiseNote = advertise && tour !== undefined ? (
-    <p className="hero-install-advertise">
-      Advertising to developers? <a href="/#advertise" data-tracked onClick={trackAdvertise}>Start a campaign from $1</a>
-    </p>
-  ) : null;
+  const advertiseNote = advertise && tour !== undefined ? <AdvertisePill onClick={trackAdvertise} /> : null;
 
   if (route === "store") return <WindowsInstall source={source} secondary={secondary} advertiseNote={advertiseNote} invite={invite} />;
   if (route === "download") return <LinuxInstall source={source} secondary={secondary} advertiseNote={advertiseNote} invite={invite} />;
@@ -96,6 +95,17 @@ export function HeroInstall({ source = "hero", advertise = true, tour, invite }:
       </div>
       {advertiseNote}
     </div>
+  );
+}
+
+/** The advertiser's way in: one link, labelled for its audience, with the price on it. */
+function AdvertisePill({ onClick }: { onClick: () => void }) {
+  return (
+    <a href="/#advertise" className="hero-advertise" data-tracked onClick={onClick}>
+      <span className="hero-advertise-label">For advertisers</span>
+      <span className="hero-advertise-text">Reach developers while they build</span>
+      <span className="hero-advertise-cta">Start a campaign from $1 <span aria-hidden="true">→</span></span>
+    </a>
   );
 }
 
@@ -221,7 +231,7 @@ function SendToDesktop({ source, advertise, invite }: { source: string; advertis
         </a>
       </div>
       {state === "failed" && <p className="hero-install-note" role="status">Sharing was blocked. The link is {link}</p>}
-      {advertise && <p className="hero-install-note">Advertising instead? <a href="/#advertise">Reach developers while they build</a>.</p>}
+      {advertise && <AdvertisePill onClick={() => trackWebsiteEvent("advertise_click", 0, undefined, source)} />}
     </div>
   );
 }

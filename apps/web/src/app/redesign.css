@@ -609,9 +609,14 @@ body:has(.auth-screen) .website-consent { position: static; margin: 24px auto; b
 .hero-proof li { display: inline-flex; align-items: center; gap: 8px; }
 .hero-proof li::before { content: "\2713"; color: var(--money); font-weight: 700; }
 .studio-hero .hero-install { margin-top: 24px; }
-.hero-install-advertise { margin: 0; color: var(--faint); font-size: 12px; line-height: 18px; }
-.hero-install-advertise a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
-.hero-install-advertise a:hover { color: var(--text); }
+/* Advertisers' way in: a real control in the money colour, quieter than the one filled Download button. */
+.hero-advertise { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; max-width: 100%; margin-top: 4px; padding: 6px 6px 6px 16px; border: 1px solid color-mix(in srgb, var(--money) 45%, var(--hairline)); border-radius: 999px; background: color-mix(in srgb, var(--money) 8%, transparent); color: var(--text); font-size: 13px; line-height: 20px; text-decoration: none; transition: border-color 160ms ease, background 160ms ease; }
+.hero-advertise:hover { border-color: var(--money); background: color-mix(in srgb, var(--money) 14%, transparent); }
+.hero-advertise:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.hero-advertise-label { color: var(--money); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.hero-advertise-text { color: var(--muted); }
+.hero-advertise-cta { padding: 7px 14px; border-radius: 999px; background: var(--money); color: var(--surface); font-weight: 650; white-space: nowrap; }
+@media (max-width: 640px) { .hero-advertise { border-radius: 18px; padding: 10px 10px 10px 14px; } .hero-advertise-text { display: none; } }
 
 .first-build { padding-block: 96px 8px; scroll-margin-top: 96px; }
 .first-build h2 { max-width: 24ch; margin: 0; color: var(--text); font-size: clamp(28px, 2.7vw, 38px); font-weight: 400; letter-spacing: -.025em; line-height: 1.2; }
