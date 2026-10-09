@@ -93,5 +93,8 @@
   },
   "optionalDependencies": {
     "firebase-admin": "^14.2.0"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.6"
   }
 }
