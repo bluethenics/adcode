@@ -64,7 +64,8 @@ class ShimRequest {
 class ShimResponse {
   status = 200;
   readonly headers: Record<string, string> = {};
-  body: string | Uint8Array | null = null;
+  /** A stream is a model's reply relayed as it arrives (`sendStream` in `server.ts`). */
+  body: string | Uint8Array | ReadableStream<Uint8Array> | null = null;
   headersSent = false;
 
   writeHead(status: number, headers: Record<string, string> = {}): this {
@@ -74,7 +75,7 @@ class ShimResponse {
     return this;
   }
 
-  end(body?: string | Uint8Array): void {
+  end(body?: string | Uint8Array | ReadableStream<Uint8Array>): void {
     if (body !== undefined) this.body = body;
   }
 }
@@ -90,8 +91,10 @@ class ShimResponse {
  * `BodyInit` is deliberately not named: this file also compiles under a config without the
  * DOM lib, where that type does not exist even though `Response` does.
  */
-function toBodyInit(body: string | Uint8Array | null): string | ArrayBuffer | null {
-  if (body === null || typeof body === "string") return body;
+function toBodyInit(
+  body: string | Uint8Array | ReadableStream<Uint8Array> | null,
+): string | ArrayBuffer | ReadableStream<Uint8Array> | null {
+  if (body === null || typeof body === "string" || body instanceof ReadableStream) return body;
 
   const copy = new Uint8Array(body.byteLength);
   copy.set(body);

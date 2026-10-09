@@ -107,6 +107,7 @@ import { isAutomatedAgent, parseWebsiteEvents, summarizeWebsiteEvents, type Webs
 import { growthToWire } from "./growth.ts";
 import { parseModelCatalog, readModelCatalog, saveModelCatalog } from "./modelCatalog.ts";
 import { parseModelOutcomes, readModelHealth, recordModelOutcomes } from "./modelOutcomes.ts";
+import { TAGFLOW_MAX_BODY_BYTES, createTagflowRelay, type TagflowOptions } from "./tagflow.ts";
 import {
   ReferralsUnavailable,
   attributeAdvertiser,
@@ -152,6 +153,44 @@ function send(
 }
 
 /**
+ * A body written as it arrives rather than when it is complete - a model's reply.
+ *
+ * Node's response writes each chunk out at once. The Fetch transport's shim has no `write`:
+ * it takes the stream whole and hands it to `Response`, which reads it as it arrives.
+ */
+async function sendStream(
+  res: ServerResponse,
+  status: number,
+  headers: Record<string, string>,
+  body: ReadableStream<Uint8Array>,
+): Promise<void> {
+  res.writeHead(status, headers);
+  if (typeof (res as Partial<ServerResponse>).write !== "function") {
+    (res as unknown as { end(body: ReadableStream<Uint8Array>): void }).end(body);
+    return;
+  }
+  // Node holds headers back until the first chunk; a model can think for a while before
+  // that, and a client waiting on headers would see nothing at all until then.
+  res.flushHeaders();
+  const reader = body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(value);
+    }
+  } finally {
+    res.end();
+  }
+}
+
+class BodyTooLarge extends Error {
+  constructor() {
+    super("body too large");
+  }
+}
+
+/**
  * Shared-secret comparison without a timing signal.
  *
  * Mirrors `constantTimeEquals` in `billing.ts`: `timingSafeEqual` throws on a length
@@ -180,13 +219,13 @@ const ADVERTISER_STATUS: Record<AdvertiserError, number> = {
   "invalid-state": 409,
 };
 
-async function readBody(req: IncomingMessage): Promise<string> {
+async function readBody(req: IncomingMessage, limit = MAX_BODY_BYTES): Promise<string> {
   const chunks: Buffer[] = [];
   let total = 0;
   for await (const chunk of req) {
     const buf = chunk as Buffer;
     total += buf.length;
-    if (total > MAX_BODY_BYTES) throw new Error("body too large");
+    if (total > limit) throw new BodyTooLarge();
     chunks.push(buf);
   }
   return Buffer.concat(chunks).toString("utf8");
@@ -255,6 +294,8 @@ export interface ApiOptions {
   payments?: PaymentProvider;
   webhookSecret?: string;
   siteOrigin?: string;
+  /** Tag Flow's key, address and `fetch`; production reads the first two from the environment. */
+  tagflow?: TagflowOptions;
 }
 
 /** What both transports below are: a request in, a response written. */
@@ -282,6 +323,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
   const payments = options.payments;
   const webhookSecret = options.webhookSecret ?? process.env["DODO_WEBHOOK_SECRET"];
   const siteOrigin = options.siteOrigin ?? "https://adcode.bluethenics.com";
+  const tagflow = createTagflowRelay({ store, clock, ...(options.tagflow === undefined ? {} : { options: options.tagflow }) });
 
   /**
    * The origin a caller actually reached us on.
@@ -625,6 +667,34 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
         ...cors,
       });
       res.end(JSON.stringify({ error: "rate-limited" }));
+      return;
+    }
+
+    /*
+     * Tag Flow AI, relayed with the worker's key (see `tagflow.ts`).
+     *
+     * After authentication and the rate limit, so every request belongs to a verified
+     * account and is counted, and before every other route: a chat body can be eight
+     * megabytes of screenshots, which no other endpoint accepts.
+     */
+    if (path === "/v1/ai/tagflow/chat/completions" && req.method === "POST") {
+      let body: string;
+      try {
+        body = await readBody(req, TAGFLOW_MAX_BODY_BYTES);
+      } catch (error) {
+        if (!(error instanceof BodyTooLarge)) throw error;
+        send(res, 413, { error: { message: "That request is too large for Tag Flow AI.", type: "relay_error", code: "body_too_large" } }, cors);
+        return;
+      }
+      const reply = await tagflow.chat(auth.uid, body);
+      if (reply.kind === "stream") await sendStream(res, reply.status, { ...cors, ...reply.headers }, reply.body);
+      else send(res, reply.status, reply.body, { ...cors, ...reply.headers });
+      return;
+    }
+
+    if (path === "/v1/ai/tagflow/models" && req.method === "GET") {
+      const reply = await tagflow.models();
+      if (reply.kind === "json") send(res, reply.status, reply.body, { ...cors, ...reply.headers });
       return;
     }
 
