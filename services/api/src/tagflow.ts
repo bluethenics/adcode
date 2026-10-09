@@ -34,6 +34,10 @@ export const TAGFLOW_UPSTREAM = "https://api.tagflow-ai.com/v1";
 export const TAGFLOW_MAX_BODY_BYTES = 8_000_000;
 
 const MODELS_TTL_MS = 600_000;
+const INDEX_TIMEOUT_MS = 3_000;
+
+/** The longest reply one request may ask for. ADCode asks for far less; this bounds a caller that does not. */
+export const TAGFLOW_MAX_OUTPUT_TOKENS = 32_768;
 const HOUR_MS = 3_600_000;
 const UNAVAILABLE = "Tag Flow AI is unavailable right now. Connect another model in AI › Connect a model.";
 
@@ -103,6 +107,25 @@ export function createTagflowRelay(deps: {
 
   const settings = async () => tagflowSettingsOf((await deps.store.getModelCatalog())?.overrides ?? EMPTY_MODEL_CATALOG);
 
+  /** Tag Flow's own models, from its index, read at most every ten minutes. */
+  async function canonical(): Promise<readonly TagflowModel[]> {
+    const now = deps.clock.now();
+    if (modelCache === null || now - modelCache.at > MODELS_TTL_MS) {
+      let models: readonly TagflowModel[] | null = null;
+      try {
+        // Bounded: a chat waits on this list, and an index that never answers must not hold it.
+        const response = await doFetch(new URL("/", baseUrl()).href, { method: "GET", signal: AbortSignal.timeout(INDEX_TIMEOUT_MS) });
+        if (response.ok) models = canonicalModels(await response.json());
+      } catch {
+        // Unreachable: the model it is known to serve, and another look in a minute.
+      }
+      modelCache = models === null
+        ? { at: now - MODELS_TTL_MS + 60_000, models: FALLBACK_TAGFLOW_MODELS }
+        : { at: now, models };
+    }
+    return modelCache.models;
+  }
+
   /** Anything Tag Flow says, with the key cut out in case it was repeated back. */
   const scrub = (text: string, key: string): string => (key.length > 0 ? text.split(key).join("[redacted]") : text);
 
@@ -123,8 +146,36 @@ export function createTagflowRelay(deps: {
         return failure(400, "malformed_body", "A chat request needs a model and a list of messages.");
       }
 
+      /*
+       * What ADCode sends, and nothing more: the key is shared and accounts are free to make.
+       * Tag Flow's own models only, one answer, a bounded reply - and the request forwarded is
+       * the one checked here, re-written, so a body naming two models cannot slip one past.
+       */
+      const model = request["model"];
+      if (!(await canonical()).some((one) => one.id === model)) {
+        return failure(400, "model_not_offered", `Tag Flow AI does not offer "${model.slice(0, 80)}" here.`);
+      }
+      const outgoing: Record<string, unknown> = { ...request };
+      delete outgoing["n"];
+      for (const field of ["max_tokens", "max_completion_tokens"]) {
+        const size = outgoing[field];
+        if (typeof size === "number" && size > TAGFLOW_MAX_OUTPUT_TOKENS) outgoing[field] = TAGFLOW_MAX_OUTPUT_TOKENS;
+      }
+
+      const now = deps.clock.now();
+      if (config.globalRequestsPerMinute > 0) {
+        const minute = Math.floor(now / 60_000) * 60_000;
+        const count = await deps.store.bumpRequestCount("tagflow-global", minute);
+        if (count > config.globalRequestsPerMinute) {
+          return json(
+            429,
+            { error: { message: "Tag Flow AI is busy right now. ADCode will try again in a moment.", type: "rate_limit", code: "tagflow_busy" } },
+            { "retry-after": String(Math.max(1, Math.ceil((minute + 60_000 - now) / 1000))) },
+          );
+        }
+      }
+
       if (config.requestLimit > 0) {
-        const now = deps.clock.now();
         const { start, resetsAt } = windowFor(now, config.windowHours);
         const count = await deps.store.bumpRequestCount(`tagflow:${uid}`, start);
         if (count > config.requestLimit) {
@@ -149,7 +200,7 @@ export function createTagflowRelay(deps: {
         upstream = await doFetch(`${baseUrl().replace(/\/+$/, "")}/chat/completions`, {
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-          body,
+          body: JSON.stringify(outgoing),
         });
       } catch {
         return failure(502, "tagflow_unreachable", "Tag Flow AI could not be reached. Try again in a moment.");
@@ -179,20 +230,7 @@ export function createTagflowRelay(deps: {
     },
 
     async models() {
-      const now = deps.clock.now();
-      if (modelCache === null || now - modelCache.at > MODELS_TTL_MS) {
-        let models: readonly TagflowModel[] | null = null;
-        try {
-          const response = await doFetch(new URL("/", baseUrl()).href, { method: "GET" });
-          if (response.ok) models = canonicalModels(await response.json());
-        } catch {
-          // Unreachable: the model it is known to serve, and another look in a minute.
-        }
-        modelCache = models === null
-          ? { at: now - MODELS_TTL_MS + 60_000, models: FALLBACK_TAGFLOW_MODELS }
-          : { at: now, models };
-      }
-      return json(200, { models: modelCache.models }, { "cache-control": "private, max-age=300" });
+      return json(200, { models: await canonical() }, { "cache-control": "private, max-age=300" });
     },
   };
 }

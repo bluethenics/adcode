@@ -67,6 +67,7 @@ describe("Tag Flow settings", () => {
       enabled: true,
       requestLimit: 0,
       windowHours: 5,
+      globalRequestsPerMinute: 0,
       autoContinue: true,
       privacyUrl: "https://tagflow-ai.com/legal/privacy",
       termsUrl: "",
@@ -85,6 +86,7 @@ describe("Tag Flow settings", () => {
     ["a negative limit", { requestLimit: -1 }, /whole number/],
     ["a fractional window", { windowHours: 1.5 }, /1 to 168/],
     ["a window past a week", { windowHours: 200 }, /1 to 168/],
+    ["a negative ceiling across everybody", { globalRequestsPerMinute: -1 }, /per minute/],
     ["a privacy link over http", { privacyUrl: "http://example.com" }, /https/],
     ["a terms link that is not a link", { termsUrl: "terms" }, /https/],
   ])("says what is wrong with %s before Save", (_label, patch, message) => {

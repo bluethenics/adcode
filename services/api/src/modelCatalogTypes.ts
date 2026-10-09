@@ -42,6 +42,8 @@ export interface TagflowSettings {
   requestLimit: number;
   /** Window length in hours, 1 to 168; windows are fixed and aligned to the UTC epoch. */
   windowHours: number;
+  /** Requests per minute across every account together; 0 is unlimited. Protects the shared key. */
+  globalRequestsPerMinute: number;
   /** At the limit, the app waits for the reset and continues the same turn. */
   autoContinue: boolean;
   privacyUrl: string;

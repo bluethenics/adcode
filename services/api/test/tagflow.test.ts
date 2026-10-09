@@ -53,6 +53,8 @@ describe("the Tag Flow relay", () => {
   let key: string | undefined;
   let handle: (request: Request) => Promise<Response>;
 
+  /** Requests that reached Tag Flow's chat endpoint, not its model index. */
+  const chatCalls = () => tagflow.calls.filter((one) => one.url.endsWith("/chat/completions"));
   const options = (): TagflowOptions => ({ apiKey: () => key, baseUrl: () => "https://tagflow.test/v1", fetch: tagflow.fetch });
 
   beforeEach(() => {
@@ -76,14 +78,14 @@ describe("the Tag Flow relay", () => {
 
   it("refuses a caller with no account", async () => {
     expect((await chat(undefined)).status).toBe(401);
-    expect(tagflow.calls).toHaveLength(0);
+    expect(chatCalls()).toHaveLength(0);
   });
 
   it("forwards the request untouched, with the key, to Tag Flow's chat endpoint", async () => {
     const response = await chat("alice");
     expect(response.status).toBe(200);
-    expect(tagflow.calls).toHaveLength(1);
-    const [call] = tagflow.calls;
+    expect(chatCalls()).toHaveLength(1);
+    const [call] = chatCalls();
     expect(call?.url).toBe("https://tagflow.test/v1/chat/completions");
     expect(call?.init?.method).toBe("POST");
     expect(new Headers(call?.init?.headers).get("authorization")).toBe(`Bearer ${KEY}`);
@@ -95,7 +97,7 @@ describe("the Tag Flow relay", () => {
   it("streams the reply as it arrives instead of after it finishes", async () => {
     let push: ((text: string) => void) | undefined;
     let finish: (() => void) | undefined;
-    tagflow.reply = async () => new Response(new ReadableStream<Uint8Array>({
+    tagflow.reply = async (url) => !url.endsWith("/chat/completions") ? Response.json({ models: ["tagflow-code-27b"] }) : new Response(new ReadableStream<Uint8Array>({
       start(controller) {
         const encoder = new TextEncoder();
         push = (text) => controller.enqueue(encoder.encode(text));
@@ -119,7 +121,7 @@ describe("the Tag Flow relay", () => {
     const response = await chat("alice");
     expect(response.status).toBe(503);
     expect(await response.json()).toMatchObject({ error: { code: "tagflow_unavailable" } });
-    expect(tagflow.calls).toHaveLength(0);
+    expect(chatCalls()).toHaveLength(0);
   });
 
   it("is unavailable, not broken, when the worker has no key", async () => {
@@ -166,14 +168,87 @@ describe("the Tag Flow relay", () => {
     ["messages that are not a list", JSON.stringify({ model: "tagflow-code-27b", messages: "hi" })],
   ])("refuses %s", async (_label, body) => {
     expect((await chat("alice", body)).status).toBe(400);
-    expect(tagflow.calls).toHaveLength(0);
+    expect(chatCalls()).toHaveLength(0);
   });
 
   it("refuses a body over eight megabytes", async () => {
     const huge = JSON.stringify({ model: "m", messages: [{ role: "user", content: "x".repeat(8_000_001) }] });
     expect((await chat("alice", huge)).status).toBe(413);
-    expect(tagflow.calls).toHaveLength(0);
+    expect(chatCalls()).toHaveLength(0);
   });
+
+  /*
+   * The relay spends Sinan's key for any anonymous account, and accounts are free to make. So
+   * it relays what ADCode itself sends and nothing more: Tag Flow's own models, one answer,
+   * a bounded reply - forwarded as the request it checked, not as the bytes it was given.
+   */
+  describe("what it is willing to relay", () => {
+    const sent = () => JSON.parse(String(chatCalls()[0]?.init?.body)) as Record<string, unknown>;
+
+    it("refuses a model Tag Flow does not serve as its own", async () => {
+      const response = await chat("alice", JSON.stringify({ model: "gpt-4o", messages: [{ role: "user", content: "hi" }] }));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: { code: "model_not_offered" } });
+      expect(chatCalls()).toHaveLength(0);
+    });
+
+    it("checks the model the request really names, even when the JSON names two", async () => {
+      const smuggled = '{"model":"tagflow-code-27b","messages":[{"role":"user","content":"hi"}],"model":"gpt-4o"}';
+      expect((await chat("alice", smuggled)).status).toBe(400);
+      expect(chatCalls()).toHaveLength(0);
+    });
+
+    it("forwards the request it checked, not the bytes it was given", async () => {
+      await chat("alice", '{"model":"tagflow-code-27b",  "messages":[{"role":"user","content":"hi"}]}');
+      expect(chatCalls()[0]?.init?.body).toBe('{"model":"tagflow-code-27b","messages":[{"role":"user","content":"hi"}]}');
+    });
+
+    it("asks for one answer and a bounded reply", async () => {
+      await chat("alice", JSON.stringify({ model: "tagflow-code-27b", messages: [{ role: "user", content: "hi" }], n: 8, max_tokens: 5_000_000, max_completion_tokens: 900_000 }));
+      expect(sent()).not.toHaveProperty("n");
+      expect(sent()["max_tokens"]).toBe(32_768);
+      expect(sent()["max_completion_tokens"]).toBe(32_768);
+    });
+
+    it("leaves a reply size under the bound alone", async () => {
+      await chat("alice", JSON.stringify({ model: "tagflow-code-27b", messages: [{ role: "user", content: "hi" }], max_tokens: 8_192 }));
+      expect(sent()["max_tokens"]).toBe(8_192);
+    });
+  });
+
+  describe("with a ceiling across everybody set in the admin panel", () => {
+    beforeEach(async () => {
+      await settings({ globalRequestsPerMinute: 2 });
+    });
+
+    it("holds every account to it, and says to try again within the minute", async () => {
+      expect((await chat("alice")).status).toBe(200);
+      expect((await chat("bob")).status).toBe(200);
+      const busy = await chat("alice");
+      expect(busy.status).toBe(429);
+      expect(await busy.json()).toMatchObject({ error: { code: "tagflow_busy" } });
+      const wait = Number(busy.headers.get("retry-after"));
+      expect(wait).toBeGreaterThanOrEqual(1);
+      expect(wait).toBeLessThanOrEqual(60);
+      expect(chatCalls()).toHaveLength(2);
+    });
+
+    it("opens again the next minute", async () => {
+      await chat("alice");
+      await chat("bob");
+      now += 60_000;
+      expect((await chat("alice")).status).toBe(200);
+    });
+  });
+
+  it("still relays when Tag Flow's model index does not answer", async () => {
+    tagflow.reply = async (url, init) => url.endsWith("/chat/completions")
+      ? new Response("data: {}\n\n", { status: 200, headers: { "content-type": "text/event-stream" } })
+      : new Promise<Response>((_resolve, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("timed out", "TimeoutError"))));
+    const response = await chat("alice");
+    expect(response.status).toBe(200);
+    expect(chatCalls()).toHaveLength(1);
+  }, 9_000);
 
   it("is unlimited by default", async () => {
     for (let i = 0; i < 5; i++) expect((await chat("alice")).status).toBe(200);
@@ -200,7 +275,7 @@ describe("the Tag Flow relay", () => {
           auto_continue: true,
         },
       });
-      expect(tagflow.calls).toHaveLength(2);
+      expect(chatCalls()).toHaveLength(2);
     });
 
     it("counts each user separately", async () => {
@@ -270,7 +345,7 @@ describe("the Node transport", () => {
     let push: ((text: string) => void) | undefined;
     let finish: (() => void) | undefined;
     const fake = upstream();
-    fake.reply = async () => new Response(new ReadableStream<Uint8Array>({
+    fake.reply = async (url) => !url.endsWith("/chat/completions") ? Response.json({ models: ["tagflow-code-27b"] }) : new Response(new ReadableStream<Uint8Array>({
       start(controller) {
         push = (text) => controller.enqueue(new TextEncoder().encode(text));
         finish = () => controller.close();

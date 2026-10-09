@@ -28,6 +28,7 @@ export const DEFAULT_TAGFLOW_SETTINGS: TagflowSettings = {
   enabled: true,
   requestLimit: 0,
   windowHours: 5,
+  globalRequestsPerMinute: 0,
   autoContinue: true,
   privacyUrl: "https://tagflow-ai.com/legal/privacy",
   termsUrl: "",
@@ -60,11 +61,11 @@ const wholeIn = (value: unknown, min: number, max: number): value is number =>
 function parseTagflow(raw: unknown): TagflowSettings | null {
   if (!isRecord(raw) || Object.keys(raw).some((key) => !TAGFLOW_FIELDS.has(key))) return null;
   const merged = { ...DEFAULT_TAGFLOW_SETTINGS, ...raw };
-  const { enabled, requestLimit, windowHours, autoContinue, privacyUrl, termsUrl } = merged;
+  const { enabled, requestLimit, windowHours, globalRequestsPerMinute, autoContinue, privacyUrl, termsUrl } = merged;
   if (typeof enabled !== "boolean" || typeof autoContinue !== "boolean") return null;
-  if (!wholeIn(requestLimit, 0, 1_000_000) || !wholeIn(windowHours, 1, 168)) return null;
+  if (!wholeIn(requestLimit, 0, 1_000_000) || !wholeIn(windowHours, 1, 168) || !wholeIn(globalRequestsPerMinute, 0, 1_000_000)) return null;
   if (!isHttpsUrl(privacyUrl) || !(termsUrl === "" || isHttpsUrl(termsUrl))) return null;
-  return { enabled, requestLimit, windowHours, autoContinue, privacyUrl, termsUrl };
+  return { enabled, requestLimit, windowHours, globalRequestsPerMinute, autoContinue, privacyUrl, termsUrl };
 }
 const ADDED_FIELDS = new Set(["provider", "id", "name", "contextWindow", "maxOutput", "reasoning", "effortLevels", "inputPrice", "outputPrice", "releaseDate"]);
 

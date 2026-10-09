@@ -335,6 +335,7 @@ function TagflowSection({ settings, served, onChange }: {
   // than turning into "NaN". The parent remounts this section on Discard and Save.
   const [limitText, setLimitText] = useState(String(settings.requestLimit));
   const [windowText, setWindowText] = useState(String(settings.windowHours));
+  const [globalText, setGlobalText] = useState(String(settings.globalRequestsPerMinute));
   const problem = tagflowProblem(settings);
   const whole = (raw: string): number => (/^\d+$/.test(raw.trim()) ? Number(raw.trim()) : Number.NaN);
 
@@ -384,6 +385,18 @@ function TagflowSection({ settings, served, onChange }: {
           />
         </div>
         <div className="field">
+          <span>Requests per minute across everybody (0 = unlimited)</span>
+          <input
+            className="input"
+            inputMode="numeric"
+            value={globalText}
+            onChange={(event) => {
+              setGlobalText(event.target.value);
+              onChange({ globalRequestsPerMinute: whole(event.target.value) });
+            }}
+          />
+        </div>
+        <div className="field">
           <span>Tag Flow privacy policy</span>
           <input className="input" type="url" value={settings.privacyUrl} onChange={(event) => onChange({ privacyUrl: event.target.value.trim() })} />
         </div>
@@ -396,6 +409,9 @@ function TagflowSection({ settings, served, onChange }: {
         {settings.requestLimit > 0
           ? `Each person gets ${String(settings.requestLimit)} requests every ${String(settings.windowHours)} hours; one agent step is one request. At the limit the chat shows when it resets${settings.autoContinue ? " and carries on by itself then" : ", and the person sends again after it"}.`
           : "Unlimited: nobody is stopped. Set a number to cap each person per window."}
+        {settings.globalRequestsPerMinute > 0
+          ? ` Across everybody, at most ${String(settings.globalRequestsPerMinute)} requests a minute reach Tag Flow; past that, editors wait a few seconds and retry - this protects the shared key from anybody making accounts in bulk.`
+          : " No limit across everybody: set one to protect the shared key if accounts are made in bulk."}
         {settings.enabled ? "" : " Switched off: editors stop offering it and the relay answers that it is unavailable."}
       </p>
       {problem !== null && <div className="notice" data-tone="error" role="alert">{problem}</div>}

@@ -66,6 +66,8 @@ export interface TagflowSettings {
   /** Requests per user per window; 0 is unlimited. */
   requestLimit: number;
   windowHours: number;
+  /** Requests per minute across everybody together; 0 is unlimited. Protects the shared key. */
+  globalRequestsPerMinute: number;
   autoContinue: boolean;
   privacyUrl: string;
   termsUrl: string;
@@ -75,6 +77,7 @@ export const DEFAULT_TAGFLOW_SETTINGS: TagflowSettings = {
   enabled: true,
   requestLimit: 0,
   windowHours: 5,
+  globalRequestsPerMinute: 0,
   autoContinue: true,
   privacyUrl: "https://tagflow-ai.com/legal/privacy",
   termsUrl: "",
@@ -101,6 +104,9 @@ export function tagflowProblem(settings: TagflowSettings): string | null {
   }
   if (!Number.isSafeInteger(settings.windowHours) || settings.windowHours < 1 || settings.windowHours > 168) {
     return "The window is a whole number of hours, 1 to 168.";
+  }
+  if (!Number.isSafeInteger(settings.globalRequestsPerMinute) || settings.globalRequestsPerMinute < 0 || settings.globalRequestsPerMinute > 1_000_000) {
+    return "The limit across everybody is a whole number of requests per minute, from 0 (unlimited) to 1,000,000.";
   }
   if (!isHttps(settings.privacyUrl)) return "The privacy policy link must be an https:// address.";
   if (settings.termsUrl !== "" && !isHttps(settings.termsUrl)) return "The terms link must be an https:// address, or empty.";
