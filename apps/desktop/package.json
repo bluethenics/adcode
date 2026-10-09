@@ -1,6 +1,6 @@
 {
   "name": "@adcode/desktop",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "description": "The ADCode workbench: Electron shell, Monaco editing surface, xterm terminal.",

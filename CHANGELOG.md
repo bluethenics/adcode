@@ -3,15 +3,76 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
-## Unreleased
+## 2.2.0 — 2026-10-09
 
+- Watch your agents work. When the assistant writes a file, a live window in the
+  conversation shows the code typing in as the model writes it, then the command it runs
+  and its output, the files it touched, and whether it checked its work: Checks passed,
+  Check failed or Unverified, from the commands it actually ran - never from what it says.
+- Every agent at work gets a window. Agents from the Agents page, a Team, a race or Team in
+  the terminal appear in a live room above the chat, their mascots side by side. When one
+  agent messages another, hands its work on, or edits a file a teammate already changed, a
+  speech bubble crosses between them and the line stays underneath. Settings > AI > Live
+  agent view turns it off.
+- Team agents talk while they work: they message each other, receive messages with their
+  next step, and hear when a teammate already edited the same file. They share the
+  project's memory, keep a plan, and run the project's checks before they report done.
+- A first run that builds something: pick an idea, connect a free AI, and ADCode makes the
+  project and opens it running in the preview. Sponsored cards wait until something has
+  worked.
+- Continue reopens a project on the conversation it was left on. Follow-ups typed while the
+  assistant works wait their turn, and the model chip under the composer switches model.
+- When a turn stops because a model is out of credit, rate-limited or gone, choosing
+  another model carries the turn on from where it stopped.
+- The models on the list work: fixes for each provider, room for a longer answer when a
+  reply is cut off, the recommended model first, and an honest Ollama status. Continue can
+  no longer loop.
+- The chat reads like prose, with one spacing for the whole conversation, and the parts of
+  Vibe that popped in now move.
+- The sponsored card shows your share of it, has a real button, and its countdown waits for
+  you.
+- Invite & earn: your invite link, who joined and what it earned. Someone who installs from
+  your link has the invite picked up from their clipboard when ADCode first starts.
+- The assistant sees the app you are building. It opens any page of your live preview in a
+  browser of its own, clicks and types through it, and reads the console, failed requests,
+  broken images and the layout at phone width - with a screenshot - before it says a page
+  works. Type /check, or run AI: Check My Running App, to have it look over the app and fix
+  what is broken.
+- "Open the about page" opens the about page: the preview goes to the page the assistant
+  names and waits for a framework's dev server to start. The preview's address bar takes a
+  path - type /about.html and press Enter.
+- The assistant can delete, move and rename files, and Undo puts them back. Dev servers
+  keep running in the background while it works, commands may run for up to ten minutes
+  and report their real exit code, and Stop ends a command and everything it started.
+- For bigger jobs the assistant keeps a Plan checklist in the chat. Its search shows the
+  lines around each match, its edits survive an indentation mismatch, and documentation it
+  reads arrives as clean text.
+- A commit asks for the name and email it needs instead of sending you to a terminal.
+  Ctrl+V in the terminal no longer pastes twice, and commands that quote a path with a
+  space work on Windows.
+- Connect an external agent works in installed builds: the project-memory server ships with
+  the installer and is copied to ~/.adcode/mcp, so its command survives updates. The
+  command says it needs Node.js 22.13 or newer, and on Windows ADCode says when Node is
+  missing or too old.
+- Search, Ctrl+P and the assistant's file tools skip agent worktrees and folders your
+  .gitignore leaves out, and never open an image to search it.
+- One identity per install: no second account from a retried sign-up, and no new account
+  when the server has a bad moment.
+- A report that leads to a fix gets a thank-you, and Microsoft Store users who are enjoying
+  ADCode may be asked, once, for a rating.
+- ADCode runs on Electron 43.7.9, and the project-memory server and other bundled
+  dependencies carry the latest security fixes.
 - ADCode is open source under the Apache License 2.0. The repository has a licence, a
   notice, a trademark policy, a contributing guide, a security policy and CI for pull
-  requests.
-- Help > Open Source Licences shows ADCode's licence, its notice and the licence of every
-  package built into it. Installers carry the same files under `resources/licenses`.
-- The website's terms now say the source code is governed by the Apache licence, and no
-  longer describe a revocable licence or forbid resale of the code.
+  requests. Help > Open Source Licences shows ADCode's licence, its notice and the licence
+  of every package built into it; installers carry the same files under
+  `resources/licenses`. The website's terms now say the source code is governed by the
+  Apache licence.
+
+Known limitations: macOS builds remain unsupported, and the portable build still does not
+update itself. The assistant deletes and moves files only when AI edits apply
+automatically. Agent CLIs in Team in the terminal show their output live but cannot be
+messaged mid-task.
 
 ## 2.1.1 — 2026-09-29
 
