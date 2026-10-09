@@ -164,8 +164,67 @@ function scripted(answers: (() => ProviderEvent[] | Error)[]): Provider & { call
   return provider;
 }
 
-const usageLimit = (resetsAt: number, autoContinue = true) =>
-  Object.assign(new Error("Tag Flow AI returned HTTP 429: limit"), { status: 429, retryAfter: "60", usageLimit: { resetsAt, autoContinue } });
+/**
+ * The relay's answer at the limit. Its `retry-after` is seconds from the server's own clock,
+ * which agrees with `resets_at` there - so by default it is derived the way the relay does.
+ */
+const usageLimit = (resetsAt: number, autoContinue = true, retryAfter: string | null = String(Math.max(1, Math.ceil((resetsAt - Date.now()) / 1000)))) =>
+  Object.assign(new Error("Tag Flow AI returned HTTP 429: limit"), { status: 429, retryAfter, usageLimit: { resetsAt, autoContinue } });
+
+describe("waiting out the usage limit when the clocks disagree", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("waits the relay's retry-after, not until a reset this computer thinks has passed", async () => {
+    // This computer runs 30 s ahead of the server: the server's reset is "in the past" here,
+    // and the relay keeps answering with the same reset until its own clock reaches it.
+    vi.useFakeTimers({ now: 100_000 });
+    const serverReset = 70_000;
+    const inner = scripted([() => usageLimit(serverReset, true, "30"), () => usageLimit(serverReset, true, "1")]);
+    const provider = new RequestScheduler().wrap(inner, TAGFLOW_PROVIDER_ID, () => 6000, { waitForUsageLimit: true });
+    const events: ProviderEvent[] = [];
+    const run = (async () => {
+      for await (const event of provider.stream(request, new AbortController().signal)) events.push(event);
+    })();
+    await vi.advanceTimersByTimeAsync(29_000);
+    expect(inner.calls).toBe(1);
+    expect(events[0]).toEqual({ kind: "limit-wait", provider: "Tag Flow AI", resetsAt: 130_000 });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(inner.calls).toBe(2);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await run;
+    expect(inner.calls).toBe(3);
+    expect(events.at(-1)).toEqual({ kind: "stop", reason: "end-turn" });
+  });
+
+  it("backs off rather than bursting when nothing says how long to wait", async () => {
+    vi.useFakeTimers({ now: 100_000 });
+    const inner = scripted([() => usageLimit(50_000, true, null), () => usageLimit(50_000, true, null)]);
+    const provider = new RequestScheduler().wrap(inner, TAGFLOW_PROVIDER_ID, () => 6000, { waitForUsageLimit: true });
+    const run = collect(provider.stream(request, new AbortController().signal));
+    await vi.advanceTimersByTimeAsync(100);
+    expect(inner.calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(inner.calls).toBe(2);
+    await vi.advanceTimersByTimeAsync(9_000);
+    expect(inner.calls).toBe(2);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await run;
+    expect(inner.calls).toBe(3);
+  });
+
+  it("continues on time after the computer slept through the reset", async () => {
+    vi.useFakeTimers({ now: 0 });
+    const inner = scripted([() => usageLimit(3_600_000)]);
+    const provider = new RequestScheduler().wrap(inner, TAGFLOW_PROVIDER_ID, () => 6000, { waitForUsageLimit: true });
+    const run = collect(provider.stream(request, new AbortController().signal));
+    await vi.advanceTimersByTimeAsync(1_000);
+    // Asleep for two hours: the wall clock moved, timers did not run.
+    vi.setSystemTime(2 * 3_600_000);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await run;
+    expect(inner.calls).toBe(2);
+  });
+});
 
 describe("waiting out the usage limit", () => {
   afterEach(() => vi.useRealTimers());

@@ -26,16 +26,46 @@ function sleepUntil(at: number, signal: AbortSignal): Promise<void> {
       reject(new DOMException("Cancelled", "AbortError"));
       return;
     }
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", stop);
-      resolve();
-    }, Math.min(Math.max(0, at - Date.now()), 2147483647));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // In steps of a minute at most, looking at the clock each time: a computer asleep through
+    // the reset runs no timers, and one long timer would fire hours after the reset instead.
+    const step = (): void => {
+      const left = at - Date.now();
+      if (left <= 0) {
+        signal.removeEventListener("abort", stop);
+        resolve();
+        return;
+      }
+      timer = setTimeout(step, Math.min(left, CLOCK_CHECK_MS));
+    };
     function stop(): void {
       clearTimeout(timer);
       reject(new DOMException("Cancelled", "AbortError"));
     }
     signal.addEventListener("abort", stop, { once: true });
+    step();
   });
+}
+
+/** How often a long wait looks at the clock. */
+const CLOCK_CHECK_MS = 60_000;
+
+/**
+ * How long to wait out a usage limit, in milliseconds from now on this computer's clock.
+ *
+ * The relay's `retry-after` counts from the server's clock, so it holds whatever this clock
+ * says; the absolute `resetsAt` is only the fallback. A wait that comes out at nothing - a
+ * reset this clock thinks has passed, with no retry-after - backs off instead, so a relay
+ * that keeps saying "limited" cannot burn every wait in a burst.
+ */
+function limitWaitMs(retryAfter: string | null | undefined, resetsAt: number, waitsSoFar: number): number {
+  const seconds = retryAfter === undefined || retryAfter === null ? Number.NaN : Number(retryAfter);
+  const relative = Number.isFinite(seconds)
+    ? seconds * 1000
+    : typeof retryAfter === "string" && Number.isFinite(Date.parse(retryAfter))
+      ? Date.parse(retryAfter) - Date.now()
+      : resetsAt - Date.now();
+  return relative > 0 ? relative : Math.min(60_000, 5_000 * 2 ** waitsSoFar);
 }
 
 /** One FIFO lane per connection; only request starts are serialized, not streams. */
@@ -141,10 +171,12 @@ export class RequestScheduler {
             // wait, waits: it says until when, sleeps, and sends the same request again.
             if (e.usageLimit !== undefined) {
               if (emitted || options.waitForUsageLimit !== true || !e.usageLimit.autoContinue || limitWaits >= MAX_LIMIT_WAITS) throw error;
+              // On this computer's clock, so the countdown the chat shows ends when the wait does.
+              const until = Date.now() + limitWaitMs(e.retryAfter ?? e.headers?.get("retry-after"), e.usageLimit.resetsAt, limitWaits);
               limitWaits += 1;
               attempt -= 1;
-              yield { kind: "limit-wait", provider: provider.displayName, resetsAt: e.usageLimit.resetsAt };
-              await sleepUntil(e.usageLimit.resetsAt, signal);
+              yield { kind: "limit-wait", provider: provider.displayName, resetsAt: until };
+              await sleepUntil(until, signal);
               continue;
             }
             // A garbled tool call (Groq's `tool_use_failed`) is a coin the model flipped
