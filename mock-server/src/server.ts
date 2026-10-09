@@ -343,6 +343,25 @@ export async function createMockServer(options: { port?: number } = {}): Promise
       return;
     }
 
+    /*
+     * Tag Flow AI, relayed (services/api/src/tagflow.ts). Every install starts on it, so a
+     * smoke run's chat with nothing set up lands here: one model, and a short streamed reply
+     * in the OpenAI format, the way the real relay passes Tag Flow's through.
+     */
+    if (path === "/v1/ai/tagflow/models" && req.method === "GET") {
+      send(res, 200, { models: [{ id: "tagflow-code-27b", name: "Tag Flow Code 27B" }] });
+      return;
+    }
+
+    if (path === "/v1/ai/tagflow/chat/completions" && req.method === "POST") {
+      await readBody(req);
+      const chunk = (delta: Record<string, unknown>, finish: string | null) =>
+        `data: ${JSON.stringify({ choices: [{ delta, finish_reason: finish }] })}\n\n`;
+      res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store" });
+      res.end(`${chunk({ content: "This is the mock Tag Flow AI." }, null)}${chunk({}, "stop")}data: [DONE]\n\n`);
+      return;
+    }
+
     if (path === "/v1/serve" && req.method === "POST") {
       const parsed: unknown = JSON.parse((await readBody(req)) || "{}");
       const body = parsed as Record<string, unknown>;

@@ -302,3 +302,29 @@ describe("Firebase Auth emulator routes", () => {
     expect((await refresh(account.refreshToken)).status).toBe(400);
   });
 });
+
+/**
+ * Tag Flow AI, the model every install starts on, as the real relay serves it: a model list,
+ * and a chat that streams back. Smoke runs point the app here, and a chat with nothing set up
+ * must answer the way production does rather than fail on a missing route.
+ */
+describe("the Tag Flow relay", () => {
+  it("lists Tag Flow's model", async () => {
+    const response = await get("/v1/ai/tagflow/models");
+    expect(response.status).toBe(200);
+    expect(await jsonOf(response)).toEqual({ models: [{ id: "tagflow-code-27b", name: "Tag Flow Code 27B" }] });
+  });
+
+  it("streams a chat reply in the OpenAI format", async () => {
+    const response = await post("/v1/ai/tagflow/chat/completions", { model: "tagflow-code-27b", messages: [{ role: "user", content: "hi" }], stream: true });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toMatch(/text\/event-stream/);
+    const text = await response.text();
+    expect(text).toMatch(/"content":"[^"]+"/);
+    expect(text.trim().endsWith("data: [DONE]")).toBe(true);
+  });
+
+  it("needs an account, like every /v1 route", async () => {
+    expect((await post("/v1/ai/tagflow/chat/completions", { model: "m", messages: [] }, { "content-type": "application/json" })).status).toBe(401);
+  });
+});

@@ -70,11 +70,29 @@ if (!portFree) {
   process.exit(2);
 }
 
+/*
+ * ── An API with Tag Flow AI switched off ──────────────────────────────────
+ *
+ * A new install starts on Tag Flow AI and never sees the connect step (smoke-tagflow.mjs
+ * walks that). This run is the other path: the admin panel has Tag Flow switched off, so
+ * nothing is connected and the welcome offers a free model. Everything else answers 404.
+ */
+const api = createServer((req, res) => {
+  if (req.url === "/v1/models/overrides") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ overrides: { recommended: {}, hidden: [], featured: [], notes: {}, added: [], tagflow: { enabled: false } }, updatedAt: 1 }));
+    return;
+  }
+  res.writeHead(404, { "content-type": "application/json" });
+  res.end(JSON.stringify({ error: "not found" }));
+});
+await new Promise((resolve) => api.listen(0, "127.0.0.1", resolve));
+
 /* ── The app, as a brand-new install ────────────────────────────────────── */
 
 const userData = await mkdtemp(join(tmpdir(), "adcode-first-run-"));
 const projects = await mkdtemp(join(tmpdir(), "adcode-first-run-projects-"));
-const env = { ...process.env, ADCODE_AD_SERVER: "http://127.0.0.1:9", ADCODE_PROJECTS_HOME: projects };
+const env = { ...process.env, ADCODE_AD_SERVER: `http://127.0.0.1:${api.address().port}`, ADCODE_PROJECTS_HOME: projects };
 delete env.ELECTRON_RUN_AS_NODE;
 const child = spawn(electronPath, [
   "apps/desktop",
@@ -152,6 +170,7 @@ try {
   await shot("02-idea");
 
   /* No model yet: the next step is connecting one, and the local model is offered. */
+  checks.tagflowSwitchedOff = await waitFor("(async () => (await window.adcode.ai.status()).activeProvider !== 'tagflow')()", 15_000);
   await evaluate("document.querySelector('.onboarding-next')?.click()");
   checks.connectStep = await waitFor("document.querySelector('dialog.onboarding')?.dataset.step === 'connect'", 10_000);
   checks.localOffered = await waitFor("(() => { const card = document.querySelector('.quick-connect-card[data-route=local]'); return !!card && !card.hidden; })()", 10_000);
@@ -199,6 +218,7 @@ try {
   socket.close();
   child.kill();
   ollama.close();
+  api.close();
   await sleep(500);
   await rm(projects, { recursive: true, force: true }).catch(() => undefined);
 }
