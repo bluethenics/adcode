@@ -15,6 +15,7 @@ export type AiFailureAction = "retry" | "models" | "new-conversation" | "report"
 
 export interface AiFailure {
   readonly kind:
+    | "usage-limit"
     | "rate-limit"
     | "too-large"
     | "auth"
@@ -87,6 +88,17 @@ export function describeAiFailure(raw: string): AiFailure {
       "The model only thought, and wrote nothing",
       "It spent its whole output allowance reasoning, even with more room. Lower Thinking effort in Connect a model, or pick a model that answers sooner.",
       ["models", "retry"],
+    );
+  }
+  // A usage limit the turn did not wait out (auto-continue off, or the relay kept saying
+  // "later"). Ahead of the rate-limit rule: retrying meets the same limit until it resets.
+  const usage = /^(.+?) usage limit reached\.\s*It resets at ([^.]+(?:\.\d+)?)\./i.exec(detail);
+  if (usage !== null) {
+    return make(
+      "usage-limit",
+      `${usage[1]} usage limit reached`,
+      `It resets at ${usage[2]}. Send your message again then, or choose another model to keep going now.`,
+      ["models"],
     );
   }
   if (/No API key|No address for the custom endpoint|Connect a model/i.test(detail)) {

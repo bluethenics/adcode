@@ -866,3 +866,13 @@ textarea.form-input { resize: vertical; line-height: 1.5; }
   opacity: 0.5;
   cursor: default;
 }
+
+/* Whose terms apply to the model in use (Tag Flow AI), before Build it sends anything. */
+.onboarding-partner-note {
+  margin: 6px 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+.onboarding-partner-note[hidden] { display: none; }
+.onboarding-partner-note a { color: var(--text-primary); }

@@ -3286,6 +3286,10 @@ const onboarding = createOnboardingSheet({
       () => null,
     ),
   aiReady: () => window.adcode.ai.status().then((status) => status.ready),
+  partner: () => window.adcode.ai.status().then(
+    (status) => status.providers.find((provider) => provider.id === status.activeProvider)?.partner ?? null,
+    () => null,
+  ),
   build: (idea, send) => buildFromIdea(idea, send),
   openFolder: () => void openFolder(),
   openAllProviders: () => openIndependentConnect("pointer"),

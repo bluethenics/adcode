@@ -150,7 +150,7 @@ import { apiBaseUrl } from "./backend.ts";
 import { recordModelOutcome } from "./modelOutcomes.ts";
 import { outcomeOfError } from "../shared/modelOutcomes.ts";
 import { preferredOllamaModel } from "../shared/quickConnect.ts";
-import { impliedProvider, partnerOf } from "../shared/tagflow.ts";
+import { effectiveProvider, partnerOf } from "../shared/tagflow.ts";
 import { fetchTagflowModels, tagflowBaseUrl, tagflowToken } from "./tagflow.ts";
 
 const keys = createKeychainStore();
@@ -706,6 +706,12 @@ export function aiCurrentSession(): ChatSession | null {
 }
 
 let agent: Agent | null = null;
+/**
+ * The agent running the turn in flight. Saving a key or changing provider drops `agent` so the
+ * next turn is built afresh - but the turn already running still has to answer Stop, and a
+ * model switch during a usage-limit wait stops it to carry the work over.
+ */
+let turnAgent: Agent | null = null;
 let agentProvider: string | null = null;
 let agentModel: string | null = null;
 let agentEndpoint: string | null = null;
@@ -747,12 +753,13 @@ function broadcastLive(source: LiveSourceView, event: LiveEventView): void {
 
 function activeProvider(): string {
   const value = currentSettings()["adcode.ai.provider"];
-  const chosen = typeof value === "string" ? value.trim() : "";
-  // "anthropic" is also what every install stored before anybody chose anything: the old
-  // default. Without an Anthropic key it never answered, so it reads as nothing chosen.
-  if (chosen.length > 0 && !(chosen === "anthropic" && anthropicKeySaved !== true)) return chosen;
-  // Nothing chosen: Tag Flow AI, so the first thing a new person types gets an answer.
-  return impliedProvider({ anthropicKeySaved: anthropicKeySaved ?? false, tagflowEnabled: overrides.tagflow.enabled });
+  // Nothing chosen (or the old default with no key behind it): Tag Flow AI, so the first
+  // thing a new person types gets an answer. See `effectiveProvider` for the whole rule.
+  return effectiveProvider({
+    stored: typeof value === "string" ? value : "",
+    anthropicKeySaved,
+    tagflowEnabled: overrides.tagflow.enabled,
+  });
 }
 
 /**
@@ -1346,6 +1353,7 @@ export async function aiCompact(rawFocus: unknown): Promise<AiCompactResultView>
   if (sendInFlight) return { ok: false, message: "Wait for the current answer to finish, then compact." };
   if (session === null || session.messages.length === 0) return { ok: false, message: "There is nothing to compact yet." };
 
+  await settleDefaultProvider();
   const providerId = activeProvider();
   const ready = await ensureChatAgent(providerId, activeModel(providerId));
   if (typeof ready === "string") return { ok: false, message: ready };
@@ -1392,6 +1400,7 @@ export async function aiSend(
   editorContext = editor;
   currentTaskPrompt = text.slice(0, 200);
   try {
+    await settleDefaultProvider();
     const providerId = activeProvider();
     const model = activeModel(providerId);
 
@@ -1429,6 +1438,7 @@ export async function aiSend(
     if (turnRoot !== null && configuredEditPolicy() === "trusted") checkpoints.begin(turnRoot);
     recordDebug("info", "ai", `Turn started: ${providerId} / ${model}`);
 
+    turnAgent = ready;
     for await (const event of ready.send(turnText, { images })) {
       chatEvents.push(event);
       if (event.kind === "tool-draft") continue;
@@ -1577,6 +1587,7 @@ export async function aiSend(
     recordMilestone("turn_failed");
     return false;
   } finally {
+    turnAgent = null;
     currentTaskPrompt = null;
     sendInFlight = false;
   }
@@ -1604,6 +1615,7 @@ export async function aiCompletion(input: AiCompletionInputView): Promise<string
   completionInFlight = { id: input.requestId, controller };
 
   try {
+    await settleDefaultProvider();
     const providerId = activeProvider();
     const provider = await buildProvider(providerId);
     if (provider === null || controller.signal.aborted) return null;
@@ -1669,6 +1681,7 @@ export async function aiInlineEdit(input: AiInlineEditInputView): Promise<AiInli
   const controller = new AbortController();
   inlineEditInFlight = controller;
   try {
+    await settleDefaultProvider();
     const providerId = activeProvider();
     const provider = await buildProvider(providerId);
     if (provider === null) return { ok: false, error: "Connect a model first: AI, then Connect a Model." };
@@ -1890,6 +1903,7 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
 
 async function routeCurrentTeamModel(team: Parameters<import("./aiTeamCoordinator.ts").AiTeamCoordinatorOptions["resolveRoute"]>[0], node: Parameters<import("./aiTeamCoordinator.ts").AiTeamCoordinatorOptions["resolveRoute"]>[1]) {
   const route = team.plan.roles.find(role => role.id === node.roleId)?.route;
+  await settleDefaultProvider();
   const providerId = route?.provider ?? activeProvider();
   const modelId = route?.model ?? activeModel(providerId);
   if ((await buildProvider(providerId)) === null) {
@@ -2064,6 +2078,7 @@ export function aiAnswerAnyway(): void {
 export function aiCancel(): void {  completionInFlight?.controller.abort();
   completionInFlight = null;
   agent?.cancel();
+  if (turnAgent !== agent) turnAgent?.cancel();
   if (activeTaskId !== null) {
     const taskId = activeTaskId;
     void readyAiWorkspaceService()

@@ -16,6 +16,7 @@
 import { CONTINUE_PROMPT, describeAiFailure, OUTPUT_LIMIT_AGAIN, resumeAfterModelSwitch, type AiFailure } from "./aiFailure.ts";
 import { createChatQueue, type QueuedMessage } from "./chatQueue.ts";
 import { limitWaitCountdown, limitWaitHeadline } from "./limitWait.ts";
+import { fillPartnerNote } from "./partnerNote.ts";
 import { chipLabel, modelChoices, rememberModel, switchedFrom, type ModelChoice, type ModelInUse } from "./modelSwitch.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { createChatPreview } from "./chatPreview.ts";
@@ -478,6 +479,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         ? `Model: ${status.activeModel}. Change provider or model`
         : "Choose a provider and model");
       setupStatus.dataset["state"] = status.ready ? "ready" : "idle";
+      const partner = active?.partner;
+      if (partner === undefined) partnerLine.hidden = true;
+      else {
+        const key = `${partner.privacyUrl} ${partner.termsUrl}`;
+        if (partnerLine.dataset["partner"] !== key) {
+          fillPartnerNote(partnerLine, partner);
+          partnerLine.dataset["partner"] = key;
+        }
+        partnerLine.hidden = false;
+      }
       modelReady = status.ready;
       paintSetup();
       // A message that waited for a model goes as soon as one is ready, wherever it was
@@ -1758,7 +1769,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   void window.adcode.chat.current().then((session) => {
     currentSummary = session?.summary?.text ?? null;
   }, () => undefined);
-  composer.append(queueStrip, input, attachmentStrip, composerNotice, toolbar, composerFooter, filePicker);
+  // Whose terms apply, while a partner's model (Tag Flow AI) is the one answering.
+  const partnerLine = document.createElement("p");
+  partnerLine.className = "chat-partner-note";
+  partnerLine.hidden = true;
+  composer.append(queueStrip, input, attachmentStrip, composerNotice, toolbar, composerFooter, partnerLine, filePicker);
 
   /* ── Typed menus: `/` runs a command, `@` adds a file ─────────────────── */
 
@@ -2845,6 +2860,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   let resumeTimer: number | null = null;
   function scheduleResume(): void {
+    scheduleLimitSwitch();
     if (resumeOnSwitch === null) return;
     if (resumeTimer !== null) window.clearTimeout(resumeTimer);
     // Let a switch settle first: Connect and Settings write the provider, then the model.
@@ -3773,12 +3789,42 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   let limitCard: HTMLElement | null = null;
   let limitTimer: number | null = null;
+  /** The model the waiting turn is on: choosing any other moves the work to it now. */
+  let limitWaitOn: ModelInUse | null = null;
+  let limitSwitchTimer: number | null = null;
 
   function clearLimitWait(): void {
     if (limitTimer !== null) window.clearInterval(limitTimer);
     limitTimer = null;
     limitCard?.remove();
     limitCard = null;
+    limitWaitOn = null;
+  }
+
+  /*
+   * Another model chosen during the wait - from the card's button, the model chip, Connect or
+   * Settings - takes over at once: the waiting turn stops and the new model is asked to carry
+   * on, which keeps everything done so far. Waiting hours for a reset is only for people who
+   * want to stay on this model.
+   */
+  function scheduleLimitSwitch(): void {
+    if (limitCard === null) return;
+    if (limitSwitchTimer !== null) window.clearTimeout(limitSwitchTimer);
+    limitSwitchTimer = window.setTimeout(() => {
+      limitSwitchTimer = null;
+      void moveWaitingTurn();
+    }, 400);
+  }
+
+  async function moveWaitingTurn(): Promise<void> {
+    const waitingOn = limitWaitOn;
+    if (limitCard === null || waitingOn === null || choosingModel || deps.modelPickerOpen?.() === true) return;
+    const status = await window.adcode.ai.status().catch(() => null);
+    if (status === null || limitWaitOn !== waitingOn || !switchedFrom(waitingOn, status)) return;
+    limitWaitOn = null;
+    modeNote(`Now using ${chipLabel(status)} - picking up where it stopped.`);
+    sendAfterCancel = { id: -1, text: CONTINUE_PROMPT, attachments: [] };
+    window.adcode.ai.cancel();
   }
 
   function showLimitWait(provider: string, resetsAt: number): void {
@@ -3800,6 +3846,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     other.addEventListener("click", () => deps.openConnect());
     card.append(headline, countdown, other);
     limitCard = card;
+    void window.adcode.ai.status().then((status) => {
+      if (limitCard === card) limitWaitOn = { provider: status.activeProvider, model: status.activeModel };
+    }, () => undefined);
     limitTimer = window.setInterval(() => {
       countdown.textContent = limitWaitCountdown(resetsAt, Date.now());
     }, 1000);

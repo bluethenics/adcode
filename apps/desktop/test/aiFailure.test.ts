@@ -122,3 +122,23 @@ describe("picking a failed turn back up after a model switch", () => {
     )).toBeNull();
   });
 });
+
+/**
+ * A usage limit the turn could not wait out: auto-continue was switched off in the admin
+ * panel, or the relay kept saying "later". The card says when it resets - the one thing that
+ * matters - and offers another model, never a Try again that would only meet the limit again.
+ */
+describe("a usage limit that ended the turn", () => {
+  const message = "Tag Flow AI usage limit reached. It resets at 3:00 PM. Send again then, or connect another model.";
+
+  it("says whose limit, when it resets, and offers another model", () => {
+    const failure = describeAiFailure(message);
+    expect(failure).toMatchObject({ kind: "usage-limit", title: "Tag Flow AI usage limit reached", actions: ["models"] });
+    expect(failure.explanation).toContain("3:00 PM");
+    expect(failure.explanation).not.toMatch(/report/i);
+  });
+
+  it("carries the conversation on when another model is chosen", () => {
+    expect(resumeAfterModelSwitch(describeAiFailure(message), "build a snake game")).toBe(CONTINUE_PROMPT);
+  });
+});

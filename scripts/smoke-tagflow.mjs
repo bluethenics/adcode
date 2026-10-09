@@ -39,6 +39,9 @@ const call = (index, id, name, args) => ({ index, id, type: "function", function
 const GAME = "<!doctype html><title>Snake</title><h1 id=title>Snake</h1><canvas id=board width=300 height=300></canvas><p>Score: <span id=score>0</span></p>";
 const chats = [];
 let limitedAt = null;
+let longLimitAt = null;
+const switched = [];
+const CONTINUE_PROMPT = "Continue from where you stopped and finish the remaining steps.";
 
 const api = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -51,12 +54,32 @@ const api = createServer(async (req, res) => {
     return;
   }
 
+  // Another model, chosen while a turn waits out an hour-long limit: it should get the work.
+  if (url.pathname === "/custom/v1/chat/completions" && req.method === "POST") {
+    const request = JSON.parse(body || "{}");
+    const lastUser = [...(request.messages ?? [])].reverse().find((message) => message.role === "user");
+    switched.push({ lastUser: typeof lastUser?.content === "string" ? lastUser.content : JSON.stringify(lastUser?.content ?? "") });
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    res.end(`data: ${JSON.stringify({ choices: [{ delta: { content: "Added the pause button on the other model." }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`);
+    return;
+  }
+
   if (url.pathname === "/v1/ai/tagflow/chat/completions" && req.method === "POST") {
     const request = JSON.parse(body || "{}");
     chats.push({ at: Date.now(), authorization: req.headers.authorization ?? null, model: request.model, messages: request.messages?.length ?? 0, tools: request.tools?.length ?? 0 });
     const messages = request.messages ?? [];
     const lastUser = [...messages].reverse().find((message) => message.role === "user");
     const answered = messages.slice(messages.lastIndexOf(lastUser) + 1).filter((message) => message.role === "tool").length;
+
+    // The second request of the run meets a limit an hour long.
+    const lastText = typeof lastUser?.content === "string" ? lastUser.content : "";
+    if (/pause button/.test(lastText)) {
+      longLimitAt ??= Date.now();
+      const resetsAt = longLimitAt + 3_600_000;
+      res.writeHead(429, { "content-type": "application/json", "retry-after": String(Math.ceil((resetsAt - Date.now()) / 1000)) });
+      res.end(JSON.stringify({ error: { message: "You've used this window's Tag Flow AI requests.", type: "usage_limit", code: "tagflow_usage_limit", resets_at: resetsAt, auto_continue: true } }));
+      return;
+    }
 
     // The first build request meets the usage limit, resetting a few seconds from now.
     if (limitedAt === null) {
@@ -161,6 +184,9 @@ try {
     };
   })()`);
 
+  /* Before anything is sent: whose terms apply, linked. */
+  checks.welcomeNamesPartner = await waitFor("(() => { const note = document.querySelector('dialog.onboarding .onboarding-partner-note'); return !!note && /Tag Flow AI is an ADCode partner/.test(note.textContent) && !!note.querySelector('a[href=\"https://tagflow-ai.com/legal/privacy\"]'); })()", 10_000);
+
   await evaluate("[...document.querySelectorAll('.onboarding-idea-chip')].find((chip) => chip.textContent === 'Snake game')?.click()");
   await sleep(300);
   await shot("tagflow-01-idea");
@@ -220,6 +246,40 @@ try {
   await sleep(1500);
   await shot("tagflow-03-built");
   checks.modelPill = await evaluate("document.querySelector('.chat-model')?.textContent ?? null");
+  checks.composerNamesPartner = await evaluate("(() => { const note = [...document.querySelectorAll('.chat-partner-note')].find((one) => one.getBoundingClientRect().width > 0); return !!note && /Tag Flow AI is an ADCode partner/.test(note.textContent) && note.querySelectorAll('a').length === 2; })()");
+
+  /* An hour-long limit, and another model chosen meanwhile: the work moves to it now. */
+  checks.secondPromptTyped = await evaluate(`(() => {
+    // The visible composer: Vibe and the IDE window each have one.
+    const input = [...document.querySelectorAll('.chat-input')].find((one) => one.getBoundingClientRect().width > 0);
+    if (!input) return false;
+    input.focus();
+    input.value = 'Add a pause button.';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    return true;
+  })()`);
+  checks.hourLimitShown = await waitFor("/Continuing in (59m|1h)/.test(document.querySelector('.chat-limit-wait-countdown')?.textContent ?? '')", 20_000);
+  checks.hourLimitReachedRelay = longLimitAt !== null;
+  checks.hourLimitCard = await evaluate("document.querySelector('.chat-limit-wait')?.textContent ?? null");
+  await evaluate(`(async () => {
+    await window.adcode.ai.setKey('custom', 'smoke-key');
+    await window.adcode.settings.write('adcode.ai.customBaseUrl', ${JSON.stringify(apiOrigin + "/custom/v1")});
+    await window.adcode.settings.write('adcode.ai.provider', 'custom');
+    await window.adcode.settings.write('adcode.ai.model', 'smoke-model');
+  })()`);
+  checks.switchedModelGotTheWork = await (async () => {
+    for (let i = 0; i < 80; i++) {
+      if (switched.length > 0) return switched[0].lastUser === CONTINUE_PROMPT;
+      await sleep(250);
+    }
+    return false;
+  })();
+  checks.switchedAnswerShown = await waitFor("/on the other model/.test(document.querySelector('.chat-conversation')?.textContent ?? '')", 20_000);
+  checks.waitCardGoneAfterSwitch = await evaluate("document.querySelector('.chat-limit-wait') === null");
+  checks.partnerNoteGoneAfterSwitch = await waitFor("![...document.querySelectorAll('.chat-partner-note')].some((one) => one.getBoundingClientRect().width > 0)", 10_000);
+  checks.afterSwitch = await evaluate("(async () => { const status = await window.adcode.ai.status(); return { provider: status.activeProvider, model: status.activeModel, ready: status.ready, tail: (document.querySelector('.chat-conversation')?.textContent ?? '').slice(-300) }; })()");
+  await shot("tagflow-04-switched");
 } catch (error) {
   checks.threw = String(error?.stack ?? error);
 } finally {
@@ -236,6 +296,8 @@ const ok =
   checks.status?.activeProvider === "tagflow" &&
   checks.status?.ready === true &&
   checks.status?.partner?.privacyUrl === "https://tagflow-ai.com/legal/privacy" &&
+  checks.welcomeNamesPartner === true &&
+  checks.composerNamesPartner === true &&
   checks.welcomeClosed === true &&
   checks.noConnectStep === true &&
   checks.limitCardShown === true &&
@@ -247,6 +309,11 @@ const ok =
   checks.limitCardGone === true &&
   typeof checks.continuedAfterResetMs === "number" && checks.continuedAfterResetMs >= RESET_AFTER_MS - 500 &&
   checks.relay?.signedWithAccountToken === true &&
-  checks.relay?.model === "tagflow-code-27b";
+  checks.relay?.model === "tagflow-code-27b" &&
+  checks.hourLimitShown === true &&
+  checks.switchedModelGotTheWork === true &&
+  checks.switchedAnswerShown === true &&
+  checks.waitCardGoneAfterSwitch === true &&
+  checks.partnerNoteGoneAfterSwitch === true;
 if (!ok) console.log(output.slice(-3000));
 process.exit(ok ? 0 : 1);

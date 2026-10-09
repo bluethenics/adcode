@@ -20,7 +20,7 @@ import {
   type ConnectionProfile,
 } from "@adcode/ai/connections";
 import type { AiModelInfo, AiProviderInfo, AiStatus, LocalModelsView } from "../../shared/api.ts";
-import { partnerNoteSegments, type PartnerView } from "../../shared/tagflow.ts";
+import { partnerNoteElement } from "./partnerNote.ts";
 import { pasteText } from "../clipboard.ts";
 import { createQuickConnect, type QuickConnect } from "./quickConnect.ts";
 
@@ -88,25 +88,6 @@ function localDescription(local: LocalModelsView): string {
     return "Ollama is running but has no models yet. In a terminal, run: ollama pull qwen3-coder - then pick it here.";
   }
   return "Runs on your computer: free, private, and as fast as your machine. No API key needed.";
-}
-
-/** Whose terms apply to a partner's model, with both documents linked (they open in the browser). */
-function partnerNote(partner: PartnerView): HTMLElement {
-  const note = document.createElement("p");
-  note.className = "connect-partner-note";
-  for (const segment of partnerNoteSegments(partner)) {
-    if ("href" in segment) {
-      const link = document.createElement("a");
-      link.href = segment.href;
-      link.target = "_blank";
-      link.rel = "noreferrer";
-      link.textContent = segment.text;
-      note.append(link);
-    } else {
-      note.append(segment.text);
-    }
-  }
-  return note;
 }
 
 export function createConnectView(deps: ConnectViewDeps): ConnectView {
@@ -558,7 +539,7 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
             ? "Connect your account, then choose a model for your assistant."
             : "Run your assistant with a local model. No API key required.";
     detail.append(description);
-    if (provider.partner !== undefined) detail.append(partnerNote(provider.partner));
+    if (provider.partner !== undefined) detail.append(partnerNoteElement(provider.partner, "connect-partner-note"));
     if (provider.local !== undefined) detail.append(localActions(provider.local));
     const selection = document.createElement("div");
     selection.className = "connect-selection";

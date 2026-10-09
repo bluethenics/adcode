@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { impliedProvider, partnerNoteSegments, partnerOf } from "../src/shared/tagflow.ts";
+import { effectiveProvider, impliedProvider, partnerNoteSegments, partnerOf } from "../src/shared/tagflow.ts";
 
 /**
  * Which provider a person is on before they have chosen one.
@@ -46,5 +46,26 @@ describe("partnerNoteSegments", () => {
       { text: "Privacy Policy", href: "https://tagflow-ai.com/legal/privacy" },
       { text: "Terms", href: "https://tagflow-ai.com" },
     ]);
+  });
+});
+
+/**
+ * The whole rule, with the stored setting. "anthropic" is what every install stored as the old
+ * default, so it counts as a choice only with an Anthropic key behind it. While the keychain has
+ * not answered yet, nothing moves to Tag Flow: sending somebody's code to a third party they
+ * did not choose, even once, is worse than a moment of "not connected".
+ */
+describe("effectiveProvider", () => {
+  it.each([
+    ["a fresh install", "", false, true, "tagflow"],
+    ["the stored old default with no Anthropic key", "anthropic", false, true, "tagflow"],
+    ["the stored old default with an Anthropic key", "anthropic", true, true, "anthropic"],
+    ["any other choice", "openai", false, true, "openai"],
+    ["Tag Flow chosen outright", "tagflow", null, true, "tagflow"],
+    ["Tag Flow switched off", "", false, false, "anthropic"],
+    ["the keychain not answered yet, old default stored", "anthropic", null, true, "anthropic"],
+    ["the keychain not answered yet, nothing stored", "", null, true, "anthropic"],
+  ] as const)("%s", (_label, stored, anthropicKeySaved, tagflowEnabled, expected) => {
+    expect(effectiveProvider({ stored, anthropicKeySaved, tagflowEnabled })).toBe(expected);
   });
 });

@@ -39,6 +39,26 @@ export function impliedProvider(input: { readonly anthropicKeySaved: boolean; re
   return input.tagflowEnabled && !input.anthropicKeySaved ? TAGFLOW_ID : "anthropic";
 }
 
+/**
+ * The provider a turn actually uses, from what is stored.
+ *
+ * "anthropic" is also what every install stored as the old default, so it counts as a choice
+ * only with an Anthropic key behind it. Until the keychain has answered (`null`), nothing moves
+ * to Tag Flow: sending somebody's code to a third party they did not choose, even once, is
+ * worse than a moment of "not connected".
+ */
+export function effectiveProvider(input: {
+  readonly stored: string;
+  readonly anthropicKeySaved: boolean | null;
+  readonly tagflowEnabled: boolean;
+}): string {
+  const stored = input.stored.trim();
+  if (stored.length > 0 && stored !== "anthropic") return stored;
+  if (input.anthropicKeySaved === null) return "anthropic";
+  if (stored === "anthropic" && input.anthropicKeySaved) return "anthropic";
+  return impliedProvider({ anthropicKeySaved: input.anthropicKeySaved, tagflowEnabled: input.tagflowEnabled });
+}
+
 /** One run of the partner notice: words, or words that link. */
 export type NoteSegment = { readonly text: string } | { readonly text: string; readonly href: string };
 

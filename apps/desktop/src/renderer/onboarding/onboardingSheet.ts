@@ -24,6 +24,8 @@
  * stays on the first screen, because how ADCode is paid for is worth knowing on day one.
  */
 import { createQuickConnect, type QuickConnect } from "../ai/quickConnect.ts";
+import { fillPartnerNote } from "../ai/partnerNote.ts";
+import type { PartnerView } from "../../shared/tagflow.ts";
 
 export interface OnboardingSheet {
   open(): void;
@@ -36,6 +38,11 @@ export interface OnboardingDeps {
   complete: () => void;
   /** Whether a model is connected and ready right now. */
   aiReady: () => Promise<boolean>;
+  /**
+   * The partner running the model in use (Tag Flow AI), or null. Their privacy policy and
+   * terms apply to what Build it sends, so the welcome says so before anything is sent.
+   */
+  partner?: () => Promise<PartnerView | null>;
   /**
    * Make a project for the idea (unless a folder is already open), open it, and put the
    * idea to the assistant - sent when `send` is true, left in the composer otherwise.
@@ -239,6 +246,15 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
       "ADCode is free. Once you have built something, a small sponsored card appears now and then - half of what it earns is yours. ",
       adsLink,
     );
+    // Filled once the model in use is known; empty (and hidden) unless a partner runs it.
+    const partnerNote = document.createElement("p");
+    partnerNote.className = "onboarding-partner-note";
+    partnerNote.hidden = true;
+    void deps.partner?.().then((partner) => {
+      if (partner === null) return;
+      fillPartnerNote(partnerNote, partner);
+      partnerNote.hidden = false;
+    }, () => undefined);
 
     body.append(
       heading("What do you want to build?", "Describe it in a sentence. ADCode makes the project, writes the code and shows it running."),
@@ -246,6 +262,7 @@ export function createOnboardingSheet(deps: OnboardingDeps): OnboardingSheet {
       chips,
       existing,
       ads,
+      partnerNote,
     );
     next.disabled = idea.trim().length === 0;
     requestAnimationFrame(() => box.focus());
