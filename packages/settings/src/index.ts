@@ -303,11 +303,11 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     id: "adcode.ai.provider",
     group: "ai",
     kind: "text",
-    placeholder: "anthropic", multiline: false, maxLength: 120,
+    placeholder: "tagflow", multiline: false, maxLength: 120,
     label: "Provider",
     description:
-      "Bring your own key. Keys are stored in the OS keychain, never in this settings file. The local option needs no key.",
-    default: "anthropic",
+      "Empty uses Tag Flow AI, built in and free with no key. Or bring your own key - keys are stored in the OS keychain, never in this settings file. The local option needs no key.",
+    default: "",
     available: true,
   },
   /*

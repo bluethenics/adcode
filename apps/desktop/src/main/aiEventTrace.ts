@@ -53,6 +53,8 @@ export function agentEventTrace(event: AgentEvent): AgentEventTrace | null {
     // The summary is model text about the user's work: the trace says it happened, not what it said.
     case "compacted":
       return { kind: "state", summary: "Compacted earlier steps", detail: "", outcome: "ok" };
+    case "limit-wait":
+      return { kind: "state", summary: "Waiting for the usage limit to reset", detail: "", outcome: "pending" };
     case "compacting":
     case "context":
       return null;

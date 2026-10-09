@@ -55,6 +55,7 @@ import type { MilestoneName } from "./milestones.ts";
 import type { AssistantControlAction, AssistantControlsView } from "./assistantControls.ts";
 import type { McpNodeCheck } from "./mcpNode.ts";
 import type { LiveAgentEventView } from "./liveAgents.ts";
+import type { PartnerView } from "./tagflow.ts";
 
 export type { ActivityDelta };
 
@@ -1093,6 +1094,11 @@ export interface AiProviderInfo {
   readonly transport: "native" | "openai-compatible" | "unsupported";
   /** Where to read about getting a key. */
   readonly doc: string | null;
+  /**
+   * The partner that runs it, when ADCode offers it on a partner's behalf - Tag Flow AI.
+   * Their privacy policy and terms apply, and the window says so beside it.
+   */
+  readonly partner?: PartnerView;
 }
 
 export interface AiConnectionInfo {

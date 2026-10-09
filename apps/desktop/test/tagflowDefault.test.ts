@@ -1,0 +1,38 @@
+import { describe, expect, it } from "vitest";
+import { impliedProvider, partnerOf } from "../src/shared/tagflow.ts";
+
+/**
+ * Which provider a person is on before they have chosen one.
+ *
+ * Asked for: Tag Flow AI's models "already connected" so a new user can "just go and
+ * straight up use the AI". A fresh install starts on Tag Flow. Somebody who saved an
+ * Anthropic key back when Anthropic was the silent default keeps it, and when the admin
+ * panel switches Tag Flow off, a fresh install starts where it used to.
+ */
+describe("impliedProvider", () => {
+  it("starts a fresh install on Tag Flow AI", () => {
+    expect(impliedProvider({ anthropicKeySaved: false, tagflowEnabled: true })).toBe("tagflow");
+  });
+
+  it("keeps somebody who saved an Anthropic key under the old default", () => {
+    expect(impliedProvider({ anthropicKeySaved: true, tagflowEnabled: true })).toBe("anthropic");
+  });
+
+  it("falls back to the old default while Tag Flow is switched off", () => {
+    expect(impliedProvider({ anthropicKeySaved: false, tagflowEnabled: false })).toBe("anthropic");
+  });
+});
+
+describe("partnerOf", () => {
+  it("names Tag Flow and links its privacy policy and terms", () => {
+    expect(partnerOf({ privacyUrl: "https://tagflow-ai.com/legal/privacy", termsUrl: "https://tagflow-ai.com/legal/terms" })).toEqual({
+      name: "Tag Flow AI",
+      privacyUrl: "https://tagflow-ai.com/legal/privacy",
+      termsUrl: "https://tagflow-ai.com/legal/terms",
+    });
+  });
+
+  it("links Tag Flow's site for its terms until it publishes a terms page", () => {
+    expect(partnerOf({ privacyUrl: "https://tagflow-ai.com/legal/privacy", termsUrl: null }).termsUrl).toBe("https://tagflow-ai.com");
+  });
+});
