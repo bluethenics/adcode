@@ -5,6 +5,16 @@ import type { HelpEntry } from "../types.ts";
 
 export const AI_ENTRIES: readonly HelpEntry[] = [
   {
+    id: "ai.tagflow",
+    title: "Tag Flow AI: free, built in, no key",
+    plain: "ADCode comes with an AI model already connected - Tag Flow AI - so you can ask the assistant to build something the moment you open it, without a key, an account or a credit card.",
+    why: "Getting an API key is the step most people give up on before they have seen what the assistant can do. Tag Flow AI, an ADCode partner, is switched on for everybody, so the first thing you type gets an answer, and you can bring your own model later if you want a different one.",
+    how: "Just type in the assistant: on a new install it already uses Tag Flow AI. To go back to it after using another model, run Use Tag Flow AI (Free, No Key) from the command palette, pick Tag Flow AI in the model menu next to the send button, or choose it at the top of Connect a model and press Use this model. Requests go through ADCode's server, which adds Tag Flow's key, so nothing is stored on your computer. If a usage limit is ever set and you reach it, the chat says when it resets, waits, and carries on with the same task by itself at that time - press Stop to end the wait, or Use another model to switch. Tag Flow AI's privacy policy and terms apply when you use its models; both are linked in Connect a model and in the model menu.",
+    group: "ai",
+    settingIds: [],
+    related: ["ai.connect", "ai.freeKey", "adcode.ai.provider"],
+  },
+  {
     id: "ai.seesYourApp",
     title: "The assistant sees your app",
     plain: "The assistant opens the web app you are building in a browser of its own, looks at any page, clicks and types through it like a visitor, and fixes what it finds.",
@@ -58,12 +68,12 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
   {
     id: "adcode.ai.provider",
     title: "Provider",
-    plain: "Which company's AI you want to use. You bring your own account and key.",
-    why: "Different models are better at different things, and cost different amounts. ADCode does not resell anybody's AI, so the choice - and the bill - is yours.",
-    how: "Open Connect a model, pick a provider, and paste your key. ADCode checks the key works before saving it. Keys are kept in your operating system's own password store, never in a settings file. The local option, Ollama, needs no key at all - it talks to a model running on your own machine, and its row says what is true right now: Running with how many models, Installed but not running (with Start Ollama), or Not installed (with Download Ollama).",
+    plain: "Which company's AI you want to use. Tag Flow AI is built in and free; for any other, you bring your own account and key.",
+    why: "Different models are better at different things, and cost different amounts. Tag Flow AI works with nothing set up; for the rest ADCode does not resell anybody's AI, so the choice - and the bill - is yours.",
+    how: "Left empty, the assistant uses Tag Flow AI, which needs no key. Otherwise open Connect a model, pick a provider, and paste your key. ADCode checks the key works before saving it. Keys are kept in your operating system's own password store, never in a settings file. The local option, Ollama, needs no key at all - it talks to a model running on your own machine, and its row says what is true right now: Running with how many models, Installed but not running (with Start Ollama), or Not installed (with Download Ollama).",
     group: "ai",
     settingIds: ["adcode.ai.provider"],
-    related: ["ai.connect", "adcode.ai.chatWidget"],
+    related: ["ai.tagflow", "ai.connect", "adcode.ai.chatWidget"],
   },
   {
     id: "adcode.ai.model",

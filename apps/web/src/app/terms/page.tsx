@@ -80,9 +80,10 @@ ADCode also includes other open-source components under their own licences. Thos
 
 We claim no ownership of, and no licence to, anything you write in the editor. Your files are yours.
 
-Three things are worth being explicit about, because they involve your code leaving your machine and each one only happens because you asked for it:
+Four things are worth being explicit about, because they involve your code leaving your machine:
 
 - **AI providers.** If you connect an AI provider, the code and prompts you send it go to that provider under **their** terms and privacy policy, not ours. We pass the request along; we do not store your code, and we cannot control what they do with it. Choosing the provider is choosing whose terms apply.
+- **Tag Flow AI.** ADCode offers the models of its partner Tag Flow AI, built in and free, through ADCode's own server. When you use them, Tag Flow's terms and privacy policy apply alongside these. We may limit how many requests each account makes in a period - a task that reaches the limit waits for it to reset - and we may change or end the offer.
 - **Live sessions.** Sharing a live session puts the shared documents on your local network for whoever you invite. Who you invite is your decision.
 - **Project memory.** What the editor records to project memory stays on your machine unless you enable the MCP server, which lets tools you point at it read the same memory.
 

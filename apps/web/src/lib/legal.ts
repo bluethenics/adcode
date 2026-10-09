@@ -6,5 +6,5 @@
  * pages print both, and a document whose job is to record what was true when must not
  * disagree with itself about when.
  */
-export const PRIVACY_UPDATED = { iso: "2026-10-07", label: "7 October 2026" } as const;
-export const TERMS_UPDATED = { iso: "2026-10-07", label: "7 October 2026" } as const;
+export const PRIVACY_UPDATED = { iso: "2026-10-09", label: "9 October 2026" } as const;
+export const TERMS_UPDATED = { iso: "2026-10-09", label: "9 October 2026" } as const;

@@ -233,7 +233,7 @@ describe("sitemap dates", () => {
       expect((entry.lastModified as Date).toISOString(), entry.url).toMatch(/T00:00:00\.000Z$/);
     }
     const privacy = entries.find((entry) => entry.url === url("/privacy"));
-    expect((privacy?.lastModified as Date).toISOString().slice(0, 10)).toBe("2026-10-07");
+    expect((privacy?.lastModified as Date).toISOString().slice(0, 10)).toBe("2026-10-09");
     for (const page of LANDINGS) {
       const entry = entries.find((one) => one.url === url(landingPath(page)));
       expect((entry?.lastModified as Date).toISOString().slice(0, 10), page.slug).toBe(page.updated);

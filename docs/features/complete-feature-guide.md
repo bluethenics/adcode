@@ -625,7 +625,7 @@ Connect an AI provider in three steps - choose a provider, check and save its ke
 
 Why use it: A key that was pasted wrong should say so immediately, not silently fail the first time you ask a question.
 
-How to use it: Open Connect a model. While nothing is connected, the top of the screen offers the fastest ways in - a free Google Gemini key, a model already running in Ollama, or any key you paste - and the full list is underneath. Otherwise follow the three steps at the top. Choose a provider or add a named connection with an OpenAI-compatible base URL and exact model ID. The NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system.
+How to use it: Open Connect a model. Tag Flow AI sits at the top, free and already connected - choose it and press Use this model to go back to it. While nothing else is connected, the top of the screen offers the fastest ways in - a free Google Gemini key, a model already running in Ollama, or any key you paste - and the full list is underneath. Otherwise follow the three steps at the top. Choose a provider or add a named connection with an OpenAI-compatible base URL and exact model ID. The NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system.
 
 Access: `All Features → Connect a model`; `Connect`; `Settings`.
 
@@ -665,11 +665,11 @@ Access: `All Features → Edit with AI`; `Edit with AI`; `Keyboard → Ctrl+E`.
 <!-- feature:ai.freeKey -->
 ### Free AI in a minute
 
-Get the assistant working for free: a free Google Gemini key, a model already on your computer, or a key you already have.
+Connect another AI model at no cost: a free Google Gemini key, a model already on your computer, or a key you already have. Tag Flow AI already works with no key.
 
 Why use it: You should not need a credit card, or to know what an API key is, to see what ADCode can build. Google gives anyone with a Google account a free Gemini key, and this gets it connected without copying settings around.
 
-How to use it: Choose Connect your AI - free in the Vibe checklist, run Get a Free AI Key from the command palette, or just send a message - with no model connected, the reply offers the same choices. Press Get my free key: Google AI Studio opens in your browser. Sign in, click Create API key, and copy it. Come back to ADCode and the copied key is picked up and checked on its own; you can also paste it. If Ollama is running on this computer, Use it connects a local model instead, and nothing leaves your machine. Already have a key from OpenAI, Anthropic, OpenRouter, Groq, xAI, DeepSeek or Cerebras? Paste it under I already have a key and ADCode works out which service it belongs to. Nothing is saved until the model has answered a test message. Google's free tier may use what you send to improve its products, so use a paid key for private or work code.
+How to use it: Nothing is needed to start: the assistant answers on Tag Flow AI out of the box. For another free model, choose Connect your AI - free in the Vibe checklist or run Get a Free AI Key from the command palette. Press Get my free key: Google AI Studio opens in your browser. Sign in, click Create API key, and copy it. Come back to ADCode and the copied key is picked up and checked on its own; you can also paste it. If Ollama is running on this computer, Use it connects a local model instead, and nothing leaves your machine. Already have a key from OpenAI, Anthropic, OpenRouter, Groq, xAI, DeepSeek or Cerebras? Paste it under I already have a key and ADCode works out which service it belongs to. Nothing is saved until the model has answered a test message. Google's free tier may use what you send to improve its products, so use a paid key for private or work code.
 
 Access: `All Features → Free AI in a minute`; `Get a free key`.
 
@@ -764,11 +764,11 @@ Access: `All Features → Project memory`; `Open project memory`.
 <!-- feature:adcode.ai.provider -->
 ### Provider
 
-Which company's AI you want to use. You bring your own account and key.
+Which company's AI you want to use. Tag Flow AI is built in and free; for any other, you bring your own account and key.
 
-Why use it: Different models are better at different things, and cost different amounts. ADCode does not resell anybody's AI, so the choice - and the bill - is yours.
+Why use it: Different models are better at different things, and cost different amounts. Tag Flow AI works with nothing set up; for the rest ADCode does not resell anybody's AI, so the choice - and the bill - is yours.
 
-How to use it: Open Connect a model, pick a provider, and paste your key. ADCode checks the key works before saving it. Keys are kept in your operating system's own password store, never in a settings file. The local option, Ollama, needs no key at all - it talks to a model running on your own machine, and its row says what is true right now: Running with how many models, Installed but not running (with Start Ollama), or Not installed (with Download Ollama).
+How to use it: Left empty, the assistant uses Tag Flow AI, which needs no key. Otherwise open Connect a model, pick a provider, and paste your key. ADCode checks the key works before saving it. Keys are kept in your operating system's own password store, never in a settings file. The local option, Ollama, needs no key at all - it talks to a model running on your own machine, and its row says what is true right now: Running with how many models, Installed but not running (with Start Ollama), or Not installed (with Download Ollama).
 
 Access: `All Features → Provider`; `Settings`.
 
@@ -804,6 +804,17 @@ Why use it: Typing is faster than hunting for a button, and each command asks th
 How to use it: Type / at the start of the composer to list every command; keep typing to filter, then press Enter or Tab. /review and /commit attach your uncommitted changes and ask for a review or a commit message. /check asks the assistant to look at your running app in its own browser and fix what is broken. /fix, /test, /plan, /refactor, /explain, /optimize, /security, /docs and /build write a careful prompt that you finish in your own words. /new, /history, /model, /preview, /team and /schedule act at once. Type @ anywhere to search the project's files and add one as a chip; a file open in the editor sends its unsaved text. In an empty composer, the Up arrow brings back your earlier prompts.
 
 Access: `All Features → Slash commands and @ files`; `Show commands`; `Add a file`.
+
+<!-- feature:ai.tagflow -->
+### Tag Flow AI: free, built in, no key
+
+ADCode comes with an AI model already connected - Tag Flow AI - so you can ask the assistant to build something the moment you open it, without a key, an account or a credit card.
+
+Why use it: Getting an API key is the step most people give up on before they have seen what the assistant can do. Tag Flow AI, an ADCode partner, is switched on for everybody, so the first thing you type gets an answer, and you can bring your own model later if you want a different one.
+
+How to use it: Just type in the assistant: on a new install it already uses Tag Flow AI. To go back to it after using another model, run Use Tag Flow AI (Free, No Key) from the command palette, pick Tag Flow AI in the model menu next to the send button, or choose it at the top of Connect a model and press Use this model. Requests go through ADCode's server, which adds Tag Flow's key, so nothing is stored on your computer. If a usage limit is ever set and you reach it, the chat says when it resets, waits, and carries on with the same task by itself at that time - press Stop to end the wait, or Use another model to switch. Tag Flow AI's privacy policy and terms apply when you use its models; both are linked in Connect a model and in the model menu.
+
+Access: `All Features → Tag Flow AI: free, built in, no key`; `Use Tag Flow AI`.
 
 <!-- feature:adcode.ai.taskTokenBudget -->
 ### Task token budget
@@ -1236,7 +1247,7 @@ The first screen asks what you want to build, gets the AI connected if it is not
 
 Why use it: The fastest way to know whether a tool is any good is to watch it make the thing you had in mind.
 
-How to use it: On first launch, type your idea or pick one of the ideas under the box, then press Build it or Enter. If no AI model is connected yet, the next step offers a free one. ADCode then makes the project, opens it and sends your idea to the assistant. Skip or Escape closes it at any time; Open a folder uses a project you already have. Run Show Welcome from the command palette to see it again. Theme, ad frequency and account are in Settings.
+How to use it: On first launch, type your idea or pick one of the ideas under the box, then press Build it or Enter. Tag Flow AI is connected from the start, so there is nothing to set up. If you have switched it off and no other model is connected, the next step offers a free one. ADCode then makes the project, opens it and sends your idea to the assistant. Skip or Escape closes it at any time; Open a folder uses a project you already have. Run Show Welcome from the command palette to see it again. Theme, ad frequency and account are in Settings.
 
 Access: `All Features → Welcome: what do you want to build?`; `Show welcome`.
 

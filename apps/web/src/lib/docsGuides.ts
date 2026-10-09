@@ -735,9 +735,27 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Subscription AI editors lock you to one vendor's models and resell access at a margin. ADCode takes no cut: connect Anthropic, OpenAI, Google, a local Ollama, or any gateway - and switch between them per question if you like.",
   },
 
+  "ai-tagflow": {
+    steps: [
+      "Install ADCode and open it. Nothing else: Tag Flow AI is already connected.",
+      "Type what you want in the assistant - \"build a snake game\", \"add a contact form to this page\" - and press Enter. It answers and builds on Tag Flow AI straight away.",
+      "Using another model and want the free one back? Run Use Tag Flow AI (Free, No Key) from the command palette, or pick Tag Flow AI in the model menu next to the send button.",
+      "In Connect a model, Tag Flow AI is the first row, marked free · built in. Its Privacy Policy and Terms are linked right under its description - they apply when you use its models.",
+      "If ADCode ever sets a usage limit and you reach it, the chat shows when it resets and a countdown. Leave it: at the reset the same task carries on by itself. Press Stop to end the wait, or Use another model to switch and keep going now.",
+    ],
+    benefits: [
+      "The first message you send gets an answer - no API key, no account with an AI company, no credit card.",
+      "Nothing to copy, paste or keep secret: requests go through ADCode's server, which holds Tag Flow's key, so no key is ever stored on your computer.",
+      "A limit, if one is ever set, pauses your work instead of ending it: the task resumes on its own when the window resets, the way Claude does.",
+      "It stays one of your choices. Connect Anthropic, OpenAI, Google, a local Ollama model or any gateway whenever you like, and switch back in one click.",
+    ],
+    betterThan:
+      "Most AI editors make the AI wait for a paid plan, a trial or a key you have to go and get. ADCode ships with a working model, from its partner Tag Flow AI, so you see what it can build in your first minute - and you are never locked to it, because bringing your own model is still one screen away. Your prompts go to Tag Flow under its privacy policy and terms, which ADCode links wherever you can choose it.",
+  },
+
   "ai-free-key": {
     steps: [
-      "In Vibe, choose Connect your AI - free in the checklist. Or just send a message: with no model connected, the reply offers the same choices, and your message waits in the box until one is connected.",
+      "You may not need this at all: Tag Flow AI is connected out of the box. For a different free model, in Vibe choose Connect your AI - free in the checklist, or run Get a Free AI Key from the command palette.",
       "Press Get my free key. Google AI Studio opens in your browser.",
       "Sign in with any Google account, click Create API key, and copy the key.",
       "Come back to ADCode. The copied key is picked up and checked on its own - you can also paste it into the box. When it says Connected, you are done, and a waiting message sends itself.",
