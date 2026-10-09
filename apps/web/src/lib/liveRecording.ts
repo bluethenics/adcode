@@ -9,5 +9,5 @@ export const liveRecording = {
   webm: "/videos/live-room.webm",
   mp4: "/videos/live-room.mp4",
   width: 1280,
-  height: 940,
+  height: 942,
 } as const;

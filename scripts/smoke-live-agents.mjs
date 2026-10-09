@@ -17,13 +17,13 @@
  * marketing/ad-payback/.tools) into the website's recording: apps/web/public/videos/live-room.*
  * and the dimensions in apps/web/src/lib/liveRecording.ts.
  */
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
+import { encodeScreencast, findFfmpeg } from "./recording.mjs";
 
 const root = process.cwd();
 const require = createRequire(join(root, "package.json"));
@@ -116,56 +116,32 @@ const endpoint = `http://127.0.0.1:${fake.address().port}/v1`;
  * VP9 WebM and a WebP poster of the last frame, 1280 wide.
  */
 async function encodeRecording(frames, box, ms) {
-  if (frames.length < 10 || box === null) return { error: `only ${frames.length} frames` };
-  const ffmpeg = [resolve(root, "marketing/ad-payback/.tools/ffmpeg.exe"), resolve(root, "../../../marketing/ad-payback/.tools/ffmpeg.exe")]
-    .find((path) => existsSync(path));
-  if (ffmpeg === undefined) return { error: "no ffmpeg: run node marketing/ad-payback/fetch-tools.mjs" };
-  const sharp = require("sharp");
-  const dir = await mkdtemp(join(tmpdir(), "adcode-live-frames-"));
-  const names = [];
-  for (const [index, frame] of frames.entries()) {
-    const name = `f${String(index).padStart(5, "0")}.jpg`;
-    await writeFile(join(dir, name), Buffer.from(frame.data, "base64"));
-    names.push(name);
-  }
-  const list = [];
-  frames.forEach((frame, index) => {
-    const next = frames[index + 1];
-    list.push(`file '${names[index]}'`, `duration ${(next === undefined ? 0.6 : Math.max(0.001, next.at - frame.at)).toFixed(4)}`);
-  });
-  list.push(`file '${names.at(-1)}'`);
-  await writeFile(join(dir, "list.txt"), list.join("\n"));
-
-  // Screencast frames are in device pixels; the room's box is in CSS pixels.
-  const first = await sharp(join(dir, names[0])).metadata();
-  const scale = first.width / 1360;
+  if (box === null) return { error: "the room never appeared" };
+  const ffmpeg = findFfmpeg(root);
+  if (ffmpeg === null) return { error: "no ffmpeg: run node marketing/ad-payback/fetch-tools.mjs" };
   const pad = 14;
-  const even = (value) => Math.max(0, Math.round(value / 2) * 2);
   const crop = {
-    left: even((box.x - pad) * scale),
-    top: even((box.y - pad) * scale),
-    width: even(Math.min(box.width + pad * 2, 1360 - box.x + pad) * scale),
-    height: even(Math.min(box.height + pad * 2, 900 - box.y + pad) * scale),
+    left: box.x - pad,
+    top: box.y - pad,
+    width: Math.min(box.width + pad * 2, 1360 - box.x + pad),
+    height: Math.min(box.height + pad * 2, 900 - box.y + pad),
   };
-  const width = 1280;
-  const height = even((crop.height * width) / crop.width);
-  const filter = `crop=${crop.width}:${crop.height}:${crop.left}:${crop.top},scale=${width}:${height}:flags=lanczos,fps=30,format=yuv420p`;
   const out = resolve(root, "apps/web/public/videos");
-  await mkdir(out, { recursive: true });
-  const encode = (args) => {
-    const run = spawnSync(ffmpeg, ["-y", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", join(dir, "list.txt"), "-vf", filter, "-an", ...args], { stdio: "inherit" });
-    if (run.status !== 0) throw new Error(`ffmpeg ${args.at(-1)} failed`);
-  };
-  encode(["-c:v", "libx264", "-preset", "slow", "-crf", "24", "-movflags", "+faststart", join(out, "live-room.mp4")]);
-  encode(["-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "36", "-row-mt", "1", join(out, "live-room.webm")]);
-  await sharp(join(dir, names.at(-1))).extract(crop).resize(width, height).webp({ quality: 82 }).toFile(join(out, "live-room.webp"));
-
+  const result = await encodeScreencast({
+    frames,
+    ffmpeg,
+    sharp: require("sharp"),
+    crop,
+    viewportWidth: 1360,
+    width: 1280,
+    out: { mp4: join(out, "live-room.mp4"), webm: join(out, "live-room.webm"), poster: join(out, "live-room.webp") },
+  });
   const lib = resolve(root, "apps/web/src/lib/liveRecording.ts");
   const source = await readFile(lib, "utf8");
-  await writeFile(lib, source.replace(/width: \d+,/, `width: ${width},`).replace(/height: \d+,/, `height: ${height},`));
-  const size = async (file) => Math.round((await readFile(join(out, file))).length / 1024);
-  return { frames: frames.length, seconds: Math.round(ms / 100) / 10, width, height, mp4KB: await size("live-room.mp4"), webmKB: await size("live-room.webm"), posterKB: await size("live-room.webp") };
+  await writeFile(lib, source.replace(/width: \d+,/, `width: ${result.width},`).replace(/height: \d+,/, `height: ${result.height},`));
+  return { ...result, recordedMs: ms };
 }
+
 
 /* ── The app ──────────────────────────────────────────────────────────────── */
 

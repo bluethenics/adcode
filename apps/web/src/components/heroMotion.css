@@ -1,0 +1,46 @@
+/*
+ * The hero arrives instead of appearing: the headline, its promise, the proof, the buttons,
+ * then the recording - each rising a little, one after another, in under a second.
+ *
+ * The headline starts faint rather than invisible, so the largest paint is not held back by
+ * the animation, and the buttons start readable: the whole entrance is over in about 0.7s.
+ * Nothing moves for anyone who asked for less motion.
+ */
+
+.showcase-images video { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--card); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .studio-hero h1 { animation: hero-headline 620ms cubic-bezier(.16, 1, .3, 1) both; }
+  .studio-hero .marketplace-hero-copy > p { animation: hero-rise 560ms 60ms cubic-bezier(.16, 1, .3, 1) both; }
+  .studio-hero .hero-proof li { animation: hero-rise 620ms cubic-bezier(.16, 1, .3, 1) both; }
+  .studio-hero .hero-proof li:nth-child(1) { animation-delay: 110ms; }
+  .studio-hero .hero-proof li:nth-child(2) { animation-delay: 150ms; }
+  .studio-hero .hero-proof li:nth-child(3) { animation-delay: 190ms; }
+  .studio-hero .hero-install { animation: hero-cta 520ms 120ms cubic-bezier(.16, 1, .3, 1) both; }
+  .studio-hero .showcase-stage { animation: hero-stage 900ms 160ms cubic-bezier(.16, 1, .3, 1) both; }
+}
+
+@keyframes hero-headline {
+  from { opacity: .18; translate: 0 18px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes hero-rise {
+  from { opacity: 0; translate: 0 14px; }
+  to { opacity: 1; translate: 0 0; }
+}
+/* The buttons are what a visitor came for: readable and clickable from the first frame. */
+@keyframes hero-cta {
+  from { opacity: .4; translate: 0 10px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@keyframes hero-stage {
+  from { opacity: 0; translate: 0 36px; scale: .97; }
+  to { opacity: 1; translate: 0 0; scale: 1; }
+}
+
+/* On a phone the caption stacks rather than dropping its second line: that line says how the
+   recording was made, which is not the part to lose. */
+@media (max-width: 640px) {
+  .app-showcase figcaption { flex-direction: column; gap: 4px; }
+  .app-showcase figcaption > span:last-child:not(:first-child) { display: inline; }
+}

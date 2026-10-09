@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snake</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #101411; color: #e8efe9; font: 16px system-ui, sans-serif; }
+    header { display: flex; justify-content: space-between; align-items: baseline; }
+    h1 { margin: 0 0 12px; font-size: 28px; }
+    .scores b { margin: 0 14px 0 6px; }
+    canvas { display: block; border-radius: 14px; background: #17201a; }
+    button { margin-top: 14px; padding: 8px 18px; border: 0; border-radius: 99px; background: #5bd67e; color: #0b120d; font-weight: 700; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Snake</h1>
+      <span class="scores">Score<b id="score">0</b>Best<b id="best">0</b></span>
+    </header>
+    <canvas id="board" width="360" height="360"></canvas>
+    <button id="restart">Restart</button>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>

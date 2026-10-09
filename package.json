@@ -35,6 +35,7 @@
     "smoke:ads": "node scripts/smoke-ads.mjs",
     "smoke:agent": "node scripts/smoke-agent-tools.mjs",
     "smoke:live": "node scripts/smoke-live-agents.mjs",
+    "record:hero": "node scripts/record-hero.mjs",
     "smoke:first-run": "node scripts/smoke-first-run.mjs",
     "smoke:all": "node scripts/smoke.mjs && node scripts/smoke-ads.mjs",
     "design:check": "node scripts/design-system-check.cjs",
