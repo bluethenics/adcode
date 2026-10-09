@@ -87,6 +87,8 @@ export {
   OLLAMA_MODELS,
   OPENAI_BASE_URL,
   OLLAMA_BASE_URL,
+  usageLimitOf,
+  type UsageLimit,
 } from "./providers/openaiCompatible.ts";
 export { createGoogleProvider, GOOGLE_MODELS, GOOGLE_BASE_URL } from "./providers/google.ts";
 
@@ -95,6 +97,8 @@ export {
   DEFAULT_CONTEXT_WINDOW,
   SNAPSHOT_TAKEN_ON,
   RECOMMENDED_MODELS,
+  TAGFLOW_CATALOGUE,
+  TAGFLOW_PROVIDER_ID,
   baseUrlFor,
   contextWindowOf,
   isUsableModel,
@@ -106,12 +110,14 @@ export {
   traitsOf,
   transportFor,
   usableCatalogue,
+  withProviderModels,
   type CatalogueModel,
   type CatalogueProvider,
   type Transport,
 } from "./catalogue.ts";
 export { effortFor } from "./effort.ts";
 export {
+  DEFAULT_TAGFLOW_CLIENT_SETTINGS,
   EMPTY_OVERRIDES,
   applyOverrides,
   modelKey,
@@ -119,6 +125,7 @@ export {
   preferencesWith,
   type AddedModel,
   type CatalogueOverrides,
+  type TagflowClientSettings,
 } from "./catalogueOverrides.ts";
 export { allowedOutputSize } from "./outputSize.ts";
 export { THINKING_FILLED_ALLOWANCE } from "./agent.ts";

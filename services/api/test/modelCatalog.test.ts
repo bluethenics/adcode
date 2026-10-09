@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { TokenVerifier } from "../src/auth.ts";
 import { createFetchHandler } from "../src/fetchHandler.ts";
 import { createMemoryStore } from "../src/memoryStore.ts";
-import { EMPTY_MODEL_CATALOG, parseModelCatalog } from "../src/modelCatalog.ts";
+import { DEFAULT_TAGFLOW_SETTINGS, EMPTY_MODEL_CATALOG, parseModelCatalog, tagflowSettingsOf } from "../src/modelCatalog.ts";
 
 /**
  * The model list, curated from the admin panel.
@@ -48,6 +48,65 @@ describe("parseModelCatalog", () => {
     ["an unknown field", { surprise: true }],
   ])("refuses %s", (_label, raw) => {
     expect(parseModelCatalog(raw)).toBeNull();
+  });
+});
+
+/**
+ * Tag Flow AI's settings ride in the same document, so the admin panel's one Save covers
+ * them and no table had to be added. Asked for: "make it adjustable in the admin panel".
+ */
+describe("Tag Flow AI settings", () => {
+  const tagflow = {
+    enabled: false,
+    requestLimit: 200,
+    windowHours: 5,
+    globalRequestsPerMinute: 600,
+    autoContinue: false,
+    privacyUrl: "https://tagflow-ai.com/legal/privacy",
+    termsUrl: "https://tagflow-ai.com/legal/terms",
+  };
+
+  it("round-trips a full settings object", () => {
+    expect(parseModelCatalog({ ...sample, tagflow })).toEqual({ ...sample, tagflow });
+  });
+
+  it("fills what a partial object leaves out with the defaults", () => {
+    expect(parseModelCatalog({ tagflow: { requestLimit: 50 } })?.tagflow).toEqual({ ...DEFAULT_TAGFLOW_SETTINGS, requestLimit: 50 });
+  });
+
+  it("leaves a document without Tag Flow settings exactly as it was", () => {
+    expect(parseModelCatalog(sample)).not.toHaveProperty("tagflow");
+  });
+
+  it("reads the defaults from a document saved before Tag Flow existed", () => {
+    expect(tagflowSettingsOf(EMPTY_MODEL_CATALOG)).toEqual(DEFAULT_TAGFLOW_SETTINGS);
+    expect(DEFAULT_TAGFLOW_SETTINGS).toEqual({
+      enabled: true,
+      requestLimit: 0,
+      windowHours: 5,
+      globalRequestsPerMinute: 0,
+      autoContinue: true,
+      privacyUrl: "https://tagflow-ai.com/legal/privacy",
+      termsUrl: "",
+    });
+  });
+
+  it.each([
+    ["a negative limit", { requestLimit: -1 }],
+    ["a fractional limit", { requestLimit: 2.5 }],
+    ["a limit past a million", { requestLimit: 1_000_001 }],
+    ["a zero-hour window", { windowHours: 0 }],
+    ["a window longer than a week", { windowHours: 169 }],
+    ["a negative ceiling across everybody", { globalRequestsPerMinute: -5 }],
+    ["a fractional ceiling across everybody", { globalRequestsPerMinute: 1.5 }],
+    ["a switch that is not a boolean", { enabled: "yes" }],
+    ["a privacy link over http", { privacyUrl: "http://tagflow-ai.com/legal/privacy" }],
+    ["an empty privacy link", { privacyUrl: "" }],
+    ["a terms link that is not a URL", { termsUrl: "terms" }],
+    ["an unknown setting", { surprise: true }],
+    ["settings that are not an object", "on"],
+  ])("refuses %s", (_label, settings) => {
+    expect(parseModelCatalog({ tagflow: settings })).toBeNull();
   });
 });
 
@@ -99,6 +158,13 @@ describe("the routes", () => {
     expect((await call("/v1/admin/models", { method: "POST", token: "admin", body: { hidden: ["broken"] } })).status).toBe(400);
     const read = await (await call("/v1/models/overrides")).json() as { overrides: unknown };
     expect(read.overrides).toEqual(sample);
+  });
+
+  it("serves saved Tag Flow settings to every editor", async () => {
+    const tagflow = { ...DEFAULT_TAGFLOW_SETTINGS, enabled: false };
+    expect((await call("/v1/admin/models", { method: "POST", token: "admin", body: { ...sample, tagflow } })).status).toBe(200);
+    const read = await (await call("/v1/models/overrides")).json() as { overrides: { tagflow?: unknown } };
+    expect(read.overrides.tagflow).toEqual(tagflow);
   });
 
   it("records who changed the list", async () => {

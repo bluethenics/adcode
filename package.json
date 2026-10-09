@@ -37,6 +37,7 @@
     "smoke:live": "node scripts/smoke-live-agents.mjs",
     "record:hero": "node scripts/record-hero.mjs",
     "smoke:first-run": "node scripts/smoke-first-run.mjs",
+    "smoke:tagflow": "node scripts/smoke-tagflow.mjs",
     "smoke:all": "node scripts/smoke.mjs && node scripts/smoke-ads.mjs",
     "design:check": "node scripts/design-system-check.cjs",
     "release-note": "node scripts/release-note.mjs",

@@ -166,3 +166,18 @@
   gap: 10px;
   font-size: 13px;
 }
+
+/* Tag Flow AI: the built-in model's switch, limit and partner links. */
+.admin-models-tagflow {
+  padding: 14px 16px;
+  border: 1px solid var(--line, var(--border, rgba(255, 255, 255, 0.15)));
+  border-radius: 14px;
+}
+
+.admin-models-tagflow .admin-models-form {
+  margin-bottom: 8px;
+}
+
+.admin-models-tagflow code {
+  font-size: 12px;
+}

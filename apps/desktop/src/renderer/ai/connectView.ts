@@ -20,6 +20,7 @@ import {
   type ConnectionProfile,
 } from "@adcode/ai/connections";
 import type { AiModelInfo, AiProviderInfo, AiStatus, LocalModelsView } from "../../shared/api.ts";
+import { partnerNoteElement } from "./partnerNote.ts";
 import { pasteText } from "../clipboard.ts";
 import { createQuickConnect, type QuickConnect } from "./quickConnect.ts";
 
@@ -402,6 +403,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
 
   /** Providers people reach for first, pinned above the alphabetical rest. */
   const PINNED_PROVIDERS = [
+    // Built in and free: the one that works before anything else is set up.
+    "tagflow",
     "anthropic",
     "openai",
     "google",
@@ -467,6 +470,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
         ? "In use"
         : local !== undefined
         ? localLabel(local)
+        : provider.partner !== undefined
+        ? provider.hasKey ? "free · built in" : "switched off"
         : !provider.needsKey
         ? "no key needed"
         : provider.hasKey
@@ -528,10 +533,13 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
       ? "Add an API connection with this provider's endpoint to get started."
       : provider.local !== undefined
         ? localDescription(provider.local)
-        : provider.needsKey
-          ? "Connect your account, then choose a model for your assistant."
-          : "Run your assistant with a local model. No API key required.";
+        : provider.partner !== undefined
+          ? `Built into ADCode and free to use, with no key or account to set up. Run by ADCode's partner ${provider.partner.name}.`
+          : provider.needsKey
+            ? "Connect your account, then choose a model for your assistant."
+            : "Run your assistant with a local model. No API key required.";
     detail.append(description);
+    if (provider.partner !== undefined) detail.append(partnerNoteElement(provider.partner, "connect-partner-note"));
     if (provider.local !== undefined) detail.append(localActions(provider.local));
     const selection = document.createElement("div");
     selection.className = "connect-selection";
@@ -645,7 +653,8 @@ export function createConnectView(deps: ConnectViewDeps): ConnectView {
               ),
             );
             if (latest.activeProvider === connection.id) {
-              await deps.write("adcode.ai.provider", "anthropic");
+              // Back to the default: Tag Flow AI, which needs nothing set up.
+              await deps.write("adcode.ai.provider", "");
               await deps.write("adcode.ai.model", "");
             }
             selected = null;

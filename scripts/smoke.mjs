@@ -6715,7 +6715,7 @@ checks.chatSendHistoryEvidence = await evaluate(
 const chatConnectPoint = await evaluate(
   `(() => {
      const button = [...document.querySelectorAll('dialog[data-popup-id="chat"] .chat-header button')]
-       .find((candidate) => candidate.textContent?.trim() === 'Connect');
+       .find((candidate) => candidate.dataset.chatAction === 'models');
      if (!(button instanceof HTMLElement)) return null;
      const box = button.getBoundingClientRect();
      return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) };
@@ -6742,7 +6742,7 @@ checks.chatDependentPointerEvidence = await evaluate(
      const chat = document.querySelector('#popup-primary-host dialog[data-popup-id="chat"]');
      const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
      const button = [...(chat?.querySelectorAll('.chat-header button') ?? [])]
-       .find((candidate) => candidate.textContent?.trim() === 'Connect');
+       .find((candidate) => candidate.dataset.chatAction === 'models');
       if (!chat?.open || !connect || !button) return false;
      return {
        dependentDismisses: connect.open === false,
@@ -6788,7 +6788,7 @@ await pressEscape();
 Object.assign(checks.chatConnectLayeringEvidence, await evaluate(`(() => {
   const chat = document.querySelector('#popup-primary-host dialog[data-popup-id="chat"]');
   const connect = document.querySelector('#popup-dependent-host dialog[data-popup-id="connect"]');
-  const button = [...chat.querySelectorAll('.chat-header button')].find(x => x.textContent?.trim() === 'Connect');
+  const button = [...chat.querySelectorAll('.chat-header button')].find(x => x.dataset.chatAction === 'models');
   return { layeredEscape: connect.open === false && chat.open === true, focusReturn: document.activeElement === button };
 })()`));
 await pressEscape();
@@ -7075,7 +7075,7 @@ checks.dialogCloseAudit.connect = await auditRequiredClose(
     await evaluate(
       `(() => {
          const button = [...document.querySelectorAll('dialog[data-popup-id="chat"] .chat-header button')]
-           .find((candidate) => candidate.textContent?.trim() === 'Connect');
+           .find((candidate) => candidate.dataset.chatAction === 'models');
          button?.click();
          return true;
        })()`,

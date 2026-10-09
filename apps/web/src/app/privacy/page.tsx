@@ -36,7 +36,7 @@ This explains what ADCode collects, what it does not, and why. It covers the ADC
 ## The short version
 
 - ADCode's **advertising, earnings, and analytics services never receive file contents, file paths, or project names.**
-- AI features may send source text and prompts to the provider you select. ADCode explains and limits that separate path below.
+- AI features may send source text and prompts to the provider you select. Tag Flow AI, built in by default, is reached through ADCode's server, which passes requests on without storing them. ADCode explains and limits that separate path below.
 - Ads are targeted using a fixed list of **45 generic tags** describing the language or framework you have open.
 - You are identified by an **anonymous account created automatically**, with no email, name, or password, unless you choose to add one.
 - We do not sell personal data, and there are no third-party advertising trackers in the editor or on this site.
@@ -69,9 +69,11 @@ If you use the feedback button, we receive what you typed, the app version, and 
 
 ### AI features
 
-You choose the AI provider and supply its API key. Chat and agent tools can send your prompt, relevant source text, and tool results to that provider so it can answer or edit an isolated task workspace. Automatic inline completion sends bounded text around the cursor (up to 6,000 characters before it and 2,000 after it), the language, and a small output allowance; it does not send the file path. You can turn inline completion off in Settings.
+You choose the AI provider. Tag Flow AI is built in; for any other, you supply its API key. Chat and agent tools can send your prompt, relevant source text, and tool results to that provider so it can answer or edit an isolated task workspace. Automatic inline completion sends bounded text around the cursor (up to 6,000 characters before it and 2,000 after it), the language, and a small output allowance; it does not send the file path. You can turn inline completion off in Settings.
 
-AI traffic goes directly from the desktop app to the selected provider under that provider's terms and privacy policy, not through ADCode's advertising service. ADCode keeps task sandboxes, rollback checkpoints, schedules, and operational traces locally. Traces describe actions and outcomes rather than storing a provider's private reasoning, and common credential shapes are redacted. ADCode also skips inline completion for common credential files, but you should still review what you ask any AI provider to read.
+Apart from Tag Flow AI, AI traffic goes directly from the desktop app to the selected provider under that provider's terms and privacy policy, not through ADCode's advertising service.
+
+**Tag Flow AI.** ADCode comes with Tag Flow AI, an ADCode partner, connected by default. When you use a Tag Flow model, your prompt, the source text and tool results the assistant sends, and the model's reply pass through ADCode's server, which adds Tag Flow's API key and forwards them to Tag Flow. ADCode's server does not store or log the content of these requests or replies. It checks your anonymous account and, when a usage limit is set, counts how many requests your account made in the current window. Tag Flow's [privacy policy](https://tagflow-ai.com/legal/privacy) and terms apply to what it receives. To keep AI traffic off ADCode's server entirely, choose another provider in Connect a model. ADCode keeps task sandboxes, rollback checkpoints, schedules, and operational traces locally. Traces describe actions and outcomes rather than storing a provider's private reasoning, and common credential shapes are redacted. ADCode also skips inline completion for common credential files, but you should still review what you ask any AI provider to read.
 
 ## Identity
 

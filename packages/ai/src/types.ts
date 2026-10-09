@@ -162,6 +162,11 @@ export type AgentEvent =
   | { readonly kind: "thinking"; readonly text: string }
   /** Transient progress to show, never to keep: "waiting out a rate limit". */
   | { readonly kind: "status"; readonly text: string }
+  /**
+   * The provider's usage limit is reached; the turn waits until `resetsAt` (epoch ms) and
+   * then carries on by itself. Shown as a countdown, never recorded.
+   */
+  | { readonly kind: "limit-wait"; readonly provider: string; readonly resetsAt: number }
   | { readonly kind: "tool-call"; readonly call: ToolCallBlock }
   /**
    * Code a writing tool is producing, before its call is complete - for a live window, never
@@ -222,6 +227,8 @@ export type ProviderEvent =
   | { readonly kind: "thinking"; readonly text: string }
   /** Host-side progress (the request scheduler waiting), passed through, never recorded. */
   | { readonly kind: "status"; readonly text: string }
+  /** The scheduler is waiting out a usage limit until `resetsAt`, then continuing. */
+  | { readonly kind: "limit-wait"; readonly provider: string; readonly resetsAt: number }
   | { readonly kind: "tool-call"; readonly call: ToolCallBlock }
   /** One streamed fragment of a call's JSON arguments, passed through as it arrives. */
   | { readonly kind: "tool-input"; readonly index: number; readonly id: string; readonly name: string; readonly fragment: string }

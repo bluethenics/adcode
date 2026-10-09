@@ -192,6 +192,10 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("ai.connect", "Connect")],
     keywords: ["api key", "provider", "model", "local ai", "NVIDIA NIM", "custom endpoint", "connections", "requests per minute", "RPM", "rate limit", "429"],
   },
+  "ai.tagflow": {
+    actions: [command("ai.useTagflow", "Use Tag Flow AI")],
+    keywords: ["tag flow", "tagflow", "tagflow ai", "free ai", "built-in model", "default model", "no key", "no api key", "free model", "usage limit", "limit reached", "resets", "continue automatically", "partner", "terms"],
+  },
   "ai.freeKey": {
     actions: [command("ai.getFreeKey", "Get a free key")],
     keywords: ["free", "free ai", "no key", "no api key", "gemini", "google ai studio", "ollama", "local model", "no credit card", "paste key", "which key", "no model connected", "get started"],

@@ -54,6 +54,8 @@ import {
   traitsOf,
   transportFor,
   usableCatalogue,
+  withProviderModels,
+  TAGFLOW_PROVIDER_ID,
   type Agent,
   type AiFileChange,
   type AiWorkspaceTask,
@@ -148,6 +150,8 @@ import { apiBaseUrl } from "./backend.ts";
 import { recordModelOutcome } from "./modelOutcomes.ts";
 import { outcomeOfError } from "../shared/modelOutcomes.ts";
 import { preferredOllamaModel } from "../shared/quickConnect.ts";
+import { effectiveProvider, partnerOf } from "../shared/tagflow.ts";
+import { fetchTagflowModels, tagflowBaseUrl, tagflowToken } from "./tagflow.ts";
 
 const keys = createKeychainStore();
 const requestScheduler = new RequestScheduler();
@@ -156,10 +160,11 @@ function connections() { try { return parseConnections(currentSettings()["adcode
 /**
  * The providers that need no key.
  *
- * Only the local one: it talks to a model on the user's own machine, and asking for a
- * credential to reach `127.0.0.1` would be theatre.
+ * The local one, which talks to a model on the user's own machine - asking for a credential
+ * to reach `127.0.0.1` would be theatre - and Tag Flow AI, which ADCode's server reaches with
+ * its own key on this install's behalf.
  */
-const KEYLESS = new Set(["ollama"]);
+const KEYLESS = new Set(["ollama", TAGFLOW_PROVIDER_ID]);
 
 /**
  * The catalogue, live where a fetch has succeeded and bundled otherwise.
@@ -183,9 +188,29 @@ let overrides: CatalogueOverrides = EMPTY_OVERRIDES;
 let preferences = preferencesWith(EMPTY_OVERRIDES);
 const overridesFile = (): string => join(app.getPath("userData"), "model-overrides.json");
 
+/** Tag Flow's live model list, from the relay; empty until it answers. */
+let tagflowModels: readonly { id: string; name: string }[] = [];
+
 function adoptCatalogue(): void {
-  catalogue = applyOverrides(baseCatalogue, overrides);
+  catalogue = applyOverrides(withProviderModels(baseCatalogue, TAGFLOW_PROVIDER_ID, tagflowModels), overrides);
   preferences = preferencesWith(overrides);
+}
+
+async function refreshTagflowModels(): Promise<void> {
+  const models = await fetchTagflowModels();
+  if (models === null) return;
+  tagflowModels = models;
+  adoptCatalogue();
+}
+
+/**
+ * Whether somebody with no provider chosen saved an Anthropic key back when Anthropic was
+ * the silent default. Read once per launch; null until then.
+ */
+let anthropicKeySaved: boolean | null = null;
+
+async function settleDefaultProvider(): Promise<void> {
+  if (anthropicKeySaved === null) anthropicKeySaved = await keys.has("anthropic").catch(() => false);
 }
 
 async function refreshModelOverrides(): Promise<void> {
@@ -212,7 +237,7 @@ async function refreshModelOverrides(): Promise<void> {
  * what to recommend and hide. Neither is waited on; the bundled snapshot is usable at once.
  */
 export async function refreshModelLists(): Promise<void> {
-  await Promise.all([refreshCatalogue(), refreshModelOverrides()]);
+  await Promise.all([refreshCatalogue(), refreshModelOverrides(), refreshTagflowModels(), settleDefaultProvider()]);
 }
 
 export async function refreshCatalogue(): Promise<void> {
@@ -242,6 +267,7 @@ export async function refreshCatalogue(): Promise<void> {
 function baseUrlOf(providerId: string): string | null {
   const connection = connections().find(item => item.id === providerId);
   if (connection) return connection.baseUrl;
+  if (providerId === TAGFLOW_PROVIDER_ID) return tagflowBaseUrl();
   if (providerId === "custom") {
     const custom = currentSettings()["adcode.ai.customBaseUrl"];
     const trimmed = typeof custom === "string" ? custom.trim().replace(/\/+$/, "") : "";
@@ -680,6 +706,12 @@ export function aiCurrentSession(): ChatSession | null {
 }
 
 let agent: Agent | null = null;
+/**
+ * The agent running the turn in flight. Saving a key or changing provider drops `agent` so the
+ * next turn is built afresh - but the turn already running still has to answer Stop, and a
+ * model switch during a usage-limit wait stops it to carry the work over.
+ */
+let turnAgent: Agent | null = null;
 let agentProvider: string | null = null;
 let agentModel: string | null = null;
 let agentEndpoint: string | null = null;
@@ -721,7 +753,13 @@ function broadcastLive(source: LiveSourceView, event: LiveEventView): void {
 
 function activeProvider(): string {
   const value = currentSettings()["adcode.ai.provider"];
-  return typeof value === "string" && value.length > 0 ? value : "anthropic";
+  // Nothing chosen (or the old default with no key behind it): Tag Flow AI, so the first
+  // thing a new person types gets an answer. See `effectiveProvider` for the whole rule.
+  return effectiveProvider({
+    stored: typeof value === "string" ? value : "",
+    anthropicKeySaved,
+    tagflowEnabled: overrides.tagflow.enabled,
+  });
 }
 
 /**
@@ -735,6 +773,13 @@ function activeModel(provider: string): string {
   const connection = connections().find(item => item.id === provider);
   if (connection) return connection.model;
   const value = currentSettings()["adcode.ai.model"];
+  // Tag Flow serves only its own models; a stored Claude id (the old default) is not one.
+  if (provider === TAGFLOW_PROVIDER_ID) {
+    const offered = providerIn(catalogue, provider)?.models ?? [];
+    const stored = typeof value === "string" ? value.trim() : "";
+    if (offered.some((model) => model.id === stored)) return stored;
+    return recommendedModel(catalogue, provider, preferences) ?? stored;
+  }
   if (typeof value === "string" && value.trim().length > 0) return value.trim();
 
   // The provider's recommended model, not whatever upstream happened to list first - for
@@ -765,10 +810,34 @@ function outputBudget(providerId: string, model: string): { maxTokens: number; m
  * That is what makes hundreds of providers reachable without hundreds of adapters, and it
  * is the same mechanism the custom endpoint uses.
  */
-export async function buildProvider(id: string, offeredKey?: string): Promise<Provider | null> {
+export async function buildProvider(
+  id: string,
+  offeredKey?: string,
+  options: { readonly waitForUsageLimit?: boolean } = {},
+): Promise<Provider | null> {
   const key = offeredKey ?? (KEYLESS.has(id) ? "" : ((await keys.get(id)) ?? ""));
-  const paced = (provider: Provider) => requestScheduler.wrap(provider, id, () => connections().find(item => item.id === id)?.rpm ?? 6000);
+  // A chat turn waits out a usage limit and carries on; a completion fails at once.
+  const paced = (provider: Provider) => requestScheduler.wrap(
+    provider,
+    id,
+    () => connections().find(item => item.id === id)?.rpm ?? 6000,
+    { waitForUsageLimit: options.waitForUsageLimit === true },
+  );
   if (!KEYLESS.has(id) && key.length === 0 && id !== "custom") return null;
+
+  // Through ADCode's server, which adds Tag Flow's key; this install signs with its account.
+  if (id === TAGFLOW_PROVIDER_ID) {
+    if (!overrides.tagflow.enabled) return null;
+    const known = providerIn(catalogue, id);
+    return paced(createOpenAiCompatibleProvider({
+      id,
+      displayName: known?.name ?? "Tag Flow AI",
+      baseUrl: tagflowBaseUrl(),
+      apiKey: tagflowToken,
+      models: (known?.models ?? []).map((model) => model.id),
+      traits: traitsFor(id),
+    }));
+  }
 
   if (id === "anthropic") return paced(createAnthropicProvider({ apiKey: key, traits: traitsFor(id) }));
   if (id === "google") return paced(createGoogleProvider({ apiKey: key, traits: traitsFor(id) }));
@@ -876,6 +945,7 @@ function toolRunner() {
 }
 
 export async function aiStatus(): Promise<AiStatus> {
+  await settleDefaultProvider();
   const provider = activeProvider();
 
   const providers: AiProviderInfo[] = [];
@@ -883,6 +953,27 @@ export async function aiStatus(): Promise<AiStatus> {
   for (const known of catalogue) {
     const needsKey = !KEYLESS.has(known.id);
     const recommended = recommendedModel(catalogue, known.id, preferences);
+
+    // Tag Flow AI: connected for everybody while the admin panel offers it, run by a partner
+    // whose terms apply. Switched off, it leaves the list - unless it is in use, so the
+    // person sees why their chat stopped.
+    if (known.id === TAGFLOW_PROVIDER_ID) {
+      const enabled = overrides.tagflow.enabled;
+      if (!enabled && provider !== TAGFLOW_PROVIDER_ID) continue;
+      providers.push({
+        id: known.id,
+        displayName: known.name,
+        models: [...known.models]
+          .sort((a, b) => Number(b.id === recommended) - Number(a.id === recommended))
+          .map((model) => modelInfo(known.id, model, recommended)),
+        hasKey: enabled,
+        needsKey: false,
+        transport: "openai-compatible",
+        doc: known.doc,
+        partner: partnerOf(overrides.tagflow),
+      });
+      continue;
+    }
 
     providers.push({
       id: known.id,
@@ -965,6 +1056,7 @@ export async function aiStatus(): Promise<AiStatus> {
 export async function setProviderKey(provider: string, key: string): Promise<AiStatus> {
   if (provider.length > 0 && key.trim().length > 0) {
     await keys.set(provider, key.trim());
+    if (provider === "anthropic") anthropicKeySaved = true;
     agent = null;
   }
   return aiStatus();
@@ -973,6 +1065,7 @@ export async function setProviderKey(provider: string, key: string): Promise<AiS
 export async function clearProviderKey(provider: string): Promise<AiStatus> {
   if (provider.length > 0) {
     await keys.clear(provider);
+    if (provider === "anthropic") anthropicKeySaved = false;
     agent = null;
   }
   return aiStatus();
@@ -1062,6 +1155,7 @@ export async function aiQuickConnect(providerId: string, key: string, model: str
   }
 
   if (!KEYLESS.has(providerId)) await keys.set(providerId, trimmed);
+  if (providerId === "anthropic") anthropicKeySaved = true;
   await writeSetting("adcode.ai.provider", providerId);
   await writeSetting("adcode.ai.model", chosen);
   agent = null;
@@ -1186,11 +1280,12 @@ async function ensureChatAgent(providerId: string, model: string): Promise<Agent
   if (agent !== null && agentProvider === providerId && agentModel === model && agentEndpoint === baseUrlOf(providerId)) {
     return agent;
   }
-  const provider = await buildProvider(providerId);
+  const provider = await buildProvider(providerId, undefined, { waitForUsageLimit: true });
 
   if (provider === null) {
     const name = providerIn(catalogue, providerId)?.name ?? providerId;
-    // Two different failures, and the fix is different for each.
+    // Three different failures, and the fix is different for each.
+    if (providerId === TAGFLOW_PROVIDER_ID) return "Tag Flow AI is switched off right now. Choose another model in Connect a model.";
     return providerId === "custom" && baseUrlOf("custom") === null
       ? "No address for the custom endpoint. Set one in Connect a model."
       : `No API key for ${name}. Add one in Connect a model.`;
@@ -1258,6 +1353,7 @@ export async function aiCompact(rawFocus: unknown): Promise<AiCompactResultView>
   if (sendInFlight) return { ok: false, message: "Wait for the current answer to finish, then compact." };
   if (session === null || session.messages.length === 0) return { ok: false, message: "There is nothing to compact yet." };
 
+  await settleDefaultProvider();
   const providerId = activeProvider();
   const ready = await ensureChatAgent(providerId, activeModel(providerId));
   if (typeof ready === "string") return { ok: false, message: ready };
@@ -1304,6 +1400,7 @@ export async function aiSend(
   editorContext = editor;
   currentTaskPrompt = text.slice(0, 200);
   try {
+    await settleDefaultProvider();
     const providerId = activeProvider();
     const model = activeModel(providerId);
 
@@ -1341,6 +1438,7 @@ export async function aiSend(
     if (turnRoot !== null && configuredEditPolicy() === "trusted") checkpoints.begin(turnRoot);
     recordDebug("info", "ai", `Turn started: ${providerId} / ${model}`);
 
+    turnAgent = ready;
     for await (const event of ready.send(turnText, { images })) {
       chatEvents.push(event);
       if (event.kind === "tool-draft") continue;
@@ -1489,6 +1587,7 @@ export async function aiSend(
     recordMilestone("turn_failed");
     return false;
   } finally {
+    turnAgent = null;
     currentTaskPrompt = null;
     sendInFlight = false;
   }
@@ -1516,6 +1615,7 @@ export async function aiCompletion(input: AiCompletionInputView): Promise<string
   completionInFlight = { id: input.requestId, controller };
 
   try {
+    await settleDefaultProvider();
     const providerId = activeProvider();
     const provider = await buildProvider(providerId);
     if (provider === null || controller.signal.aborted) return null;
@@ -1581,6 +1681,7 @@ export async function aiInlineEdit(input: AiInlineEditInputView): Promise<AiInli
   const controller = new AbortController();
   inlineEditInFlight = controller;
   try {
+    await settleDefaultProvider();
     const providerId = activeProvider();
     const provider = await buildProvider(providerId);
     if (provider === null) return { ok: false, error: "Connect a model first: AI, then Connect a Model." };
@@ -1625,7 +1726,7 @@ export function aiCancelCompletion(requestId: number): void {
  */
 export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
   return async (input) => {
-    const provider = await buildProvider(input.route.providerId);
+    const provider = await buildProvider(input.route.providerId, undefined, { waitForUsageLimit: true });
     if (provider === null) throw new Error(`No connection for ${input.route.providerId}`);
     const service = await readyAiWorkspaceService();
     const task = await service.read(input.childTaskId);
@@ -1802,6 +1903,7 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
 
 async function routeCurrentTeamModel(team: Parameters<import("./aiTeamCoordinator.ts").AiTeamCoordinatorOptions["resolveRoute"]>[0], node: Parameters<import("./aiTeamCoordinator.ts").AiTeamCoordinatorOptions["resolveRoute"]>[1]) {
   const route = team.plan.roles.find(role => role.id === node.roleId)?.route;
+  await settleDefaultProvider();
   const providerId = route?.provider ?? activeProvider();
   const modelId = route?.model ?? activeModel(providerId);
   if ((await buildProvider(providerId)) === null) {
@@ -1976,6 +2078,7 @@ export function aiAnswerAnyway(): void {
 export function aiCancel(): void {  completionInFlight?.controller.abort();
   completionInFlight = null;
   agent?.cancel();
+  if (turnAgent !== agent) turnAgent?.cancel();
   if (activeTaskId !== null) {
     const taskId = activeTaskId;
     void readyAiWorkspaceService()

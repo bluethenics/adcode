@@ -7,12 +7,16 @@ import { apiFetch } from "@/lib/api";
 import {
   EMPTY_MODEL_OVERRIDES,
   modelKey,
+  tagflowOf,
+  tagflowProblem,
   toggleKey,
   usableProviders,
+  withTagflow,
   type AddedModel,
   type ModelOverrides,
   type PanelModel,
   type PanelProvider,
+  type TagflowSettings,
 } from "@/lib/modelCatalog";
 import "@/components/adminModels.css";
 
@@ -109,9 +113,19 @@ function ModelsEditor() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [health, setHealth] = useState<Map<string, ModelHealth>>(new Map());
+  const [tagflowModels, setTagflowModels] = useState<{ id: string; name: string }[] | null>(null);
+  const [resetTick, setResetTick] = useState(0);
 
   useEffect(() => {
     let active = true;
+    void (async () => {
+      try {
+        const result = await apiFetch<{ models: { id: string; name: string }[] }>({ path: "/ai/tagflow/models", token: await token() });
+        if (active && result.ok) setTagflowModels(result.value.models);
+      } catch {
+        // The section says it could not ask; the settings still save.
+      }
+    })();
     void (async () => {
       try {
         const result = await apiFetch<{ models: ModelHealth[] }>({ path: "/admin/model-health?days=7", token: await token() });
@@ -166,6 +180,7 @@ function ModelsEditor() {
       if (result.ok) {
         setSaved(result.value);
         setDraft(result.value.overrides);
+        setResetTick((tick) => tick + 1);
         setNotice({ tone: "ok", text: "Saved. Editors pick this up the next time they start, within about five minutes." });
       } else setNotice({ tone: "error", text: "The server refused that. Check the added models' fields and try again." });
     } catch {
@@ -208,8 +223,8 @@ function ModelsEditor() {
           <label className="admin-models-check"><input type="checkbox" checked={onlyNew} onChange={(event) => setOnlyNew(event.target.checked)} /> New in the last {NEW_FOR_DAYS} days</label>
         </div>
         <div className="admin-models-actions">
-          <button type="button" className="btn" disabled={!dirty || busy} onClick={() => setDraft(saved.overrides)}>Discard changes</button>
-          <button type="button" className="btn btn-primary" disabled={!dirty || busy} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</button>
+          <button type="button" className="btn" disabled={!dirty || busy} onClick={() => { setDraft(saved.overrides); setResetTick((tick) => tick + 1); }}>Discard changes</button>
+          <button type="button" className="btn btn-primary" disabled={!dirty || busy || tagflowProblem(tagflowOf(draft)) !== null} onClick={() => void save()}>{busy ? "Saving…" : "Save"}</button>
         </div>
       </div>
 
@@ -217,6 +232,13 @@ function ModelsEditor() {
         {saved.updatedAt > 0 ? `Last saved ${new Date(saved.updatedAt).toLocaleString()} by ${saved.updatedBy}.` : "Nothing saved yet - editors use their built-in recommendations."}
         {" "}{draft.hidden.length} hidden · {draft.featured.length} featured · {Object.keys(draft.recommended).length} start-here choices · {draft.added.length} added
       </p>
+
+      <TagflowSection
+        key={resetTick}
+        settings={tagflowOf(draft)}
+        served={tagflowModels}
+        onChange={(patch) => setDraft((current) => withTagflow(current, patch))}
+      />
 
       <FailingModels health={[...health.values()]} hidden={draft.hidden} onHide={(key) => setDraft((current) => ({ ...current, hidden: toggleKey(current.hidden, key) }))} />
 
@@ -294,6 +316,106 @@ function ModelsEditor() {
 
       <AddModel providers={providers ?? []} onAdd={(added) => setDraft((current) => ({ ...current, added: [...current.added.filter((one) => !(one.provider === added.provider && one.id === added.id)), added] }))} />
     </div>
+  );
+}
+
+/**
+ * Tag Flow AI: the model every new editor starts on, relayed with the worker's key.
+ *
+ * Asked for: "make it adjustable in the admin panel" and "auto continue after it resetting
+ * like Claude". Everything here saves with the page's Save; the key itself is a worker secret
+ * (`npx wrangler secret put TAGFLOW_API_KEY`) and never passes through this page.
+ */
+function TagflowSection({ settings, served, onChange }: {
+  settings: TagflowSettings;
+  served: { id: string; name: string }[] | null;
+  onChange: (patch: Partial<TagflowSettings>) => void;
+}) {
+  // What was typed, kept as typed: "12a" stays on screen with a problem beside it rather
+  // than turning into "NaN". The parent remounts this section on Discard and Save.
+  const [limitText, setLimitText] = useState(String(settings.requestLimit));
+  const [windowText, setWindowText] = useState(String(settings.windowHours));
+  const [globalText, setGlobalText] = useState(String(settings.globalRequestsPerMinute));
+  const problem = tagflowProblem(settings);
+  const whole = (raw: string): number => (/^\d+$/.test(raw.trim()) ? Number(raw.trim()) : Number.NaN);
+
+  return (
+    <section className="admin-models-tagflow" aria-labelledby="tagflow-heading">
+      <header className="admin-card-head">
+        <div>
+          <h3 id="tagflow-heading">Tag Flow AI</h3>
+          <p className="row-sub">
+            The built-in model: new editors start on it with no key. Requests go through this site with the worker&apos;s <code>TAGFLOW_API_KEY</code> secret.
+            {" "}{served === null ? "Could not ask Tag Flow which models it serves." : `Serving now: ${served.map((one) => one.name).join(", ")}.`}
+          </p>
+        </div>
+      </header>
+      <div className="admin-models-form">
+        <label className="admin-models-check">
+          <input type="checkbox" checked={settings.enabled} onChange={(event) => onChange({ enabled: event.target.checked })} />
+          Offer Tag Flow AI in every editor
+        </label>
+        <label className="admin-models-check">
+          <input type="checkbox" checked={settings.autoContinue} onChange={(event) => onChange({ autoContinue: event.target.checked })} />
+          Continue automatically when a limit resets
+        </label>
+        <div className="field">
+          <span>Requests per user per window (0 = unlimited)</span>
+          <input
+            className="input"
+            inputMode="numeric"
+            value={limitText}
+            onChange={(event) => {
+              setLimitText(event.target.value);
+              onChange({ requestLimit: whole(event.target.value) });
+            }}
+            aria-describedby="tagflow-limit-help"
+          />
+        </div>
+        <div className="field">
+          <span>Window length (hours)</span>
+          <input
+            className="input"
+            inputMode="numeric"
+            value={windowText}
+            onChange={(event) => {
+              setWindowText(event.target.value);
+              onChange({ windowHours: whole(event.target.value) });
+            }}
+          />
+        </div>
+        <div className="field">
+          <span>Requests per minute across everybody (0 = unlimited)</span>
+          <input
+            className="input"
+            inputMode="numeric"
+            value={globalText}
+            onChange={(event) => {
+              setGlobalText(event.target.value);
+              onChange({ globalRequestsPerMinute: whole(event.target.value) });
+            }}
+          />
+        </div>
+        <div className="field">
+          <span>Tag Flow privacy policy</span>
+          <input className="input" type="url" value={settings.privacyUrl} onChange={(event) => onChange({ privacyUrl: event.target.value.trim() })} />
+        </div>
+        <div className="field">
+          <span>Tag Flow terms (empty links their site)</span>
+          <input className="input" type="url" value={settings.termsUrl} placeholder="https://tagflow-ai.com/legal/terms" onChange={(event) => onChange({ termsUrl: event.target.value.trim() })} />
+        </div>
+      </div>
+      <p className="row-sub" id="tagflow-limit-help">
+        {settings.requestLimit > 0
+          ? `Each person gets ${String(settings.requestLimit)} requests every ${String(settings.windowHours)} hours; one agent step is one request. At the limit the chat shows when it resets${settings.autoContinue ? " and carries on by itself then" : ", and the person sends again after it"}.`
+          : "Unlimited: nobody is stopped. Set a number to cap each person per window."}
+        {settings.globalRequestsPerMinute > 0
+          ? ` Across everybody, at most ${String(settings.globalRequestsPerMinute)} requests a minute reach Tag Flow; past that, editors wait a few seconds and retry - this protects the shared key from anybody making accounts in bulk.`
+          : " No limit across everybody: set one to protect the shared key if accounts are made in bulk."}
+        {settings.enabled ? "" : " Switched off: editors stop offering it and the relay answers that it is unavailable."}
+      </p>
+      {problem !== null && <div className="notice" data-tone="error" role="alert">{problem}</div>}
+    </section>
   );
 }
 

@@ -23,8 +23,67 @@ export type { CatalogueModel, CatalogueProvider } from "./catalogueTypes.ts";
 
 export { SNAPSHOT_TAKEN_ON };
 
+/**
+ * Tag Flow AI: the model every install can use with no key.
+ *
+ * An ADCode partner, reached through ADCode's own server, which adds the key (see
+ * `services/api/src/tagflow.ts`) - so it is not in models.dev and never will be in this
+ * shape. Free to the person using it. The host replaces the model list with Tag Flow's live
+ * one at launch; this is what a first launch with no network starts from.
+ */
+export const TAGFLOW_PROVIDER_ID = "tagflow";
+
+/** A Tag Flow model as the catalogue describes it: free, tool-capable, no published price. */
+function tagflowModel(id: string, name: string): CatalogueModel {
+  return {
+    id,
+    name,
+    toolCall: true,
+    reasoning: false,
+    inputCostMicrosPerMillion: 0,
+    outputCostMicrosPerMillion: 0,
+    cacheReadCostMicrosPerMillion: null,
+    cacheWriteCostMicrosPerMillion: null,
+    contextWindow: 65_536,
+    maxOutput: 8_192,
+  };
+}
+
+export const TAGFLOW_CATALOGUE: CatalogueProvider = {
+  id: TAGFLOW_PROVIDER_ID,
+  name: "Tag Flow AI",
+  env: [],
+  doc: "https://tagflow-ai.com",
+  models: [tagflowModel("tagflow-code-27b", "Tag Flow Code 27B")],
+};
+
 /** What ships in the binary. */
-export const BUNDLED_CATALOGUE: readonly CatalogueProvider[] = SNAPSHOT_PROVIDERS;
+export const BUNDLED_CATALOGUE: readonly CatalogueProvider[] = [TAGFLOW_CATALOGUE, ...SNAPSHOT_PROVIDERS]
+  .sort((a, b) => a.name.localeCompare(b.name));
+
+/**
+ * A provider's model list replaced by a live one - Tag Flow's, read through the relay. What
+ * the catalogue already knew about a model (its context size) is kept; a model it did not
+ * know starts with Tag Flow's defaults. An empty answer changes nothing.
+ */
+export function withProviderModels(
+  catalogue: readonly CatalogueProvider[],
+  providerId: string,
+  models: readonly { readonly id: string; readonly name: string }[],
+): CatalogueProvider[] {
+  if (models.length === 0) return [...catalogue];
+  return catalogue.map((provider) => {
+    if (provider.id !== providerId) return provider;
+    const known = new Map(provider.models.map((model) => [model.id, model]));
+    return {
+      ...provider,
+      models: models.map((model) => {
+        const before = known.get(model.id);
+        return before === undefined ? tagflowModel(model.id, model.name) : { ...before, name: model.name };
+      }),
+    };
+  });
+}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -252,6 +311,8 @@ export type Transport = "native" | "openai-compatible" | "unsupported";
 
 export function transportFor(providerId: string): Transport {
   if (providerId === "anthropic" || providerId === "google") return "native";
+  // The OpenAI format, at ADCode's own server: the host supplies that address.
+  if (providerId === TAGFLOW_PROVIDER_ID) return "openai-compatible";
   return BASE_URLS.has(providerId) ? "openai-compatible" : "unsupported";
 }
 
@@ -308,6 +369,7 @@ export function usableCatalogue(providers: readonly CatalogueProvider[]): Catalo
  * "I stopped at a limit". The admin catalogue can override it without a release.
  */
 export const RECOMMENDED_MODELS: Readonly<Record<string, readonly string[]>> = {
+  tagflow: ["tagflow-code-27b"],
   anthropic: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-sonnet-5", "claude-sonnet-4-6"],
   openai: ["gpt-6.1-sol", "gpt-6-sol", "gpt-5.6", "gpt-5.5"],
   google: ["gemini-flash-latest", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash"],
