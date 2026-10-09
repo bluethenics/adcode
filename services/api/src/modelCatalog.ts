@@ -13,17 +13,59 @@
  * again on its side (`packages/ai/src/catalogueOverrides.ts`), forgivingly - a bad document
  * there means no overrides, never a broken list.
  */
-import type { AddedModel, ModelCatalog, ModelCatalogRecord } from "./modelCatalogTypes.ts";
+import type { AddedModel, ModelCatalog, ModelCatalogRecord, TagflowSettings } from "./modelCatalogTypes.ts";
 import type { AuditRecord } from "./store.ts";
 
-export type { AddedModel, ModelCatalog, ModelCatalogRecord } from "./modelCatalogTypes.ts";
+export type { AddedModel, ModelCatalog, ModelCatalogRecord, TagflowSettings } from "./modelCatalogTypes.ts";
 
 export const EMPTY_MODEL_CATALOG: ModelCatalog = { recommended: {}, hidden: [], featured: [], notes: {}, added: [] };
+
+/**
+ * Tag Flow AI as it ships: on, unlimited, five-hour windows like Claude's, continuing on its
+ * own at a reset. Tag Flow said use is unlimited for now; the limit is here for the day it is not.
+ */
+export const DEFAULT_TAGFLOW_SETTINGS: TagflowSettings = {
+  enabled: true,
+  requestLimit: 0,
+  windowHours: 5,
+  autoContinue: true,
+  privacyUrl: "https://tagflow-ai.com/legal/privacy",
+  termsUrl: "",
+};
+
+/** The settings a document holds, or the defaults for one saved before Tag Flow existed. */
+export function tagflowSettingsOf(catalog: ModelCatalog): TagflowSettings {
+  return catalog.tagflow ?? DEFAULT_TAGFLOW_SETTINGS;
+}
 
 const MAX_KEYS = 2000;
 const MAX_ADDED = 200;
 const MAX_NOTE = 140;
-const KNOWN_FIELDS = new Set(["recommended", "hidden", "featured", "notes", "added"]);
+const KNOWN_FIELDS = new Set(["recommended", "hidden", "featured", "notes", "added", "tagflow"]);
+const TAGFLOW_FIELDS = new Set(Object.keys(DEFAULT_TAGFLOW_SETTINGS));
+
+const isHttpsUrl = (value: unknown): value is string => {
+  if (typeof value !== "string" || value.length > 400) return false;
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const wholeIn = (value: unknown, min: number, max: number): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= min && value <= max;
+
+/** Every field optional, each checked; what is missing takes its default. */
+function parseTagflow(raw: unknown): TagflowSettings | null {
+  if (!isRecord(raw) || Object.keys(raw).some((key) => !TAGFLOW_FIELDS.has(key))) return null;
+  const merged = { ...DEFAULT_TAGFLOW_SETTINGS, ...raw };
+  const { enabled, requestLimit, windowHours, autoContinue, privacyUrl, termsUrl } = merged;
+  if (typeof enabled !== "boolean" || typeof autoContinue !== "boolean") return null;
+  if (!wholeIn(requestLimit, 0, 1_000_000) || !wholeIn(windowHours, 1, 168)) return null;
+  if (!isHttpsUrl(privacyUrl) || !(termsUrl === "" || isHttpsUrl(termsUrl))) return null;
+  return { enabled, requestLimit, windowHours, autoContinue, privacyUrl, termsUrl };
+}
 const ADDED_FIELDS = new Set(["provider", "id", "name", "contextWindow", "maxOutput", "reasoning", "effortLevels", "inputPrice", "outputPrice", "releaseDate"]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -111,7 +153,10 @@ export function parseModelCatalog(raw: unknown): ModelCatalog | null {
     }
   }
 
-  return { recommended, hidden, featured, notes, added };
+  if (raw["tagflow"] === undefined) return { recommended, hidden, featured, notes, added };
+  const tagflow = parseTagflow(raw["tagflow"]);
+  if (tagflow === null) return null;
+  return { recommended, hidden, featured, notes, added, tagflow };
 }
 
 export interface ModelCatalogStore {
