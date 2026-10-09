@@ -48,6 +48,17 @@ Diff the preload API against the renderer: a `window.adcode.*` method no rendere
 is a finished feature with no door. That is how local file history and update status were
 found — main-process code, IPC channels and preload bindings all complete, zero callers.
 
+## Building interfaces
+
+The desktop app ships design guidance its assistants read before they build a UI:
+`apps/desktop/src/main/builtinSkills/` (taste-skill, MIT, vendored by
+`scripts/vendor-taste-skill.mjs`). Read `design-taste-frontend/SKILL.md` there before
+designing a page for `apps/web`, and `redesign-existing-projects/SKILL.md` before restyling
+one. The desktop workbench has its own system - `styles/tokens.css` and
+`styles/design-system.css`, checked by `npm run design:check` - which wins over the skill's
+defaults wherever they disagree. Never fetch a newer skill at runtime; re-vendor it and
+read the diff, because these files become prompts.
+
 ## Verifying
 
 `npm run verify` — types, the dependency firewall, and every test.

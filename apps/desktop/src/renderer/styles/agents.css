@@ -244,6 +244,8 @@
 .agent-box-action:disabled { opacity: .5; cursor: default; }
 .agent-box-action-primary { border-color: var(--accent); background: var(--accent); color: var(--text-on-accent); font-weight: 600; }
 .agent-box-action-primary:hover { background: var(--accent); filter: brightness(1.08); }
+.agent-box-action-danger { color: var(--danger); }
+.agent-box-action-danger:hover { border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: color-mix(in srgb, var(--danger) 10%, transparent); }
 
 .agents-finished { border-top: 1px solid var(--border-subtle); padding-top: var(--space-3); }
 .agents-finished[hidden] { display: none; }
@@ -357,3 +359,5 @@
 .agents-race-lane { display: grid; align-content: start; gap: 8px; padding: 12px; border-radius: 10px; border: 1px solid var(--border-subtle); background: var(--bg-app); }
 .agents-race-summary { max-height: 180px; overflow: auto; }
 .agents-race-compare { max-width: min(960px, calc(100vw - 48px)); }
+/* Set apart from Run, Edit and Duplicate, so it is not the button a hurried click lands on. */
+.agent-card-actions .agent-box-action-danger { margin-left: auto; }

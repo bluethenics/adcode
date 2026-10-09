@@ -28,11 +28,17 @@ import {
   type LiveRoomState,
   type LiveSignal,
 } from "./liveRoomModel.ts";
-import { createLiveWindow, reducedMotion, type LiveWindowHandle } from "./liveWindow.ts";
+import { createLiveWindow, reducedMotion, type LiveStopAction, type LiveWindowHandle } from "./liveWindow.ts";
 
 export interface LiveRoomOptions {
   lookFor(identity: LiveAgentIdentity): MascotLook;
   now?(): number;
+  /** How to stop an agent from its window, or null when it cannot be stopped from here. */
+  stopFor?(agent: LiveAgent): LiveStopAction | null;
+  /** Stop every agent that can be stopped. Shown in the room's header while any are working. */
+  stopAll?(agents: readonly LiveAgent[]): void;
+  /** Open one agent's actions, anchored to its window's button. */
+  onAgentMenu?(agent: LiveAgent, anchor: HTMLElement): void;
 }
 
 export interface LiveRoomStats {
@@ -50,6 +56,8 @@ export interface LiveRoomHandle {
   settle(group: string): void;
   signal(signal: Omit<LiveSignal, "id">): void;
   setEnabled(enabled: boolean): void;
+  /** Hide the windows (true) and keep just the mascots, or show them again. */
+  collapse(hidden: boolean): void;
   stats(): LiveRoomStats;
 }
 
@@ -93,7 +101,15 @@ export function createLiveRoom(options: LiveRoomOptions): LiveRoomHandle {
   const count = make("span", "live-room-count");
   const toggle = make("button", "live-room-toggle", "Hide windows");
   toggle.type = "button";
-  head.append(pulse, title, count, toggle);
+  const stopAll = make("button", "live-room-stop", "Stop all");
+  stopAll.type = "button";
+  stopAll.hidden = true;
+  stopAll.title = "Stop every agent working here";
+  stopAll.addEventListener("click", () => {
+    const stoppable = state.agents.filter((agent) => (agent.status === "working" || agent.status === "waiting") && options.stopFor?.(agent) != null);
+    if (stoppable.length > 0) options.stopAll?.(stoppable);
+  });
+  head.append(pulse, title, count, stopAll, toggle);
   const strip = make("div", "live-room-strip");
   const log = make("p", "live-room-log");
   log.setAttribute("aria-live", "polite");
@@ -148,6 +164,8 @@ export function createLiveRoom(options: LiveRoomOptions): LiveRoomHandle {
           expanded = expanded === agent.id ? null : agent.id;
           paint.schedule();
         },
+        ...(options.stopFor === undefined ? {} : { stop: (current: LiveAgent) => options.stopFor?.(current) ?? null }),
+        ...(options.onAgentMenu === undefined ? {} : { onMenu: (current: LiveAgent, anchor: HTMLElement) => options.onAgentMenu?.(current, anchor) }),
       });
       windows.set(agent.id, handle);
     }
@@ -238,6 +256,10 @@ export function createLiveRoom(options: LiveRoomOptions): LiveRoomHandle {
       : waiting > 0 ? `${waiting} waiting` : "All finished";
     element.dataset["working"] = String(working);
     pulse.dataset["live"] = working > 0 ? "true" : "false";
+    const stoppable = options.stopAll === undefined
+      ? 0
+      : state.agents.filter((agent) => (agent.status === "working" || agent.status === "waiting") && options.stopFor?.(agent) != null).length;
+    stopAll.hidden = stoppable < 2;
     toggle.textContent = collapsed ? "Show windows" : "Hide windows";
     toggle.setAttribute("aria-expanded", String(!collapsed));
     grid.hidden = collapsed;
@@ -262,6 +284,8 @@ export function createLiveRoom(options: LiveRoomOptions): LiveRoomHandle {
       const member = memberFor(agent);
       member.label.textContent = agent.label;
       member.element.dataset["status"] = agent.status;
+      // A writing agent's chip says so, the way a messaging app shows someone typing.
+      member.element.dataset["typing"] = String(agent.status === "working" && agent.activity.kind === "text");
       member.element.setAttribute("aria-pressed", String(expanded === agent.id));
       member.element.title = `${agent.label}: ${agent.step}`;
       member.mascot.setMood(agent.status === "waiting" ? "sleepy" : agent.status === "failed" ? "confused" : agent.status === "done" ? "happy" : "thinking");
@@ -310,6 +334,10 @@ export function createLiveRoom(options: LiveRoomOptions): LiveRoomHandle {
     },
     setEnabled(on) {
       enabled = on;
+      paint.schedule();
+    },
+    collapse(hidden) {
+      collapsed = hidden;
       paint.schedule();
     },
     stats() {

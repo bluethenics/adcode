@@ -316,6 +316,12 @@ export function buildMenuBar(context: MenuContext = { recents: [] }): readonly M
             { label: "Zoom &In", command: "view.zoomIn", accelerator: "CmdOrCtrl+=" },
             { label: "Zoom &Out", command: "view.zoomOut", accelerator: "CmdOrCtrl+-" },
             { label: "&Reset Zoom", command: "view.zoomReset", accelerator: "CmdOrCtrl+0" },
+            separator,
+            // Word's font-size keys, Ctrl+Shift+> and <. Not Ctrl+Alt: on many Windows
+            // layouts that is AltGr, and AltGr+0 types the } a programmer needs.
+            { label: "&Bigger Text", command: "view.textBigger", accelerator: "CmdOrCtrl+Shift+." },
+            { label: "S&maller Text", command: "view.textSmaller", accelerator: "CmdOrCtrl+Shift+," },
+            { label: "Reset &Text Size", command: "view.textReset" },
           ],
         },
         separator,

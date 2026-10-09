@@ -55,6 +55,7 @@ import type { MilestoneName } from "./milestones.ts";
 import type { AssistantControlAction, AssistantControlsView } from "./assistantControls.ts";
 import type { McpNodeCheck } from "./mcpNode.ts";
 import type { LiveAgentEventView } from "./liveAgents.ts";
+import type { AiUsageView, UsageRange } from "./aiUsage.ts";
 
 export type { ActivityDelta };
 
@@ -621,6 +622,9 @@ export const CHANNELS = {
   aiTeamTraces: "ai-team:traces",
   aiTeamChanged: "ai-team:changed",
   aiLive: "ai:live",
+  aiUsageRead: "ai:usage-read",
+  aiUsageClear: "ai:usage-clear",
+  aiUsageChanged: "ai:usage-changed",
   aiAutomationCreate: "ai-automation:create",
   aiAutomationList: "ai-automation:list",
   aiAutomationClaim: "ai-automation:claim",
@@ -676,6 +680,7 @@ export const CHANNELS = {
   windowFullScreen: "window:full-screen",
   windowDevTools: "window:dev-tools",
   windowZoom: "window:zoom",
+  windowSetZoom: "window:set-zoom",
   windowOpenIde: "window:open-ide",
   windowOpenVibe: "window:open-vibe",
   windowRendererReady: "window:renderer-ready",
@@ -1898,6 +1903,12 @@ export interface AdcodeApi {
   readonly aiLive: {
     onEvent(listener: (event: LiveAgentEventView) => void): () => void;
   };
+  /** Tokens and estimated cost per model, kept on this machine. */
+  readonly aiUsage: {
+    read(range: UsageRange): Promise<AiUsageView>;
+    clear(): Promise<void>;
+    onChanged(listener: () => void): () => void;
+  };
   readonly aiAutomation: {
     create(input: AiAutomationCreateInputView): Promise<AiAutomationView>;
     list(): Promise<readonly AiAutomationView[]>;
@@ -2051,6 +2062,8 @@ export interface AdcodeApi {
     toggleDevTools(): void;
     /** `+1`, `-1`, or `0` to reset. */
     zoom(direction: number): void;
+    /** Set the window's zoom to a factor - 1 is 100%. Clamped by the main process. */
+    setZoom(factor: number): void;
     /**
      * Open the full IDE in a separate OS window.
      *

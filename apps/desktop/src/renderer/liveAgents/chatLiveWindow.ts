@@ -10,7 +10,7 @@
 import type { MascotLook } from "../agents/mascotStyle.ts";
 import { createFrameTask } from "../frameTask.ts";
 import { liveEventFrom, type LiveAgentEventLike } from "../../shared/liveAgents.ts";
-import { applyLiveEvent, emptyLiveRoom, type LiveAgentIdentity, type LiveRoomState } from "./liveRoomModel.ts";
+import { applyLiveEvent, emptyLiveRoom, type LiveAgent, type LiveAgentIdentity, type LiveRoomState } from "./liveRoomModel.ts";
 import { createLiveWindow, type LiveWindowHandle } from "./liveWindow.ts";
 
 export interface ChatLiveWindow {
@@ -28,10 +28,14 @@ export interface ChatLiveWindow {
 }
 
 export interface ChatLiveWindowOptions {
-  readonly look: MascotLook;
+  /** Read when a window opens, so a look changed in Settings shows on the next one. */
+  look(): MascotLook;
   label(): string;
   model(): string;
   enabled(): boolean;
+  /** Stop the turn, the same as the chat's stop button. */
+  stop?(): void;
+  onMenu?(agent: LiveAgent, anchor: HTMLElement): void;
 }
 
 const WATCHED_TOOLS = new Set(["edit_file", "propose_edit", "run_command"]);
@@ -64,7 +68,13 @@ export function createChatLiveWindow(options: ChatLiveWindowOptions): ChatLiveWi
       let created: HTMLElement | null = null;
       const watchable = live.kind === "tool-draft" || (live.kind === "tool-call" && WATCHED_TOOLS.has(live.name));
       if (window_ === null && watchable && options.enabled()) {
-        window_ = createLiveWindow({ look: options.look, lines: 16 });
+        const stop = options.stop;
+        window_ = createLiveWindow({
+          look: options.look(),
+          lines: 16,
+          ...(stop === undefined ? {} : { stop: () => ({ label: "Stop", run: () => stop() }) }),
+          ...(options.onMenu === undefined ? {} : { onMenu: options.onMenu }),
+        });
         window_.element.classList.add("live-window-inline");
         created = window_.element;
         ticker = window.setInterval(() => paint.schedule(), 1_000);

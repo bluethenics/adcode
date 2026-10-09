@@ -250,6 +250,7 @@ export function createGoogleProvider(deps: GoogleProviderDeps): Provider {
       let buffer = "";
       let sawToolCall = false;
       let finish: string | null = null;
+      let usage: { inputTokens: number; outputTokens: number } | null = null;
 
       while (!signal.aborted) {
         const { done, value } = await reader.read();
@@ -274,6 +275,14 @@ export function createGoogleProvider(deps: GoogleProviderDeps): Provider {
 
           // A failure part way through arrives as a data line of its own, not as a status.
           if (isRecord(parsed["error"])) throw new Error(`Google: ${googleError(JSON.stringify(parsed))}`);
+
+          // Running totals, repeated on every chunk: the last one is the request's count.
+          // Thinking is billed as output, so it is counted as output.
+          const metadata = parsed["usageMetadata"];
+          if (isRecord(metadata)) {
+            const count = (key: string): number => (typeof metadata[key] === "number" ? (metadata[key] as number) : 0);
+            usage = { inputTokens: count("promptTokenCount"), outputTokens: count("candidatesTokenCount") + count("thoughtsTokenCount") };
+          }
 
           const candidate = (parsed["candidates"] as Array<Record<string, unknown>> | undefined)?.[0];
           if (candidate === undefined) continue;
@@ -307,6 +316,7 @@ export function createGoogleProvider(deps: GoogleProviderDeps): Provider {
 
       if (signal.aborted) return;
 
+      if (usage !== null) yield { kind: "usage", ...usage };
       if (sawToolCall) yield { kind: "stop", reason: "tool-use" };
       else if (finish === "MAX_TOKENS") yield { kind: "stop", reason: "max-tokens" };
       else if (finish === "SAFETY" || finish === "PROHIBITED_CONTENT") {

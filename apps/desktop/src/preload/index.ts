@@ -199,6 +199,11 @@ const api: AdcodeApi = {
   aiLive: {
     onEvent: (listener) => subscribe(CHANNELS.aiLive, listener),
   },
+  aiUsage: {
+    read: (range) => ipcRenderer.invoke(CHANNELS.aiUsageRead, range),
+    clear: () => ipcRenderer.invoke(CHANNELS.aiUsageClear),
+    onChanged: (listener) => subscribe(CHANNELS.aiUsageChanged, listener),
+  },
   aiAutomation: {
     create: (input) => ipcRenderer.invoke(CHANNELS.aiAutomationCreate, input),
     list: () => ipcRenderer.invoke(CHANNELS.aiAutomationList),
@@ -262,6 +267,7 @@ const api: AdcodeApi = {
     toggleFullScreen: () => ipcRenderer.send(CHANNELS.windowFullScreen),
     toggleDevTools: () => ipcRenderer.send(CHANNELS.windowDevTools),
     zoom: (direction) => ipcRenderer.send(CHANNELS.windowZoom, direction),
+    setZoom: (factor) => ipcRenderer.send(CHANNELS.windowSetZoom, factor),
     openIde: (file, view) => ipcRenderer.invoke(CHANNELS.windowOpenIde, file, view),
     openVibe: () => ipcRenderer.invoke(CHANNELS.windowOpenVibe),
     ready: () => ipcRenderer.send(CHANNELS.windowRendererReady),

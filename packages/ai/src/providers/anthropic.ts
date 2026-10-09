@@ -148,6 +148,17 @@ async function* readStream(stream: ClaudeStream, signal: AbortSignal, reading: {
 
   const final = await stream.finalMessage();
 
+  // Cached input is still input the request carried; it is counted with the rest.
+  const usage = (final as { usage?: Record<string, unknown> }).usage;
+  if (typeof usage === "object" && usage !== null) {
+    const count = (key: string): number => (typeof usage[key] === "number" ? (usage[key] as number) : 0);
+    yield {
+      kind: "usage",
+      inputTokens: count("input_tokens") + count("cache_read_input_tokens") + count("cache_creation_input_tokens"),
+      outputTokens: count("output_tokens"),
+    };
+  }
+
   switch (final.stop_reason) {
     case "tool_use":
       yield { kind: "stop", reason: "tool-use" };

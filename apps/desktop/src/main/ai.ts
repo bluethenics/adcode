@@ -148,6 +148,9 @@ import { apiBaseUrl } from "./backend.ts";
 import { recordModelOutcome } from "./modelOutcomes.ts";
 import { outcomeOfError } from "../shared/modelOutcomes.ts";
 import { preferredOllamaModel } from "../shared/quickConnect.ts";
+import { recordAiUsage } from "./aiUsage.ts";
+import type { UsagePrice, UsageSource } from "../shared/aiUsage.ts";
+import { BUILTIN_SKILL_TOOL, builtinSkillGuidance, DESIGN_TASTE_SETTING, withBuiltinSkills } from "./builtinSkills.ts";
 
 const keys = createKeychainStore();
 const requestScheduler = new RequestScheduler();
@@ -1162,8 +1165,28 @@ function splitAttachments(attachments: readonly AiAttachmentView[]): {
 /** The chat's tools: everything built in, minus memory when memory capture is off. */
 function chatTools() {
   const memoryEnabled = currentSettings()["adcode.ai.memoryCapture"] !== false;
-  return [...(memoryEnabled ? BUILT_IN_TOOLS : TOOLS_WITHOUT_MEMORY), ...ASSISTANT_EXTENSION_TOOLS];
+  return [...(memoryEnabled ? BUILT_IN_TOOLS : TOOLS_WITHOUT_MEMORY), ...ASSISTANT_EXTENSION_TOOLS, BUILTIN_SKILL_TOOL];
 }
+
+/**
+ * What a model costs, from the catalogue - never a guess. A model running on this machine
+ * costs nothing; one the catalogue has no price for has no cost on the usage page.
+ */
+function usagePrice(providerId: string, model: string): UsagePrice | null {
+  if (providerId === "ollama") return { inputMicrosPerMillion: 0, outputMicrosPerMillion: 0 };
+  const found = providerIn(catalogue, providerId)?.models.find((candidate) => candidate.id === model);
+  const input = found?.inputCostMicrosPerMillion;
+  const output = found?.outputCostMicrosPerMillion;
+  return typeof input === "number" && typeof output === "number" ? { inputMicrosPerMillion: input, outputMicrosPerMillion: output } : null;
+}
+
+/** Count one request on the usage page. */
+function noteUsage(source: UsageSource, providerId: string, model: string, event: { readonly inputTokens: number; readonly outputTokens: number; readonly estimated: boolean }): void {
+  recordAiUsage({ source, provider: providerId, model, inputTokens: event.inputTokens, outputTokens: event.outputTokens, estimated: event.estimated, at: Date.now(), price: usagePrice(providerId, model) });
+}
+
+/** Read fresh on every call, so switching the design skill off applies to the next request. */
+const designTasteOn = (): boolean => currentSettings()[DESIGN_TASTE_SETTING] !== false;
 
 /** When and how far a conversation with this model compacts - read fresh, so a settings change applies at once. */
 function compactionFor(providerId: string, model: string): AgentCompaction {
@@ -1220,9 +1243,10 @@ async function ensureChatAgent(providerId: string, model: string): Promise<Agent
         aiWorkspaceContext(root, blocker, editorContext, configuredEditPolicy() === "review" ? "review" : "direct"),
         ...(root === null ? [] : [describePreviewForAi()]),
         describeBackgroundCommands(),
+        builtinSkillGuidance(designTasteOn()),
       ].filter((line): line is string => line !== null).join("\n");
     },
-    runner: withAssistantExtensions(toolRunner()),
+    runner: withBuiltinSkills(withAssistantExtensions(toolRunner()), designTasteOn),
     beforeRequest: async () => {
       // Direct edits apply immediately, so there is no task to create and
       // no budget to reserve. The turn step limit remains the backstop
@@ -1342,6 +1366,10 @@ export async function aiSend(
     recordDebug("info", "ai", `Turn started: ${providerId} / ${model}`);
 
     for await (const event of ready.send(turnText, { images })) {
+      if (event.kind === "usage") {
+        noteUsage("chat", providerId, model, event);
+        continue;
+      }
       chatEvents.push(event);
       if (event.kind === "tool-draft") continue;
       if (event.kind === "compacted") await recordCompaction(ready, event);
@@ -1696,6 +1724,9 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
       "Before you finish, prove it works: run the project's own checks that apply - its tests, type checker or linter (look in package.json or the equivalent) - with run_command, and fix any failure you caused. If there are none, say so plainly.",
     ];
     const teammates = roles.filter((role) => role.id !== input.context.role.id);
+    // Read once per run: an agent's tools are fixed when it starts.
+    const tasteOn = designTasteOn();
+    const designGuidance = [builtinSkillGuidance(tasteOn)].filter((line): line is string => line !== null);
     const system = input.kind === "solo"
       ? [
         "You are an ADCode agent working on one task in an isolated copy of the project.",
@@ -1703,6 +1734,7 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
         `Your standing instructions: ${input.context.role.objective}`,
         "Do the task end to end with the file tools you have.",
         ...routine,
+        ...designGuidance,
         "Finish with a concise summary of what you changed, how you checked it, and anything the user should check. Your edits are applied or reviewed when you finish.",
       ]
       : [
@@ -1713,6 +1745,7 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
         "Work only on this node. Use the isolated file tools; never assume another role's transcript.",
         "Talk to your teammates with message_teammate: tell them when you finish something they depend on (an API, a schema, a rename), and ask before changing a file their piece obviously owns. Their messages arrive with your tool results - follow them.",
         ...routine,
+        ...designGuidance,
         "Finish with a concise outcome summary: what you changed and how you checked it. All edits remain review-only until the Team merge.",
       ];
     const planTool = access.tools.some((tool) => tool.name === UPDATE_PLAN.name) ? [] : [UPDATE_PLAN];
@@ -1720,8 +1753,9 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
       provider: roleProvider,
       model: input.route.modelId,
       compaction: compactionFor(input.route.providerId, input.route.modelId),
-      tools: [...access.tools, ...planTool, ...(memoryOn ? MEMORY_TOOLS : []), ...(onTeam ? TEAM_TOOLS : [])],
-      runner,
+      // The skill tool only reads text bundled with the app, so tool access does not gate it.
+      tools: [...access.tools, ...planTool, ...(memoryOn ? MEMORY_TOOLS : []), ...(onTeam ? TEAM_TOOLS : []), ...(tasteOn ? [BUILTIN_SKILL_TOOL] : [])],
+      runner: withBuiltinSkills(runner, () => tasteOn),
       effort: configuredEffort(),
       system: system.join("\n"),
     });
@@ -1746,6 +1780,10 @@ export function createBuiltInAiTeamNodeRunner(): AiTeamNodeRunner {
     try {
       try {
         for await (const event of roleAgent.send(compactPrompt, { signal: local.signal })) {
+          if (event.kind === "usage") {
+            noteUsage("agents", input.route.providerId, input.route.modelId, event);
+            continue;
+          }
           const view = liveEventFrom(event);
           if (view !== null) live(view);
           const activity = agentEventTrace(event);

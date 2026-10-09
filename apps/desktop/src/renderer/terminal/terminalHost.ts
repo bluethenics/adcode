@@ -36,6 +36,8 @@ export interface TerminalHost {
    */
   hasSelection(): boolean;
   applyTheme(theme: ThemeChoice): void;
+  /** Appearance > Text size. Refits, so the rows and columns follow the new size. */
+  setFontSize(size: number): void;
 }
 
 /** macOS uses Cmd where everything else uses Ctrl, including for the clipboard. */
@@ -138,6 +140,8 @@ export async function createTerminalHost(
     profileId?: string;
     cwd?: string;
     theme: ThemeChoice;
+    /** 12 unless Appearance > Text size says otherwise. */
+    fontSize?: number;
     /** Told when a command line starts a known AI agent (`adcode.ai.terminalAgentDetection`). */
     onAgent?: (agent: DetectedAgent) => void;
     /** Raw visible output, used only for explicit usage-limit continuation. */
@@ -149,7 +153,7 @@ export async function createTerminalHost(
 ): Promise<TerminalHost> {
   const terminal = new Terminal({
     fontFamily: '"SF Mono", "JetBrains Mono", "Cascadia Code", ui-monospace, Consolas, monospace',
-    fontSize: 12,
+    fontSize: options.fontSize ?? 12,
     // Roomy rows: dense output (traces, test runs, git status) stays scannable
     // instead of collapsing into a wall of glyphs.
     lineHeight: 1.5,
@@ -315,6 +319,11 @@ export async function createTerminalHost(
     },
     applyTheme(theme) {
       terminal.options.theme = { ...THEMES[theme] };
+    },
+    setFontSize(size) {
+      if (terminal.options.fontSize === size) return;
+      terminal.options.fontSize = size;
+      fit.fit();
     },
   };
 }

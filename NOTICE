@@ -14,3 +14,8 @@ are shown in the app under Help > Open Source Licences.
 The website's image pipeline uses sharp, whose prebuilt binaries include
 libvips, licensed under LGPL-3.0-or-later. libvips is dynamically linked and
 unmodified; its source is at https://github.com/libvips/libvips.
+
+The desktop app bundles design guidance from taste-skill by Leonxlnx
+(https://github.com/Leonxlnx/taste-skill), licensed under the MIT licence. It
+lives in apps/desktop/src/main/builtinSkills/ with its licence, and its notice
+ships in THIRD-PARTY-NOTICES.txt.

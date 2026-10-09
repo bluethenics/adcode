@@ -93,7 +93,8 @@ describe("a plain turn", () => {
     const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner() });
     const events = await collect(agent.send("hi"));
 
-    expect(kinds(events)).toEqual(["text", "text", "turn-end"]);
+    // Every answered request reports what it cost, after its output and before the turn ends.
+    expect(kinds(events)).toEqual(["text", "text", "usage", "turn-end"]);
     expect(events.filter((e) => e.kind === "text").map((e) => (e as { text: string }).text).join("")).toBe(
       "Hello world",
     );
@@ -109,7 +110,47 @@ describe("a plain turn", () => {
     ]);
 
     const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner() });
-    expect(kinds(await collect(agent.send("hi")))).toEqual(["thinking", "text", "turn-end"]);
+    expect(kinds(await collect(agent.send("hi")))).toEqual(["thinking", "text", "usage", "turn-end"]);
+  });
+});
+
+describe("usage", () => {
+  it("passes on the provider's own count when it gives one", async () => {
+    const provider = scriptedProvider([
+      [
+        { kind: "text", text: "answer" },
+        { kind: "usage", inputTokens: 1200, outputTokens: 34 },
+        { kind: "stop", reason: "end-turn" },
+      ],
+    ]);
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner() });
+    const events = await collect(agent.send("hi"));
+    expect(events.filter((event) => event.kind === "usage")).toEqual([
+      { kind: "usage", inputTokens: 1200, outputTokens: 34, estimated: false },
+    ]);
+  });
+
+  it("counts a request itself, and says so, when the provider is silent", async () => {
+    const provider = scriptedProvider([[{ kind: "text", text: "x".repeat(400) }, { kind: "stop", reason: "end-turn" }]]);
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner() });
+    const usage = (await collect(agent.send("hi"))).find((event) => event.kind === "usage");
+    expect(usage).toMatchObject({ kind: "usage", outputTokens: 100, estimated: true });
+    expect((usage as { inputTokens: number }).inputTokens).toBeGreaterThan(0);
+  });
+
+  it("does not count a request the provider refused before answering", async () => {
+    const provider: Provider = {
+      id: "anthropic",
+      displayName: "Refusing",
+      models: ["test-model"],
+      async *stream(): AsyncIterable<ProviderEvent> {
+        throw new Error("HTTP 401 invalid api key");
+      },
+    };
+    const agent = createAgent({ provider, model: "test-model", tools: [], runner: runner() });
+    const events = await collect(agent.send("hi"));
+    expect(kinds(events)).toContain("error");
+    expect(kinds(events)).not.toContain("usage");
   });
 });
 
@@ -166,7 +207,7 @@ describe("tool use", () => {
     const agent = createAgent({ provider, model: "test-model", tools: [echoTool], runner: tools });
     const events = await collect(agent.send("go"));
 
-    expect(kinds(events)).toEqual(["tool-call", "tool-result", "text", "turn-end"]);
+    expect(kinds(events)).toEqual(["tool-call", "usage", "tool-result", "text", "usage", "turn-end"]);
     expect(tools.calls).toHaveLength(1);
     expect(provider.requests).toBe(2);
   });
@@ -378,7 +419,6 @@ describe("failure containment", () => {
       id: "anthropic",
       displayName: "Broken",
       models: ["test-model"],
-      // eslint-disable-next-line require-yield
       async *stream(): AsyncIterable<ProviderEvent> {
         throw new Error("503 upstream");
       },

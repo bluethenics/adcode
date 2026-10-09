@@ -149,6 +149,7 @@ describe("feature catalogue", () => {
       "adcode.ai.provider",
       "adcode.ai.taskTokenBudget",
       "adcode.appearance.density",
+      "adcode.appearance.motion",
       "adcode.appearance.theme",
       "adcode.language.customServers",
       "ai.workspaceStorage",

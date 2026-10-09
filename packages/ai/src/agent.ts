@@ -419,6 +419,12 @@ export function createAgent(deps: AgentDeps): Agent {
       let stop: StopReason = "end-turn";
       let stopDetail: string | undefined;
       let failed = false;
+      // What this request cost: the provider's count when it gives one, otherwise counted
+      // here from what went out and what came back.
+      let sent: ProviderRequest | null = null;
+      let reportedUsage: { inputTokens: number; outputTokens: number } | null = null;
+      let outputChars = 0;
+      let streamed = false;
 
       try {
         const lean = shrunk || deps.lean?.() === true;
@@ -467,6 +473,7 @@ export function createAgent(deps: AgentDeps): Agent {
           return;
         }
         const stream = deps.provider.stream(request, signal);
+        sent = request;
         // One reader per streaming call, keyed by the provider's index: an OpenAI-compatible
         // stream may name the call's id only after its first fragment.
         const drafts = new Map<number, { readonly reader: ToolDraftReader | null; id: string }>();
@@ -490,6 +497,7 @@ export function createAgent(deps: AgentDeps): Agent {
             }
 
             case "text":
+              outputChars += event.text.length;
               assistantContent.push({ type: "text", text: event.text });
               yield { kind: "text", text: event.text };
               break;
@@ -501,10 +509,16 @@ export function createAgent(deps: AgentDeps): Agent {
             case "thinking":
               // Deliberately not added to `messages`: a reasoning summary is for the
               // trace widget to display, not context to replay on the next turn.
+              outputChars += event.text.length;
               yield { kind: "thinking", text: event.text };
               break;
 
+            case "usage":
+              reportedUsage = { inputTokens: event.inputTokens, outputTokens: event.outputTokens };
+              break;
+
             case "tool-call":
+              outputChars += event.call.name.length + JSON.stringify(event.call.input).length;
               assistantContent.push(event.call);
               pendingCalls.push(event.call);
               yield { kind: "tool-call", call: event.call };
@@ -516,6 +530,7 @@ export function createAgent(deps: AgentDeps): Agent {
               break;
           }
         }
+        streamed = true;
       } catch (error) {
         const detail = error instanceof Error ? error.message : "provider failed";
         // Too big for this model: summarise the older part and ask again - once. The
@@ -547,6 +562,20 @@ export function createAgent(deps: AgentDeps): Agent {
         // §9: the provider being down costs the user an answer, never the editor.
         failed = true;
         yield { kind: "error", detail };
+      }
+
+      // A request the provider refused outright cost nothing; one that answered, even in
+      // part, is counted. Estimates are rough (about three characters a token in, four out)
+      // and say so, so the usage page never passes a guess off as the provider's bill.
+      if (sent !== null && (reportedUsage !== null || streamed || outputChars > 0)) {
+        yield reportedUsage !== null
+          ? { kind: "usage", ...reportedUsage, estimated: false }
+          : {
+              kind: "usage",
+              inputTokens: estimateTokens(sent.system, sent.messages, sent.tools),
+              outputTokens: Math.ceil(outputChars / 4),
+              estimated: true,
+            };
       }
 
       if (assistantContent.length > 0) {

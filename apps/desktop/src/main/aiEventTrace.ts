@@ -55,6 +55,8 @@ export function agentEventTrace(event: AgentEvent): AgentEventTrace | null {
       return { kind: "state", summary: "Compacted earlier steps", detail: "", outcome: "ok" };
     case "compacting":
     case "context":
+    // Counted on the usage page, not traced: a token count is not a step the agent took.
+    case "usage":
       return null;
   }
 }

@@ -101,6 +101,8 @@ export interface TerminalPanel {
   fit(): void;
   focus(): void;
   applyTheme(theme: ThemeChoice): void;
+  /** Appearance > Text size, for every open terminal and each one opened later. */
+  setFontSize(size: number): void;
   count(): number;
 }
 
@@ -155,6 +157,7 @@ export interface TerminalPanelDeps {
 
 export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
   const tabs: Tab[] = [];
+  let fontSize = 12;
   let activeTab: number | null = null;
   let nextId = 1;
 
@@ -601,6 +604,7 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
       ...(profileId === undefined || profileId === "" ? {} : { profileId }),
       ...(cwd === null ? {} : { cwd }),
       theme: deps.theme(),
+      fontSize,
       onAgent: (agent) => {
         if (pane !== null) {
           pane.agent = agent;
@@ -928,6 +932,10 @@ export function createTerminalPanel(deps: TerminalPanelDeps): TerminalPanel {
       tab?.panes[tab.activePane]?.host.focus();
     },
 
+    setFontSize(size) {
+      fontSize = size;
+      for (const tab of tabs) for (const pane of tab.panes) pane.host.setFontSize(size);
+    },
     applyTheme(theme) {
       for (const tab of tabs) for (const pane of tab.panes) pane.host.applyTheme(theme);
     },
