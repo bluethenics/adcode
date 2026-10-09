@@ -38,9 +38,52 @@ export interface CatalogueOverrides {
   /** "provider:model" -> one line shown with the model. */
   readonly notes: Readonly<Record<string, string>>;
   readonly added: readonly AddedModel[];
+  /** How Tag Flow AI is offered; the defaults when the panel never saved any. */
+  readonly tagflow: TagflowClientSettings;
 }
 
-export const EMPTY_OVERRIDES: CatalogueOverrides = { recommended: {}, hidden: [], featured: [], notes: {}, added: [] };
+/**
+ * The part of the panel's Tag Flow settings the app acts on. The limit and its window are
+ * the relay's business: the app learns them from a 429 when they matter.
+ */
+export interface TagflowClientSettings {
+  /** Off: the app stops offering Tag Flow, and a fresh install starts where it used to. */
+  readonly enabled: boolean;
+  /** At the limit, wait for the reset and continue the same turn. */
+  readonly autoContinue: boolean;
+  readonly privacyUrl: string;
+  /** Null until Tag Flow publishes terms; the notice then links its site. */
+  readonly termsUrl: string | null;
+}
+
+export const DEFAULT_TAGFLOW_CLIENT_SETTINGS: TagflowClientSettings = {
+  enabled: true,
+  autoContinue: true,
+  privacyUrl: "https://tagflow-ai.com/legal/privacy",
+  termsUrl: null,
+};
+
+export const EMPTY_OVERRIDES: CatalogueOverrides = { recommended: {}, hidden: [], featured: [], notes: {}, added: [], tagflow: DEFAULT_TAGFLOW_CLIENT_SETTINGS };
+
+/** An https address, or null: these are links a person will click. */
+function httpsUrl(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > 400) return null;
+  try {
+    return new URL(value).protocol === "https:" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseTagflow(raw: unknown): TagflowClientSettings {
+  if (!isRecord(raw)) return DEFAULT_TAGFLOW_CLIENT_SETTINGS;
+  return {
+    enabled: typeof raw["enabled"] === "boolean" ? raw["enabled"] : DEFAULT_TAGFLOW_CLIENT_SETTINGS.enabled,
+    autoContinue: typeof raw["autoContinue"] === "boolean" ? raw["autoContinue"] : DEFAULT_TAGFLOW_CLIENT_SETTINGS.autoContinue,
+    privacyUrl: httpsUrl(raw["privacyUrl"]) ?? DEFAULT_TAGFLOW_CLIENT_SETTINGS.privacyUrl,
+    termsUrl: httpsUrl(raw["termsUrl"]),
+  };
+}
 
 const MAX_KEYS = 2000;
 const MAX_ADDED = 200;
@@ -112,7 +155,7 @@ export function parseOverrides(raw: unknown): CatalogueOverrides {
     ? raw["added"].map(parseAdded).filter((one): one is AddedModel => one !== null).slice(0, MAX_ADDED)
     : [];
 
-  return { recommended, hidden: keys(raw["hidden"]), featured: keys(raw["featured"]), notes, added };
+  return { recommended, hidden: keys(raw["hidden"]), featured: keys(raw["featured"]), notes, added, tagflow: parseTagflow(raw["tagflow"]) };
 }
 
 function fromAdded(added: AddedModel): CatalogueModel {

@@ -39,7 +39,11 @@ export interface OpenAiCompatibleDeps {
   readonly id: ProviderId;
   readonly displayName: string;
   readonly baseUrl: string;
-  readonly apiKey: string;
+  /**
+   * The bearer to send, or a function giving a fresh one per request - Tag Flow's relay is
+   * reached with the account's short-lived identity token, not a key.
+   */
+  readonly apiKey: string | (() => Promise<string>);
   readonly models: readonly string[];
   /** What the catalogue knows about each model: its effort levels above all. */
   readonly traits?: TraitsLookup;
@@ -73,6 +77,9 @@ function profileFor(id: string): WireProfile {
       return { sizeField: "max_tokens", effort: "reasoning_effort", echo: "reasoning_content" };
     case "ollama":
       // A local server mostly ignores effort, and a strict one rejects a field it does not know.
+      return { sizeField: "max_tokens", effort: "none", echo: "none" };
+    case "tagflow":
+      // Tag Flow's gateway declares model, messages and stream; nothing promises it reads effort.
       return { sizeField: "max_tokens", effort: "none", echo: "none" };
     default:
       return { sizeField: "max_tokens", effort: "reasoning_effort", echo: "none" };
@@ -109,6 +116,38 @@ export function providerErrorMessage(payload: unknown): string | null {
       : text.slice(0, 500);
   }
   return null;
+}
+
+/** A usage limit the provider set, with when it resets. */
+export interface UsageLimit {
+  /** Epoch milliseconds. */
+  readonly resetsAt: number;
+  /** Whether the provider wants the client to wait and continue on its own. */
+  readonly autoContinue: boolean;
+}
+
+/**
+ * The usage limit in a 429's body, or null when it is an ordinary rate limit.
+ *
+ * ADCode's Tag Flow relay answers `{"error":{"code":"tagflow_usage_limit","resets_at",
+ * "auto_continue"}}` when a person has used their window. An ordinary 429 is a wait of
+ * seconds; this one can be hours, and is handled as a limit to wait out, not a retry.
+ */
+export function usageLimitOf(payload: unknown): UsageLimit | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const error = (payload as Record<string, unknown>)["error"];
+  if (typeof error !== "object" || error === null) return null;
+  const record = error as Record<string, unknown>;
+  const resetsAt = record["resets_at"];
+  if (record["code"] !== "tagflow_usage_limit" || typeof resetsAt !== "number" || !Number.isSafeInteger(resetsAt) || resetsAt <= 0) return null;
+  return { resetsAt, autoContinue: record["auto_continue"] !== false };
+}
+
+/** "3:00 PM", or the date too when it is not today. */
+function resetTime(resetsAt: number): string {
+  const at = new Date(resetsAt);
+  const time = at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return at.toDateString() === new Date().toDateString() ? time : `${at.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} ${time}`;
 }
 
 /** The effort level to send this model, or undefined to send none. */
@@ -280,6 +319,7 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
 
       let size = request.maxTokens;
       let response: Response;
+      const key = typeof deps.apiKey === "function" ? await deps.apiKey() : deps.apiKey;
       for (let attempt = 0; ; attempt++) {
         response = await doFetch(`${deps.baseUrl}/chat/completions`, {
           method: "POST",
@@ -287,7 +327,7 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
           headers: {
             "content-type": "application/json",
             // A local Ollama needs no key; sending an empty bearer would be rejected.
-            ...(deps.apiKey.length > 0 ? { authorization: `Bearer ${deps.apiKey}` } : {}),
+            ...(key.length > 0 ? { authorization: `Bearer ${key}` } : {}),
             ...(viaOpenRouter ? { "HTTP-Referer": "https://adcode.dev", "X-Title": "ADCode" } : {}),
           },
           body: body(size),
@@ -298,11 +338,13 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
         // found", "insufficient credits", "does not support tool use"). A bare
         // status leaves the user with nothing to act on.
         let detail = "";
+        let payload: unknown = null;
         try {
           const text = (await response.text()).trim().slice(0, 2000);
           if (text.length > 0) {
             try {
-              detail = providerErrorMessage(JSON.parse(text) as unknown) ?? text.slice(0, 500);
+              payload = JSON.parse(text) as unknown;
+              detail = providerErrorMessage(payload) ?? text.slice(0, 500);
             } catch {
               detail = text.slice(0, 500);
             }
@@ -317,6 +359,14 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
         if (allowed !== null && allowed >= 256 && allowed < size) {
           size = allowed;
           continue;
+        }
+
+        const limit = response.status === 429 ? usageLimitOf(payload) : null;
+        if (limit !== null) {
+          throw Object.assign(
+            new Error(`${deps.displayName} usage limit reached. It resets at ${resetTime(limit.resetsAt)}. Send again then, or connect another model.`),
+            { status: 429, retryAfter: response.headers.get("retry-after"), usageLimit: limit },
+          );
         }
 
         throw Object.assign(

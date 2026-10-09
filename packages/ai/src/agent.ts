@@ -498,6 +498,10 @@ export function createAgent(deps: AgentDeps): Agent {
               yield { kind: "status", text: event.text };
               break;
 
+            case "limit-wait":
+              yield { kind: "limit-wait", provider: event.provider, resetsAt: event.resetsAt };
+              break;
+
             case "thinking":
               // Deliberately not added to `messages`: a reasoning summary is for the
               // trace widget to display, not context to replay on the next turn.

@@ -3,6 +3,41 @@ import { isRequestTooLarge } from "./requestSize.ts";
 
 /** How providers say the model produced a tool call they could not parse. */
 const TOOL_CALL_GARBLED = /tool_use_failed|failed to call a function|invalid tool call|failed_generation/i;
+/**
+ * Waits in a row at a usage limit before the turn gives up. A relay that keeps saying "later"
+ * past its own reset time is broken, and waiting on it forever would look like a hang.
+ */
+const MAX_LIMIT_WAITS = 5;
+
+/** Options for one wrapped provider. */
+export interface WrapOptions {
+  /**
+   * Wait out a usage limit and continue, rather than fail. For chat turns, team nodes and
+   * automations - a person asked for the work and it should finish. Never for inline
+   * completion: ghost text that arrives five hours late is a bug.
+   */
+  readonly waitForUsageLimit?: boolean;
+}
+
+/** Resolves at `at` (epoch ms); rejects at once when the turn is stopped. */
+function sleepUntil(at: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Cancelled", "AbortError"));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", stop);
+      resolve();
+    }, Math.min(Math.max(0, at - Date.now()), 2147483647));
+    function stop(): void {
+      clearTimeout(timer);
+      reject(new DOMException("Cancelled", "AbortError"));
+    }
+    signal.addEventListener("abort", stop, { once: true });
+  });
+}
+
 /** One FIFO lane per connection; only request starts are serialized, not streams. */
 interface State {
   nextStartAt: number;
@@ -75,11 +110,12 @@ export class RequestScheduler {
     entry.resolve();
     this.pump(s);
   }
-  wrap(provider: Provider, id: string, rpm: () => number): Provider {
+  wrap(provider: Provider, id: string, rpm: () => number, options: WrapOptions = {}): Provider {
     const scheduler = this;
     return {
       ...provider,
       async *stream(request, signal) {
+        let limitWaits = 0;
         for (let attempt = 0; ; attempt++) {
           await scheduler.acquire(id, rpm(), signal);
           signal.throwIfAborted();
@@ -97,8 +133,20 @@ export class RequestScheduler {
               retryAfter?: string | null;
               headers?: Headers;
               message?: string;
+              usageLimit?: { resetsAt: number; autoContinue: boolean };
             };
             if (signal.aborted) throw error;
+            // A usage limit is hours, not seconds. It never becomes a cooldown on the lane -
+            // that would hold an inline completion behind it - and only a caller that can
+            // wait, waits: it says until when, sleeps, and sends the same request again.
+            if (e.usageLimit !== undefined) {
+              if (emitted || options.waitForUsageLimit !== true || !e.usageLimit.autoContinue || limitWaits >= MAX_LIMIT_WAITS) throw error;
+              limitWaits += 1;
+              attempt -= 1;
+              yield { kind: "limit-wait", provider: provider.displayName, resetsAt: e.usageLimit.resetsAt };
+              await sleepUntil(e.usageLimit.resetsAt, signal);
+              continue;
+            }
             // A garbled tool call (Groq's `tool_use_failed`) is a coin the model flipped
             // badly, not a limit: the provider's own advice is to ask again. Once, at
             // once, and only before anything streamed - replaying text would repeat it.
