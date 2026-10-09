@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_MODEL_OVERRIDES, modelKey, toggleKey, usableProviders } from "../src/lib/modelCatalog";
+import { DEFAULT_TAGFLOW_SETTINGS, EMPTY_MODEL_OVERRIDES, modelKey, tagflowOf, tagflowProblem, toggleKey, usableProviders, withTagflow } from "../src/lib/modelCatalog";
 
 /**
  * The admin Models page's view of models.dev: the same cut the editor makes - providers it
@@ -53,5 +53,45 @@ describe("keys", () => {
     const once = toggleKey(EMPTY_MODEL_OVERRIDES.hidden, "openai:gpt-4.1");
     expect(once).toEqual(["openai:gpt-4.1"]);
     expect(toggleKey(once, "openai:gpt-4.1")).toEqual([]);
+  });
+});
+
+/**
+ * The Tag Flow AI section of the Models page: the switch, the limit, its window,
+ * auto-continue and the partner links, saved inside the same document.
+ */
+describe("Tag Flow settings", () => {
+  it("shows the defaults for a document saved before Tag Flow existed", () => {
+    expect(tagflowOf(EMPTY_MODEL_OVERRIDES)).toEqual(DEFAULT_TAGFLOW_SETTINGS);
+    expect(DEFAULT_TAGFLOW_SETTINGS).toEqual({
+      enabled: true,
+      requestLimit: 0,
+      windowHours: 5,
+      autoContinue: true,
+      privacyUrl: "https://tagflow-ai.com/legal/privacy",
+      termsUrl: "",
+    });
+  });
+
+  it("changes one setting and keeps the rest of the document", () => {
+    const overrides = { ...EMPTY_MODEL_OVERRIDES, hidden: ["openai:gpt-4.1"] };
+    const next = withTagflow(overrides, { requestLimit: 100 });
+    expect(next.hidden).toEqual(["openai:gpt-4.1"]);
+    expect(next.tagflow).toEqual({ ...DEFAULT_TAGFLOW_SETTINGS, requestLimit: 100 });
+    expect(withTagflow(next, { autoContinue: false }).tagflow).toEqual({ ...DEFAULT_TAGFLOW_SETTINGS, requestLimit: 100, autoContinue: false });
+  });
+
+  it.each([
+    ["a negative limit", { requestLimit: -1 }, /whole number/],
+    ["a fractional window", { windowHours: 1.5 }, /1 to 168/],
+    ["a window past a week", { windowHours: 200 }, /1 to 168/],
+    ["a privacy link over http", { privacyUrl: "http://example.com" }, /https/],
+    ["a terms link that is not a link", { termsUrl: "terms" }, /https/],
+  ])("says what is wrong with %s before Save", (_label, patch, message) => {
+    expect(tagflowProblem({ ...DEFAULT_TAGFLOW_SETTINGS, ...patch })).toMatch(message);
+  });
+
+  it("finds nothing wrong with the defaults or an empty terms link", () => {
+    expect(tagflowProblem(DEFAULT_TAGFLOW_SETTINGS)).toBeNull();
   });
 });

@@ -54,9 +54,58 @@ export interface ModelOverrides {
   featured: string[];
   notes: Record<string, string>;
   added: AddedModel[];
+  /** Tag Flow AI, the built-in model; absent until the panel first saves it. */
+  tagflow?: TagflowSettings;
 }
 
 export const EMPTY_MODEL_OVERRIDES: ModelOverrides = { recommended: {}, hidden: [], featured: [], notes: {}, added: [] };
+
+/** How Tag Flow AI is offered. The server checks the same rules (services/api/src/modelCatalog.ts). */
+export interface TagflowSettings {
+  enabled: boolean;
+  /** Requests per user per window; 0 is unlimited. */
+  requestLimit: number;
+  windowHours: number;
+  autoContinue: boolean;
+  privacyUrl: string;
+  termsUrl: string;
+}
+
+export const DEFAULT_TAGFLOW_SETTINGS: TagflowSettings = {
+  enabled: true,
+  requestLimit: 0,
+  windowHours: 5,
+  autoContinue: true,
+  privacyUrl: "https://tagflow-ai.com/legal/privacy",
+  termsUrl: "",
+};
+
+export const tagflowOf = (overrides: ModelOverrides): TagflowSettings => overrides.tagflow ?? DEFAULT_TAGFLOW_SETTINGS;
+
+export function withTagflow(overrides: ModelOverrides, patch: Partial<TagflowSettings>): ModelOverrides {
+  return { ...overrides, tagflow: { ...tagflowOf(overrides), ...patch } };
+}
+
+const isHttps = (value: string): boolean => {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+/** What the server would refuse, in words, or null. Checked before Save so a refusal is never a surprise. */
+export function tagflowProblem(settings: TagflowSettings): string | null {
+  if (!Number.isSafeInteger(settings.requestLimit) || settings.requestLimit < 0 || settings.requestLimit > 1_000_000) {
+    return "The request limit is a whole number from 0 (unlimited) to 1,000,000.";
+  }
+  if (!Number.isSafeInteger(settings.windowHours) || settings.windowHours < 1 || settings.windowHours > 168) {
+    return "The window is a whole number of hours, 1 to 168.";
+  }
+  if (!isHttps(settings.privacyUrl)) return "The privacy policy link must be an https:// address.";
+  if (settings.termsUrl !== "" && !isHttps(settings.termsUrl)) return "The terms link must be an https:// address, or empty.";
+  return null;
+}
 
 /** "provider:model" - provider ids never contain a colon; model ids often do. */
 export const modelKey = (provider: string, model: string): string => `${provider}:${model}`;
