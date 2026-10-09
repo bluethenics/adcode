@@ -239,3 +239,7 @@
   .connect-view .connect-result[data-tone="ok"]:not(:empty) { animation: none; }
   .connect-progress-fill { transition: none; }
 }
+
+/* A partner's model (Tag Flow AI): whose terms apply, linked, beside the choice. */
+.connect-partner-note { margin: 10px 0 0; font-size: var(--text-xs); line-height: 1.55; color: var(--text-secondary); }
+.connect-partner-note a { color: var(--accent); }

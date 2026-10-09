@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { impliedProvider, partnerOf } from "../src/shared/tagflow.ts";
+import { impliedProvider, partnerNoteSegments, partnerOf } from "../src/shared/tagflow.ts";
 
 /**
  * Which provider a person is on before they have chosen one.
@@ -34,5 +34,17 @@ describe("partnerOf", () => {
 
   it("links Tag Flow's site for its terms until it publishes a terms page", () => {
     expect(partnerOf({ privacyUrl: "https://tagflow-ai.com/legal/privacy", termsUrl: null }).termsUrl).toBe("https://tagflow-ai.com");
+  });
+});
+
+describe("partnerNoteSegments", () => {
+  it("says whose terms apply and links both documents", () => {
+    const partner = { name: "Tag Flow AI", privacyUrl: "https://tagflow-ai.com/legal/privacy", termsUrl: "https://tagflow-ai.com" };
+    const segments = partnerNoteSegments(partner);
+    expect(segments.map((one) => one.text).join("")).toBe("Tag Flow AI is an ADCode partner. Their Privacy Policy and Terms apply when you use their models.");
+    expect(segments.filter((one) => "href" in one)).toEqual([
+      { text: "Privacy Policy", href: "https://tagflow-ai.com/legal/privacy" },
+      { text: "Terms", href: "https://tagflow-ai.com" },
+    ]);
   });
 });

@@ -15,6 +15,7 @@
  */
 import { CONTINUE_PROMPT, describeAiFailure, OUTPUT_LIMIT_AGAIN, resumeAfterModelSwitch, type AiFailure } from "./aiFailure.ts";
 import { createChatQueue, type QueuedMessage } from "./chatQueue.ts";
+import { limitWaitCountdown, limitWaitHeadline } from "./limitWait.ts";
 import { chipLabel, modelChoices, rememberModel, switchedFrom, type ModelChoice, type ModelInUse } from "./modelSwitch.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
 import { createChatPreview } from "./chatPreview.ts";
@@ -415,6 +416,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       });
     }
     nodes.push({ kind: "separator" }, { label: "More models and providers…", run: () => deps.openConnect() });
+    // A partner's model (Tag Flow AI): their privacy policy and terms apply, linked here.
+    const partner = status?.providers.find((one) => one.id === status.activeProvider)?.partner;
+    if (partner !== undefined) {
+      nodes.push(
+        { kind: "separator" },
+        { kind: "heading", label: `${partner.name} is an ADCode partner; their terms apply` },
+        { label: `${partner.name} privacy policy`, run: () => void window.open(partner.privacyUrl, "_blank") },
+        { label: `${partner.name} terms`, run: () => void window.open(partner.termsUrl, "_blank") },
+      );
+    }
     const rect = modelLabel.getBoundingClientRect();
     modelLabel.setAttribute("aria-expanded", "true");
     modelMenu.open(rect.left, rect.top - 4, nodes, () => modelLabel.setAttribute("aria-expanded", "false"));
@@ -3758,6 +3769,44 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   void refreshWorkspaceTask();
   void paintFolderBanner();
 
+  /* ── A usage limit, waited out ────────────────────────────────────────── */
+
+  let limitCard: HTMLElement | null = null;
+  let limitTimer: number | null = null;
+
+  function clearLimitWait(): void {
+    if (limitTimer !== null) window.clearInterval(limitTimer);
+    limitTimer = null;
+    limitCard?.remove();
+    limitCard = null;
+  }
+
+  function showLimitWait(provider: string, resetsAt: number): void {
+    clearLimitWait();
+    const card = document.createElement("div");
+    card.className = "chat-limit-wait";
+    card.setAttribute("role", "status");
+    const headline = document.createElement("p");
+    headline.className = "chat-limit-wait-headline";
+    headline.textContent = limitWaitHeadline(provider, resetsAt, Date.now());
+    const countdown = document.createElement("p");
+    countdown.className = "chat-limit-wait-countdown";
+    countdown.setAttribute("aria-live", "off");
+    countdown.textContent = limitWaitCountdown(resetsAt, Date.now());
+    const other = document.createElement("button");
+    other.type = "button";
+    other.className = "btn btn-outline chat-limit-wait-switch";
+    other.textContent = "Use another model";
+    other.addEventListener("click", () => deps.openConnect());
+    card.append(headline, countdown, other);
+    limitCard = card;
+    limitTimer = window.setInterval(() => {
+      countdown.textContent = limitWaitCountdown(resetsAt, Date.now());
+    }, 1000);
+    transcript.append(card);
+    scrollToEnd();
+  }
+
   /* ── Events from the agent ────────────────────────────────────────────── */
 
   function setSendMode(mode: "send" | "stop"): void {
@@ -3768,6 +3817,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       scrollToEnd();
     } else {
       working.remove();
+      clearLimitWait();
     }
     const wasWorking = card.dataset["working"] === "true";
     card.dataset["working"] = String(mode === "stop");
@@ -3832,6 +3882,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
 
     // Code being written or a command running: watch it in the turn's live window.
+    // Anything after a usage-limit wait means the wait is over: the turn continued or ended.
+    if (event.kind !== "limit-wait") clearLimitWait();
+
     const liveWindow = live.chatWindow.handle(event);
     if (liveWindow !== null) {
       ensureActivity();
@@ -3862,6 +3915,18 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         const text = String(event["text"] ?? "");
         workingText.textContent = text;
         ensureActivity().setLabel(text);
+        break;
+      }
+
+      case "limit-wait": {
+        // Like Claude: the limit is reached, here is when it resets, and the turn carries on
+        // by itself then. Stop still ends it; another model is one click away.
+        const resetsAt = Number(event["resetsAt"]);
+        const provider = String(event["provider"] ?? "The model");
+        if (!Number.isFinite(resetsAt)) break;
+        showLimitWait(provider, resetsAt);
+        workingText.textContent = "Waiting for the usage limit to reset";
+        ensureActivity().setLabel("Waiting for the usage limit to reset");
         break;
       }
 

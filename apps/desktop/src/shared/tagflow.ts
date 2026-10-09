@@ -38,3 +38,17 @@ export function partnerOf(settings: PartnerSettings): PartnerView {
 export function impliedProvider(input: { readonly anthropicKeySaved: boolean; readonly tagflowEnabled: boolean }): string {
   return input.tagflowEnabled && !input.anthropicKeySaved ? TAGFLOW_ID : "anthropic";
 }
+
+/** One run of the partner notice: words, or words that link. */
+export type NoteSegment = { readonly text: string } | { readonly text: string; readonly href: string };
+
+/** "Tag Flow AI is an ADCode partner. Their Privacy Policy and Terms apply when you use their models." */
+export function partnerNoteSegments(partner: PartnerView): NoteSegment[] {
+  return [
+    { text: `${partner.name} is an ADCode partner. Their ` },
+    { text: "Privacy Policy", href: partner.privacyUrl },
+    { text: " and " },
+    { text: "Terms", href: partner.termsUrl },
+    { text: " apply when you use their models." },
+  ];
+}

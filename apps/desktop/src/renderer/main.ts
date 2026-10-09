@@ -148,6 +148,7 @@ import { createFeatureLibrary } from "./features/featureLibrary.ts";
 import { featureFor, featureRecords, type FeatureAction } from "@adcode/help";
 import { formatAccelerator } from "../shared/menuModel.ts";
 import { commandWordOf } from "../shared/runtimes.ts";
+import { TAGFLOW_ID } from "../shared/tagflow.ts";
 import {
   applyOverrides,
   matchesChord,
@@ -5712,6 +5713,19 @@ function registerCommands(): void {
   add("ai.getFreeKey", "Get a Free AI Key", () => {
     connectView.showQuick();
     connectView.open();
+  });
+  // Back to the built-in model in one step: free, no key, nothing to set up.
+  add("ai.useTagflow", "Use Tag Flow AI (Free, No Key)", async () => {
+    const status = await window.adcode.ai.status();
+    const tagflow = status.providers.find((one) => one.id === TAGFLOW_ID);
+    if (tagflow === undefined || !tagflow.hasKey) {
+      connectView.open();
+      return;
+    }
+    const model = (tagflow.models.find((one) => one.recommended === true) ?? tagflow.models[0])?.id ?? "";
+    await window.adcode.settings.write("adcode.ai.provider", TAGFLOW_ID);
+    await window.adcode.settings.write("adcode.ai.model", model);
+    showChatSurface();
   });
   add("workspace.newProject", "New Project from an Idea", async () => {
     const idea = await promptDialog.ask({
