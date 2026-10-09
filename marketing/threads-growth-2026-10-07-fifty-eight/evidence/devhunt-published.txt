@@ -1,0 +1,22 @@
+Browser tab: 14, Title: "ADCode - A free, open-source AI editor. Your model, one workspace.", URL: "https://devhunt.org/tool/adcode#comments".
+The following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 33, 288
++				394 button
++					395 image
++			396 container
++				397 link Description: ListingBott List on 100+ directories with one click, Value: devhunt.org/api/ads/click/25
++				398 link Description: The Founder Guide A step‑by‑step playbook to launch and grow a startup, Value: devhunt.org/api/ads/click/31
++				399 link Description: OPEN SLOT $149/week your ad here ←, Value: devhunt.org/advertise?ref=open-rail
++			400 container
++				401 link Description: SEO Bot AI writes SEO‑optimized blog posts and builds backlinks, Value: devhunt.org/api/ads/click/29
++				402 link Description: IndexRusher Get pages indexed on Google, Bing, ChatGPT and X fast, Value: devhunt.org/api/ads/click/38
++				403 link Description: OPEN SLOT $149/week your ad here →, Value: devhunt.org/advertise?ref=open-rail
++				404 text 2 of 6 spots left
+~					24 button Upvoted 1
+~						26 text Upvoted
++					405 container voters
++						406 content list
++							407 link Description: Blue Thenics, Value: devhunt.org/@BlueThenics
++						408 text Be the first to upvote
++						409 link Description: ListingBott · List on 100+ directories with one click SPONSORED, Value: devhunt.org/api/ads/click/26
+The focused UI element is 0 AXWebArea ADCode - A free, open-source AI editor. Your model, one workspace., URL: devhunt.org/tool/adcode#comments

@@ -1,0 +1,223 @@
+[
+  {
+    "author": "tonys.dark",
+    "match": "Bash scripts",
+    "lead": "For a local automation script, a useful check is a small input fixture and a known output before touching a live setup. We’re building ADCode for editing local repos, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. If you try it on a script change, we’d value feedback on that edit → run → diff workflow.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@tonys.dark/post/DeKS3GUGzgX",
+    "text": "For a local automation script, a useful check is a small input fixture and a known output before touching a live setup. We’re building ADCode for editing local repos, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. If you try it on a script change, we’d value feedback on that edit → run → diff workflow.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58",
+    "parentText": "tonys.dark\nTech Threads\n8h\nI need terminal sessions. Troubleshooting fires. Configuring complex equipment to shunt data back and forth in ever increasingly complex but efficient methods. SSH. Bash scripts, python firewall automations, Fortinet firewalls, fortinac security deploying 802.1x and guest WiFi portals, etc etc\nNo replies yet\n\n\n\n\nReply to tonys.dark...",
+    "status": "published",
+    "url": "https://www.threads.com/@adcode.dev/post/DeLLzSUk31Y",
+    "verified": true,
+    "evidence": "E:/adcode-sourcecode/marketing/threads-growth-2026-10-07-fifty-eight/evidence/outreach-038.png"
+  },
+  {
+    "author": "shawnie_36",
+    "match": "Python makes my brain hurt",
+    "lead": "Try shrinking the confusing bit to one function and two inputs: predict the output, run it, then explain the difference. We’re building ADCode, a free/open-source Windows/Linux editor with terminal, Git and optional own-key/local AI. Cloud AI costs are separate. With Python already set up, you can try one tiny local script and tell us where opening or running it feels unclear.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@shawnie_36/post/Dd6Z5QzDnzF",
+    "text": "Try shrinking the confusing bit to one function and two inputs: predict the output, run it, then explain the difference. We’re building ADCode, a free/open-source Windows/Linux editor with terminal, Git and optional own-key/local AI. Cloud AI costs are separate. With Python already set up, you can try one tiny local script and tell us where opening or running it feels unclear.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58",
+    "parentText": "shawnie_36\n6d\nOk so I thought Java was hard but Python makes my brain hurt🤯 \n1\n/\n2\n26\n57\n1\nTop\nView activity\n\n\n\n\nReply to shawnie_36...",
+    "status": "published",
+    "url": "https://www.threads.com/@adcode.dev/post/DeLL4V-k1En",
+    "verified": true,
+    "evidence": "E:/adcode-sourcecode/marketing/threads-growth-2026-10-07-fifty-eight/evidence/outreach-039.png"
+  },
+  {
+    "author": "applecaramelpiebug",
+    "match": "I could just vibe code",
+    "lead": "You can let AI draft a small step while still keeping a check you understand: expected output, failing input, fix, same input again. We’re building ADCode for local editing, terminal runs and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. Try one Python bug you can reproduce and judge the verified result.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@applecaramelpiebug/post/Dd9U-MIjHHV",
+    "text": "You can let AI draft a small step while still keeping a check you understand: expected output, failing input, fix, same input again. We’re building ADCode for local editing, terminal runs and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. Try one Python bug you can reproduce and judge the verified result.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58",
+    "parentText": "applecaramelpiebug\n5d\nAt that Python stage where I’m thinking „I could just vibe code“👩‍💻\n1\nNo replies yet\nView activity\n\n\n\n\nReply to applecaramelpiebug...",
+    "status": "published",
+    "url": "https://www.threads.com/@adcode.dev/post/DeLL7Kzk_M7",
+    "verified": true,
+    "evidence": "E:/adcode-sourcecode/marketing/threads-growth-2026-10-07-fifty-eight/evidence/outreach-040.png"
+  },
+  {
+    "author": "databyjosh",
+    "match": "first line of Python code",
+    "lead": "Next challenge: change the input and predict the output before running it 😄 A tiny script you can explain beats a big one you cannot. We’re building ADCode for local code projects, with terminal and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. With Python installed, try a small script and tell us where the first run gets confusing.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@databyjosh/post/DeCj6ldiM35",
+    "text": "Next challenge: change the input and predict the output before running it 😄 A tiny script you can explain beats a big one you cannot. We’re building ADCode for local code projects, with terminal and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. With Python installed, try a small script and tell us where the first run gets confusing.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58",
+    "parentText": "databyjosh\nData Threads\n3d\nLearning Python for Data Analytics doesn’t have to be hard.\nHere’s your first line of Python code to get you started:\nprint('Hello World!')\nCongratulations, you’re basically a Python developer now 😂🐍 \n1\n/\n2\n3\n1\nTop\nView activity\n\n\n\n\nReply to databyjosh...",
+    "status": "published",
+    "url": "https://www.threads.com/@adcode.dev/post/DeLL9zKkySt",
+    "verified": true,
+    "evidence": "E:/adcode-sourcecode/marketing/threads-growth-2026-10-07-fifty-eight/evidence/outreach-041.png"
+  },
+  {
+    "author": "eldan.nomad",
+    "match": "async calls",
+    "lead": "A useful async exercise: two requests finish in reverse order, then one fails. Check that stale results cannot overwrite the latest state and failures are handled. We’re building ADCode for local repo edits, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. We’d value a trial on one reproducible async bug.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@eldan.nomad/post/DdVtOjGjNRI",
+    "text": "A useful async exercise: two requests finish in reverse order, then one fails. Check that stale results cannot overwrite the latest state and failures are handled. We’re building ADCode for local repo edits, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. We’d value a trial on one reproducible async bug.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58",
+    "parentText": "eldan.nomad\nAI\n09/16/26\nAI Solution Engineering Quick Tips\nCore Python Task: Practice writing live Python code with a focus on async calls, API integration, streaming responses for chatbots, and unit testing. \n1\n/\n6\n11\n5\n2\nTop\nView activity\n\n\n\n\nReply to eldan.nomad...",
+    "status": "published",
+    "url": "https://www.threads.com/@adcode.dev/post/DeLMHW8E3-U",
+    "verified": true,
+    "evidence": "E:/adcode-sourcecode/marketing/threads-growth-2026-10-07-fifty-eight/evidence/outreach-042.png"
+  },
+  {
+    "author": "techiesverse",
+    "match": "one small project with real data",
+    "lead": "For the CSV project, I’d add a tiny expected-output fixture plus an empty file and malformed row. That makes progress visible beyond finishing lessons. We’re building ADCode for local edits, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. With Python set up, try one script change and tell us how the first session feels.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@techiesverse/post/DeGmEzXjodQ",
+    "text": "For the CSV project, I’d add a tiny expected-output fixture plus an empty file and malformed row. That makes progress visible beyond finishing lessons. We’re building ADCode for local edits, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. With Python set up, try one script change and tell us how the first session feels.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58",
+    "parentText": "techiesverse\npython\n1d\nI make animated Python lessons.\nIf I had to learn Python again from zero, I'd do it in 4 weeks:\n• Week 1: variables, loops, functions\n• Week 2: lists and dictionaries\n• Week 3: open a CSV with pandas\n• Week 4: one small project with real data\nSkip the 40-hour video. Start with week 1.\n7\nNo replies yet\nView activity\n\n\n\n\nReply to techiesverse...",
+    "status": "published",
+    "url": "https://www.threads.com/@adcode.dev/post/DeLMP0kE4yR",
+    "verified": true,
+    "evidence": "E:/adcode-sourcecode/marketing/threads-growth-2026-10-07-fifty-eight/evidence/outreach-043.png"
+  },
+  {
+    "author": "_dave.literally",
+    "match": "Hangman Game",
+    "lead": "A good next check: repeated guesses should not accidentally consume another life, and winning should stop further input. Make the word choice deterministic for the test. We’re building ADCode for local edits, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. We’d value a trial on one game-state bug.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@_dave.literally/post/DeKdkbZCPVY",
+    "text": "A good next check: repeated guesses should not accidentally consume another life, and winning should stop further input. Make the word choice deterministic for the test. We’re building ADCode for local edits, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. We’d value a trial on one game-state bug.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58",
+    "parentText": "_dave.literally\nTech Threads\n6h\nDay 9 of learning Python.\nToday I built a Hangman Game.\nSo the game randomly selects a word and gives the player 6 lives to guess the letters before the hangman is complete.\nPracticed: while loops, for loops, Lists and indexing, if/elif conditionals, random.choice(), Importing code from other Python files, Tracking lives and game state and working with user input.\n#Python #100DaysOfCode\n10\n7\nTop\nView activity\n\n\n\n\nReply to _dave.literally...",
+    "status": "published",
+    "url": "https://www.threads.com/@adcode.dev/post/DeLMYoUk8WO",
+    "verified": true,
+    "evidence": "E:/adcode-sourcecode/marketing/threads-growth-2026-10-07-fifty-eight/evidence/outreach-044.png"
+  },
+  {
+    "author": "heringhq",
+    "match": "start practicing",
+    "lead": "Try a tiny contact list: add an item, list items, then handle a blank name. Write down the expected result before running each case. We’re building ADCode for local code projects, with terminal and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. With Python installed, try one small task and tell us where setup feels confusing.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@heringhq/post/Dd-Qp3uDAvJ",
+    "text": "Try a tiny contact list: add an item, list items, then handle a blank name. Write down the expected result before running each case. We’re building ADCode for local code projects, with terminal and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. With Python installed, try one small task and tell us where setup feels confusing.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58",
+    "parentText": "heringhq\n5d\nDAY 1 DOCUMENTING MY PROGRESS\nI'm working on improving every aspect of my life.\nWHAT DID I LEARN TODAY?\n• Today I saw the classes module in the cs50p course\nWHAT AM I GOING TO DO TOMORROW?\n• Tomorrow I will try to finish the course and start practicing with my code\nA question for all devs, how did you start practicing your code in python? Since I know how to learn the theory but I can't think of how to do it with practice\n16\n10\nTop\nView activity\n\n\n\n\nReply to heringhq...",
+    "status": "published",
+    "url": "https://www.threads.com/@adcode.dev/post/DeLMi9TE_3y",
+    "verified": true,
+    "evidence": "E:/adcode-sourcecode/marketing/threads-growth-2026-10-07-fifty-eight/evidence/outreach-045.png"
+  },
+  {
+    "author": "prateek_finance",
+    "match": "string methods",
+    "lead": "A useful practice case is normalizing a list of names: try extra spaces, empty input and mixed case, then compare with expected output. We’re building ADCode for local editing, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. With Python set up, try that small script and share where the first session feels awkward.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@prateek_finance/post/DeCwaNuE29g",
+    "text": "A useful practice case is normalizing a list of names: try extra spaces, empty input and mixed case, then compare with expected output. We’re building ADCode for local editing, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. With Python set up, try that small script and share where the first session feels awkward.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58",
+    "parentText": "prateek_finance\nTechJourney\n3d\n🚨Day1 learning python from scratch 🤯 Spent today going through string methods on #freeCodeCamp and writing clean code in one line instead of doing things manually. Here is what I tackled today: Case styling: .upper(), .lower(), .capitalize(), .title() Cleaning & splitting: .strip(), .split(), .join() Searching & checking: .find(), .count(), .startswith(), .endswith() Every day is a small step forward.If you're also learning to code or building skills from scratch, let’s connect!#Python\n5\nNo replies yet\nView activity\n\n\n\n\nReply to prateek_finance...",
+    "status": "published",
+    "url": "https://www.threads.com/@adcode.dev/post/DeLMn0CE9OF",
+    "verified": true,
+    "evidence": "E:/adcode-sourcecode/marketing/threads-growth-2026-10-07-fifty-eight/evidence/outreach-046.png"
+  },
+  {
+    "author": "the_piercing_abyss",
+    "match": "Introduction to Python",
+    "lead": "Congrats on finishing! A small project with a clear check is a useful follow-up: read a file, transform one value, compare expected output, then handle an empty file. We’re building ADCode for local edits, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. We’d value a trial on one small Python task.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@the_piercing_abyss/post/Dd8c6aBkgDR",
+    "text": "Congrats on finishing! A small project with a clear check is a useful follow-up: read a file, transform one value, compare expected output, then handle an empty file. We’re building ADCode for local edits, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. We’d value a trial on one small Python task.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58",
+    "parentText": "the_piercing_abyss\nTech Threads\n5d\nFinally completed the Introduction to Python course on boot.dev!!! \n1\n/\n2\n8\n1\nTop\nView activity\n\n\n\n\nReply to the_piercing_abyss..."
+  },
+  {
+    "author": "premiumgoblin",
+    "match": "personal side projects",
+    "lead": "A small side-project fix makes a useful editor comparison: reproduce one bug, change it, run the same check and review the diff. We’re building ADCode for local repos with terminal, Git and optional own-key/local AI. It’s free/open-source on Windows/Linux; cloud AI costs are separate. If you try it on one of your projects, we’d value where it fits or gets in the way.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@premiumgoblin/post/DeLDb01FuvI",
+    "text": "A small side-project fix makes a useful editor comparison: reproduce one bug, change it, run the same check and review the diff. We’re building ADCode for local repos with terminal, Git and optional own-key/local AI. It’s free/open-source on Windows/Linux; cloud AI costs are separate. If you try it on one of your projects, we’d value where it fits or gets in the way.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58"
+  },
+  {
+    "author": "vvalldemar",
+    "match": "VS Code",
+    "lead": "В текстовом интерфейсе всё равно нужна проверка результата: воспроизвести ошибку, внести правку, запустить проверку и посмотреть diff. Мы делаем ADCode для локальных репозиториев: бесплатный open-source редактор для Windows/Linux с терминалом, Git и необязательным AI со своим ключом/локальной моделью. Облачный AI оплачивается отдельно. Будем рады отзыву по одной реальной задаче.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@vvalldemar/post/DeKwk5Ijr7A",
+    "text": "В текстовом интерфейсе всё равно нужна проверка результата: воспроизвести ошибку, внести правку, запустить проверку и посмотреть diff. Мы делаем ADCode для локальных репозиториев: бесплатный open-source редактор для Windows/Linux с терминалом, Git и необязательным AI со своим ключом/локальной моделью. Облачный AI оплачивается отдельно. Будем рады отзыву по одной реальной задаче.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58"
+  },
+  {
+    "author": "dolgach.io",
+    "match": "HTML, CSS, JavaScript",
+    "lead": "Для маленької сторінки корисно перевірити не лише клік, а й клавіатуру, фокус та порожній стан. Ми робимо ADCode для локальних проєктів: безкоштовний open-source редактор для Windows/Linux із терміналом, Git та необов’язковим AI зі своїм ключем/локальною моделлю. Хмарний AI оплачується окремо. Спробуйте одну невелику зміну, запустіть проєкт і перегляньте diff — будемо раді відгуку.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@dolgach.io/post/DdZKueFjt7L",
+    "text": "Для маленької сторінки корисно перевірити не лише клік, а й клавіатуру, фокус та порожній стан. Ми робимо ADCode для локальних проєктів: безкоштовний open-source редактор для Windows/Linux із терміналом, Git та необов’язковим AI зі своїм ключем/локальною моделлю. Хмарний AI оплачується окремо. Спробуйте одну невелику зміну, запустіть проєкт і перегляньте diff — будемо раді відгуку.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58"
+  },
+  {
+    "author": "cammmmera",
+    "match": "personalized operating system",
+    "lead": "A useful next check is recovery: keep a version you can return to, change one behavior, and verify it with sample data. We’re building ADCode for local repo editing, terminal runs and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. If you have the project files locally, we’d value a trial on one small fix.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@cammmmera/post/DdKeJb_DnLT",
+    "text": "A useful next check is recovery: keep a version you can return to, change one behavior, and verify it with sample data. We’re building ADCode for local repo editing, terminal runs and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. If you have the project files locally, we’d value a trial on one small fix.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58"
+  },
+  {
+    "author": "ioxtox",
+    "match": "Looking for 5 real projects",
+    "lead": "If a public developer-tool repo helps your test list, ours is https://github.com/bluethenics/adcode . I haven’t run your scanner, so I can’t report findings yet. ADCode is our free/open-source Windows/Linux editor with terminal, Git and optional own-key/local AI; cloud AI costs are separate. We’d also value a local edit → run → diff trial from someone building repo tooling.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@ioxtox/post/DeAHVKZjc_l",
+    "text": "If a public developer-tool repo helps your test list, ours is https://github.com/bluethenics/adcode . I haven’t run your scanner, so I can’t report findings yet. ADCode is our free/open-source Windows/Linux editor with terminal, Git and optional own-key/local AI; cloud AI costs are separate. We’d also value a local edit → run → diff trial from someone building repo tooling.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58"
+  },
+  {
+    "author": "yasuto.takenaka",
+    "match": "REPL",
+    "lead": "予測した出力と実際の結果を比べながら、小さな例を繰り返し試す練習は役立ちますね。私たちはローカルのコードを編集・実行・Gitで確認するための ADCode を作っています。Windows/Linux 向けの無料・オープンソースのエディタで、ターミナルと任意の自分のキー／ローカルモデルによるAIがあります。クラウドAI料金は別です。小さなスクリプトの修正で、最初に戸惑う点を教えていただけると助かります。",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@yasuto.takenaka/post/DeLFFL3Adez",
+    "text": "予測した出力と実際の結果を比べながら、小さな例を繰り返し試す練習は役立ちますね。私たちはローカルのコードを編集・実行・Gitで確認するための ADCode を作っています。Windows/Linux 向けの無料・オープンソースのエディタで、ターミナルと任意の自分のキー／ローカルモデルによるAIがあります。クラウドAI料金は別です。小さなスクリプトの修正で、最初に戸惑う点を教えていただけると助かります。\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58"
+  },
+  {
+    "author": "veriqta",
+    "match": "collection of commands",
+    "lead": "A useful investigation note connects the command to expected behavior, the observed failure and the check that confirmed a fix. We’re building ADCode for local scripts/config repos, with terminal and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. We’d value a trial on one reproducible script issue.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@veriqta/post/DeEiSt4jPhb",
+    "text": "A useful investigation note connects the command to expected behavior, the observed failure and the check that confirmed a fix. We’re building ADCode for local scripts/config repos, with terminal and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. We’d value a trial on one reproducible script issue.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58"
+  },
+  {
+    "author": "realdymon",
+    "match": "Any tips on learning Linux",
+    "lead": "Try a tiny practice folder: create a text file, find it, read it and change one line; explain what each command did before adding more. If you start keeping local scripts in Git, we’re building ADCode for editing, terminal checks and diff review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. We’d value first-session feedback.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@realdymon/post/Dd20RC0DY_h",
+    "text": "Try a tiny practice folder: create a text file, find it, read it and change one line; explain what each command did before adding more. If you start keeping local scripts in Git, we’re building ADCode for editing, terminal checks and diff review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. We’d value first-session feedback.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58"
+  },
+  {
+    "author": "shaanntii__",
+    "match": "Docker",
+    "lead": "Для первого Docker-проекта полезно записать ожидаемый результат и одну проверку, затем менять только одну вещь за раз. Мы делаем ADCode для локальных скриптов и репозиториев: бесплатный open-source редактор для Windows/Linux с терминалом, Git и необязательным AI со своим ключом/локальной моделью. Облачный AI оплачивается отдельно. Будем рады отзыву о цикле правка → запуск → diff.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@shaanntii__/post/Dd6rmbajuXm",
+    "text": "Для первого Docker-проекта полезно записать ожидаемый результат и одну проверку, затем менять только одну вещь за раз. Мы делаем ADCode для локальных скриптов и репозиториев: бесплатный open-source редактор для Windows/Linux с терминалом, Git и необязательным AI со своим ключом/локальной моделью. Облачный AI оплачивается отдельно. Будем рады отзыву о цикле правка → запуск → diff.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58"
+  },
+  {
+    "author": "techmatician_official",
+    "match": "Find/edit files",
+    "lead": "A disposable practice folder makes those basics easier to check: locate a file, inspect it, edit one line and explain the result. For local script/config repos, we’re building ADCode with terminal and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. We’d value a first-session trial on one small, reversible change.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@techmatician_official/post/DdXaxVBDuE3",
+    "text": "A disposable practice folder makes those basics easier to check: locate a file, inspect it, edit one line and explain the result. For local script/config repos, we’re building ADCode with terminal and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. We’d value a first-session trial on one small, reversible change.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58"
+  },
+  {
+    "author": "anonopinhole",
+    "match": "bash is by far the best language",
+    "lead": "Even a quick Bash prototype benefits from one check you can rerun: known input, expected output, then an empty input or failed dependency. We’re building ADCode for local editing, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. If you test it on a small script, we’d value feedback on that workflow.",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@anonopinhole/post/DeKljdACJG6",
+    "text": "Even a quick Bash prototype benefits from one check you can rerun: known input, expected output, then an empty input or failed dependency. We’re building ADCode for local editing, terminal checks and Git review. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. If you test it on a small script, we’d value feedback on that workflow.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58"
+  },
+  {
+    "author": "mpx1o",
+    "match": "Name the Programming Language",
+    "kind": "outreach",
+    "parent": "https://www.threads.com/@mpx1o/post/Dd5sUHSiqEK",
+    "text": "Python works well for a first tiny script: predict the output, run it, then change one thing and explain the result. We’re building ADCode for that local edit → run → Git review loop. Free/open-source on Windows/Linux, with optional own-key/local AI; cloud AI costs are separate. If you try it on one small exercise, we’d value feedback on where the workflow gets confusing.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct07_followup58"
+  }
+]

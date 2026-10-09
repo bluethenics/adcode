@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-05",
+  "timezone": "Asia/Calcutta",
+  "replies": [
+    {
+      "author": "apoetixart",
+      "parent": "https://www.threads.com/@apoetixart/post/DeFNj21jIef",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGF7S3k07U",
+      "text": "That’s a serious phone setup 😅 What’s your language called, and what’s the first thing you want people to build with it?"
+    },
+    {
+      "author": "keritans",
+      "parent": "https://www.threads.com/@keritans/post/DeFIFDukU7f",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGGFWXExui",
+      "text": "Year-old config archaeology 😂 Old commits or saved chats might give you a rough timeline. Even “here’s what survived and what I ditched” would be useful — doesn’t need a perfect origin story."
+    },
+    {
+      "author": "_yaralexie",
+      "parent": "https://www.threads.com/@_yaralexie/post/DeFF9n-jhMx",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGGMBgk0i0",
+      "text": "For us, it’s explaining the same product in fresh ways without every post becoming a pitch 😅 Keeping useful replies going alongside building is the other bit. A way to turn real questions into draft ideas, keep our voice, and review before posting would help."
+    },
+    {
+      "author": "matrix_doctor",
+      "parent": "https://www.threads.com/@matrix_doctor/post/DeFA7wCjX-J",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGGWH7E62x",
+      "text": "The “done ✅” message is doing a lot of heavy lifting sometimes 😅 I’d want the agent to show the checks it ran and what it couldn’t verify. CI + a look at the actual diff makes that much easier to judge."
+    },
+    {
+      "author": "themetricsmuse",
+      "parent": "https://www.threads.com/@themetricsmuse/post/Dd_7qOxliR1",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGG9tHk4c8",
+      "text": "Building ADCode 👋 A free, open-source AI editor for Windows/Linux. The idea is “get paid to build”: 50% of sponsored-card revenue is credited to the dev. Earnings vary; bring your own AI key/local model (cloud AI costs separate).\n\nCurious what you’d clarify before asking someone to try it on one small task 😅\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_growth_feedback"
+    },
+    {
+      "author": "rapha.develops",
+      "parent": "https://www.threads.com/@rapha.develops/post/DeFlYndiaDr",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGHpv9Ewpf",
+      "text": "The less typing between sets, the better 😅 Can people reuse the last session and just tweak reps/weight, or do they enter everything from scratch?"
+    }
+  ],
+  "likes": [
+    {
+      "author": "apoetixart",
+      "url": "https://www.threads.com/@apoetixart/post/DeFNj21jIef"
+    },
+    {
+      "author": "keritans",
+      "url": "https://www.threads.com/@keritans/post/DeFIFDukU7f"
+    },
+    {
+      "author": "_yaralexie",
+      "url": "https://www.threads.com/@_yaralexie/post/DeFF9n-jhMx"
+    },
+    {
+      "author": "_yaralexie",
+      "url": "https://www.threads.com/@_yaralexie/post/DeFF0B1DmjI"
+    },
+    {
+      "author": "matrix_doctor",
+      "url": "https://www.threads.com/@matrix_doctor/post/DeFA7wCjX-J"
+    },
+    {
+      "author": "themetricsmuse",
+      "url": "https://www.threads.com/@themetricsmuse/post/Dd_7qOxliR1"
+    },
+    {
+      "author": "rapha.develops",
+      "url": "https://www.threads.com/@rapha.develops/post/DeFlYndiaDr"
+    }
+  ]
+}

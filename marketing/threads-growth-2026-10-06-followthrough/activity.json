@@ -1,0 +1,148 @@
+{
+  "date": "2026-10-06",
+  "account": "adcode.dev",
+  "goal": "Relevant outreach, reply handling, and successful first tasks",
+  "conversionTarget": "90% requested; not measured or promised",
+  "actions": [
+    {
+      "kind": "followup",
+      "author": "the_pvs_sam",
+      "parent": "https://www.threads.com/@the_pvs_sam/post/DeJ8CnoE6VK",
+      "text": "Thanks for testing it 😄 Noted the index.html preview friction; I’ve recorded that feedback. To be clear, the sample is an unpaid editor trial. Ad revenue sharing is separate, varies with actual ads, and isn’t guaranteed payment for completing a task. If you try it on one of your own JavaScript fixes next, which step needs to feel smoother: opening the project, previewing it, or checking the change?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeKRTpBExLG",
+      "verified": true
+    },
+    {
+      "kind": "followup",
+      "author": "rouell.official",
+      "parent": "https://www.threads.com/@rouell.official/post/DeKJLNck_3y",
+      "text": "Great 😄 Start here: https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_followthrough&utm_content=rouell\n\nWindows 10/11 x64 installs through Microsoft Store; Linux has .deb/AppImage. No account needed to try. Open a small site project, change one heading or spacing rule, then check the page and diff. AI is optional; cloud use needs your own key and has separate costs. Which OS are you on?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeKRdVUE6v4",
+      "verified": true
+    },
+    {
+      "kind": "followup",
+      "author": "israblass",
+      "parent": "https://www.threads.com/@israblass/post/DeJyd06lgIZ",
+      "text": "Sí, está previsto 🙂 La descarga para Mac todavía no está publicada: la web indica que la notarización de Apple sigue pendiente. No tengo una fecha confirmada. Por ahora solo Windows/Linux; la página de descargas se actualizará cuando haya una versión de macOS disponible. Gracias por preguntar y por mirar ADCode.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeKRnd1EwDg",
+      "verified": true
+    },
+    {
+      "kind": "followup",
+      "author": "amosisaiahtizhe",
+      "parent": "https://www.threads.com/@amosisaiahtizhe/post/DeJz_F5DvSu",
+      "text": "An API is a better test 😂 Use fake users and check three cases: normal response, empty list, and a failed request. Have the agent build /users, run those checks, then inspect the diff. You can try that in ADCode on Windows/Linux: https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_followthrough&utm_content=amos\n\nFree editor; cloud AI needs your own key and costs separately. Which language are you using for the API?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeKRr0GE9u-",
+      "verified": true
+    },
+    {
+      "kind": "followup",
+      "author": "siriusleonina",
+      "parent": "https://www.threads.com/@siriusleonina/post/DeJz4gtoIyh",
+      "text": "Entonces primero prueba ese enlace en otra ventana 🙂 Comprueba con datos inventados qué funciona y qué falla. Un enlace no siempre incluye los archivos para editar la app: mira si hay una opción de descargar/exportar código. Si consigues una carpeta y usas Windows/Linux, ahí sí puedes abrirla en ADCode. ¿Ves alguna opción de exportar, o solo la app funcionando en el navegador?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeKRzYck3VP",
+      "verified": true
+    },
+    {
+      "kind": "followup",
+      "author": "m4npreet006",
+      "parent": "https://www.threads.com/@m4npreet006/post/DeJ27teD8ps",
+      "text": "Thanks 😄 We’re looking for a free community showcase for Windows/Linux developers. What channel and audience would it reach, and what would the feature include? A hands-on ADCode test with one small repo change would be more useful than a generic shout-out.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeKR9a8kydd",
+      "verified": true
+    },
+    {
+      "kind": "post",
+      "topic": "Programming",
+      "text": "Bring one small bug. Try ADCode on that task 🔧\n\nOpen folder → make a change → run it → review the diff.\n\nFree/open-source Windows/Linux editor with terminal, Git and optional BYO AI. No account needed to try; cloud AI costs are separate.\n\nSponsored cards fund it; 50% of attributed ad revenue is credited to users. Earnings vary.\n\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_followthrough\n\nReply with your OS and first task—or where setup gets stuck.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeKSI2ZE44R",
+      "verified": true
+    },
+    {
+      "kind": "new_reply",
+      "author": "suzworx",
+      "parent": "https://www.threads.com/@suzworx/post/Dd4ccdNE626",
+      "text": "ADCode: a free/open-source Windows/Linux code editor with terminal, Git and optional own-key/local AI, funded by sponsored cards that share 50% of attributed ad revenue with users (earnings vary; cloud AI costs are separate). Try one small repo fix and review the diff: https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_followthrough&utm_content=showcase",
+      "url": "https://www.threads.com/@adcode.dev/post/DeKSjHxk9RK",
+      "verified": true,
+      "fit": "Explicitly invited open-source project showcase"
+    },
+    {
+      "kind": "new_reply",
+      "author": "luffydaxia",
+      "parent": "https://www.threads.com/@luffydaxia/post/DeHq_LpjxjB",
+      "text": "We’re building ADCode 🔧 A free/open-source Windows/Linux editor for working on your own repo, with terminal, Git review and optional AI via your own key/local model. Cloud AI costs are separate.\n\nFor a first try, pick one small bug and check the result and diff: https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_followthrough&utm_content=builders\n\nWhat are you building, and which OS do you use?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeKSrBVE_V0",
+      "verified": true,
+      "fit": "Explicitly invited AI builder project introductions"
+    },
+    {
+      "kind": "new_reply",
+      "author": "skully2077",
+      "parent": "https://www.threads.com/@skully2077/post/DeJCI-9iHlR",
+      "text": "We’re building ADCode: a free/open-source desktop code editor for Windows/Linux with terminal, Git and optional BYO AI. The funding idea is occasional sponsored cards, with 50% of attributed ad revenue credited to users. Earnings vary; cloud AI costs are separate.\n\nHere’s the product: https://adcode.bluethenics.com/?utm_source=threads&utm_campaign=oct06_followthrough&utm_content=discovery\n\nFor a useful first test, open a small repo, change one thing and review the diff.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeKSv10k6b_",
+      "verified": true,
+      "fit": "Explicitly asked for startup links and reviews other products"
+    },
+    {
+      "kind": "followup",
+      "author": "the_pvs_sam",
+      "parent": "https://www.threads.com/@the_pvs_sam/post/DeKRlznE_mU",
+      "text": "That’s useful detail, thank you 😄 I’ve recorded the clearer entry-file hint / fallback suggestion. For your own JS fix, pick a bug you can already reproduce, run the same check before and after, and inspect the diff. If preview gets stuck, note the filename and the action you used. Would love to hear whether this next task feels smoother.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeKS8XPkx25",
+      "verified": true
+    }
+  ],
+  "leads": [
+    {
+      "author": "the_pvs_sam",
+      "status": "Self-reported first task completed",
+      "source": "https://www.threads.com/@the_pvs_sam/post/DeJ8CnoE6VK",
+      "evidence": "Reports corrected button behavior in ADCode preview; filename friction; installation not independently verified",
+      "next": "Agreed to try their own JavaScript fix; await second task outcome",
+      "latestResponse": "https://www.threads.com/@the_pvs_sam/post/DeKRlznE_mU"
+    },
+    {
+      "author": "rouell.official",
+      "status": "Agreed to try; download and first task supplied",
+      "source": "https://www.threads.com/@rouell.official/post/DeKJLNck_3y",
+      "next": "Await OS and setup outcome; no install verified"
+    },
+    {
+      "author": "israblass",
+      "status": "Interested; blocked by macOS support",
+      "next": "Wait for published Mac build; no date promised"
+    },
+    {
+      "author": "amosisaiahtizhe",
+      "status": "Suggested an API as an evaluation task",
+      "next": "Await language and actual trial result"
+    },
+    {
+      "author": "siriusleonina",
+      "status": "Prototype link only; source export and OS not yet confirmed",
+      "next": "Await export options; installation is premature"
+    },
+    {
+      "author": "m4npreet006",
+      "status": "Promotion offer received; free showcase and audience details requested",
+      "next": "Await actual audience and format; no paid commitment"
+    }
+  ],
+  "skipped": [
+    {
+      "author": "ahmedelgazarai",
+      "reason": "Explicitly happy with existing system; declined"
+    },
+    {
+      "author": "_karenlewis",
+      "reason": "Said they were venting; no tool request"
+    },
+    {
+      "author": "sofiamariexplores",
+      "reason": "macOS-only; previous compatibility answer already sent"
+    }
+  ]
+}

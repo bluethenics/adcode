@@ -1,0 +1,197 @@
+{
+  "checked": "2026-10-01T19:06:02.448Z",
+  "passed": 38,
+  "failed": 0,
+  "results": [
+    {
+      "name": "no competitor names or impossible promises in the source",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "hooks differ",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "H1: deliverable exists",
+      "ok": true,
+      "detail": "15.6 MB"
+    },
+    {
+      "name": "H1: H.264 High, yuv420p",
+      "ok": true,
+      "detail": "h264 High yuv420p"
+    },
+    {
+      "name": "H1: 1080×1920 at 30 fps (9:16)",
+      "ok": true,
+      "detail": "1080×1920 30 fps"
+    },
+    {
+      "name": "H1: AAC 48 kHz stereo",
+      "ok": true,
+      "detail": "aac 48000 stereo"
+    },
+    {
+      "name": "H1: 29 s long",
+      "ok": true,
+      "detail": "29.000"
+    },
+    {
+      "name": "H1: every frame decodes",
+      "ok": true,
+      "detail": "870 frames"
+    },
+    {
+      "name": "H1: loudness −14 LUFS ±1",
+      "ok": true,
+      "detail": "-14.9 LUFS"
+    },
+    {
+      "name": "H1: true peak ≤ −1 dBTP",
+      "ok": true,
+      "detail": "-2 dBTP"
+    },
+    {
+      "name": "H1: silent beat before the \"!\"",
+      "ok": true,
+      "detail": "-101.1 dBFS"
+    },
+    {
+      "name": "H1: last frame matches the first (seamless loop)",
+      "ok": true,
+      "detail": "30.9 dB PSNR"
+    },
+    {
+      "name": "H1: cover is frame 0",
+      "ok": true,
+      "detail": "38.6 dB"
+    },
+    {
+      "name": "H1: contact sheet",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "H1: hook readable in frame 0",
+      "ok": true,
+      "detail": "POV: your AI is / still thinking…"
+    },
+    {
+      "name": "H1: hook inside the profile grid's 3:4 crop",
+      "ok": true,
+      "detail": "310–437, 446–574"
+    },
+    {
+      "name": "H1: only approved copy on screen",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "H1: critical copy inside the Reels safe zone",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "H1: every money claim carries its small print",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "H1: each line up long enough to read",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "H2: deliverable exists",
+      "ok": true,
+      "detail": "15.6 MB"
+    },
+    {
+      "name": "H2: H.264 High, yuv420p",
+      "ok": true,
+      "detail": "h264 High yuv420p"
+    },
+    {
+      "name": "H2: 1080×1920 at 30 fps (9:16)",
+      "ok": true,
+      "detail": "1080×1920 30 fps"
+    },
+    {
+      "name": "H2: AAC 48 kHz stereo",
+      "ok": true,
+      "detail": "aac 48000 stereo"
+    },
+    {
+      "name": "H2: 29 s long",
+      "ok": true,
+      "detail": "29.000"
+    },
+    {
+      "name": "H2: every frame decodes",
+      "ok": true,
+      "detail": "870 frames"
+    },
+    {
+      "name": "H2: loudness −14 LUFS ±1",
+      "ok": true,
+      "detail": "-14.9 LUFS"
+    },
+    {
+      "name": "H2: true peak ≤ −1 dBTP",
+      "ok": true,
+      "detail": "-2 dBTP"
+    },
+    {
+      "name": "H2: silent beat before the \"!\"",
+      "ok": true,
+      "detail": "-101.1 dBFS"
+    },
+    {
+      "name": "H2: last frame matches the first (seamless loop)",
+      "ok": true,
+      "detail": "30.9 dB PSNR"
+    },
+    {
+      "name": "H2: cover is frame 0",
+      "ok": true,
+      "detail": "38.6 dB"
+    },
+    {
+      "name": "H2: contact sheet",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "H2: hook readable in frame 0",
+      "ok": true,
+      "detail": "Your AI is slow. / Make it pay you."
+    },
+    {
+      "name": "H2: hook inside the profile grid's 3:4 crop",
+      "ok": true,
+      "detail": "310–412, 446–573"
+    },
+    {
+      "name": "H2: only approved copy on screen",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "H2: critical copy inside the Reels safe zone",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "H2: every money claim carries its small print",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "H2: each line up long enough to read",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

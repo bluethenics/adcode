@@ -1,0 +1,16 @@
+Generated with the built-in image_gen tool.
+
+Use case: ads-marketing.
+Asset type: one finished square 1:1 social image for an organic X post promoting ADCode, a free code editor that shares half of sponsored-card ad revenue with its user.
+Primary request: create a premium, restrained, memorable editorial advertising image centered on the idea that the user's attention earns them a share. It must communicate the 50% share immediately at phone size.
+Scene and subject: dark studio still life with a single large thick circular token divided cleanly into TWO equal semicircular halves, separated by a narrow physical gap. One half is vivid mint green, the other brushed graphite. Both halves have equal dimensions. The token lies in a slight three-quarter perspective on a near-black surface, casting a subtle realistic shadow. The green half is engraved with '50%' in large crisp letters. This is an abstract revenue-share sculpture, not a cryptocurrency or real coin.
+Composition: spacious art-directed layout, small ADCode wordmark at top left in clean sans-serif typography, bold generous headline above the sculpture, sculpture in the central/lower area, single understated footer near bottom. Strong optical alignment, large readable type, generous outer margins.
+Color palette: warm near-black #050505 background, off-white #ecebe6 typography, mint green only on the user's half. No other colors. Precise sophisticated studio lighting, tactile physical material, slight film grain, no neon glow.
+Text verbatim, and no other text:
+'ADCode'
+'Half the ad money.'
+'Yours.'
+'50%'
+'Free code editor. 50% of ad revenue credited to you.'
+Typography: headline bold modern grotesk, left-aligned, two lines 'Half the ad money.' then 'Yours.'; ADCode capitalized exactly A D C o d e. Footer clear and comfortably readable, can wrap into two lines. The 50% text is on the mint object only.
+Constraints: original conceptual artwork; no screenshots or invented app UI; no people, no dollar amounts, no fixed-income or guaranteed-earnings claims, no Bitcoin or currency signs, no competitor logos, no extra labels, no fake ADCode symbol, no watermark, no website URL, no gradients behind typography. Opaque background. Finished publication-ready image, not a mockup displayed in a device.

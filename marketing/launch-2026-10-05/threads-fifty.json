@@ -1,0 +1,750 @@
+{
+  "requested": 50,
+  "replies": [
+    {
+      "author": "real_kingsleymayor",
+      "parent": "https://www.threads.com/@real_kingsleymayor/post/DeGHnI8CqJ7",
+      "text": "“What we won’t build yet” deserves its own sticky note 😅 For an editor, I’d make the first-week win one project opened, one useful change, and a successful run. What first-week goal do founders struggle to define most?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGJh9cE6QC"
+    },
+    {
+      "author": "emmys_mart1234",
+      "parent": "https://www.threads.com/@emmys_mart1234/post/Dd1ID4PDjGE",
+      "text": "The awkward follow-up is a real bit of admin 😅 Can creators review the reminder wording and pause it if they’re already talking to the brand? That would be the first thing I’d check before letting it send on my behalf.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGJJ0Gk0TK"
+    },
+    {
+      "author": "omernsh",
+      "parent": "https://www.threads.com/@omernsh/post/Dd1C3JDDFsL",
+      "text": "Working on ADCode 😎 A free, open-source Windows/Linux AI editor. “Get paid to build” means 50% of sponsored-card revenue is credited to you; earnings vary. Bring your own AI key or local model (cloud AI costs separate).\n\nToday’s focus is making the first small project easier to start. What are you building?\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGJExWE6ac"
+    },
+    {
+      "author": "zvonko.biskup",
+      "parent": "https://www.threads.com/@zvonko.biskup/post/DeFyDU3j141",
+      "text": "ADCode is a free, open-source Windows/Linux AI editor for developers using their own AI key or local model, with 50% of sponsored-card revenue credited to the dev—earnings vary and cloud AI costs are separate 😎",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGJ82Xkz2V"
+    },
+    {
+      "author": "ashishbaisla",
+      "parent": "https://www.threads.com/@ashishbaisla/post/Dd0VQCoo_Ew",
+      "text": "ADCode 👋 A free, open-source AI editor for Windows/Linux. We’re trying “get paid to build” by crediting devs 50% of sponsored-card revenue; earnings vary. Your AI key/local model, with cloud AI costs separate.\n\nWould love feedback on one small project in it 😅\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGJv3Ck33m"
+    },
+    {
+      "author": "romanlozynskyi.dev",
+      "parent": "https://www.threads.com/@romanlozynskyi.dev/post/DeFdf6hAkhH",
+      "text": "For Loomenio, where would an AI layer help most: sorting messy item data, spotting costs someone forgot, or explaining the numbers? 👀 I’d be curious which job users actually ask for before adding the layer.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGKKTdk_p5"
+    },
+    {
+      "author": "michaelvasquezofficial",
+      "parent": "https://www.threads.com/@michaelvasquezofficial/post/Dd-JdRFDpps",
+      "text": "Building ADCode 😎 A free, open-source AI editor for Windows/Linux, with your own AI key or local model. Sponsored cards fund it and 50% of that revenue is credited to the developer; earnings vary and cloud AI costs are separate.\n\nLooking for feedback on the first-project setup. What are you working on?\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGKRhUE95f"
+    },
+    {
+      "author": "her.secondstart",
+      "parent": "https://www.threads.com/@her.secondstart/post/DeFnoIiisAW",
+      "text": "A real question someone asked can make a good starting point 😅 Explain one confusing bit, show one small thing you fixed, or ask for feedback on a specific choice. Much easier than trying to invent a huge announcement every day.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGKS0XE-QK"
+    },
+    {
+      "author": "hanseidev",
+      "parent": "https://www.threads.com/@hanseidev/post/Dd0rTaQnHUz",
+      "text": "Travel + geospatial intelligence is a big space 👀 What’s the first decision OrbitLabX helps someone make—where to go, when to go, or comparing places? A single example would help me understand the beta.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGKXcpEzPG"
+    },
+    {
+      "author": "kljr.dev",
+      "parent": "https://www.threads.com/@kljr.dev/post/Dd1SOKmDq8i",
+      "text": "Keeping the gaps visible is an interesting choice 😅 How do you handle a time-zone change or a late-night ship? I’d want a missed day to be honest without a clock setting accidentally deciding the streak.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGKYrTE_nc"
+    },
+    {
+      "author": "vishalkrgupta",
+      "parent": "https://www.threads.com/@vishalkrgupta/post/Dd0iJHsDOjr",
+      "text": "Small utilities can be handy when they save opening a spreadsheet 😅 Which tool are people using most so far? I’d be curious whether they want a quick answer or a result they can copy/export and revisit.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGKeq2E4Gu"
+    },
+    {
+      "author": "run.sheep.run",
+      "parent": "https://www.threads.com/@run.sheep.run/post/DeF5cKWAPLq",
+      "text": "That’s a useful distinction. An AI helper in the build process and an AI feature customers pay for are two different bets 😅 Which part of your workflow gets the most help—prototyping, tests, or reviewing changes?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGKuvGk-gg"
+    },
+    {
+      "author": "synaptech_ai_",
+      "parent": "https://www.threads.com/@synaptech_ai_/post/DeFmK0smjVu",
+      "text": "The boring daily workflow is often the interesting project 😅 What did you automate first, and which step still needs you to review the result? Curious what changed once you started using it for real.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGKv97Ew24"
+    },
+    {
+      "author": "mackasy_ai",
+      "parent": "https://www.threads.com/@mackasy_ai/post/DeGBnkYCEyQ",
+      "text": "First real post going through is a satisfying milestone 😄 Can people review the exact text before publishing? I’d also be curious how Riffi handles a retry without accidentally posting the same thing twice.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGK5n4E_dc"
+    },
+    {
+      "author": "koshurai.official",
+      "parent": "https://www.threads.com/@koshurai.official/post/DeGE4qaEWrT",
+      "text": "Have you got a before/after benchmark with the same model + GPU? 👀 The actual setup and workload would help people judge whether it fits their own machine, especially folks trying smaller local setups.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGK-mvk4Ga"
+    },
+    {
+      "author": "jeromehardaway",
+      "parent": "https://www.threads.com/@jeromehardaway/post/DeFyl8gkTxe",
+      "text": "Using the saved time to learn something deeply is a good trade 😄 What gates do you put around the familiar parts—tests, a review checklist, or something else? That part of the workflow seems worth sharing alongside the AI output.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGLFO3kwb8"
+    },
+    {
+      "author": "m.rehanvrs",
+      "parent": "https://www.threads.com/@m.rehanvrs/post/DeGAi0CCqmZ",
+      "text": "The “why they’ll stay” question is the hard one 😅 With ADCode, we’re focusing on whether someone can open a real project, make one useful change, and run it without setup getting in the way. Which part do you see founders skipping most—who needs it or how they’ll find it?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGLGiQEwCG"
+    },
+    {
+      "author": "caleb_shadowstalker",
+      "parent": "https://www.threads.com/@caleb_shadowstalker/post/DeF1J_gCAr4",
+      "text": "The next useful prompt might be “walk me through this program, then show me how to check it” 😅 Getting it running is a start; understanding one small piece at a time can make the next change less mysterious. What does your program do?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGLHtAk6L2"
+    },
+    {
+      "author": "ogneko30",
+      "parent": "https://www.threads.com/@ogneko30/post/DeFxGGwFOBb",
+      "text": "What’s winning today—the bug, the CSS, or you? 😅 What are you working on?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGLMV9kwpZ"
+    },
+    {
+      "author": "nathancheever",
+      "parent": "https://www.threads.com/@nathancheever/post/DeFvS03ga4Y",
+      "text": "Building on a phone takes some patience 😅 What does the product help people do, and which part of getting the first version working was most awkward on that setup?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGLNpzE86V"
+    },
+    {
+      "author": "real_kingsleymayor",
+      "parent": "https://www.threads.com/@real_kingsleymayor/post/DeGJuqgiuEy",
+      "text": "That’s a much better goal 😅 For ADCode, “fix one small bug and run the project without needing help” is a useful first test. If you’re on Windows/Linux, would you be up for trying the flow and telling us which step needs explaining? The editor is free; bring your AI key/local model (cloud AI costs separate).\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGLUfwE-2o"
+    },
+    {
+      "author": "uwxan",
+      "parent": "https://www.threads.com/@uwxan/post/DdOc-8JDeWZ",
+      "text": "https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations\n\nADCode: free, open-source Windows/Linux AI editor, your AI key or local model (cloud AI costs separate); 50% of sponsored-card revenue credited to you, with variable earnings 😎",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGLYzlkx4x"
+    },
+    {
+      "author": "mikeliy3",
+      "parent": "https://www.threads.com/@mikeliy3/post/Dc3EBFSgr4m",
+      "text": "The switching cost is interesting here. Having a second model check a tricky change feels more useful than asking four tools the same question 😅 What usually makes you switch: usage limits, a stuck bug, or wanting another opinion?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGL2Uskxgl"
+    },
+    {
+      "author": "mozokdev",
+      "parent": "https://www.threads.com/@mozokdev/post/Dc3u6dNDSIW",
+      "text": "The quiz idea is neat — it checks whether the reviewer can actually explain the change 😃 For the verifier, do you give it the original ticket independently, or the planner’s interpretation too? Curious how you avoid both agents sharing the same wrong assumption.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGL9FRk0GD"
+    },
+    {
+      "author": "fhsystems",
+      "parent": "https://www.threads.com/@fhsystems/post/DduR95_iDBq",
+      "text": "Picking up after a usage limit without the whole “so here’s the project again” speech sounds handy 😂 What do you carry between tools: the chat, changed files, commands already run, and unfinished decisions?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeGL-SHE-gE"
+    },
+    {
+      "author": "kljr.dev",
+      "parent": "https://www.threads.com/@kljr.dev/post/DeG3JWfDp8o",
+      "text": "Got it — anchoring it to the account timezone keeps the rule explainable. I’d put “your day ends at midnight in [timezone]” right beside the streak so the surprise happens before a missed day 😄 Do you show that in the UI already?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHJXAWk6Aw"
+    },
+    {
+      "author": "emmys_mart1234",
+      "parent": "https://www.threads.com/@emmys_mart1234/post/DeGxcRXDlYr",
+      "text": "Nice, that’s the bit I was hoping for 😊 A preview of the exact message is much easier to trust. Have creators been editing the reminders much, or mostly keeping the suggested wording?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHJhBxE_A0"
+    },
+    {
+      "author": "romanlozynskyi.dev",
+      "parent": "https://www.threads.com/@romanlozynskyi.dev/post/DeGf1nzguVo",
+      "text": "That split makes sense. Let AI tidy the messy input, then keep the maths predictable. Do you show the extracted fields for a quick correction before saving? Feels especially useful when quantities or units could get misread.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHJiE2kzFJ"
+    },
+    {
+      "author": "synaptech_ai_",
+      "parent": "https://www.threads.com/@synaptech_ai_/post/DeGNdnuDp8y",
+      "text": "A morning summary sounds like a useful place to start — one thing you can check against the originals. For the development workflow, what usually sends you back in: unclear requirements, the diff, or failed checks? That handoff is interesting for us building ADCode too.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHJuDIE_ff"
+    },
+    {
+      "author": "jeromehardaway",
+      "parent": "https://www.threads.com/@jeromehardaway/post/DeGPzIakfHY",
+      "text": "Tailoring the review to the kind of work is a good detail. A single “looks good” gate would miss a lot there. Do you keep those different checklists in the repo so the team can review changes to the process itself?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHJvUvk9wG"
+    },
+    {
+      "author": "ogneko30",
+      "parent": "https://www.threads.com/@ogneko30/post/DeGL59uER2x",
+      "text": "First smart-city simulation is a solid jump 😂 Hope the demo behaves when you hand it in. What did you simulate — traffic, energy, or something else?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHJwa8E8yq"
+    },
+    {
+      "author": "apoetixart",
+      "parent": "https://www.threads.com/@apoetixart/post/DeGvzZoCeFq",
+      "text": "Thanks for sharing the repo! A small runnable example could be a good starting point for someone trying SAN — maybe a tiny game or command-line tool. What’s the simplest program you’d suggest they make first?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHKOllE-8V"
+    },
+    {
+      "author": "nocodecarlos",
+      "parent": "https://www.threads.com/@nocodecarlos/post/DdbHa6dFmKn",
+      "text": "What changed the most after someone else tried it for the first time? Curious whether those morning sessions shifted from adding features to fixing the bits users got stuck on.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHKZtmk4TF"
+    },
+    {
+      "author": "maimur_yevheniia",
+      "parent": "https://www.threads.com/@maimur_yevheniia/post/DduY31jjWOP",
+      "text": "The “small app idea” to “apparently I need to understand six other jobs” pipeline 😂 Which part caught you most off guard: getting the app working, payments, or getting through the store review?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHKa2qE1a1"
+    },
+    {
+      "author": "lukedami.ct",
+      "parent": "https://www.threads.com/@lukedami.ct/post/DdOWaNylbvX",
+      "text": "An editor here 😄 ADCode is free/open source for Windows + Linux. The idea is get paid to build: eligible users get 50% of the ad revenue attributed to them, with variable earnings. Bring your own AI key or local model; cloud AI costs separate. Curious what you’re building too.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHKcG5kzJj"
+    },
+    {
+      "author": "vasudevv.sonii",
+      "parent": "https://www.threads.com/@vasudevv.sonii/post/DdftLjrgcXG",
+      "text": "Appreciate the invite 😄 ADCode is a free, open-source AI editor for Windows/Linux, so there’s no Pro subscription. The idea is get paid to build: 50% of attributed ad revenue goes to the user; earnings vary. Your AI key/local model, with cloud costs separate. Would love feedback from one small bug fix. https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHK4IEE9hT"
+    },
+    {
+      "author": "thepanshi_",
+      "parent": "https://www.threads.com/@thepanshi_/post/DdZqV3yk8mq",
+      "text": "“Tasks that roast” is a memorable pitch 😂 How do you let people set the tone — gentle nudge versus Uncle Rudy really letting them have it? Getting featured on a first app is a lovely milestone.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHK5yGk8eq"
+    },
+    {
+      "author": "roma.builds",
+      "parent": "https://www.threads.com/@roma.builds/post/DddmEyMgHvf",
+      "text": "Working on ADCode 👋 Free, open-source AI editor for Windows/Linux. “Get paid to build” means eligible users receive 50% of the ad revenue attributed to them; earnings vary. Bring your AI key/local model (cloud AI costs separate). Try one small task and tell us where setup feels unclear: https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHK6_Vk_B-"
+    },
+    {
+      "author": "oz.apps",
+      "parent": "https://www.threads.com/@oz.apps/post/DeHGz8XCMaS",
+      "text": "That first real user makes the app feel real too 💜 What did they do first — the thing you expected, or something completely different?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHMVXqk8S4"
+    },
+    {
+      "author": "riareh_1",
+      "parent": "https://www.threads.com/@riareh_1/post/DeHK7-_ghPJ",
+      "text": "Music, a business AND an app — busy creative season 😄 What’s the app for? Something connected to the music, or a totally different itch?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHMXsnE_jX"
+    },
+    {
+      "author": "yash__builds",
+      "parent": "https://www.threads.com/@yash__builds/post/DeHFfmxEheQ",
+      "text": "A new dependency is very easy to say yes to when the AI makes it look like a 2-minute job 😅 Before adding one, asking “can the stuff already in this repo do this?” feels like a useful check. What did you delete or simplify recently?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHMfd0E0J1"
+    },
+    {
+      "author": "rgenzon",
+      "parent": "https://www.threads.com/@rgenzon/post/DeG8eEtCOTX",
+      "text": "“Show me the last time this happened” gets a much clearer answer than “would you use this app?” 😄 What’s your go-to question when you’re trying to understand the pain before building?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHMjZqE58U"
+    },
+    {
+      "author": "iamsamsoneze",
+      "parent": "https://www.threads.com/@iamsamsoneze/post/DeFRO38CEO0",
+      "text": "Especially with AI confidently using an API from three versions ago 😅 Checking the installed version against the docs can save a whole debugging detour. Any docs you think are unusually good?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHMkTikxmq"
+    },
+    {
+      "author": "zain776470",
+      "parent": "https://www.threads.com/@zain776470/post/Dd4Nab_DurL",
+      "text": "That “small bug” can absolutely eat the whole afternoon 😭 Shrinking it to the tiniest reproducible example is such a useful escape hatch. What kind of project are you learning on right now?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHMtGNk0SG"
+    },
+    {
+      "author": "bydaveyji",
+      "parent": "https://www.threads.com/@bydaveyji/post/DeGZMvhFD7v",
+      "text": "The “what makes them switch” part is huge. Shipping a nicer demo is one thing; asking someone to move a working habit is another 😅 For a first-time founder, would you start with watching a few people use the current solution?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHMwQmk3fu"
+    },
+    {
+      "author": "imgongdao",
+      "parent": "https://www.threads.com/@imgongdao/post/DeGQrTdlBn_",
+      "text": "Five generated features vs one feature you’ve actually run is a very different scoreboard 😅 A small task + a clear acceptance check helps keep the AI honest. Which rule catches the most problems for you — tests, reviewing the diff, or trying the user flow?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHM4kzk03R"
+    },
+    {
+      "author": "alexmacgregor__",
+      "parent": "https://www.threads.com/@alexmacgregor__/post/DeGaGZ8FLrd",
+      "text": "The person finally fixing a tiny problem they’ve lived with for years is the exciting bit 😄 We’re building ADCode for that too: a free/open-source Windows + Linux editor, with 50% of attributed ad revenue credited to the builder. Earnings vary; cloud AI costs separate. What’s your favourite small build so far?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHM6Bpk-4v"
+    },
+    {
+      "author": "jogoh95",
+      "parent": "https://www.threads.com/@jogoh95/post/DeFjwTakwkI",
+      "text": "Leaving a tiny note for tomorrow — “this works, this is broken, start here” — makes closing the terminal easier too 😄 What’s the one thing you want working by the end of this week?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHM-VPEwU6"
+    },
+    {
+      "author": "eliupskills",
+      "parent": "https://www.threads.com/@eliupskills/post/DeGT8CoGTWc",
+      "text": "Changing one thing the tutorial didn’t ask for is a nice reality check too 😅 New input, one extra button, a different edge case — suddenly you find out what you actually understood. What’s a good first project to break that tutorial loop?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHM_o_k2PH"
+    },
+    {
+      "author": "mylow.zzzzz",
+      "parent": "https://www.threads.com/@mylow.zzzzz/post/DeF7kfmDE-v",
+      "text": "Turning an actual recurring annoyance into a tool is a fun place to start 😄 What part are you tackling first — keeping a journal, organising research, or something else?",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHNCPGk4LS"
+    },
+    {
+      "author": "kljr.dev",
+      "parent": "https://www.threads.com/@kljr.dev/post/DeHKocgjkLK",
+      "text": "Nice, that countdown answers it before anyone has to dig into settings 😄 Clear rule + visible time left feels like a solid fit for keeping the streak honest.",
+      "url": "https://www.threads.com/@adcode.dev/post/DeHNIX7Eysb"
+    }
+  ],
+  "likes": [
+    {
+      "author": "omernsh",
+      "url": "https://www.threads.com/@omernsh/post/Dd1C3JDDFsL"
+    },
+    {
+      "author": "emmys_mart1234",
+      "url": "https://www.threads.com/@emmys_mart1234/post/Dd1ID4PDjGE"
+    },
+    {
+      "author": "real_kingsleymayor",
+      "url": "https://www.threads.com/@real_kingsleymayor/post/DeGHnI8CqJ7"
+    },
+    {
+      "author": "ashishbaisla",
+      "url": "https://www.threads.com/@ashishbaisla/post/Dd0VQCoo_Ew"
+    },
+    {
+      "author": "zvonko.biskup",
+      "url": "https://www.threads.com/@zvonko.biskup/post/DeFyDU3j141"
+    },
+    {
+      "author": "romanlozynskyi.dev",
+      "url": "https://www.threads.com/@romanlozynskyi.dev/post/DeFdf6hAkhH"
+    },
+    {
+      "author": "michaelvasquezofficial",
+      "url": "https://www.threads.com/@michaelvasquezofficial/post/Dd-JdRFDpps"
+    },
+    {
+      "author": "her.secondstart",
+      "url": "https://www.threads.com/@her.secondstart/post/DeFnoIiisAW"
+    },
+    {
+      "author": "hanseidev",
+      "url": "https://www.threads.com/@hanseidev/post/Dd0rTaQnHUz"
+    },
+    {
+      "author": "kljr.dev",
+      "url": "https://www.threads.com/@kljr.dev/post/Dd1SOKmDq8i"
+    },
+    {
+      "author": "vishalkrgupta",
+      "url": "https://www.threads.com/@vishalkrgupta/post/Dd0iJHsDOjr"
+    },
+    {
+      "author": "run.sheep.run",
+      "url": "https://www.threads.com/@run.sheep.run/post/DeF5cKWAPLq"
+    },
+    {
+      "author": "synaptech_ai_",
+      "url": "https://www.threads.com/@synaptech_ai_/post/DeFmK0smjVu"
+    },
+    {
+      "author": "mackasy_ai",
+      "url": "https://www.threads.com/@mackasy_ai/post/DeGBnkYCEyQ"
+    },
+    {
+      "author": "koshurai.official",
+      "url": "https://www.threads.com/@koshurai.official/post/DeGE4qaEWrT"
+    },
+    {
+      "author": "jeromehardaway",
+      "url": "https://www.threads.com/@jeromehardaway/post/DeFyl8gkTxe"
+    },
+    {
+      "author": "m.rehanvrs",
+      "url": "https://www.threads.com/@m.rehanvrs/post/DeGAi0CCqmZ"
+    },
+    {
+      "author": "caleb_shadowstalker",
+      "url": "https://www.threads.com/@caleb_shadowstalker/post/DeF1J_gCAr4"
+    },
+    {
+      "author": "ogneko30",
+      "url": "https://www.threads.com/@ogneko30/post/DeFxGGwFOBb"
+    },
+    {
+      "author": "nathancheever",
+      "url": "https://www.threads.com/@nathancheever/post/DeFvS03ga4Y"
+    },
+    {
+      "author": "real_kingsleymayor",
+      "url": "https://www.threads.com/@real_kingsleymayor/post/DeGJuqgiuEy"
+    },
+    {
+      "author": "uwxan",
+      "url": "https://www.threads.com/@uwxan/post/DdOc-8JDeWZ"
+    },
+    {
+      "author": "mikeliy3",
+      "url": "https://www.threads.com/@mikeliy3/post/Dc3EBFSgr4m"
+    },
+    {
+      "author": "mozokdev",
+      "url": "https://www.threads.com/@mozokdev/post/Dc3u6dNDSIW"
+    },
+    {
+      "author": "fhsystems",
+      "url": "https://www.threads.com/@fhsystems/post/DduR95_iDBq"
+    },
+    {
+      "author": "nocodecarlos",
+      "url": "https://www.threads.com/@nocodecarlos/post/DdbHa6dFmKn"
+    },
+    {
+      "author": "kljr.dev",
+      "url": "https://www.threads.com/@kljr.dev/post/DeG3JWfDp8o"
+    },
+    {
+      "author": "emmys_mart1234",
+      "url": "https://www.threads.com/@emmys_mart1234/post/DeGxcRXDlYr"
+    },
+    {
+      "author": "romanlozynskyi.dev",
+      "url": "https://www.threads.com/@romanlozynskyi.dev/post/DeGf1nzguVo"
+    },
+    {
+      "author": "jeromehardaway",
+      "url": "https://www.threads.com/@jeromehardaway/post/DeGPzIakfHY"
+    },
+    {
+      "author": "ogneko30",
+      "url": "https://www.threads.com/@ogneko30/post/DeGL59uER2x"
+    },
+    {
+      "author": "apoetixart",
+      "url": "https://www.threads.com/@apoetixart/post/DeGvzZoCeFq"
+    },
+    {
+      "author": "maimur_yevheniia",
+      "url": "https://www.threads.com/@maimur_yevheniia/post/DduY31jjWOP"
+    },
+    {
+      "author": "lukedami.ct",
+      "url": "https://www.threads.com/@lukedami.ct/post/DdOWaNylbvX"
+    },
+    {
+      "author": "vasudevv.sonii",
+      "url": "https://www.threads.com/@vasudevv.sonii/post/DdftLjrgcXG"
+    },
+    {
+      "author": "thepanshi_",
+      "url": "https://www.threads.com/@thepanshi_/post/DdZqV3yk8mq"
+    },
+    {
+      "author": "roma.builds",
+      "url": "https://www.threads.com/@roma.builds/post/DddmEyMgHvf"
+    },
+    {
+      "author": "oz.apps",
+      "url": "https://www.threads.com/@oz.apps/post/DeHGz8XCMaS"
+    },
+    {
+      "author": "yash__builds",
+      "url": "https://www.threads.com/@yash__builds/post/DeHFfmxEheQ"
+    },
+    {
+      "author": "rgenzon",
+      "url": "https://www.threads.com/@rgenzon/post/DeG8eEtCOTX"
+    },
+    {
+      "author": "iamsamsoneze",
+      "url": "https://www.threads.com/@iamsamsoneze/post/DeFRO38CEO0"
+    },
+    {
+      "author": "zain776470",
+      "url": "https://www.threads.com/@zain776470/post/Dd4Nab_DurL"
+    },
+    {
+      "author": "bydaveyji",
+      "url": "https://www.threads.com/@bydaveyji/post/DeGZMvhFD7v"
+    },
+    {
+      "author": "jogoh95",
+      "url": "https://www.threads.com/@jogoh95/post/DeFjwTakwkI"
+    },
+    {
+      "author": "eliupskills",
+      "url": "https://www.threads.com/@eliupskills/post/DeGT8CoGTWc"
+    }
+  ],
+  "submitted": [
+    {
+      "author": "omernsh",
+      "parent": "https://www.threads.com/@omernsh/post/Dd1C3JDDFsL",
+      "text": "Working on ADCode 😎 A free, open-source Windows/Linux AI editor. “Get paid to build” means 50% of sponsored-card revenue is credited to you; earnings vary. Bring your own AI key or local model (cloud AI costs separate).\n\nToday’s focus is making the first small project easier to start. What are you building?\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations"
+    },
+    {
+      "author": "emmys_mart1234",
+      "parent": "https://www.threads.com/@emmys_mart1234/post/Dd1ID4PDjGE",
+      "text": "The awkward follow-up is a real bit of admin 😅 Can creators review the reminder wording and pause it if they’re already talking to the brand? That would be the first thing I’d check before letting it send on my behalf."
+    },
+    {
+      "author": "real_kingsleymayor",
+      "parent": "https://www.threads.com/@real_kingsleymayor/post/DeGHnI8CqJ7",
+      "text": "“What we won’t build yet” deserves its own sticky note 😅 For an editor, I’d make the first-week win one project opened, one useful change, and a successful run. What first-week goal do founders struggle to define most?"
+    },
+    {
+      "author": "ashishbaisla",
+      "parent": "https://www.threads.com/@ashishbaisla/post/Dd0VQCoo_Ew",
+      "text": "ADCode 👋 A free, open-source AI editor for Windows/Linux. We’re trying “get paid to build” by crediting devs 50% of sponsored-card revenue; earnings vary. Your AI key/local model, with cloud AI costs separate.\n\nWould love feedback on one small project in it 😅\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations"
+    },
+    {
+      "author": "zvonko.biskup",
+      "parent": "https://www.threads.com/@zvonko.biskup/post/DeFyDU3j141",
+      "text": "ADCode is a free, open-source Windows/Linux AI editor for developers using their own AI key or local model, with 50% of sponsored-card revenue credited to the dev—earnings vary and cloud AI costs are separate 😎"
+    },
+    {
+      "author": "romanlozynskyi.dev",
+      "parent": "https://www.threads.com/@romanlozynskyi.dev/post/DeFdf6hAkhH",
+      "text": "For Loomenio, where would an AI layer help most: sorting messy item data, spotting costs someone forgot, or explaining the numbers? 👀 I’d be curious which job users actually ask for before adding the layer."
+    },
+    {
+      "author": "michaelvasquezofficial",
+      "parent": "https://www.threads.com/@michaelvasquezofficial/post/Dd-JdRFDpps",
+      "text": "Building ADCode 😎 A free, open-source AI editor for Windows/Linux, with your own AI key or local model. Sponsored cards fund it and 50% of that revenue is credited to the developer; earnings vary and cloud AI costs are separate.\n\nLooking for feedback on the first-project setup. What are you working on?\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations"
+    },
+    {
+      "author": "her.secondstart",
+      "parent": "https://www.threads.com/@her.secondstart/post/DeFnoIiisAW",
+      "text": "A real question someone asked can make a good starting point 😅 Explain one confusing bit, show one small thing you fixed, or ask for feedback on a specific choice. Much easier than trying to invent a huge announcement every day."
+    },
+    {
+      "author": "hanseidev",
+      "parent": "https://www.threads.com/@hanseidev/post/Dd0rTaQnHUz",
+      "text": "Travel + geospatial intelligence is a big space 👀 What’s the first decision OrbitLabX helps someone make—where to go, when to go, or comparing places? A single example would help me understand the beta."
+    },
+    {
+      "author": "kljr.dev",
+      "parent": "https://www.threads.com/@kljr.dev/post/Dd1SOKmDq8i",
+      "text": "Keeping the gaps visible is an interesting choice 😅 How do you handle a time-zone change or a late-night ship? I’d want a missed day to be honest without a clock setting accidentally deciding the streak."
+    },
+    {
+      "author": "vishalkrgupta",
+      "parent": "https://www.threads.com/@vishalkrgupta/post/Dd0iJHsDOjr",
+      "text": "Small utilities can be handy when they save opening a spreadsheet 😅 Which tool are people using most so far? I’d be curious whether they want a quick answer or a result they can copy/export and revisit."
+    },
+    {
+      "author": "run.sheep.run",
+      "parent": "https://www.threads.com/@run.sheep.run/post/DeF5cKWAPLq",
+      "text": "That’s a useful distinction. An AI helper in the build process and an AI feature customers pay for are two different bets 😅 Which part of your workflow gets the most help—prototyping, tests, or reviewing changes?"
+    },
+    {
+      "author": "synaptech_ai_",
+      "parent": "https://www.threads.com/@synaptech_ai_/post/DeFmK0smjVu",
+      "text": "The boring daily workflow is often the interesting project 😅 What did you automate first, and which step still needs you to review the result? Curious what changed once you started using it for real."
+    },
+    {
+      "author": "mackasy_ai",
+      "parent": "https://www.threads.com/@mackasy_ai/post/DeGBnkYCEyQ",
+      "text": "First real post going through is a satisfying milestone 😄 Can people review the exact text before publishing? I’d also be curious how Riffi handles a retry without accidentally posting the same thing twice."
+    },
+    {
+      "author": "koshurai.official",
+      "parent": "https://www.threads.com/@koshurai.official/post/DeGE4qaEWrT",
+      "text": "Have you got a before/after benchmark with the same model + GPU? 👀 The actual setup and workload would help people judge whether it fits their own machine, especially folks trying smaller local setups."
+    },
+    {
+      "author": "jeromehardaway",
+      "parent": "https://www.threads.com/@jeromehardaway/post/DeFyl8gkTxe",
+      "text": "Using the saved time to learn something deeply is a good trade 😄 What gates do you put around the familiar parts—tests, a review checklist, or something else? That part of the workflow seems worth sharing alongside the AI output."
+    },
+    {
+      "author": "m.rehanvrs",
+      "parent": "https://www.threads.com/@m.rehanvrs/post/DeGAi0CCqmZ",
+      "text": "The “why they’ll stay” question is the hard one 😅 With ADCode, we’re focusing on whether someone can open a real project, make one useful change, and run it without setup getting in the way. Which part do you see founders skipping most—who needs it or how they’ll find it?"
+    },
+    {
+      "author": "caleb_shadowstalker",
+      "parent": "https://www.threads.com/@caleb_shadowstalker/post/DeF1J_gCAr4",
+      "text": "The next useful prompt might be “walk me through this program, then show me how to check it” 😅 Getting it running is a start; understanding one small piece at a time can make the next change less mysterious. What does your program do?"
+    },
+    {
+      "author": "ogneko30",
+      "parent": "https://www.threads.com/@ogneko30/post/DeFxGGwFOBb",
+      "text": "What’s winning today—the bug, the CSS, or you? 😅 What are you working on?"
+    },
+    {
+      "author": "nathancheever",
+      "parent": "https://www.threads.com/@nathancheever/post/DeFvS03ga4Y",
+      "text": "Building on a phone takes some patience 😅 What does the product help people do, and which part of getting the first version working was most awkward on that setup?"
+    },
+    {
+      "author": "real_kingsleymayor",
+      "parent": "https://www.threads.com/@real_kingsleymayor/post/DeGJuqgiuEy",
+      "text": "That’s a much better goal 😅 For ADCode, “fix one small bug and run the project without needing help” is a useful first test. If you’re on Windows/Linux, would you be up for trying the flow and telling us which step needs explaining? The editor is free; bring your AI key/local model (cloud AI costs separate).\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations"
+    },
+    {
+      "author": "uwxan",
+      "parent": "https://www.threads.com/@uwxan/post/DdOc-8JDeWZ",
+      "text": "https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations\n\nADCode: free, open-source Windows/Linux AI editor, your AI key or local model (cloud AI costs separate); 50% of sponsored-card revenue credited to you, with variable earnings 😎"
+    },
+    {
+      "author": "mikeliy3",
+      "parent": "https://www.threads.com/@mikeliy3/post/Dc3EBFSgr4m",
+      "text": "The switching cost is interesting here. Having a second model check a tricky change feels more useful than asking four tools the same question 😅 What usually makes you switch: usage limits, a stuck bug, or wanting another opinion?"
+    },
+    {
+      "author": "mozokdev",
+      "parent": "https://www.threads.com/@mozokdev/post/Dc3u6dNDSIW",
+      "text": "The quiz idea is neat — it checks whether the reviewer can actually explain the change 😃 For the verifier, do you give it the original ticket independently, or the planner’s interpretation too? Curious how you avoid both agents sharing the same wrong assumption."
+    },
+    {
+      "author": "fhsystems",
+      "parent": "https://www.threads.com/@fhsystems/post/DduR95_iDBq",
+      "text": "Picking up after a usage limit without the whole “so here’s the project again” speech sounds handy 😂 What do you carry between tools: the chat, changed files, commands already run, and unfinished decisions?"
+    },
+    {
+      "author": "kljr.dev",
+      "parent": "https://www.threads.com/@kljr.dev/post/DeG3JWfDp8o",
+      "text": "Got it — anchoring it to the account timezone keeps the rule explainable. I’d put “your day ends at midnight in [timezone]” right beside the streak so the surprise happens before a missed day 😄 Do you show that in the UI already?"
+    },
+    {
+      "author": "emmys_mart1234",
+      "parent": "https://www.threads.com/@emmys_mart1234/post/DeGxcRXDlYr",
+      "text": "Nice, that’s the bit I was hoping for 😊 A preview of the exact message is much easier to trust. Have creators been editing the reminders much, or mostly keeping the suggested wording?"
+    },
+    {
+      "author": "romanlozynskyi.dev",
+      "parent": "https://www.threads.com/@romanlozynskyi.dev/post/DeGf1nzguVo",
+      "text": "That split makes sense. Let AI tidy the messy input, then keep the maths predictable. Do you show the extracted fields for a quick correction before saving? Feels especially useful when quantities or units could get misread."
+    },
+    {
+      "author": "synaptech_ai_",
+      "parent": "https://www.threads.com/@synaptech_ai_/post/DeGNdnuDp8y",
+      "text": "A morning summary sounds like a useful place to start — one thing you can check against the originals. For the development workflow, what usually sends you back in: unclear requirements, the diff, or failed checks? That handoff is interesting for us building ADCode too."
+    },
+    {
+      "author": "jeromehardaway",
+      "parent": "https://www.threads.com/@jeromehardaway/post/DeGPzIakfHY",
+      "text": "Tailoring the review to the kind of work is a good detail. A single “looks good” gate would miss a lot there. Do you keep those different checklists in the repo so the team can review changes to the process itself?"
+    },
+    {
+      "author": "ogneko30",
+      "parent": "https://www.threads.com/@ogneko30/post/DeGL59uER2x",
+      "text": "First smart-city simulation is a solid jump 😂 Hope the demo behaves when you hand it in. What did you simulate — traffic, energy, or something else?"
+    },
+    {
+      "author": "apoetixart",
+      "parent": "https://www.threads.com/@apoetixart/post/DeGvzZoCeFq",
+      "text": "Thanks for sharing the repo! A small runnable example could be a good starting point for someone trying SAN — maybe a tiny game or command-line tool. What’s the simplest program you’d suggest they make first?"
+    },
+    {
+      "author": "nocodecarlos",
+      "parent": "https://www.threads.com/@nocodecarlos/post/DdbHa6dFmKn",
+      "text": "What changed the most after someone else tried it for the first time? Curious whether those morning sessions shifted from adding features to fixing the bits users got stuck on."
+    },
+    {
+      "author": "maimur_yevheniia",
+      "parent": "https://www.threads.com/@maimur_yevheniia/post/DduY31jjWOP",
+      "text": "The “small app idea” to “apparently I need to understand six other jobs” pipeline 😂 Which part caught you most off guard: getting the app working, payments, or getting through the store review?"
+    },
+    {
+      "author": "lukedami.ct",
+      "parent": "https://www.threads.com/@lukedami.ct/post/DdOWaNylbvX",
+      "text": "An editor here 😄 ADCode is free/open source for Windows + Linux. The idea is get paid to build: eligible users get 50% of the ad revenue attributed to them, with variable earnings. Bring your own AI key or local model; cloud AI costs separate. Curious what you’re building too."
+    },
+    {
+      "author": "vasudevv.sonii",
+      "parent": "https://www.threads.com/@vasudevv.sonii/post/DdftLjrgcXG",
+      "text": "Appreciate the invite 😄 ADCode is a free, open-source AI editor for Windows/Linux, so there’s no Pro subscription. The idea is get paid to build: 50% of attributed ad revenue goes to the user; earnings vary. Your AI key/local model, with cloud costs separate. Would love feedback from one small bug fix. https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations"
+    },
+    {
+      "author": "thepanshi_",
+      "parent": "https://www.threads.com/@thepanshi_/post/DdZqV3yk8mq",
+      "text": "“Tasks that roast” is a memorable pitch 😂 How do you let people set the tone — gentle nudge versus Uncle Rudy really letting them have it? Getting featured on a first app is a lovely milestone."
+    },
+    {
+      "author": "roma.builds",
+      "parent": "https://www.threads.com/@roma.builds/post/DddmEyMgHvf",
+      "text": "Working on ADCode 👋 Free, open-source AI editor for Windows/Linux. “Get paid to build” means eligible users receive 50% of the ad revenue attributed to them; earnings vary. Bring your AI key/local model (cloud AI costs separate). Try one small task and tell us where setup feels unclear: https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_conversations"
+    },
+    {
+      "author": "oz.apps",
+      "parent": "https://www.threads.com/@oz.apps/post/DeHGz8XCMaS",
+      "text": "That first real user makes the app feel real too 💜 What did they do first — the thing you expected, or something completely different?"
+    },
+    {
+      "author": "riareh_1",
+      "parent": "https://www.threads.com/@riareh_1/post/DeHK7-_ghPJ",
+      "text": "Music, a business AND an app — busy creative season 😄 What’s the app for? Something connected to the music, or a totally different itch?"
+    },
+    {
+      "author": "yash__builds",
+      "parent": "https://www.threads.com/@yash__builds/post/DeHFfmxEheQ",
+      "text": "A new dependency is very easy to say yes to when the AI makes it look like a 2-minute job 😅 Before adding one, asking “can the stuff already in this repo do this?” feels like a useful check. What did you delete or simplify recently?"
+    },
+    {
+      "author": "rgenzon",
+      "parent": "https://www.threads.com/@rgenzon/post/DeG8eEtCOTX",
+      "text": "“Show me the last time this happened” gets a much clearer answer than “would you use this app?” 😄 What’s your go-to question when you’re trying to understand the pain before building?"
+    },
+    {
+      "author": "iamsamsoneze",
+      "parent": "https://www.threads.com/@iamsamsoneze/post/DeFRO38CEO0",
+      "text": "Especially with AI confidently using an API from three versions ago 😅 Checking the installed version against the docs can save a whole debugging detour. Any docs you think are unusually good?"
+    },
+    {
+      "author": "zain776470",
+      "parent": "https://www.threads.com/@zain776470/post/Dd4Nab_DurL",
+      "text": "That “small bug” can absolutely eat the whole afternoon 😭 Shrinking it to the tiniest reproducible example is such a useful escape hatch. What kind of project are you learning on right now?"
+    },
+    {
+      "author": "bydaveyji",
+      "parent": "https://www.threads.com/@bydaveyji/post/DeGZMvhFD7v",
+      "text": "The “what makes them switch” part is huge. Shipping a nicer demo is one thing; asking someone to move a working habit is another 😅 For a first-time founder, would you start with watching a few people use the current solution?"
+    },
+    {
+      "author": "imgongdao",
+      "parent": "https://www.threads.com/@imgongdao/post/DeGQrTdlBn_",
+      "text": "Five generated features vs one feature you’ve actually run is a very different scoreboard 😅 A small task + a clear acceptance check helps keep the AI honest. Which rule catches the most problems for you — tests, reviewing the diff, or trying the user flow?"
+    },
+    {
+      "author": "alexmacgregor__",
+      "parent": "https://www.threads.com/@alexmacgregor__/post/DeGaGZ8FLrd",
+      "text": "The person finally fixing a tiny problem they’ve lived with for years is the exciting bit 😄 We’re building ADCode for that too: a free/open-source Windows + Linux editor, with 50% of attributed ad revenue credited to the builder. Earnings vary; cloud AI costs separate. What’s your favourite small build so far?"
+    },
+    {
+      "author": "jogoh95",
+      "parent": "https://www.threads.com/@jogoh95/post/DeFjwTakwkI",
+      "text": "Leaving a tiny note for tomorrow — “this works, this is broken, start here” — makes closing the terminal easier too 😄 What’s the one thing you want working by the end of this week?"
+    },
+    {
+      "author": "eliupskills",
+      "parent": "https://www.threads.com/@eliupskills/post/DeGT8CoGTWc",
+      "text": "Changing one thing the tutorial didn’t ask for is a nice reality check too 😅 New input, one extra button, a different edge case — suddenly you find out what you actually understood. What’s a good first project to break that tutorial loop?"
+    },
+    {
+      "author": "mylow.zzzzz",
+      "parent": "https://www.threads.com/@mylow.zzzzz/post/DeF7kfmDE-v",
+      "text": "Turning an actual recurring annoyance into a tool is a fun place to start 😄 What part are you tackling first — keeping a journal, organising research, or something else?"
+    },
+    {
+      "author": "kljr.dev",
+      "parent": "https://www.threads.com/@kljr.dev/post/DeHKocgjkLK",
+      "text": "Nice, that countdown answers it before anyone has to dig into settings 😄 Clear rule + visible time left feels like a solid fit for keeping the streak honest."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+Get paid to build 😎
+
+One tiny Monday challenge: fix a bug you already understand, then run your project.
+
+ADCode is a free, open-source AI editor for Windows/Linux. Occasional sponsored cards fund it, and 50% of that revenue is credited to you. Earnings vary.
+
+Bring your own AI key or a compatible local model. Cloud AI costs are separate. macOS isn’t available yet.
+
+Downloads are in our bio. If setup gets weird, comment with your OS + where you got stuck and we’ll help 😅
+
+#ADCode #BuildInPublic #OpenSource #DevTools

@@ -1,0 +1,51 @@
+[
+  {
+    "platform": "Threads",
+    "url": "https://www.threads.com/@adcode.dev/post/DeGEDbqE4sh",
+    "text": "Monday plan: one tiny build, one less annoying bug 😅\n\nTry ADCode on a small task. It's a free, open-source AI editor for Windows/Linux, and 50% of sponsored-card revenue is credited to you. Earnings vary; bring your own AI key or a local model. Cloud AI costs are separate.\n\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_first_task\n\nIf setup gets weird, reply with your OS + where you got stuck. Happy to help.",
+    "campaign": "oct05_first_task"
+  },
+  {
+    "platform": "X",
+    "url": "https://x.com/Bluethenics/status/2106924404496318517",
+    "text": "Get paid to build 😎\nADCode: free, open-source AI editor for Windows/Linux. 50% of sponsored-card revenue is credited to you; earnings vary. Use your AI key/local model (AI costs separate).\nTry one tiny task + tell us what broke:\nhttps://adcode.bluethenics.com/versions?utm_source=x&utm_campaign=oct05_first_task",
+    "campaign": "oct05_first_task"
+  },
+  {
+    "platform": "Peerlist",
+    "url": "https://peerlist.io/scroll/post/ACTHEOGDNA6EARQJGFBKP9B9MBPL7P",
+    "title": "Get paid to build. Start with one tiny task 😎",
+    "text": "Tiny Monday challenge: fix one annoying bug, then run your project 😅\n\nADCode is our free, open-source AI editor for Windows/Linux. 50% of sponsored-card revenue is credited to you; earnings vary. Bring your own AI key or local model. Cloud AI costs are separate.\n\nhttps://adcode.bluethenics.com/versions?utm_source=peerlist&utm_campaign=oct05_first_task\n\nWhere did setup get stuck? Tell us your OS and we'll help.",
+    "campaign": "oct05_first_task"
+  },
+  {
+    "platform": "Product Hunt",
+    "url": "https://www.producthunt.com/p/adcode/one-tiny-adcode-test-for-your-monday-build",
+    "title": "One tiny ADCode test for your Monday build 😅",
+    "text": "I'm building ADCode, and today's ask is small: try one real task and tell me where the workflow gets awkward.\n\nPick a CSS glitch, a small Python script, or one bug you already understand. Open that project in ADCode, connect your AI provider key or a compatible local model, and ask for the smallest useful change. Read the changed code, then run it in the terminal. Did it actually solve the task?\n\nA starting prompt: 'Explain this bug, propose a small fix, and tell me how to check it.'\n\nThe 'get paid to build' idea: the Windows/Linux editor is free and open source. Occasional sponsored cards fund it, and 50% of that revenue is credited to the developer. Earnings vary; cloud AI usage costs are separate. macOS isn't available yet.\n\nDownloads: https://adcode.bluethenics.com/versions?utm_source=producthunt&utm_campaign=oct05_first_task\n\nIf you try it, share your OS, provider/local model, and the first step that got confusing. Happy to help here.",
+    "campaign": "oct05_first_task",
+    "status": "Pending Review"
+  },
+  {
+    "platform": "daily.dev",
+    "url": "https://daily.dev/posts/s4ehsnnae",
+    "title": "Getting started with ADCode in five minutes",
+    "source": "https://adcode.bluethenics.com/docs/getting-started-with-adcode",
+    "status": "Live; source link only, no generated commentary"
+  },
+  {
+    "platform": "DevHunt",
+    "url": "https://devhunt.org/tool/adcode#comments",
+    "commentId": "2720",
+    "text": "A handy starting point if you’re trying ADCode today: the five-minute setup guide covers opening your first project and connecting your model. Start with one bug you already understand, check the changed code, then run it 😅\n\nhttps://adcode.bluethenics.com/docs/getting-started-with-adcode?utm_source=devhunt&utm_campaign=oct05_first_task\n\nWindows/Linux for now. Bring your own AI key or compatible local model; cloud AI costs are separate.",
+    "status": "Live maker update; existing free launch remains Jan 29, 2030"
+  },
+  {
+    "platform": "Instagram",
+    "url": "https://www.instagram.com/p/DeGGxjMmSDz/",
+    "text": "Get paid to build 😎\n\nOne tiny Monday challenge: fix a bug you already understand, then run your project.\n\nADCode is a free, open-source AI editor for Windows/Linux. Occasional sponsored cards fund it, and 50% of that revenue is credited to you. Earnings vary.\n\nBring your own AI key or a compatible local model. Cloud AI costs are separate. macOS isn’t available yet.\n\nDownloads are in our bio. If setup gets weird, comment with your OS + where you got stuck and we’ll help 😅\n\n#ADCode #BuildInPublic #OpenSource #DevTools",
+    "image": "marketing/x-revenue-share/adcode-half-the-ad-money.png",
+    "aiLabel": true,
+    "status": "Live"
+  }
+]

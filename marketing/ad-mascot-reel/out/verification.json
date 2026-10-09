@@ -1,0 +1,229 @@
+{
+  "generatedAt": "2026-10-01T15:29:35.035Z",
+  "results": [
+    {
+      "name": "FFmpeg is available",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "H1: final MP4 exists",
+      "pass": true,
+      "detail": "E:\\adcode-sourcecode\\marketing\\ad-mascot-reel\\out\\ADCode-Mascot-Reel-H1-1080x1920.mp4"
+    },
+    {
+      "name": "H1: 1080×1920, 30 fps, 20 seconds",
+      "pass": true,
+      "detail": "1080×1920; 30 fps; 20 s"
+    },
+    {
+      "name": "H1: H.264 High, yuv420p and BT.709",
+      "pass": true,
+      "detail": "h264; High; yuv420p; tv, bt709, progressive"
+    },
+    {
+      "name": "H1: AAC stereo at 48 kHz",
+      "pass": true,
+      "detail": "aac; 48000 Hz; stereo"
+    },
+    {
+      "name": "H1: fast-start MP4",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "H1: all 600 frames and audio decode cleanly",
+      "pass": true,
+      "detail": "600 frames; 0 errors"
+    },
+    {
+      "name": "H1: −14 ± 1 LUFS and true peak ≤ −1.5 dBTP",
+      "pass": true,
+      "detail": "-14 LUFS; -2.2 dBTP"
+    },
+    {
+      "name": "H1: cover-H1.png is 1080×1920",
+      "pass": true,
+      "detail": "1080×1920"
+    },
+    {
+      "name": "H1: contact-sheet-H1.png is 810×1920",
+      "pass": true,
+      "detail": "810×1920"
+    },
+    {
+      "name": "H1: review still at 4.8 s exists",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "H1: review still at 9 s exists",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "H1: review still at 13 s exists",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "H1: review still at 17.5 s exists",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "H2: final MP4 exists",
+      "pass": true,
+      "detail": "E:\\adcode-sourcecode\\marketing\\ad-mascot-reel\\out\\ADCode-Mascot-Reel-H2-1080x1920.mp4"
+    },
+    {
+      "name": "H2: 1080×1920, 30 fps, 20 seconds",
+      "pass": true,
+      "detail": "1080×1920; 30 fps; 20 s"
+    },
+    {
+      "name": "H2: H.264 High, yuv420p and BT.709",
+      "pass": true,
+      "detail": "h264; High; yuv420p; tv, bt709, progressive"
+    },
+    {
+      "name": "H2: AAC stereo at 48 kHz",
+      "pass": true,
+      "detail": "aac; 48000 Hz; stereo"
+    },
+    {
+      "name": "H2: fast-start MP4",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "H2: all 600 frames and audio decode cleanly",
+      "pass": true,
+      "detail": "600 frames; 0 errors"
+    },
+    {
+      "name": "H2: −14 ± 1 LUFS and true peak ≤ −1.5 dBTP",
+      "pass": true,
+      "detail": "-14 LUFS; -2.3 dBTP"
+    },
+    {
+      "name": "H2: cover-H2.png is 1080×1920",
+      "pass": true,
+      "detail": "1080×1920"
+    },
+    {
+      "name": "H2: contact-sheet-H2.png is 810×1920",
+      "pass": true,
+      "detail": "810×1920"
+    },
+    {
+      "name": "H2: review still at 4.8 s exists",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "H2: review still at 9 s exists",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "H2: review still at 13 s exists",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "H2: review still at 17.5 s exists",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "The two covers have different hooks",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "Encoded opening hooks differ",
+      "pass": true,
+      "detail": "17.21 dB PSNR"
+    },
+    {
+      "name": "Representative body scenes match across hooks",
+      "pass": true,
+      "detail": "4.8 s: 57.83 dB; 7.4 s: 99.00 dB; 10.5 s: 99.00 dB; 13 s: 99.00 dB; 17.5 s: 99.00 dB"
+    },
+    {
+      "name": "Each hook returns during the last 0.3 seconds for replay",
+      "pass": true,
+      "detail": "19.99 dB PSNR at 19.9 s"
+    }
+  ],
+  "measurements": [
+    {
+      "hook": 1,
+      "file": "E:\\adcode-sourcecode\\marketing\\ad-mascot-reel\\out\\ADCode-Mascot-Reel-H1-1080x1920.mp4",
+      "codec": "h264",
+      "profile": "High",
+      "pixelFormat": "yuv420p",
+      "color": "tv, bt709, progressive",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "audioCodec": "aac",
+      "sampleRate": 48000,
+      "channels": "stereo",
+      "duration": 20,
+      "frames": 600,
+      "lufs": -14,
+      "truePeakDbtp": -2.2,
+      "decodeErrors": []
+    },
+    {
+      "hook": 2,
+      "file": "E:\\adcode-sourcecode\\marketing\\ad-mascot-reel\\out\\ADCode-Mascot-Reel-H2-1080x1920.mp4",
+      "codec": "h264",
+      "profile": "High",
+      "pixelFormat": "yuv420p",
+      "color": "tv, bt709, progressive",
+      "width": 1080,
+      "height": 1920,
+      "fps": 30,
+      "audioCodec": "aac",
+      "sampleRate": 48000,
+      "channels": "stereo",
+      "duration": 20,
+      "frames": 600,
+      "lufs": -14,
+      "truePeakDbtp": -2.3,
+      "decodeErrors": []
+    },
+    {
+      "comparison": {
+        "openingPsnr": 17.210723500334108,
+        "representativeBodyPsnr": [
+          {
+            "t": 4.8,
+            "psnr": 57.826080782288656
+          },
+          {
+            "t": 7.4,
+            "psnr": 99
+          },
+          {
+            "t": 10.5,
+            "psnr": 99
+          },
+          {
+            "t": 13,
+            "psnr": 99
+          },
+          {
+            "t": 17.5,
+            "psnr": 99
+          }
+        ],
+        "loopReturnPsnr": 19.990560725723757,
+        "variantWindows": "0–3 s opening; 19.7–20 s loop return"
+      }
+    }
+  ]
+}

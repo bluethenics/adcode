@@ -1,0 +1,16 @@
+your AI: “almost done”
+your coffee: already cold 😭
+
+What if your editor shared its ad money with you?
+That’s the idea behind ADCode: get paid to build.
+
+Free, open-source editor. Occasional sponsored cards. 50% of the ad revenue attributed to you is credited to you. Earnings vary — there’s no fixed payout for each prompt.
+
+Windows + Linux. Bring your own AI key or compatible local model; cloud AI costs are separate.
+
+Try it on one annoying bug → link in bio.
+What’s your AI’s most annoying habit? 😂
+
+Illustrated workflow and example amounts. Survey figures: Stack Overflow’s 2025 Developer Survey and the smaller April 2026 pulse survey, with different respondent samples.
+
+#ADCode #AICoding #BuildInPublic

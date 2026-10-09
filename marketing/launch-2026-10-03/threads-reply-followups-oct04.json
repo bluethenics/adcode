@@ -1,0 +1,67 @@
+[
+  {
+    "parent": "https://www.threads.com/@velascode264/post/DeFDCarjjxs",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFEt4AE9gu",
+    "text": "We're building it around a simple question: could an editor be free and share the money it earns with the people using it? That's the idea behind 'get paid to build' 🙂 Occasional sponsored cards fund ADCode, and 50% of that revenue is credited to the dev. Earnings vary. Keeping it open source lets people look under the hood too.",
+    "context": "Explained the current product idea without inventing a personal origin story",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@viclev.dev/post/DeFCl0SCEL0",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFE1mQE_Uu",
+    "text": "Totally fair 😅 That reaction is useful feedback on how we explain it. It's a share of actual ad revenue, so the amount can vary a lot. Thanks for taking a closer look. Whenever you try it, let us know how it feels on the memories app — especially anything that gets in the way.",
+    "context": "Acknowledged skepticism, clarified variable revenue and welcomed project feedback",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@romanlozynskyi.dev/post/DeFEEKxArbu",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFE9pXE3HP",
+    "text": "Loomenio sounds useful — tiny costs add up 😅 ADCode shows occasional sponsored cards while you code, and 50% of that ad revenue is credited to you. The editor is free; AI provider costs are separate and earnings vary. If you're on Windows/Linux, try one small Loomenio task and tell us how the cards feel:\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct04_loomenio",
+    "context": "Explained sponsored cards and variable revenue; invited a small Loomenio trial",
+    "campaign": "oct04_loomenio",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@_yaralexie/post/DeFEOOsDg5-",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFFIfLk2qI",
+    "text": "That sounds handy for builders juggling product work and posting 😅 Can people review/edit everything before it goes live, and give Cadre examples of their own writing? Keeping the founder's voice would be the big thing for us. Thanks for sharing the waitlist too.",
+    "context": "Discussed human review and preserving creator voice; acknowledged the second waitlist reply",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@thexraydev/post/DeFBNHVEwLS",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFFO5AE_-t",
+    "text": "Thanks 😄 Give it a spin on one small task and tell us what feels good or gets annoying — both help. Are you on Windows or Linux? Happy to help if setup gets in the way.",
+    "context": "Thanked an interested developer, suggested a small first task and offered setup help",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@vrbharat.tech/post/DeFBwP4iSKM",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFFU8Ckxq-",
+    "text": "Got it — 9 hours total. Thanks for clearing that up 🙌 The generate/fix/deploy breakdown is much more useful than the headline alone. Tag us when the sheet's ready, keen to see where each stack actually saved time.",
+    "context": "Acknowledged nine-hour total and useful build/fix/deploy breakdown",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@keritans/post/DeFBJDqkbJI",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFFbVRk3k4",
+    "text": "Haha I meant 'the parts you had to fix' 😂 Though now a bitwise-operations AI setup reveal would be quite the plot twist. Still keen to see the messy version alongside the working demo.",
+    "context": "Responded playfully and clarified the wording",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@bored_akki/post/DeFBBg_icjI",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFFhh6k_OH",
+    "text": "Ahh, could be an old Pillow API call 😅 If the error mentions Image.ANTIALIAS, that was removed; use Image.Resampling.LANCZOS instead. The removal list is here:\nhttps://pillow.readthedocs.io/en/stable/deprecations.html\nIf it's a different function, the exact traceback would help narrow it down.",
+    "context": "Offered a conditional Pillow API fix checked against the official documentation",
+    "source": "https://pillow.readthedocs.io/en/stable/deprecations.html",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@thexraydev/post/DeFFUi0De9A",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFFtohE5lu",
+    "text": "Ahh 😅 The macOS download isn't available yet, so ADCode won't fit your setup right now. Current releases are Windows/Linux. Appreciate you checking it out though!",
+    "context": "Clarified unavailable macOS download after the interested builder disclosed their OS",
+    "liked": true
+  }
+]

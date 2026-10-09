@@ -1,0 +1,236 @@
+{
+  "date": "2026-10-06",
+  "replies": [
+    {
+      "author": "mr.devghost",
+      "parent": "https://www.threads.com/@mr.devghost/post/DeJPYMvE_Cy",
+      "parentText": "mr.devghost\nTech Threads\n3h\nI’m building my app with AI agents. We have project rules, skills and an architecture diagram, but I still want to understand and review the code.\nHow do you work? Review small changes as they come, or let the agent complete a feature and review everything afterward?\nI’m leaning toward one working slice → tests → my review → next slice. Especially for authentication, I don’t want a huge diff I accept without understanding.\nWhat works for you?\n1\n1\nTop\nView activity\n\n\n\n\nReply to mr.devghost...",
+      "text": "small, runnable changes make that review much easier 😄 For an auth change I’d define one expected result, run the checks, then read the diff before the next step.\n\nWe’re building ADCode, a free Windows/Linux editor with Git, terminal and optional BYO AI. If you want to try that loop on one small change: https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_conversations",
+      "reason": "Asked for a review workflow when coding with agents",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJp-xikwFx"
+    },
+    {
+      "author": "julienrenaux_",
+      "parent": "https://www.threads.com/@julienrenaux_/post/DeJgRsgm7mA",
+      "parentText": "julienrenaux_\nsolopreneur\n1h\nEvery time I plan a marketing day, my brain suddenly decides that cleaning up edge cases and refactoring CSS is urgent.\nCoding is easy because the compiler does not judge. But marketing? Trying to convince strangers to try your app feels unnatural every time.\nI can ship features all weekend, but 20 minutes of promotion drains me.\nTo anyone building solo: how do you deal with this? What helped you get over the marketing dread?\nsolopreneur #indiedev #buildinpublic\n1\n3\nTop\nView activity\n\n\n\n\nReply to julienrenaux_...",
+      "text": "a smaller ask helps: “try this on one real task and tell me where you get stuck.” That gives the conversation somewhere useful to go 😄\n\nWe’re trying that with ADCode, our free Windows/Linux code editor—one small bug fix instead of asking someone to move their whole workflow. What’s the smallest useful thing a new person could do in your app?",
+      "reason": "Asked how to make promoting a solo-built app less awkward",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJqDSiE23B"
+    },
+    {
+      "author": "mahavault.app",
+      "parent": "https://www.threads.com/@mahavault.app/post/DeJNPS-gkVg",
+      "parentText": "mahavault.app\nBusiness Threads\n4h\nOne thing I’m learning from building my app:\nA feature can take days to build, but only a few people may ever use it.\nWhen you’re the developer, it’s easy to think every idea is useful.\nNow I try to ask myself:\nDoes this actually solve a problem?\nIf not, it can wait.\n1\nNo replies yet\nView activity\n\n\n\n\nReply to mahavault.app...",
+      "text": "the unused feature can be the most expensive one 😅 what did you decide to put on hold?\n\nWe’re building ADCode, a free Windows/Linux editor with terminal, Git and optional BYO AI. We’re asking builders to try one real task and tell us where it gets awkward. If you’ve got a small Mahavault fix waiting, that could be a useful first test.",
+      "reason": "Builder discussing which features deserve development time",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJqESOk0y-"
+    },
+    {
+      "author": "jshsinaga",
+      "parent": "https://www.threads.com/@jshsinaga/post/DeJFreykiZ2",
+      "parentText": "jshsinaga\nAI Threads\n5h\nthe best coding setup so far, VSCode + OMP 👑\n29\n21\nTop\nView activity\n\n\n\n\nReply to jshsinaga...",
+      "text": "bagian paling enak dari setup itu apa—alur edit/run, atau respons agent-nya? 😄\n\nKami bikin ADCode, editor gratis/open-source buat Windows/Linux dengan terminal, Git dan AI opsional pakai key sendiri. Kalau mau bandingin workflow, bisa coba satu bug kecil dulu, tanpa pindahin seluruh project. Kamu pakai Windows atau Linux? ",
+      "reason": "Developer sharing an AI coding setup",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJqVzxE6RE"
+    },
+    {
+      "author": "dsarychev",
+      "parent": "https://www.threads.com/@dsarychev/post/DeJmSSOG5dq",
+      "parentText": "dsarychev\nAI Threads\n35m\nAI didn't make bad developers dangerous.\nIt made bad architecture cheaper to create.\nYou can now generate 50,000 lines of code incredibly fast.\nThat doesn't mean you've created 50,000 lines worth maintaining.\nThe expensive part is still getting the decisions right.\n2\n1\nTop\nView activity\n\n\n\n\nReply to dsarychev...",
+      "text": "the diff still needs someone asking “why does this belong here?” 😅 A small change with a clear check is easier to reason about than a giant rewrite.\n\nWe’re building ADCode, a free Windows/Linux editor with Git, terminal and optional BYO AI. Would love a blunt first-use test on one real repo change—what would you use to expose a bad architecture decision quickly?",
+      "reason": "Developer discussing maintainability and AI code review",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJqW5LE9OK"
+    },
+    {
+      "author": "rouell.official",
+      "parent": "https://www.threads.com/@rouell.official/post/DeI6UXklcHb",
+      "parentText": "rouell.official\n7h\nWix vs WordPress vs custom-coded?\nThink about it this way:\nWix: simplicity and convenience.\nWordPress: flexibility with a huge ecosystem.\nCustom: maximum control over functionality, architecture and code.\nNone is automatically \"the best.\"\nThe right choice depends on your budget, technical requirements, expected growth, maintenance needs and how much control you want.\nChoose the platform based on the business.\nNot because everyone else uses it. \n1\n/\n2\nrouell.com\nAffordable Website Developer in Mumbai, India - Rouell\n2\nTop\nView activity\n\n\n\n\nReply to rouell.official...",
+      "text": "the maintenance question deserves that spot in the decision 😄 who handles the next small change after launch?\n\nFor the custom-code side, we’re building ADCode: free/open-source Windows/Linux editor with terminal, Git and optional BYO AI. If you’ve got a tiny client-site fix to test an editor on: https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_conversations",
+      "reason": "Web developer discussing when custom code makes sense",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJqa4Bk9-H"
+    },
+    {
+      "author": "ugamesoft",
+      "parent": "https://www.threads.com/@ugamesoft/post/DeJgoenDy53",
+      "parentText": "ugamesoft\nGame Dev\n1h\nI’ve got tired of alt-tabbing between Unity and my code editor all day, so I built a full code editor that lives inside the Unity Editor.\nIt’s called Ucode. It docks next to your Scene view like any other Unity tab.\nNot a text box with syntax colours: real C# IntelliSense, Git, search, a command palette, themes and hot-reload.\nHere’s what it does, and why it isn’t just another VS Code or Rider 🧵 \n1\n/\n10\n9\nTop\nView activity\n\n\n\n\nReply to ugamesoft...",
+      "text": "keeping the code next to the scene is a neat workflow idea 😄 How do you handle a hot-reload error while someone still has unsaved edits?\n\nWe’re building ADCode, a free/open-source Windows/Linux editor with terminal, Git and optional BYO AI. Always interested in comparing how editors make the edit → run → inspect loop feel less awkward.",
+      "reason": "Fellow editor builder showing an integrated development workflow",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJqcZEExFf"
+    },
+    {
+      "author": "pranavxmeta",
+      "parent": "https://www.threads.com/@pranavxmeta/post/DeJE-TAEYMc",
+      "parentText": "pranavxmeta\n5h\ntell your claude code \"suprise me\" when you are building apps, it might just give you better, next level UI design 🤷🏻‍♂️\nNo replies yet\n\n\n\n\nReply to pranavxmeta...",
+      "text": "fun prompt for a prototype 😄 I’d save a checkpoint first, then check what it changed before keeping the surprise. What kind of UI did you try it on?\n\nWe’re building ADCode, a free Windows/Linux editor with Git, terminal and optional AI using your own key/local model. One small UI change is a good way to try it without moving your whole workflow.",
+      "reason": "Builder discussing AI-generated UI experiments",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJqgtTk_MR"
+    },
+    {
+      "author": "zencodez",
+      "parent": "https://www.threads.com/@zencodez/post/DeIhggBiC2B",
+      "parentText": "zencodez\n10h\nA project doesn't have to be revolutionary.\nA simple app that solves a real problem teaches you more than another unfinished tutorial.\nBuild small.\nFinish.\nThen build again.\n2\n2\nTop\nView activity\n\n\n\n\nReply to zencodez...",
+      "text": "a tiny app you actually use gives you a reason to come back and fix it 😄 what’s your favourite first-project size?\n\nWe’re building ADCode, a free/open-source Windows/Linux editor. You can try it with no account: open a folder, make one small change, run it. Optional AI uses your own key/local model; cloud costs are separate.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_conversations",
+      "reason": "Developer encouraging small finished projects",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJqiBOk9_k"
+    },
+    {
+      "author": "monkeyscodeai",
+      "parent": "https://www.threads.com/@monkeyscodeai/post/DeIrB57lWEZ",
+      "parentText": "monkeyscodeai\n9h\nSingle-file AI context is usually why your generated code has broken imports.\nWe just updated the MonkeysCode agent to support multi-file context (up to 50 files at once). By letting the AI see your types and utils across the codebase, it reduces broken imports by 37% vs single-file mode.\nSee how it works:\nHow many files do you usually reference when…\nmonkeyscode.com/code…\nmonkeyscode.com\nCode Agent — MonkeysCode\nNo replies yet\n\n\n\n\nReply to monkeyscodeai...",
+      "text": "types + the places they’re used are a useful pair to inspect 😄 For that comparison, did you run the same repo tasks and compiler checks in both modes?\n\nWe’re building ADCode, a free Windows/Linux editor with terminal, Git and optional BYO AI. A small cross-file refactor would be a useful first test if you fancy comparing notes. Curious which task exposed the most broken imports.",
+      "reason": "Fellow coding-tool builder discussing context and broken imports",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJqltlExdG"
+    }
+  ],
+  "followups": [
+    {
+      "author": "grigorevmike",
+      "parent": "https://www.threads.com/@grigorevmike/post/DeJkgipDNz9",
+      "parentText": "grigorevmike\n40m\nThis made me smile — you’re telling me about the tool, asking how I’d test it… and somehow forgot to show me the tool 😄\nThat’s a very conceptual product pitch.\n1\nNo replies yet\nView activity\n\n\n\n\nReply to grigorevmike...",
+      "text": "haha fair 😄 I left out the useful part. Here’s ADCode:\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_conversations\n\nFree, open source, Windows/Linux. No account needed to try it; bring your own AI key or a compatible local model. A small refactor in an existing repo is a good first test. Cloud AI costs are separate.",
+      "reason": "Asked to see the tool",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJpQeREyB0"
+    },
+    {
+      "author": "emmys_mart1234",
+      "parent": "https://www.threads.com/@emmys_mart1234/post/DeJjUb9jsAT",
+      "parentText": "emmys_mart1234\n52m\nI build on Windows\nNo replies yet\n\n\n\n\nReply to emmys_mart1234...",
+      "text": "nice, then the Windows download is here 😄\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_conversations\n\nNo account needed to try the editor. Open Creshield’s folder and start with that one reminder-template change, then check the preview. If you use cloud AI, bring your own key; those costs are separate. Would love to hear how that first edit goes.",
+      "reason": "Confirmed Windows; qualified trial",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJpUx6E7QM"
+    },
+    {
+      "author": "dandonmusic",
+      "parent": "https://www.threads.com/@dandonmusic/post/DeJjBWuDt9u",
+      "parentText": "dandonmusic\n55m\nYeah absolutely it doesn't need to have a picture type really so it's a bit redundant. Sometimes it's easy overlooking things lol. What kind of editor are you making?\nNo replies yet\n\n\n\n\nReply to dandonmusic...",
+      "text": "a desktop code editor for Windows/Linux 😄 free + open source, with a terminal, Git and optional AI using your own key/local model.\n\nThe idea is “get paid to build”: occasional sponsored cards fund it, and 50% of attributed ad revenue is credited to you. Earnings vary; cloud AI costs are separate.\n\nHere’s the actual thing: https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_conversations\n\nThat redundant photo check could be a neat first edit.",
+      "reason": "Asked what ADCode is",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJpbAaE7e-"
+    },
+    {
+      "author": "mohit_solanki_010",
+      "parent": "https://www.threads.com/@mohit_solanki_010/post/DeJfx9piE8U",
+      "parentText": "mohit_solanki_010\n1h\nI don't know much about it just tried to built it with gpt instructions\nNo replies yet\n\n\n\n\nReply to mohit_solanki_010...",
+      "text": "that’s a perfectly fine start 😄 Do you have a project folder you can download, or is it only running inside GPT?\n\nIf you have files, tell me the file names/extensions—no private customer data or keys—and we can work out the next small step. ADCode is a free Windows/Linux editor you can open that folder in, but let’s figure out what you’ve got first.",
+      "reason": "Beginner needs to identify project format before editor trial",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJpfxgE23U"
+    },
+    {
+      "author": "laysheth1",
+      "parent": "https://www.threads.com/@laysheth1/post/DeJkMpImnt4",
+      "parentText": "laysheth1\n46m\nhonestly the old assumption one. same file edits you can dodge with worktrees, but an agent building on something another agent already changed is the one that bites, and you only find out at merge time. curious what you see with adcode users. do the parallel tasks share any context or is each one on its own? would be fun to compare notes, happy to dm\nNo replies yet\n\n\n\n\nReply to laysheth1...",
+      "text": "yep, separate files can still depend on an outdated decision 😅 In ADCode Team, agents work in isolation and the scheduler passes task handoffs. A reviewer can run after teammates, then you inspect the combined changes. I don’t have measured user data on stale assumptions to compare yet.\n\nDocs: https://adcode.bluethenics.com/docs/ai-team\n\nWould you check the changed files at each handoff, or re-check the whole task plan?",
+      "reason": "Asked about shared context and parallel task handoffs",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJpnKvkwz2"
+    },
+    {
+      "author": "appsdeveloperblog",
+      "parent": "https://www.threads.com/@appsdeveloperblog/post/DeIn2M4jNnN",
+      "parentText": "appsdeveloperblog\n9h\nTo submit you will need to login. The main page is SaasHive.com. Once you logged in, yoy can share your product here saashive.com/launc…\nsaashive.com\nThe SaaS launch and discovery platform built for AI search engines. And the people asking them for recommendations.\nNo replies yet\n\n\n\n\nReply to appsdeveloperblog...",
+      "text": "thanks, got the submission page 😄 appreciate you clarifying that free desktop tools fit too. The Windows/Linux support and how the ad share works are the key bits for our description.",
+      "reason": "Curator supplied a product submission page",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJpvjTE1BY"
+    },
+    {
+      "author": "missztangerine",
+      "parent": "https://www.threads.com/@missztangerine/post/DeIu18GAb4l",
+      "parentText": "missztangerine\n8h\nGuna win\nNo replies yet\n\n\n\n\nReply to missztangerine...",
+      "text": "nice, boleh guna versi Windows 🙌\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_conversations\n\nKlik Download for Windows—untuk Windows 10/11 x64, dari Microsoft Store. Tak perlu akaun untuk cuba editor. Mula dengan folder to-do kecil tadi: tambah satu item, buka dalam browser dan semak hasil. Kalau guna AI cloud, perlu key sendiri dan kosnya berasingan. Kalau tersekat masa install, bagitahu langkah mana.",
+      "reason": "Beginner confirmed Windows after asking for a small project example",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJq1OXE5o_"
+    },
+    {
+      "author": "derekhsu",
+      "parent": "https://www.threads.com/@derekhsu/post/DeJJjuSFEaN",
+      "parentText": "derekhsu\n4h\n我願意試用看看  \nTranslate\nNo replies yet\n\n\n\n\nReply to derekhsu...",
+      "text": "太好了，謝謝願意試！下載在這裡：\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_conversations\n\n目前支援 Windows／Linux，下載和試用編輯器不用帳號。可以先開一個小專案，改一處、跑一下，再看 Git diff。AI 是選用的，需自己的 key 或相容本地模型；雲端 AI 費用另計。\n\n你用 Windows 還是 Linux？第一步若卡住，可以直接在這裡說。",
+      "reason": "Explicitly willing to try ADCode",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJq7N3k6KR"
+    },
+    {
+      "author": "imashishkh",
+      "parent": "https://www.threads.com/@imashishkh/post/DeJBsM2FZGa",
+      "parentText": "imashishkh\n6h\n\"What we tried and dropped\" is exactly the bit that goes missing. When you change a decision in Atlaso, the new one replaces the old one, and anything wrong you can just forget. Nice work on ADCode. Planning any project memory inside the editor?\nNo replies yet\n\n\n\n\nReply to imashishkh...",
+      "text": "yes, there’s project memory in ADCode already 😄 you can read, correct and add project decisions, conventions and preferences inside the editor. The public docs have it under “Project memory”: https://adcode.bluethenics.com/docs\n\nYour point about replaced decisions is useful—seeing why a choice was dropped can matter as much as the current one. Do Atlaso users tend to keep that history, or prefer a clean current plan?",
+      "reason": "Asked whether ADCode has project memory",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJrD79E_Ey"
+    },
+    {
+      "author": "siriusleonina",
+      "parent": "https://www.threads.com/@siriusleonina/post/DeIscJcjgDm",
+      "parentText": "siriusleonina\n9h\nEstoy empezando. Todavía estoy experimentando este mundo. Apenas cree una con Claude que ayudara a detectar patrones en una conversación y pues me la creo 🤣pero siento que debo aprender demasiado cosas por ejemplo como se descarga? Si funciona bien para que otros usen etc  \nTranslate\nNo replies yet\n\n\n\n\nReply to siriusleonina...",
+      "text": "ya hacer una primera versión es un buen comienzo 😄 Para compartirla, primero conviene probarla con datos inventados y comprobar qué hace de verdad.\n\n¿Claude te dio una página con enlace o una carpeta de archivos? Eso cambia el siguiente paso. Si tienes archivos, ADCode es nuestro editor gratis para Windows/Linux donde puedes abrirlos y hacer cambios; compartir la app con otras personas es un paso aparte. Vamos una cosa a la vez.",
+      "reason": "Beginner asked how a Claude-created prototype can be downloaded and shared",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJrFwfk5D6"
+    }
+  ],
+  "likes": [
+    {
+      "author": "grigorevmike",
+      "parent": "https://www.threads.com/@grigorevmike/post/DeJkgipDNz9"
+    },
+    {
+      "author": "emmys_mart1234",
+      "parent": "https://www.threads.com/@emmys_mart1234/post/DeJjUb9jsAT"
+    },
+    {
+      "author": "dandonmusic",
+      "parent": "https://www.threads.com/@dandonmusic/post/DeJjBWuDt9u"
+    },
+    {
+      "author": "laysheth1",
+      "parent": "https://www.threads.com/@laysheth1/post/DeJkMpImnt4"
+    },
+    {
+      "author": "appsdeveloperblog",
+      "parent": "https://www.threads.com/@appsdeveloperblog/post/DeIn2M4jNnN"
+    },
+    {
+      "author": "mr.devghost",
+      "parent": "https://www.threads.com/@mr.devghost/post/DeJPYMvE_Cy"
+    },
+    {
+      "author": "julienrenaux_",
+      "parent": "https://www.threads.com/@julienrenaux_/post/DeJgRsgm7mA"
+    },
+    {
+      "author": "mahavault.app",
+      "parent": "https://www.threads.com/@mahavault.app/post/DeJNPS-gkVg"
+    },
+    {
+      "author": "jshsinaga",
+      "parent": "https://www.threads.com/@jshsinaga/post/DeJFreykiZ2"
+    },
+    {
+      "author": "dsarychev",
+      "parent": "https://www.threads.com/@dsarychev/post/DeJmSSOG5dq"
+    },
+    {
+      "author": "rouell.official",
+      "parent": "https://www.threads.com/@rouell.official/post/DeI6UXklcHb"
+    },
+    {
+      "author": "ugamesoft",
+      "parent": "https://www.threads.com/@ugamesoft/post/DeJgoenDy53"
+    },
+    {
+      "author": "pranavxmeta",
+      "parent": "https://www.threads.com/@pranavxmeta/post/DeJE-TAEYMc"
+    },
+    {
+      "author": "zencodez",
+      "parent": "https://www.threads.com/@zencodez/post/DeIhggBiC2B"
+    },
+    {
+      "author": "derekhsu",
+      "parent": "https://www.threads.com/@derekhsu/post/DeJJjuSFEaN"
+    }
+  ],
+  "publications": [
+    {
+      "text": "a code editor that shares its ad revenue with you. yep, that’s ADCode 😄\n\nFree + open source for Windows/Linux. “Get paid to build” means 50% of attributed ad revenue credited to you; earnings vary.\n\nBring your own AI key or a compatible local model. Cloud AI costs are separate.\n\nTry it on one small bug, then tell us what felt clunky:\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct06_conversations",
+      "url": "https://www.threads.com/@adcode.dev/post/DeJpzN_ky_2"
+    }
+  ],
+  "newUsers": "unverified"
+}

@@ -1,0 +1,46 @@
+[
+  {
+    "platform": "Instagram",
+    "url": "https://www.instagram.com/adcode.dev/reel/DeHK0HqO-MV/",
+    "caption": "your AI: “almost done”\nyour coffee: already cold 😭\n\nWhat if your editor shared its ad money with you?\nThat’s the idea behind ADCode: get paid to build.\n\nFree, open-source editor. Occasional sponsored cards. 50% of the ad revenue attributed to you is credited to you. Earnings vary — there’s no fixed payout for each prompt.\n\nWindows + Linux. Bring your own AI key or compatible local model; cloud AI costs are separate.\n\nTry it on one annoying bug → link in bio.\nWhat’s your AI’s most annoying habit? 😂\n\nIllustrated workflow and example amounts. Survey figures: Stack Overflow’s 2025 Developer Survey and the smaller April 2026 pulse survey, with different respondent samples.\n\n#ADCode #AICoding #BuildInPublic",
+    "media": "marketing/ad-blip/out/ADCode-Blip-H1-1080x1920.mp4",
+    "verified": true
+  },
+  {
+    "platform": "Threads",
+    "url": "https://www.threads.com/@adcode.dev/post/DeHL2JQjdFw",
+    "caption": "AI: “almost done”\nCoffee: cold.\nDev: negotiating with a progress bar 😭\n\nADCode’s idea: get paid to build.\nFree/open-source Windows + Linux editor. 50% of attributed ad revenue is credited to you; earnings vary. Your AI key/local model; cloud AI costs separate.\n\nWhat’s the weirdest thing your AI has done mid-build?\nIllustrated workflow; sample amounts.\nhttps://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_blip",
+    "media": "marketing/ad-blip/out/ADCode-Blip-H1-1080x1920.mp4",
+    "topic": "AI Threads",
+    "verified": true
+  },
+  {
+    "platform": "X",
+    "url": "https://x.com/Bluethenics/status/2107082888944795774",
+    "caption": "AI: “almost done”\nCoffee: cold 😭\n\nADCode: get paid to build. Free/open-source Windows + Linux editor. 50% of attributed ad revenue credited to you. Earnings vary; cloud AI costs separate. Illustrated workflow/sample amounts.\n\nYour AI’s weirdest habit?\nhttps://adcode.bluethenics.com/versions?utm_source=x&utm_campaign=oct05_blip",
+    "media": "marketing/ad-blip/out/ADCode-Blip-H1-1080x1920.mp4",
+    "verified": true
+  },
+  {
+    "platform": "DevHunt",
+    "url": "https://devhunt.org/tool/adcode#comments",
+    "caption": "Small tip for anyone juggling AI tasks in ADCode: Settings → AI Agents lets you choose 1–6 agents working at once (3 by default). Extra jobs queue up. Try splitting a small feature into separate tasks, then review the changes together 😄\n\nMore agents can use your provider quota faster, so start small. Guide: https://adcode.bluethenics.com/docs/ai-parallel-agents?utm_source=devhunt&utm_campaign=oct05_parallel\n\nThe idea is still get paid to build: the editor is free/open source and credits you 50% of attributed ad revenue. Earnings vary; cloud AI costs are separate. What would you hand to a second agent first?",
+    "verified": true
+  },
+  {
+    "platform": "daily.dev",
+    "url": "https://daily.dev/posts/prwenbluf",
+    "source": "https://adcode.bluethenics.com/docs/ai-parallel-agents?utm_source=dailydev&utm_campaign=oct05_parallel",
+    "caption": null,
+    "title": "Agents working at once",
+    "verified": true
+  },
+  {
+    "platform": "Product Hunt",
+    "url": "https://www.producthunt.com/p/adcode/adcode-s-funding-tradeoff-free-editor-byok-ai-and-sponsored-cards",
+    "commentId": "5921985",
+    "caption": "Quick workflow tip for anyone trying ADCode: you can choose 1–6 agents working at once in Settings → AI Agents (3 is the default). Extra tasks queue up.\n\nTry two separate jobs on a small project — one UI change and one test — then review the combined result. More agents can hit provider limits or use your AI budget faster, so keep the first experiment tiny 😅\n\nGuide: https://adcode.bluethenics.com/docs/ai-parallel-agents?utm_source=producthunt&utm_campaign=oct05_parallel\n\nWhich matters more when you try a new editor: getting the first agent working, or keeping several agents’ changes easy to review?",
+    "type": "comment on existing public funding discussion",
+    "verified": true
+  }
+]

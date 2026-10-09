@@ -1,0 +1,7 @@
+If your code editor shows ads, you should get a cut.
+
+ADCode is a free editor with AI (bring your own key). Occasional sponsored cards fund it; 50% of that ad revenue is credited to you.
+
+Fair trade, or are ads in an IDE a dealbreaker?
+
+https://adcode.bluethenics.com

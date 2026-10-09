@@ -1,0 +1,5 @@
+Browser tab: 13, Title: "ADCode’s funding tradeoff: free editor, BYOK AI, and sponsored cards : ADCode Discussion Forums | Product Hunt", URL: "https://www.producthunt.com/p/adcode/adcode-s-funding-tradeoff-free-editor-byok-ai-and-sponsored-cards".
+The following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 292
++								323 text Add a comment
+The focused UI element is 0 AXWebArea URL: producthunt.com/p/a…, ADCode’s funding tradeoff: free editor, BYOK AI, and sponsored cards : ADCode Discussion Forums | Product Hunt

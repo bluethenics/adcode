@@ -1,0 +1,122 @@
+[
+  {
+    "path": "/@rouell.official/post/DeKJLNck_3y",
+    "text": "I'd be happy to"
+  },
+  {
+    "path": "/@rouell.official/post/DeKIsb8EU4w",
+    "text": "That would be me."
+  },
+  {
+    "path": "/@ahmedelgazarai/post/DeKEU7ukU-r",
+    "text": "I’m good for now. I’m very satisfied with my system. But keep going!!!"
+  },
+  {
+    "path": "/@yuvi_dew_108/post/DeJ91uOExS6",
+    "text": "Thanks for the thought! Right now there's no dry-run path in SendKit. The \"done\" notification is just a normal telegram call (MCP or sendkit telegram <chatId> \"done ✅\"), and it always goes to the real Telegram API. The closest thing today is testing against a throwaway bot token and a private chat of your own. A proper dry-run mode would be a good first contribution. Appreciate the ADCode offer. I'll keep it in mind if I pick up a small change"
+  },
+  {
+    "path": "/@the_pvs_sam/post/DeJ9Asok6tV",
+    "text": "Replied to you"
+  },
+  {
+    "path": "/@sofiamariexplores/post/DeJ8SBXGyhX",
+    "text": "that’s super cool! im on a MacBook! glad to hear that it’s a very workable first target bc im known to dream too big and then get humbled quickly and just quit very early on. who is your target audience for your product/service? and to answer your question, im planning more than this but for now I want the first version needs to solve one specific decision for the user, simply and quickly. so building an engine behind the scenes that allows them to do so"
+  },
+  {
+    "path": "/@_karenlewis/post/DeJ8HnylqKm",
+    "text": "yes, It has revisions control … not the issue. Just venting to the void . 😂"
+  },
+  {
+    "path": "/@the_pvs_sam/post/DeJ8CnoE6VK",
+    "text": "Fixed and verified. The button now increments correctly: 0 → 1 → 2 → 3 on successive clicks. The workflow was straightforward overall; the slightly clunky part was that the HTML file needed to be named index.html for the local preview to serve it directly. Once renamed, the preview worked as expected."
+  },
+  {
+    "path": "/@the_pvs_sam/post/DeJ74MpE13q",
+    "text": "Completed the small button/event fix test. The sample now increments correctly from 0 → 1 → 2 → 3 on successive clicks, and I verified it in the ADCode local preview."
+  },
+  {
+    "path": "/@robertbstowe/post/DeJ7hFAFrW3",
+    "text": "I don't have a breakdown by category, so this is a guess, but boundaries. Tickets rarely say what happens at the edge of a range or on an empty input, and a model fills that in without flagging it. The useful part is that one input where the two versions disagree turns a vague review into a yes or no."
+  },
+  {
+    "path": "/@thejornadia/post/DeJ49NjDGdb",
+    "text": "Interesting, Jornadia is a no code platform, have a try if you want.\nI think seeing the app doing the thing, agents are very good in performing tests and even take control of browsers for “manual testing”.\nSoon provided the bounded cost agents can have sub agents with tasks to maintain the repo and update features leaving the human as a manager.\nWill not work for all applications of course"
+  },
+  {
+    "path": "/@the_pvs_sam/post/DeJ3Nmek3Fw",
+    "text": "Got it, thanks for clarifying! 👍 I understand. I’ll test ADCode and the workflow, then share my feedback and experience."
+  },
+  {
+    "path": "/@m4npreet006/post/DeJ27teD8ps",
+    "text": "Lets talk in dm"
+  },
+  {
+    "path": "/@m4npreet006/post/DeJ26UZDybe",
+    "text": "Yeah I can"
+  },
+  {
+    "path": "/@m4npreet006/post/DeJ2oBlD5S-",
+    "text": "It's amazing do u want to promote it ?"
+  },
+  {
+    "path": "/@amosisaiahtizhe/post/DeJz_F5DvSu",
+    "text": "To change a button color 😂😂\nThat will be very funny right?\nBut a simple API to fetch user data is ok, to test it with."
+  },
+  {
+    "path": "/@siriusleonina/post/DeJz4gtoIyh",
+    "text": "Me dio un enlace"
+  },
+  {
+    "path": "/@kanifatihturhan/post/DeJzvPADSd6",
+    "text": "The core rule is: the AI never gets delete permissions. It can only propose a fix and wait for human approval. To prove content survives, I run a simple regression: seed a known post > trigger a fix scenario > verify the post is still there and unchanged. It’s not a theoretical rule, it’s enforced both in the prompt and at the database level. Still early, but so far zero incidents. Appreciate the ADCode suggestion might try a small admin fix there later."
+  },
+  {
+    "path": "/@the_pvs_sam/post/DeJzpMsEybq",
+    "text": "Thanks! Before I start, just to clarify — is this test task paid, or is it an unpaid evaluation?"
+  },
+  {
+    "path": "/@the_pvs_sam/post/DeJzcemk5W8",
+    "text": "Got it 👍 I’ll test the one-file example in ADCode, fix the click behavior to 0 → 1 → 2, and share my workflow feedback after testing."
+  },
+  {
+    "path": "/@sweber.dev/post/DeJylXKIKet",
+    "text": "Yes: every package has a live demo on packages.sweber.dev (e.g. /permito/demo), and Permito ships Next.js and Vite example apps in its repo. Good luck with ADCode! Feel free to try it on those yourself."
+  },
+  {
+    "path": "/@israblass/post/DeJyd06lgIZ",
+    "text": "Genial, planes de sacar una edicion para Mac?"
+  },
+  {
+    "path": "/@uptodivyansh/post/DeJxbq_kwYd",
+    "text": "The Opus default switch. That's the biggest hidden leak for most people. Agree on bounded tasks with a clear done check, that's the real fix for runaway agents"
+  },
+  {
+    "path": "/@the_pvs_sam/post/DeJxINhEwPh",
+    "text": "Sure, I’m interested! I’d be happy to try one small fix. Please share the sample repo and the task details. I’ll test it and share my feedback"
+  },
+  {
+    "path": "/@amosisaiahtizhe/post/DeJwsdZDpXZ",
+    "text": "Honesly, the agent wont be touching production code, so it can't break existing features."
+  },
+  {
+    "path": "/@derekhsu/post/DeJvnf3lJkg",
+    "text": "慘了 哈哈 你是 agent 吧，我的是 Mac 要等你們審核通過囉"
+  },
+  {
+    "path": "/@nathankluglift/post/DeJvbTYEQZm",
+    "text": "That is cool"
+  },
+  {
+    "path": "/@playtalk.kr/post/DeJtezUCSAF",
+    "text": "\"누구와 무슨 게임을 하는지 한 장면\" 좋은 표현이네요. 재방문은 지금 전체 기준으로만 보고 있고, 게임별로 끝낸 사람이 돌아오는지는 아직 못 쪼개봤어요. 그걸 따로 봐야 어떤 게임이 사람을 붙잡는지 알 수 있겠네요."
+  },
+  {
+    "path": "/@grigorevmike/post/DeJtSLkDNDa",
+    "text": "Got it — I understand the limitations. No promises, but I’ve bookmarked it and may give it a try when I have a suitable task."
+  },
+  {
+    "path": "/@emmys_mart1234/post/DeJtG4oji7P",
+    "text": "Nice👍"
+  }
+]

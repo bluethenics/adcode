@@ -1,0 +1,128 @@
+[
+  {
+    "parent": "https://www.threads.com/@adil__dev/post/DdkoUpmE-Qh",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE9eBkE3jF",
+    "context": "Requested a VS Code alternative; explained ADCode and asked for must-have feature.",
+    "campaign": "oct04_editor_request",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@ciptadwipajayaa/post/DeEDk8Ck2mg",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE9m7wkwXg",
+    "context": "Replied in Indonesian about switching costs; disclosed free editor, provider/local model choice and variable revenue share.",
+    "campaign": "None",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@darshautomates/post/DeD4uRuEYPV",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE9_zuk3lK",
+    "context": "Asked a coding-tool maker about diff preview and approving file changes; disclosed that we build ADCode. No sales link.",
+    "campaign": "None",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@apoetixart/post/DeEzWsSiYrR",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE-PQkE0cc",
+    "context": "Joined a discussion about handwritten backend and generated frontend, referring to the author’s programming-language comment; asked about frontend stack. No pitch or link.",
+    "campaign": "None",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@thexraydev/post/DeE4Q1hk1Vc",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE-aCnE0hg",
+    "context": "Answered an explicit solo-founder invitation with the revenue-share idea, platform/model limits, a tracked download link and roadmap question.",
+    "campaign": "oct04_solo_builder",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@keritans/post/DeE2M7OkS2f",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE-h0fkyhX",
+    "context": "Suggested sharing a real AI task, model/tools, accepted changes, cost and fixes. No promotion or link.",
+    "campaign": "None",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@sightofanshul/post/DeE7sNEk1LY",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE-vwTk1MU",
+    "context": "Asked a solo maker whether building or distribution is the main bottleneck, acknowledging current ADCode onboarding work. No link.",
+    "campaign": "None",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@vrbharat.tech/post/DeE9Dg4ic1B",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE-3dak5nJ",
+    "context": "Asked whether a three-stack comparison included equivalent auth, database and deployment scope, and suggested recording fix time. No pitch or link.",
+    "campaign": "None",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@bored_akki/post/DeEV_GGicxP",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE--QpE4xY",
+    "context": "Replied to a coding joke and asked about the feature added to an older Tkinter/PIL project after reading the author’s replies. No pitch or link.",
+    "campaign": "None",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@viclev.dev/post/DeE-l3SiFv6",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE_QOKE6HL",
+    "context": "Followed up on a real response describing a memories-map app, suggested a small first flow, asked OS and offered a tracked free-editor trial.",
+    "campaign": "oct04_memories_app",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@apoetixart/post/DeE-o-FCQrW",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE_Y09kyRQ",
+    "context": "Followed up after the author answered HTML/CSS; offered a small-page trial, explained variable ad-revenue credits and model choice, and asked OS.",
+    "campaign": "oct04_html_css",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@romn.dev/post/DdtQqNDjTfD",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE_qPPk6Od",
+    "context": "Answered a founder’s question about weaknesses with current ADCode marketing/onboarding work and the ad-funded editor idea; asked about their product. No link.",
+    "campaign": "None",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@_qavro/post/DeEpuexkqDF",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeE_3ogk09A",
+    "context": "Responded to an explicit promotion invitation with the Get paid to build proposition, variable revenue share, cloud AI cost clarification and tracked download link.",
+    "campaign": "oct04_product_invite",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@tribefreelance/post/DeDNHM_FUQM",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFABbKEy0L",
+    "context": "Introduced the ad-funded editor to an explicitly invited developer/freelancer community, asked their editor/stack and supplied a tracked small-project trial link.",
+    "campaign": "oct04_freelance_devs",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@mrlagace/post/DeE5VbHm2qD",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFAOdBE6ab",
+    "context": "Welcomed a Python learner, suggested a small practical script and asked what led them to Python. No pitch or link.",
+    "campaign": "None",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@apoetixart/post/DeE_tYvCd39",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFAtATEwqh",
+    "context": "Clarified that ADCode does not run on Android after learning the developer has no PC; asked which mobile editor they use. No new sales link.",
+    "campaign": "None",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@bored_akki/post/DeE_zfLiSjW",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFA2S-kzer",
+    "context": "Offered Python virtual-environment/dependency guidance verified against the official PyPA guide, linked that guide, and asked the first error. No product pitch.",
+    "campaign": "None",
+    "liked": true
+  },
+  {
+    "parent": "https://www.threads.com/@vrbharat.tech/post/DeE_aunCV4H",
+    "reply": "https://www.threads.com/@adcode.dev/post/DeFA_-XE7je",
+    "context": "Acknowledged the creator’s detailed stack comparison and asked whether fix time was included in the reported ship time. No pitch or link.",
+    "campaign": "None",
+    "liked": true
+  }
+]

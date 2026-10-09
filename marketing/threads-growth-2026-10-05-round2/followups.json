@@ -1,0 +1,82 @@
+[
+  {
+    "author": "siriusleonina",
+    "parent": "https://www.threads.com/@siriusleonina/post/DeIi6nvjtLD",
+    "reason": "Follow up on a real mini-app idea with a small prototype and a compatible ADCode download invitation; do not ask for precise home location.",
+    "parentText": "siriusleonina\n3m\nTengo otras ideas cómo buscar lugares donde vendan ofertas promociones combos descuentos cerca donde vivo y así  \nTranslate\nNo replies yet\n\n\n\n\nReply to siriusleonina...",
+    "text": "la de ofertas cercanas tiene un primer prototipo bastante claro 😄 empieza con 3 ofertas inventadas: tienda, descuento y fecha. Que puedas filtrar y abrir una ficha. Si estás en Windows/Linux, puedes hacerlo en ADCode: https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_round2\n¿Qué sistema usas?",
+    "url": "https://www.threads.com/@adcode.dev/post/DeIjTE_kwRp"
+  },
+  {
+    "author": "jamezdavy",
+    "parent": "https://www.threads.com/@jamezdavy/post/DeIi272iMFw",
+    "reason": "Acknowledge the scanner author’s correction and invite a small ADCode trial while asking for operating system fit.",
+    "parentText": "jamezdavy\n3m\nGood question. It scans the JavaScript that loads with the page, so page-load errors yes. It doesn't click through flows, it analyses the code rather than running it in a live browser.\nNo replies yet\n\n\n\n\nReply to jamezdavy...",
+    "text": "got it—code analysis, not a browser clicking through the app. That distinction is useful 😄 if you’re on Windows/Linux, would you be up for trying ADCode on one little scanner fix? Open the repo, run your normal check in the terminal, then review the diff. Which OS are you on?",
+    "url": "https://www.threads.com/@adcode.dev/post/DeIjUcqk_hl"
+  },
+  {
+    "author": "jamezdavy",
+    "parent": "https://www.threads.com/@jamezdavy/post/DeIjvoACLRw",
+    "reason": "Respect the developer’s stated lack of fit and close the conversation without another pitch.",
+    "parentText": "jamezdavy\n9m\nI'm on Windows actually, but I don't use GitHub or the terminal for my stuff, everything's saved on an encrypted OneDrive. So probably not the right fit for me, but good luck with it though!\n1\nNo replies yet\nView activity\n\n\n\n\nReply to jamezdavy...",
+    "text": "fair enough 😄 thanks for explaining the setup, and for clearing up how the scanner works. Hope the next release goes well!",
+    "url": "https://www.threads.com/@adcode.dev/post/DeIk3dDk-zd"
+  },
+  {
+    "author": "ifdouglas",
+    "parent": "https://www.threads.com/@ifdouglas/post/DeIini-jmvU",
+    "reason": "Follow up on the actual game engine and clarify a small source-edit trial without claiming native Godot integration.",
+    "parentText": "ifdouglas\n19m\nGodot Engine\n1\nNo replies yet\nView activity\n\n\n\n\nReply to ifdouglas...",
+    "text": "boa 😄 dá pra começar por uma mudança pequena no script, depois testar a animação no Godot. Se você usa Windows/Linux, pode abrir a pasta do projeto no ADCode e experimentar esse fluxo: https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_round2\nQual sistema você usa?",
+    "url": "https://www.threads.com/@adcode.dev/post/DeIk485E0t0"
+  },
+  {
+    "author": "clairesecures",
+    "parent": "https://www.threads.com/@clairesecures/post/DeIjY42mXMr",
+    "reason": "Continue a real conversation about keeping monitoring simple; ask about the builder’s coding workflow without repeating the product pitch.",
+    "parentText": "clairesecures\n13m\nI stick to checking the string and status codes. Simulating the full flow requires handling auth sessions and database state, which gets heavy fast. If you can't keep it simple, the alert dies with the complexity.\n1\nNo replies yet\nView activity\n\n\n\n\nReply to clairesecures...",
+    "text": "makes sense 😄 keeping the alert easy to maintain matters too. A fuller flow check could stay separate in the test setup. Are you writing the checks in a local project, or configuring them directly in a monitoring service?",
+    "url": "https://www.threads.com/@adcode.dev/post/DeIk6VpE6m1"
+  },
+  {
+    "author": "missztangerine",
+    "parent": "https://www.threads.com/@missztangerine/post/DeIld7jAQLu",
+    "reason": "Interested developer asks for a concrete small build example",
+    "parentText": "missztangerine\n6m\nBuild kecil contoh?\nNo replies yet\n\n\n\n\nReply to missztangerine...",
+    "text": "contohnya mini to-do list dalam satu fail HTML 😄 tiga benda saja: tambah tugas, tanda siap, buang tugas. Buka folder dalam ADCode, buat satu fungsi dulu, kemudian uji dalam browser.\n\nWindows/Linux: https://adcode.bluethenics.com/versions?utm_source=threads&utm_campaign=oct05_round2\n\nTak perlu akaun untuk cuba editor. Guna Windows atau Linux?",
+    "url": "https://www.threads.com/@adcode.dev/post/DeImPlQk_c0"
+  },
+  {
+    "author": "ifdouglas",
+    "parent": "https://www.threads.com/@ifdouglas/post/DeIlpnEjvsL",
+    "reason": "Developer declines; close respectfully without further promotion",
+    "parentText": "ifdouglas\n5m\nNão, obrigado! Já tenho um fluxo bem enxuto de desenvolvimento e teste por aqui.\nSe quiser acompanhar estou postando mais detalhado no meu canal: youtube.com/@ifdo…  \nTranslate\nNo replies yet\n\n\n\n\nReply to ifdouglas...",
+    "text": "tranquilo, obrigado por responder! Bom desenvolvimento por aí 😄",
+    "url": "https://www.threads.com/@adcode.dev/post/DeImRIdkw0i"
+  },
+  {
+    "author": "appsdeveloperblog",
+    "parent": "https://www.threads.com/@appsdeveloperblog/post/DeIlZ6fjKhY",
+    "reason": "Tool curator offers another discovery channel; clarify desktop eligibility",
+    "parentText": "appsdeveloperblog\n7m\nWould you like to share it on SaaS Hive? 🤔\nNo replies yet\n\n\n\n\nReply to appsdeveloperblog...",
+    "text": "does SaaS Hive include free, open-source desktop tools too? ADCode is a Windows/Linux editor rather than a hosted SaaS. If that fits, what details do you need for a listing? 😄",
+    "url": "https://www.threads.com/@adcode.dev/post/DeImShrk95r"
+  },
+  {
+    "author": "appsdeveloperblog",
+    "parent": "https://www.threads.com/@appsdeveloperblog/post/DeImz0yDBU-",
+    "reason": "Curator confirms free desktop products are eligible; request a submission guide",
+    "parentText": "appsdeveloperblog\n6m\nYes. Yoy can publish a free product as well. To publish yoy need to provide quite a bit: name, description, screenshots, the problem it solves and how, and etc. it becomes a very informative product pages that serves as another qualified source of information for AI crawlers and users to learn about your app. It is optimized for AI discoverability and has a good structure to learn more about your app features.\nNo replies yet\n\n\n\n\nReply to appsdeveloperblog...",
+    "text": "thanks, that sounds useful 😄 The problem we focus on is having code, terminal, Git and optional AI in one free desktop editor. We have public docs and a download page to support the description.\n\nCould you link the submission page or guide? I’d want the listing to make Windows/Linux support, separate cloud AI costs and variable ad-share earnings clear.",
+    "url": "https://www.threads.com/@adcode.dev/post/DeInlQyE3MT"
+  },
+  {
+    "author": "clairesecures",
+    "parent": "https://www.threads.com/@clairesecures/post/DeIlqt9Gbzu",
+    "reason": "Acknowledge developer’s workflow explanation and close naturally",
+    "parentText": "clairesecures\n16m\nI configure them directly in the monitoring service. Keeping the logic external means my local dev environment stays light, and I don’t have to deploy test code just to change an alert threshold.\nNo replies yet\n\n\n\n\nReply to clairesecures...",
+    "text": "makes sense—change the threshold where the monitor lives, without redeploying the app just for that. Thanks for explaining the workflow 😄",
+    "url": "https://www.threads.com/@adcode.dev/post/DeInmzYkzaJ"
+  }
+]
