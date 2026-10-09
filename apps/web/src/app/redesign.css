@@ -113,6 +113,22 @@ button, input, select, textarea { font-family: inherit; }
 .app-showcase { margin: 0; scroll-margin-top: 96px; }
 .showcase-stage { padding: clamp(20px, 4.5vw, 68px); border-radius: 16px; overflow: hidden; background: radial-gradient(ellipse at 12% 10%, light-dark(#d5ddef, #25334c), transparent 60%), radial-gradient(ellipse at 85% 100%, light-dark(#c7cadc, #393344), transparent 65%), light-dark(#e2e5eb, #23252b); border: 1px solid var(--hairline); }
 .app-showcase figcaption { display: flex; justify-content: space-between; gap: 20px; padding: 18px 0; color: var(--faint); font-size: 11px; }
+/* Partners: one quiet row under the recording, label then marks, linked to each partner. */
+.partners { display: flex; align-items: center; gap: 18px 28px; flex-wrap: wrap; padding: 4px 0 28px; }
+.partners-heading { margin: 0; color: var(--faint); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
+.partners-list { display: flex; align-items: center; gap: 12px 32px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
+.partner { display: inline-flex; align-items: center; gap: 10px; min-height: 36px; color: var(--muted); font-size: 15px; font-weight: 600; letter-spacing: -0.01em; text-decoration: none; transition: color 140ms ease; }
+.partner:hover { color: var(--text); }
+.partner:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; border-radius: 6px; }
+.partner-logo { display: block; height: 28px; width: auto; max-width: 140px; object-fit: contain; }
+.partner-logo-dark { display: none; }
+:root[data-theme="dark"] .partner-logo-light { display: none; }
+:root[data-theme="dark"] .partner-logo-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .partner-logo-light { display: none; }
+  :root:not([data-theme="light"]) .partner-logo-dark { display: block; }
+}
+@media (max-width: 640px) { .partners { gap: 10px 20px; padding-bottom: 18px; } .partner { font-size: 14px; } }
 .showcase-images { overflow: hidden; border-radius: 12px; box-shadow: 0 24px 70px #0003; }
 .showcase-images img { width: 100%; height: 100%; object-fit: contain; background: var(--card); }
 .showcase-image-dark { display: none; }
