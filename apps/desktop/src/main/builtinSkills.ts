@@ -30,8 +30,16 @@ export interface BuiltinSkill {
   readonly resources: readonly string[];
 }
 
-function frontmatter(text: string, key: string): string {
-  return new RegExp(`^${key}:\\s*(.+)$`, "m").exec(/^---\n([\s\S]*?)\n---/.exec(text)?.[1] ?? "")?.[1]?.trim() ?? "";
+/**
+ * One field of a skill's front matter.
+ *
+ * CRLF and a leading BOM are accepted, as `assistantSkills.ts` accepts them: a Windows
+ * checkout with `core.autocrlf` hands these files over with CRLF, and an LF-only pattern
+ * then found no front matter at all - every description came back empty.
+ */
+export function frontmatter(text: string, key: string): string {
+  const block = /^﻿?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1] ?? "";
+  return new RegExp(`^${key}:[ \\t]*(.+)$`, "m").exec(block)?.[1]?.trim() ?? "";
 }
 
 export const BUILTIN_SKILLS: readonly BuiltinSkill[] = Object.keys(FILES)

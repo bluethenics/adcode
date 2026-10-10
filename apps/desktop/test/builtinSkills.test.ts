@@ -4,6 +4,7 @@ import {
   BUILTIN_SKILL_TOOL_NAME,
   BUILTIN_SKILLS,
   builtinSkillGuidance,
+  frontmatter,
   readBuiltinSkill,
   withBuiltinSkills,
 } from "../src/main/builtinSkills.ts";
@@ -17,6 +18,14 @@ describe("the bundled skills", () => {
       "redesign-existing-projects",
     ]);
     for (const skill of BUILTIN_SKILLS) expect(skill.description.length).toBeGreaterThan(20);
+  });
+
+  it("reads a description from a Windows checkout, with CRLF line endings and a BOM", () => {
+    const lf = "---\nname: a\ndescription: Design guidance for interfaces.\n---\n\n# Body\n";
+    expect(frontmatter(lf, "description")).toBe("Design guidance for interfaces.");
+    expect(frontmatter(lf.replaceAll("\n", "\r\n"), "description")).toBe("Design guidance for interfaces.");
+    expect(frontmatter(`﻿${lf.replaceAll("\n", "\r\n")}`, "description")).toBe("Design guidance for interfaces.");
+    expect(frontmatter("# No front matter\ndescription: not this\n", "description")).toBe("");
   });
 
   it("keeps every file under the 64 KB a skill may be, so a model never loads a whole book", () => {
