@@ -4361,9 +4361,15 @@ body { background: var(--surface); }
 .campaign-inline-body dl { margin: 18px 0 0; display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
 .campaign-inline-body dl div { padding: 13px; border-radius: 10px; background: rgba(255,255,255,.04); }
 .campaign-inline-body dt { color: var(--faint); font-size: 10px; text-transform: uppercase; }.campaign-inline-body dd { margin: 5px 0 0; color: var(--text); }
+.budget-move { margin: 20px 0 0; padding-top: 18px; border-top: 1px solid var(--hairline); }
+.budget-move h4 { margin: 0 0 12px; color: var(--text); font-size: 15px; }
+.budget-move-fields { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 0 14px; }
+.budget-move .field-hint { display: block; margin: 0 0 12px; }
+.budget-move .notice { margin-top: 12px; }
 
 @media (max-width: 700px) {
   .campaign-inline > summary { grid-template-columns: 1fr auto; }.campaign-inline > summary .row-num { display: none; }.campaign-inline-body dl { grid-template-columns: 1fr; }
+  .budget-move-fields { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 900px) {

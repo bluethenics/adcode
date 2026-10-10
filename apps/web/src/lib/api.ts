@@ -42,6 +42,8 @@ export type ApiError =
   | "provider-unavailable"
   | "not-eligible"
   | "invalid-amount"
+  | "exceeds-unspent"
+  | "budget-limit"
   | "offline"
   | "bad-request"
   | "server-error";
@@ -63,6 +65,8 @@ const KNOWN: ReadonlySet<string> = new Set<ApiError>([
   "last-admin",
   "not-eligible",
   "invalid-amount",
+  "exceeds-unspent",
+  "budget-limit",
 ]);
 
 function classify(status: number, body: unknown): ApiError {
@@ -96,6 +100,8 @@ export const MESSAGES: Record<ApiError, string> = {
   "not-eligible":
     "This account can't withdraw yet. The checklist above shows which condition isn't met.",
   "invalid-amount": "That amount can't be paid out. Use whole cents, at or above the minimum.",
+  "exceeds-unspent": "That's more than the campaign has left unspent. Credits it has already spent can't move.",
+  "budget-limit": "That would take the other campaign past the largest budget a campaign can carry.",
   "provider-unavailable": "The payment provider didn't respond. Try again shortly.",
   offline: "Couldn't reach the server. Check your connection.",
   "bad-request": "Something in that form wasn't accepted. Check the fields and retry.",
@@ -160,6 +166,13 @@ export interface CampaignView {
   serves: number;
   impressions: number;
   clicks: number;
+}
+
+/** Both campaigns after a budget move, and the balance it changed. */
+export interface BudgetMoveView {
+  advertiser: AdvertiserView;
+  from: CampaignView;
+  to: CampaignView;
 }
 
 export interface CreativeView {

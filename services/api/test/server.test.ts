@@ -340,6 +340,26 @@ describe("portal", () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it("moves unspent budget from one campaign to another", async () => {
+    await post("/v1/portal/advertiser", { name: "Acme" });
+    const a = (await (await post("/v1/portal/campaigns", campaign)).json()) as Record<string, string>;
+    const b = (await (await post("/v1/portal/campaigns", { ...campaign, name: "Go" })).json()) as Record<string, string>;
+    const move = (amountMicros: unknown, to: unknown = b["campaignId"]) =>
+      post(`/v1/portal/campaigns/${a["campaignId"]}/move-budget`, { toCampaignId: to, amountMicros });
+
+    const res = await move("20000000");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, Record<string, string>>;
+    expect(body["from"]?.["budgetMicros"]).toBe("30000000");
+    expect(body["to"]?.["budgetMicros"]).toBe("70000000");
+    expect(body["advertiser"]?.["availableMicros"]).toBe("0");
+
+    expect((await move("30000001")).status).toBe(409);
+    expect((await move("1.5")).status).toBe(400);
+    expect((await move("1", a["campaignId"])).status).toBe(400);
+    expect((await move("1", "camp-nobody")).status).toBe(404);
+  });
 });
 
 describe("payment webhook", () => {

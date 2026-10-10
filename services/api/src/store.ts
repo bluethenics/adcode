@@ -74,6 +74,20 @@ export type CampaignCommitmentResult =
   | { ok: true; campaign: CampaignRecord }
   | { ok: false; reason: "not-found" | "insufficient-funds" | "invalid-state" };
 
+/** Why a budget move between two campaigns was refused; see `campaignBudget.ts`. */
+export type CampaignBudgetMoveRefusal =
+  | "not-found"
+  | "invalid-state"
+  | "insufficient-funds"
+  /** More than the source campaign has left unspent. */
+  | "exceeds-unspent"
+  /** It would take the destination past the largest budget a campaign may carry. */
+  | "budget-limit";
+
+export type CampaignBudgetMoveResult =
+  | { ok: true; advertiser: AdvertiserRecord; from: CampaignRecord; to: CampaignRecord }
+  | { ok: false; reason: CampaignBudgetMoveRefusal };
+
 export interface CreativeRecord {
   creativeId: string;
   campaignId: string;
@@ -704,6 +718,18 @@ export interface Store {
     next: "active" | "paused" | "ended";
     spentMicros: bigint;
   }): Promise<CampaignCommitmentResult>;
+  /**
+   * Atomically moves unspent budget from one of an advertiser's campaigns to another and
+   * carries the reservation with it (`planBudgetMove`). The source's spend is read inside
+   * the same transaction, so a receipt settling mid-move cannot leave it below its spend.
+   */
+  moveCampaignBudget(input: {
+    advertiserId: string;
+    fromCampaignId: string;
+    toCampaignId: string;
+    amountMicros: bigint;
+    maxBudgetMicros: bigint;
+  }): Promise<CampaignBudgetMoveResult>;
 
   /**
    * Creative artwork, addressed by key.

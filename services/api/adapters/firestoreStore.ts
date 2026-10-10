@@ -11,6 +11,7 @@
  * strings and converted at the boundary. That costs a little space and buys exactness.
  */
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "../src/ledger.ts";
+import { planBudgetMove } from "../src/campaignBudget.ts";
 import { utcDay } from "../src/day.ts";
 import { countDevelopers, sightings, summarizeGrowth, type ActivityRow, type MilestoneRow, type PresenceRow } from "../src/growth.ts";
 import {
@@ -368,6 +369,59 @@ export function createFirestoreStore(injected?: Firestore, injectedPayoutKey?: s
         tx.update(advertiserRef, { reservedMicros: fromMicros(reservedMicros) });
         tx.update(campaignRef, { status: next });
         return { ok: true, campaign: updated };
+      });
+    },
+
+    async moveCampaignBudget({ advertiserId, fromCampaignId, toCampaignId, amountMicros, maxBudgetMicros }) {
+      const database = await lazy();
+      const advertiserRef = database.collection("advertisers").doc(advertiserId);
+      const fromRef = database.collection("campaigns").doc(fromCampaignId);
+      const toRef = database.collection("campaigns").doc(toCampaignId);
+      const campaignFrom = (id: string, raw: Record<string, unknown>): CampaignRecord => ({
+        ...(raw as Omit<CampaignRecord, "cpmMicros" | "budgetMicros">),
+        campaignId: id,
+        cpmMicros: toMicros(raw["cpmMicros"]),
+        budgetMicros: toMicros(raw["budgetMicros"]),
+      });
+      return database.runTransaction(async (tx) => {
+        // Every spend shard is read in the transaction, so a receipt settling into any of
+        // them while this runs makes Firestore retry the move against the new total.
+        const [advertiserSnap, fromSnap, toSnap, shards] = await Promise.all([
+          tx.get(advertiserRef),
+          tx.get(fromRef),
+          tx.get(toRef),
+          tx.get(fromRef.collection("spendShards")),
+        ]);
+        if (!advertiserSnap.exists || !fromSnap.exists || !toSnap.exists) {
+          return { ok: false, reason: "not-found" } as const;
+        }
+        const advertiserRaw = advertiserSnap.data() ?? {};
+        const advertiser: AdvertiserRecord = {
+          ...(advertiserRaw as AdvertiserRecord),
+          fundedMicros: toMicros(advertiserRaw["fundedMicros"]),
+          reservedMicros: toMicros(advertiserRaw["reservedMicros"]),
+        };
+        const from = campaignFrom(fromCampaignId, fromSnap.data() ?? {});
+        const to = campaignFrom(toCampaignId, toSnap.data() ?? {});
+        const plan = planBudgetMove({
+          advertiser,
+          from,
+          to,
+          fromSpentMicros: shards.docs.reduce((total, d) => total + toMicros(d.data()["micros"]), 0n),
+          amountMicros,
+          maxBudgetMicros,
+        });
+        if (!plan.ok) return plan;
+
+        tx.update(advertiserRef, { reservedMicros: fromMicros(plan.reservedMicros) });
+        tx.update(fromRef, { budgetMicros: fromMicros(plan.fromBudgetMicros) });
+        tx.update(toRef, { budgetMicros: fromMicros(plan.toBudgetMicros) });
+        return {
+          ok: true,
+          advertiser: { ...advertiser, reservedMicros: plan.reservedMicros },
+          from: { ...from, budgetMicros: plan.fromBudgetMicros },
+          to: { ...to, budgetMicros: plan.toBudgetMicros },
+        } as const;
       });
     },
 

@@ -14,6 +14,7 @@
 import {
   ADVERTISER_LIMITS,
   LIMITS,
+  type BudgetMoveBody,
   type CampaignBody,
   type CreateAdvertiserBody,
   type CreativeBody,
@@ -44,7 +45,11 @@ export type AdvertiserError =
   | "not-found"
   | "insufficient-funds"
   | "no-approved-creative"
-  | "invalid-state";
+  | "invalid-state"
+  /** A budget move asked for more than the source campaign has left unspent. */
+  | "exceeds-unspent"
+  /** A budget move would take the destination past the largest budget allowed. */
+  | "budget-limit";
 
 export type Outcome<T> = { ok: true; value: T } | { ok: false; error: AdvertiserError };
 
@@ -240,6 +245,51 @@ export async function setCampaignStatus(
   const updated = transition.campaign;
 
   return ok(campaignView(updated, await deps.store.statsForCampaign(campaignId)));
+}
+
+/** Both campaigns after a move, and the balance it changed. */
+export interface BudgetMoveView {
+  advertiser: AdvertiserView;
+  from: CampaignView;
+  to: CampaignView;
+}
+
+/**
+ * Moves unspent budget from one of this advertiser's campaigns to another.
+ *
+ * For the advertiser who put most of their credits behind one campaign and wants some of
+ * it working elsewhere, without ending the first. The rules, including how the move
+ * carries an active campaign's held credits, are `planBudgetMove`'s; the store applies
+ * them atomically against the spend as it stands at that moment.
+ */
+export async function moveCampaignBudget(
+  deps: AdvertiserDeps,
+  uid: string,
+  body: BudgetMoveBody,
+): Promise<Outcome<BudgetMoveView>> {
+  const from = await ownedCampaign(deps, uid, body.fromCampaignId);
+  if (!from.ok) return from;
+  const to = await ownedCampaign(deps, uid, body.toCampaignId);
+  if (!to.ok) return to;
+
+  const moved = await deps.store.moveCampaignBudget({
+    advertiserId: from.value.advertiser.advertiserId,
+    fromCampaignId: body.fromCampaignId,
+    toCampaignId: body.toCampaignId,
+    amountMicros: BigInt(body.amountMicros),
+    maxBudgetMicros: ADVERTISER_LIMITS.maxBudgetMicros,
+  });
+  if (!moved.ok) return fail(moved.reason);
+
+  const [fromStats, toStats] = await Promise.all([
+    deps.store.statsForCampaign(body.fromCampaignId),
+    deps.store.statsForCampaign(body.toCampaignId),
+  ]);
+  return ok({
+    advertiser: advertiserView(moved.advertiser),
+    from: campaignView(moved.from, fromStats),
+    to: campaignView(moved.to, toStats),
+  });
 }
 
 /* ── Creatives ──────────────────────────────────────────────────────────── */

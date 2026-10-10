@@ -120,6 +120,7 @@ import {
 import { DEFAULT_REFERRAL_CONFIG, type AttributionRecord } from "../src/store.ts";
 import type {
   ActivityDay,
+  CampaignBudgetMoveRefusal,
   CampaignStats,
   EntryPage,
   GrowthStats,
@@ -485,6 +486,36 @@ export function createSupabaseStore(options: SupabaseStoreOptions = {}): Store {
       return row === null
         ? { ok: false, reason: "not-found" }
         : { ok: true, campaign: toCampaign(row) };
+    },
+
+    async moveCampaignBudget(input) {
+      // The function locks the advertiser, both campaigns and the source's spend row, and
+      // applies `planBudgetMove` in SQL - see 20261009120000_campaign_budget_moves.sql.
+      const result = await scalar<{ ok: boolean; reason?: CampaignBudgetMoveRefusal }>(
+        "moveCampaignBudget",
+        (db) =>
+          db.rpc("move_campaign_budget", {
+            p_advertiser_id: input.advertiserId,
+            p_from_campaign_id: input.fromCampaignId,
+            p_to_campaign_id: input.toCampaignId,
+            p_amount_micros: fromMicros(input.amountMicros),
+            p_max_budget_micros: fromMicros(input.maxBudgetMicros),
+          }),
+      );
+      if (!result.ok) return { ok: false, reason: result.reason ?? "invalid-state" };
+      const [advertiser, rows] = await Promise.all([
+        maybe<AdvertiserRow>("moveCampaignBudget.advertiser", (db) =>
+          db.from("advertisers").select(ADVERTISER_COLS).eq("advertiser_id", input.advertiserId).maybeSingle(),
+        ),
+        many<CampaignRow>("moveCampaignBudget.read", (db) =>
+          db.from("campaigns").select(CAMPAIGN_COLS).in("campaign_id", [input.fromCampaignId, input.toCampaignId]),
+        ),
+      ]);
+      const from = rows.find((row) => row.campaign_id === input.fromCampaignId);
+      const to = rows.find((row) => row.campaign_id === input.toCampaignId);
+      return advertiser === null || from === undefined || to === undefined
+        ? { ok: false, reason: "not-found" }
+        : { ok: true, advertiser: toAdvertiser(advertiser), from: toCampaign(from), to: toCampaign(to) };
     },
 
     /*

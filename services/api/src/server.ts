@@ -82,6 +82,7 @@ import {
   listCampaigns,
   listCreatives,
   setCampaignStatus,
+  moveCampaignBudget,
   PORTAL_LIMITS,
   type AdvertiserError,
   type Outcome,
@@ -92,6 +93,7 @@ import {
   parseActivity,
   parseAdjustment,
   parseCampaign,
+  parseBudgetMove,
   parseCreateAdvertiser,
   parseCreative,
 } from "./contract.ts";
@@ -178,6 +180,8 @@ const ADVERTISER_STATUS: Record<AdvertiserError, number> = {
   "insufficient-funds": 402,
   "no-approved-creative": 409,
   "invalid-state": 409,
+  "exceeds-unspent": 409,
+  "budget-limit": 409,
 };
 
 async function readBody(req: IncomingMessage): Promise<string> {
@@ -1586,6 +1590,19 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
           next,
         ),
       );
+      return;
+    }
+
+    const budgetMove = /^\/v1\/portal\/campaigns\/([^/]+)\/move-budget$/.exec(path);
+    if (budgetMove !== null && req.method === "POST") {
+      const raw = await jsonBodyOr400();
+      if (raw === undefined) return;
+      const body = parseBudgetMove(decodeURIComponent(budgetMove[1] ?? ""), raw);
+      if (body === null) {
+        send(res, 400, { error: "malformed budget move" }, cors);
+        return;
+      }
+      settle(await moveCampaignBudget(advertiserDeps, auth.uid, body));
       return;
     }
 
