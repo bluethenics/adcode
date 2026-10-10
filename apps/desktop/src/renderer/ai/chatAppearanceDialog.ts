@@ -62,13 +62,11 @@ export async function openChatAppearanceDialog(options: { readonly openAgents?: 
     author.append(previewMascot.element, authorName);
     const answer = el("div", "chat-bubble chat-bubble-assistant");
     answer.append(el("p", "chat-md-para", "Done. The header is now sticky, with a soft shadow once the page scrolls under it."));
+    // As in the chat: the face signs the reply; the row at work has none of its own.
     const workingRow = el("div", "chat-working");
-    const workingMascot = createAgentMascot({ look: draft.look, mood: "thinking", size: 20 });
-    workingMascot.element.classList.add("chat-working-avatar");
-    const workingName = el("span", "chat-working-name", draft.name);
     const dots = el("span", "chat-working-dots");
     dots.append(el("i", ""), el("i", ""), el("i", ""));
-    workingRow.append(workingMascot.element, workingName, el("span", "chat-working-text", "Checking the page"), dots);
+    workingRow.append(dots, el("span", "chat-working-text", "Checking the page"));
     previewTranscript.append(ask, author, answer, workingRow);
     preview.append(previewTranscript);
 
@@ -165,9 +163,7 @@ export async function openChatAppearanceDialog(options: { readonly openAgents?: 
       preview.dataset["messageStyle"] = draft.style;
       preview.dataset["avatars"] = String(draft.avatars);
       previewMascot.setLook(draft.look);
-      workingMascot.setLook(draft.look);
       authorName.textContent = draft.name;
-      workingName.textContent = draft.name;
       for (const item of shapes.querySelectorAll<HTMLButtonElement>("button")) item.setAttribute("aria-checked", String(item.dataset["value"] === draft.look.shape));
       for (const item of colors.querySelectorAll<HTMLButtonElement>("button")) item.setAttribute("aria-checked", String(item.dataset["value"] === draft.look.color));
       for (const item of styles.querySelectorAll<HTMLButtonElement>("button")) {

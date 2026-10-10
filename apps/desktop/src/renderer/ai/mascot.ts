@@ -3,8 +3,9 @@
  *
  * Built on bloub's neutral avatar (https://bloub.vercel.app): a round body
  * with two white pill eyes punched through a mask, so the face reads as
- * calm rather than staring. No dark pupils, no gloss — the scary version
- * taught us that less is friendlier at 28px.
+ * calm rather than staring. No dark pupils — the scary version taught us that
+ * less is friendlier at 28px. The body is shaded like a lit ball (highlight upper
+ * left, shadow underneath) so it reads as solid, not as a flat sticker.
  *
  * Presentation only: no Electron, no IPC, no storage, no network. The activity
  * block owns the backend events and tells the mascot its mood; this module owns
@@ -120,6 +121,33 @@ function buildMascotSvg(): SVGSVGElement {
   look.append(eyes);
   mask.append(look);
   defs.append(mask);
+
+  // Lit from the upper left, so the disc reads as a ball rather than a sticker: a specular
+  // spot, a soft fall-off, a shaded underside. Painted through the same mask as the body,
+  // so the eyes stay clean.
+  const shadeId = `chat-mascot-shade-${mascotMaskSeq}`;
+  const shade = document.createElementNS(SVG_NS, "radialGradient");
+  shade.setAttribute("id", shadeId);
+  shade.setAttribute("gradientUnits", "userSpaceOnUse");
+  shade.setAttribute("cx", "-28");
+  shade.setAttribute("cy", "-36");
+  shade.setAttribute("r", "150");
+  shade.setAttribute("fx", "-40");
+  shade.setAttribute("fy", "-52");
+  for (const [offset, color, opacity] of [
+    ["0", "#ffffff", "0.7"],
+    ["0.14", "#ffffff", "0.32"],
+    ["0.42", "#ffffff", "0"],
+    ["0.72", "#000000", "0"],
+    ["1", "#000000", "0.36"],
+  ] as const) {
+    const stop = document.createElementNS(SVG_NS, "stop");
+    stop.setAttribute("offset", offset);
+    stop.setAttribute("stop-color", color);
+    stop.setAttribute("stop-opacity", opacity);
+    shade.append(stop);
+  }
+  defs.append(shade);
   svg.append(defs);
 
   // White, visible only through the eye holes.
@@ -139,7 +167,14 @@ function buildMascotSvg(): SVGSVGElement {
   body.setAttribute("width", "250");
   body.setAttribute("height", "250");
   body.setAttribute("class", "chat-mascot-body");
-  bodied.append(body);
+  const shaded = document.createElementNS(SVG_NS, "rect");
+  shaded.setAttribute("x", "-125");
+  shaded.setAttribute("y", "-125");
+  shaded.setAttribute("width", "250");
+  shaded.setAttribute("height", "250");
+  shaded.setAttribute("class", "chat-mascot-shade");
+  shaded.setAttribute("fill", `url(#${shadeId})`);
+  bodied.append(body, shaded);
   svg.append(bodied);
 
   return svg;

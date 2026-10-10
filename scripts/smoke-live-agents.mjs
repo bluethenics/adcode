@@ -255,6 +255,7 @@ try {
   // and the turn's live window has a Stop of its own.
   results.chatWorkingRow = false;
   results.chatInlineMenu = false;
+  let mostFaces = 0;
   const until = Date.now() + 30_000;
   while (Date.now() < until) {
     const state = await evaluate(`(() => {
@@ -265,8 +266,11 @@ try {
         activity: win?.dataset.activity ?? '',
         status: win?.dataset.status ?? '',
         workingRow: !!working && !working.hidden && working.getBoundingClientRect().height > 0 &&
-          (working.querySelector('.chat-working-name')?.textContent ?? '').length > 0 &&
           working.querySelector('.chat-working-stop')?.disabled === false && working === working.parentElement?.lastElementChild,
+        // One assistant at work, one face on screen: every mascot in the conversation that is
+        // actually drawn, whichever kind it is.
+        faces: [...document.querySelectorAll('.chat-transcript :is(.chat-mascot, .agent-mascot)')]
+          .filter((face) => face.getBoundingClientRect().width > 0).length,
         workingEvidence: (() => {
           const any = document.querySelector('.chat-working');
           if (!any) return 'no .chat-working anywhere';
@@ -278,7 +282,6 @@ try {
             last: any === any.parentElement?.lastElementChild,
             height: Math.round(box.height),
             top: Math.round(box.top),
-            name: any.querySelector('.chat-working-name')?.textContent ?? null,
             text: any.querySelector('.chat-working-text')?.textContent ?? null,
           };
         })(),
@@ -288,6 +291,7 @@ try {
       };
     })()`);
     if (state.workingRow) results.chatWorkingRow = true;
+    if (state.status === "working") mostFaces = Math.max(mostFaces, state.faces);
     if (state.status === "working") results.chatWorkingEvidence = state.workingEvidence;
     if (state.inlineMenu) results.chatInlineMenu = true;
     if (state.activity === "code" && state.length > 0) lengths.add(state.length);
@@ -296,6 +300,8 @@ try {
     await sleep(120);
   }
   results.chatTypingSteps = lengths.size;
+  results.chatOneFaceWhileWorking = mostFaces === 1;
+  results.chatFacesWhileWorking = mostFaces;
   await waitFor("document.querySelector('.chat-transcript .live-window')?.dataset.status === 'done'", 30_000);
   Object.assign(results, await evaluate(`(() => {
     const win = document.querySelector('.chat-transcript .live-window');
@@ -307,6 +313,8 @@ try {
       chatSettledShows: win?.dataset.activity ?? null,
       chatWindows: document.querySelectorAll('.chat-transcript .live-window').length,
       chatAuthorLine: (document.querySelector('.chat-transcript .chat-author .chat-author-name')?.textContent ?? '').length > 0,
+      // The finished reply is signed with the face again.
+      chatAuthorFaceAfter: (document.querySelector('.chat-transcript .chat-author .agent-mascot')?.getBoundingClientRect().width ?? 0) > 0,
     };
   })()`));
   await sleep(400);

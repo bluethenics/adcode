@@ -62,7 +62,7 @@ export const APPEARANCE_ENTRIES: readonly HelpEntry[] = [
     title: "Customise chat",
     plain: "Choose the assistant's name and face, whether replies show who wrote them, and how replies sit on the page.",
     why: "A chat you spend hours in should look the way you like. Faces and names also make it obvious which agent said what once several are working.",
-    how: "Select Customise in the chat's header (or ••• when the chat is docked), or run AI: Customise Chat from the command palette. Type a name, pick one of eight shapes and ten colours, and choose a reply style: Document runs replies full width, Bubbles puts each in a soft card, Compact fits more on screen. Show who is replying adds the face and name above replies. A live preview shows the result before you save. Saved agents keep their own look - change theirs in the agent editor on the Agents board. Every choice is also in Settings > Appearance.",
+    how: "Select Customise in the chat's header (or ••• when the chat is docked), or run AI: Customise Chat from the command palette. Type a name, pick one of eight shapes and ten colours, and choose a reply style: Document runs replies full width, Bubbles puts each in a soft card, Compact fits more on screen. Show who is replying adds the face and name above replies; while a reply is still being written the name stands alone, because the face at work is the mascot in the activity block. A live preview shows the result before you save. Saved agents keep their own look - change theirs in the agent editor on the Agents board. Every choice is also in Settings > Appearance.",
     group: "appearance",
     settingIds: [
       "adcode.appearance.assistantName",

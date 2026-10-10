@@ -95,7 +95,7 @@ body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row {
   align-items: center;
 }
 
-/* ── "Is writing": who, what, how long, and Stop ───────────────────────── */
+/* ── "Is writing": what, how long, and Stop ────────────────────────────── */
 
 .chat-card .chat-working {
   display: flex;
@@ -111,14 +111,6 @@ body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row {
 .chat-card .chat-working::before { content: none; }
 .chat-card .chat-working > :last-child { overflow: visible; text-overflow: clip; white-space: normal; }
 
-.chat-working-avatar { flex: none; }
-
-.chat-working-name {
-  flex: none;
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
 .chat-card .chat-working-text {
   min-width: 0;
   padding: 0;
@@ -127,8 +119,8 @@ body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row {
   white-space: nowrap;
 }
 
-/* The open activity block above already names the step; this row keeps who, how long, Stop. */
-.chat-card .chat-working[data-activity="open"] .chat-working-text { display: none; }
+/* The open activity block above already names the step and keeps the time: this row is Stop. */
+.chat-card .chat-working[data-activity="open"] :is(.chat-working-text, .chat-working-dots, .chat-working-elapsed) { display: none; }
 
 .chat-working-dots {
   display: inline-flex;
@@ -203,8 +195,6 @@ body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row {
   font: 500 10px var(--font-ui);
 }
 
-.chat-card[data-avatars="false"] :is(.chat-working-avatar, .chat-working-name) { display: none; }
-
 /* ── Who is replying ───────────────────────────────────────────────────── */
 
 .chat-author {
@@ -218,6 +208,9 @@ body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row {
 
 /* A face per reply would blink all the way up a long conversation: these stay still. */
 .chat-author .agent-mascot * { animation: none !important; }
+
+/* While its turn runs, the face at work is the activity block's: one assistant, one face. */
+.chat-author[data-live] .agent-mascot { display: none; }
 
 /* Sits on the reply it introduces, not a full turn above it. */
 :is(body[data-workspace-mode] .vibe-workspace, html body) .chat-card .chat-transcript > .chat-author + * {

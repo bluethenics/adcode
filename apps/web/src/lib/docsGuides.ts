@@ -931,7 +931,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Watch the strip. When one agent messages another (\"API done, endpoints in src/api.ts\"), hands its work on, or edits a file a teammate already edited, the sender turns to the receiver, a speech bubble crosses between them, and the line stays underneath.",
       "Click a mascot or a window's title bar to fill the room with that agent; click again to see them all. Hide windows keeps just the mascots.",
       "Stop an agent from its window's title bar - Stop for one agent, Stop team for a Team - or every run at once with Stop all in the room's header. The ⋯ beside it opens the agent on the Agents board or edits the saved agent.",
-      "In the main chat, the line at the bottom shows who is writing and for how long, with its own Stop button. Esc stops it too.",
+      "In the main chat, the line at the bottom shows what the assistant is doing and for how long, with its own Stop button. Esc stops it too.",
       "Read the bottom of each window before you trust the result: Checks passed, Check failed or Unverified comes from the commands the agent actually ran.",
       "Prefer a quieter chat? Turn it off in Settings > AI > Live agent view.",
     ],

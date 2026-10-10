@@ -2183,20 +2183,19 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   conversation.append(memory, connectBanner, folderBanner, welcome, live.element, transcript, scrollButton, composer, quickActions);
   refreshWelcome();
   /*
-   * The "is writing" row: who is working, what they are doing, for how long, and the way to
-   * stop them - in the conversation, where the eye already is, rather than only as the
-   * square the send button turns into at the far corner of the composer.
+   * The "is writing" row: what the assistant is doing, for how long, and the way to stop it
+   * - in the conversation, where the eye already is, rather than only as the square the send
+   * button turns into at the far corner of the composer.
+   *
+   * No face and no name of its own. Who is replying is the author line above the turn, and
+   * the face at work is the activity block's mascot; a third copy here made one running
+   * assistant look like three.
    */
   let appearance: ChatAppearance = chatAppearanceFrom({});
   const working = document.createElement("div");
   working.className = "chat-working";
   working.hidden = true;
   working.setAttribute("role", "status");
-  const workingMascot = createAgentMascot({ look: appearance.look, mood: "thinking", size: 20 });
-  workingMascot.element.classList.add("chat-working-avatar");
-  const workingName = document.createElement("span");
-  workingName.className = "chat-working-name";
-  workingName.textContent = appearance.name;
   const workingText = document.createElement("span");
   workingText.className = "chat-working-text";
   workingText.textContent = "Thinking";
@@ -2221,7 +2220,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   workingStopKey.setAttribute("aria-hidden", "true");
   workingStop.append(workingStopIcon, document.createTextNode("Stop"), workingStopKey);
   workingStop.addEventListener("click", () => stopTurn());
-  working.append(workingMascot.element, workingName, workingText, workingDots, workingElapsed, workingStop);
+  working.append(workingDots, workingText, workingElapsed, workingStop);
   let workingSince = 0;
   let workingClock: number | null = null;
   function paintElapsed(): void {
@@ -2233,13 +2232,23 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const authorMascots: AgentMascot[] = [];
   /** True until the turn's first reply has its author line. */
   let authorPending = true;
-  /** The turn's author line, once: above its first block of work or its first reply. */
+  /**
+   * The turn's author line, once: above its first block of work or its first reply.
+   *
+   * While its turn runs the line shows the name only: the face at work is the activity
+   * block's mascot, and two faces for one assistant read as two assistants. The face
+   * appears when the turn is over, as the signature on the finished reply.
+   */
   function ensureAuthor(): void {
     if (!authorPending) return;
     authorPending = false;
     const line = authorLine();
+    if (turnActive) line.dataset["live"] = "true";
     if (working.isConnected) transcript.insertBefore(line, working);
     else transcript.append(line);
+  }
+  function settleAuthorLines(): void {
+    for (const line of transcript.querySelectorAll<HTMLElement>(".chat-author[data-live]")) delete line.dataset["live"];
   }
   function authorLine(): HTMLElement {
     const line = document.createElement("div");
@@ -2256,8 +2265,6 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     appearance = next;
     card.dataset["messageStyle"] = next.style;
     card.dataset["avatars"] = String(next.avatars);
-    workingName.textContent = next.name;
-    workingMascot.setLook(next.look);
     for (let index = authorMascots.length - 1; index >= 0; index -= 1) {
       const mascot = authorMascots[index]!;
       if (!mascot.element.isConnected) authorMascots.splice(index, 1);
@@ -2379,9 +2386,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    */
   function ensureActivity(): ActivityBlockHandle {
     if (activeActivity !== null) return activeActivity;
-    // The activity block names the step, so the "is writing" row underneath drops its own
-    // step text rather than read as a second, competing "Thinking" - but it stays, because
-    // it carries who is working, for how long, and Stop.
+    // Who is replying goes above the work it did, not below it.
+    ensureAuthor();
+    // The activity block names the step and keeps the time, so the "is writing" row
+    // underneath shows only Stop rather than a second, competing "Thinking" and clock.
     working.dataset["activity"] = "open";
     const block = createActivityBlock({ label: "Thinking" });
     transcript.append(block.element);
@@ -3966,6 +3974,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       live.chatWindow.reset();
     } else if (ending && turnActive) {
       turnActive = false;
+      settleAuthorLines();
       live.chatWindow.finish(event.kind === "turn-end");
       void offerStagedChanges(turnStartedAt);
     }

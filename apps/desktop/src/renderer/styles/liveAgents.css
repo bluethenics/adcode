@@ -156,6 +156,11 @@
   font-size: var(--text-xs);
 }
 .live-window-bar[data-expandable="true"] { cursor: pointer; }
+
+/* The chat's own window is the assistant already shown above it: the face at work is the
+   activity block's, so this one goes. Windows in the live room keep theirs - there the face
+   is how one agent is told from another. */
+.chat-transcript .live-window .agent-mascot { display: none; }
 .live-window-title[role="button"]:focus-visible { outline: none; border-radius: 4px; box-shadow: var(--focus-ring); }
 .live-window-dots { display: inline-flex; gap: 5px; }
 .live-window-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); }

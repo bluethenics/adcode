@@ -11,6 +11,11 @@
  *
  * Decorative by contract: the box's text already says the status, so the mascot is
  * `aria-hidden`. Motion is CSS-only and switched off for reduced-motion users.
+ *
+ * Drawn to read as a solid toy rather than a flat sticker: a second copy of the body lies
+ * over the colour with a light-to-shadow gradient, lit from the upper left, so every shape
+ * and every colour gets the same highlight and the same shaded underside without a palette
+ * of its own. The face sits on top, unshaded, and the drop shadow is CSS (`agents.css`).
  */
 import type { BoxStatus } from "./agentBoardModel.ts";
 import type { MascotLook, MascotShape } from "./mascotStyle.ts";
@@ -87,6 +92,18 @@ export const MASCOT_FACES: Readonly<Record<AgentMood, readonly { readonly d: str
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+/** Light from the upper left: a specular spot, a soft fall-off, then the shaded underside. */
+const SHADE_STOPS: readonly (readonly [offset: string, color: string, opacity: string])[] = [
+  ["0", "#ffffff", "0.7"],
+  ["0.14", "#ffffff", "0.32"],
+  ["0.42", "#ffffff", "0"],
+  ["0.72", "#000000", "0"],
+  ["1", "#000000", "0.34"],
+];
+
+/** Gradient ids are document-wide, and a board shows many mascots at once. */
+let shadeSeq = 0;
+
 export type MascotGaze = "left" | "right" | "ahead";
 
 export interface AgentMascot {
@@ -111,6 +128,27 @@ export function createAgentMascot(options: { readonly look: MascotLook; readonly
   svg.setAttribute("viewBox", "0 0 48 48");
   const body = document.createElementNS(SVG_NS, "path");
   body.setAttribute("class", "agent-mascot-body");
+  shadeSeq += 1;
+  const shadeId = `agent-mascot-shade-${String(shadeSeq)}`;
+  const defs = document.createElementNS(SVG_NS, "defs");
+  const gradient = document.createElementNS(SVG_NS, "radialGradient");
+  gradient.setAttribute("id", shadeId);
+  gradient.setAttribute("cx", "0.38");
+  gradient.setAttribute("cy", "0.32");
+  gradient.setAttribute("r", "0.78");
+  gradient.setAttribute("fx", "0.32");
+  gradient.setAttribute("fy", "0.24");
+  for (const [offset, color, opacity] of SHADE_STOPS) {
+    const stop = document.createElementNS(SVG_NS, "stop");
+    stop.setAttribute("offset", offset);
+    stop.setAttribute("stop-color", color);
+    stop.setAttribute("stop-opacity", opacity);
+    gradient.append(stop);
+  }
+  defs.append(gradient);
+  const shade = document.createElementNS(SVG_NS, "path");
+  shade.setAttribute("class", "agent-mascot-shade");
+  shade.setAttribute("fill", `url(#${shadeId})`);
   const face = document.createElementNS(SVG_NS, "g");
   face.setAttribute("class", "agent-mascot-face");
   // The "!" that pops above an agent that needs you.
@@ -123,13 +161,14 @@ export function createAgentMascot(options: { readonly look: MascotLook; readonly
   const badgeMark = document.createElementNS(SVG_NS, "path");
   badgeMark.setAttribute("d", "M40 4.8v3.8M40 11.2v.1");
   badge.append(badgeDot, badgeMark);
-  svg.append(body, face, badge);
+  svg.append(defs, body, shade, face, badge);
   element.append(svg);
 
   function setLook(look: MascotLook): void {
     element.dataset["shape"] = look.shape;
     element.dataset["color"] = look.color;
     body.setAttribute("d", MASCOT_BODIES[look.shape]);
+    shade.setAttribute("d", MASCOT_BODIES[look.shape]);
   }
 
   function setMood(mood: AgentMood): void {
