@@ -11,6 +11,7 @@ import { recordMilestone } from "./milestones.ts";
 import { GEMINI_KEY_PAGE, OLLAMA_DOWNLOAD_PAGE } from "../shared/quickConnect.ts";
 import { BrowserWindow, app, clipboard, dialog, ipcMain, shell } from "electron";
 import { isInsideWorkspace } from "./pathSafety.ts";
+import { clearAiUsage, readAiUsage } from "./aiUsage.ts";
 import {
   detectPreviewProject,
   previewLog,
@@ -454,6 +455,17 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
     const next = direction === 0 ? 0 : event.sender.getZoomLevel() + Math.sign(direction) * 0.5;
     event.sender.setZoomLevel(Math.max(-3, Math.min(4, next)));
   });
+
+  // The Zoom setting, applied. A factor rather than a level, because the setting is a
+  // percentage people read; clamped to the setting's own range so a bad value cannot
+  // shrink the window past reading or blow it past fitting.
+  ipcMain.on(CHANNELS.windowSetZoom, (event, factor: unknown) => {
+    if (typeof factor !== "number" || !Number.isFinite(factor)) return;
+    event.sender.setZoomFactor(Math.max(0.5, Math.min(3, factor)));
+  });
+
+  ipcMain.handle(CHANNELS.aiUsageRead, (_event, range: unknown) => readAiUsage(range));
+  ipcMain.handle(CHANNELS.aiUsageClear, () => clearAiUsage());
 
   ipcMain.handle(CHANNELS.windowOpenIde, (_event, file: unknown, view: unknown) => {
     const root = currentWorkspace()?.root ?? null;

@@ -39,6 +39,7 @@ import { stopPreview } from "./preview.ts";
 import { closeAgentBrowserWithLastWindow, hardenAgentBrowser, isAgentBrowserContents } from "./agentBrowser.ts";
 import { aiStopToolProcesses, refreshModelLists } from "./ai.ts";
 import { flushModelOutcomes } from "./modelOutcomes.ts";
+import { flushAiUsage } from "./aiUsage.ts";
 import { getAdRuntime } from "./adRuntime.ts";
 import { currentSettings, loadSettings } from "./settings.ts";
 import { windowIconPath } from "./windowIcon.ts";
@@ -359,6 +360,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   void flushModelOutcomes();
+  void flushAiUsage();
   void closeAssistantControls();
   disposeAllTerminals();
 

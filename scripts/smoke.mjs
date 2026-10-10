@@ -281,6 +281,96 @@ const vibeNavigation = await evaluate(`(() => {
     inboxClosed: document.querySelector('.notification-inbox')?.hidden === true,
   };
 })()`);
+// Agent controls in the chat: Stop where the work shows, menus that tint rather than fill,
+// Customise chat and Usage that open, and Zoom and Text size that reach the window.
+const chatControls = await evaluate(`(async () => {
+  const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const card = document.querySelector('.chat-card');
+  // The accent as the page paints it, to compare a menu row's background against.
+  const probe = document.createElement('span');
+  probe.style.background = 'var(--accent)';
+  document.body.append(probe);
+  const accent = getComputedStyle(probe).backgroundColor;
+  probe.style.background = 'var(--danger)';
+  const dangerColour = getComputedStyle(probe).backgroundColor;
+  probe.remove();
+  const row = document.querySelector('.vibe-history-host .chat-history-row');
+  const options = row?.querySelector('.chat-history-options');
+  options?.click();
+  await frame();
+  const menu = document.querySelector('.menu-panel[data-context]');
+  const items = menu ? [...menu.querySelectorAll('.menu-item')] : [];
+  const focused = items.find((item) => item === document.activeElement) ?? items[0];
+  const danger = items.find((item) => item.dataset.danger === 'true');
+  const menuEvidence = {
+    focusedBackground: focused ? getComputedStyle(focused).backgroundColor : null,
+    dangerBackground: danger ? getComputedStyle(danger).backgroundColor : null,
+    // The position it was given, not its box: menus scale in, and mid-animation the box is not where it lands.
+    menuLeft: menu ? parseFloat(menu.style.left) : null,
+    buttonLeft: options ? options.getBoundingClientRect().left : null,
+  };
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await frame();
+
+  card?.querySelector('[data-chat-action="usage"]')?.click();
+  let usage = null;
+  for (let attempt = 0; attempt < 40 && usage === null; attempt++) {
+    const dialog = document.querySelector('dialog.ai-usage-dialog[open]');
+    if (dialog && !dialog.querySelector('.usage-body')?.textContent?.includes('Loading')) {
+      usage = {
+        tabs: dialog.querySelectorAll('.usage-tabs [role="tab"]').length,
+        selected: dialog.querySelector('.usage-tabs [aria-selected="true"]')?.textContent ?? '',
+        body: (dialog.querySelector('.usage-body')?.textContent ?? '').slice(0, 80),
+      };
+      dialog.querySelector('.usage-footer .ad-btn-primary')?.click();
+    } else await wait(100);
+  }
+  await frame();
+
+  card?.querySelector('[data-chat-action="appearance"]')?.click();
+  let appearance = null;
+  for (let attempt = 0; attempt < 40 && appearance === null; attempt++) {
+    const dialog = document.querySelector('dialog.chat-appearance-dialog[open]');
+    if (dialog) {
+      appearance = {
+        shapes: dialog.querySelectorAll('.agents-shapes [role="radio"]').length,
+        colours: dialog.querySelectorAll('.agents-colors [role="radio"]').length,
+        styles: dialog.querySelectorAll('.chat-appearance-styles [role="radio"]').length,
+        previewAuthor: dialog.querySelector('.chat-appearance-preview .chat-author-name')?.textContent ?? '',
+      };
+      [...dialog.querySelectorAll('button')].find((button) => button.textContent === 'Cancel')?.click();
+    } else await wait(100);
+  }
+  await frame();
+
+  const ratioBefore = window.devicePixelRatio;
+  await window.adcode.settings.write('adcode.appearance.zoom', '125');
+  await wait(400);
+  const ratioZoomed = window.devicePixelRatio;
+  await window.adcode.settings.write('adcode.appearance.zoom', '100');
+  await window.adcode.settings.write('adcode.appearance.textSize', 'larger');
+  await wait(200);
+  const scale = getComputedStyle(document.documentElement).getPropertyValue('--text-scale').trim();
+  await window.adcode.settings.write('adcode.appearance.textSize', 'default');
+  await wait(400);
+  const usageView = await window.adcode.aiUsage.read('7d');
+
+  return {
+    // Idle: no "is writing" row in the conversation. smoke:live checks it while a turn runs.
+    noWorkingRowWhileIdle: !card?.querySelector('.chat-transcript .chat-working:not([hidden])'),
+    menuRowsNotFilledWithAccent: !!focused && menuEvidence.focusedBackground !== accent,
+    dangerRowNotSolidRed: !danger || menuEvidence.dangerBackground !== dangerColour,
+    menuOpensUnderTheButton: !row || (menuEvidence.menuLeft !== null && menuEvidence.buttonLeft !== null && Math.abs(menuEvidence.menuLeft - menuEvidence.buttonLeft) <= 2),
+    usageDialogOpens: usage?.tabs === 4 && usage.selected.length > 0,
+    usageIpcAnswers: typeof usageView === 'object' && usageView !== null && typeof usageView.totals?.requests === 'number',
+    customiseDialogOpens: appearance?.shapes === 8 && appearance.colours === 10 && appearance.styles === 3 && appearance.previewAuthor.length > 0,
+    zoomSettingReachesWindow: Math.abs(ratioZoomed / ratioBefore - 1.25) < 0.02 && Math.abs(window.devicePixelRatio - ratioBefore) < 0.02,
+    textSizeReachesChat: scale === '1.25',
+    evidence: { accent, ...menuEvidence, usage, appearance, ratioBefore, ratioZoomed, scale },
+  };
+})()`);
+
 // The Changes panel, read only: this smoke runs against the real repository, so nothing is
 // clicked that would stage, revert or commit.
 await evaluate("document.querySelector('.vibe-changes-button')?.click()");
@@ -452,6 +542,9 @@ async function openExpandedAssistant() {
 const checks = {
   separateWindows: vibeModeBefore === "vibe" && vibeModeAfter === "vibe" && ideMode === "code" && rendererCount === 2,
   vibeNavigation: Object.values(vibeNavigation).every(Boolean),
+  chatControls: typeof chatControls === "object" && chatControls !== null &&
+    Object.entries(chatControls).filter(([key]) => key !== "evidence").every(([, value]) => value === true),
+  chatControlsEvidence: chatControls,
   vibeNoRightSidebar: typeof vibeNoRightSidebar === "object" && vibeNoRightSidebar !== null && Object.values(vibeNoRightSidebar).every(Boolean),
   vibeNoRightSidebarEvidence: vibeNoRightSidebar,
   vibeAgentsAndToolsPages: typeof vibePages === "object" && vibePages !== null && Object.values(vibePages).every(Boolean),

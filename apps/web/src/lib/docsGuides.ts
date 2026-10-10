@@ -930,11 +930,13 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Start a Team, a race or a solo agent from the Agents page, or Team in the terminal from a terminal's menu. A live room appears above the chat: each agent's mascot on a strip, and a window for each agent showing what it is doing right now.",
       "Watch the strip. When one agent messages another (\"API done, endpoints in src/api.ts\"), hands its work on, or edits a file a teammate already edited, the sender turns to the receiver, a speech bubble crosses between them, and the line stays underneath.",
       "Click a mascot or a window's title bar to fill the room with that agent; click again to see them all. Hide windows keeps just the mascots.",
+      "Stop an agent from its window's title bar - Stop for one agent, Stop team for a Team - or every run at once with Stop all in the room's header. The ⋯ beside it opens the agent on the Agents board or edits the saved agent.",
+      "In the main chat, the line at the bottom shows who is writing and for how long, with its own Stop button. Esc stops it too.",
       "Read the bottom of each window before you trust the result: Checks passed, Check failed or Unverified comes from the commands the agent actually ran.",
       "Prefer a quieter chat? Turn it off in Settings > AI > Live agent view.",
     ],
     benefits: [
-      "See code as it is written instead of a finished file appearing all at once - and stop a wrong direction early.",
+      "See code and replies as they are written instead of a finished file appearing all at once - and stop a wrong direction early, right where you are watching it.",
       "Several agents at once stay readable: one window each, with the file, command or plan they are on.",
       "Agents on a Team really talk: they message each other mid-task, share the project's memory, and are warned before two of them edit the same file.",
       "Proof you can check: a window says Unverified until the agent has run the project's tests, typecheck or linter.",
@@ -982,6 +984,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Open Agents. Every saved agent already has a look of its own.",
       "Select Edit on an agent and pick one of eight shapes and ten colours; the preview updates as you choose. Save.",
       "Give it a task and watch its face on the board: thinking while it works, alert with a ! when it needs you, proud when its work is ready, happy once it lands, confused if something went wrong, sleepy while it waits.",
+      "Duplicate an agent to start a variation, or Delete one from its card - it asks first, and runs it already did stay on the board.",
     ],
     benefits: [
       "Tell agents apart on a busy board without reading names.",
@@ -1743,6 +1746,90 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     ],
     betterThan:
       "Zoom-hacking the whole UI distorts text; density toggles the spacing itself. Comfortable and Compact are the only two answers that were ever actually needed.",
+  },
+
+  "appearance-zoom": {
+    steps: [
+      "Press Ctrl+= (Cmd+= on a Mac) to make the whole window bigger, one step at a time.",
+      "Press Ctrl+- to make it smaller. The status bar says the new size, from 80% to 200%.",
+      "Press Ctrl+0 to go back to 100%.",
+      "Prefer to pick a number? Settings > Appearance > Zoom lists every size. View > Appearance has the same three commands.",
+    ],
+    benefits: [
+      "Menus, panels, buttons and text grow together, so nothing ends up cramped or cut off.",
+      "Your size is saved, so the window opens the way you left it - unlike a browser zoom that forgets.",
+      "No trip to your computer's display settings, which would change every other app too.",
+    ],
+    betterThan:
+      "Most editors zoom with the same keys but forget the level on restart, or hide it in a settings file. ADCode keeps it as a setting you can see and pick, and the shortcuts and the Settings row always agree.",
+  },
+
+  "appearance-text-size": {
+    steps: [
+      "Press Ctrl+Shift+. (the > key) to make the text you read bigger - the same key Word uses.",
+      "Press Ctrl+Shift+, (the < key) to make it smaller.",
+      "Code in every editor, every terminal and the chat's messages change together; menus and panels stay the same size.",
+      "Choose View > Appearance > Reset Text Size, or Default in Settings > Appearance > Text size, to go back.",
+    ],
+    benefits: [
+      "Read code comfortably without giving up the room zooming the whole window costs.",
+      "One setting for editor, terminal and chat, instead of three font-size numbers in three places.",
+      "Five sizes from Small to Largest, kept for next time.",
+    ],
+    betterThan:
+      "Elsewhere the editor, the terminal and the AI panel each have their own font-size setting, usually a number in a JSON file. ADCode treats reading size as one choice with two keys, and leaves Zoom for when you want everything bigger.",
+  },
+
+  "ai-chat-appearance": {
+    steps: [
+      "Open the chat and select Customise in its header (it is under ••• when the chat is docked). The command palette's AI: Customise Chat opens it too.",
+      "Type a name for the assistant - it appears above its replies and while it is writing.",
+      "Pick a face: one of eight shapes and ten colours. The preview updates as you choose.",
+      "Choose a reply style. Document runs replies full width like a page, Bubbles puts each reply in a soft card, Compact fits more on screen.",
+      "Leave Show who is replying on to see the face and name above replies, or turn it off for a plain transcript. Select Save.",
+    ],
+    benefits: [
+      "When several agents are working, faces and names make it obvious who said what.",
+      "A chat you spend hours in looks the way you like, from a dialog with a live preview rather than a settings file.",
+      "Saved agents keep the looks you gave them on the Agents board, so every agent stays recognisable.",
+    ],
+    betterThan:
+      "AI chat panels elsewhere answer as the same nameless box forever. ADCode lets the assistant be yours - name, face and layout - and gives every agent its own face, in the chat and on the board.",
+  },
+
+  "ai-usage": {
+    steps: [
+      "Select Usage in the chat's header, or Usage by model in the context meter's menu, or run AI: Show Usage.",
+      "Pick a range: Today, 7 days, 30 days or All time.",
+      "Read the totals - tokens in and out, requests, and the estimated cost - and the bar per day underneath.",
+      "Look down the list of models: each shows its share of tokens, its requests from the chat and from agents, and its cost at the catalogue's price.",
+      "A ≈ marks counts ADCode estimated because the provider did not report them. Clear usage removes everything from this machine.",
+    ],
+    benefits: [
+      "See where the money goes, model by model, before your provider's bill arrives.",
+      "Spot the agent run or long chat that used far more than you expected.",
+      "Honest numbers: estimates are marked, and a model with no known price says No price instead of showing $0.",
+      "Private by design - the counts never leave your machine.",
+    ],
+    betterThan:
+      "Provider dashboards show one total a day late and cannot tell your chat from your agents. ADCode counts every request as it happens, split by model and by where it came from, right inside the editor.",
+  },
+
+  "ai-design-taste": {
+    steps: [
+      "Nothing to set up - it is on by default.",
+      "Ask the assistant or an agent for a page, a screen, a component or a game's look.",
+      "Watch its steps: Reading the design guide means it has loaded the bundled taste-skill guide before writing any styles.",
+      "It keeps your project's own stack and design system - a plain HTML, CSS and JavaScript project stays plain.",
+      "To turn it off, open Settings > AI > Design taste skill.",
+    ],
+    benefits: [
+      "Pages that do not look like every other AI-made page: no default purple gradient, centred hero and three identical cards.",
+      "Complete work: the guide also tells the model to finish every file instead of leaving placeholders.",
+      "No extra cost on other questions - the guide is read only when the work is a user interface.",
+    ],
+    betterThan:
+      "Elsewhere you install a design skill per project and hope the model finds it. ADCode ships a reviewed copy of taste-skill (MIT) inside the app, points every assistant and agent at it for interface work, and keeps your stack in charge.",
   },
 
   /* ── Account ─────────────────────────────────────────────────────────── */

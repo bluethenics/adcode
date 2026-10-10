@@ -155,8 +155,8 @@
   background: var(--bg-elevated);
   font-size: var(--text-xs);
 }
-.live-window-bar[role="button"] { cursor: pointer; }
-.live-window-bar:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+.live-window-bar[data-expandable="true"] { cursor: pointer; }
+.live-window-title[role="button"]:focus-visible { outline: none; border-radius: 4px; box-shadow: var(--focus-ring); }
 .live-window-dots { display: inline-flex; gap: 5px; }
 .live-window-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); }
 .live-window-title { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1; overflow: hidden; }

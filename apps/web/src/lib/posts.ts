@@ -369,6 +369,7 @@ ADCode is not a salary. It is a capable editor whose price is a few small cards 
     description:
       "Sign in, name the account, create the campaign, attach a creative, fund it, go live - the whole advertiser flow, with what each step costs and when.",
     published: "2026-08-22",
+    updated: "2026-10-10",
     surface: "docs",
     section: "Earning and advertising",
     order: 1,
@@ -410,6 +411,23 @@ wait. From that moment:
 ## Step 7: read the results honestly
 
 Reporting is aggregate: impressions, clicks, and spend per campaign and creative. Because billing follows verified receipts, the numbers reflect attention that actually happened - if a card was served to nobody, it cost nobody anything.
+
+## Moving credits between campaigns
+
+Put too much behind one campaign? Move it. You do not have to end the campaign or wait for it to spend out.
+
+1. In [the portal](/portal#campaigns), open the campaign the credits are in.
+2. Under **Move credits to another campaign**, choose where they go and enter an amount, or press **All unspent**.
+3. Read the line under the amount - it says what the move does to your balance - then press **Move credits**.
+
+Only unspent budget moves; what a campaign has already spent stays with it. Ended campaigns are not offered on either side, because ending a campaign already returns its unspent budget to your balance.
+
+What happens to your available balance depends on which campaigns are live, because a live campaign's budget is held out of it and a paused one's is not:
+
+- **Live to live:** no change. The credits stay committed, to the other campaign.
+- **Live to paused:** the amount comes back to your available balance until you set the other campaign live.
+- **Paused to live:** the amount is committed from your available balance, so it has to cover it.
+- **Paused to paused:** no change.
 
 ## The short version
 

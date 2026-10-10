@@ -82,9 +82,6 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
       command("view.fullScreen", "Full screen"),
       command("view.toggleSidebar", "Toggle side bar"),
       command("view.togglePanel", "Toggle panel"),
-      command("view.zoomIn", "Zoom in"),
-      command("view.zoomOut", "Zoom out"),
-      command("view.zoomReset", "Reset zoom"),
       command("view.problems", "Problems"),
       command("view.output", "Output"),
       command("view.ports", "Ports"),
@@ -93,6 +90,28 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
       command("help.about", "About ADCode"),
     ],
     keywords: ["everything adcode can do", "feature library", "feature guide", "discover"],
+  },
+  "adcode.appearance.zoom": {
+    actions: [command("view.zoomIn", "Zoom in"), command("view.zoomOut", "Zoom out"), command("view.zoomReset", "Reset zoom")],
+    keywords: ["zoom", "make everything bigger", "scale", "ui size", "too small", "too big", "high dpi", "ctrl+=", "ctrl+-", "ctrl+0", "magnify"],
+  },
+  "adcode.appearance.textSize": {
+    actions: [command("view.textBigger", "Bigger text"), command("view.textSmaller", "Smaller text"), command("view.textReset", "Reset text size")],
+    keywords: ["font size", "text size", "bigger font", "smaller font", "editor font", "terminal font", "chat font", "readability", "hard to read", "ctrl+shift+."],
+  },
+  "adcode.appearance.motion": {
+    keywords: ["reduce motion", "animations", "animation", "motion sickness", "still", "accessibility"],
+  },
+  "ai.chatAppearance": {
+    actions: [command("ai.customizeChat", "Customise")],
+    keywords: ["assistant name", "rename the assistant", "avatar", "agent face", "mascot colour", "chat bubbles", "message style", "reply layout", "compact chat", "how agents appear", "personalise"],
+  },
+  "ai.usage": {
+    actions: [command("ai.showUsage", "Show usage")],
+    keywords: ["usage", "tokens", "token count", "cost", "spend", "spending", "billing", "how much", "price", "per model", "budget"],
+  },
+  "adcode.ai.designTaste": {
+    keywords: ["taste skill", "design skill", "anti slop", "generic ai design", "better ui", "landing page", "frontend", "built-in skills", "leonxlnx"],
   },
   "workbench.universalSearch": {
     actions: [command("search.universal", "Search")],
@@ -240,10 +259,10 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     keywords: ["race", "best of n", "compare models", "several models", "multiple models", "try different models", "pick the best", "a/b", "parallel attempts"],
   },
   "ai.liveAgents": {
-    keywords: ["live", "watch agents", "see what the agent is doing", "live coding", "typing", "real time", "realtime", "agents talking", "agent messages", "team chat", "mission control", "lanes", "progress", "what is it doing", "unverified", "proof"],
+    keywords: ["live", "watch agents", "see what the agent is doing", "live coding", "typing", "real time", "realtime", "agents talking", "agent messages", "team chat", "mission control", "lanes", "progress", "what is it doing", "unverified", "proof", "stop agent", "stop all agents", "cancel agent", "stop team", "agent is typing"],
   },
   "ai.agentMascots": {
-    actions: [command("agents.newAgent", "Create an agent")],
+    actions: [command("agents.newAgent", "Create an agent"), command("agents.editAgent", "Edit an agent")],
     keywords: ["mascot", "avatar", "character", "agent look", "shape", "colour", "color", "face", "bloub"],
   },
   "workbench.floatingPanels": {

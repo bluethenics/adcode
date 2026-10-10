@@ -257,6 +257,9 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
         JSON.stringify({
           model: request.model,
           stream: true,
+          // OpenAI only sends a streamed reply's token count when asked. Asked of OpenAI alone:
+          // it is documented there, and an unknown field is a 400 on some compatible servers.
+          ...(deps.id === "openai" ? { stream_options: { include_usage: true } } : {}),
           [profile.sizeField]: size,
           messages,
           ...(level === undefined
@@ -333,6 +336,7 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
 
       let buffer = "";
       let finish: string | null = null;
+      let usage: { inputTokens: number; outputTokens: number } | null = null;
       // Providers holding a request upstream (OpenRouter sends `: OPENROUTER
       // PROCESSING` keepalives while queued) say nothing for minutes. The first
       // comment becomes one waiting note so a long queue reads as waiting, and
@@ -375,6 +379,20 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
           const failure = providerErrorMessage(parsed);
           if (failure !== null) {
             throw new Error(`${deps.displayName}: ${failure}`);
+          }
+          // The count rides a chunk of its own with no choices (OpenAI, OpenRouter, DeepSeek),
+          // or under x_groq on Groq's last chunk.
+          const record = parsed as Record<string, unknown>;
+          const groq = record["x_groq"];
+          const counted = record["usage"] ?? (typeof groq === "object" && groq !== null ? (groq as Record<string, unknown>)["usage"] : undefined);
+          if (typeof counted === "object" && counted !== null) {
+            const tally = counted as Record<string, unknown>;
+            if (typeof tally["prompt_tokens"] === "number" || typeof tally["completion_tokens"] === "number") {
+              usage = {
+                inputTokens: typeof tally["prompt_tokens"] === "number" ? tally["prompt_tokens"] : 0,
+                outputTokens: typeof tally["completion_tokens"] === "number" ? tally["completion_tokens"] : 0,
+              };
+            }
           }
           const first = ((parsed as Record<string, unknown>)["choices"] as
             | Array<Record<string, unknown>>
@@ -467,6 +485,7 @@ export function createOpenAiCompatibleProvider(deps: OpenAiCompatibleDeps): Prov
 
       if (signal.aborted) return;
 
+      if (usage !== null) yield { kind: "usage", ...usage };
       if (finish === "length") {
         yield { kind: "stop", reason: "max-tokens" };
       } else if (finish === "content_filter") {

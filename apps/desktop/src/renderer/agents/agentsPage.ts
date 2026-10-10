@@ -62,6 +62,8 @@ export interface AgentsPage {
   refresh(): Promise<void>;
   newTask(agentId?: string | null): void;
   newAgent(): void;
+  /** Open a saved agent's editor - from its window in the chat, say. Unknown ids do nothing. */
+  editAgent(id: string): void;
   /** New task with Race switched on. */
   newRace(): void;
   /** New task about something picked elsewhere, such as an element in Preview. */
@@ -470,7 +472,13 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
         copy.type = "button";
         copy.setAttribute("aria-label", `Duplicate ${agent.name}`);
         copy.addEventListener("click", () => void duplicateAgent(agent));
-        actions.append(run, edit, copy);
+        // On the card, not only inside the editor: removing an agent should not take
+        // opening it first to find the button.
+        const remove = el("button", "agent-box-action agent-box-action-danger", "Delete");
+        remove.type = "button";
+        remove.setAttribute("aria-label", `Delete ${agent.name}`);
+        remove.addEventListener("click", () => void deleteAgent(agent));
+        actions.append(run, edit, copy, remove);
       }
       card.append(mascot.element, text, actions);
       grid.append(card);
@@ -865,15 +873,23 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
     if (result === null) return;
     try {
       if (result.kind === "delete") {
-        if (!await askThemed({ title: `Delete ${result.agent.name}?`, body: "Runs it already did stay on the board. This cannot be undone.", confirmLabel: "Delete", danger: true })) return;
-        await persistProfiles(removeAgentProfile(profiles, result.agent.id));
-        say(`${result.agent.name} deleted.`);
+        await deleteAgent(result.agent);
         return;
       }
       await persistProfiles(saveAgentProfile(profiles, result.agent));
       say(`${result.agent.name} saved.`);
     } catch (error) {
       say(errorText(error, "Could not save the agent."));
+    }
+  }
+
+  async function deleteAgent(agent: AgentProfile): Promise<void> {
+    if (!await askThemed({ title: `Delete ${agent.name}?`, body: "Runs it already did stay on the board. This cannot be undone.", confirmLabel: "Delete", danger: true })) return;
+    try {
+      await persistProfiles(removeAgentProfile(profiles, agent.id));
+      say(`${agent.name} deleted.`);
+    } catch (error) {
+      say(errorText(error, "Could not delete the agent."));
     }
   }
 
@@ -907,5 +923,14 @@ export function createAgentsPage(deps: AgentsPageDeps): AgentsPage {
     newRace: () => newTask(null, { race: true }),
     newTaskAbout: (attachment) => newTask(null, { attachment }),
     newAgent,
+    editAgent(id) {
+      // The page may not have read its agents yet when it is opened straight to one.
+      const open = (): boolean => {
+        const agent = profiles.find((candidate) => candidate.id === id);
+        if (agent !== undefined) void editAgent(agent);
+        return agent !== undefined;
+      };
+      if (!open()) void refresh().then(() => open());
+    },
   };
 }

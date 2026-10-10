@@ -100,6 +100,10 @@ import {
   onAiAutomationTargetsChanged,
 } from "./automationHost.ts";
 import { createQuickConnect, type QuickConnect } from "./quickConnect.ts";
+import { createAgentMascot, type AgentMascot } from "../agents/agentMascot.ts";
+import { chatAppearanceFrom, watchChatAppearance, type ChatAppearance } from "./chatAppearance.ts";
+import { openChatAppearanceDialog } from "./chatAppearanceDialog.ts";
+import { openUsageDialog } from "./usageDialog.ts";
 import { firstBuildPrompt, looksLikeBuildRequest } from "../../shared/firstBuild.ts";
 
 export interface ChatWidget {
@@ -210,6 +214,8 @@ export interface ChatWidgetDeps {
   readonly openTools?: () => void;
   /** Open Settings at one setting - the meter's "Auto-compact settings". */
   readonly openSettings?: (settingId: string) => void;
+  /** Run a workbench command - the live room uses it to open the Agents board or an agent's editor. */
+  readonly runCommand?: (command: string, arg?: string) => void;
   /**
    * Make a project folder for an idea and open it. Used when somebody asks for something
    * to be built with no folder open: they have an idea, not a folder, and should not be
@@ -537,6 +543,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     planCard = null;
     viewCard = null;
     transcript.replaceChildren();
+    authorPending = true;
     streamingBubble = null;
     activeSessionId = null;
     conversationTitle.textContent = "New conversation";
@@ -599,12 +606,26 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   controlsButton.textContent = "Tools & skills";
   controlsButton.title = "Open Tools: MCP servers, skills, built-in tools and project memory";
   controlsButton.addEventListener("click", () => deps.openTools?.());
+  const appearanceButton = document.createElement("button");
+  appearanceButton.className = "ghost-button";
+  appearanceButton.dataset["chatAction"] = "appearance";
+  appearanceButton.textContent = "Customise";
+  appearanceButton.title = "Choose how the assistant and agents look in the chat: name, face, and reply style";
+  appearanceButton.addEventListener("click", () => void openChatAppearanceDialog());
+  const usageButton = document.createElement("button");
+  usageButton.className = "ghost-button";
+  usageButton.dataset["chatAction"] = "usage";
+  usageButton.textContent = "Usage";
+  usageButton.title = "Tokens and estimated cost per model";
+  usageButton.addEventListener("click", () => void openUsageDialog());
   headerActions.className = "chat-header-actions";
   headerActions.append(
     historyButton,
     connectButton,
     controlsButton,
     inspectorButton,
+    appearanceButton,
+    usageButton,
     resetButton,
     shareButton,
     closeButton,
@@ -624,7 +645,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   moreMenu.className = "chat-more-menu";
   moreActions.append(moreSummary, moreMenu);
   headerActions.insertBefore(moreActions, closeButton);
-  const secondaryActions = [historyButton, connectButton, controlsButton, inspectorButton, shareButton];
+  const secondaryActions = [historyButton, connectButton, controlsButton, inspectorButton, appearanceButton, usageButton, shareButton];
   for (const action of secondaryActions) action.addEventListener("click", () => { moreActions.open = false; });
   header.append(identity, queueLabel, headerActions);
 
@@ -763,7 +784,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   const transcript = document.createElement("div");
   // Agents at work: the room of background agents above the transcript, and the
   // assistant's own live window inside it.
-  const live = createChatLiveRoom();
+  const live = createChatLiveRoom({
+    stopChat: () => stopTurn(),
+    runCommand: (command, arg) => deps.runCommand?.(command, arg),
+  });
   const chatPreview = createChatPreview(transcript);
   const previewCalls = new Set<string>();
   /*
@@ -924,16 +948,34 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     options.addEventListener("click", () => {
       historyMenuTrigger = options;
       options.setAttribute("aria-expanded", "true");
+      // Under the button, starting at its left edge - the way a row's menu opens - rather
+      // than hanging off its right corner over the conversation.
       const rect = options.getBoundingClientRect();
-      historyMenu.open(rect.right, rect.bottom + 4, [
-        { label: "Rename conversation", run: async () => {
+      historyMenu.open(rect.left, rect.bottom + 4, [
+        { label: "Open", run: () => void resume(session.id) },
+        { label: "Rename conversation…", run: async () => {
           const name = await deps.askForName(session.title);
           if (name === null) return;
           saved = await window.adcode.chat.rename(session.id, name);
           if (session.id === activeSessionId) conversationTitle.textContent = name;
           renderHistory();
         } },
-        { label: "Delete conversation", danger: true, run: async () => {
+        { label: "Copy as Markdown", run: async () => {
+          const lines = [`# ${session.title}`, ...session.messages.map((message) => `## ${message.role === "user" ? "You" : appearance.name}\n${message.text}`)];
+          const ok = await copyText(lines.join("\n\n")).then(() => true, () => false);
+          // Said on the row itself, briefly, rather than as a note in the conversation.
+          openIt.textContent = ok ? "Copied as Markdown" : "Could not copy";
+          window.setTimeout(() => { openIt.textContent = session.title; }, 1400);
+        } },
+        { kind: "separator" },
+        { label: "Delete conversation…", danger: true, run: async () => {
+          const sure = await askThemed({
+            title: `Delete "${session.title}"?`,
+            body: "The conversation is removed from this machine. This cannot be undone.",
+            confirmLabel: "Delete",
+            danger: true,
+          });
+          if (!sure) return;
           saved = await window.adcode.chat.remove(session.id);
           if (session.id === activeSessionId) {
             activeSessionId = null;
@@ -1005,6 +1047,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     planCard = null;
     viewCard = null;
     transcript.replaceChildren();
+    authorPending = true;
     streamingBubble = null;
     activeSessionId = session.id;
     conversationTitle.textContent = session.title;
@@ -1728,6 +1771,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       { label: "Compact now", run: () => void compactNow() },
       { label: "View summary", disabled: currentSummary === null, run: () => viewSummary() },
       { kind: "separator" as const },
+      { label: "Usage by model…", run: () => void openUsageDialog() },
       { label: "Auto-compact settings", run: () => deps.openSettings?.("adcode.ai.autoCompact") },
     ], () => trigger.setAttribute("aria-expanded", "false"));
   });
@@ -2138,14 +2182,90 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   transcript.addEventListener("scroll", () => updateScrollButton(), { passive: true });
   conversation.append(memory, connectBanner, folderBanner, welcome, live.element, transcript, scrollButton, composer, quickActions);
   refreshWelcome();
+  /*
+   * The "is writing" row: who is working, what they are doing, for how long, and the way to
+   * stop them - in the conversation, where the eye already is, rather than only as the
+   * square the send button turns into at the far corner of the composer.
+   */
+  let appearance: ChatAppearance = chatAppearanceFrom({});
   const working = document.createElement("div");
   working.className = "chat-working";
   working.hidden = true;
   working.setAttribute("role", "status");
+  const workingMascot = createAgentMascot({ look: appearance.look, mood: "thinking", size: 20 });
+  workingMascot.element.classList.add("chat-working-avatar");
+  const workingName = document.createElement("span");
+  workingName.className = "chat-working-name";
+  workingName.textContent = appearance.name;
   const workingText = document.createElement("span");
   workingText.className = "chat-working-text";
   workingText.textContent = "Thinking";
-  working.append(workingText);
+  const workingDots = document.createElement("span");
+  workingDots.className = "chat-working-dots";
+  workingDots.setAttribute("aria-hidden", "true");
+  workingDots.append(document.createElement("i"), document.createElement("i"), document.createElement("i"));
+  // Ticks every second, so it is kept out of the live region: a screen reader would read it.
+  const workingElapsed = document.createElement("span");
+  workingElapsed.className = "chat-working-elapsed";
+  workingElapsed.setAttribute("aria-hidden", "true");
+  const workingStop = document.createElement("button");
+  workingStop.type = "button";
+  workingStop.className = "chat-working-stop";
+  workingStop.title = "Stop this turn (Esc)";
+  workingStop.setAttribute("aria-label", "Stop this turn");
+  const workingStopIcon = document.createElement("span");
+  workingStopIcon.className = "chat-working-stop-icon";
+  workingStopIcon.setAttribute("aria-hidden", "true");
+  const workingStopKey = document.createElement("kbd");
+  workingStopKey.textContent = "Esc";
+  workingStopKey.setAttribute("aria-hidden", "true");
+  workingStop.append(workingStopIcon, document.createTextNode("Stop"), workingStopKey);
+  workingStop.addEventListener("click", () => stopTurn());
+  working.append(workingMascot.element, workingName, workingText, workingDots, workingElapsed, workingStop);
+  let workingSince = 0;
+  let workingClock: number | null = null;
+  function paintElapsed(): void {
+    const seconds = Math.max(0, Math.floor((Date.now() - workingSince) / 1_000));
+    workingElapsed.textContent = seconds < 60 ? `${String(seconds)}s` : `${String(Math.floor(seconds / 60))}m ${String(seconds % 60).padStart(2, "0")}s`;
+  }
+
+  /* Faces and names on replies, and the reply layout, from Settings > Appearance. */
+  const authorMascots: AgentMascot[] = [];
+  /** True until the turn's first reply has its author line. */
+  let authorPending = true;
+  /** The turn's author line, once: above its first block of work or its first reply. */
+  function ensureAuthor(): void {
+    if (!authorPending) return;
+    authorPending = false;
+    const line = authorLine();
+    if (working.isConnected) transcript.insertBefore(line, working);
+    else transcript.append(line);
+  }
+  function authorLine(): HTMLElement {
+    const line = document.createElement("div");
+    line.className = "chat-author";
+    const mascot = createAgentMascot({ look: appearance.look, mood: "happy", size: 18 });
+    authorMascots.push(mascot);
+    const name = document.createElement("span");
+    name.className = "chat-author-name";
+    name.textContent = appearance.name;
+    line.append(mascot.element, name);
+    return line;
+  }
+  function applyAppearance(next: ChatAppearance): void {
+    appearance = next;
+    card.dataset["messageStyle"] = next.style;
+    card.dataset["avatars"] = String(next.avatars);
+    workingName.textContent = next.name;
+    workingMascot.setLook(next.look);
+    for (let index = authorMascots.length - 1; index >= 0; index -= 1) {
+      const mascot = authorMascots[index]!;
+      if (!mascot.element.isConnected) authorMascots.splice(index, 1);
+      else mascot.setLook(next.look);
+    }
+    for (const name of transcript.querySelectorAll<HTMLElement>(".chat-author-name")) name.textContent = next.name;
+  }
+  watchChatAppearance(applyAppearance);
 
   const inspector = document.createElement("aside");
   inspector.className = "chat-inspector";
@@ -2259,10 +2379,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    */
   function ensureActivity(): ActivityBlockHandle {
     if (activeActivity !== null) return activeActivity;
-    // The activity block is the turn's status line — the legacy dot-pulse
-    // working row would read as a second, competing "Thinking" underneath it.
-    working.hidden = true;
-    working.remove();
+    // The activity block names the step, so the "is writing" row underneath drops its own
+    // step text rather than read as a second, competing "Thinking" - but it stays, because
+    // it carries who is working, for how long, and Stop.
+    working.dataset["activity"] = "open";
     const block = createActivityBlock({ label: "Thinking" });
     transcript.append(block.element);
     activeActivity = block;
@@ -2272,6 +2392,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /** Text is starting: the work before it is done. A "Thinking" placeholder with no steps just goes. */
   function closeActivitySegment(): void {
+    delete working.dataset["activity"];
     if (activeActivity === null) return;
     if (activityToolRows.size === 0) {
       activeActivity.destroy();
@@ -2282,6 +2403,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   function finishActivity(label?: string): void {
+    delete working.dataset["activity"];
     if (activeActivity === null) return;
     // A block with no steps in it has nothing to report: "Worked for 3s" over an empty box
     // is noise, and it used to leave a second mascot behind. A failure keeps its block.
@@ -2299,6 +2421,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   /** Drop a live block without finalizing (reset / resume replace the transcript). */
   function resetActivity(): void {
+    delete working.dataset["activity"];
     streamPaint.cancel();
     dirtyMessages.clear();
     if (activeActivity !== null) {
@@ -2597,6 +2720,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       element.append(row);
     }
     renderMessage(element, text);
+    // Who is replying, once per turn: above the first reply after your message.
+    if (role === "user") authorPending = true;
+    else ensureAuthor();
     transcript.append(element);
     if (role === "assistant" && text.length > 0) transcript.append(messageActions(element));
     if (role === "user" && text.trim().length > 0) transcript.append(userMessageActions(element, text));
@@ -3772,7 +3898,16 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     const wasWorking = card.dataset["working"] === "true";
     card.dataset["working"] = String(mode === "stop");
     if (wasWorking !== (mode === "stop")) for (const listener of busyListeners) listener(mode === "stop");
-    if (mode === "stop") workingText.textContent = "Thinking";
+    if (mode === "stop") {
+      workingText.textContent = "Thinking";
+      workingStop.disabled = false;
+      if (!wasWorking) workingSince = Date.now();
+      paintElapsed();
+      workingClock ??= window.setInterval(paintElapsed, 1_000);
+    } else if (workingClock !== null) {
+      window.clearInterval(workingClock);
+      workingClock = null;
+    }
     sendButton.dataset["mode"] = mode;
     // Cursor-style stop: while a turn runs the button stops it, so it stays
     // enabled and wears a spinner ring (CSS) rather than going dead. Enter with
@@ -3821,6 +3956,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (!ending && !turnActive) {
       turnActive = true;
       turnStartedAt = Date.now();
+      // A turn this composer did not start - the other window's, a schedule's - can still
+      // be stopped from here: it is the same assistant, and it needs the same Stop.
+      if (sendButton.dataset["mode"] !== "stop") setSendMode("stop");
+      ensureAuthor();
       // A new turn gets its own plan and its own view, below its own question.
       planCard = null;
       viewCard = null;
@@ -4139,7 +4278,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         return;
       }
       // Cursor-style stop: with nothing typed, the send key stops the running turn.
-      window.adcode.ai.cancel();
+      stopTurn();
       return;
     }
     const text = input.value;
@@ -4310,6 +4449,29 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
   });
   input.addEventListener("input", () => refreshStopTitle());
+
+  /**
+   * Stop the running turn. The send button, the "is writing" row, Esc, and the turn's live
+   * window all come here, so stopping means one thing wherever it is asked for.
+   */
+  function stopTurn(): void {
+    if (sendButton.dataset["mode"] !== "stop") return;
+    // A person stepping in resets Keep going's count.
+    keptGoing = 0;
+    closeOpenMenu();
+    workingText.textContent = "Stopping";
+    workingStop.disabled = true;
+    window.adcode.ai.cancel();
+  }
+
+  // Esc stops a running turn from anywhere in the chat. Marked handled, so the floating
+  // panel's own Escape (close) waits until there is nothing left to stop.
+  card.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || event.defaultPrevented || event.isComposing) return;
+    if (sendButton.dataset["mode"] !== "stop") return;
+    event.preventDefault();
+    stopTurn();
+  });
 
   /** The stop button says what Enter would do while a turn runs. */
   function refreshStopTitle(): void {

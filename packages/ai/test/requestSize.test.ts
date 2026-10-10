@@ -58,7 +58,8 @@ describe("the agent's fallback", () => {
     const events: AgentEvent[] = [];
     for await (const event of agent.send("make a website")) events.push(event);
 
-    expect(events.map((event) => event.kind)).toEqual(["status", "text", "turn-end"]);
+    // The refused request cost nothing, so only the one that answered is counted.
+    expect(events.map((event) => event.kind)).toEqual(["status", "text", "usage", "turn-end"]);
     expect(seen[0]!.tools.map((t) => t.name)).toEqual(["read_file", "memory_write"]);
     expect(seen[1]!.tools.map((t) => t.name)).toEqual(["read_file"]);
     expect(seen[1]!.system.startsWith(LEAN_SYSTEM)).toBe(true);

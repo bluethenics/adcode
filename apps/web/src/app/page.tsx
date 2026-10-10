@@ -8,6 +8,7 @@ import { AppShowcase } from "@/components/AppShowcase";
 import { ModeShowcase } from "@/components/ModeShowcase";
 import { LiveAgentsShowcase } from "@/components/LiveAgentsShowcase";
 import { LiveRecording } from "@/components/LiveRecording";
+import { Partners } from "@/components/Partners";
 import { DocsShowcase } from "@/components/DocsShowcase";
 import Link from "next/link";
 import { HomeFaq } from "@/components/HomeFaq";
@@ -68,6 +69,7 @@ export default function Home() {
       <HeroInstall source="hero" tour="#how-it-works" />
       </div><DeveloperCounter /></div>
       <AppShowcase />
+      <Partners />
       <HeroCounter />
       </div>
       </section>

@@ -38,9 +38,26 @@ import "./styles/tools.css";
 import "./styles/liveAgents.css";
 // The chat's single spacing system: one column, one rhythm, three control heights.
 import "./styles/conversation.css";
+// Stop controls, who is replying, reply styles, text size, menus, usage and Customise chat.
+import "./styles/chatControls.css";
 // Last: its reduced-motion-guarded rules refine the entrances the sheets above declare.
 import "./styles/motion.css";
 import { createFrameTask } from "./frameTask.ts";
+import {
+  MOTION_SETTING,
+  reduceMotion,
+  stepTextSize,
+  stepZoom,
+  terminalFontSize,
+  TEXT_SIZE_SETTING,
+  textScale,
+  textSizeLabel,
+  ZOOM_SETTING,
+  zoomFactor,
+  zoomLabel,
+} from "./appearanceModel.ts";
+import { openUsageDialog } from "./ai/usageDialog.ts";
+import { openChatAppearanceDialog } from "./ai/chatAppearanceDialog.ts";
 import "./ai/automationHost.ts";
 import { createSourceControlPanel } from "./panels/sourceControl.ts";
 import { createBreadcrumbs } from "./editor/breadcrumbs.ts";
@@ -303,6 +320,7 @@ function applySettings(values: Record<string, boolean | string>): void {
   const density = values["adcode.appearance.density"];
   document.documentElement.dataset["density"] =
     density === "compact" ? "compact" : "comfortable";
+  applyAppearance(values);
 
   /*
    * Reporting is switched before the editor is told anything.
@@ -369,6 +387,51 @@ function applySettings(values: Record<string, boolean | string>): void {
    * runtime (boot runs at the bottom of this module), so the later declaration is safe.
    */
   featureLibrary.refresh();
+}
+
+/* ── Zoom, text size and motion ───────────────────────────────────────── */
+
+/*
+ * Reduce motion follows the OS unless Settings > Appearance > Motion says otherwise.
+ * Chromium's media query is the system's answer; the attribute is what every stylesheet
+ * and JS-driven animation reads, so one function decides it.
+ */
+const systemReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+function syncMotion(): void {
+  document.documentElement.dataset["reducedMotion"] = String(
+    reduceMotion(settingsValues[MOTION_SETTING], systemReducedMotion.matches),
+  );
+}
+
+systemReducedMotion.addEventListener("change", syncMotion);
+
+/**
+ * Appearance > Zoom and Text size, applied.
+ *
+ * Zoom is the window's own zoom factor, so menus, panels and text all scale together. Text
+ * size reaches three places that draw their own text: the chat (a CSS variable), Monaco
+ * (through `editorOptionsFor`) and xterm.
+ */
+function applyAppearance(values: Record<string, boolean | string>): void {
+  const root = document.documentElement;
+  root.style.setProperty("--text-scale", String(textScale(values[TEXT_SIZE_SETTING])));
+  root.dataset["textSize"] = typeof values[TEXT_SIZE_SETTING] === "string" ? values[TEXT_SIZE_SETTING] : "default";
+  window.adcode.window.setZoom(zoomFactor(values[ZOOM_SETTING]));
+  terminal?.setFontSize(terminalFontSize(values[TEXT_SIZE_SETTING]));
+  syncMotion();
+}
+
+/** A shortcut stepped Zoom or Text size: save it, so Settings and the next launch agree. */
+function stepAppearance(id: string, next: string, label: string): void {
+  if (settingsValues[id] === next) {
+    setStatus(`${label} (as far as it goes)`, 2000);
+    return;
+  }
+  void window.adcode.settings.write(id, next).then(
+    () => setStatus(label, 2000),
+    () => setStatus("Could not save that size.", 3000),
+  );
 }
 
 /* ── Theme ────────────────────────────────────────────────────────────── */
@@ -2100,6 +2163,7 @@ function terminalPanel(): TerminalPanel {
   // A panel created after settings were read still has to honour them: `applySettings` runs
   // once at startup, and the terminal usually does not exist yet when it does.
   if (created) {
+    terminal.setFontSize(terminalFontSize(settingsValues[TEXT_SIZE_SETTING]));
     terminal.setAgentDetection(
       settingsValues["adcode.ai.terminalAgentDetection"] !== false,
     );
@@ -4617,6 +4681,7 @@ const chat = createChatWidget({
   reportProblem: (prefill) => reportDialog.open({ kind: "bug", ...prefill, includeDebugLog: true }),
   openTools: () => commands.run("tools.open"),
   openSettings: (query) => openSetting(query),
+  runCommand: (command, arg) => commands.run(command, arg),
   uncommittedDiff: async () => {
     const [diff, status] = await Promise.all([
       window.adcode.git.diff().catch(() => ""),
@@ -5151,15 +5216,7 @@ async function boot(): Promise<void> {
   void refreshMenuRecents();
   void refreshAccountLabel();
 
-  // §1: reduce-motion follows the OS. Chromium's media query is the single source of
-  // truth for it; the attribute just lets JS-driven animations read the same value.
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const syncMotion = (): void => {
-    document.documentElement.dataset["reducedMotion"] = String(
-      reduceMotion.matches,
-    );
-  };
-  reduceMotion.addEventListener("change", syncMotion);
+  // §1: reduce-motion follows the OS unless Settings > Appearance > Motion overrides it.
   syncMotion();
 
   const profilesRequest = window.adcode.terminal.profiles().catch(() => [] as TerminalProfile[]);
@@ -5642,9 +5699,21 @@ function registerCommands(): void {
     else showView(layoutState.activeSidebarView, "keyboard");
   });
   add("view.togglePanel", "Toggle Panel", () => void togglePanel());
-  add("view.zoomIn", "Zoom In", () => window.adcode.window.zoom(1));
-  add("view.zoomOut", "Zoom Out", () => window.adcode.window.zoom(-1));
-  add("view.zoomReset", "Reset Zoom", () => window.adcode.window.zoom(0));
+  // Zoom and Text size are settings, so a shortcut moves the row and survives a restart.
+  const zoomTo = (direction: number): void => {
+    const next = stepZoom(settingsValues[ZOOM_SETTING], direction);
+    stepAppearance(ZOOM_SETTING, next, `Zoom ${zoomLabel(next)}`);
+  };
+  const textTo = (direction: number): void => {
+    const next = stepTextSize(settingsValues[TEXT_SIZE_SETTING], direction);
+    stepAppearance(TEXT_SIZE_SETTING, next, `Text size: ${textSizeLabel(next)}`);
+  };
+  add("view.zoomIn", "Zoom In", () => zoomTo(1));
+  add("view.zoomOut", "Zoom Out", () => zoomTo(-1));
+  add("view.zoomReset", "Reset Zoom", () => zoomTo(0));
+  add("view.textBigger", "Bigger Text", () => textTo(1));
+  add("view.textSmaller", "Smaller Text", () => textTo(-1));
+  add("view.textReset", "Reset Text Size", () => textTo(0));
   add("view.explorer", "Explorer", () => showView("explorer"));
   add("view.search", "Find in Files", () => showView("search"));
   add("view.structure", "Structure", () => {
@@ -5734,6 +5803,8 @@ function registerCommands(): void {
   add("ai.team", "Set Up AI Team", () => chat.openTeamSetup());
   add("ai.schedule", "Schedule an AI Message", () => chat.openScheduleComposer());
   add("ai.compactConversation", "AI: Compact Conversation", () => chat.compactConversation());
+  add("ai.showUsage", "AI: Show Usage", () => void openUsageDialog());
+  add("ai.customizeChat", "AI: Customise Chat", () => void openChatAppearanceDialog({ openAgents: () => openAgents() }));
   add("ai.viewConversationSummary", "AI: View Conversation Summary", () => chat.viewConversationSummary());
   add("ai.askSelection", "Ask AI about Selection or File", () => editorHost.runAction("adcode.askSelection"));
   add("ai.explainSelection", "AI: Explain This Code", () => editorHost.runAction("adcode.explainSelection"));
@@ -5774,6 +5845,11 @@ function registerCommands(): void {
   add("agents.open", "Open Agents", () => openAgents());
   add("agents.newTask", "Agents: Give an Agent a Task", () => { openAgents(); agentsPage.newTask(); });
   add("agents.newAgent", "Agents: Create an Agent", () => { openAgents(); agentsPage.newAgent(); });
+  // From an agent's window in the chat: straight to its editor. No id: the library.
+  add("agents.editAgent", "Agents: Edit an Agent", (id) => {
+    openAgents();
+    if (id !== undefined && id.length > 0) agentsPage.editAgent(id);
+  });
   add("agents.race", "Agents: Race Several Agents on One Task", () => { openAgents(); agentsPage.newRace(); });
   add("tools.open", "Open Tools", () => openTools());
   add("tools.addServer", "Tools: Add an MCP Server", () => { openTools("servers"); toolsPage.addServer(); });

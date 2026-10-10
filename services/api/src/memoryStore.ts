@@ -6,6 +6,7 @@
  * id, and a balance cache written in the same step as the append. A test double that is
  * more permissive than production tests nothing worth testing.
  */
+import { planBudgetMove } from "./campaignBudget.ts";
 import { utcDay } from "./day.ts";
 import { countDevelopers, sightings, summarizeGrowth, type MilestoneRow, type PresenceRow } from "./growth.ts";
 import { applyEntry, EMPTY_BALANCE, type Balance, type LedgerEntry } from "./ledger.ts";
@@ -284,6 +285,33 @@ export function createMemoryStore(): Store & { reset(): void } {
       const updated = { ...campaign, status: next };
       campaigns.set(campaignId, updated);
       return { ok: true, campaign: updated };
+    },
+
+    async moveCampaignBudget({ advertiserId, fromCampaignId, toCampaignId, amountMicros, maxBudgetMicros }) {
+      // No await between the reads and the writes, so nothing can settle in between.
+      const advertiser = advertisers.get(advertiserId);
+      const from = campaigns.get(fromCampaignId);
+      const to = campaigns.get(toCampaignId);
+      if (advertiser === undefined || from === undefined || to === undefined) {
+        return { ok: false, reason: "not-found" };
+      }
+      const plan = planBudgetMove({
+        advertiser,
+        from,
+        to,
+        fromSpentMicros: spend.get(fromCampaignId) ?? 0n,
+        amountMicros,
+        maxBudgetMicros,
+      });
+      if (!plan.ok) return plan;
+
+      const nextAdvertiser = { ...advertiser, reservedMicros: plan.reservedMicros };
+      const nextFrom = { ...from, budgetMicros: plan.fromBudgetMicros };
+      const nextTo = { ...to, budgetMicros: plan.toBudgetMicros };
+      advertisers.set(advertiserId, nextAdvertiser);
+      campaigns.set(fromCampaignId, nextFrom);
+      campaigns.set(toCampaignId, nextTo);
+      return { ok: true, advertiser: nextAdvertiser, from: nextFrom, to: nextTo };
     },
 
     async activeCampaignsFor(tags) {

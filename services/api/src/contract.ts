@@ -358,6 +358,13 @@ export interface CampaignBody {
   targetTags: string[];
 }
 
+/** Moves unspent budget from the campaign in the path to `toCampaignId`. */
+export interface BudgetMoveBody {
+  fromCampaignId: string;
+  toCampaignId: string;
+  amountMicros: string;
+}
+
 export interface CreativeBody {
   campaignId: string;
   advertiser: string;
@@ -450,6 +457,24 @@ export function parseCampaign(raw: unknown): CampaignBody | null {
   const known = [...new Set(tags.filter((t): t is string => typeof t === "string" && isTag(t)))];
 
   return { name, cpmMicros: cpm, budgetMicros: budget, targetTags: known };
+}
+
+/**
+ * A budget move. The source comes from the path, so a body can only name where the money
+ * goes; ownership of both is checked by the handler, not here.
+ */
+export function parseBudgetMove(fromCampaignId: string, raw: unknown): BudgetMoveBody | null {
+  if (!isRecord(raw)) return null;
+  const from = boundedText(fromCampaignId, LIMITS.creativeId);
+  const to = boundedText(raw["toCampaignId"], LIMITS.creativeId);
+  if (from === null || to === null || from === to) return null;
+
+  const amount = raw["amountMicros"];
+  if (typeof amount !== "string" || !/^[0-9]{1,19}$/.test(amount)) return null;
+  const value = BigInt(amount);
+  if (value <= 0n || value > ADVERTISER_LIMITS.maxBudgetMicros) return null;
+
+  return { fromCampaignId: from, toCampaignId: to, amountMicros: value.toString() };
 }
 
 export function parseCreative(raw: unknown): CreativeBody | null {

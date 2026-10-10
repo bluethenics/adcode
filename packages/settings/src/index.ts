@@ -193,6 +193,137 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
       { value: "midnight", label: "Midnight" },
     ],
   },
+  /*
+   * Zoom and text size are two settings rather than one because they answer two
+   * complaints. "Everything is tiny on this screen" wants the whole window bigger, chrome
+   * included. "I can't read the code" wants the words bigger and the layout left alone -
+   * zooming the window to read the editor costs a third of the sidebar for no reason.
+   * Both are values in Settings, not just shortcuts, so the size survives a restart and the
+   * row shows what the shortcuts did.
+   */
+  {
+    id: "adcode.appearance.zoom",
+    group: "appearance",
+    kind: "enum",
+    label: "Zoom",
+    description: "The size of the whole window - menus, panels, text and all. Ctrl+= and Ctrl+- step through these; Ctrl+0 goes back to 100%.",
+    default: "100",
+    available: true,
+    options: [
+      { value: "80", label: "80%" },
+      { value: "90", label: "90%" },
+      { value: "100", label: "100%", detail: "Default" },
+      { value: "110", label: "110%" },
+      { value: "125", label: "125%" },
+      { value: "150", label: "150%" },
+      { value: "175", label: "175%" },
+      { value: "200", label: "200%" },
+    ],
+  },
+  {
+    id: "adcode.appearance.textSize",
+    group: "appearance",
+    kind: "enum",
+    label: "Text size",
+    description: "The size of what you read - code in the editor, the terminal, and chat messages - without zooming the rest of the window. Ctrl+Alt+= and Ctrl+Alt+- change it; Ctrl+Alt+0 resets it.",
+    default: "default",
+    available: true,
+    options: [
+      { value: "small", label: "Small" },
+      { value: "default", label: "Default" },
+      { value: "large", label: "Large" },
+      { value: "larger", label: "Larger" },
+      { value: "largest", label: "Largest" },
+    ],
+  },
+  {
+    id: "adcode.appearance.motion",
+    group: "appearance",
+    kind: "enum",
+    label: "Motion",
+    description: "Animation in the window: messages rising in, mascots moving, code typing in. Follow system uses your computer's reduce-motion setting.",
+    default: "system",
+    available: true,
+    options: [
+      { value: "system", label: "Follow system" },
+      { value: "reduce", label: "Reduce", detail: "Still, instant changes" },
+      { value: "full", label: "Full" },
+    ],
+  },
+
+  /*
+   * How agents look in the chat. The assistant's name and face are the user's to pick:
+   * a chat that answers as "Assistant" in a blue circle forever is somebody else's product.
+   * Named agents already carry their own look (the agent editor), so these rows are for the
+   * built-in assistant and for how every agent's replies are laid out.
+   */
+  {
+    id: "adcode.appearance.assistantName",
+    group: "appearance",
+    kind: "text",
+    label: "Assistant name",
+    description: "What the built-in assistant is called in the chat - above its replies, on its live window, and while it is writing.",
+    default: "Assistant",
+    available: true,
+    placeholder: "Assistant",
+    multiline: false,
+    maxLength: 40,
+  },
+  {
+    id: "adcode.appearance.assistantShape",
+    group: "appearance",
+    kind: "enum",
+    label: "Assistant shape",
+    description: "The built-in assistant's mascot shape in the chat.",
+    default: "circle",
+    available: true,
+    options: [
+      { value: "circle", label: "Circle" },
+      { value: "capsule", label: "Capsule" },
+      { value: "pebble", label: "Pebble" },
+      { value: "drop", label: "Drop" },
+      { value: "hexagon", label: "Hexagon" },
+      { value: "cloud", label: "Cloud" },
+      { value: "squircle", label: "Squircle" },
+      { value: "egg", label: "Egg" },
+    ],
+  },
+  {
+    id: "adcode.appearance.assistantColor",
+    group: "appearance",
+    kind: "enum",
+    label: "Assistant colour",
+    description: "The built-in assistant's mascot colour in the chat.",
+    default: "blue",
+    available: true,
+    options: [
+      { value: "blue", label: "Blue" },
+      { value: "teal", label: "Teal" },
+      { value: "green", label: "Green" },
+      { value: "lime", label: "Lime" },
+      { value: "amber", label: "Amber" },
+      { value: "orange", label: "Orange" },
+      { value: "coral", label: "Coral" },
+      { value: "pink", label: "Pink" },
+      { value: "violet", label: "Violet" },
+      { value: "slate", label: "Slate" },
+    ],
+  },
+  bool("adcode.appearance.agentAvatars", "appearance", "Show who is replying", "Put the agent's face and name above its replies in the chat, and on the line that says it is writing.", true, true),
+  {
+    id: "adcode.appearance.messageStyle",
+    group: "appearance",
+    kind: "enum",
+    label: "Reply style",
+    description: "How replies sit in the chat. Document runs replies full width, like a page; Bubbles puts each reply in a soft card, like a messaging app; Compact tightens the spacing to fit more on screen.",
+    default: "document",
+    available: true,
+    options: [
+      { value: "document", label: "Document" },
+      { value: "bubbles", label: "Bubbles" },
+      { value: "compact", label: "Compact" },
+    ],
+  },
 
   /* ── Editing (§4) ───────────────────────────────────────────────────── */
   bool("adcode.editing.bracketPairColorization", "editing", "Bracket pair colorization", "Colour matching brackets by depth.", true, true),
@@ -534,6 +665,20 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
       { value: "90", label: "90%", detail: "Keep the most word for word" },
     ],
   },
+  /*
+   * On by default because the failure it prevents is the default: asked for a page, a
+   * model reaches for the same purple gradient, centred hero and three equal cards every
+   * time. The guide is read only when the work is a user interface, so a question about a
+   * build error never pays for it.
+   */
+  bool(
+    "adcode.ai.designTaste",
+    "ai",
+    "Design taste skill",
+    "Before the assistant or an agent builds or restyles a user interface, it reads a bundled design guide (taste-skill, MIT) so pages do not come out looking generic. It keeps your project's own stack and style.",
+    true,
+    true,
+  ),
   bool("adcode.ai.memoryCapture", "ai", "Memory capture", "Record decisions and conventions to the shared project memory.", true, true),
   bool("adcode.ai.mcpServer", "ai", "MCP server", "Let external agents read and write the same memory.", true, true),
   bool("adcode.ai.liveAgentView", "ai", "Live agent view", "Show every agent at work in the chat: code typing in as it is written, commands running, and the messages agents send each other.", true, true),

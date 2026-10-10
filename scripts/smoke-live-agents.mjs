@@ -54,6 +54,15 @@ function answered(request) {
   return request.messages.slice(firstUser + 1).filter((message) => message.role === "tool").length;
 }
 
+/** Tool results since the newest user message that names `marker`: one turn's steps, not the conversation's. */
+function answeredSince(request, marker) {
+  let from = -1;
+  request.messages.forEach((message, index) => {
+    if (message.role === "user" && JSON.stringify(message.content).includes(marker)) from = index;
+  });
+  return from === -1 ? 0 : request.messages.slice(from + 1).filter((message) => message.role === "tool").length;
+}
+
 function roleOf(request) {
   const system = request.messages.find((message) => message.role === "system")?.content ?? "";
   return /Role: .* \(id ([a-z-]+)\)/.exec(typeof system === "string" ? system : JSON.stringify(system))?.[1] ?? null;
@@ -63,11 +72,14 @@ async function streamCall(res, id, name, args, chunks = 1, gap = 0) {
   const json = JSON.stringify(args);
   const size = Math.max(1, Math.ceil(json.length / chunks));
   for (let at = 0; at < json.length; at += size) {
+    // Stopped mid-stream: the client has gone, and writing on would throw.
+    if (res.destroyed) return;
     const piece = json.slice(at, at + size);
     const call = at === 0 ? { index: 0, id, type: "function", function: { name, arguments: piece } } : { index: 0, function: { arguments: piece } };
     res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [call] } }] })}\n\n`);
     if (gap > 0) await sleep(gap);
   }
+  if (res.destroyed) return;
   res.end(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] })}\n\ndata: [DONE]\n\n`);
 }
 
@@ -98,6 +110,11 @@ const fake = createServer(async (req, res) => {
   if (role === "review") {
     if (step === 0) return streamCall(res, "r-read", "read_messages", {});
     return say(res, "Reviewed lib.js: it reads well.");
+  }
+  // Slow on purpose: long enough for the smoke to press Stop while it is still writing.
+  if (prompt.includes("stop-chat-smoke")) {
+    if (answeredSince(request, "stop-chat-smoke") === 0) return streamCall(res, "s-edit", "propose_edit", { path: "slow.js", contents: APP }, 80, 120);
+    return say(res, "Stopped too late.");
   }
   if (prompt.includes("live-chat-smoke")) {
     if (step === 0) return streamCall(res, "c-edit", "propose_edit", { path: "app.js", contents: APP }, 60, 55);
@@ -234,12 +251,45 @@ try {
   results.chatWindowAppeared = await waitFor("Boolean(document.querySelector('.chat-transcript .live-window'))", 20_000);
   const lengths = new Set();
   let shotTaken = false;
+  // While it works: the "is writing" row at the bottom names the assistant and offers Stop,
+  // and the turn's live window has a Stop of its own.
+  results.chatWorkingRow = false;
+  results.chatInlineMenu = false;
   const until = Date.now() + 30_000;
   while (Date.now() < until) {
     const state = await evaluate(`(() => {
       const win = document.querySelector('.chat-transcript .live-window');
-      return { length: win?.querySelector('.live-code-lines')?.textContent.length ?? 0, activity: win?.dataset.activity ?? '', status: win?.dataset.status ?? '' };
+      const working = document.querySelector('.chat-transcript .chat-working');
+      return {
+        length: win?.querySelector('.live-code-lines')?.textContent.length ?? 0,
+        activity: win?.dataset.activity ?? '',
+        status: win?.dataset.status ?? '',
+        workingRow: !!working && !working.hidden && working.getBoundingClientRect().height > 0 &&
+          (working.querySelector('.chat-working-name')?.textContent ?? '').length > 0 &&
+          working.querySelector('.chat-working-stop')?.disabled === false && working === working.parentElement?.lastElementChild,
+        workingEvidence: (() => {
+          const any = document.querySelector('.chat-working');
+          if (!any) return 'no .chat-working anywhere';
+          const box = any.getBoundingClientRect();
+          return {
+            parent: any.parentElement?.className ?? null,
+            hidden: any.hidden,
+            display: getComputedStyle(any).display,
+            last: any === any.parentElement?.lastElementChild,
+            height: Math.round(box.height),
+            top: Math.round(box.top),
+            name: any.querySelector('.chat-working-name')?.textContent ?? null,
+            text: any.querySelector('.chat-working-text')?.textContent ?? null,
+          };
+        })(),
+        // The turn's own window offers its actions (Stop among them) behind ⋯, not a second Stop.
+        inlineMenu: !!win && win.dataset.status === 'working' && win.querySelector('.live-window-menu')?.hidden === false &&
+          win.querySelector('.live-window-stop')?.hidden === true,
+      };
     })()`);
+    if (state.workingRow) results.chatWorkingRow = true;
+    if (state.status === "working") results.chatWorkingEvidence = state.workingEvidence;
+    if (state.inlineMenu) results.chatInlineMenu = true;
     if (state.activity === "code" && state.length > 0) lengths.add(state.length);
     if (!shotTaken && state.length > 200) { await screenshot("chat-typing"); shotTaken = true; }
     if (state.status === "done" || state.status === "failed") break;
@@ -256,11 +306,26 @@ try {
       chatStep: win?.querySelector('.live-window-step')?.textContent ?? null,
       chatSettledShows: win?.dataset.activity ?? null,
       chatWindows: document.querySelectorAll('.chat-transcript .live-window').length,
+      chatAuthorLine: (document.querySelector('.chat-transcript .chat-author .chat-author-name')?.textContent ?? '').length > 0,
     };
   })()`));
   await sleep(400);
+  results.chatWorkingRowGoneAfter = await evaluate("!document.querySelector('.chat-transcript .chat-working:not([hidden])')");
   await screenshot("chat-settled");
   }
+
+  /* 1b. Stop, pressed in the conversation while the assistant is still writing. */
+  {
+  await evaluate("void window.adcode.ai.send('stop-chat-smoke: write slow.js'); true");
+  const writing = await waitFor("[...document.querySelectorAll('.chat-transcript .live-window')].length >= 2 && [...document.querySelectorAll('.chat-transcript .live-window')].pop()?.dataset.status === 'working'", 20_000);
+  await screenshot("chat-stop-row");
+  await evaluate("document.querySelector('.chat-transcript .chat-working .chat-working-stop')?.click(); true");
+  const stopped = await waitFor("!document.querySelector('.chat-transcript .chat-working:not([hidden])') && document.querySelector('.chat-card')?.dataset.working === 'false'", 15_000);
+  results.chatStopButtonStops = writing === true && stopped === true;
+  results.chatStopNeverFinished = !requests.some((request) => answeredSince(request, "stop-chat-smoke") >= 1);
+  }
+
+  results.chatHasDesignSkillTool = requests.some((request) => (request.tools ?? []).some((tool) => (tool.function?.name ?? tool.name) === "load_builtin_skill"));
 
   /* 2. A real Team. */
   const team = await evaluate(`window.adcode.aiTeam.configure({
@@ -288,14 +353,25 @@ try {
   let most = 0;
   let roomShot = false;
   let roomBox = null;
+  results.roomStopButtons = 0;
+  results.roomStopAllShown = false;
   const teamUntil = Date.now() + 120_000;
   while (Date.now() < teamUntil) {
     const view = await evaluate(`(() => {
       const room = document.querySelector('.live-room');
       const box = room?.getBoundingClientRect();
-      return { windows: room?.querySelectorAll('.live-window').length ?? 0, members: room?.querySelectorAll('.live-member').length ?? 0, working: Number(room?.dataset.working ?? 0), box: box ? { x: box.x, y: box.y, width: box.width, height: box.height } : null };
+      return {
+        windows: room?.querySelectorAll('.live-window').length ?? 0,
+        members: room?.querySelectorAll('.live-member').length ?? 0,
+        working: Number(room?.dataset.working ?? 0),
+        box: box ? { x: box.x, y: box.y, width: box.width, height: box.height } : null,
+        stops: room?.querySelectorAll('.live-window-stop:not([hidden])').length ?? 0,
+        stopAll: room?.querySelector('.live-room-stop')?.hidden === false,
+      };
     })()`);
     most = Math.max(most, view.members);
+    results.roomStopButtons = Math.max(results.roomStopButtons, view.stops);
+    if (view.stopAll) results.roomStopAllShown = true;
     if (view.box !== null && view.box.height > (roomBox?.height ?? 0)) roomBox = view.box;
     if (!roomShot && view.working >= 2) { await sleep(700); await screenshot("room-working"); roomShot = true; }
     const state = await evaluate(`window.adcode.aiTeam.read(${JSON.stringify(team)}).then((view) => view?.state ?? 'gone')`);
@@ -326,6 +402,15 @@ try {
   results.buildHasTeamTools = buildTools.includes("message_teammate") && buildTools.includes("read_messages");
   results.buildHasMemoryTools = buildTools.includes("project_context");
   results.reviewSawHandoff = requests.filter((request) => roleOf(request) === "review").some((request) => JSON.stringify(request.messages).includes("Built lib.js"));
+  results.agentsHaveDesignSkillTool = buildTools.includes("load_builtin_skill");
+  // The fake model reports no token counts, so every request is counted as an estimate.
+  results.usageCounted = await evaluate(`window.adcode.aiUsage.read('today').then((view) => ({
+    requests: view.totals.requests,
+    models: view.models.map((model) => model.model),
+    estimated: view.totals.estimated,
+    chat: view.models.reduce((sum, model) => sum + model.chatRequests, 0),
+    agents: view.models.reduce((sum, model) => sum + model.agentRequests, 0),
+  }))`);
 } catch (error) {
   results.error = String(error?.stack ?? error);
 } finally {

@@ -10,23 +10,41 @@
  * `chatWindow`; nothing else in the widget changes.
  */
 import { AGENT_PROFILES_SETTING, parseAgentProfiles, type AgentProfile } from "../ai/agentProfiles.ts";
+import { chatAppearanceFrom, type ChatAppearance } from "../ai/chatAppearance.ts";
 import { defaultMascotFor, type MascotLook } from "../agents/mascotStyle.ts";
+import { askThemed } from "../dialogs/confirmDialog.ts";
+import { attachContextMenuDismissal, createContextMenu, type ContextMenuNode } from "../workbench/contextMenu.ts";
 import type { AiTeamView } from "../../shared/api.ts";
 import type { LiveSourceView } from "../../shared/liveAgents.ts";
 import { createChatLiveWindow, type ChatLiveWindow } from "./chatLiveWindow.ts";
 import { subscribeLive } from "./liveHub.ts";
 import { createLiveRoom, type LiveRoomHandle } from "./liveRoom.ts";
-import type { LiveAgentIdentity } from "./liveRoomModel.ts";
+import type { LiveAgent, LiveAgentIdentity } from "./liveRoomModel.ts";
 
 export const LIVE_AGENT_VIEW_SETTING = "adcode.ai.liveAgentView";
-
-/** The chat assistant's mascot, the same one the Agents board gives it. */
-const CHAT_LOOK: MascotLook = { shape: "circle", color: "blue" };
 
 export interface ChatLiveRoom {
   readonly element: HTMLElement;
   readonly room: LiveRoomHandle;
   readonly chatWindow: ChatLiveWindow;
+}
+
+export interface ChatLiveRoomDeps {
+  /** Stop the chat's own turn - the same as its stop button. */
+  readonly stopChat?: () => void;
+  /** Run a workbench command, such as opening the Agents board. */
+  readonly runCommand?: (command: string, arg?: string) => void;
+}
+
+/** What kind of run a room group is: a Team's members stop together, a solo run alone. */
+export type LiveGroupKind = "team" | "solo" | "terminal" | "chat";
+
+/** How the room can stop an agent of this kind, or null when it cannot. Pure, for the tests. */
+export function stopLabelFor(kind: LiveGroupKind): string | null {
+  if (kind === "solo" || kind === "chat") return "Stop";
+  if (kind === "team") return "Stop team";
+  // Team in the terminal runs in terminal panes the user drives; they are stopped there.
+  return null;
 }
 
 /** A Team or solo agent's identity in the room. */
@@ -37,34 +55,126 @@ export function identityForSource(source: LiveSourceView): LiveAgentIdentity {
 // No member starts after these: a held, conflicted or merging team has run everything it will.
 const FINISHED: ReadonlySet<string> = new Set(["completed", "failed", "cancelled", "review", "conflict", "merging"]);
 
-export function createChatLiveRoom(): ChatLiveRoom {
+export function createChatLiveRoom(deps: ChatLiveRoomDeps = {}): ChatLiveRoom {
   let enabled = true;
   let profiles: AgentProfile[] = [];
   let model = "";
+  let appearance: ChatAppearance = chatAppearanceFrom({});
+  /** Team or solo, per room group, from the events and records that named it. */
+  const kinds = new Map<string, LiveGroupKind>();
 
   const lookFor = (identity: LiveAgentIdentity): MascotLook => {
-    if (identity.lookKey === "chat") return CHAT_LOOK;
+    if (identity.lookKey === "chat") return appearance.look;
     return profiles.find((profile) => profile.id === identity.lookKey)?.mascot ?? defaultMascotFor(identity.lookKey);
   };
 
-  const room = createLiveRoom({ lookFor });
+  const kindOf = (agent: LiveAgentIdentity): LiveGroupKind => {
+    if (agent.group === "chat") return "chat";
+    if (agent.group.startsWith("terminal")) return "terminal";
+    return kinds.get(agent.group) ?? "solo";
+  };
+
+  const stopping = new Set<string>();
+  /** Stop an agent's run. False when nothing was stopped - the user kept it going. */
+  async function stopGroup(agent: LiveAgentIdentity, confirmTeam: boolean): Promise<boolean> {
+    const kind = kindOf(agent);
+    if (kind === "chat") {
+      deps.stopChat?.();
+      return true;
+    }
+    if (stopLabelFor(kind) === null || stopping.has(agent.group)) return false;
+    if (kind === "team" && confirmTeam) {
+      const sure = await askThemed({
+        title: "Stop this Team?",
+        body: "Every member stops, and work not yet merged is not applied. The Team stays on the Agents board.",
+        confirmLabel: "Stop team",
+        cancelLabel: "Keep going",
+        danger: true,
+      });
+      if (!sure) return false;
+    }
+    stopping.add(agent.group);
+    try {
+      await window.adcode.aiTeam.cancel(agent.group);
+    } catch {
+      // Already finished, or gone: the room settles from the record either way.
+    } finally {
+      stopping.delete(agent.group);
+    }
+    return true;
+  }
+
+  const menu = createContextMenu(document.body);
+  let menuAnchor: HTMLElement | null = null;
+  attachContextMenuDismissal(menu, () => menuAnchor?.focus());
+
+  function openAgentMenu(agent: LiveAgent, anchor: HTMLElement): void {
+    menuAnchor = anchor;
+    anchor.setAttribute("aria-expanded", "true");
+    const kind = kindOf(agent);
+    const live = agent.status === "working" || agent.status === "waiting";
+    const stopLabel = stopLabelFor(kind);
+    const profile = profiles.find((candidate) => candidate.id === agent.role);
+    const nodes: ContextMenuNode[] = [
+      { kind: "heading", label: agent.model.length > 0 ? `${agent.label} · ${agent.model}` : agent.label },
+      ...(live && stopLabel !== null ? [{ label: stopLabel, danger: true, run: () => void stopGroup(agent, true) }] : []),
+      ...(kind === "team" || kind === "solo"
+        ? [{ label: "Open on the Agents board", run: () => deps.runCommand?.("agents.open") }]
+        : []),
+      ...(profile !== undefined ? [{ label: `Edit ${profile.name}…`, run: () => deps.runCommand?.("agents.editAgent", profile.id) }] : []),
+      ...(kind === "chat" ? [{ label: "Customise how it looks…", run: () => deps.runCommand?.("ai.customizeChat") }] : []),
+      { kind: "separator" },
+      { label: "Hide windows", run: () => room.collapse(true) },
+    ];
+    const rect = anchor.getBoundingClientRect();
+    menu.open(rect.right - 4, rect.bottom + 4, nodes, () => anchor.setAttribute("aria-expanded", "false"));
+  }
+
+  const room = createLiveRoom({
+    lookFor,
+    stopFor: (agent) => {
+      const label = stopLabelFor(kindOf(agent));
+      return label === null ? null : { label, run: () => stopGroup(agent, true) };
+    },
+    stopAll: (agents) => {
+      const groups = new Map<string, LiveAgent>();
+      for (const agent of agents) if (!groups.has(agent.group)) groups.set(agent.group, agent);
+      // One question for all of them, not one per Team.
+      void askThemed({
+        title: `Stop ${groups.size === 1 ? "this run" : `all ${String(groups.size)} runs`}?`,
+        body: "Every agent working here stops. Runs stay on the Agents board, and work not yet applied is not applied.",
+        confirmLabel: "Stop all",
+        cancelLabel: "Keep going",
+        danger: true,
+      }).then((sure) => {
+        if (!sure) return;
+        for (const agent of groups.values()) void stopGroup(agent, false);
+      });
+    },
+    onAgentMenu: openAgentMenu,
+  });
   const chatWindow = createChatLiveWindow({
-    look: CHAT_LOOK,
-    label: () => "Assistant",
+    look: () => appearance.look,
+    label: () => appearance.name,
     model: () => model,
     enabled: () => enabled,
+    onMenu: openAgentMenu,
   });
 
   function adopt(values: Readonly<Record<string, unknown>>): void {
     enabled = values[LIVE_AGENT_VIEW_SETTING] !== false;
     profiles = parseAgentProfiles(values[AGENT_PROFILES_SETTING]);
     model = typeof values["adcode.ai.model"] === "string" ? values["adcode.ai.model"] : "";
+    appearance = chatAppearanceFrom(values);
     room.setEnabled(enabled);
   }
   void window.adcode.settings.read().then(adopt, () => undefined);
   window.adcode.settings.onChanged(adopt);
 
-  window.adcode.aiLive.onEvent(({ source, event }) => room.apply(identityForSource(source), event));
+  window.adcode.aiLive.onEvent(({ source, event }) => {
+    kinds.set(source.teamId, source.kind);
+    room.apply(identityForSource(source), event);
+  });
 
   /*
    * Team records: members not started yet join the strip as waiting, a new handoff is
@@ -74,6 +184,7 @@ export function createChatLiveRoom(): ChatLiveRoom {
    */
   const seenHandoffs = new Map<string, Set<string>>();
   window.adcode.aiTeam.onChanged((team: AiTeamView) => {
+    kinds.set(team.id, team.kind === "solo" ? "solo" : "team");
     let seen = seenHandoffs.get(team.id);
     const firstLook = seen === undefined;
     if (seen === undefined) {

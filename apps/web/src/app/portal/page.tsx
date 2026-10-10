@@ -20,6 +20,7 @@ import { BillingBody } from "./billing/page";
 import { NewCampaignForm } from "./campaigns/new/page";
 import { CreativeForm } from "./campaigns/[id]/CreativeForm";
 import { campaignRowToggle, loadPortalReport } from "@/lib/portalReport";
+import { CampaignBudgetMove } from "@/components/CampaignBudgetMove";
 import { ReferAdvertiser } from "@/components/ReferAdvertiser";
 
 type Window = "7" | "30" | "90";
@@ -414,7 +415,7 @@ function PortalBody() {
                     <span className="row-num mono">{campaign.clicks.toLocaleString("en-US")} clicks</span>
                     <span className="row-num mono">{moneyProgress(campaign.spentMicros)} spent</span>
                   </summary>
-                  <div className="campaign-inline-body"><p>Maximum bid and creative controls stay attached to this campaign. Detailed editing is being folded into this row; the current campaign remains fully tracked here.</p><dl><div><dt>Budget</dt><dd>{money(campaign.budgetMicros)}</dd></div><div><dt>Spent</dt><dd>{moneyProgress(campaign.spentMicros)}</dd></div><div><dt>Audience</dt><dd>{campaign.targetTags.length === 0 ? "Every developer" : `${campaign.targetTags.length} contexts`}</dd></div></dl><CampaignStatusToggle campaign={campaign} onChanged={load} />{openRows.has(campaign.campaignId) && (<CampaignCards campaignId={campaign.campaignId} advertiserName={advertiser?.name ?? ""} onChanged={load} />)}</div>
+                  <div className="campaign-inline-body"><p>Maximum bid and creative controls stay attached to this campaign. Detailed editing is being folded into this row; the current campaign remains fully tracked here.</p><dl><div><dt>Budget</dt><dd>{money(campaign.budgetMicros)}</dd></div><div><dt>Spent</dt><dd>{moneyProgress(campaign.spentMicros)}</dd></div><div><dt>Audience</dt><dd>{campaign.targetTags.length === 0 ? "Every developer" : `${campaign.targetTags.length} contexts`}</dd></div></dl><CampaignStatusToggle campaign={campaign} onChanged={load} /><CampaignBudgetMove campaign={campaign} campaigns={campaigns} advertiser={advertiser} onMoved={load} />{openRows.has(campaign.campaignId) && (<CampaignCards campaignId={campaign.campaignId} advertiserName={advertiser?.name ?? ""} onChanged={load} />)}</div>
                 </details>
               ))}
             </div>

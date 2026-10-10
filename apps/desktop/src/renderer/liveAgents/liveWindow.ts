@@ -25,11 +25,24 @@ export interface LiveWindowHandle {
   destroy(): void;
 }
 
+/** Stopping an agent. `run` may answer false: the user was asked and kept it going. */
+export interface LiveStopAction {
+  readonly label: string;
+  run(): void | Promise<boolean | void>;
+}
+
 export interface LiveWindowOptions {
   readonly look: MascotLook;
   /** Lines of code kept on screen. */
   readonly lines?: number;
   onBarClick?(): void;
+  /**
+   * How to stop this agent, or null when it cannot be stopped from here. Asked on every
+   * update, because an agent that has finished has nothing left to stop.
+   */
+  stop?(agent: LiveAgent): LiveStopAction | null;
+  /** Open this agent's actions, anchored to the button that asked. */
+  onMenu?(agent: LiveAgent, anchor: HTMLElement): void;
 }
 
 const MOOD: Readonly<Record<LiveAgent["status"], AgentMood>> = {
@@ -78,12 +91,50 @@ export function createLiveWindow(options: LiveWindowOptions): LiveWindowHandle {
   const model = make("span", "live-window-model");
   title.append(name, model);
   const status = make("span", "live-window-status");
-  bar.append(dots, mascot.element, title, status);
+  // The controls live in the title bar, where a window's controls always are. Clicks on
+  // them are theirs: the bar's own click (expand) never fires underneath.
+  const controls = make("span", "live-window-controls");
+  const stopButton = make("button", "live-window-stop");
+  stopButton.type = "button";
+  stopButton.hidden = true;
+  const stopIcon = make("span", "live-window-stop-icon");
+  stopIcon.setAttribute("aria-hidden", "true");
+  const stopLabel = make("span", "live-window-stop-label", "Stop");
+  stopButton.append(stopIcon, stopLabel);
+  const menuButton = make("button", "live-window-menu", "⋯");
+  menuButton.type = "button";
+  menuButton.hidden = options.onMenu === undefined;
+  menuButton.setAttribute("aria-haspopup", "menu");
+  for (const control of [stopButton, menuButton]) {
+    control.addEventListener("click", (event) => event.stopPropagation());
+    control.addEventListener("keydown", (event) => event.stopPropagation());
+  }
+  let stopAction: LiveStopAction | null = null;
+  stopButton.addEventListener("click", () => {
+    const action = stopAction;
+    if (action === null) return;
+    stopButton.disabled = true;
+    stopLabel.textContent = "Stopping";
+    void Promise.resolve(action.run()).then((stopped) => {
+      if (stopped !== false) return;
+      stopButton.disabled = false;
+      stopLabel.textContent = action.label;
+    });
+  });
+  menuButton.addEventListener("click", () => {
+    if (current !== null) options.onMenu?.(current, menuButton);
+  });
+  controls.append(stopButton, menuButton);
+  bar.append(dots, mascot.element, title, status, controls);
   if (options.onBarClick !== undefined) {
-    bar.tabIndex = 0;
-    bar.setAttribute("role", "button");
+    // The whole bar takes a click, but only the title is the keyboard's button: a button
+    // may not hold other buttons, and Stop and ⋯ sit in the same bar.
+    bar.dataset["expandable"] = "true";
+    title.tabIndex = 0;
+    title.setAttribute("role", "button");
+    title.setAttribute("aria-label", "Expand or restore this window");
     bar.addEventListener("click", () => options.onBarClick?.());
-    bar.addEventListener("keydown", (event) => {
+    title.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         options.onBarClick?.();
@@ -114,6 +165,13 @@ export function createLiveWindow(options: LiveWindowOptions): LiveWindowHandle {
   const note = make("div", "live-note");
 
   let current: LiveAgent | null = null;
+  // A reply types in the way code does, so you watch the agent write it.
+  const reply = make("p", "live-reply");
+  let replyTarget = "";
+  let replyShown = 0;
+  let replyPace = createTypingPace();
+  let replyFrame: number | null = null;
+  let replyLast = 0;
   let codeKey = "";
   let target = "";
   let shown = 0;
@@ -171,6 +229,44 @@ export function createLiveWindow(options: LiveWindowOptions): LiveWindowHandle {
     frame ??= window.requestAnimationFrame(tick);
   }
 
+  function paintReply(): void {
+    const writing = current?.status === "working" && current.activity.kind === "text";
+    reply.replaceChildren(replyTarget.slice(0, replyShown));
+    if (writing || replyShown < replyTarget.length) reply.append(make("span", "live-caret"));
+  }
+
+  function replyTick(time: number): void {
+    replyFrame = null;
+    const dt = replyLast === 0 ? 16 : Math.min(100, time - replyLast);
+    replyLast = time;
+    replyShown += replyPace.next(replyShown, replyTarget.length, dt);
+    paintReply();
+    if (replyShown < replyTarget.length) replyFrame = window.requestAnimationFrame(replyTick);
+    else replyLast = 0;
+  }
+
+  /**
+   * Move the reply towards `text`. The model keeps only a reply's tail, so when the start
+   * moves on, what was already on screen is found again in the new text rather than typed
+   * a second time.
+   */
+  function typeReply(text: string): void {
+    if (!text.startsWith(replyTarget.slice(0, replyShown))) {
+      // At least as long as before: the same reply, its start trimmed. Shorter: a new one.
+      const shifted = replyTarget.length > 0 && text.length >= replyTarget.length;
+      replyShown = shifted ? Math.max(0, text.length - (replyTarget.length - replyShown)) : 0;
+      replyPace = createTypingPace();
+    }
+    replyTarget = text;
+    if (reducedMotion() || document.hidden) replyShown = text.length;
+    if (replyShown >= replyTarget.length) {
+      paintReply();
+      return;
+    }
+    replyFrame ??= window.requestAnimationFrame(replyTick);
+    paintReply();
+  }
+
   function showBody(view: HTMLElement): void {
     if (body.firstElementChild !== view || body.childElementCount !== 1) body.replaceChildren(view);
   }
@@ -196,8 +292,22 @@ export function createLiveWindow(options: LiveWindowOptions): LiveWindowHandle {
       name.textContent = agent.label;
       model.textContent = agent.model;
       model.hidden = agent.model.length === 0;
-      status.textContent = STATUS_TEXT[agent.status];
+      status.textContent = agent.status === "working" && agent.activity.kind === "text" ? "Typing" : STATUS_TEXT[agent.status];
       status.dataset["status"] = agent.status;
+      const live = agent.status === "working" || agent.status === "waiting";
+      stopAction = live ? options.stop?.(agent) ?? null : null;
+      stopButton.hidden = stopAction === null;
+      if (stopAction !== null && !stopButton.disabled) {
+        stopLabel.textContent = stopAction.label;
+        stopButton.title = `${stopAction.label}: ${agent.label}`;
+        stopButton.setAttribute("aria-label", `${stopAction.label} ${agent.label}`);
+      }
+      if (!live) {
+        stopButton.disabled = false;
+        stopLabel.textContent = "Stop";
+      }
+      menuButton.title = `Actions for ${agent.label}`;
+      menuButton.setAttribute("aria-label", menuButton.title);
       mascot.setMood(agent.status === "done" && agent.proof === "passed" ? "proud" : MOOD[agent.status]);
       step.textContent = agent.step;
 
@@ -222,7 +332,10 @@ export function createLiveWindow(options: LiveWindowOptions): LiveWindowHandle {
       } else {
         const parts: HTMLElement[] = [];
         if (activity.kind === "thinking") parts.push(make("p", "live-thinking", "Thinking"));
-        if (activity.kind === "text") parts.push(make("p", "live-reply", activity.text.trim()));
+        if (activity.kind === "text") {
+          typeReply(activity.text.trim());
+          parts.push(reply);
+        }
         if (activity.kind === "idle") parts.push(make("p", "live-idle", agent.status === "waiting" ? "Waiting for its turn" : "Getting ready"));
         const plan = planList(agent);
         if (plan !== null) parts.push(plan);
@@ -244,7 +357,9 @@ export function createLiveWindow(options: LiveWindowOptions): LiveWindowHandle {
     typed: () => typedTotal,
     destroy() {
       if (frame !== null) window.cancelAnimationFrame(frame);
+      if (replyFrame !== null) window.cancelAnimationFrame(replyFrame);
       frame = null;
+      replyFrame = null;
       element.remove();
     },
   };

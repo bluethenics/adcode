@@ -16,7 +16,14 @@
  * particular edit, not a preference that rides along with something else.
  */
 
+import { editorFont, TEXT_SIZE_SETTING } from "../appearanceModel.ts";
+
 export interface EditorOptions {
+  readonly fontSize: number;
+  readonly lineHeight: number;
+  /** Pinned to the editor's own metrics - see the note on these in `editorHost.ts`. */
+  readonly suggestFontSize: number;
+  readonly suggestLineHeight: number;
   readonly minimap: { readonly enabled: boolean; readonly renderCharacters: boolean };
   readonly stickyScroll: { readonly enabled: boolean };
   readonly bracketPairColorization: { readonly enabled: boolean };
@@ -50,7 +57,14 @@ export function editorOptionsFor(values: Record<string, boolean | string>): Edit
   const on = (id: string): boolean =>
     OFF_BY_DEFAULT.has(id) ? values[id] === true : values[id] !== false;
 
+  // Appearance > Text size: the code gets bigger, the editor around it does not.
+  const font = editorFont(values[TEXT_SIZE_SETTING]);
+
   return {
+    fontSize: font.fontSize,
+    lineHeight: font.lineHeight,
+    suggestFontSize: font.fontSize,
+    suggestLineHeight: font.lineHeight,
     minimap: { enabled: on("adcode.editing.minimap"), renderCharacters: false },
     stickyScroll: { enabled: on("adcode.editing.stickyScroll") },
     bracketPairColorization: { enabled: on("adcode.editing.bracketPairColorization") },

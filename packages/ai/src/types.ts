@@ -202,7 +202,12 @@ export type AgentEvent =
       readonly keptMessages: number;
     }
   /** How full the context is after a request - for a meter, never recorded. */
-  | { readonly kind: "context"; readonly tokens: number; readonly contextWindow: number };
+  | { readonly kind: "context"; readonly tokens: number; readonly contextWindow: number }
+  /**
+   * What one request to the provider cost in tokens, for the usage totals - never recorded
+   * in the conversation. `estimated` when the provider did not say and the agent counted.
+   */
+  | { readonly kind: "usage"; readonly inputTokens: number; readonly outputTokens: number; readonly estimated: boolean };
 
 export type StopReason = "end-turn" | "tool-use" | "max-tokens" | "refusal" | "cancelled";
 
@@ -225,6 +230,8 @@ export type ProviderEvent =
   | { readonly kind: "tool-call"; readonly call: ToolCallBlock }
   /** One streamed fragment of a call's JSON arguments, passed through as it arrives. */
   | { readonly kind: "tool-input"; readonly index: number; readonly id: string; readonly name: string; readonly fragment: string }
+  /** The provider's own count for this request, when it reports one. At most once, before `stop`. */
+  | { readonly kind: "usage"; readonly inputTokens: number; readonly outputTokens: number }
   | { readonly kind: "stop"; readonly reason: StopReason; readonly detail?: string };
 
 export interface Provider {

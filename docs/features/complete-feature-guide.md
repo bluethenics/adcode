@@ -60,6 +60,8 @@ On macOS, use Command where a shortcut below says Ctrl.
 
 - Edit with AI: `Ctrl+E`
 - Inline completion: `Alt+\`
+- Zoom: `Ctrl/Cmd+=`
+- Text size: `Ctrl/Cmd+Shift+.`
 - Multi-cursor: `Ctrl/Cmd+D`
 - Built-in formatter: `Shift+Alt+F`
 - Format on save: `Ctrl/Cmd+S`
@@ -537,9 +539,9 @@ Each saved agent has its own little character - a shape and a colour - and its f
 
 Why use it: On a busy board you should not have to read to know what needs you. A worried face with a ! stands out from a sleepy one, and a Reviewer never looks like a Tester.
 
-How to use it: Every agent gets a look of its own from the moment it is created; change it in the agent editor by picking one of eight shapes and ten colours. On the board the face follows the work: thinking while it works, alert with a ! when it needs you, proud when its work is ready to review, happy once it has landed, confused when something went wrong, and sleepy while it waits or after it stops. With Reduce motion on, mascots stay still but still change face.
+How to use it: Every agent gets a look of its own from the moment it is created; change it in the agent editor by picking one of eight shapes and ten colours. On the board the face follows the work: thinking while it works, alert with a ! when it needs you, proud when its work is ready to review, happy once it has landed, confused when something went wrong, and sleepy while it waits or after it stops. With Reduce motion on, mascots stay still but still change face. Each card on the Agents board has Run, Edit, Duplicate and Delete; Delete asks first, and runs an agent already did stay on the board. The built-in assistant's own face and name are in Customise chat.
 
-Access: `All Features → Agent mascots`; `Create an agent`.
+Access: `All Features → Agent mascots`; `Create an agent`; `Edit an agent`.
 
 <!-- feature:adcode.ai.parallelAgents -->
 ### Agents working at once
@@ -559,7 +561,7 @@ A conversation workspace with searchable history, a live working block per answe
 
 Why use it: Asking in the editor beats copying code into a browser, because the assistant can already see the project. A playful mascot, a scroll pill that respects your place, and a clear way back from an interrupted turn keep long runs feeling alive instead of hung.
 
-How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. The answer reads in the order it happened, as in Claude: a block of work, the text it led to, the next block of work, more text. While a block runs it names the current step with elapsed time — the blue mascot with white eyes bounces while working, its eyes follow your pointer, and clicking it pops a morale-boosting quip. Tool calls stream in as bordered rows, each gaining a checkmark when done. When the assistant starts writing again, that block collapses to Worked for Ns; select its header to expand it again. Scroll up and the transcript stays pinned while a Jump to latest pill appears with a count of new messages; select it to return to the tail. Type a follow-up while the assistant is still working and press Enter: it is queued above the composer and sent by itself when the current turn finishes - Send now stops the current turn and sends it at once, and × drops it. The send button, a stop square while a turn runs, still stops it. If you stop a turn, an interrupted banner offers Edit prompt (your last message back in the composer) and Try again. If a turn fails, a card in the conversation says why in plain words - a rate limit, a request too large for the model, a rejected key, a broken tool call, a network problem - with buttons to try again, switch model, start fresh or report it, and the provider’s exact message under Details. When another model is the fix - out of credit, a rejected key, a model that is gone - choosing one picks the request back up by itself, whether you choose it from the card, the model chip, Connect a model or Settings. A failed turn never breaks the conversation: the next message works as normal. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers icon actions for Copy, Read aloud, helpful or not helpful, and Retry, with relative time like just now. Use History to browse conversations; Team, schedules and activity opens as a floating panel, and the Agents page shows every agent at work. Share copies the conversation as markdown. Escape closes the workspace without losing the conversation. The assistant changes existing files with exact replacements instead of rewriting them, reads several files at once, and works through up to 50 steps per request, and Keep going until done carries it on past that by itself. Its edits land in your files as it works, and each turn that changed files gets an Undo card. On an empty conversation, starters get going in one click: Continue picks up the conversation this project was left on, then Explain this project, Build something, Fix an error, Plan new idea and Multitask. With no folder open the starters are things to build - a landing page, a snake game, a to-do app, a portfolio - and asking for something to be built makes a project folder for it. In Vibe a short checklist shows anything still missing: connecting your AI (free in about a minute), then describing what to build.
+How to use it: Open Assistant from the workbench or command palette. Write in the composer and send your request. The answer reads in the order it happened, as in Claude: a block of work, the text it led to, the next block of work, more text. While a block runs it names the current step with elapsed time — the blue mascot with white eyes bounces while working, its eyes follow your pointer, and clicking it pops a morale-boosting quip. Tool calls stream in as bordered rows, each gaining a checkmark when done. When the assistant starts writing again, that block collapses to Worked for Ns; select its header to expand it again. Scroll up and the transcript stays pinned while a Jump to latest pill appears with a count of new messages; select it to return to the tail. Type a follow-up while the assistant is still working and press Enter: it is queued above the composer and sent by itself when the current turn finishes - Send now stops the current turn and sends it at once, and × drops it. While a turn runs, a line at the bottom of the conversation shows who is working - the assistant's face and name - what it is doing, for how long, and a Stop button. Esc stops it too, and so does the send button, a stop square while a turn runs. If you stop a turn, an interrupted banner offers Edit prompt (your last message back in the composer) and Try again. If a turn fails, a card in the conversation says why in plain words - a rate limit, a request too large for the model, a rejected key, a broken tool call, a network problem - with buttons to try again, switch model, start fresh or report it, and the provider’s exact message under Details. When another model is the fix - out of credit, a rejected key, a model that is gone - choosing one picks the request back up by itself, whether you choose it from the card, the model chip, Connect a model or Settings. A failed turn never breaks the conversation: the next message works as normal. Code arrives in labelled blocks with a Copy button and inline commands read as pills. Every response offers icon actions for Copy, Read aloud, helpful or not helpful, and Retry, with relative time like just now. Use History to browse conversations; Team, schedules and activity opens as a floating panel, and the Agents page shows every agent at work. Share copies the conversation as markdown. When nothing is running, Escape closes the workspace without losing the conversation. A history row's ⋯ menu opens, renames, copies as Markdown or deletes a conversation. The assistant changes existing files with exact replacements instead of rewriting them, reads several files at once, and works through up to 50 steps per request, and Keep going until done carries it on past that by itself. Its edits land in your files as it works, and each turn that changed files gets an Undo card. On an empty conversation, starters get going in one click: Continue picks up the conversation this project was left on, then Explain this project, Build something, Fix an error, Plan new idea and Multitask. With no folder open the starters are things to build - a landing page, a snake game, a to-do app, a portfolio - and asking for something to be built makes a project folder for it. In Vibe a short checklist shows anything still missing: connecting your AI (free in about a minute), then describing what to build.
 
 Access: `All Features → AI chat workspace`; `Turn on or off`; `Settings`.
 
@@ -595,6 +597,17 @@ Why use it: Independent research, coding, and checking can finish faster without
 How to use it: Open Agents from the Vibe sidebar or the command palette. Create agents under Your agents with a name, look, instructions, connection, model and the tools they may use. Enable Run after teammates for an agent that should receive others' handoffs first. Choose Select for a Team, tick two to four agents, press Set up Team and describe the shared task. The Team appears as one box under Needs you with its members' mascots; press Start to begin. Select the box to see each step it took. Review combined changes before applying them, or Stop a running team. Requests share each connection's rate limit, and Teams count towards Agents working at once. The assistant can also suggest a Team for a big request in the chat.
 
 Access: `All Features → AI Team`; `Set up Team`; `Settings`.
+
+<!-- feature:ai.usage -->
+### AI usage
+
+Shows how many tokens the chat and your agents have used, and roughly what that cost, model by model.
+
+Why use it: You pay your provider for every token. Seeing which model used what - today, this week or this month - tells you where the money goes before the bill does.
+
+How to use it: Select Usage in the chat's header (or ••• when docked), choose Usage by model in the context meter's menu, or run AI: Show Usage. Pick Today, 7 days, 30 days or All time. The top shows total tokens, requests and estimated cost; a bar per day shows when you used it; each model has its share, tokens in and out, requests from the chat and from agents, and a cost from the model catalogue's prices. Counts the provider did not report are estimated and marked ≈; a model with no catalogue price says No price rather than $0. Everything is kept on this machine only, and Clear usage removes it. Your provider's billing page has the exact bill.
+
+Access: `All Features → AI usage`; `Show usage`.
 
 <!-- feature:ai.workspaceStorage -->
 ### AI workspace storage
@@ -651,6 +664,17 @@ How to use it: Set Provider to Custom, paste the address, and give it your key. 
 
 Access: `All Features → Custom endpoint`; `Settings`.
 
+<!-- feature:adcode.ai.designTaste -->
+### Design taste skill
+
+Before the assistant or an agent builds or restyles a page, screen or game, it reads a design guide so the result does not look like every other AI-made page.
+
+Why use it: Asked for a page, AI models reach for the same purple gradient, centred headline and three equal cards every time. The guide names those habits and what to do instead, so what you get looks designed for your project.
+
+How to use it: On by default. When the work is a user interface, the assistant reads the bundled taste-skill guide (by Leonxlnx, MIT licence) - you will see Reading the design guide in its steps - and follows it while keeping your project's own stack: a plain HTML, CSS and JavaScript project stays plain, and an existing design system wins. It also reads a guide on finishing every file instead of leaving placeholders. Questions that are not about an interface never load it, so they cost nothing extra. Turn it off in Settings > AI > Design taste skill.
+
+Access: `All Features → Design taste skill`; `Turn on or off`; `Settings`.
+
 <!-- feature:ai.inlineEdit -->
 ### Edit with AI
 
@@ -702,7 +726,7 @@ Watch every agent at work in the chat: the code it is writing types in as the mo
 
 Why use it: An agent working out of sight is hard to trust and hard to stop in time. Seeing the code appear line by line, and seeing teammates tell each other what they changed, shows you what is happening while there is still time to step in.
 
-How to use it: On by default. When the assistant writes a file or runs a command, a live window appears in the conversation: the file's name, the code typing in, then the files it touched and whether it ran checks. When agents from the Agents page, a Team, a race or Team in the terminal are working, a live room sits above the chat with their mascots side by side and a window for each. When one agent messages another, hands off its work, or edits a file a teammate already edited, the sender turns to the receiver and a speech bubble crosses between them; the line under the mascots keeps what was said. Click a mascot or a window's title bar to fill the room with that agent, and Hide windows to keep just the mascots. Each window shows Checks passed, Check failed or Unverified, from the commands the agent actually ran - never from what it claims. Turn it off in Settings > AI > Live agent view.
+How to use it: On by default. When the assistant writes a file or runs a command, a live window appears in the conversation: the file's name, the code typing in, then the files it touched and whether it ran checks. When agents from the Agents page, a Team, a race or Team in the terminal are working, a live room sits above the chat with their mascots side by side and a window for each. When one agent messages another, hands off its work, or edits a file a teammate already edited, the sender turns to the receiver and a speech bubble crosses between them; the line under the mascots keeps what was said. Click a mascot or a window's title bar to fill the room with that agent, and Hide windows to keep just the mascots. Every background agent's window has Stop in its title bar (Stop team for a Team, which stops its members together), and the assistant's own turn stops from the line under its window; with two or more runs going, Stop all in the room's header stops them in one go. A reply types in as the agent writes it, and its mascot is marked typing. The ⋯ beside Stop opens the agent's actions: open it on the Agents board, edit the saved agent, or hide the windows. Each window shows Checks passed, Check failed or Unverified, from the commands the agent actually ran - never from what it claims. Turn it off in Settings > AI > Live agent view.
 
 Access: `All Features → Live agent view`; `Turn on or off`; `Settings`.
 
@@ -1007,7 +1031,7 @@ Why use it: You should not need to know a command's name, shortcut, or menu befo
 
 How to use it: Choose the four-cell All Features button below Earnings, or open View and choose All Features. Search by a feature name or describe what you want to do. Choose Open to use it and ? to understand it.
 
-Access: `All Features → All Features`; `Open`; `Preferences`; `Full screen`; `Toggle side bar`; `Toggle panel`; `Zoom in`; `Zoom out`; `Reset zoom`; `Problems`; `Output`; `Ports`; `Feature guide`; `About ADCode`.
+Access: `All Features → All Features`; `Open`; `Preferences`; `Full screen`; `Toggle side bar`; `Toggle panel`; `Problems`; `Output`; `Ports`; `Feature guide`; `About ADCode`.
 
 <!-- feature:workbench.aiContext -->
 ### Ask AI about your code
@@ -1253,6 +1277,17 @@ How to use it: Light is the default for new installs. Choose Dark, Midnight, or 
 
 Access: `All Features → Appearance`; `Settings`.
 
+<!-- feature:ai.chatAppearance -->
+### Customise chat
+
+Choose the assistant's name and face, whether replies show who wrote them, and how replies sit on the page.
+
+Why use it: A chat you spend hours in should look the way you like. Faces and names also make it obvious which agent said what once several are working.
+
+How to use it: Select Customise in the chat's header (or ••• when the chat is docked), or run AI: Customise Chat from the command palette. Type a name, pick one of eight shapes and ten colours, and choose a reply style: Document runs replies full width, Bubbles puts each in a soft card, Compact fits more on screen. Show who is replying adds the face and name above replies. A live preview shows the result before you save. Saved agents keep their own look - change theirs in the agent editor on the Agents board. Every choice is also in Settings > Appearance.
+
+Access: `All Features → Customise chat`; `Customise`; `Turn on or off`; `Settings`.
+
 <!-- feature:adcode.appearance.density -->
 ### Density
 
@@ -1263,6 +1298,39 @@ Why use it: Generous spacing looks good on a large monitor and wastes a laptop s
 How to use it: Pick Comfortable or Compact. It changes immediately, everywhere.
 
 Access: `All Features → Density`; `Settings`.
+
+<!-- feature:adcode.appearance.motion -->
+### Motion
+
+Turns the window's animation down or up: messages rising in, mascots moving, and code typing into live windows.
+
+Why use it: Movement helps some people follow what changed and makes others feel unwell or distracted. Your computer may already have a reduce-motion setting; this lets ADCode follow it or not.
+
+How to use it: Settings > Appearance > Motion. Follow system uses your computer's reduce-motion setting. Reduce keeps everything still and shows changes at once - live windows show the finished code instead of typing it. Full keeps the animation even when the system asks for less.
+
+Access: `All Features → Motion`; `Settings`.
+
+<!-- feature:adcode.appearance.textSize -->
+### Text size
+
+Makes the words you read bigger or smaller - code in the editor, the terminal and chat messages - while the rest of the window stays the same size.
+
+Why use it: When the code is hard to read, zooming the whole window costs you sidebar and panel space for nothing. Text size grows only the reading text.
+
+How to use it: Press Ctrl+Shift+. (the > key) for bigger text and Ctrl+Shift+, (the < key) for smaller - the same keys Word uses for font size. View > Appearance > Reset Text Size goes back to Default. Settings > Appearance > Text size has five sizes from Small to Largest. It applies at once to every editor, terminal and chat, and is kept for next time.
+
+Access: `All Features → Text size`; `Bigger text`; `Smaller text`; `Reset text size`; `Settings`; `Keyboard → Ctrl/Cmd+Shift+.`.
+
+<!-- feature:adcode.appearance.zoom -->
+### Zoom
+
+Makes the whole window bigger or smaller - menus, panels, buttons and text together.
+
+Why use it: On a big monitor across the room everything is tiny; on a small laptop you want more on screen. Zoom fixes both without touching your computer's display settings.
+
+How to use it: Press Ctrl+= to zoom in, Ctrl+- to zoom out, and Ctrl+0 to go back to 100% (Cmd on a Mac). It steps through 80% to 200%, and the status bar says where you are. View > Appearance has the same three, and Settings > Appearance > Zoom lets you pick a size directly. Your choice is kept for next time.
+
+Access: `All Features → Zoom`; `Zoom in`; `Zoom out`; `Reset zoom`; `Settings`; `Keyboard → Ctrl/Cmd+=`.
 
 ## Account
 
