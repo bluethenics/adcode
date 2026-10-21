@@ -135,7 +135,12 @@ Initial setup was completed on 2026-10-15; later verification dates are noted be
    SSL's first wildcard level. Verify an actual authenticated preview after deployment.
 4. **Firebase authorized domain (verified 2026-10-18)**: the public Firebase project configuration
    includes `web.bluethenics.com`. This meets the authorized-domain requirement for Google
-   and GitHub sign-in from this origin.
+   and GitHub sign-in from this origin. It does not register the OAuth callback with GitHub:
+   the GitHub OAuth app must also accept the Firebase handler URL for the client's
+   `authDomain`. Follow [GitHub web sign-in setup](github-web-sign-in.md) to check the
+   matching client ID, callback, and provider settings. End-to-end GitHub sign-in still
+   needs verification on an approved deployment that exposes authentication while
+   production is paused.
 5. **Secret** `PREVIEW_COOKIE_KEY` (above).
 6. Docker Desktop running: `wrangler deploy` builds the image locally.
 
