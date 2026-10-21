@@ -716,7 +716,21 @@ async function saveActive(): Promise<void> {
  * Separate from `saveActive` because auto-save fires for whichever file stopped being
  * typed in, which is not necessarily the one the user is now looking at.
  */
+const fileSaveQueues = new Map<string, Promise<void>>();
+
 async function savePath(path: string): Promise<void> {
+  // Keep a slow earlier write from landing after a newer save of the same file.
+  const previous = fileSaveQueues.get(path) ?? Promise.resolve();
+  const saving = previous.catch(() => undefined).then(() => savePathNow(path));
+  fileSaveQueues.set(path, saving);
+  try {
+    await saving;
+  } finally {
+    if (fileSaveQueues.get(path) === saving) fileSaveQueues.delete(path);
+  }
+}
+
+async function savePathNow(path: string): Promise<void> {
   if (isImagePath(path)) return;
   if (editorHost.isReadOnly(path)) return;
 
@@ -739,14 +753,20 @@ async function savePath(path: string): Promise<void> {
   }
 
   // Re-read: both steps above may have replaced the buffer.
-  const text = editorHost.text(path);
-  if (text === null) return;
+  const snapshot = editorHost.captureSave(path);
+  if (snapshot === null) return;
+  const { text } = snapshot;
 
   const result = await window.adcode.files.write(path, text);
   if (result.ok) {
-    editorHost.markSaved(path);
+    snapshot.markSaved();
+    const current = editorHost.text(path);
+    if (current !== null && current !== text) {
+      // The completed save cleared its recovery draft. Protect edits made during I/O.
+      window.adcode.history.draft(path, current);
+    }
     if (path === activePath) {
-      setStatus("Saved", 1200);
+      setStatus(current === text ? "Saved" : "Earlier changes saved; newer edits are unsaved.", current === text ? 1200 : 3000);
       void refreshGitOverlay();
     }
     void sourceControl.refresh();
