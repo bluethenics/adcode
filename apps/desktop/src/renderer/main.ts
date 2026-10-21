@@ -3032,6 +3032,37 @@ function scheduleAutoSave(path: string): void {
   );
 }
 
+async function restoreRecoveryDraft(draft: { readonly path: string; readonly text: string }): Promise<void> {
+  try {
+    // Vibe forwards openFile to another window; it has no visible buffer to replace here.
+    if (isIdeWindow) {
+      await openFile(draft.path);
+      if (editorHost.text(draft.path) !== null && !editorHost.isReadOnly(draft.path)) {
+        editorHost.replaceText(draft.path, draft.text, { keepDirty: true });
+        setStatus("Restored - save to keep it.", 4000);
+        return;
+      }
+    }
+
+    // A deleted or inaccessible file may have only this recovery copy left.
+    const picked = await window.adcode.files.saveAs(draft.text, basename(draft.path));
+    if (picked === null) {
+      setStatus("Recovery draft kept. You can try Restore again.", 4000);
+      return;
+    }
+    if (isWebSurface()) {
+      // Browser Save As downloads locally and returns a name, not a workspace path.
+      setStatus("Recovery download started. Your recovery draft is kept.", 4000);
+      return;
+    }
+    await openPickedFile(picked);
+    window.adcode.history.clearDraft(draft.path);
+    setStatus("Recovered copy saved.", 4000);
+  } catch {
+    setStatus("Couldn't restore the file. Your recovery draft is kept; try Restore again.", 4000);
+  }
+}
+
 /**
  * Offer back anything that was unsaved when the editor last stopped.
  *
@@ -3061,18 +3092,11 @@ async function offerRecovery(): Promise<number> {
 
     notifications.show({
       title: "Unsaved work recovered",
-      body: `${basename(draft.path)} had unsaved changes when ADCode last closed.`,
+      body: `${basename(draft.path)} had unsaved changes when ADCode last closed. Restore it in the editor, or save a recovered copy.`,
       actions: [
         {
           label: "Restore",
-          run: () => {
-            void openFile(draft.path).then(() => {
-              editorHost.replaceText(draft.path, draft.text, {
-                keepDirty: true,
-              });
-              setStatus("Restored - save to keep it.", 4000);
-            });
-          },
+          run: () => void restoreRecoveryDraft(draft),
         },
         {
           label: "Discard",
