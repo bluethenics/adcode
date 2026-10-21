@@ -219,6 +219,39 @@ describe("web-only operations over the socket", () => {
     latest().deliver({ t: "opRet", id: sent.id, ok: true, value: ["snake"] });
     await expect(answer).resolves.toEqual(["snake"]);
   });
+
+  it("rejects in-flight project operations when authentication is refused", async () => {
+    const { socket, sockets, latest } = harness();
+    latest().open();
+    const operations = [socket.op("cloneProject", ["https://github.com/example/project"]), socket.op("projects", [])];
+    const settled = Promise.allSettled(operations);
+    latest().drop(4401);
+
+    expect(await settled).toEqual([
+      { status: "rejected", reason: new Error("Signed out. Sign in again to continue.") },
+      { status: "rejected", reason: new Error("Signed out. Sign in again to continue.") },
+    ]);
+    await tick();
+    expect(socket.state()).toBe("auth-failed");
+    expect(sockets).toHaveLength(1);
+  });
+
+  it("rejects in-flight project operations after a network drop without replaying them", async () => {
+    const { socket, sockets, latest } = harness();
+    latest().open();
+    const operation = socket.op("cloneProject", ["https://github.com/example/project"]);
+    const settled = Promise.allSettled([operation]);
+    latest().drop();
+
+    expect(await settled).toEqual([
+      { status: "rejected", reason: new Error("Connection lost before this finished. Try again.") },
+    ]);
+    await tick();
+    latest().open();
+    expect(sockets).toHaveLength(2);
+    expect(latest().sent.some((frame) => frame.t === "op")).toBe(false);
+    socket.close();
+  });
 });
 
 describe("pausing", () => {

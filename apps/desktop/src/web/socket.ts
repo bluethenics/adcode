@@ -207,15 +207,16 @@ export function createHostSocket(open: () => WebSocketLike, options: { backoffMs
   const onClose = (code: number): void => {
     socket = null;
     if (stopped) return;
+    const error = new Error(code === AUTH_FAILED_CODE ? "Signed out. Sign in again to continue." : LOST);
+    for (const wait of opWaits.values()) wait.reject(error);
+    opWaits.clear();
     if (code === AUTH_FAILED_CODE) {
       stopped = true;
-      for (const entry of pending.values()) entry.reject(new Error("Signed out. Sign in again to continue."));
+      for (const entry of pending.values()) entry.reject(error);
       pending.clear();
       setState("auth-failed");
       return;
     }
-    for (const wait of opWaits.values()) wait.reject(new Error(LOST));
-    opWaits.clear();
     for (const [id, entry] of pending) {
       if (!entry.sent) continue;
       if (READ_CHANNELS.has(entry.channel)) {
