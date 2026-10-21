@@ -218,7 +218,8 @@ export interface EditorHost {
    */
   rename(oldPath: string, newPath: string): void;
   text(path: string): string | null;
-  markSaved(path: string): void;
+  /** Capture the text and saved-version update for one asynchronous write. */
+  captureSave(path: string): { readonly text: string; markSaved(): void } | null;
   isDirty(path: string): boolean;
   /** Historical revisions open read-only; the working copy never does. */
   setReadOnly(path: string, readOnly: boolean): void;
@@ -916,12 +917,23 @@ export function createEditorHost(
       return models.get(path)?.model.getValue() ?? null;
     },
 
-    markSaved(path) {
+    captureSave(path) {
       const entry = models.get(path);
-      if (entry === undefined) return;
-
-      entry.savedVersionId = entry.model.getAlternativeVersionId();
-      notifyDirty(path);
+      if (entry === undefined) return null;
+      const text = entry.model.getValue();
+      const version = entry.model.getAlternativeVersionId();
+      return {
+        text,
+        markSaved() {
+          const current = models.get(path);
+          if (current === undefined) return;
+          // A reopened model may have read the disk before this write completed.
+          // Never transfer a version ID between models; mismatching text stays dirty.
+          current.savedVersionId = current === entry ? version
+            : current.model.getValue() === text ? current.model.getAlternativeVersionId() : -1;
+          notifyDirty(path);
+        },
+      };
     },
 
     isDirty(path) {
