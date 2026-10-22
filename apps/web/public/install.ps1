@@ -108,9 +108,9 @@ Write-Host "  Installed." -ForegroundColor Green
 # it is the one thing about this editor nobody should discover by surprise.
 Write-Host ""
 Write-Host "  Next" -ForegroundColor White
-Write-Host "    Launch            the Start menu, or: adcode"
-Write-Host "    Open a folder     adcode open ."
-Write-Host "    Every command     adcode help"
+Write-Host "    Launch            Start menu > ADCode"
+Write-Host "    Open a folder     File > Open Folder"
+Write-Host "    Every command     Command Palette (Ctrl+Shift+P)"
 Write-Host ""
 Write-Host "  Looking after it" -ForegroundColor White
 Write-Host "    Updates           automatic; turn off in Settings, Updates"
