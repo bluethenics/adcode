@@ -129,8 +129,8 @@ say "Checksum verified."
 guidance() {
   printf '\n  %sNext%s\n' "$BOLD" "$RESET"
   printf '    Launch            %s\n' "$1"
-  printf '    Open a folder     adcode open .\n'
-  printf '    Every command     adcode help\n'
+  printf '    Open a folder     File > Open Folder\n'
+  printf '    Every command     Command Palette (Ctrl+Shift+P)\n'
   printf '\n  %sLooking after it%s\n' "$BOLD" "$RESET"
   printf '    Updates           automatic; turn off in Settings, Updates\n'
   printf '    Reinstall         run this same command again\n'
@@ -148,7 +148,7 @@ case "$FILE" in
     say "Installing with dpkg (you'll be asked for your password)..."
     sudo dpkg -i "$WORKDIR/$FILE" || sudo apt-get install -f -y
     printf '\n  %sInstalled.%s\n' "$GREEN" "$RESET"
-    guidance "adcode" "sudo apt remove adcode"
+    guidance "ADCode" "sudo apt remove adcode"
     ;;
   *.AppImage)
     DEST="${HOME}/.local/bin"
@@ -159,12 +159,12 @@ case "$FILE" in
 
     case ":$PATH:" in
       *":$DEST:"*)
-        guidance "adcode" "rm ${DEST}/adcode"
+        guidance "adcode" "rm \"${DEST}/adcode\""
         ;;
       *)
         printf '  %s%s is not on your PATH.%s\n' "$YELLOW" "$DEST" "$RESET"
         printf '  %sAdd it with: echo '"'"'export PATH="$HOME/.local/bin:$PATH"'"'"' >> ~/.profile%s\n' "$DIM" "$RESET"
-        guidance "${DEST}/adcode" "rm ${DEST}/adcode"
+        guidance "\"${DEST}/adcode\"" "rm \"${DEST}/adcode\""
         ;;
     esac
     ;;
