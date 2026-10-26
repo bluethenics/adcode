@@ -500,6 +500,14 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     true,
     true,
   ),
+  bool(
+    "adcode.ai.systemFileTools",
+    "ai",
+    "Work without an open folder",
+    "With no folder open, let the assistant's file tools work in your home folder instead of stopping. Off by default; an open project folder still keeps chats and tasks scoped to it.",
+    false,
+    true,
+  ),
   {
     id: "adcode.ai.parallelAgents",
     group: "ai",

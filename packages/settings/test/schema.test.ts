@@ -64,6 +64,7 @@ describe("schema completeness", () => {
     ["adcode.ai.memoryCapture", true],
     ["adcode.ai.mcpServer", true],
     ["adcode.ai.isolatedWorkspaces", true],
+    ["adcode.ai.systemFileTools", false],
   ];
 
   for (const [id, expected] of REQUIRED) {

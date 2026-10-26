@@ -92,7 +92,7 @@ const RUNNABLE: ReadonlySet<string> = new Set(Object.values(FEATURE_COMMANDS.chi
  * a server to send code to. Every text setting asks too.
  */
 const GUARDED_PREFIXES = ["adcode.ads.", "adcode.updates."];
-const GUARDED = new Set(["adcode.ai.editPolicy", "adcode.ai.isolatedWorkspaces", "adcode.ai.customBaseUrl", "adcode.ai.provider", "adcode.ai.connections", "adcode.ai.agentProfiles", "adcode.language.customServers"]);
+const GUARDED = new Set(["adcode.ai.editPolicy", "adcode.ai.isolatedWorkspaces", "adcode.ai.systemFileTools", "adcode.ai.customBaseUrl", "adcode.ai.provider", "adcode.ai.connections", "adcode.ai.agentProfiles", "adcode.language.customServers"]);
 
 const result = (content: string, isError = false) => ({ content, isError });
 const text = (value: unknown): string => (typeof value === "string" ? value.trim() : "");

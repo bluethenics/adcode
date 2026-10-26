@@ -133,6 +133,7 @@ import { createSlotPool } from "./slotPool.ts";
 import { createStuckDetector } from "./stuckDetector.ts";
 import { compactThreshold, contextWindowFor, keptUserTurns, parseCompactFocus } from "./chatCompaction.ts";
 import { checksFromTraces, holdReason, riskFlags } from "../shared/runEvidence.ts";
+import { NO_FOLDER_BLOCKER } from "../shared/workspaceBlockers.ts";
 import { createLiveBatcher, liveEventFrom, type LiveEventView, type LiveSourceView } from "../shared/liveAgents.ts";
 import { createTeamRoleRunner } from "./teamRoleRunner.ts";
 import { normalizeForCompare } from "./pathSafety.ts";
@@ -537,14 +538,15 @@ function announceProjectFiles(paths: readonly string[]): void {
 /**
  * File tools work directly on the open project — no sandbox, no task, no
  * review queue. Reads and writes resolve to the live folder; the only gates
- * are an open folder, enabled file tools, and (for writes) no unsaved drafts
+ * are a usable scope root (the open folder, or the home folder when "Work without
+ * an open folder" is on), enabled file tools, and (for writes) no unsaved drafts
  * that a write could clobber.
  */
 async function resolveToolWorkspace() {
-  const human = currentWorkspace()?.root ?? null;
+  const human = currentWorkspace()?.root ?? toolScopeFallback();
   taskWorkspaceUnavailableReason = null;
   if (human === null) {
-    taskWorkspaceUnavailableReason = "Open a folder before using AI file tools.";
+    taskWorkspaceUnavailableReason = NO_FOLDER_BLOCKER;
     return null;
   }
   if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
@@ -593,10 +595,10 @@ async function reviewWorkspace(human: string) {
 }
 
 async function ensureToolWorkspace() {
-  const human = currentWorkspace()?.root ?? null;
+  const human = currentWorkspace()?.root ?? toolScopeFallback();
   taskWorkspaceUnavailableReason = null;
   if (human === null) {
-    taskWorkspaceUnavailableReason = "Open a folder before using AI file tools.";
+    taskWorkspaceUnavailableReason = NO_FOLDER_BLOCKER;
     return null;
   }
   if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
@@ -617,13 +619,32 @@ async function ensureToolWorkspace() {
     bypassWorkspaceBlockOnce = false;
   }
 
-  if (configuredEditPolicy() === "review") return reviewWorkspace(human);
+  // Review mode stages into an isolated copy of a project folder. With no folder open
+  // that copy would be the whole home folder, so it is refused loudly instead: open a
+  // folder, or apply automatically.
+  if (configuredEditPolicy() === "review") {
+    if ((currentWorkspace()?.root ?? null) === null) {
+      taskWorkspaceUnavailableReason = "Review every change needs an open project folder: open a folder, or switch AI edit approval to Apply automatically.";
+      return null;
+    }
+    return reviewWorkspace(human);
+  }
   return { taskId: "", sandboxRoot: human, humanRoot: human };
 }
 
 /** Automatic unless the user chose Review: edits land as the assistant works, undoable per turn. */
 function configuredEditPolicy(): "review" | "trusted" {
   return currentSettings()["adcode.ai.editPolicy"] === "review" ? "review" : "trusted";
+}
+
+/**
+ * With no folder open, where file tools are scoped when "Work without an open folder"
+ * is on: the home folder. Off (the default) keeps null, so every gate fails exactly as
+ * it did before - no second route, no silent widening. Never used while a folder is open.
+ */
+function toolScopeFallback(): string | null {
+  if (currentWorkspace()?.root !== undefined) return null;
+  return currentSettings()["adcode.ai.systemFileTools"] === true ? homedir() : null;
 }
 
 // The debug log names the selected provider and model - ids only, never keys.
@@ -634,7 +655,7 @@ describeDebugContext({
       provider,
       model: activeModel(provider),
       effort: configuredEffort() ?? "auto",
-      fileTools: currentSettings()["adcode.ai.isolatedWorkspaces"] !== false,
+      fileTools: currentSettings()["adcode.ai.isolatedWorkspaces"] !== false && (currentWorkspace()?.root ?? toolScopeFallback()) !== null,
     };
   },
 });
@@ -1033,7 +1054,7 @@ function toolRunner(undo: () => CheckpointTurn | null = () => null, sessionId: (
     workspace: resolveToolWorkspace,
     writeWorkspace: ensureToolWorkspace,
     workspaceUnavailableMessage: () =>
-      taskWorkspaceUnavailableReason ?? "No folder is open, so there is nothing to work on yet.",
+      taskWorkspaceUnavailableReason ?? NO_FOLDER_BLOCKER,
     reviewPolicy: configuredEditPolicy,
     directWrites: () => configuredEditPolicy() === "trusted",
     memory: () => memoryForWorkspace(),
@@ -1046,8 +1067,8 @@ function toolRunner(undo: () => CheckpointTurn | null = () => null, sessionId: (
         if (change === undefined) throw new Error("The staged change was not recorded");
         return change;
       }
-      const human = currentWorkspace()?.root ?? null;
-      if (human === null) throw new Error("No folder is open, so there is nothing to work on yet.");
+      const human = currentWorkspace()?.root ?? toolScopeFallback();
+      if (human === null) throw new Error(NO_FOLDER_BLOCKER);
       const absolute = await resolveSandboxPath(human, path);
       let original: string | null = null;
       try {
@@ -1491,17 +1512,25 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
   const tools = lean ? chatTools() : [...chatTools(), DELEGATE_TASK];
   const context = async (): Promise<string> => {
       const root = thread.root;
+      // No project folder: with "Work without an open folder" on, file tools are scoped
+      // to the home folder, so the model is told that scope instead of being asked to
+      // open one. Unsaved-draft protection reaches as far as that scope root. Project
+      // instructions, the file hint, the preview and agent rules stay folder-only.
+      const scopeRoot = root ?? (currentWorkspace()?.root ?? toolScopeFallback());
+      const noFolder = root === null && (currentWorkspace()?.root ?? null) === null;
       let blocker: string | null = null;
       if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
         blocker = "Turn on AI file tools in Settings to use file tools.";
-      } else if (root !== null) {
+      } else if (noFolder && scopeRoot !== null && configuredEditPolicy() === "review") {
+        blocker = "Review every change needs an open project folder: open a folder, or switch AI edit approval to Apply automatically.";
+      } else if (scopeRoot !== null) {
         const drafts = await recoverableDrafts();
-        if (workspaceHasUnsavedDraft(root, drafts)) {
-          blocker = `Save ${summarizeUnsavedDrafts(root, drafts)} before AI file edits, so nothing unsaved gets overwritten. Reading and answering work meanwhile.`;
+        if (workspaceHasUnsavedDraft(scopeRoot, drafts)) {
+          blocker = `Save ${summarizeUnsavedDrafts(scopeRoot, drafts)} before AI file edits, so nothing unsaved gets overwritten. Reading and answering work meanwhile.`;
         }
       }
       return [
-        aiWorkspaceContext(root, blocker, thread.editorContext, configuredEditPolicy() === "review" ? "review" : "direct"),
+        aiWorkspaceContext(scopeRoot, blocker, thread.editorContext, configuredEditPolicy() === "review" ? "review" : "direct", noFolder && scopeRoot !== null),
         lean && root !== null ? await projectFilesHint(root) : null,
         root === null ? null : await projectInstructions(root, homedir(), lean),
         ...(root === null ? [] : [describePreviewForAi()]),

@@ -22,6 +22,19 @@ describe("assistant workspace context", () => {
     expect(blocked).not.toContain("File tools are available");
   });
 
+  it("gives the system scope a model can work in, without asking for a folder", () => {
+    // "Work without an open folder" on: no project, but the home folder is the scope.
+    const context = aiWorkspaceContext("C:\\Users\\sam", null, null, "direct", true);
+    expect(context).toContain("home folder");
+    expect(context).toContain("Work without an open folder");
+    expect(context).toContain("list_files");
+    expect(context).not.toContain("Ask the user to open or create a project folder");
+    // ...while the ordinary no-scope case keeps asking, so nothing changed meaning.
+    expect(aiWorkspaceContext(null, null)).toContain("Ask the user to open or create a project folder");
+    // Four-argument calls are unchanged project wording.
+    expect(aiWorkspaceContext("/project", null)).toContain("Open workspace root");
+  });
+
   it("carries the editor state into the prompt when provided", () => {
     const context = aiWorkspaceContext("/project", null, {
       mode: "code",

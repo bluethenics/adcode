@@ -7,10 +7,18 @@ export function aiWorkspaceContext(
   editor: AiEditorContextView | null = null,
   /** The user's AI edit approval choice: "direct" is Apply automatically. */
   edits: "direct" | "review" = "direct",
+  /**
+   * File tools have no project folder but are on for the whole home folder (the
+   * "Work without an open folder" setting): `root` is then the home folder rather
+   * than a project, and the model must not be asked to open one.
+   */
+  systemScope = false,
 ): string {
   if (root === null) return "Workspace status: no folder is open. Ask the user to open or create a project folder in ADCode before creating files. Pasting a path does not open a workspace.";
   return [
-    `Open workspace root (JSON string): ${JSON.stringify(root)}.`,
+    systemScope
+      ? `Workspace root (JSON string): ${JSON.stringify(root)} - the user's home folder. No project folder is open; the user turned on "Work without an open folder", so this whole folder is your scope. Work inside it the same way: do not ask the user for its path, use relative paths with read_file, edit_file and propose_edit, and inspect it with list_files. Ask before touching anything outside it.`
+      : `Open workspace root (JSON string): ${JSON.stringify(root)}.`,
     "The workspace is already selected. Do not ask the user for its path. Use list_files with no path (or an empty string) to inspect its root; use relative paths with read_file, edit_file and propose_edit. Change existing files with edit_file (exact old/new text); create new files with propose_edit.",
     'For example, create "src/main.ts", not "/src/main.ts" or a guessed project directory. After a path error, inspect the workspace with list_files and correct the path before retrying; never repeat the same rejected call.',
     "To list images or files by shape, use glob_files (e.g. **/*.png). Skim long files with get_outline, page reads with offset/limit, run tests with run_command, and fetch docs with fetch_url.",

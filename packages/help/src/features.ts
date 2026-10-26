@@ -357,7 +357,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     keywords: ["auto apply", "apply automatically", "stop asking to approve", "approve edits", "review ai changes", "undo ai changes", "undo turn", "auto mode"],
   },
   "adcode.ai.chatWidget": {
-    keywords: ["queue a message", "follow up while it works", "send while working", "message while busy", "send now", "queued message"],
+    keywords: ["queue a message", "follow up while it works", "send while working", "message while busy", "send now", "queued message", "no folder open", "open a folder", "file tools blocked", "answer anyway", "new project"],
   },
   "adcode.ai.model": {
     keywords: ["switch model", "change model", "model menu", "quick model switch", "recent models", "recommended model"],

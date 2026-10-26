@@ -108,6 +108,7 @@ import { openChatAppearanceDialog } from "./chatAppearanceDialog.ts";
 import { createQuestionCard } from "./chatQuestionCard.ts";
 import { openUsageDialog } from "./usageDialog.ts";
 import { firstBuildPrompt, looksLikeBuildRequest } from "../../shared/firstBuild.ts";
+import { NO_FOLDER_BLOCKER } from "../../shared/workspaceBlockers.ts";
 
 export interface ChatWidget {
   readonly element: HTMLElement;
@@ -2672,6 +2673,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   }
 
   let lastUserPrompt = "";
+  /** The prompt held by the folder nudge's "Open a folder" choice, sent once a folder opens. */
+  let pendingFolderPrompt: string | null = null;
   /**
    * A turn the model could not run, waiting for another model to be chosen. Cleared as soon
    * as any turn starts: whatever was sent instead is where the conversation went.
@@ -2968,6 +2971,62 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         element.dataset["nudge"] = "drafts-sent";
       }
     });
+    element.append(row);
+    scrollToEnd();
+  }
+
+  /*
+   * File tools with no folder open end here, not in a bare error line: the block
+   * arrives as a failed tool result, and as the turn's own error when nothing else
+   * could run, so both routes call this one card. "Open a folder" is the scoped way
+   * forward - the same trust decision, made explicitly - and it sits before
+   * "Answer anyway", which keeps the turn going with no file tools at all.
+   * Deduped like every other nudge. Issue bluethenics/adcode#11.
+   */
+  function noFolderNudge(): void {
+    const last = transcript.lastElementChild;
+    if (last instanceof HTMLElement && last.dataset["nudge"] === "folder") {
+      scrollToEnd();
+      return;
+    }
+    const element = bubble(
+      "assistant",
+      "File tools are scoped to a folder, and no folder is open, so this request stopped before it could read or change anything.",
+    );
+    element.dataset["nudge"] = "folder";
+    const row = document.createElement("div");
+    row.className = "chat-nudge-row";
+    const choice = (
+      label: string,
+      title: string,
+      run: () => void,
+    ): void => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.className = "chat-send chat-nudge-action";
+      option.textContent = label;
+      option.title = title;
+      option.addEventListener("click", run);
+      row.append(option);
+    };
+    choice("Open a folder...", "Pick the project this request is about", () => {
+      pendingFolderPrompt = lastUserPrompt.trim().length > 0 ? lastUserPrompt : null;
+      deps.switchFolder?.();
+    });
+    if (deps.createProjectFor !== undefined) {
+      choice("New project", "Make a folder from what you asked for, then send it again", () => {
+        const idea = lastUserPrompt.trim();
+        if (idea.length === 0) return;
+        void deps.createProjectFor?.(idea).then((made) => {
+          if (made && resend(lastUserPrompt)) element.dataset["nudge"] = "folder-sent";
+        });
+      });
+    }
+    if (lastUserPrompt.trim().length > 0) {
+      choice("Answer anyway", "Answer from the conversation, without file tools", () => {
+        if (resend(lastUserPrompt)) element.dataset["nudge"] = "folder-sent";
+      });
+    }
     element.append(row);
     scrollToEnd();
   }
@@ -4548,6 +4607,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         // A delegation's result is its helpers' endings and reports, not one row's outcome.
         if (event["name"] === "delegate_task") timeline?.helperResult(toolCallId, typeof event["content"] === "string" ? event["content"] : "", !isError);
         else timeline?.toolResult(toolCallId, !isError);
+        // No folder open: the failure arrives as a tool result before any error
+        // event, so the conversation gets the card here and not a bare failure line.
+        if (isError && typeof event["content"] === "string" && event["content"].includes(NO_FOLDER_BLOCKER)) {
+          noFolderNudge();
+        }
         scrollToEnd();
         break;
       }
@@ -4573,6 +4637,13 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         if (/token budget|token-limit/i.test(detail)) {
           trace("Error", detail, "error");
           budgetNudge();
+          break;
+        }
+        // No folder open: the block either stopped the turn (its reason arrives as
+        // this detail) or failed a tool mid-turn. The card is the way out either way.
+        if (detail.includes(NO_FOLDER_BLOCKER)) {
+          trace("Error", detail, "error");
+          noFolderNudge();
           break;
         }
         // Unsaved files block file tools: name the way out as buttons.
@@ -5284,6 +5355,14 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       } else {
         void refreshWorkspaceTask();
         void refreshTeam();
+        // The folder nudge's "Open a folder" choice: the folder is open now, so the
+        // message it held goes - the same way the model card sends its waiting message,
+        // and only if nobody has typed or sent something else since.
+        if (pendingFolderPrompt !== null) {
+          const waiting = pendingFolderPrompt;
+          pendingFolderPrompt = null;
+          if (input.value.trim().length === 0 && lastUserPrompt.trim() === waiting) void resend(waiting);
+        }
       }
     },
 
