@@ -24,6 +24,7 @@ import { parseAuditPageInput, parseViewPageInput, type ViewPageRequest } from ".
 import { inspectProject, runProjectChecks } from "./projectChecks.ts";
 import { htmlToText, looksLikeHtml } from "./htmlText.ts";
 import type { AiQuestionAnswerView, AiQuestionItemView, AiQuestionOptionView, PreviewStatus } from "../shared/api.ts";
+import { NO_FOLDER_BLOCKER } from "../shared/workspaceBlockers.ts";
 
 /** Read in full by default; larger files page 2,000 lines at a time. */
 const MAX_READ_BYTES = 400_000;
@@ -577,7 +578,7 @@ function describeReading(reading: CommandReading): string {
 
 export function createAiToolRunner(deps: AiToolDeps): ToolRunner {
   const unavailable = (): ReturnType<typeof fail> =>
-    fail(deps.workspaceUnavailableMessage?.() ?? "No folder is open, so there is nothing to work on yet.");
+    fail(deps.workspaceUnavailableMessage?.() ?? NO_FOLDER_BLOCKER);
   /** Edits and commands start the isolated task; reads never do. */
   const writeWorkspace = deps.writeWorkspace ?? deps.workspace;
   /** Foreground commands need no registry that outlives the call; background ones do. */

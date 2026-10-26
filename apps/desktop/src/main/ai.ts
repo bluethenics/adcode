@@ -133,6 +133,7 @@ import { createSlotPool } from "./slotPool.ts";
 import { createStuckDetector } from "./stuckDetector.ts";
 import { compactThreshold, contextWindowFor, keptUserTurns, parseCompactFocus } from "./chatCompaction.ts";
 import { checksFromTraces, holdReason, riskFlags } from "../shared/runEvidence.ts";
+import { NO_FOLDER_BLOCKER } from "../shared/workspaceBlockers.ts";
 import { createLiveBatcher, liveEventFrom, type LiveEventView, type LiveSourceView } from "../shared/liveAgents.ts";
 import { createTeamRoleRunner } from "./teamRoleRunner.ts";
 import { normalizeForCompare } from "./pathSafety.ts";
@@ -544,7 +545,7 @@ async function resolveToolWorkspace() {
   const human = currentWorkspace()?.root ?? null;
   taskWorkspaceUnavailableReason = null;
   if (human === null) {
-    taskWorkspaceUnavailableReason = "Open a folder before using AI file tools.";
+    taskWorkspaceUnavailableReason = NO_FOLDER_BLOCKER;
     return null;
   }
   if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
@@ -596,7 +597,7 @@ async function ensureToolWorkspace() {
   const human = currentWorkspace()?.root ?? null;
   taskWorkspaceUnavailableReason = null;
   if (human === null) {
-    taskWorkspaceUnavailableReason = "Open a folder before using AI file tools.";
+    taskWorkspaceUnavailableReason = NO_FOLDER_BLOCKER;
     return null;
   }
   if (currentSettings()["adcode.ai.isolatedWorkspaces"] === false) {
@@ -1033,7 +1034,7 @@ function toolRunner(undo: () => CheckpointTurn | null = () => null, sessionId: (
     workspace: resolveToolWorkspace,
     writeWorkspace: ensureToolWorkspace,
     workspaceUnavailableMessage: () =>
-      taskWorkspaceUnavailableReason ?? "No folder is open, so there is nothing to work on yet.",
+      taskWorkspaceUnavailableReason ?? NO_FOLDER_BLOCKER,
     reviewPolicy: configuredEditPolicy,
     directWrites: () => configuredEditPolicy() === "trusted",
     memory: () => memoryForWorkspace(),
@@ -1047,7 +1048,7 @@ function toolRunner(undo: () => CheckpointTurn | null = () => null, sessionId: (
         return change;
       }
       const human = currentWorkspace()?.root ?? null;
-      if (human === null) throw new Error("No folder is open, so there is nothing to work on yet.");
+      if (human === null) throw new Error(NO_FOLDER_BLOCKER);
       const absolute = await resolveSandboxPath(human, path);
       let original: string | null = null;
       try {
