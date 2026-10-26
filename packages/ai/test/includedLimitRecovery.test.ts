@@ -5,6 +5,33 @@ const request: ProviderRequest = {model:"coder",system:"Current task",messages:[
 const collect=async(provider:Provider,signal=new AbortController().signal)=>{const events:ProviderEvent[]=[];for await(const event of provider.stream(request,signal))events.push(event);return events;};
 afterEach(()=>vi.useRealTimers());
 
+it("recovers a temporary 503 before output without restarting the agent turn", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0); let calls = 0;
+  const provider: Provider = { id: "tagflow", displayName: "Included AI", models: [], async *stream() {
+    if (++calls < 3) throw { status: 503, code: "unavailable" };
+    yield { kind: "text", text: "Recovered" }; yield { kind: "stop", reason: "end-turn" };
+  } };
+  const result = collect(recoverIncludedLimits(provider));
+  await vi.advanceTimersByTimeAsync(7000);
+  expect((await result).filter(event => event.kind === "text")).toEqual([{ kind: "text", text: "Recovered" }]);
+  expect(calls).toBe(3);
+});
+
+it("bounds server retries and never replays a partial response", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0); let calls = 0;
+  const down: Provider = { id: "tagflow", displayName: "Included AI", models: [], async *stream() { calls++; throw { status: 503 }; } };
+  const result = collect(recoverIncludedLimits(down)).catch(error => error);
+  await vi.advanceTimersByTimeAsync(17_000);
+  expect(await result).toEqual({ status: 503 }); expect(calls).toBe(4);
+  const partial: Provider = { ...down, async *stream() { calls++; yield { kind: "text", text: "Partial" }; throw { status: 503 }; } };
+  await expect(collect(recoverIncludedLimits(partial))).rejects.toEqual({ status: 503 });
+  expect(calls).toBe(5); expect(vi.getTimerCount()).toBe(0);
+});
+
+it("recognises a response body terminated before any output as a dropped connection", () => {
+  expect(networkFailure(new TypeError("terminated"))).toBe("network");
+});
+
 it("resumes the exact pending request at the daily reset without a new message",async()=>{
   vi.useFakeTimers();vi.setSystemTime(Date.parse("2026-10-11T23:59:55Z"));const seen:ProviderRequest[]=[];
   const provider:Provider={id:"tagflow",displayName:"Included AI",models:[],async *stream(input){seen.push(input);if(seen.length===1)throw{status:429,code:"daily-limit",retryable:true,resetsAt:Date.parse("2026-10-12T00:00:00Z"),retryAfter:"5"};yield{kind:"text",text:"Continuing"};yield{kind:"stop",reason:"end-turn"};}};
@@ -13,11 +40,18 @@ it("resumes the exact pending request at the daily reset without a new message",
   expect(events.some(event=>event.kind==="status"&&event.text.includes("resume automatically"))).toBe(true);
   expect(events.filter(event=>event.kind==="text")).toEqual([{kind:"text",text:"Continuing"}]);
 });
-it("can wait a full day without exhausting attempts",async()=>{
+it("picks up an administrator allowance change without waiting for the next day",async()=>{
   vi.useFakeTimers();vi.setSystemTime(0);let calls=0;
   const provider:Provider={id:"tagflow",displayName:"Included AI",models:[],async *stream(){if(++calls===1)throw{status:429,code:"daily-limit",retryAfter:"86400"};yield{kind:"stop",reason:"end-turn"};}};
-  const result=collect(recoverIncludedLimits(provider));await vi.advanceTimersByTimeAsync(86_399_999);expect(calls).toBe(1);
+  const result=collect(recoverIncludedLimits(provider));await vi.advanceTimersByTimeAsync(119_999);expect(calls).toBe(1);
   await vi.advanceTimersByTimeAsync(1);await result;expect(calls).toBe(2);expect(vi.getTimerCount()).toBe(0);
+});
+it("bounds an overlong upstream wait and explains that unlimited usage does not bypass provider throttles",async()=>{
+  vi.useFakeTimers();vi.setSystemTime(0);let calls=0;
+  const provider:Provider={id:"tagflow",displayName:"Included AI",models:[],async *stream(){if(++calls===1)throw{status:429,code:"upstream-rate-limit",retryAfter:"86400"};yield{kind:"stop",reason:"end-turn"};}};
+  const result=collect(recoverIncludedLimits(provider));await vi.advanceTimersByTimeAsync(59_999);expect(calls).toBe(1);
+  await vi.advanceTimersByTimeAsync(1);const events=await result;expect(calls).toBe(2);
+  expect(events.some(event=>event.kind==="status"&&event.text.includes("provider is temporarily rate limited, even with unlimited ADCode usage"))).toBe(true);
 });
 it("keeps retrying temporary provider limits until the provider accepts",async()=>{
   vi.useFakeTimers();vi.setSystemTime(0);let calls=0;
@@ -83,4 +117,15 @@ it("recognises the desktop's token-refresh network failure and nothing that answ
   expect(networkFailure(new TypeError("fetch failed"))).toBe("network");
   expect(networkFailure(new Error("Sign in in Account to use included AI."))).toBeNull();
   expect(networkFailure({status:503})).toBeNull();
+});
+it("names where to buy tokens on the paid limit, and checks again every two minutes instead of waiting days",async()=>{
+  vi.useFakeTimers();vi.setSystemTime(0);let calls=0;
+  const provider:Provider={id:"tagflow",displayName:"Included AI",models:[],async *stream(){if(++calls<3)throw{status:429,code:"daily-limit",retryable:true,limit:"paid",resetsAt:3*86_400_000,buyUrl:"https://adcode.bluethenics.com/ai-tokens"};yield{kind:"stop",reason:"end-turn"};}};
+  const result=collect(recoverIncludedLimits(provider));await vi.advanceTimersByTimeAsync(119_999);expect(calls).toBe(1);
+  await vi.advanceTimersByTimeAsync(1);expect(calls).toBe(2);
+  await vi.advanceTimersByTimeAsync(120_000);const events=await result;expect(calls).toBe(3);
+  const status=events.find(event=>event.kind==="status");
+  expect(status&&status.kind==="status"&&status.text).toContain("https://adcode.bluethenics.com/ai-tokens");
+  expect(status&&status.kind==="status"&&status.text).toContain("Buy tokens or a plan");
+  expect(status&&status.kind==="status"&&status.text).toContain("Tagflow");
 });

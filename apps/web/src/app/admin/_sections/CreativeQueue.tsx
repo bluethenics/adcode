@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES, type CreativeView } from "@/lib/api";
+import { AdminPanel } from "@/components/AdminUI";
 
 /**
  * The creative safety valve.
@@ -62,11 +63,13 @@ export function ReviewQueue() {
         </div>
       )}
 
-      <h3 style={{ fontSize: 18, marginBottom: 6 }}>Creatives waiting for review</h3>
-      <p className="field-hint" style={{ marginBottom: 18, maxWidth: "64ch" }}>
-        Nothing here reaches a developer&apos;s editor until you approve it. Check the
-        claim is truthful, the link goes where it says, and the logos load.
-      </p>
+      <AdminPanel
+        bare
+        title="Waiting for review"
+        hint="Nothing here reaches a developer's editor until you approve it. Check the claim is truthful, the link goes where it says, and the logos load."
+        actions={queue.length === 0 ? "All clear" : `${queue.length} waiting`}
+      >
+      <div className="adm-stack-list">
 
       {queue.length === 0 ? (
         <div className="empty">
@@ -75,20 +78,20 @@ export function ReviewQueue() {
         </div>
       ) : (
         queue.map((creative) => (
-          <div className="card" key={creative.creativeId} style={{ marginBottom: 14 }}>
+          <div className="card admin-card" key={creative.creativeId}>
             <div style={{ display: "flex", gap: 22, flexWrap: "wrap", alignItems: "flex-start" }}>
               <div style={{ flex: "1 1 260px", minWidth: 0 }}>
                 <h3>{creative.headline}</h3>
                 <p>{creative.body ?? <em>No supporting line.</em>}</p>
 
-                <dl style={{ margin: "14px 0 0", fontSize: 13.5 }}>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <dt style={{ color: "var(--muted)", minWidth: 78 }}>Advertiser</dt>
-                    <dd style={{ margin: 0 }}>{creative.advertiser}</dd>
+                <dl className="adm-pairs">
+                  <div>
+                    <dt>Advertiser</dt>
+                    <dd>{creative.advertiser}</dd>
                   </div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                    <dt style={{ color: "var(--muted)", minWidth: 78 }}>Links to</dt>
-                    <dd style={{ margin: 0, minWidth: 0, overflowWrap: "anywhere" }}>
+                  <div>
+                    <dt>Links to</dt>
+                    <dd>
                       {/* noopener/noreferrer: an unreviewed advertiser URL is untrusted. */}
                       <a href={creative.clickUrl} target="_blank" rel="noopener noreferrer nofollow">
                         {creative.clickUrl}
@@ -99,15 +102,8 @@ export function ReviewQueue() {
               </div>
 
               {/* The card at the size it will actually appear. */}
-              <div
-                style={{
-                  flex: "0 0 auto",
-                  background: "var(--ink)",
-                  padding: 16,
-                  borderRadius: "var(--radius-md)",
-                }}
-              >
-                <div className="toast" style={{ position: "static", animation: "none" }}>
+              <div className="adm-preview-stage adm-creative-preview">
+                <div className="toast">
                   <span className="toast-tag">Sponsored · {creative.advertiser}</span>
                   <span className="toast-head">{creative.headline}</span>
                   {creative.body !== null && <span className="toast-body">{creative.body}</span>}
@@ -115,7 +111,7 @@ export function ReviewQueue() {
               </div>
             </div>
 
-            <div className="actions">
+            <div className="adm-actions">
               <button
                 className="btn btn-primary btn-small"
                 disabled={busy === creative.creativeId}
@@ -134,6 +130,8 @@ export function ReviewQueue() {
           </div>
         ))
       )}
+      </div>
+      </AdminPanel>
     </>
   );
 }

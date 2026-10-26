@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { moneyExact } from "@/components/money";
+import { moneyProgress } from "@/components/money";
 import { coverageText, sourceCells, SOURCE_COLUMNS } from "@/lib/sources";
 import { useCampaignCodes, useReferralConfig, useSources, WindowPicker } from "./useGrowthData";
 
@@ -88,8 +88,8 @@ export function GrowthOverview() {
         <>
           <div className="admin-tiles">
             <div className="admin-tile"><strong>{(users?.people ?? 0).toLocaleString("en-US")}</strong><span>Came with an invite</span><small>{(users?.realUsers ?? 0).toLocaleString("en-US")} used ADCode, {(users?.cameBack ?? 0).toLocaleString("en-US")} came back</small></div>
-            <div className="admin-tile"><strong>{(users?.advertisers ?? 0).toLocaleString("en-US")}</strong><span>Advertisers brought by partners</span><small>{moneyExact(users?.advertiserSpendMicros ?? "0")} spent since</small></div>
-            <div className="admin-tile"><strong>{moneyExact(users?.paidMicros ?? "0")}</strong><span>Paid to partners</span><small>{sources.value.topReferrers.length.toLocaleString("en-US")} partner{sources.value.topReferrers.length === 1 ? "" : "s"} with results</small></div>
+            <div className="admin-tile"><strong>{(users?.advertisers ?? 0).toLocaleString("en-US")}</strong><span>Advertisers brought by partners</span><small>{moneyProgress(users?.advertiserSpendMicros ?? "0")} spent since</small></div>
+            <div className="admin-tile"><strong>{moneyProgress(users?.paidMicros ?? "0")}</strong><span>Paid to partners</span><small>{sources.value.topReferrers.length.toLocaleString("en-US")} partner{sources.value.topReferrers.length === 1 ? "" : "s"} with results</small></div>
             <div className="admin-tile"><strong>{sources.value.coverage.realUsers === 0 ? "—" : `${Math.round((sources.value.coverage.attributedRealUsers / sources.value.coverage.realUsers) * 100)}%`}</strong><span>New real users with a source</span><small>{sources.value.coverage.attributedRealUsers} of {sources.value.coverage.realUsers}</small></div>
           </div>
 

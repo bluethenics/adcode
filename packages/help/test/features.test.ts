@@ -69,6 +69,13 @@ describe("feature catalogue", () => {
     }
   });
 
+  it("opens AI plans through a dedicated upgrade command from every discovery surface", () => {
+    expect(featureFor("ai.plans")?.actions[0]).toEqual({ kind: "command", command: "ai.upgradePlan", label: "Upgrade plan" });
+    for (const query of ["subscription", "subscribe", "monthly", "weekly", "pro plan", "promo code", "invite", "referral", "cancel subscription"]) {
+      expect(searchFeatures(query).map((feature) => feature.entry.id), query).toContain("ai.plans");
+    }
+  });
+
   it("preserves catalogue order when the query is empty", () => {
     expect(searchFeatures("   ").map((feature) => feature.entry.id)).toEqual(
       featureRecords().map((feature) => feature.entry.id),

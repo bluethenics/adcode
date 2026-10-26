@@ -21,7 +21,7 @@
   /* Preserve public runtime variables edited in Cloudflare's dashboard. Secrets are retained by Wrangler. */
   "keep_vars": true,
   /* Hourly bounded batches; email_settings.enabled is false until launch. */
-  "triggers": { "crons": ["0 * * * *"] },
+  "triggers": { "crons": ["*/15 * * * *"] },
 
   /* Keep the existing production hostname attached when deploying from this project. */
   "routes": [
@@ -45,7 +45,8 @@
    * `timingSafeEqual` in `src/billing.ts` for the Dodo webhook signature, and Next's own
    * server runtime.
    */
-  "compatibility_flags": ["nodejs_compat"],
+  // Propagate client disconnects through OpenNext to the relay's abort/settlement path.
+  "compatibility_flags": ["nodejs_compat", "enable_request_signal"],
 
   /*
    * Server-side rendering plus the `/v1/*` API routinely needs more than the

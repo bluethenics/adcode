@@ -1,0 +1,18 @@
+.ad-networks-admin, .ad-network-editor, .ad-network-editor form, .ad-network-editor fieldset { min-width: 0; }
+.ad-networks-admin { grid-template-columns: minmax(0, 1fr); }
+.ad-networks-admin > .admin-models-provider { min-width: 0; }
+.ad-networks-admin .admin-card-head { flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+.ad-networks-admin h3, .ad-networks-admin h4 { margin: 0 0 12px; }
+.ad-networks-admin .admin-card-head h3 { margin: 0; }
+.ad-networks-admin small { display: block; color: var(--muted); line-height: 1.6; }
+.ad-networks-admin .notice, .ad-networks-admin p { overflow-wrap: anywhere; }
+.ad-network-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ad-network-add { margin-top: 20px; }
+.ad-network-editor fieldset { margin: 20px 0; padding: 0; border: 0; }
+.ad-network-editor legend { padding: 0; font-size: 14px; font-weight: 600; }
+.ad-network-json { width: 100%; resize: vertical; font-family: var(--font-mono, monospace); line-height: 1.6; }
+.ad-network-secret form { display: grid; gap: 14px; max-width: 580px; }
+.ad-network-preview article { margin-top: 14px; padding: 16px; border: 1px solid var(--hairline); border-radius: 10px; }
+.ad-network-preview h5 { margin: 0 0 8px; font-size: 17px; }
+.ad-network-preview p { margin: 8px 0; }
+@media (max-width: 640px) { .ad-network-actions > .btn { max-width: 100%; } }

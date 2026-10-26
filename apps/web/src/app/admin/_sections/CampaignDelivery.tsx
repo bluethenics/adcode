@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
-import { moneyExact, statusLabel } from "@/components/money";
+import { moneyProgress, statusLabel } from "@/components/money";
 import { apiFetch, MESSAGES, type CampaignView } from "@/lib/api";
 
 export function CampaignDelivery({ advertiserId }: { advertiserId: string }) {
@@ -60,7 +60,7 @@ export function CampaignDelivery({ advertiserId }: { advertiserId: string }) {
           </span>
           <span className="row-num mono">{campaign.impressions.toLocaleString("en-US")} verified views</span>
           <span className="row-num mono">{campaign.clicks.toLocaleString("en-US")} clicks</span>
-          <span className="row-num mono">{moneyExact(campaign.spentMicros)} spent</span>
+          <span className="row-num mono">{moneyProgress(campaign.spentMicros)} spent</span>
         </div>
       ))}
     </section>

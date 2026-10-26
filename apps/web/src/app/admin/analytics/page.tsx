@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AdminShell } from "@/components/AdminShell";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { AdminShell, AdminTabs } from "@/components/AdminShell";
 import { GrowthPanel } from "@/components/GrowthPanel";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
@@ -10,8 +11,31 @@ import { apiFetch } from "@/lib/api";
 import { browserExcluded, setBrowserExcluded, type Ranking, type WebsiteAnalyticsReport } from "@/lib/websiteAnalytics";
 import "@/components/websiteAnalytics.css";
 
+/*
+ * Two questions that used to share one 5,000-pixel page: how many people use the editor (and a
+ * post to share it), and how the website converts. Each is a tab with its own URL now, so the
+ * one you came for is at the top.
+ */
+const TABS = [
+  { id: "people", label: "People and ads" },
+  { id: "website", label: "Website" },
+];
+
+function AnalyticsBody() {
+  const tab = useSearchParams().get("tab") === "website" ? "website" : "people";
+  return (
+    <AdminShell
+      title="Analytics"
+      subtitle={tab === "website" ? "How the website converts: traffic, install intent, top pages and page speed." : "Who uses ADCode and how many ads it showed, with a post to share the numbers."}
+    >
+      <AdminTabs base="/admin/analytics" active={tab} tabs={TABS} />
+      {tab === "website" ? <Reports /> : <><GrowthPanel /><SourcesMoved /></>}
+    </AdminShell>
+  );
+}
+
 export default function AnalyticsPage() {
-  return <AdminShell title="Analytics" subtitle="Who uses ADCode, where they came from, what it showed them, and how the website converts."><GrowthPanel /><SourcesMoved /><h2 className="growth-website-heading">Website</h2><Reports /></AdminShell>;
+  return <Suspense fallback={null}><AnalyticsBody /></Suspense>;
 }
 /** Sources, campaign links and partners have their own section now; this is the way there. */
 function SourcesMoved() {
@@ -111,7 +135,7 @@ function Reports() {
         ["Install intent", report.sessions ? `${(report.installSessions / report.sessions * 100).toFixed(1)}%` : "—"],
         ["Browser errors", report.errorCount.toLocaleString()],
       ].map(([label, value]) => <div className="admin-tile" key={label}><strong>{value}</strong><span>{label}</span></div>)}</div>
-      <p className="website-analytics-note">Only visitors who allowed analytics are measured; how many declined is deliberately not recorded. Admin pages, administrators&apos; browsers, automated browsers and crawlers are excluded. A session ends after 30 minutes with nobody scrolling, clicking or typing, and is not a unique person; one that resumes later starts a new session with its own page view. Install intent means a session with a copied install command or download click, not a completed installation - website visits are not linked to installs. Events are dated by when they happened, in UTC days; the growth figures above use rolling windows instead (last 24 hours, 7 and 30 days). Traffic sources group the spellings of one place - t.co, x.com and twitter count as x, l.threads.com as threads. Raw events are kept for 90 days.</p>
+      <details className="adm-method"><summary>How these figures are counted</summary><p className="website-analytics-note">Only visitors who allowed analytics are measured; how many declined is deliberately not recorded. Admin pages, administrators&apos; browsers, automated browsers and crawlers are excluded. A session ends after 30 minutes with nobody scrolling, clicking or typing, and is not a unique person; one that resumes later starts a new session with its own page view. Install intent means a session with a copied install command or download click, not a completed installation - website visits are not linked to installs. Events are dated by when they happened, in UTC days; the growth figures above use rolling windows instead (last 24 hours, 7 and 30 days). Traffic sources group the spellings of one place - t.co, x.com and twitter count as x, l.threads.com as threads. Raw events are kept for 90 days.</p></details>
       <section className="website-analytics-card"><h2>Traffic over time</h2><TimeChart days={report.daily.map(d => d.day)} series={[{ label: "Page views", color: "#78a9ff", values: report.daily.map(d => d.views) }, { label: "Sessions", color: "#55c9a2", values: report.daily.map(d => d.sessions) }]} summary={`Daily traffic: ${report.pageViews} page views and ${report.sessions} sessions in the selected period.`} /></section>
       <div className="website-analytics-grid">{report.funnels.map(funnel => <FunnelCard key={funnel.label} funnel={funnel} />)}</div>
       <div className="website-analytics-grid"><RankingTable title="Top pages" rows={report.pages} /><RankingTable title="Traffic sources" rows={report.sources} /><RankingTable title="Campaigns" rows={report.campaigns} />{report.invitePages !== undefined && <RankingTable title="Invite pages, by loop" rows={report.invitePages} />}<RankingTable title="Devices" rows={report.devices} /><RankingTable title="Actions and conversions" rows={report.events} unit="Events" />{report.placements !== undefined && <RankingTable title="Install buttons" rows={report.placements} unit="Install actions" />}

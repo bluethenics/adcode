@@ -6,8 +6,8 @@
  * boundary, because a verifier tested against a stubbed signature check is a verifier
  * that has not been tested at all - the whole job of this file is to reject things.
  */
-import { describe, it, expect, beforeAll } from "vitest";
-import { createFirebaseJwksVerifier } from "../adapters/firebaseJwks.ts";
+import { describe, it, expect, beforeAll, vi } from "vitest";
+import { createFirebaseJwksVerifier, JWKS_TIMEOUT_MS } from "../adapters/firebaseJwks.ts";
 
 const PROJECT = "adcode-idle";
 const KID = "test-key-1";
@@ -212,5 +212,52 @@ describe("key rotation", () => {
     // warranted - but only one, or a bogus kid becomes a fetch per request.
     expect(await verifier.verify(await mintToken({}, { kid: "unknown-kid" }))).toBeNull();
     expect(fetches()).toBe(2);
+  });
+
+  it("refreshes expired completed keys without reusing an earlier request's fetch", async () => {
+    let now = NOW_MS;
+    const fetchImpl = vi.fn<typeof fetch>(async () => jwksResponse("max-age=1"));
+    const verifier = createFirebaseJwksVerifier({ projectId: PROJECT, now: () => now, fetchImpl });
+    const token = await mintToken();
+    expect((await verifier.verify(token))?.uid).toBe("uid-123");
+    now += 999;
+    expect((await verifier.verify(token))?.uid).toBe("uid-123"); expect(fetchImpl).toHaveBeenCalledTimes(1);
+    now += 1;
+    expect((await verifier.verify(token))?.uid).toBe("uid-123"); expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("request-owned JWKS refreshes", () => {
+  it("verifies a second request while a previous request's refresh is stranded", async () => {
+    let release!: (response: Response) => void;
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementationOnce(() => new Promise<Response>(resolve => { release = resolve; })).mockImplementation(async () => jwksResponse());
+    const verifier = createFirebaseJwksVerifier({ projectId: PROJECT, now: () => NOW_MS, fetchImpl });
+    const token = await mintToken();
+    const first = verifier.verify(token);
+    // Both requests use the same verifier instance, as a reused Worker isolate does.
+    // The second must make its own fetch; awaiting the first reproduces the old hang.
+    const second = verifier.verify(token);
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(2));
+    expect((await second)?.uid).toBe("uid-123");
+    release(jwksResponse()); expect((await first)?.uid).toBe("uid-123");
+    await verifier.verify(token); expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds key-network failures and permits a fresh request afterward", async () => {
+    const timeout = AbortSignal.timeout;
+    const controller = new AbortController();
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout").mockReturnValueOnce(controller.signal);
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementationOnce(async (_url, init) => new Promise<Response>((_resolve, reject) => {
+      init!.signal!.addEventListener("abort", () => reject(new Error("timed out")), { once: true });
+    })).mockImplementation(async () => jwksResponse());
+    const verifier = createFirebaseJwksVerifier({ projectId: PROJECT, now: () => NOW_MS, fetchImpl });
+    const token = await mintToken();
+    try {
+      const pending = verifier.verify(token);
+      expect(timeoutSpy).toHaveBeenCalledWith(JWKS_TIMEOUT_MS);
+      controller.abort(); expect(await pending).toBeNull();
+      timeoutSpy.mockImplementation(timeout);
+      expect((await verifier.verify(token))?.uid).toBe("uid-123"); expect(fetchImpl).toHaveBeenCalledTimes(2);
+    } finally { timeoutSpy.mockRestore(); }
   });
 });

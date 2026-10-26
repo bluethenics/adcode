@@ -1,4 +1,21 @@
+import { planById, type PlanId } from "./aiPlans.ts";
+import type { SubscriptionEvent } from "./tagflowTypes.ts";
+
 export type NormalizedProviderEvent =
+  | {
+      type: "subscription";
+      webhookId: string;
+      kind: SubscriptionEvent["type"];
+      subscriptionId: string;
+      productId: string | null;
+      uid: string | null;
+      plan: PlanId | null;
+      customerId: string | null;
+      status: string;
+      periodEnd: number;
+      cancelAtPeriodEnd: boolean;
+      occurredAt?: number;
+    }
   | {
       type: "purchase";
       webhookId: string;
@@ -50,6 +67,27 @@ export function parseProviderEvent(
   const data = record(dataEnvelope?.["object"]) ?? dataEnvelope;
   const eventType = envelope?.["type"];
   if (data === null || typeof eventType !== "string" || webhookId.length === 0) return null;
+
+  // Subscription fulfilment uses the paid period, not a payment amount or delivery time.
+  if (eventType.startsWith("subscription.")) {
+    const kind = eventType.slice("subscription.".length);
+    if (!["active", "renewed", "plan_changed", "on_hold", "cancelled", "failed", "expired"].includes(kind)) return null;
+    const subscriptionId = id(data["subscription_id"]);
+    if (subscriptionId === null) return null;
+    const metadata = record(data["metadata"]);
+    const uid = id(metadata?.["uid"]);
+    const planId = id(metadata?.["plan"]);
+    const period = typeof data["next_billing_date"] === "string" ? Date.parse(data["next_billing_date"]) : NaN;
+    const occurredAt = typeof envelope?.["timestamp"] === "string" ? Date.parse(envelope["timestamp"]) : NaN;
+    return { type: "subscription", webhookId, kind: kind as SubscriptionEvent["type"], subscriptionId,
+      productId: id(data["product_id"]),
+      uid: uid !== null && uid.length <= 128 && uid !== "*" ? uid : null,
+      plan: planId === null ? null : planById(planId)?.id ?? null,
+      customerId: id(record(data["customer"])?.["customer_id"]), status: id(data["status"]) ?? kind,
+      periodEnd: Number.isSafeInteger(period) && period > 0 ? period : 0,
+      cancelAtPeriodEnd: data["cancel_at_next_billing_date"] === true,
+      ...(Number.isSafeInteger(occurredAt) && occurredAt > 0 ? { occurredAt } : {}) };
+  }
 
   const amountMicros = amount(data);
   if (amountMicros === null) return null;

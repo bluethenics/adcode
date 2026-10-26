@@ -1,4 +1,19 @@
 import { describe, expect, it } from "vitest";
+
+it("offers retry with the current account after an account switch", () => {
+  const failure = describeAiFailure("The signed-in account changed. Start this task again with the current account.");
+  expect(failure.title).toBe("Your signed-in account changed");
+  expect(failure.actions).toEqual(["retry"]);
+  expect(failure.explanation).toContain("current account");
+});
+
+it("distinguishes verification from being signed out and allows checking again", () => {
+  const failure = describeAiFailure("Included AI returned HTTP 403: Free AI needs a verified email. Open the verification link we emailed to your address. (code verify-account)");
+  expect(failure.title).toBe("Verify your email to use free AI");
+  expect(failure.actions).toContain("retry");
+  expect(failure.explanation).toContain("separate steps");
+  expect(describeAiFailure("terminated").kind).toBe("network");
+});
 import { CONTINUE_PROMPT, RECOVER_EDIT_PROMPT, describeAiFailure, OUTPUT_LIMIT_AGAIN, providerFrom, resumeAfterModelSwitch, retryAfterFailure } from "../src/renderer/ai/aiFailure.ts";
 
 it("explains invalid file arguments and retries the remaining work in smaller edits", () => {
@@ -191,5 +206,16 @@ describe("picking a failed turn back up after a model switch", () => {
       describeAiFailure("Google returned HTTP 400: Function call is missing a thought_signature in functionCall parts."),
       "build a todo app",
     )).toBeNull();
+  });
+});
+
+describe("the paid-token limit", () => {
+  it("offers to buy tokens or switch models when the free Heabsy week is used up", () => {
+    const failure = describeAiFailure("Included AI returned HTTP 429: You've used this week's 10,000,000 free tokens on Heabsy models. Buy tokens at https://adcode.bluethenics.com/ai-tokens, or switch to Tagflow AI, which stays free. Your free tokens refill in 3 days. (code daily-limit)");
+    expect(failure.kind).toBe("tokens");
+    expect(failure.title).toBe("This week's free Heabsy tokens are used up");
+    expect(failure.actions).toEqual(["buy-tokens", "upgrade-plan", "models", "usage"]);
+    expect(failure.explanation).toContain("Buy tokens or a plan");
+    expect(failure.explanation).toContain("3 days");
   });
 });

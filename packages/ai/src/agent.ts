@@ -403,6 +403,8 @@ export function createAgent(deps: AgentDeps): Agent {
     const externalSignal = options?.signal;
     const failures = new Map<string, number>();
     let invalidCalls = 0;
+    let planFailures = 0;
+    let planDisabled = false;
     let smallerEdits = false;
     let compactionFailed = false;
     let justCompacted = false;
@@ -454,7 +456,8 @@ export function createAgent(deps: AgentDeps): Agent {
         const system = [instructions, await deps.context?.(),
           smallerEdits ? "The previous tool arguments were malformed or incomplete. Recover without repeating that call: send exactly one tool call per response, as a complete JSON object with escaped newlines and quotes. Keep each file write to at most 40 lines. Create a short complete new file with propose_edit, then extend it with small edit_file replacements. Read the current file before changing it. Finish and verify the original request." : "",
         ].filter(Boolean).join("\n\n");
-        const tools = lean ? leanTools(deps.tools) : deps.tools;
+        const availableTools = planDisabled ? deps.tools.filter((tool) => tool.name !== "update_plan") : deps.tools;
+        const tools = lean ? leanTools(availableTools) : availableTools;
         lastSystem = system;
         lastTools = tools;
 
@@ -686,10 +689,20 @@ export function createAgent(deps: AgentDeps): Agent {
         const signature = JSON.stringify([call.name, call.input]);
         const result = early !== null
           ? early[index]!
+          : planDisabled && call.name === "update_plan"
+            ? { content: "Checklist unavailable for this turn. Continue the task with the other tools and describe progress in prose.", isError: true }
           : repeatedFailure === null
             ? await runTool(call, signal)
             : { content: "Skipped because this turn repeatedly failed. Review the previous error before retrying.", isError: true };
-        if (call.inputError !== undefined && /invalid JSON tool arguments|response limit cut off the tool arguments/i.test(call.inputError)) {
+        if (call.name === "update_plan" && result.isError) {
+          // A checklist has no workspace side effects. Retire a broken checklist instead
+          // of abandoning the task; real operations keep the repeated-failure guard.
+          planFailures += 1;
+          if (planFailures >= 3 && !planDisabled) {
+            planDisabled = true;
+            yield { kind: "status", text: "The checklist could not update — continuing the task" };
+          }
+        } else if (call.inputError !== undefined && /invalid JSON tool arguments|response limit cut off the tool arguments/i.test(call.inputError)) {
           // Invalid arguments all have input={}, so they are not identical workspace
           // operations. Give the next request explicit recovery instructions, bounded
           // independently from the guard for repeated failures of real tool calls.
@@ -707,7 +720,11 @@ export function createAgent(deps: AgentDeps): Agent {
             repeatedFailureDetail = result.content.slice(0, 1800);
           }
         } else {
-          failures.delete(signature);
+          // A successful edit or command is progress: the same test can still fail
+          // after a real correction. Count repeated failures since the last progress,
+          // rather than accumulating them across the whole task.
+          if (deps.tools.some((tool) => tool.name === call.name && tool.mutating)) failures.clear();
+          else failures.delete(signature);
           invalidCalls = 0;
         }
         const images = (result.images ?? []).slice(0, MAX_TOOL_IMAGES);

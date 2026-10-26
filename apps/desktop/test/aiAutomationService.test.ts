@@ -1,8 +1,9 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createAiAutomationService } from "../src/main/aiAutomationService.ts";
+import * as atomicIO from "../src/main/atomicReplace.ts";
 
 let directory: string;
 let clock: number;
@@ -15,6 +16,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await rm(directory, { recursive: true, force: true });
 });
 
@@ -27,6 +29,28 @@ function service() {
 }
 
 describe("AI automation service", () => {
+  it("does not write an unchanged schedule store during idle polling", async () => {
+    const api = service();
+    await api.recover();
+    await api.missInactive(null);
+    expect(await api.claimDue("C:/project")).toBeNull();
+    await expect(readFile(join(directory, "ai-automations", "items.json"))).rejects.toMatchObject({ code: "ENOENT" });
+    await api.create("C:/project", { message: "Later", targetId: "builtin:chat", targetLabel: "Chat", dueAt: 5000 });
+    const replace = vi.spyOn(atomicIO, "atomicReplace");
+    await api.recover(); await api.missInactive(null); await api.claimDue("C:/project");
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("supports drives that reject rename and recovers a copy interrupted mid-write", async () => {
+    vi.spyOn(atomicIO, "atomicReplace").mockRejectedValue(Object.assign(new Error("cross-device"), { code: "EXDEV" }));
+    const api = service();
+    const first = await api.create("C:/project", { message: "First", targetId: "builtin:chat", targetLabel: "Chat", dueAt: 5000 });
+    await api.create("C:/project", { message: "Second", targetId: "builtin:chat", targetLabel: "Chat", dueAt: 6000 });
+    expect(await service().list("C:/project")).toHaveLength(2);
+    await writeFile(join(directory, "ai-automations", "items.json"), "[truncated", "utf8");
+    expect((await service().list("C:/project")).map(item => item.id)).toEqual([first.id]);
+  });
+
   it("persists schedules per workspace and claims due items once", async () => {
     const first = service();
     const created = await first.create("C:/project-one", {

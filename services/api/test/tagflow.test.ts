@@ -8,6 +8,7 @@ import { createApiServer } from "../src/server.ts";
 import { INCLUDED_PROVIDERS } from "../src/includedProviders.ts";
 import { createTagflowMemoryStore } from "../src/tagflowMemoryStore.ts";
 import { DEFAULT_CREDIT_PLAN } from "../src/credits.ts";
+import { DEFAULT_PAID_CONFIG } from "../src/paidTokens.ts";
 
 const config: TagflowConfig = { ...DEFAULT_TAGFLOW_CONFIG, enabled: true, baseUrl: "https://api.tagflow-ai.com/v1", defaultModel: "coder", models: [{ id: "coder", name: "Coder", contextWindow: 65_536, maxOutput: 4096, inputPrice: 0.1, outputPrice: 0.2 }] };
 const body = { model: "coder", messages: [{ role: "user", content: "Hello" }], max_tokens: 100, stream: true };
@@ -81,6 +82,168 @@ describe("included Tagflow AI", () => {
     expect(await (await call("/ai/tagflow/usage", "user")).json()).toMatchObject({ unlimited: true, credits: { weekly: { used: 1.015 } } });
   });
 
+  describe("paid tokens in the published config", () => {
+    const heabsy = { id: "glm", name: "GLM", provider: "custom-heabsy" as const, contextWindow: 65_536, maxOutput: 4096, inputPrice: 0, outputPrice: 0 };
+    const withHeabsy = (paid: unknown) => ({ ...config, providers: [{ id: "custom-heabsy", name: "Heabsy", baseUrl: "https://api.heabsy.com/v1" }], models: [config.models[0]!, heabsy], paid }) as unknown as TagflowConfig;
+
+    it("marks the paid provider's models and publishes the packs", async () => {
+      vi.stubEnv("INCLUDED_AI_CUSTOM_HEABSY_API_KEY", "k");
+      await save(withHeabsy({ ...DEFAULT_PAID_CONFIG, enabled: true }));
+      const published = await (await call("/ai/tagflow/config")).json() as { paid: { enabled: boolean; packs: unknown[] }; models: { id: string; paid: boolean }[] };
+      expect(published.paid).toMatchObject({ enabled: true, freeWeeklyTokens: 10_000_000 });
+      expect(published.paid.packs).toHaveLength(3);
+      expect(published.models.map(({ id, paid }) => [id, paid])).toEqual([["coder", false], ["glm", true]]);
+    });
+
+    it("rejects a config whose paid section is malformed", () => {
+      expect(parseTagflowConfig(withHeabsy({ ...DEFAULT_PAID_CONFIG, freeWeeklyTokens: -1 }))).toBeNull();
+      expect(parseTagflowConfig(withHeabsy(DEFAULT_PAID_CONFIG))?.paid).toEqual(DEFAULT_PAID_CONFIG);
+      expect(parseTagflowConfig(config)?.paid).toBeUndefined();
+    });
+  });
+
+  describe("paid Heabsy tokens", () => {
+    const glm = { id: "glm", name: "GLM", provider: "custom-heabsy" as const, contextWindow: 65_536, maxOutput: 4096, inputPrice: 0, outputPrice: 0 };
+    const mimo = { ...glm, id: "mimo", name: "Mimo" };
+    const paidConfig = (enabled = true, freeWeeklyTokens = 1000) => ({ ...config, providers: [{ id: "custom-heabsy", name: "Heabsy", baseUrl: "https://api.heabsy.com/v1" }],
+      models: [config.models[0]!, glm, mimo], paid: { ...DEFAULT_PAID_CONFIG, enabled, freeWeeklyTokens } }) as unknown as TagflowConfig;
+    const ask = (model: string) => chat("user", { ...body, model });
+    beforeEach(() => { vi.stubEnv("INCLUDED_AI_CUSTOM_HEABSY_API_KEY", "k"); });
+
+    it("refuses a paid model once the free week is spent, in words an old desktop understands", async () => {
+      await save(paidConfig(true, 1));
+      const first = await ask("glm"); expect(first.status).toBe(200); await first.text();
+      const refused = await ask("glm");
+      expect(refused.status).toBe(429);
+      const { error } = await refused.json() as { error: { code: string; limit: string; retryable: boolean; resetsAt: number; buyUrl: string; message: string } };
+      expect(error).toMatchObject({ code: "daily-limit", limit: "paid", retryable: true, buyUrl: "https://adcode.bluethenics.com/ai-tokens" });
+      expect(error.resetsAt).toBeGreaterThan(now);
+      expect(error.message).toContain("https://adcode.bluethenics.com/ai-tokens");
+      expect(error.message).toContain("Tagflow");
+      expect(refused.headers.get("retry-after")).not.toBeNull();
+    });
+
+    it("never charges Tagflow, and charges nothing while the switch is off", async () => {
+      await save(paidConfig(true, 1));
+      for (let i = 0; i < 3; i++) { const r = await ask("coder"); expect(r.status).toBe(200); await r.text(); }
+      await save(paidConfig(false, 1));
+      for (let i = 0; i < 3; i++) { const r = await ask("glm"); expect(r.status).toBe(200); await r.text(); }
+      expect((await store.getPaidTokens("user")).free).toBeNull();
+    });
+
+    it("uses purchased tokens after the free week", async () => {
+      await save(paidConfig(true, 1));
+      await store.grantTokens("user", 1_000_000, "admin-1", "test", now);
+      for (let i = 0; i < 3; i++) { const r = await ask("glm"); expect(r.status).toBe(200); await r.text(); }
+      expect((await store.getPaidTokens("user")).balance.purchased).toBeLessThan(1_000_000);
+    });
+
+    it("reports the free week and purchased tokens on the usage endpoint", async () => {
+      await save(paidConfig(true, 10_000_000));
+      await store.grantTokens("user", 50_000_000, "admin-1", "test", now);
+      const r = await ask("glm"); await r.text();
+      const view = await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { enabled: boolean; free: { limit: number; used: number }; purchased: number } };
+      expect(view.tokens).toMatchObject({ enabled: true, free: { limit: 10_000_000, used: 15 }, purchased: 50_000_000, paidModels: ["glm", "mimo"] });
+    });
+
+    it("falls back from a busy paid model only to a free one", async () => {
+      // Mimo comes first in the administrator's order, so only the paid rule keeps it out.
+      const ordered = paidConfig(true, 10_000_000);
+      await save({ ...ordered, models: [glm, mimo, config.models[0]!] } as TagflowConfig);
+      upstream.mockImplementation(async (_url, init) => JSON.parse(String(init?.body)).model === "glm" ? new Response("busy", { status: 429 }) : reply());
+      const r = await ask("glm");
+      expect(r.status).toBe(200);
+      expect(r.headers.get("x-adcode-fallback-model")).toBe("coder");
+      await r.text();
+    });
+
+    it("charges no purchased tokens when a busy paid model falls back to Tagflow", async () => {
+      await save(paidConfig(true, 1));
+      await store.grantTokens("user", 1_000_000, "admin-1", "test", now);
+      upstream.mockImplementation(async (_url, init) => JSON.parse(String(init?.body)).model === "glm" ? new Response("busy", { status: 429 }) : reply());
+      const r = await ask("glm"); expect(r.headers.get("x-adcode-fallback-model")).toBe("coder"); await r.text();
+      expect(await store.getPaidTokens("user")).toMatchObject({ balance: { purchased: 1_000_000, reserved: 0 }, free: { usedTokens: 0, reservedTokens: 0 } });
+    });
+
+    it("reads no paid-token rows while paid tokens are off", async () => {
+      await save(paidConfig(false, 10_000_000));
+      const reads = vi.spyOn(store, "getPaidTokens");
+      const view = await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { enabled: boolean; purchased: number } };
+      expect(view.tokens).toMatchObject({ enabled: false, purchased: 0 });
+      expect(reads).not.toHaveBeenCalled();
+    });
+
+    it("gives a subscriber the plan's weekly allowance", async () => {
+      await save(paidConfig(true, 1));
+      await store.applySubscriptionEvent({ webhookId: "w", type: "active", subscriptionId: "s", uid: "user", plan: "pro", customerId: "c", status: "active", periodEnd: now + 30 * 86_400_000, cancelAtPeriodEnd: false, now });
+      for (let i = 0; i < 3; i++) { const r = await ask("glm"); expect(r.status).toBe(200); await r.text(); }
+      const view = await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { free: { limit: number }; plan: { id: string } | null } };
+      expect(view.tokens.free.limit).toBe(150_000_000);
+      expect(view.tokens.plan).toMatchObject({ id: "pro" });
+    });
+
+    it("falls back to the free allowance once a plan has ended", async () => {
+      await save(paidConfig(true, 1));
+      await store.applySubscriptionEvent({ webhookId: "w", type: "active", subscriptionId: "s", uid: "user", plan: "monthly", customerId: "c", status: "active", periodEnd: now + 1000, cancelAtPeriodEnd: false, now });
+      now += 2000;
+      const first = await ask("glm"); expect(first.status).toBe(200); await first.text();
+      expect((await ask("glm")).status).toBe(429);
+    });
+
+    it("publishes the plans", async () => {
+      await save(paidConfig(true, 1));
+      const published = await (await call("/ai/tagflow/config")).json() as { paid: { plans: { id: string; priceCents: number; weeklyTokens: number }[] } };
+      expect(published.paid.plans.map((p) => [p.id, p.priceCents, p.weeklyTokens])).toEqual([["weekly", 300, 60_000_000], ["monthly", 900, 60_000_000], ["pro", 1900, 150_000_000]]);
+    });
+
+    it("names plans as well as tokens when the free week is spent", async () => {
+      await save(paidConfig(true, 1));
+      const first = await ask("glm"); await first.text();
+      const { error } = await (await ask("glm")).json() as { error: { message: string } };
+      expect(error.message).toContain("Buy tokens or a plan");
+    });
+
+    it("settles requests held before the switch was turned off", async () => {
+      await save(paidConfig(true, 10_000_000));
+      const r = await ask("glm");
+      await save(paidConfig(false, 10_000_000));
+      await r.text();
+      expect((await store.getPaidTokens("user")).free).toMatchObject({ reservedTokens: 0, usedTokens: 15 });
+    });
+  });
+
+  describe("what stands between a message and the model", () => {
+    it("asks the provider while the request's telemetry write is still outstanding", async () => {
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => { release = resolve; });
+      const put = store.putModelRequest.bind(store);
+      vi.spyOn(store, "putModelRequest").mockImplementation(async (record) => { await held; await put(record); });
+      const response = await chat();
+      expect(response.status).toBe(200);
+      expect(upstream).toHaveBeenCalledTimes(1);
+      release(); await response.text();
+    });
+
+    it("never lets a slow early write overwrite the finished record", async () => {
+      const writes: string[] = [];
+      const put = store.putModelRequest.bind(store);
+      vi.spyOn(store, "putModelRequest").mockImplementation(async (record) => {
+        if (record.outcome === "pending") await new Promise((resolve) => setTimeout(resolve, 30));
+        writes.push(record.outcome); await put(record);
+      });
+      const response = await chat(); await response.text();
+      await vi.waitFor(() => expect(writes).toEqual(["pending", "success"]));
+      const id = response.headers.get("x-adcode-request-id")!;
+      expect(await store.getModelRequest(id)).toMatchObject({ outcome: "success", providerStartedAt: expect.any(Number) });
+    });
+
+    it("does not read the day's usage to answer a chat request", async () => {
+      const reads = vi.spyOn(store, "getTagflowUsage");
+      const response = await chat(); expect(response.status).toBe(200); await response.text();
+      expect(reads).not.toHaveBeenCalled();
+    });
+  });
+
   it("retries a provider's burst rate limit and answers when it clears", async () => {
     upstream.mockImplementationOnce(async () => new Response("slow down", { status: 429 }));
     const response = await chat();
@@ -135,7 +298,8 @@ describe("included Tagflow AI", () => {
       upstream.mockImplementation(drip(10, 30, 3));
       const response = await chat();
       expect(response.status).toBe(200);
-      await expect(response.text()).rejects.toThrow();
+      expect(await response.text()).toContain('"code":"stream-interrupted"');
+      expect(await usage()).toMatchObject({ requests: 1, reservedTokens: 0, estimatedRequests: 1 });
     });
   });
 
@@ -218,7 +382,7 @@ describe("included Tagflow AI", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("x-adcode-fallback-model")).toBe("backup");
       expect(await response.text()).toContain("Hello");
-      expect(calledWith("coder")).toBe(3); expect(calledWith("backup")).toBe(1);
+      expect(calledWith("coder")).toBe(1); expect(calledWith("backup")).toBe(1);
       expect(recorded(writes).map(({ modelId, outcome, errorCode }) => [modelId, outcome, errorCode])).toEqual([["coder", "provider_error", "upstream-rate-limit"], ["backup", "success", null]]);
       const credits = (await (await call("/ai/tagflow/usage", "user")).json() as { credits: { session: { used: number } } }).credits.session.used;
       expect(credits).toBeGreaterThan(0); expect(credits).toBeLessThan(0.015);
@@ -228,17 +392,35 @@ describe("included Tagflow AI", () => {
       await save({ ...config, models: [config.models[0]!, backup] });
       refuseCoder();
       for (let i = 0; i < 3; i++) { const response = await chat(); expect(response.status).toBe(200); await response.text(); }
-      expect(calledWith("coder")).toBe(9);
+      expect(calledWith("coder")).toBe(3);
       const writes = vi.spyOn(store, "putModelRequest");
       const cooled = await chat();
       expect(cooled.status).toBe(200); expect(cooled.headers.get("x-adcode-fallback-model")).toBe("backup"); await cooled.text();
-      expect(calledWith("coder")).toBe(9);
+      expect(calledWith("coder")).toBe(3);
       expect(recorded(writes)[0]).toMatchObject({ modelId: "coder", outcome: "rejected", errorCode: "model-busy" });
       now += 61_000;
       upstream.mockImplementation(async () => reply());
       const recovered = await chat(); expect(recovered.status).toBe(200); await recovered.text();
       expect(recovered.headers.get("x-adcode-fallback-model")).toBeNull();
-      expect(calledWith("coder")).toBe(10);
+      expect(calledWith("coder")).toBe(4);
+    });
+
+    it("moves on at the first refusal instead of retrying the busy model", async () => {
+      // A refusal from a saturated provider is slow: on 2026-10-21 each 429 took ~16 s, so two
+      // retries kept people waiting ~48 s before the backup that answers in ~3 s.
+      await save({ ...config, models: [config.models[0]!, backup] });
+      upstream.mockImplementationOnce(async () => new Response("busy", { status: 429 }));
+      const response = await chat();
+      expect(response.status).toBe(200); expect(response.headers.get("x-adcode-fallback-model")).toBe("backup"); await response.text();
+      expect(calledWith("coder")).toBe(1); expect(calledWith("backup")).toBe(1);
+    });
+
+    it("still retries a busy model when nothing else can answer", async () => {
+      await save({ ...config, models: [config.models[0]!, pricey] });
+      upstream.mockImplementationOnce(async () => new Response("busy", { status: 429 }));
+      const response = await chat();
+      expect(response.status).toBe(200); expect(response.headers.get("x-adcode-fallback-model")).toBeNull(); await response.text();
+      expect(calledWith("coder")).toBe(2); expect(calledWith("pricey")).toBe(0);
     });
 
     it("never moves a person to a model that costs more credits", async () => {
@@ -543,6 +725,20 @@ describe("included Tagflow AI", () => {
     const response = await chat(); await response.body!.cancel();
     expect(await usage()).toMatchObject({ requests: 1, outputTokens: 100, reservedTokens: 0, estimatedRequests: 1 });
   });
+  it("settles once when a cancelled reader and its pending pull fail together", async () => {
+    const original = store.settleTagflow.bind(store);
+    const settle = vi.spyOn(store, "settleTagflow").mockImplementation(async (...args) => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      return original(...args);
+    });
+    upstream.mockImplementation(async (_url, init) => new Response(new ReadableStream<Uint8Array>({
+      start(controller) { init?.signal?.addEventListener("abort", () => controller.error(new Error("aborted")), { once: true }); },
+    }), { headers: { "content-type": "text/event-stream" } }));
+    const response = await chat();
+    await response.body!.cancel();
+    expect(settle).toHaveBeenCalledTimes(1);
+    expect(await usage()).toMatchObject({ requests: 1, outputTokens: 100, reservedTokens: 0 });
+  });
   it("estimates missing counts and keeps upstream errors out of client responses", async () => {
     upstream.mockImplementation(async () => new Response(event({ choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] }) + "data: [DONE]\n\n", { headers: { "content-type": "text/event-stream" } }));
     await (await chat()).text(); expect((await usage())!.estimatedRequests).toBe(1);
@@ -645,7 +841,9 @@ describe("included Tagflow AI", () => {
     upstream.mockImplementation(async () => split(event({ choices: [{ delta: { content: "नमस्ते" }, finish_reason: "stop" }] }) + event({ choices: [], usage: { prompt_tokens: 5, completion_tokens: 6 } }) + "data: [DONE]\n\n"));
     expect(await (await chat()).text()).toContain("नमस्ते"); expect((await usage())!.inputTokens).toBe(5);
     upstream.mockImplementation(async () => split(event({ error: { message: "server-secret" } })));
-    await expect((await chat()).text()).rejects.toThrow("stream interrupted");
+    const interrupted = await (await chat()).text();
+    expect(interrupted).toContain('"code":"stream-interrupted"');
+    expect(interrupted).not.toContain("server-secret");
     expect(await usage()).toMatchObject({ requests: 2, outputTokens: 106, reservedTokens: 0 });
   });
   it("supports non-stream replies and hides the feature when the server key is absent", async () => {

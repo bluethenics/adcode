@@ -120,6 +120,7 @@ describe("the admin rail", () => {
       "/admin/status",
       "/admin/review",
       "/admin/review?tab=feedback",
+      "/admin/ad-networks",
       "/admin/money",
       "/admin/money?tab=advertisers",
       "/admin/money?tab=countries",

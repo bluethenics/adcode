@@ -37,7 +37,7 @@ export function corsHeaders(origin: string | undefined): Record<string, string> 
     // be served to a different origin from a shared cache.
     vary: "Origin",
     "access-control-allow-headers": "authorization, content-type",
-    "access-control-allow-methods": "GET, POST, PATCH, OPTIONS",
+    "access-control-allow-methods": "GET, POST, PUT, PATCH, OPTIONS",
     "access-control-max-age": "600",
   };
 }

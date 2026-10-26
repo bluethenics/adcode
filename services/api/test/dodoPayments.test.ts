@@ -5,6 +5,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env["DODO_API_KEY"];
   delete process.env["DODO_PRODUCT_ID"];
+  delete process.env["DODO_PLAN_WEEKLY_ID"];
+  delete process.env["DODO_PLAN_MONTHLY_ID"];
+  delete process.env["DODO_PLAN_PRO_ID"];
 });
 
 describe("Dodo Checkout Sessions adapter", () => {
@@ -38,5 +41,39 @@ describe("Dodo Checkout Sessions adapter", () => {
       billing_address: { country: "US" },
       metadata: { orderId: "ord-1" },
     });
+  });
+});
+
+
+describe("Dodo subscriptions adapter", () => {
+  it("uses the configured subscription product without a dynamic price and preserves identity", async () => {
+    process.env["DODO_API_KEY"] = "test_replacement_key";
+    process.env["DODO_PLAN_PRO_ID"] = "pdt_pro";
+    expect(createDodoProvider().canCreateCheckout!("plan-pro")).toBe(true);
+    const mock = vi.fn(async () => new Response(JSON.stringify({ session_id: "chk_plan", checkout_url: "https://checkout.dodo/plan" })));
+    vi.stubGlobal("fetch", mock);
+    expect(await createDodoProvider().createCheckout({ product: "plan-pro", orderId: "aip_1", advertiserId: "user", advertiserName: "User", advertiserEmail: "user@test.dev", billingCountry: "US", amountMicros: 19_000_000n, returnUrl: "https://adcode.test/ai-tokens", cancelUrl: "https://adcode.test/ai-tokens", metadata: { uid: "user", plan: "pro", orderId: "untrusted-override" } })).toMatchObject({ sessionId: "chk_plan" });
+    const init = (mock.mock.calls as unknown as [string, RequestInit][])[0]![1];
+    const body = JSON.parse(String(init.body));
+    expect(body.product_cart).toEqual([{ product_id: "pdt_pro", quantity: 1 }]);
+    expect(body.metadata).toEqual({ uid: "user", plan: "pro", orderId: "aip_1" });
+  });
+
+  it("does not fall back to advertiser products when a plan product is missing", async () => {
+    process.env["DODO_API_KEY"] = "test_replacement_key";
+    process.env["DODO_PRODUCT_ID"] = "pdt_advertiser";
+    expect(createDodoProvider().canCreateCheckout!("plan-weekly")).toBe(false);
+    const mock = vi.fn(); vi.stubGlobal("fetch", mock);
+    expect(await createDodoProvider().createCheckout({ product: "plan-weekly", orderId: "aip_1", advertiserId: "user", advertiserName: "User", advertiserEmail: "user@test.dev", billingCountry: "US", amountMicros: 3_000_000n, returnUrl: "https://adcode.test/ai-tokens", cancelUrl: "https://adcode.test/ai-tokens" })).toBeNull();
+    expect(mock).not.toHaveBeenCalled();
+  });
+
+  it("opens a short-lived portal session with an encoded customer and return URL", async () => {
+    process.env["DODO_API_KEY"] = "test_replacement_key";
+    const mock = vi.fn(async () => new Response(JSON.stringify({ link: "https://customer.dodo/portal" })));
+    vi.stubGlobal("fetch", mock);
+    const returnUrl = "https://adcode.test/ai-tokens?from=portal";
+    expect(await createDodoProvider().customerPortal!("cus_1/path", returnUrl)).toBe("https://customer.dodo/portal");
+    expect(mock).toHaveBeenCalledWith(`https://test.dodopayments.com/customers/cus_1%2Fpath/customer-portal/session?return_url=${encodeURIComponent(returnUrl)}`, expect.objectContaining({ method: "POST" }));
   });
 });

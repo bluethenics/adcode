@@ -38,7 +38,7 @@ export interface LocalHistory {
   read(path: string, id: string): Promise<string | null>;
 
   /** Keep a copy of a buffer that has *not* been saved. */
-  draft(path: string, text: string): Promise<void>;
+  draft(path: string, text: string, strict?: boolean): Promise<void>;
   clearDraft(path: string): Promise<void>;
   drafts(): Promise<RecoveredDraft[]>;
 }
@@ -147,8 +147,11 @@ export function createLocalHistory(directory: string): LocalHistory {
       }
     },
 
-    async draft(path: string, text: string): Promise<void> {
-      if (Buffer.byteLength(text, "utf8") > MAX_SNAPSHOT_BYTES) return;
+    async draft(path: string, text: string, strict = false): Promise<void> {
+      if (Buffer.byteLength(text, "utf8") > MAX_SNAPSHOT_BYTES) {
+        if (strict) throw new Error("Save this large file before updating ADCode");
+        return;
+      }
 
       try {
         await mkdir(draftsRoot, { recursive: true });
@@ -156,7 +159,8 @@ export function createLocalHistory(directory: string): LocalHistory {
           join(draftsRoot, `${keyFor(path)}.json`),
           JSON.stringify({ path, text, savedAt: new Date().toISOString() }),
         );
-      } catch {
+      } catch (error) {
+        if (strict) throw error;
         // Same reasoning as `record`: this protects work, it must not obstruct it.
       }
     },

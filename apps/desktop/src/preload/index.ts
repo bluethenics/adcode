@@ -340,7 +340,10 @@ const api: AdcodeApi = {
     check: () => ipcRenderer.invoke(CHANNELS.updateCheck),
     onChanged: (listener) => subscribe(CHANNELS.updateChanged, listener),
     install: () => ipcRenderer.invoke(CHANNELS.updateInstall),
-    claimNotice: (version) => ipcRenderer.invoke(CHANNELS.updateClaimNotice, version),
+    claimNotice: (version, phase) => ipcRenderer.invoke(CHANNELS.updateClaimNotice, version, phase),
+    onPrepare: (listener) => subscribe(CHANNELS.updatePrepare, listener),
+    onPrepareCancel: (listener) => subscribe(CHANNELS.updatePrepareCancel, listener),
+    prepared: (id, result) => ipcRenderer.invoke(CHANNELS.updatePrepared, id, result),
   },
   support: {
     submitReport: (input) => ipcRenderer.invoke(CHANNELS.supportSubmitReport, input),

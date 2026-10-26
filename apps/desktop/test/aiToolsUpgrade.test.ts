@@ -260,6 +260,15 @@ describe("update_plan", () => {
     expect(result).toEqual({ content: "Plan shown to the user: 1 of 3 done, now: Add footer.", isError: false });
   });
 
+  it("normalizes completed steps from models using the common status spelling", async () => {
+    const { runner } = direct();
+    const result = await runner.run(call("update_plan", {
+      steps: [{ step: "Read project", status: "completed" }, { step: "Fix issue", status: "in_progress" }],
+    }), signal());
+    expect(result).toEqual({ content: "Plan shown to the user: 1 of 2 done, now: Fix issue.", isError: false });
+    expect(parsePlan({ steps: [{ step: "Read project", status: "completed" }] })).toEqual([{ step: "Read project", status: "done" }]);
+  });
+
   it("explains a malformed plan", () => {
     expect(parsePlan({})).toContain("needs steps");
     expect(parsePlan({ steps: [{ step: "a", status: "doing" }] })).toContain("pending, in_progress or done");

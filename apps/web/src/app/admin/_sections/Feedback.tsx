@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { dollarsToMicros, moneyExact, when } from "@/components/money";
+import { AdminSummary } from "@/components/AdminUI";
+
+/** Long enough to bury the next report: a pasted stack trace, a log. Shown clamped until asked. */
+const LONG_REPORT = 480;
 
 /**
  * Bugs, requests and questions filed from inside the editor.
@@ -78,6 +82,7 @@ export function ReportsBody({ initialQuery = "" }: { initialQuery?: string }) {
   // row somebody followed a link to would be hidden by a filter they did not choose.
   const [filter, setFilter] = useState<Filter>(initialQuery === "" ? "open" : "all");
   const [query, setQuery] = useState(initialQuery);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     const found = await apiFetch<{ rows: ReportRow[]; repliedAt?: Record<string, number> }>({
@@ -208,6 +213,10 @@ export function ReportsBody({ initialQuery = "" }: { initialQuery?: string }) {
   if (loading) return <div className="skeleton skeleton-card" />;
 
   const openCount = rows.filter((r) => r.status !== "closed").length;
+  const inProgress = rows.filter((r) => r.status === "triaged").length;
+  const openBugs = rows.filter((r) => r.status !== "closed" && r.kind === "bug").length;
+  const weekAgo = Date.now() - 7 * 86_400_000;
+  const thisWeek = rows.filter((r) => r.createdAt >= weekAgo).length;
 
   return (
     <>
@@ -216,6 +225,13 @@ export function ReportsBody({ initialQuery = "" }: { initialQuery?: string }) {
           {error}
         </div>
       )}
+
+      <AdminSummary items={[
+        { label: "Open", value: openCount, hint: "Not marked done", ...(openCount > 0 ? { tone: "warn" as const } : {}) },
+        { label: "In progress", value: inProgress, hint: "Being looked at" },
+        { label: "Open bugs", value: openBugs, hint: "Of the open ones" },
+        { label: "New this week", value: thisWeek, hint: `Of the ${rows.length} most recent` },
+      ]} />
 
       <div className="admin-toolbar">
         <div className="admin-filters" role="group" aria-label="Filter feedback">
@@ -247,20 +263,24 @@ export function ReportsBody({ initialQuery = "" }: { initialQuery?: string }) {
           <p>Reports sent from the feedback button in the editor appear here, newest first.</p>
         </div>
       ) : (
-        shown.map((report) => (
-          <div className="card admin-card" key={report.reportId} style={{ marginBottom: 12 }}>
+        <div className="adm-stack-list">
+        {shown.map((report) => {
+          const busyHere = busy === report.reportId;
+          const long = report.body.length > LONG_REPORT || report.body.split("\n").length > 8;
+          const open = expanded[report.reportId] === true;
+          return (
+          <article className="card admin-card" key={report.reportId}>
             <div className="admin-card-head">
-              <div style={{ minWidth: 0 }}>
+              <div>
                 <h3>{report.title}</h3>
-                <p className="row-sub">
-                  {KIND_LABEL[report.kind] ?? report.kind} · {when(report.createdAt)} · v
-                  {report.appVersion} · {report.platform} ·{" "}
-                  <span className="mono" style={{ fontSize: 12 }}>
-                    {report.uid}
-                  </span>
+                <p className="adm-meta">
+                  <span>{KIND_LABEL[report.kind] ?? report.kind}</span>
+                  <span>{when(report.createdAt)}</span>
+                  <span>v{report.appVersion} · {report.platform}</span>
+                  <span className="mono" title="Account id">{report.uid}</span>
                 </p>
               </div>
-              <span style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <span className="adm-chips">
                 {repliedAt[report.reportId] !== undefined && (
                   <span className="pill" data-tone="live" title="The person was answered by email">Replied {when(repliedAt[report.reportId] ?? 0)}</span>
                 )}
@@ -271,10 +291,15 @@ export function ReportsBody({ initialQuery = "" }: { initialQuery?: string }) {
             </div>
 
             {/* Whitespace preserved: people paste stack traces and steps into this box. */}
-            <p style={{ whiteSpace: "pre-wrap", color: "var(--text)" }}>{report.body}</p>
+            <p className={long && !open ? "adm-report-body adm-clamp" : "adm-report-body"}>{report.body}</p>
+            {long && (
+              <button type="button" className="adm-clamp-toggle" onClick={() => setExpanded((current) => ({ ...current, [report.reportId]: !open }))}>
+                {open ? "Show less" : "Show all"}
+              </button>
+            )}
 
             {replying === report.reportId && (
-              <div style={{ display: "grid", gap: 8, margin: "4px 0 12px" }}>
+              <div className="adm-reply">
                 <label className="field-hint" htmlFor={`reply-${report.reportId}`}>
                   Reply by email - it goes to the account&apos;s own address, from adcode@bluethenics.com, and their answer comes back to the team inbox.
                 </label>
@@ -288,10 +313,10 @@ export function ReportsBody({ initialQuery = "" }: { initialQuery?: string }) {
                   onChange={(event) => setReplyText(event.target.value)}
                 />
                 <div className="actions">
-                  <button className="btn btn-primary btn-small" disabled={busy === report.reportId || replyText.trim() === ""} onClick={() => void reply(report.reportId, true)}>
+                  <button className="btn btn-primary btn-small" disabled={busyHere || replyText.trim() === ""} onClick={() => void reply(report.reportId, true)}>
                     Send and mark done
                   </button>
-                  <button className="btn btn-outline btn-small" disabled={busy === report.reportId || replyText.trim() === ""} onClick={() => void reply(report.reportId, false)}>
+                  <button className="btn btn-outline btn-small" disabled={busyHere || replyText.trim() === ""} onClick={() => void reply(report.reportId, false)}>
                     Send
                   </button>
                   <button className="btn btn-outline btn-small" onClick={() => { setReplying(null); setReplyText(""); }}>Cancel</button>
@@ -299,93 +324,77 @@ export function ReportsBody({ initialQuery = "" }: { initialQuery?: string }) {
               </div>
             )}
 
-            <div className="actions">
+            <div className="adm-actions">
+              {report.status !== "closed" ? (
+                <button className="btn btn-primary btn-small" disabled={busyHere} onClick={() => void setStatus(report.reportId, "closed")}>
+                  Mark done
+                </button>
+              ) : (
+                <button className="btn btn-outline btn-small" disabled={busyHere} onClick={() => void setStatus(report.reportId, "open")}>
+                  Reopen
+                </button>
+              )}
               {replying !== report.reportId && (
                 <button className="btn btn-outline btn-small" onClick={() => { setReplying(report.reportId); setReplyText(""); }}>
                   Reply by email
                 </button>
               )}
-              {report.status !== "triaged" && (
-                <button
-                  className="btn btn-outline btn-small"
-                  disabled={busy === report.reportId}
-                  onClick={() => void setStatus(report.reportId, "triaged")}
-                >
+              {report.status === "open" && (
+                <button className="btn btn-outline btn-small" disabled={busyHere} onClick={() => void setStatus(report.reportId, "triaged")}>
                   Mark in progress
                 </button>
               )}
-              {report.status !== "closed" ? (
-                <button
-                  className="btn btn-primary btn-small"
-                  disabled={busy === report.reportId}
-                  onClick={() => void setStatus(report.reportId, "closed")}
-                >
-                  Mark done
-                </button>
-              ) : (
-                <button
-                  className="btn btn-outline btn-small"
-                  disabled={busy === report.reportId}
-                  onClick={() => void setStatus(report.reportId, "open")}
-                >
-                  Reopen
-                </button>
-              )}
 
-              {awarded[report.reportId] !== undefined ? (
-                <span className="pill" data-tone="live">Thanked {moneyExact(awarded[report.reportId] ?? "0")}</span>
-              ) : awarding === report.reportId ? (
-                <>
-                  {[["$0.50", "500000"], ["$1", "1000000"], ["$5", "5000000"]].map(([label, micros]) => (
-                    <button key={label} className="btn btn-outline btn-small" disabled={busy === report.reportId} onClick={() => void award(report.reportId, micros ?? null)}>
-                      {label}
+              <span className="adm-actions-end">
+                {awarded[report.reportId] !== undefined ? (
+                  <span className="pill" data-tone="live">Thanked {moneyExact(awarded[report.reportId] ?? "0")}</span>
+                ) : awarding === report.reportId ? (
+                  <>
+                    {[["$0.50", "500000"], ["$1", "1000000"], ["$5", "5000000"]].map(([label, micros]) => (
+                      <button key={label} className="btn btn-outline btn-small" disabled={busyHere} onClick={() => void award(report.reportId, micros ?? null)}>
+                        {label}
+                      </button>
+                    ))}
+                    <input
+                      className="input adm-award-input"
+                      aria-label="Custom award in dollars"
+                      placeholder="$ other"
+                      value={customAward}
+                      onChange={(event) => setCustomAward(event.target.value)}
+                    />
+                    <button className="btn btn-primary btn-small" disabled={busyHere || customAward.trim() === ""} onClick={() => void award(report.reportId, dollarsToMicros(customAward))}>
+                      Thank
                     </button>
-                  ))}
-                  <input
-                    className="input"
-                    style={{ width: 90 }}
-                    aria-label="Custom award in dollars"
-                    placeholder="$ other"
-                    value={customAward}
-                    onChange={(event) => setCustomAward(event.target.value)}
-                  />
-                  <button className="btn btn-primary btn-small" disabled={busy === report.reportId || customAward.trim() === ""} onClick={() => void award(report.reportId, dollarsToMicros(customAward))}>
-                    Thank
+                    <button className="btn btn-outline btn-small" onClick={() => setAwarding(null)}>Cancel</button>
+                  </>
+                ) : (
+                  <button className="btn btn-outline btn-small" onClick={() => setAwarding(report.reportId)}>
+                    Thank with an award
                   </button>
-                  <button className="btn btn-outline btn-small" onClick={() => setAwarding(null)}>Cancel</button>
-                </>
-              ) : (
-                <button className="btn btn-outline btn-small" onClick={() => setAwarding(report.reportId)}>
-                  Thank with an award
-                </button>
-              )}
+                )}
 
-              {/* Two presses, because this one cannot be undone. Not a browser confirm():
-                  that blocks the page and is the dialog people dismiss by reflex. */}
-              {confirming === report.reportId ? (
-                <>
-                  <button
-                    className="btn btn-danger btn-small"
-                    disabled={busy === report.reportId}
-                    onClick={() => void remove(report.reportId)}
-                  >
-                    Delete for good
+                {/* Two presses, because this one cannot be undone. Not a browser confirm():
+                    that blocks the page and is the dialog people dismiss by reflex. */}
+                {confirming === report.reportId ? (
+                  <>
+                    <button className="btn btn-danger btn-small" disabled={busyHere} onClick={() => void remove(report.reportId)}>
+                      Delete for good
+                    </button>
+                    <button className="btn btn-outline btn-small" onClick={() => setConfirming(null)}>
+                      Keep it
+                    </button>
+                  </>
+                ) : (
+                  <button className="btn btn-outline btn-small adm-quiet-danger" onClick={() => setConfirming(report.reportId)}>
+                    Delete
                   </button>
-                  <button className="btn btn-outline btn-small" onClick={() => setConfirming(null)}>
-                    Keep it
-                  </button>
-                </>
-              ) : (
-                <button
-                  className="btn btn-outline btn-small"
-                  onClick={() => setConfirming(report.reportId)}
-                >
-                  Delete
-                </button>
-              )}
+                )}
+              </span>
             </div>
-          </div>
-        ))
+          </article>
+          );
+        })}
+        </div>
       )}
     </>
   );

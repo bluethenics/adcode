@@ -5,7 +5,7 @@
  * rule the dashboard follows - because at today's volume most of them are fractions of a
  * cent, and a rounded "$0.00" would say a source earned nothing when it earned something.
  */
-import { moneyExact } from "@/components/money";
+import { moneyProgress } from "@/components/money";
 
 export interface SourceRowView {
   key: string;
@@ -61,11 +61,11 @@ export function sourceCells(row: SourceRowView): string[] {
     row.people.toLocaleString("en-US"),
     row.realUsers.toLocaleString("en-US"),
     row.cameBack.toLocaleString("en-US"),
-    moneyExact(row.adRevenueMicros),
+    moneyProgress(row.adRevenueMicros),
     row.advertisers.toLocaleString("en-US"),
-    moneyExact(row.advertiserSpendMicros),
-    moneyExact(row.paidMicros),
-    moneyExact(row.keptMicros),
+    moneyProgress(row.advertiserSpendMicros),
+    moneyProgress(row.paidMicros),
+    moneyProgress(row.keptMicros),
   ];
 }
 

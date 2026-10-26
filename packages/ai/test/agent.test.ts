@@ -80,6 +80,29 @@ it("recovers invalid arguments with explicit smaller calls and never runs a malf
   expect(events.at(-1)).toMatchObject({ kind: "turn-end" });
 });
 
+it("continues real work after retiring a repeatedly invalid checklist", async () => {
+  const requests: ToolDefinition[][] = [];
+  let round = 0;
+  const provider: Provider = {
+    id: "anthropic", displayName: "Scripted", models: ["test-model"],
+    async *stream(request) {
+      requests.push([...request.tools]);
+      const name = round++ < 4 ? "update_plan" : "echo";
+      if (round <= 5) { yield { kind: "tool-call", call: call(String(round), name) }; yield { kind: "stop", reason: "tool-use" }; }
+      else { yield { kind: "text", text: "Fixed" }; yield { kind: "stop", reason: "end-turn" }; }
+    },
+  };
+  const tools = runner({ run: async (call) => ({ content: call.name === "update_plan" ? "Invalid plan status" : "File checked", isError: call.name === "update_plan" }) });
+  const agent = createAgent({ provider, model: "test-model", tools: [echoTool, { ...echoTool, name: "update_plan" }], runner: tools });
+  const events = [];
+  for await (const event of agent.send("Fix my app")) events.push(event);
+  expect(tools.calls.filter((call) => call.name === "update_plan")).toHaveLength(3);
+  expect(tools.calls.at(-1)?.name).toBe("echo");
+  expect(requests[3]?.map((tool) => tool.name)).toEqual(["echo"]);
+  expect(events.at(-1)).toMatchObject({ kind: "turn-end" });
+  expect(events.some((event) => event.kind === "error")).toBe(false);
+});
+
 it("stops repeated invalid arguments without ever executing them", async () => {
   const bad = { ...call("bad"), input: {}, inputError: "Tool not run: invalid JSON tool arguments" };
   const provider = scriptedProvider(Array.from({ length: 3 }, () => [
@@ -337,6 +360,20 @@ describe("tool use", () => {
     expect(events.at(-1)).toMatchObject({ kind: "error", detail: expect.stringContaining("three identical") });
     expect(events.at(-1)).toMatchObject({ kind: "error", detail: expect.stringContaining("Service is unavailable") });
     expect(agent.history().at(-1)?.content[0]).toMatchObject({ type: "tool-result", isError: true });
+  });
+  it("allows the same test to run again after successful corrections", async () => {
+    const names = ["echo", "echo", "edit_file", "echo", "edit_file", "echo"];
+    const provider = scriptedProvider(names.map((name, index) => [
+      { kind: "tool-call", call: call(String(index), name) },
+      { kind: "stop", reason: "tool-use" },
+    ]));
+    const tools = runner({ run: async (call) => call.name === "edit_file"
+      ? { content: "File updated", isError: false }
+      : { content: "Test failed", isError: true } });
+    const agent = createAgent({ provider, model: "test-model", tools: [echoTool, { ...echoTool, name: "edit_file", mutating: true }], runner: tools });
+    const events = await collect(agent.send("Fix the failing tests"));
+    expect(tools.calls).toHaveLength(6);
+    expect(events.at(-1)).toMatchObject({ kind: "turn-end" });
   });
   it("does not report an output-token cutoff as a successful completion", async () => {
     const cut: ProviderEvent[] = [{ kind: "text", text: "Partial answer" }, { kind: "stop", reason: "max-tokens" }];

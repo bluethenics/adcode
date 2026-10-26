@@ -116,6 +116,11 @@ export interface ApiCall {
 }
 
 export async function apiFetch<T>({ path, token, method = "GET", body }: ApiCall): Promise<ApiResult<T>> {
+  // The admin panel's made-up data for building it (adminPreview.ts). Dead code in a production build.
+  if (process.env["NODE_ENV"] === "development") {
+    const preview = (await import("./adminFixtures")).previewResponse<T>(path, method);
+    if (preview !== null) return preview;
+  }
   if (token === null) return { ok: false, error: "unauthenticated" };
 
   try {

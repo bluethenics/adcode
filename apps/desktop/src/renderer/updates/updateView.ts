@@ -13,6 +13,7 @@ export interface UpdateView {
   readonly title: string;
   /** Whether clicking the item restarts into the update. */
   readonly canRestart: boolean;
+  readonly canUpdate?: boolean;
 }
 
 const HIDDEN: UpdateView = { label: null, title: "", canRestart: false };
@@ -23,13 +24,17 @@ export interface UpdateViewOptions {
 }
 
 export function updateView(status: UpdateStatus, options: UpdateViewOptions = {}): UpdateView {
+  if (status.state === "available") return {
+    label: "Update available", canRestart: false, canUpdate: true,
+    title: status.source === "store" ? `ADCode ${status.version} is out. Check Microsoft Store for the update.` : `ADCode ${status.version} is out. Download the latest portable version.`,
+  };
   if (status.state === "downloading") {
     const percent = status.percent;
     const label =
       typeof percent === "number" && Number.isFinite(percent)
         ? `Updating ${Math.max(0, Math.min(100, Math.round(percent)))}%`
         : "Updating…";
-    return { label, title: "A new version of ADCode is downloading in the background.", canRestart: false };
+    return { label, title: "A new version of ADCode is downloading in the background. Click to update when it is ready.", canRestart: false, canUpdate: true };
   }
 
   if (status.state === "ready" && options.restarting === true) {
@@ -39,9 +44,9 @@ export function updateView(status: UpdateStatus, options: UpdateViewOptions = {}
   // Main only restarts where it said it would; anything else installs on close.
   if (status.state === "ready" && status.restartable !== true) {
     return {
-      label: "Update ready",
-      title: `ADCode ${status.version} is ready. It installs when you close ADCode.`,
-      canRestart: false,
+      label: "Close to update",
+      title: `ADCode ${status.version} is ready. Close ADCode to install the update.`,
+      canRestart: false, canUpdate: true,
     };
   }
 
@@ -82,5 +87,11 @@ export function readyNoticeDue(
 ): string | null {
   if (status.state !== "ready" || shown.has(status.version)) return null;
   if (!moment.focused || moment.typingRecently) return null;
+  return status.version;
+}
+
+export function availableNoticeDue(status: UpdateStatus, shown: ReadonlySet<string>, moment: ReadyMoment): string | null {
+  if (status.state !== "available" && status.state !== "downloading") return null;
+  if (typeof status.version !== "string" || shown.has(status.version) || !moment.focused || moment.typingRecently) return null;
   return status.version;
 }

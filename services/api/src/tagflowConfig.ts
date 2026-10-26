@@ -1,5 +1,6 @@
 import type { TagflowConfig, TagflowLimits, TagflowModel } from "./tagflowTypes.ts";
 import { isCreditRate, parseCreditPlan } from "./credits.ts";
+import { parsePaidConfig } from "./paidTokens.ts";
 import { MAX_CUSTOM_PROVIDERS, OUTPUT_TOKEN_FIELDS, PROVIDER_AUTHENTICATION, isCustomProviderId, isCustomProviderUrl, modelProvider, providerConnections, type CustomProvider, type IncludedProviderId, type OutputTokenField, type ProviderAuthentication } from "./includedProviders.ts";
 
 // Keep the existing numeric wire format compatible with deployed relays.
@@ -62,7 +63,7 @@ export function parseCustomProviders(raw: unknown): CustomProvider[] | null {
 }
 
 export function parseTagflowConfig(raw: unknown): TagflowConfig | null {
-  if (!record(raw) || !fields(raw, ["enabled", "baseUrl", "defaultModel", "models", "limits", "maxInputTokens", "maxOutputTokens", "providers", "credits"])) return null;
+  if (!record(raw) || !fields(raw, ["enabled", "baseUrl", "defaultModel", "models", "limits", "maxInputTokens", "maxOutputTokens", "providers", "credits", "paid"])) return null;
   const { enabled, defaultModel, maxInputTokens, maxOutputTokens } = raw;
   if (typeof enabled !== "boolean" || typeof raw["baseUrl"] !== "string" || typeof defaultModel !== "string") return null;
   const baseUrl = raw["baseUrl"].trim().replace(/\/+$/, "");
@@ -72,6 +73,8 @@ export function parseTagflowConfig(raw: unknown): TagflowConfig | null {
   const providers = parseCustomProviders(raw["providers"]);
   const credits = raw["credits"] === undefined ? undefined : parseCreditPlan(raw["credits"]);
   if (credits === null) return null;
+  const paid = raw["paid"] === undefined ? undefined : parsePaidConfig(raw["paid"]);
+  if (paid === null) return null;
   if (limits === null || providers === null || !Array.isArray(raw["models"]) || raw["models"].length > 50) return null;
   const models: TagflowModel[] = [];
   for (const item of raw["models"]) {
@@ -93,7 +96,7 @@ export function parseTagflowConfig(raw: unknown): TagflowConfig | null {
   }
   if (defaultModel !== "" && !models.some((model) => model.id === defaultModel && model.enabled !== false)) return null;
   if (enabled && (defaultModel === "" || models.length === 0 || baseUrl === "" && models.some((model) => modelProvider(model) === "tagflow"))) return null;
-  return { enabled, baseUrl, defaultModel, models, limits, maxInputTokens, maxOutputTokens, ...(providers.length === 0 ? {} : { providers }), ...(credits === undefined ? {} : { credits }) };
+  return { enabled, baseUrl, defaultModel, models, limits, maxInputTokens, maxOutputTokens, ...(providers.length === 0 ? {} : { providers }), ...(credits === undefined ? {} : { credits }), ...(paid === undefined ? {} : { paid }) };
 }
 
 export const tagflowCost = (model: TagflowModel, input: number, output: number): number => Math.ceil(input * model.inputPrice + output * model.outputPrice);

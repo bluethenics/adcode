@@ -10,6 +10,9 @@ import type { TagflowConfig, TagflowModel, TagflowSettlement } from "./tagflowTy
 import { createWorkerSecrets, type WorkerSecrets } from "./workerSecrets.ts";
 import { includedProvider, isCustomProviderUrl, modelProvider, providerConnections, type IncludedProviderId } from "./includedProviders.ts";
 import { DEFAULT_CREDIT_PLAN, creditCharge, creditsView, millicreditsFor, modelCreditRate, parseCreditPlan, untilText, type CreditPlan } from "./credits.ts";
+import { BUY_TOKENS_URL, DEFAULT_PAID_CONFIG, TOKEN_ORDER_PREFIX, isPaidModel, tokensView } from "./paidTokens.ts";
+import type { PaymentProvider } from "./payments.ts";
+import { PLANS, effectiveWeeklyAllowance, parsePromo, planById } from "./aiPlans.ts";
 import { MODEL_FEEDBACK_CATEGORIES, type ModelRequestOutcome, type ModelRequestRecord, type ModelRequestSource } from "./tagflowReportTypes.ts";
 import { completeModelReport, parseReportRange } from "./tagflowReports.ts";
 import { AUDIENCE_ROLES, AUDIENCE_EXPERIENCE, DECLARED_USES, AI_PERSONAS, audienceChoice, audienceCountry, observedUse, type ModelAudienceProfile } from "./modelAudience.ts";
@@ -21,6 +24,10 @@ export interface TagflowOptions {
   apiKey?: string;
   fetchImpl?: typeof fetch;
   country?: (request: Request) => string | undefined;
+  /** Dodo checkout for AI tokens; missing answers "not configured". */
+  payments?: PaymentProvider;
+  /** Where Dodo returns the browser after paying for tokens. */
+  siteOrigin?: string;
   /** Saves provider keys as this Worker's Cloudflare secrets from the admin panel. */
   workerSecrets?: WorkerSecrets;
   /** The waits before retrying a provider's 429; tests pass zeros. */
@@ -33,7 +40,7 @@ export interface TagflowOptions {
   identity?: AccountIdentity;
 }
 
-/** Two retries of a provider's rate limit, then the person hears about it. */
+/** Two retries of a provider's rate limit when no other included model can answer, then the person hears about it. */
 export const UPSTREAM_RATE_LIMIT_WAITS_MS: readonly number[] = [700, 1600];
 
 /**
@@ -49,6 +56,10 @@ export const UPSTREAM_RATE_LIMIT_WAITS_MS: readonly number[] = [700, 1600];
  */
 /** Waiting for a provider to start answering; then silence allowed mid-stream; then the longest any answer may run. */
 export const RELAY_TIMEOUTS = { firstMs: 180_000, idleMs: 120_000, maxMs: 1_200_000 } as const;
+
+/** Unpaid token checkouts one account may open in `CHECKOUT_WINDOW_MS`. */
+export const CHECKOUTS_PER_WINDOW = 5;
+export const CHECKOUT_WINDOW_MS = 600_000;
 
 /** How soon the gate may send the same account another verification link. */
 export const VERIFICATION_RESEND_MS = 3_600_000;
@@ -72,7 +83,10 @@ export function createModelHealth(): { strike(id: string, now: number): void; an
 export function isTagflowPath(path: string): boolean {
   return path === "/v1/ai/tagflow/config" || path === "/v1/ai/tagflow/usage" || path === "/v1/ai/tagflow/chat/completions" ||
     path === "/v1/ai/tagflow/feedback" || path === "/v1/ai/tagflow/audience" || path === "/v1/admin/tagflow/reports" ||
-    path === "/v1/admin/tagflow" || path === "/v1/admin/tagflow/usage" || path === "/v1/admin/tagflow/keys" || /^\/v1\/admin\/tagflow\/users\/[^/]+$/.test(path);
+    path === "/v1/admin/tagflow" || path === "/v1/admin/tagflow/usage" || path === "/v1/admin/tagflow/keys" || /^\/v1\/admin\/tagflow\/users\/[^/]+$/.test(path) ||
+    path === "/v1/ai/plans/checkout" || path === "/v1/ai/plans/portal" || path === "/v1/ai/promo/redeem" || path === "/v1/ai/invites" || path === "/v1/ai/invites/redeem" ||
+    ["reset", "boost", "gift", "promo", "subscriptions"].some((route) => path === `/v1/admin/ai-plans/${route}`) ||
+    path === "/v1/ai/tokens/checkout" || path === "/v1/ai/tokens/orders" || path === "/v1/admin/ai-tokens/grant" || path === "/v1/admin/ai-tokens/sales";
 }
 
 /** Tokens are no longer a limit; credits are. Passed where the stores still compare a day's tokens. */
@@ -170,6 +184,14 @@ class UsageObserver {
     if (this.pending.length > 1_000_000) throw new Error("upstream-event-too-large");
     return output === "" ? null : new TextEncoder().encode(output);
   }
+  /** Some compatible providers close after their last data line without an empty line. */
+  finish(): Uint8Array | null {
+    this.pending += this.decoder.decode();
+    if (this.pending.trim() === "") return null;
+    // Reuse exactly the same JSON/error/size checks as an ordinary complete frame.
+    // The caller still requires [DONE] or finish_reason; EOF alone is never success.
+    return this.push(new Uint8Array([10, 10]));
+  }
   observe(raw: unknown): void {
     if (!isRecord(raw)) return;
     const groq = raw["x_groq"];
@@ -178,9 +200,10 @@ class UsageObserver {
     if (Array.isArray(raw["choices"])) for (const choice of raw["choices"]) {
       if (!isRecord(choice)) continue;
       if (choice["finish_reason"] !== undefined && choice["finish_reason"] !== null) {
-        this.completed = true;
         const reason = choice["finish_reason"];
-        this.finishReason = reason === "content_filter" ? "refusal" : ["stop", "length", "tool_calls", "function_call", "refusal"].includes(String(reason)) ? String(reason) : null;
+        if (typeof reason !== "string" || !["stop", "length", "tool_calls", "function_call", "content_filter", "refusal"].includes(reason)) throw new Error("Invalid Tagflow completion reason");
+        this.completed = true;
+        this.finishReason = reason === "content_filter" ? "refusal" : reason;
       }
       const delta = choice["delta"] ?? choice["message"];
       if (isRecord(delta)) {
@@ -254,7 +277,8 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
     // The same request with the same output ceiling, so the answer fits the reservation made for it.
     const { max_completion_tokens: _unused, ...rest } = raw;
     for (const model of config.models) {
-      if (model.id === chosen.model.id || model.enabled === false || health.cooling(model.id, now) || modelCreditRate(model, config) > maxRate) continue;
+      // Never onto a paid model: the reservation was made for the chosen one, and no one is charged for a model they did not pick.
+      if (model.id === chosen.model.id || model.enabled === false || health.cooling(model.id, now) || modelCreditRate(model, config) > maxRate || isPaidModel(model, config.paid)) continue;
       const parsed = chatBody({ ...rest, model: model.id, max_tokens: chosen.output }, config);
       if ("error" in parsed) continue;
       const route = target(config, parsed, signal);
@@ -271,10 +295,15 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
     let metric: ModelRequestRecord | null = null;
     let metricFinished = false;
-    const writeMetric = async (): Promise<void> => {
-      if (metric === null) return;
-      try { await deps.store.putModelRequest({ ...metric }); }
-      catch { console.warn("Included AI telemetry write failed"); }
+    // Telemetry never holds up an answer: the "pending" row goes out alongside the provider
+    // call, not before it. Writes are chained, so a slow early write can never land after -
+    // and overwrite - the finished record of the same request.
+    let metricWrites: Promise<void> = Promise.resolve();
+    const writeMetric = (): Promise<void> => {
+      if (metric === null) return metricWrites;
+      const snapshot = { ...metric };
+      metricWrites = metricWrites.then(() => deps.store.putModelRequest(snapshot)).catch(() => { console.warn("Included AI telemetry write failed"); });
+      return metricWrites;
     };
     const finishMetric = async (outcome: ModelRequestOutcome, code: string | null = null): Promise<void> => {
       if (metric === null || metricFinished) return;
@@ -319,7 +348,7 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
       const resetsAt = Date.parse(`${day}T00:00:00Z`) + 86_400_000;
       const remainingDay = { "retry-after": String(Math.max(1, Math.ceil((resetsAt - deps.clock.now()) / 1000))) };
       if (url.pathname === "/v1/ai/tagflow/config" && request.method === "GET") {
-        return json(200, { available, defaultModel: offeredModels.some((model) => model.id === config.defaultModel) ? config.defaultModel : offeredModels[0]?.id ?? config.defaultModel, models: available ? offeredModels.map((model) => ({ id: model.id, name: model.name, providerName: includedProvider(modelProvider(model), config.providers)?.name ?? "Included AI", contextWindow: Math.min(model.contextWindow, config.maxInputTokens), maxOutput: Math.min(model.maxOutput, config.maxOutputTokens), creditRate: modelCreditRate(model, config) })) : [], requiresVerifiedAccount: true, unlimited: true, credits: config.credits ?? DEFAULT_CREDIT_PLAN });
+        return json(200, { available, defaultModel: offeredModels.some((model) => model.id === config.defaultModel) ? config.defaultModel : offeredModels[0]?.id ?? config.defaultModel, models: available ? offeredModels.map((model) => ({ id: model.id, name: model.name, providerName: includedProvider(modelProvider(model), config.providers)?.name ?? "Included AI", contextWindow: Math.min(model.contextWindow, config.maxInputTokens), maxOutput: Math.min(model.maxOutput, config.maxOutputTokens), creditRate: modelCreditRate(model, config), paid: isPaidModel(model, config.paid) })) : [], requiresVerifiedAccount: true, unlimited: true, credits: config.credits ?? DEFAULT_CREDIT_PLAN, paid: { ...(config.paid ?? DEFAULT_PAID_CONFIG), plans: PLANS } });
       }
       const auth = await authenticate(deps, request.headers.get("authorization") ?? undefined);
       if (!auth.ok) return fail(auth.failure === "banned" ? 403 : 401, auth.failure, "Sign in to use included AI. Banned accounts cannot use it.");
@@ -338,6 +367,159 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
           await deps.store.putModelAudienceProfile({ uid:auth.uid, role:raw["role"] as ModelAudienceProfile["role"], experience:raw["experience"] as ModelAudienceProfile["experience"], primaryUse:raw["primaryUse"] as ModelAudienceProfile["primaryUse"], updatedAt:deps.clock.now() });
           return json(200,{ ok:true });
         }
+      }
+      if (url.pathname === "/v1/ai/tokens/orders" && request.method === "GET") {
+        const [activity, state, subscription] = await Promise.all([deps.store.listTokenActivity(auth.uid), deps.store.getPaidTokens(auth.uid), deps.store.getSubscription(auth.uid)]);
+        return json(200, { tokens: tokensView(config.paid, state.free, state.balance, deps.clock.now()), ...activity,
+          subscription: subscription === null ? null : { plan: subscription.plan, status: subscription.status, periodEnd: subscription.periodEnd, active: subscription.periodEnd > deps.clock.now() } });
+      }
+      if (url.pathname === "/v1/ai/plans/checkout" && request.method === "POST") {
+        const raw = await readJson(request);
+        if (config.paid?.enabled !== true) return json(409, { error: "paid-off" });
+        const selected = isRecord(raw) && typeof raw["plan"] === "string" ? planById(raw["plan"]) : null;
+        if (selected === null) return json(400, { error: "bad-plan" });
+        const country = isRecord(raw) ? raw["billingCountry"] : undefined;
+        if (typeof country !== "string" || !/^[A-Z]{2}$/.test(country)) return json(400, { error: "bad-country" });
+        const buyer = await deps.store.getUser(auth.uid);
+        if (!buyer?.email || buyer.emailVerified !== true) return json(403, { error: "verify-account" });
+        if (deps.payments === undefined) return json(503, { error: "not-configured" });
+        const now = deps.clock.now();
+        const orderId = `aip_${randomUUID().replaceAll("-", "")}`;
+        const product = `plan-${selected.id}` as const;
+        if (deps.payments.canCreateCheckout?.(product) === false) return json(503, { error: "not-configured" });
+        // A database claim, not an isolate-local count: two workers cannot issue two payable subscriptions.
+        const claim = await deps.store.claimPlanCheckout(auth.uid, selected.id, country, orderId, now);
+        if (claim.status === "subscribed") return json(409, { error: "already-subscribed" });
+        if (claim.status === "existing") {
+          if (claim.checkout.plan !== selected.id) return json(409, { error: { code: "checkout-exists", message: `You already opened a ${planById(claim.checkout.plan)?.name ?? "plan"} checkout. Choose that plan again to resume it. Wait until the existing checkout expires before choosing a different plan.` }, expiresAt: claim.checkout.expiresAt });
+          if (claim.checkout.checkoutUrl !== null) return json(200, { orderId: claim.checkout.orderId, checkoutUrl: claim.checkout.checkoutUrl });
+          return json(409, { error: { code: "checkout-pending", message: "Your checkout is being prepared or its status is still being confirmed. Try again shortly. If it stays unavailable, contact support before starting another subscription." } }, { "retry-after": "30" });
+        }
+        const origin = deps.siteOrigin ?? "https://adcode.bluethenics.com";
+        const session = await deps.payments.createCheckout({ orderId, product, advertiserId: auth.uid,
+          advertiserName: buyer.displayName ?? buyer.email, advertiserEmail: buyer.email, billingCountry: country,
+          amountMicros: BigInt(selected.priceCents) * 10_000n, metadata: { uid: auth.uid, plan: selected.id },
+          returnUrl: `${origin}/ai-tokens?plan=${selected.id}&order=${orderId}`, cancelUrl: `${origin}/ai-tokens` });
+        // A timeout can happen after Dodo creates a session. Retain the claim until that session expires.
+        if (session === null) return json(502, { error: { code: "checkout-pending", message: "We couldn't confirm your checkout. Try again shortly. If it stays unavailable, contact support so we can check it before opening another subscription." } });
+        const completed = await deps.store.completePlanCheckout(auth.uid, orderId, session.sessionId, session.checkoutUrl, deps.clock.now());
+        if (completed === "subscribed") return json(409, { error: "already-subscribed" });
+        if (completed !== "saved") return json(409, { error: { code: "checkout-pending", message: "Your checkout status changed. Refresh your account before trying again." } });
+        return json(200, { orderId, checkoutUrl: session.checkoutUrl });
+      }
+      if (url.pathname === "/v1/ai/plans/portal" && request.method === "POST") {
+        const buyer = await deps.store.getUser(auth.uid);
+        if (!buyer?.email || buyer.emailVerified !== true) return json(403, { error: "verify-account" });
+        const subscription = await deps.store.getSubscription(auth.uid);
+        if (!subscription?.customerId) return json(404, { error: "no-subscription" });
+        if (deps.payments?.customerPortal === undefined) return json(503, { error: "not-configured" });
+        const link = await deps.payments.customerPortal(subscription.customerId, `${deps.siteOrigin ?? "https://adcode.bluethenics.com"}/ai-tokens`);
+        return link === null ? json(502, { error: "portal-unavailable" }) : json(200, { link });
+      }
+      if ((url.pathname === "/v1/ai/promo/redeem" || url.pathname === "/v1/ai/invites/redeem") && request.method === "POST") {
+        const buyer = await deps.store.getUser(auth.uid);
+        if (!buyer?.email || buyer.emailVerified !== true) return json(403, { error: "verify-account" });
+        const raw = await readJson(request);
+        const code = isRecord(raw) && typeof raw["code"] === "string" ? raw["code"].trim().toUpperCase() : "";
+        if (!/^[A-Z0-9]{3,24}$/.test(code)) return json(400, { error: "bad-code" });
+        const result = url.pathname === "/v1/ai/promo/redeem" ? await deps.store.redeemPromo(code, auth.uid, deps.clock.now()) : await deps.store.redeemInvite(code, auth.uid, deps.clock.now());
+        const status = result === "unknown" ? 404 : result === "expired" || result === "used-up" ? 410 : ["already", "own-code", "has-plan"].includes(result) ? 409 : 200;
+        return json(status, { result });
+      }
+      if (url.pathname === "/v1/ai/invites" && request.method === "GET") {
+        const invite = await deps.store.getInvite(auth.uid, deps.clock.now());
+        return invite === null ? json(404, { error: "no-invite" }) : json(200, invite);
+      }
+      if (url.pathname.startsWith("/v1/admin/ai-plans/")) {
+        const route = url.pathname.slice("/v1/admin/ai-plans/".length);
+        if (request.method === "GET" && route === "promo") { await audit("read-ai-promos"); return json(200, { promos: await deps.store.listPromos() }); }
+        if (request.method === "GET" && route === "subscriptions") { await audit("read-ai-subscriptions"); return json(200, { plans: await deps.store.subscriptionSummary(deps.clock.now()) }); }
+        if (request.method !== "POST" || !["reset", "boost", "gift", "promo"].includes(route)) return json(405, { error: "method" });
+        const raw = await readJson(request);
+        if (route === "promo") {
+          const promo = parsePromo(raw);
+          if (promo === null || promo.expiresAt <= deps.clock.now()) return json(400, { error: "bad-promo" });
+          await audit("create-ai-promo", promo.code);
+          return await deps.store.createPromo(promo, auth.uid, deps.clock.now()) ? json(200, { ok: true }) : json(409, { error: "code-exists" });
+        }
+        const uid = isRecord(raw) ? raw["uid"] : undefined;
+        if (!isRecord(raw) || typeof uid !== "string" || uid.length === 0 || uid.length > 128 || uid !== uid.trim()) return json(400, { error: "bad-user" });
+        if (route === "reset") {
+          if (uid !== "*") {
+            await audit("reset-ai-week", uid);
+            const result = await deps.store.resetAiWeek(uid);
+            return json(result === "busy" ? 409 : 200, { result, reset: result === "reset" ? 1 : 0, busy: result === "busy" ? 1 : 0, none: result === "none" ? 1 : 0 });
+          }
+          const after = raw["after"] ?? "";
+          const retryUids = raw["retryUids"];
+          if (typeof after !== "string" || after.length > 128 || after !== after.trim() || after === "*" ||
+              retryUids !== undefined && (!Array.isArray(retryUids) || retryUids.length < 1 || retryUids.length > 500 || retryUids.some(one => typeof one !== "string" || one.length === 0 || one.length > 128 || one !== one.trim() || one === "*"))) return json(400, { error: "bad-cursor" });
+          await audit("reset-ai-week", uid);
+          // One bounded page per HTTP request. The admin client advances the cursor only
+          // after a confirmed response, and retries failed accounts without resetting a
+          // successfully processed page again.
+          const uids = retryUids === undefined ? await deps.store.listPaidWeekUids(after, 500) : [...new Set(retryUids as string[])];
+          const totals = { reset: 0, busy: 0, none: 0 };
+          const failed: string[] = [];
+          for (let offset = 0; offset < uids.length; offset += 20) {
+            const chunk = uids.slice(offset, offset + 20);
+            const results = await Promise.allSettled(chunk.map(one => deps.store.resetAiWeek(one)));
+            results.forEach((result, index) => {
+              if (result.status === "fulfilled") totals[result.value] += 1;
+              else failed.push(chunk[index]!);
+            });
+          }
+          return json(200, { ...totals, failed, nextCursor: retryUids === undefined && uids.length === 500 ? uids[uids.length - 1] : null });
+        }
+        const note = raw["note"];
+        if (typeof note !== "string" || note.length > 500) return json(400, { error: "bad-note" });
+        if (route === "boost") {
+          const weeklyTokens = raw["weeklyTokens"], endsAt = raw["endsAt"];
+          if (typeof weeklyTokens !== "number" || !Number.isSafeInteger(weeklyTokens) || weeklyTokens < 1 || weeklyTokens > 10_000_000_000 ||
+              typeof endsAt !== "number" || !Number.isSafeInteger(endsAt) || endsAt <= deps.clock.now() || endsAt > 9_000_000_000_000) return json(400, { error: "bad-boost" });
+          await audit("boost-ai-allowance", uid);
+          await deps.store.boostAllowance(uid, weeklyTokens, endsAt, auth.uid, note.trim(), deps.clock.now());
+        } else {
+          const selected = typeof raw["plan"] === "string" ? planById(raw["plan"]) : null, days = raw["days"];
+          if (selected === null || typeof days !== "number" || !Number.isSafeInteger(days) || days < 1 || days > 366) return json(400, { error: "bad-gift" });
+          await audit("gift-ai-plan", uid);
+          await deps.store.giftPlan(uid, selected.id, days, auth.uid, note.trim(), deps.clock.now());
+        }
+        return json(200, { ok: true });
+      }
+      if (url.pathname === "/v1/ai/tokens/checkout" && request.method === "POST") {
+        const raw = await readJson(request);
+        const paid = config.paid;
+        if (paid?.enabled !== true) return json(409, { error: "paid-off" });
+        const pack = isRecord(raw) ? paid.packs.find((one) => one.id === raw["pack"]) : undefined;
+        if (pack === undefined) return json(400, { error: "bad-pack" });
+        const country = isRecord(raw) ? raw["billingCountry"] : undefined;
+        if (typeof country !== "string" || !/^[A-Z]{2}$/.test(country)) return json(400, { error: "bad-country" });
+        const buyer = await deps.store.getUser(auth.uid);
+        if (buyer?.email === undefined || buyer.emailVerified !== true) return json(403, { error: "verify-account" });
+        if (deps.payments === undefined) return json(503, { error: "not-configured" });
+        // Every checkout opens a Dodo session on the merchant account advertisers pay through too.
+        const recent = (await deps.store.listTokenActivity(auth.uid)).orders.filter((one) => one.status === "pending" && one.createdAt > deps.clock.now() - CHECKOUT_WINDOW_MS);
+        if (recent.length >= CHECKOUTS_PER_WINDOW) return json(429, { error: "too-many-checkouts" }, { "retry-after": "600" });
+        const orderId = `${TOKEN_ORDER_PREFIX}${randomUUID().replaceAll("-", "")}`;
+        const origin = deps.siteOrigin ?? "https://adcode.bluethenics.com";
+        const session = await deps.payments.createCheckout({ orderId, product: "ai-tokens", advertiserId: auth.uid, advertiserName: buyer.displayName ?? buyer.email, advertiserEmail: buyer.email,
+          billingCountry: country, amountMicros: BigInt(pack.priceCents) * 10_000n, returnUrl: `${origin}/ai-tokens?order=${orderId}`, cancelUrl: `${origin}/ai-tokens` });
+        if (session === null) return json(503, { error: "not-configured" });
+        await deps.store.createTokenOrder({ orderId, uid: auth.uid, packId: pack.id, priceCents: pack.priceCents, tokens: pack.tokens, status: "pending", checkoutSession: session.sessionId, providerPaymentId: null, createdAt: deps.clock.now(), paidAt: null });
+        return json(200, { orderId, checkoutUrl: session.checkoutUrl });
+      }
+      if (url.pathname === "/v1/admin/ai-tokens/grant" && request.method === "POST") {
+        const raw = await readJson(request);
+        if (!isRecord(raw) || typeof raw["uid"] !== "string" || raw["uid"].length === 0 || raw["uid"].length > 128 || typeof raw["tokens"] !== "number" || !Number.isSafeInteger(raw["tokens"]) ||
+          raw["tokens"] === 0 || Math.abs(raw["tokens"]) > 10_000_000_000 || typeof raw["note"] !== "string" || raw["note"].length > 500) return json(400, { error: "bad-grant" });
+        await audit("grant-ai-tokens", raw["uid"]);
+        await deps.store.grantTokens(raw["uid"], raw["tokens"], auth.uid, raw["note"].trim(), deps.clock.now());
+        return json(200, { ok: true });
+      }
+      if (url.pathname === "/v1/admin/ai-tokens/sales" && request.method === "GET") {
+        const days = Math.min(365, Math.max(1, Number(url.searchParams.get("days") ?? 30) || 30));
+        return json(200, { days: await deps.store.tokenSales(deps.clock.now() - days * 86_400_000) });
       }
       if (url.pathname === "/v1/admin/tagflow") {
         if (request.method === "GET") return json(200, { config, updatedAt: saved?.updatedAt ?? 0, updatedBy: saved?.updatedBy ?? "", keyConfigured: defaultKeyConfigured(config), connections: connections(config), keysManageable: secrets.configured() });
@@ -410,17 +592,30 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
       }
       const policy = await deps.store.getTagflowPolicy(subject);
       const limits = policy?.limits ?? config.limits;
-      const usage = await deps.store.getTagflowUsage(subject, day) ?? { uid: subject, day, requests: 0, inputTokens: 0, outputTokens: 0, costMicros: 0, estimatedRequests: 0, reservedTokens: 0, reservedCostMicros: 0 };
       const plan: CreditPlan = policy?.credits ?? config.credits ?? DEFAULT_CREDIT_PLAN;
       if (userMatch !== null || url.pathname === "/v1/ai/tagflow/usage" && request.method === "GET") {
-        const credits = creditsView(plan, await deps.store.getCreditWindows(subject), Object.fromEntries(offeredModels.map((model) => [model.id, modelCreditRate(model, config)])), deps.clock.now());
-        if (userMatch !== null) return json(200, { available, policy, limits, usage, resetsAt, blocked: policy?.blocked === true, unlimited: true, credits });
+        // The day's usage row and the credit windows are what this view shows; a chat request
+        // needs neither - its reservation checks both inside one database transaction.
+        // Paid-token rows are read only while selling is on: no extra reads per poll otherwise, and a
+        // Worker deployed before its migration still answers this view for everyone.
+        const selling = config.paid?.enabled === true;
+        const [stored, windows, paidState, planState] = await Promise.all([deps.store.getTagflowUsage(subject, day), deps.store.getCreditWindows(subject),
+          selling ? deps.store.getPaidTokens(subject) : Promise.resolve({ free: null, balance: { purchased: 0, reserved: 0 } }),
+          selling ? deps.store.getAiPlanState(subject, deps.clock.now()) : Promise.resolve({ plan: null, boostTokens: 0 })]);
+        // The view's limit is the account's own allowance: its plan or boost when better than everyone's.
+        const view = tokensView(config.paid === undefined ? undefined : { ...config.paid, freeWeeklyTokens: effectiveWeeklyAllowance(planState, config.paid.freeWeeklyTokens, deps.clock.now()) },
+          paidState.free, paidState.balance, deps.clock.now());
+        // Which offered models draw on it, so the editor's meter shows tokens only for those.
+        const tokens = { ...view, plan: planState.plan !== null && planState.plan.endsAt > deps.clock.now() ? planState.plan : null, paidModels: offeredModels.filter((model) => isPaidModel(model, config.paid)).map((model) => model.id) };
+        const usage = stored ?? { uid: subject, day, requests: 0, inputTokens: 0, outputTokens: 0, costMicros: 0, estimatedRequests: 0, reservedTokens: 0, reservedCostMicros: 0 };
+        const credits = creditsView(plan, windows, Object.fromEntries(offeredModels.map((model) => [model.id, modelCreditRate(model, config)])), deps.clock.now());
+        if (userMatch !== null) return json(200, { available, policy, limits, usage, resetsAt, blocked: policy?.blocked === true, unlimited: true, credits, tokens });
         // Desktops from before credits read only the token fields. They get the session window in
         // tokens (a credit is 1,000 tokens at the standard rate), so their meter, its reset time
         // and their automatic resume all follow the window that is really enforced.
         const sessionReset = credits.session.resetsAt ?? deps.clock.now() + plan.sessionHours * 3_600_000;
         const legacy = { ...usage, inputTokens: Math.round(credits.session.used * 1000), outputTokens: 0, reservedTokens: Math.round(credits.session.held * 1000) };
-        return json(200, { available, policy, limits: { ...limits, dailyTokens: plan.sessionCredits * 1000 }, usage: legacy, today: usage, resetsAt: sessionReset, blocked: policy?.blocked === true, unlimited: true, credits });
+        return json(200, { available, policy, limits: { ...limits, dailyTokens: plan.sessionCredits * 1000 }, usage: legacy, today: usage, resetsAt: sessionReset, blocked: policy?.blocked === true, unlimited: true, credits, tokens });
       }
       if (url.pathname !== "/v1/ai/tagflow/chat/completions" || request.method !== "POST") return fail(405, "method", "Unsupported method.");
       const user = await deps.store.getUser(auth.uid);
@@ -441,7 +636,7 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
           streamed: isRecord(raw) && raw["stream"] !== false, toolsOffered: isRecord(raw) && Array.isArray(raw["tools"]) && raw["tools"].length > 0,
           toolCalls: 0, finishReason: null, contextWindow: selected.contextWindow, requestedOutput: 0, estimatedInput: 0, inputTokens: 0, outputTokens: 0, costMicros: 0, estimated: false, durationMs: null, firstTokenMs: null };
         headers["x-adcode-request-id"] = metric.id;
-        await writeMetric();
+        void writeMetric();
       }
       if (!available) { await finishMetric("rejected","unavailable"); return fail(503, "unavailable", "Included AI is unavailable. Try another connected model."); }
       if (policy?.blocked) { await finishMetric("rejected","blocked"); return fail(403, "blocked", "Included AI is disabled for this account."); }
@@ -456,11 +651,24 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
       // Tokens are no longer a limit; the day keeps its spending and request ceilings.
       const rate = modelCreditRate(parsed.model, config);
       const tokens = parsed.input + parsed.output;
+      const paidModel = isPaidModel(parsed.model, config.paid);
+      // The week's free allowance: the account's plan or boost when better than everyone's. Cached per isolate.
+      const freeWeeklyTokens = paidModel ? effectiveWeeklyAllowance(await deps.store.getAiPlanState(auth.uid, deps.clock.now()), config.paid!.freeWeeklyTokens, deps.clock.now()) : 0;
       const reservation = { unlimited: true, id: randomUUID(), uid: auth.uid, day, minute: Math.floor(deps.clock.now() / 60_000), tokens, costMicros: tagflowCost(parsed.model, parsed.input, parsed.output),
-        limits: { ...limits, dailyTokens: NO_TOKEN_LIMIT }, credits: creditCharge(plan, millicreditsFor(tokens, rate), deps.clock.now()) };
+        limits: { ...limits, dailyTokens: NO_TOKEN_LIMIT }, credits: creditCharge(plan, millicreditsFor(tokens, rate), deps.clock.now()),
+        // A paid provider's model holds its tokens from the free week, then purchased ones.
+        ...(paidModel ? { paid: { freeWeeklyTokens, now: deps.clock.now() } } : {}) };
       const reserved = await deps.store.reserveTagflow(reservation);
       if (reserved !== "ok") {
         await finishMetric("rejected",reserved);
+        if (reserved === "paid-limit") {
+          // "daily-limit" with a reset time: every released desktop already pauses on it and resumes by itself.
+          const state = await deps.store.getPaidTokens(auth.uid);
+          const refill = state.free?.endsAt ?? deps.clock.now() + 7 * 86_400_000;
+          const provider = includedProvider(modelProvider(parsed.model), config.providers)?.name ?? "this provider's";
+          const message = `You've used this week's ${freeWeeklyTokens.toLocaleString("en-US")} free tokens on ${provider} models. Buy tokens or a plan at ${BUY_TOKENS_URL}, or switch to Tagflow AI, which stays free. Your free tokens refill in ${untilText(refill, deps.clock.now())}.`;
+          return json(429, { error: { code: "daily-limit", limit: "paid", message, retryable: true, resetsAt: refill, buyUrl: BUY_TOKENS_URL } }, { "retry-after": String(Math.max(1, Math.ceil((refill - deps.clock.now()) / 1000))) });
+        }
         if (reserved === "session-limit" || reserved === "weekly-limit") {
           const view = creditsView(plan, await deps.store.getCreditWindows(auth.uid), {}, deps.clock.now());
           const weekly = reserved === "weekly-limit";
@@ -491,13 +699,20 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
       let servedRate = rate;
       let settled = false;
       let settlementFailed = false;
-      const settle = async (failed = false, complete = false): Promise<void> => {
-        if (settled) return;
+      let settling: Promise<void> | null = null;
+      const settle = (failed = false, complete = false): Promise<void> => {
+        if (settled) return Promise.resolve();
+        // cancel() and an aborted pending pull can arrive together. Both await the
+        // same request-local write instead of sending two settlement requests.
+        if (settling !== null) return settling;
+        settling = (async () => {
         const reported = observer.completed ? observer.reported : null;
         // An incomplete stream may have consumed its full allocation upstream.
         const inputTokens = failed ? 0 : reported?.input ?? served.input;
         const outputTokens = failed ? 0 : reported?.output ?? (complete && observer.completed ? Math.min(served.output, Math.ceil(observer.outputBytes / 3) + (observer.toolCalls.size > 0 ? 16 * observer.toolCalls.size : 0)) : served.output);
-        const result: TagflowSettlement = { inputTokens, outputTokens, costMicros: failed ? 0 : tagflowCost(served.model, inputTokens, outputTokens), estimated: reported === null, failed, millicredits: failed ? 0 : millicreditsFor(inputTokens + outputTokens, servedRate) };
+        const result: TagflowSettlement = { inputTokens, outputTokens, costMicros: failed ? 0 : tagflowCost(served.model, inputTokens, outputTokens), estimated: reported === null, failed, millicredits: failed ? 0 : millicreditsFor(inputTokens + outputTokens, servedRate),
+          // A paid hold is charged only when a paid model answered: a fallback to a free model costs no tokens.
+          ...(reservation.paid === undefined ? {} : { tokenCharge: failed || !isPaidModel(served.model, config.paid) ? 0 : inputTokens + outputTokens }) };
         if (metric !== null) {
           metric.finishedAt ??= deps.clock.now();
           metric.inputTokens = inputTokens; metric.outputTokens = outputTokens; metric.costMicros = result.costMicros; metric.estimated = !failed && result.estimated;
@@ -506,6 +721,9 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
         try { await deps.store.settleTagflow(reservation.id, result); }
         catch (error) { settlementFailed = true; throw error; }
         settled = true;
+        })();
+        void settling.then(() => { settling = null; }, () => { settling = null; });
+        return settling;
       };
       const onAbort = (): void => abort.abort();
       request.signal.addEventListener("abort", onAbort, { once: true });
@@ -530,13 +748,13 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
        */
       const switchTo = async (fallback: NonNullable<ReturnType<typeof fallbackFor>>, outcome: ModelRequestOutcome, code: string): Promise<void> => {
         if (metric !== null) {
-          await finishMetric(outcome, code);
+          void finishMetric(outcome, code);
           const model = fallback.parsed.model;
           metric = { ...metric, id: randomUUID(), modelId: model.id, modelName: model.name, provider: modelProvider(model), upstreamModel: model.upstreamModel ?? model.id, contextWindow: model.contextWindow,
             requestedOutput: fallback.parsed.output, estimatedInput: fallback.parsed.contextInput, providerStartedAt: deps.clock.now(), finishedAt: null, outcome: "pending", errorCode: null, upstreamStatus: null, durationMs: null, firstTokenMs: null };
           metricFinished = false;
           headers["x-adcode-request-id"] = metric.id;
-          await writeMetric();
+          void writeMetric();
         }
         headers["x-adcode-fallback-model"] = fallback.parsed.model.id;
         route = fallback.route; served = fallback.parsed; servedRate = modelCreditRate(fallback.parsed.model, config);
@@ -558,18 +776,22 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
       };
       let upstream: Response;
       try {
+        // Recorded with the finished request; a write of its own would sit in front of the provider.
         if (metric !== null) metric.providerStartedAt = deps.clock.now();
-        await writeMetric();
         const body = raw as Record<string, unknown>;
         // A model that keeps refusing is cooling: skip it rather than make this person wait to be refused.
         if (health.cooling(parsed.model.id, deps.clock.now())) {
           const fallback = fallbackFor(config, body, parsed, rate, abort.signal, deps.clock.now());
           if (fallback !== null) await switchTo(fallback, "rejected", "model-busy");
         }
-        upstream = await retryRateLimit(await route.send());
+        upstream = await route.send();
+        // A saturated provider is slow to refuse - each 429 from GLM took ~16 s on 2026-10-21, so
+        // two retries held people ~48 s before a backup that answers in ~3 s. With a backup to
+        // hand, the first refusal moves on; the retries are for when nothing else can answer.
+        const fallback = upstream.status === 429 && !abort.signal.aborted && served === parsed ? fallbackFor(config, body, parsed, rate, abort.signal, deps.clock.now()) : null;
+        if (fallback === null) upstream = await retryRateLimit(upstream);
         if (upstream.status === 429 && !abort.signal.aborted) {
           health.strike(served.model.id, deps.clock.now());
-          const fallback = served === parsed ? fallbackFor(config, body, parsed, rate, abort.signal, deps.clock.now()) : null;
           if (fallback !== null) {
             if (metric !== null) metric.upstreamStatus = 429;
             await upstream.body?.cancel();
@@ -625,13 +847,30 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
         return fail(502, "upstream", "The included AI provider did not return a chat stream.");
       }
       const reader = upstream.body.getReader();
+      // Once headers have been sent, an AI failure belongs in the SSE protocol. Erroring
+      // the response body rejects Next's pipeToNodeResponse and destroys its response;
+      // the Workers bridge can then be left waiting for a response that never finishes.
+      // The desktop already throws on data.error (including released 2.4.0 clients).
+      const interrupted = new TextEncoder().encode(`data: ${JSON.stringify({ error: { code: "stream-interrupted", message: "Included AI stream interrupted. Try again or choose another model." } })}\n\n`);
+      let cancelled = false;
       const stream = new ReadableStream<Uint8Array>({
         async pull(controller) {
           try {
             for (;;) {
               const chunk = await reader.read();
               if (!chunk.done) stillSending();
-              if (chunk.done) { await settle(false, true); await finishMetric(observer.completed ? "success" : "provider_error",observer.completed ? null : "incomplete-stream"); cleanup(); reader.releaseLock(); controller.close(); break; }
+              if (chunk.done) {
+                const trailing = observer.finish();
+                if (trailing !== null && !cancelled) controller.enqueue(trailing);
+                await settle(false, true);
+                await finishMetric(observer.completed ? "success" : "provider_error",observer.completed ? null : "incomplete-stream");
+                cleanup(); reader.releaseLock();
+                if (!cancelled) {
+                  if (!observer.completed) controller.enqueue(interrupted);
+                  controller.close();
+                }
+                break;
+              }
               const safe = observer.push(chunk.value);
               if (safe !== null) { controller.enqueue(safe); break; }
             }
@@ -639,10 +878,11 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
             abort.abort(); cleanup(); await reader.cancel().catch(() => undefined);
             await settle().catch(() => undefined);
             await finishMetric(settlementFailed ? "relay_error" : request.signal.aborted ? "cancelled" : "provider_error",settlementFailed ? "storage-settlement" : request.signal.aborted ? "request-ended" : "stream-interrupted");
-            controller.error(new Error("Included AI stream interrupted"));
+            reader.releaseLock();
+            if (!cancelled) { controller.enqueue(interrupted); controller.close(); }
           }
         },
-        async cancel() { abort.abort(); cleanup(); await reader.cancel().catch(() => undefined); await settle().catch(() => undefined); await finishMetric(settlementFailed ? "relay_error" : "cancelled",settlementFailed ? "storage-settlement" : "request-ended"); },
+        async cancel() { cancelled = true; abort.abort(); cleanup(); await reader.cancel().catch(() => undefined); await settle().catch(() => undefined); await finishMetric(settlementFailed ? "relay_error" : "cancelled",settlementFailed ? "storage-settlement" : "request-ended"); },
       });
       return new Response(stream, { headers: { ...headers, "content-type": "text/event-stream", "x-accel-buffering": "no" } });
     } catch (error) {

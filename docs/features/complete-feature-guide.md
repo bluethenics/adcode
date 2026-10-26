@@ -598,6 +598,17 @@ How to use it: On by default. Ask it to build, fix, create or change files and t
 
 Access: `All Features → AI file tools`; `Turn on or off`; `Settings`.
 
+<!-- feature:ai.plans -->
+### AI plans, promo codes and invites
+
+Choose a weekly or monthly plan for more Heabsy tokens each week, with no API key to set up.
+
+Why use it: A plan gives regular work a larger weekly allowance. Purchased tokens cover extra work beyond it, while Tagflow AI stays free without a personal quota.
+
+How to use it: Run AI: Upgrade Plan or open adcode.bluethenics.com/ai-tokens and sign in with the same account as the editor. Weekly costs $3 a week for 60M tokens each week; Monthly costs $9 a month for 60M each week; Pro costs $19 a month for 150M each week. Pay with Dodo; the larger allowance appears once payment is confirmed. Check the plan and remaining tokens in AI usage or the composer meter with a Heabsy model selected. Purchased tokens are used after the weekly allowance and never expire. Use Manage subscription on the page to manage billing or cancel; cancellation keeps your plan until its paid period ends. A Pro subscriber can share a personal invite code with two friends. A friend must redeem it before starting any paid plan; when their first subscription becomes active while your Pro plan is still active, both accounts get 4M tokens, once per friend. Enter promo codes in the same page's code box for tokens or plan days, subject to the code's expiry and redemption limit. Plans raise Heabsy's allowance; they do not change Tagflow AI.
+
+Access: `All Features → AI plans, promo codes and invites`; `Upgrade plan`.
+
 <!-- feature:ai.team -->
 ### AI Team
 
@@ -614,9 +625,9 @@ Access: `All Features → AI Team`; `Set up Team`; `Settings`.
 
 Shows your AI activity, daily streaks, tokens and estimated cost, model by model.
 
-Why use it: See where your own provider spending goes and how many free AI credits you have left.
+Why use it: See where your own provider spending goes and how much of the weekly Heabsy allowance and purchased balance you have left.
 
-How to use it: Select Usage in the chat's header (or ••• when docked), choose Usage by model in the Conversation menu, or run AI: Show Usage. Pick Today, 7 days, 30 days or All time for this machine's history. Activity always shows the past year: current streak, longest streak and days with AI requests on this computer. Hover or select a square for its date, requests and tokens; arrow keys move between days, Home and End jump to the oldest and newest day. Streaks use local calendar days and include yesterday while today is still empty. Counts not reported by a provider are estimated and marked ≈; a model with no catalogue price says No price. Input the provider read back from its prompt cache shows as cached under Tokens, and hovering a model shows its cached share; the estimated cost prices it at the catalogue's cache rate. Included AI has no charge to you. Included AI has no personal usage quota. Clear usage removes this computer's history, activity and streaks. Your own provider's billing page has the exact bill.
+How to use it: Select Usage in the chat's header (or ••• when docked), choose Usage by model in the Conversation menu, or run AI: Show Usage. Pick Today, 7 days, 30 days or All time for this machine's history. Activity always shows the past year: current streak, longest streak and days with AI requests on this computer. Hover or select a square for its date, requests and tokens; arrow keys move between days, Home and End jump to the oldest and newest day. Streaks use local calendar days and include yesterday while today is still empty. Counts not reported by a provider are estimated and marked ≈; a model with no catalogue price says No price. Input the provider read back from its prompt cache shows as cached under Tokens, and hovering a model shows its cached share; the estimated cost prices it at the catalogue's cache rate. Tagflow AI has no personal usage quota; Heabsy's models show their weekly free allowance and any purchased balance. Clear usage removes this computer's history, activity and streaks. Your own provider's billing page has the exact bill.
 
 Access: `All Features → AI usage`; `Show usage`.
 
@@ -630,6 +641,17 @@ Why use it: Project copies can be large, but deleting the only safe way back is 
 How to use it: Terminal sandboxes are cleaned oldest first. An applied task may lose its sandbox when space is tight, but its only rollback checkpoint is kept. If active work leaves no safe room, ADCode refuses the new task and tells you to raise the quota or discard one.
 
 Access: `All Features → AI workspace storage`; `Settings`.
+
+<!-- feature:ai.buyTokens -->
+### Buying AI tokens
+
+Heabsy's models in ADCode include 10 million free tokens a week; after that you can buy more, or keep going on Tagflow AI, which stays free.
+
+Why use it: Keep working on the fastest included models during a heavy week without setting up your own provider key or a card with a model company.
+
+How to use it: Run AI: Buy AI Tokens, or press Buy tokens on the message that appears when your free week is used up. Sign in on the page that opens, choose $10 for 50M tokens, $25 for 140M or $50 for 300M, and pay with Dodo. The tokens appear within seconds and never expire. ADCode uses your free tokens first each week and purchased tokens only after them, and a task that paused carries on by itself. Your balance is in AI usage and on the composer's meter when a Heabsy model is selected. Tagflow AI is free with no weekly limit, so you can switch to it at any time instead. For a refund of unused tokens, contact the team from the same page.
+
+Access: `All Features → Buying AI tokens`; `Buy tokens`.
 
 <!-- feature:ai.sessions -->
 ### Chat history and memory
@@ -660,7 +682,7 @@ Choose ready models in Free · no API key, or use Bring your own key to connect 
 
 Why use it: A key that was pasted wrong should say so immediately, not silently fail the first time you ask a question.
 
-How to use it: Open Connect a model. Free · no API key opens first with included models and ready local models: choose Use this model. Included models require a verified ADCode account and share its daily allowance. Use the local setup buttons to start or download Ollama. Bring your own key contains personal provider connections and the three-step guide: choose a provider, check and save its key, pick a model. Add a named connection with an OpenAI-compatible base URL and exact model ID for other endpoints; the NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system. Administrators can add, hide and select default models in the linked Free models and BYOK models catalogs.
+How to use it: Open Connect a model. Free · no API key opens first with included models and ready local models: choose Use this model. Included models require a verified ADCode account; Tagflow AI has no personal quota, and Heabsy's models include a weekly free allowance. Use the local setup buttons to start or download Ollama. Bring your own key contains personal provider connections and the three-step guide: choose a provider, check and save its key, pick a model. Add a named connection with an OpenAI-compatible base URL and exact model ID for other endpoints; the NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system. Administrators can add, hide and select default models in the linked Free models and BYOK models catalogs.
 
 Access: `All Features → Connect a model`; `Connect`; `Settings`.
 
@@ -700,11 +722,11 @@ Access: `All Features → Edit with AI`; `Edit with AI`; `Keyboard → Ctrl+E`.
 <!-- feature:ai.credits -->
 ### Free AI credits
 
-Included AI has no personal request, token or credit quota.
+Tagflow AI has no personal quota. Heabsy's models include 10M free tokens a week per account, then use tokens you buy.
 
-Why use it: Build with included models without watching a personal quota. Provider availability and model context limits still apply.
+Why use it: Build with included models without watching a personal quota on Tagflow, and keep going on Heabsy's models through a heavy week if you need to. Provider availability and model context limits still apply.
 
-How to use it: Sign in with a verified account and choose an included model. There are no personal request, token, daily or weekly credit quotas. Provider availability and model context limits still apply. The Conversation menu lets you compact a long conversation or view its summary. Usage history remains available for understanding activity, without quota progress rings.
+How to use it: Sign in with a verified account and choose an included model. Tagflow AI has no personal request, token, daily or weekly quota. Heabsy's models (GLM 5.3 Flash, Qwen 3.8, Mimo) include 10M free tokens a week from your first request on them; after that they use tokens you buy - see Buying AI tokens - or you can switch to Tagflow AI. Provider availability and model context limits still apply. The Conversation menu lets you compact a long conversation or view its summary. The composer meter and AI usage show the weekly allowance and purchased balance when a Heabsy model is selected.
 
 Access: `All Features → Free AI credits`; `Show credits`.
 
@@ -726,7 +748,7 @@ The AI can split a big task into parts and hand them to helper agents that work 
 
 Why use it: A large job finishes sooner when its independent parts run side by side, and long searches stay out of the main conversation, so it keeps its focus on your request.
 
-How to use it: Ask for something large, or start your message with /helpers (or run AI: Split a Task Across Helpers) to ask for it outright. The AI calls its Helpers step with up to four tasks; each helper gets its own instructions and the same model. Explore helpers only read and search; build helpers can change files and run commands, and are told to stay in their own files. You see each one's progress on the working line - Helper 2 of 3 · Tests: running npm test - and a Helpers row in the timeline with every report. Their edits belong to the same turn, so Undo reverts them together, and Stop stops every helper. Helpers cannot start helpers of their own. Each helper's requests count toward your free AI credits like any other. Local models are not offered helpers.
+How to use it: Ask for something large, or start your message with /helpers (or run AI: Split a Task Across Helpers) to ask for it outright. The AI calls its Helpers step with up to four tasks; each helper gets its own instructions and the same model. Explore helpers only read and search; build helpers can change files and run commands, and are told to stay in their own files. You see each one's progress on the working line - Helper 2 of 3 · Tests: running npm test - and a Helpers row in the timeline with every report. Their edits belong to the same turn, so Undo reverts them together, and Stop stops every helper. Helpers cannot start helpers of their own. Each helper's requests count toward the same included AI allowance as any other. Local models are not offered helpers.
 
 Access: `All Features → Helpers: agents that start agents`; `Split a task across helpers`.
 
@@ -737,7 +759,7 @@ Use the AI included with your verified ADCode account without buying or pasting 
 
 Why use it: Start with an allowance paid for by ADCode. You can still switch to your own provider or a local model when you need more capacity.
 
-How to use it: Open Account, sign in and verify your email, then send a message. If you send one before signing in, the chat offers Sign in and sends it again by itself once you are. If the connection drops mid-task, the task retries by itself for about two minutes and carries on where it was. Included AI is selected automatically for new installations when enabled, using the administrator's default model. Older installations with an unconnected default provider also switch automatically. In Connect a model, the Free · no API key tab lists included and ready local models; choose Use this model to switch. Bring your own key keeps your personal provider connections separate. Administrators manage Free models and BYOK models from separate linked catalogs: add new models, set defaults, and hide models. Free models can use Tagflow, OpenAI, Gemini, Groq, OpenRouter or any OpenAI-compatible provider an administrator registers, through configured server keys. Chat, completions and agents have no personal included-AI quota. Open AI usage to review activity. Provider availability and model context limits still apply. Prompts, project context and tool results pass through ADCode's server to the selected provider; the server stores usage counts, not prompts or replies. Included AI currently accepts text and tool calls, not image attachments.
+How to use it: Open Account, sign in and verify your email, then send a message. If you send one before signing in, the chat offers Sign in and sends it again by itself once you are. If the connection drops mid-task, the task retries by itself for about two minutes and carries on where it was. Included AI is selected automatically for new installations when enabled, using the administrator's default model. Older installations with an unconnected default provider also switch automatically. In Connect a model, the Free · no API key tab lists included and ready local models; choose Use this model to switch. Bring your own key keeps your personal provider connections separate. Administrators manage Free models and BYOK models from separate linked catalogs: add new models, set defaults, and hide models. Free models can use Tagflow, OpenAI, Gemini, Groq, OpenRouter or any OpenAI-compatible provider an administrator registers, through configured server keys. On Tagflow AI, chat, completions and agents have no personal quota; Heabsy's models include 10M free tokens a week, then use tokens you buy (see Buying AI tokens). Open AI usage to review activity. Provider availability and model context limits still apply. Prompts, project context and tool results pass through ADCode's server to the selected provider; the server stores usage counts, not prompts or replies. Included AI currently accepts text and tool calls, not image attachments.
 
 Access: `All Features → Included AI without a key`; `Choose included AI`.
 
@@ -905,6 +927,17 @@ Why use it: Typing is faster than hunting for a button, and each command asks th
 How to use it: Type / at the start of the composer to list every command; keep typing to filter, then press Enter or Tab. Or type a command and your words in one go - /fix the login button does nothing - and press Enter. The conversation and its title show /fix and your words, and the assistant receives the command's full instruction, so your history stays readable. /fix, /test, /plan, /refactor, /explain, /optimize, /security, /docs and /build send that careful instruction with whatever you add; on its own, a command is about the file you have open. /review and /commit attach your uncommitted changes and ask for a review or a commit message: picked from the list they go at once, and typed with words - /review focus on auth - they say what to look at. /check asks the assistant to look at your running app in its own browser and fix what is broken. /new, /history, /model, /preview and /schedule act at once, even while an answer is being written; /new with words starts a fresh conversation and sends them. /team followed by a task sets up an AI Team for it. /compact makes room in a long conversation, and /compact with words says what to keep. Type @ anywhere to search the project's files and add one as a chip; a file open in the editor sends its unsaved text. In an empty composer, the Up arrow brings back your earlier prompts.
 
 Access: `All Features → Slash commands and @ files`; `Show commands`; `Add a file`.
+
+<!-- feature:ai.statusAlerts -->
+### Status alerts by email
+
+Get an email when one of the included AI models starts failing requests, and another when it is back to normal. No account needed.
+
+Why use it: When answers start failing, the first question is whether it is you or the service. An alert tells you before you start debugging your own setup - and the all-clear tells you when to try again, so you are not refreshing a status page.
+
+How to use it: Run Help: Get Status Alerts by Email, or open adcode.bluethenics.com/status and scroll to Email alerts. Enter your address, keep Model health and Incident updates ticked (or untick one), and press Get alerts. Open the email from noreply@bluethenics.com and press Confirm my alerts - nothing else is sent until you do, and the link works for seven days. Every 15 minutes the service checks each included model against the requests since the last check: an alert goes out when one is degraded (5% or more failing) or in an outage (25% or more), and a back-to-normal email after two good checks in a row. A check with fewer than 10 requests decides nothing. Incident updates are the notes the team posts during an outage. Every email has a one-click unsubscribe. Prefer a feed? The same page has an RSS link for incidents.
+
+Access: `All Features → Status alerts by email`; `Get status alerts`.
 
 <!-- feature:adcode.ai.taskTokenBudget -->
 ### Task token budget
@@ -1348,7 +1381,7 @@ The left side of the Vibe window: a rail of places, a card for what you are work
 
 Why use it: Vibe hides the editor, so something has to tell you that an agent is still working or what has changed. The Changes badge says so without opening anything, and every everyday workflow has a button of its own instead of hiding in a menu.
 
-How to use it: The rail on the far left is the places. The ADCode mark returns to the conversation. Chat, Agents and Tools are the page in the middle of the window: Chat is the conversation, Agents is the board of agents working in parallel and your saved agents, and Tools is where built-in tools, MCP servers, skills and project memory live. Changes, Preview and Automations open over the page as floating windows, and selecting one again closes it; the badge on Changes counts the files you have not committed, and turns blue when something needs you, such as a conflict or - if you chose Review every change - AI edits waiting to apply. At the foot of the rail: notifications, an update while one is downloading, settings, More for everything else, feedback, your account, and - on the desktop - the live-session button. The card beside it starts a conversation (Ctrl+Shift+N) and keeps the earlier ones under Chats, grouped by day and searchable. The project card shows the folder, its branch and how many files have changed - select it to switch to a recent project, open or clone one, or see the project overview. Docs, All features and Keyboard shortcuts sit at the bottom of the card, above the Open IDE card. Every open conversation gets a tab along the top, with Changes, Preview and the sidebar toggle to its left and the workspace picker and Run to its right; the menus (File, Edit, View, Help) open from the button beside ADCode. Drag the sidebar's right edge to resize it, or press Ctrl+B to hide or show it. In a narrow window everything folds into a drawer that the top bar's menu button or Ctrl+B opens.
+How to use it: The rail on the far left is the places. The ADCode mark returns to the conversation. Chat, Agents and Tools are the page in the middle of the window: Chat is the conversation, Agents is the board of agents working in parallel and your saved agents, and Tools is where built-in tools, MCP servers, skills and project memory live. Changes, Preview and Automations open over the page as floating windows, and selecting one again closes it; the badge on Changes counts the files you have not committed, and turns blue when something needs you, such as a conflict or - if you chose Review every change - AI edits waiting to apply. At the foot of the rail: notifications, an update while one is downloading, settings, More for everything else, feedback, your account, and - on the desktop - the live-session button. The card beside it starts a conversation (Ctrl+Shift+N) and keeps the earlier ones under Chats, grouped by day and searchable. The project card shows the folder, its branch and how many files have changed - select it to switch to a recent project, open or clone one, or see the project overview. Docs, All features and Keyboard shortcuts sit at the bottom of the card, above the Open IDE card. Every open conversation gets a tab along the top; use the mouse wheel over that row to reach tabs that do not fit. Changes, Preview and the sidebar toggle sit to its left and the workspace picker and Run to its right; the menus (File, Edit, View, Help) open from the button beside ADCode. Drag the sidebar's right edge to resize it, or press Ctrl+B to hide or show it. In a narrow window everything folds into a drawer that the top bar's menu button or Ctrl+B opens.
 
 Access: `All Features → Vibe sidebar`; `Show or hide`; `Keyboard → Ctrl+B`.
 
@@ -1492,6 +1525,17 @@ Access: `All Features → Selecting and moving files`; `Open Explorer`; `New fil
 
 ## Ads and earnings
 
+<!-- feature:ads.networks -->
+### Ad network connections
+
+Administrators can connect an ad provider and choose what users earn for verified views or clicks.
+
+Why use it: Provider inventory can fill an empty sponsored slot while keeping the existing ad controls and direct campaigns.
+
+How to use it: Open Ad network settings on the website and sign in as an administrator. Add a Generic JSON API connection with the provider's documented serve and event-verification endpoints and field mappings. Save it disabled, save its API key, test the preview, then enable delivery. Set the user payout in dollars per view or click. Keys are encrypted and never shown again. An API key alone is not enough: each provider must support the configured delivery and verification contract. Imprezia supports non-billable Native Exchange previews with an Exchange-enabled key and a provisioned app bundle or domain. Live delivery stays disabled until its inventory, privacy, tracking and billing requirements are met. The beehiiv connection previews newsletter offer content only; it cannot deliver desktop ads or generate earnings. Users keep control over sponsored messages and frequency.
+
+Access: `All Features → Ad network connections`; `Open ad network settings`.
+
 <!-- feature:adcode.ads.frequency -->
 ### Frequency
 
@@ -1519,13 +1563,13 @@ Access: `All Features → Sponsored messages`; `Turn on or off`; `Settings`.
 <!-- feature:adcode.updates.auto -->
 ### Install updates automatically
 
-New versions download in the background. When one is ready, the status bar says Restart to update and a small card offers to restart now.
+A small card tells you when a new version is available. Choose Update now to finish downloading and install it, or keep working and update later.
 
 Why use it: So you are never out of date, and you always know when a new version is waiting - without a box that stops your work.
 
-How to use it: On by default. While a new version downloads, the status bar shows its progress; when it is ready it reads Restart to update, and a card offers Restart now or Later - once per version, and only when you are not typing. Restart now keeps anything unsaved and offers it back when ADCode reopens - if crash recovery is off, it asks you to save first. Later, or ignoring it, installs the update the next time you close ADCode. On Linux the card simply says the update is ready, and it installs when you close ADCode. ADCode never restarts itself. Help → Check for Updates asks now and tells you where you stand, including when you are already on the latest version. If an update ever fails, Help → Report a Problem includes what the updater recorded. Turn this off to update by hand instead. If you installed ADCode from the Microsoft Store, or from a Linux package manager, that is what updates it and this setting does nothing - Settings says so rather than pretending to check.
+How to use it: On by default. A new-version card offers Update now or Later, once per version and only when you are not typing. Updates download in the background and the status bar shows progress. Choose Update now to install when the download finishes. On Windows ADCode protects unsaved work in every window, closes, shows installation progress, then opens the updated app automatically without another setup wizard. On Linux it closes to finish installing. If you keep working, a separate ready card offers Restart now or Close and update. Unsaved work is kept as a recovery draft; if crash recovery is off, ADCode asks you to save first. Ignoring the cards installs a downloaded update quietly the next time you close ADCode normally. Microsoft Store installations get an Update in Microsoft Store button; the Store decides when its update reaches your device. Portable installations get a Download update button for the official ADCode site so you can replace your portable copy. Help → Check for Updates asks now, even with automatic checks off. If an update fails, your current version stays usable and Help → Report a Problem includes the updater log. Linux packages managed by your operating system still update through that package manager.
 
-Access: `All Features → Install updates automatically`; `Check now`; `Restart to update`; `Turn on or off`; `Settings`.
+Access: `All Features → Install updates automatically`; `Check now`; `Update now`; `Turn on or off`; `Settings`.
 
 <!-- feature:updates.whatsNew -->
 ### Tell me what changed

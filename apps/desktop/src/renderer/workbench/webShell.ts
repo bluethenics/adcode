@@ -188,6 +188,19 @@ export function createChatTabs(options: {
   strip.className = "web-tabs-strip";
   strip.setAttribute("role", "tablist");
   strip.setAttribute("aria-label", "Open chats");
+  // A mouse wheel has no horizontal delta. Keep overflowing chats reachable just as
+  // editor tabs are, without taking horizontal trackpad gestures or browser zoom.
+  strip.addEventListener("wheel", (event) => {
+    if (event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+    const limit = strip.scrollWidth - strip.clientWidth;
+    if (limit <= 0) return;
+    const unit = event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? strip.clientWidth
+      : event.deltaMode === WheelEvent.DOM_DELTA_LINE ? Number.parseFloat(getComputedStyle(strip).lineHeight) || 16 : 1;
+    const next = Math.max(0, Math.min(limit, strip.scrollLeft + event.deltaY * unit));
+    if (Math.abs(next - strip.scrollLeft) < 1) return;
+    event.preventDefault();
+    strip.scrollLeft = next;
+  }, { passive: false });
   const add = document.createElement("button");
   add.type = "button";
   add.className = "web-tabs-add";

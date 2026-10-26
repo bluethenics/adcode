@@ -1,6 +1,6 @@
 {
   "name": "adcode",
-  "version": "2.4.0",
+  "version": "2.4.2",
   "bin": {
     "adcode": "scripts/adcode.mjs"
   },
@@ -27,6 +27,7 @@
     "desktop": "npm --prefix apps/desktop run dev",
     "desktop:build": "npm --prefix apps/desktop run build",
     "firewall": "depcruise --config .dependency-cruiser.cjs packages mock-server apps services",
+    "pretest": "node node_modules/electron/install.js",
     "test": "vitest run --maxWorkers 4",
     "test:watch": "vitest",
     "test:emulator": "firebase emulators:exec --only firestore --project adcode-test \"vitest run services/api/test/emulator\"",
@@ -42,6 +43,7 @@
     "smoke:all": "node scripts/smoke.mjs && node scripts/smoke-ads.mjs",
     "design:check": "node scripts/design-system-check.cjs",
     "release-note": "node scripts/release-note.mjs",
+    "release:prepare": "node scripts/prepare-release.mjs",
     "verify": "npm run typecheck && npm run firewall && npm run test",
     "icons": "electron scripts/make-icons.mjs",
     "web": "npm --prefix apps/web run dev",
@@ -75,7 +77,7 @@
     "@xterm/xterm": "^6.0.0",
     "axe-core": "4.14.0",
     "dependency-cruiser": "^18.2.0",
-    "electron": "^43.4.0",
+    "electron": "^43.8.1",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "fast-check": "^4.9.0",
@@ -83,13 +85,13 @@
     "tree-sitter-wasms": "^0.1.13",
     "typescript": "^5.9.3",
     "vite": "^7.3.7",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.12"
   },
   "allowScripts": {
     "esbuild@0.25.12": true,
     "esbuild@0.28.2": true,
     "node-pty@1.1.0": true,
-    "electron@43.4.0": true
+    "electron@43.8.3": true
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
@@ -99,7 +101,7 @@
     "electron-updater": "^6.8.9",
     "firebase": "^12.18.0",
     "lucide": "1.59.0",
-    "next": "~16.3.8",
+    "next": "~16.4.3",
     "node-pty": "^1.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -114,7 +116,7 @@
   "overrides": {
     "@grpc/grpc-js": "^1.14.6",
     "monaco-editor": {
-      "dompurify": "3.4.16"
+      "dompurify": "3.4.17"
     }
   }
 }

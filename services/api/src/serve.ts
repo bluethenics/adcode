@@ -5,11 +5,12 @@
  * a later receipt can be believed (spec §9), so the write is not optional bookkeeping -
  * it is the thing that makes the money path safe.
  */
+import { serveAdNetwork, type AdNetworkRuntime } from "./adNetworks.ts";
 import type { ServeRequestBody, ServeResponseBody, ServedCreative } from "./contract.ts";
 import type { Clock, IdGen, ServingConfig, Store } from "./store.ts";
 import { runAuction, type Candidate } from "./targeting.ts";
 
-export interface ServeDeps {
+export interface ServeDeps extends AdNetworkRuntime {
   store: Store;
   clock: Clock;
   ids: IdGen;
@@ -164,5 +165,6 @@ export async function handleServe(
     }),
   );
 
-  return { creatives: served.filter((one): one is ServedCreative => one !== null) };
+  const creatives = served.filter((one): one is ServedCreative => one !== null);
+  return creatives.length > 0 ? { creatives } : serveAdNetwork(deps, uid, body, effective.serveTtlMs);
 }

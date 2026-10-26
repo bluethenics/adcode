@@ -6,6 +6,7 @@
  * id, and a balance cache written in the same step as the append. A test double that is
  * more permissive than production tests nothing worth testing.
  */
+import { createAdNetworkMemoryStore } from "./adNetworkMemoryStore.ts";
 import { planBudgetMove } from "./campaignBudget.ts";
 import { createTagflowMemoryStore } from "./tagflowMemoryStore.ts";
 import { utcDay } from "./day.ts";
@@ -141,10 +142,18 @@ export function createMemoryStore(): Store & { reset(): void } {
     new Map([...campaigns.values()].map((c) => [c.campaignId, c.advertiserId]));
   const attributionKey = (kind: string, subjectId: string): string => `${kind}\u0000${subjectId}`;
 
+  const adNetworks = createAdNetworkMemoryStore(entry => {
+    if (entries.some(existing => existing.entryId === entry.entryId)) throw new Error("Duplicate ledger entry");
+    entries.push(entry);
+    balances.set(entry.uid, applyEntry(balances.get(entry.uid) ?? EMPTY_BALANCE, entry));
+  });
+
   return {
     ...tagflow,
+    adNetworks,
     reset() {
       tagflow.resetTagflow();
+      adNetworks.reset();
       users = new Map();
       advertisers = new Map();
       campaigns = new Map();

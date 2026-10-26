@@ -12,12 +12,13 @@
  */
 import { CONTINUE_PROMPT } from "../../shared/continuePrompt.ts";
 
-export type AiFailureAction = "retry" | "models" | "usage" | "new-conversation" | "report" | "sign-in";
+export type AiFailureAction = "retry" | "models" | "usage" | "new-conversation" | "report" | "sign-in" | "buy-tokens" | "upgrade-plan";
 
 export interface AiFailure {
   readonly kind:
     | "rate-limit"
     | "daily-limit"
+    | "tokens"
     | "too-large"
     | "auth"
     | "sign-in"
@@ -84,6 +85,10 @@ export function describeAiFailure(raw: string): AiFailure {
   const make = (kind: AiFailure["kind"], title: string, explanation: string, actions: readonly AiFailureAction[]): AiFailure =>
     ({ kind, title, explanation, actions, detail });
 
+  if (/The signed-in account changed\./i.test(detail)) {
+    return make("auth", "Your signed-in account changed", "This task stopped when the account changed. Try again to continue with the current account. Work already saved in your project is still there.", ["retry"]);
+  }
+
   if (detail === OUTPUT_LIMIT_AGAIN) {
     return make(
       "output-limit",
@@ -101,9 +106,17 @@ export function describeAiFailure(raw: string): AiFailure {
   if (who === "Included AI" || /\bincluded AI\b/i.test(detail)) {
     if (/\bbanned\b|code banned/i.test(detail) && !/verify/i.test(detail) && /HTTP 403|code banned/i.test(detail)) return make("auth", "Free AI isn't available for this account", "This account can't use ADCode's free AI. You can still use your own provider key or a model on this computer.", ["models"]);
     if (/disabled for this account|code blocked/i.test(detail)) return make("auth", "Free AI is turned off for this account", "An administrator switched off free AI for this account. Use your own provider key or a local model, or contact the team.", ["models"]);
+    if (/verified email|verification link|verification email/i.test(detail)) {
+      return make("sign-in", "Verify your email to use free AI", "Open the verification link sent to your account's email, then try again. Check spam if it is missing. Being signed in and having a verified email are separate steps; Google sign-in also verifies the address.", ["retry", "sign-in", "models"]);
+    }
     if (/HTTP 40[13]\b|missing-token|invalid-token|verify-account|sign in (?:in account )?to use included AI|sign in and verify/i.test(detail)) {
       return make("sign-in", "Sign in to use free AI", "Free AI needs an ADCode account with a verified email, so it can give you your own free AI credits. Sign in with Google or GitHub - no API key or card - and your message sends again by itself.", ["sign-in", "models"]);
     }
+  }
+  // Paid tokens (relays from 2026-10-21): the free week on a paid provider's models is spent and nothing is bought.
+  if (who === "Included AI" && /free tokens on .+ models\. Buy tokens/i.test(detail)) {
+    const refill = /refill in ([^,.]{1,40})/i.exec(detail)?.[1]?.trim();
+    return make("tokens", "This week's free Heabsy tokens are used up", `Buy tokens or a plan to keep using Heabsy models now, or switch to Tagflow AI, which stays free. ${refill ? `Your free tokens refill in ${refill}; ` : ""}a task that was running carries on by itself when they do, as long as ADCode stays open.`, ["buy-tokens", "upgrade-plan", "models", "usage"]);
   }
   // Credits (relays from 2026-10-15): the message names the window and when it refills.
   if (who === "Included AI" && /free AI credits/i.test(detail)) {
@@ -208,7 +221,7 @@ export function describeAiFailure(raw: string): AiFailure {
   if (/HTTP 404|model[^.]{0,40}(not found|does not exist|not available|decommissioned|deprecated)|unknown model|no such model|No endpoints found for|\(code 404\)/i.test(detail)) {
     return make("model-missing", "This model is not available", `${who} does not offer this model any more, or not to your account. Pick another one in Connect a model.`, ["models"]);
   }
-  if (/fetch failed|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|socket hang up|network|timed? ?out|getaddrinfo/i.test(detail)) {
+  if (/^terminated$|fetch failed|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|socket hang up|network|timed? ?out|getaddrinfo/i.test(detail)) {
     return make("network", `Could not reach ${who === "The provider" ? "the provider" : who}`, "Check your internet connection (or that a local model server is running), then try again.", ["retry", "models"]);
   }
   if (/HTTP 5\d\d|overloaded|service unavailable|internal server error|bad gateway|temporarily unavailable/i.test(detail)) {

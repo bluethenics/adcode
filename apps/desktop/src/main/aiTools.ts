@@ -68,7 +68,8 @@ export function parsePlan(input: Record<string, unknown>): PlanStep[] | string {
   for (const [index, raw] of steps.entries()) {
     const record = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
     const step = typeof record["step"] === "string" ? record["step"].trim() : "";
-    const status = record["status"];
+    // Models also use the conventional completed spelling for a finished step.
+    const status = record["status"] === "completed" ? "done" : record["status"];
     if (step.length === 0 || step.length > 200) return `Step ${index + 1} needs a short description (1-200 characters).`;
     if (status !== "pending" && status !== "in_progress" && status !== "done") return `Step ${index + 1}'s status must be pending, in_progress or done.`;
     parsed.push({ step, status });

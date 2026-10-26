@@ -1795,7 +1795,12 @@ async function runTurn(
       // Never the prompt, the answer, or a file's contents.
       if (event.kind === "tool-call") toolCalls += 1;
       if (event.kind === "tool-result" && event.isError) recordDebug("warn", "ai:tool", `${event.name} failed: ${event.content.slice(0, 200)}`);
-      if (event.kind === "error") recordDebug("error", "ai", `${providerId} / ${model}: ${event.detail}`);
+      if (event.kind === "error") {
+        recordDebug("error", "ai", `${providerId} / ${model}: ${event.detail}`);
+        // End this run on an account switch, then bind the next user turn to the new
+        // account. A cached provider otherwise rejects every retry in this chat.
+        if (/The signed-in account changed\./.test(event.detail)) thread.rebuild = true;
+      }
       if (activeTaskId !== null) {
         const workspaceService = await readyAiWorkspaceService();
         if (!modelTraceRecorded) {

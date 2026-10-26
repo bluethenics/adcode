@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readyNoticeDue, restartBlocked, updateView } from "../src/renderer/updates/updateView.ts";
+import { availableNoticeDue, readyNoticeDue, restartBlocked, updateView } from "../src/renderer/updates/updateView.ts";
 
 describe("updateView", () => {
   it("hides for every quiet state", () => {
@@ -37,8 +37,22 @@ describe("updateView while restarting, or where restart is not offered", () => {
 
   it("says the update is ready, without a restart, where restart is not offered", () => {
     const view = updateView({ state: "ready", version: "2.1.2", restartable: false });
-    expect(view).toMatchObject({ label: "Update ready", canRestart: false });
-    expect(view.title).toContain("when you close ADCode");
+    expect(view).toMatchObject({ label: "Close to update", canRestart: false, canUpdate: true });
+    expect(view.title).toContain("Close ADCode");
+  });
+});
+
+describe("an available update", () => {
+  it("shows a usable Store update action and never offers a self-install", () => {
+    expect(updateView({ state: "available", version: "2.5.0", source: "store" })).toMatchObject({ label: "Update available", canRestart: false, canUpdate: true });
+    expect(updateView({ state: "available", version: "2.5.0", source: "store" }).title).toContain("Microsoft Store");
+  });
+  it("announces once during download, leaving the ready announcement separate", () => {
+    const downloading = { state: "downloading", version: "2.5.0", percent: 5 } as const;
+    expect(availableNoticeDue(downloading, new Set(), { focused: true, typingRecently: false })).toBe("2.5.0");
+    expect(availableNoticeDue(downloading, new Set(["2.5.0"]), { focused: true, typingRecently: false })).toBeNull();
+    expect(readyNoticeDue({ state: "ready", version: "2.5.0" }, new Set(), { focused: true, typingRecently: false })).toBe("2.5.0");
+    expect(availableNoticeDue(downloading, new Set(), { focused: true, typingRecently: true })).toBeNull();
   });
 });
 

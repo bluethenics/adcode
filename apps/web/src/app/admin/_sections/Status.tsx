@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { HelpNote } from "@/components/HelpNote";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
+import { LEVEL_LABELS, parseStatusView, type StatusView } from "@/lib/statusView";
 import { when } from "@/components/money";
 import "@/components/adminStatus.css";
 
@@ -79,11 +79,20 @@ export function StatusBody() {
 
   const [drafts, setDrafts] = useState<Record<string, { status: string; body: string }>>({});
   const [emailed, setEmailed] = useState<Record<string, string>>({});
+  const [overall, setOverall] = useState<StatusView["overall"] | null>(null);
+  const [subscribers, setSubscribers] = useState<{ active: number; models: number; incidents: number; pending: number } | null>(null);
 
   const load = useCallback(async () => {
-    const found = await apiFetch<{ incidents: StatusIncident[] }>({ path: "/admin/status", token: await token() });
+    const auth = await token();
+    const [found, publicView, lists] = await Promise.all([
+      apiFetch<{ incidents: StatusIncident[] }>({ path: "/admin/status", token: auth }),
+      apiFetch<unknown>({ path: "/status", token: auth }),
+      apiFetch<{ active: number; models: number; incidents: number; pending: number }>({ path: "/admin/status/subscribers", token: auth }),
+    ]);
     if (found.ok) setRows(found.value.incidents);
     else setError(MESSAGES[found.error]);
+    if (publicView.ok) setOverall(parseStatusView(publicView.value)?.overall ?? null);
+    if (lists.ok) setSubscribers(lists.value);
     setLoading(false);
   }, [token]);
 
@@ -166,7 +175,7 @@ export function StatusBody() {
     const said = !result.ok
       ? result.error === "invalid-state" ? "This update was already emailed." : "Could not queue the email. Try again."
       : result.value.sendingEnabled
-        ? `Queued for ${result.value.queued} ${result.value.queued === 1 ? "person" : "people"}; the hourly sender delivers it.`
+        ? `Queued for ${result.value.queued} ${result.value.queued === 1 ? "person" : "people"}, account holders and status-page subscribers together.`
         : `Queued for ${result.value.queued}, but sending is switched off until a postal address is set.`;
     setEmailed((current) => ({ ...current, [incidentId]: said }));
   };
@@ -179,30 +188,62 @@ export function StatusBody() {
 
   if (loading) return <p className="lede">Loading…</p>;
 
+  const active = rows.filter((incident) => incident.status !== "resolved");
+  const sorted = [...active, ...rows.filter((incident) => incident.status === "resolved")];
+
   return (
-    <>
-      {error !== null && (
-        <div className="notice" data-tone="error" role="alert">
-          {error}
+    <div className="adm-status">
+      <div className="adm-status-summary">
+        <div className="adm-card">
+          <span className="adm-summary-label">The public page says</span>
+          <span className="adm-summary-value">
+            <span className="adm-dot" data-state={overall?.state ?? "unknown"} aria-hidden="true" />
+            {overall === null ? "Unavailable" : overall.title}
+          </span>
+          <span className="adm-summary-sub">
+            {overall === null ? "The status service did not answer." : LEVEL_LABELS[overall.state] ?? overall.state} ·{" "}
+            <a href="/status" target="_blank" rel="noreferrer">Open ↗</a>
+          </span>
+        </div>
+        <div className="adm-card">
+          <span className="adm-summary-label">Open incidents</span>
+          <span className="adm-summary-value is-number">{active.length}</span>
+          <span className="adm-summary-sub">{rows.length - active.length} resolved in the log</span>
+        </div>
+        <div className="adm-card">
+          <span className="adm-summary-label">Email alert subscribers</span>
+          <span className="adm-summary-value is-number">{subscribers === null ? "—" : subscribers.active.toLocaleString("en-US")}</span>
+          <span className="adm-summary-sub">
+            {subscribers === null
+              ? "Counts unavailable"
+              : `${subscribers.models.toLocaleString("en-US")} model health · ${subscribers.incidents.toLocaleString("en-US")} ${subscribers.incidents === 1 ? "incident" : "incidents"} · ${subscribers.pending.toLocaleString("en-US")} unconfirmed`}
+          </span>
+        </div>
+      </div>
+
+      {(error !== null || posted !== null) && (
+        <div>
+          {error !== null && (
+            <div className="notice" data-tone="error" role="alert">
+              {error}
+            </div>
+          )}
+          {posted !== null && (
+            <div className="notice" data-tone="ok" role="status">
+              Published: {posted}. It is on the status page and its feed now.
+            </div>
+          )}
         </div>
       )}
-      {posted !== null && (
-        <div className="notice" data-tone="ok" role="status">
-          Published: {posted}. It is on the status page and its feed now.
-        </div>
-      )}
 
-      <HelpNote id="admin-status">
-        Posting here is what turns a yellow bar on the public status page into a story: what
-        is wrong, what you know, and when it ended. Each update appears on /status and in the
-        RSS feed immediately — there is no email, so write for someone reading cold. Model
-        uptime and error rates below the incidents are measured automatically and cannot be
-        typed over.
-      </HelpNote>
-
-      <form onSubmit={open} style={{ maxWidth: 620, marginBottom: 40 }}>
-        <h3 style={{ fontSize: 18, marginBottom: 12 }}>Open an incident</h3>
-
+      <div className="adm-status-columns">
+        <form onSubmit={open} className="adm-card">
+          <header className="adm-card-head">
+            <div>
+              <h2>Open an incident</h2>
+              <p>Publishes to /status and its RSS feed the moment you post. Write for someone reading cold.</p>
+            </div>
+          </header>
         <div className="field">
           <label htmlFor="s-title">Title</label>
           <span className="field-hint">{title.length}/120. What is happening, seen from outside — &ldquo;Elevated errors on free models&rdquo;.</span>
@@ -264,54 +305,72 @@ export function StatusBody() {
         </div>
       </form>
 
-      <ModelEmails />
 
-      <h3 style={{ fontSize: 18, marginBottom: 12 }}>Incidents</h3>
+        <div className="adm-stack">
+          <section className="adm-card" aria-labelledby="adm-auto-heading">
+            <header className="adm-card-head">
+              <div>
+                <h2 id="adm-auto-heading">What sends itself</h2>
+                <p>Nothing to do here. This is what subscribers receive without you.</p>
+              </div>
+            </header>
+            <ul className="adm-auto">
+              <li><b>Every 15 min</b><span>Each included model is judged on the turns since the last check. Model-health subscribers are emailed when one degrades or fails, and again after two good checks in a row.</span></li>
+              <li><b>Bars</b><span>Uptime and error rates on /status are measured, never typed. Under 10 turns in a window there is no verdict either way.</span></li>
+              <li><b>Sender</b><span>noreply@bluethenics.com, with a one-click unsubscribe in every email.</span></li>
+            </ul>
+          </section>
+          <ModelEmails />
+        </div>
+      </div>
 
+      <section aria-labelledby="adm-incidents-heading">
+        <header className="adm-section-head">
+          <h2 id="adm-incidents-heading">Incidents</h2>
+          <span className="adm-section-meta">Open first, then newest</span>
+        </header>
       {rows.length === 0 ? (
         <div className="empty">
           <h3>Nothing posted</h3>
           <p>Incidents you open appear here, resolved ones included, with every update you posted.</p>
         </div>
       ) : (
-        <div className="rows">
-          {rows.map((incident) => {
+        <div className="adm-incidents">
+          {sorted.map((incident) => {
             const draft = drafts[incident.incidentId] ?? { status: incident.status === "resolved" ? "investigating" : "identified", body: "" };
             return (
-              <div className="row" key={incident.incidentId} style={{ display: "block" }}>
-                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
-                  <span className="row-main">
-                    <span className="row-title">{incident.title}</span>
-                    <span className="row-sub">
-                      <span className="pill" data-tone={incident.status === "resolved" ? "ended" : "live"}>
-                        {STATE_LABEL[incident.status] ?? incident.status}
-                      </span>{" "}
+              <article className="adm-incident" key={incident.incidentId} data-status={incident.status}>
+                <header className="adm-incident-head">
+                  <div>
+                    <h3>{incident.title}</h3>
+                    <p className="adm-incident-meta">
                       {IMPACT_LABEL[incident.impact] ?? incident.impact} impact · opened {when(incident.createdAt)}
                       {incident.resolvedAt === null ? "" : ` · resolved ${when(incident.resolvedAt)}`}
-                    </span>
-                  </span>
-                </div>
+                    </p>
+                  </div>
+                  <span className="adm-chip" data-status={incident.status}>{STATE_LABEL[incident.status] ?? incident.status}</span>
+                </header>
 
-                <ol style={{ display: "grid", gap: 10, margin: "14px 0 0", padding: 0, listStyle: "none" }}>
+                <ol className="adm-timeline">
                   {incident.updates.map((update) => (
-                    <li key={update.updateId} style={{ borderLeft: "2px solid var(--hairline)", paddingLeft: 12 }}>
-                      <p style={{ fontSize: 13, lineHeight: 1.7 }}>
+                    <li key={update.updateId}>
+                      <p>
                         <strong>{STATE_LABEL[update.status] ?? update.status}</strong> — {update.body}
                       </p>
-                      <span className="row-sub">{when(update.createdAt)}</span>
+                      <time dateTime={new Date(update.createdAt).toISOString()}>{when(update.createdAt)}</time>
                     </li>
                   ))}
                 </ol>
 
                 {/* Status emails go only to people who ticked "email me about outages", once per update. */}
-                <div className="actions" style={{ marginTop: 12 }}>
+                <div className="adm-incident-actions">
                   <button type="button" className="btn btn-outline btn-small" disabled={busy || incident.updates.length === 0} onClick={() => void emailSubscribers(incident.incidentId)}>
-                    Email status subscribers about the latest update
+                    Email subscribers the latest update
                   </button>
                   {emailed[incident.incidentId] !== undefined && <span className="field-hint">{emailed[incident.incidentId]}</span>}
                 </div>
 
-                <details className="admin-status-compose" style={{ marginTop: 16 }}>
+                <details className="admin-status-compose">
                   <summary>{incident.status === "resolved" ? "Reopen or add an update" : "Add an update"}</summary>
                   <div className="field" style={{ marginTop: 12 }}>
                     <label htmlFor={`u-state-${incident.incidentId}`}>State</label>
@@ -349,17 +408,19 @@ export function StatusBody() {
                     </button>
                   </div>
                 </details>
-              </div>
+              </article>
             );
           })}
         </div>
       )}
 
-      <p className="field-hint" style={{ marginTop: 18, maxWidth: "64ch" }}>
+      </section>
+
+      <p className="adm-footnote">
         An incident is a record: nothing here can be deleted. Correcting something means
         posting the correction, the way it works for everyone reading.
       </p>
-    </>
+    </div>
   );
 }
 
@@ -396,11 +457,13 @@ function ModelEmails() {
   };
 
   return (
-    <section style={{ maxWidth: 620, marginBottom: 40 }}>
-      <h3 style={{ fontSize: 18, marginBottom: 6 }}>Email model subscribers</h3>
-      <p className="field-hint" style={{ marginBottom: 14 }}>
-        Only people who ticked &ldquo;email me about the AI models&rdquo; receive these. Each one goes out once.
-      </p>
+    <section className="adm-card" aria-labelledby="adm-model-emails-heading">
+      <header className="adm-card-head">
+        <div>
+          <h2 id="adm-model-emails-heading">Email account holders about models</h2>
+          <p>Only ADCode accounts that ticked &ldquo;email me about the AI models&rdquo;. Each one goes out once.</p>
+        </div>
+      </header>
       <div className="actions" style={{ marginBottom: 18 }}>
         <button type="button" className="btn btn-outline btn-small" disabled={busy} onClick={() => void send({ performance: true }, "The performance report")}>
           Email the last 30 days of model performance

@@ -61,3 +61,17 @@ describe("parseProviderEvent", () => {
     ).toMatchObject({ type: "dispute-final", disputeId: "dp_2", amountMicros: 25_000_000n });
   });
 });
+
+
+describe("subscription provider events", () => {
+  it("parses all supported subscription transitions without a payment amount", () => {
+    for (const kind of ["active", "renewed", "plan_changed", "on_hold", "cancelled", "failed", "expired"]) {
+      const event = parseProviderEvent({ type: `subscription.${kind}`, timestamp: "2026-10-24T12:00:00Z", data: { subscription_id: "sub_1", product_id: "pdt_pro", customer: { customer_id: "cus_1" }, metadata: { uid: "user", plan: "pro" }, status: kind, next_billing_date: "2026-11-24T12:00:00Z", cancel_at_next_billing_date: true } }, `evt_${kind}`);
+      expect(event).toMatchObject({ type: "subscription", kind, productId: "pdt_pro", uid: "user", plan: "pro", periodEnd: Date.parse("2026-11-24T12:00:00Z"), occurredAt: Date.parse("2026-10-24T12:00:00Z"), cancelAtPeriodEnd: true });
+    }
+  });
+  it("does not invent an account, plan or billing period from malformed fields", () => {
+    expect(parseProviderEvent({ type: "subscription.active", data: { subscription_id: "sub_1", metadata: { uid: "*", plan: "gold" }, next_billing_date: "invalid" } }, "evt_1")).toMatchObject({ uid: null, plan: null, periodEnd: 0 });
+    expect(parseProviderEvent({ type: "subscription.updated", data: { subscription_id: "sub_1" } }, "evt_2")).toBeNull();
+  });
+});

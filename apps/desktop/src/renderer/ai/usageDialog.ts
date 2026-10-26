@@ -21,7 +21,7 @@ import { askThemed } from "../dialogs/confirmDialog.ts";
 import { button, el, openFormModal } from "../dialogs/formDialog.ts";
 import { createUsageActivity } from "./usageActivityView.ts";
 import { allowanceSummary } from "./allowanceSummary.ts";
-import { UNLIMITED_REQUESTS_PER_MINUTE, creditWindowSummary, untilText, type CreditsAllowance } from "../../shared/tagflow.ts";
+import { BUY_TOKENS_URL, UNLIMITED_REQUESTS_PER_MINUTE, creditWindowSummary, paidTokensSummary, untilText, type CreditsAllowance } from "../../shared/tagflow.ts";
 import { openAudienceProfile } from "./audienceProfile.ts";
 
 const RANGE_KEY = "adcode.usage.range";
@@ -159,7 +159,11 @@ export function openUsageDialog(): Promise<void> {
         if (view === null || !view.available) return;
         if (view.blocked) { allowance.textContent = "Included AI is disabled for this account."; allowanceHelp.hidden = true; return; }
         if (view.unlimited) {
-          allowance.replaceChildren(el("strong", "", "Unlimited included AI"), el("p", "usage-note", "No ADCode token, request, or credit allowance. Provider availability and model context limits still apply."));
+          // With paid tokens on, Heabsy's models have a free week; everything else stays unlimited.
+          const paid = view.tokens?.enabled === true ? view.tokens : null;
+          allowance.replaceChildren(...(paid === null
+            ? [el("strong", "", "Unlimited included AI"), el("p", "usage-note", "No ADCode token, request, or credit allowance. Provider availability and model context limits still apply.")]
+            : [el("strong", "", "Included AI"), el("p", "usage-note", paidTokensSummary(paid, Date.now())), button("Buy tokens", "ad-btn ad-btn-tertiary", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"))]));
           allowanceHelp.hidden = true;
           return;
         }

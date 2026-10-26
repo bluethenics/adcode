@@ -31,7 +31,7 @@ beforeEach(async () => {
   });
 });
 
-const purchase = (webhookId = "evt_1"): NormalizedProviderEvent => ({
+const purchase = (webhookId = "evt_1"): Extract<NormalizedProviderEvent, { type: "purchase" }> => ({
   type: "purchase",
   webhookId,
   paymentId: "pay_1",

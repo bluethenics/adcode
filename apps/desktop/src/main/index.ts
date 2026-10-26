@@ -202,6 +202,9 @@ function createWindow(role: WindowRole = "vibe"): BrowserWindow {
       sandbox: true,
       webviewTag: false,
       spellcheck: false,
+      // Active assistant streams keep arriving while another app has focus.
+      // Keep rendering timers live so returning does not drain a stalled queue.
+      backgroundThrottling: false,
     },
   });
   windows[role] = window;
@@ -308,7 +311,7 @@ void app.whenReady().then(() => {
   registerReferralIpc();
   registerRatingIpc();
   registerPinPromptIpc();
-  registerUpdateIpc();
+  registerUpdateIpc(() => Object.values(windows).filter(window => !window.isDestroyed()).map(window => window.webContents));
   registerAccountIpc();
 
   // Broadcast status to whatever window is open. Not awaited, and failures inside are

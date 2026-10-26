@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rename, rm, stat, utimes, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createSettingsStore } from "../src/main/settingsStore.ts";
 import { SETTINGS_VERSION, defaultSettings } from "@adcode/settings";
 
@@ -32,6 +32,90 @@ describe("first run", () => {
 });
 
 describe("persistence", () => {
+  const crossDevice = async (): Promise<void> => { throw Object.assign(new Error("cross-device link"), { code: "EXDEV" }); };
+
+  it("saves model changes when a virtualized Windows folder rejects rename", async () => {
+    const store = createSettingsStore(dir, { replace: crossDevice });
+    await store.write("adcode.ai.model", "tagflow-code-27b");
+    expect((await createSettingsStore(dir).read())["adcode.ai.model"]).toBe("tagflow-code-27b");
+    await expect(readFile(`${settingsFile()}.tmp`, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("retains the previous validated settings if the fallback copy is interrupted", async () => {
+    await createSettingsStore(dir).write("adcode.ai.model", "previous-model");
+    const announced = vi.fn();
+    const store = createSettingsStore(dir, { replace: crossDevice, copy: async (_from, to) => {
+      await writeFile(to, '{"version":', "utf8");
+      throw new Error("copy interrupted");
+    } });
+    store.onChanged(announced);
+    await expect(store.write("adcode.ai.model", "new-model")).rejects.toThrow("copy interrupted");
+    expect(store.current()["adcode.ai.model"]).toBe("previous-model");
+    expect(announced).not.toHaveBeenCalled();
+    expect((await createSettingsStore(dir).read())["adcode.ai.model"]).toBe("previous-model");
+  });
+
+  it("recovers the prior state after an interrupted copy, then safely saves another change", async () => {
+    const store = createSettingsStore(dir, { replace: crossDevice });
+    await store.write("adcode.ai.model", "previous-model");
+    await store.write("adcode.ai.model", "new-model");
+    await writeFile(settingsFile(), "{truncated", "utf8");
+    const backup = `${settingsFile()}.bak`;
+    const previousTime = new Date("2000-01-01T00:00:00Z");
+    await utimes(backup, previousTime, previousTime);
+    const restarted = createSettingsStore(dir, { replace: crossDevice });
+    expect((await restarted.read())["adcode.ai.model"]).toBe("previous-model");
+    await restarted.write("adcode.ads.frequency", "light");
+    const recovered = await createSettingsStore(dir).read();
+    expect(recovered["adcode.ai.model"]).toBe("previous-model");
+    expect(recovered["adcode.ads.frequency"]).toBe("light");
+    // Recovering from a backup must not rewrite that only intact file before copying.
+    expect((await stat(backup)).mtimeMs).toBe(previousTime.getTime());
+  });
+
+  it("keeps its intact backup across successive failed copies in the same process", async () => {
+    await createSettingsStore(dir).write("adcode.ai.model", "previous-model");
+    const store = createSettingsStore(dir, { replace: crossDevice, copy: async (_from, to) => {
+      await writeFile(to, "{truncated", "utf8");
+      throw new Error("copy interrupted");
+    } });
+    await expect(store.write("adcode.ai.model", "first-attempt")).rejects.toThrow();
+    const backup = `${settingsFile()}.bak`;
+    const previousTime = new Date("2000-01-01T00:00:00Z");
+    await utimes(backup, previousTime, previousTime);
+    await expect(store.write("adcode.ai.model", "second-attempt")).rejects.toThrow();
+    expect((await stat(backup)).mtimeMs).toBe(previousTime.getTime());
+    expect((await createSettingsStore(dir).read())["adcode.ai.model"]).toBe("previous-model");
+  });
+
+  it("does not fall back to a non-atomic copy for ordinary write failures", async () => {
+    const copy = vi.fn(copyFile);
+    const store = createSettingsStore(dir, { replace: async () => { throw Object.assign(new Error("permission denied"), { code: "EACCES" }); }, copy });
+    await expect(store.write("adcode.ai.model", "new-model")).rejects.toThrow("permission denied");
+    expect(copy).not.toHaveBeenCalled();
+    expect(store.current()["adcode.ai.model"]).toBe(defaultSettings()["adcode.ai.model"]);
+  });
+
+  it("serializes changes so concurrent settings writes cannot overwrite each other", async () => {
+    let release: (() => void) | undefined;
+    const firstCopyStarted = new Promise<void>(resolve => { release = resolve; });
+    let unblock: (() => void) | undefined;
+    const blocked = new Promise<void>(resolve => { unblock = resolve; });
+    const replace = vi.fn(async (from: string, to: string) => {
+      if (replace.mock.calls.length === 1) { release!(); await blocked; }
+      await rename(from, to);
+    });
+    const store = createSettingsStore(dir, { replace });
+    const first = store.write("adcode.ai.model", "chosen-model");
+    await firstCopyStarted;
+    const second = store.write("adcode.ads.frequency", "light");
+    expect(replace).toHaveBeenCalledTimes(1);
+    unblock!(); await Promise.all([first, second]);
+    const values = await createSettingsStore(dir).read();
+    expect(values["adcode.ai.model"]).toBe("chosen-model");
+    expect(values["adcode.ads.frequency"]).toBe("light");
+  });
+
   it("survives a restart", async () => {
     const first = createSettingsStore(dir);
     await first.write("adcode.editing.minimap", false);

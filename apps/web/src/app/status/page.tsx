@@ -272,23 +272,79 @@ function incidentGroups(
   }));
 }
 
+/**
+ * Email alerts, with no account: a plain form that posts to the API and lands on
+ * /status/subscription, so it works with the page's no-script rule. Both lists start ticked
+ * because that is what almost everyone arriving here wants; the address is confirmed by one
+ * email before anything else is sent.
+ */
 function Subscribe({ copy }: { copy: string }) {
   return (
     <section className="status-subscribe" id="subscribe" aria-labelledby="status-subscribe-heading">
       <div className="status-subscribe-copy">
-        <strong id="status-subscribe-heading">Subscribe to updates</strong>
+        <span className="status-subscribe-kicker">Email alerts</span>
+        <strong id="status-subscribe-heading">Know the moment a model has trouble</strong>
         <p>
-          Incident updates publish to an RSS feed. Add it to a feed reader, Slack or Discord — no
-          account needed, and nothing else is ever sent on it.
-        </p>
-        <p>
-          Prefer email? With an ADCode account you can choose outage emails, a note when a new free
-          model arrives, and a report on how the models have been performing.{" "}
-          <a href="/dashboard#email-preferences">Choose your emails</a>
+          We email you when an included model starts failing requests, and again when it is back to
+          normal - measured automatically, every 15 minutes. No account needed: confirm your address
+          once and you are set.
         </p>
       </div>
-      <CopyField label="Status feed" value={STATUS_FEED} />
-      <small>{copy}</small>
+
+      <form className="status-subscribe-form" method="post" action="/v1/status/subscribe">
+        <div className="status-subscribe-row">
+          <label className="sr-only" htmlFor="status-email">Email address</label>
+          <input
+            id="status-email"
+            className="status-subscribe-input"
+            type="email"
+            name="email"
+            required
+            maxLength={254}
+            autoComplete="email"
+            inputMode="email"
+            spellCheck={false}
+            placeholder="you@example.com"
+          />
+          <button type="submit" className="status-subscribe-submit">Get alerts</button>
+        </div>
+        <fieldset className="status-topics">
+          <legend className="sr-only">What to email you about</legend>
+          <label className="status-topic">
+            <input type="checkbox" name="models" defaultChecked />
+            <span>
+              <b>Model health</b>
+              <small>Degraded, outage, and back to normal</small>
+            </span>
+          </label>
+          <label className="status-topic">
+            <input type="checkbox" name="incidents" defaultChecked />
+            <span>
+              <b>Incident updates</b>
+              <small>What we know, as we post it</small>
+            </span>
+          </label>
+        </fieldset>
+        {/* Never seen by a person; a bot that fills every field fills this one too. */}
+        <input className="status-subscribe-trap" type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+        <p className="status-subscribe-fine">
+          From noreply@bluethenics.com. Every email has a one-click unsubscribe, and the address is
+          used for nothing else. <a href="/privacy">Privacy</a>
+        </p>
+      </form>
+
+      <div className="status-subscribe-more">
+        <div>
+          <strong>Prefer a feed?</strong>
+          <p>
+            Incident updates also publish to RSS - add it to a feed reader, Slack or Discord. With an ADCode
+            account you can also get a note when a new free model arrives.{" "}
+            <a href="/dashboard#email-preferences">Account emails</a>
+          </p>
+        </div>
+        <CopyField label="Status feed" value={STATUS_FEED} />
+        <small>{copy}</small>
+      </div>
     </section>
   );
 }
@@ -320,7 +376,7 @@ export default async function StatusPage() {
           </p>
           <div className="status-hero-actions">
             <a className="status-subscribe-button" href="#subscribe">
-              Subscribe to updates
+              Get email alerts
               <span aria-hidden="true">↓</span>
             </a>
           </div>

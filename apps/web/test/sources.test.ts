@@ -19,9 +19,9 @@ const row = (overrides: Partial<SourceRowView> = {}): SourceRowView => ({
 });
 
 describe("a Sources row on screen", () => {
-  it("has one cell per column, money exact, and a dash where there is no page to visit", () => {
+  it("has one cell per column, money readable (exact below a cent), and a dash where there is no page to visit", () => {
     expect(SOURCE_COLUMNS).toHaveLength(10);
-    expect(sourceCells(row())).toEqual(["Invites from users", "4", "3", "2", "1", "$0.008000", "1", "$0.016000", "$0.001600", "$0.010400"]);
+    expect(sourceCells(row())).toEqual(["Invites from users", "4", "3", "2", "1", "$0.008", "1", "$0.01", "$0.0016", "$0.01"]);
     expect(sourceCells(row({ key: "unknown", kind: "unknown", label: "Unknown", visits: null }))[1]).toBe("—");
   });
 

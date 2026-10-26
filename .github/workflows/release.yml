@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: "Attach the installers to a draft release (off = build and keep as workflow artifacts only)"
+        description: "Create a verified draft release (off = validate builds without storing installers)"
         type: boolean
         default: false
 
@@ -38,14 +38,25 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.read.outputs.version }}
+      commit: ${{ steps.read.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
       - id: read
         shell: bash
         run: |
           version=$(node -p "require('./package.json').version")
+          desktop_version=$(node -p "require('./apps/desktop/package.json').version")
+          if [ "$version" != "$desktop_version" ]; then
+            echo "::error::Root and desktop package versions disagree. Run npm run release:prepare on a clean checkout."
+            exit 1
+          fi
+          node scripts/release-changelog.mjs "$version" >/dev/null
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "package.json says $version"
 
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
@@ -77,8 +88,43 @@ jobs:
       # Electron and Monaco are devDependencies but ship in the desktop app.
       - run: npm audit --audit-level=high
 
-  build:
+  # Installer files cross runners through a run-owned draft prerelease. GitHub Releases
+  # storage is separate from billed Actions artifacts, so daily builds do not accumulate
+  # a second paid copy of every installer. The normal vX.Y.Z draft is created only after
+  # all required outputs have been downloaded and verified together.
+  stage:
     needs: [version, verify]
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.create.outputs.tag }}
+    steps:
+      - id: create
+        if: github.ref_type == 'tag' || inputs.publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
+          RELEASE_COMMIT: ${{ needs.version.outputs.commit }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          tag="ci-adcode-${VERSION}-${RUN_ID}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            safe=$(gh release view "$tag" --json isDraft,isPrerelease,targetCommitish --jq '(.isDraft and .isPrerelease)')
+            target=$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)
+            if [ "$safe" != "true" ] || [ "$target" != "$RELEASE_COMMIT" ]; then
+              echo "::error::The run-owned staging release has an unexpected state. Refusing to replace its files."
+              exit 1
+            fi
+          else
+            gh release create "$tag" --draft --prerelease --target "$RELEASE_COMMIT" \
+              --title "Temporary build ${VERSION} (${RUN_ID}) — do not publish" \
+              --notes "Temporary installer transfer for this workflow run. The final verified ADCode release draft is created separately. This draft is removed when the run ends."
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [version, verify, stage]
     strategy:
       # One platform failing should not hide whether the other two work.
       fail-fast: false
@@ -250,6 +296,10 @@ jobs:
             fi
           done
 
+      - name: Verify visible update installer hooks
+        if: matrix.platform == 'windows'
+        run: node scripts/check-update-installer.mjs
+
       # Installers, update manifests and blockmaps. The `latest*.yml` files are what the
       # auto-updater reads; a release without them installs fine and never updates again.
       - name: Collect the installers
@@ -274,16 +324,49 @@ jobs:
             node scripts/check-release-assets.mjs --platform "$id" dist
           done
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: installers-${{ matrix.platform }}
-          path: dist/
-          # An optional platform that produced nothing is a fact to record, not a failure.
-          if-no-files-found: ${{ matrix.optional == true && 'warn' || 'error' }}
-          retention-days: 14
+      - name: Exercise the installed Windows update
+        if: matrix.platform == 'windows'
+        timeout-minutes: 12
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/smoke-installed-update.mjs dist
+
+      - name: Transfer verified installers to this run's temporary draft
+        if: needs.stage.outputs.tag != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TRANSFER_TAG: ${{ needs.stage.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.version.outputs.commit }}
+          VERSION: ${{ needs.version.outputs.version }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if [ "$TRANSFER_TAG" != "ci-adcode-${VERSION}-${RUN_ID}" ]; then
+            echo "::error::Unexpected installer transfer destination."
+            exit 1
+          fi
+          safe=$(gh release view "$TRANSFER_TAG" --json isDraft,isPrerelease --jq '(.isDraft and .isPrerelease)')
+          target=$(gh release view "$TRANSFER_TAG" --json targetCommitish --jq .targetCommitish)
+          if [ "$safe" != "true" ] || [ "$target" != "$RELEASE_COMMIT" ]; then
+            echo "::error::The temporary release was changed or published externally. Refusing to upload."
+            exit 1
+          fi
+          shopt -s nullglob
+          assets=(dist/*)
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No files from this optional platform."
+            exit 0
+          fi
+          gh release upload "$TRANSFER_TAG" "${assets[@]}" --clobber
 
   release:
-    needs: [version, build]
+    needs: [version, build, stage]
+    # A rerun for the same version must not replace assets while another draft job writes.
+    concurrency:
+      group: desktop-release-${{ needs.version.outputs.version }}
+      cancel-in-progress: false
     # A tag always drafts a release. A manual run only does so when asked, so the workflow
     # can be exercised without leaving half-finished drafts behind.
     if: github.ref_type == 'tag' || inputs.publish
@@ -291,14 +374,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      # NOT `artifacts/` - that directory is tracked in this repository and would
-      # already be on disk after checkout, so uploading the whole of it attached two
-      # research documents to the first draft release alongside the installers.
-      - uses: actions/download-artifact@v4
+      - uses: actions/setup-node@v4
         with:
-          path: release-assets
-          merge-multiple: true
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download this run's staged installers
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TRANSFER_TAG: ${{ needs.stage.outputs.tag }}
+        run: gh release download "$TRANSFER_TAG" --dir release-assets
 
       - name: List what will be attached
         shell: bash
@@ -321,7 +407,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
           HAS_CERT: ${{ secrets.CSC_LINK != '' }}
-          RELEASE_COMMIT: ${{ github.sha }}
+          RELEASE_COMMIT: ${{ needs.version.outputs.commit }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -359,16 +445,26 @@ jobs:
             signed_note="These installers are code-signed."
           fi
 
-          notes=$(printf '%s\n\n%s\n' \
-            "ADCode ${VERSION}. See CHANGELOG.md for what changed." \
-            "${signed_note}")
+          notes_file="$RUNNER_TEMP/adcode-release-notes.md"
+          {
+            node scripts/release-changelog.mjs "$VERSION"
+            printf '\n\n%s\n' "$signed_note"
+          } > "$notes_file"
 
           if gh release view "$tag" >/dev/null 2>&1; then
             if [ "$(gh release view "$tag" --json isDraft --jq .isDraft)" != "true" ]; then
               echo "::error::Release $tag is already published. Choose a new version."
               exit 1
             fi
-            gh release edit "$tag" --target "$RELEASE_COMMIT"
+            existing_target=$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)
+            if [ "$existing_target" != "$RELEASE_COMMIT" ]; then
+              tag_commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha 2>/dev/null || true)
+              if [ "$tag_commit" != "$RELEASE_COMMIT" ]; then
+                echo "::error::Draft $tag belongs to a different source commit. Choose a new version instead of replacing its installers."
+                exit 1
+              fi
+            fi
+            gh release edit "$tag" --notes-file "$notes_file"
             echo "Release $tag exists; replacing its assets."
             gh release upload "$tag" $assets --clobber
           else
@@ -376,7 +472,7 @@ jobs:
               --draft \
               --target "$RELEASE_COMMIT" \
               --title "ADCode ${VERSION}" \
-              --notes "$notes"
+              --notes-file "$notes_file"
           fi
 
       - name: Say what happens next
@@ -417,3 +513,35 @@ jobs:
             echo
             echo "Publish it from the Releases page when you mean to."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup-stage:
+    needs: [version, stage, build, release]
+    if: always() && needs.stage.outputs.tag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove only this run's temporary draft prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TRANSFER_TAG: ${{ needs.stage.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.version.outputs.commit }}
+          VERSION: ${{ needs.version.outputs.version }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if [ "$TRANSFER_TAG" != "ci-adcode-${VERSION}-${RUN_ID}" ]; then
+            echo "::error::Unexpected temporary release name. No release was removed."
+            exit 1
+          fi
+          if ! gh release view "$TRANSFER_TAG" >/dev/null 2>&1; then
+            exit 0
+          fi
+          safe=$(gh release view "$TRANSFER_TAG" --json isDraft,isPrerelease --jq '(.isDraft and .isPrerelease)')
+          target=$(gh release view "$TRANSFER_TAG" --json targetCommitish --jq .targetCommitish)
+          if [ "$safe" != "true" ] || [ "$target" != "$RELEASE_COMMIT" ]; then
+            echo "::warning::The temporary release was changed or published externally. It was left in place."
+            exit 0
+          fi
+          # An unpublished draft has not created a Git tag. Delete its release only;
+          # never remove a Git ref that might have been created externally.
+          gh release delete "$TRANSFER_TAG" --yes

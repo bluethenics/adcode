@@ -44,7 +44,11 @@
   font: 500 13px/1.6 var(--font-body);
   text-decoration: none;
   overflow: hidden;
-  transition: transform .18s ease, box-shadow .18s ease;
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1), box-shadow 180ms ease;
+}
+
+.status-subscribe-button:active {
+  transform: scale(0.97);
 }
 
 .status-subscribe-button > span {
@@ -490,33 +494,313 @@
 /* ── Subscribe ───────────────────────────────────────────────────────────── */
 
 .status-subscribe {
+  --status-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   display: grid;
-  gap: 18px;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 22px 40px;
   margin-top: 56px;
-  padding: clamp(20px, 3vw, 30px);
+  padding: clamp(20px, 3.4vw, 34px);
   border: 1px solid var(--hairline);
-  border-radius: 12px;
-  background: var(--card);
+  border-radius: 16px;
+  background:
+    radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--status-ok) 7%, transparent), transparent 60%),
+    var(--card);
+  scroll-margin-top: 90px;
+}
+
+.status-subscribe-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font: 500 11px/1.6 var(--font-mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.status-subscribe-kicker::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--status-ok);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--status-ok) 18%, transparent);
 }
 
 .status-subscribe-copy > strong {
   display: block;
-  margin-bottom: 8px;
-  font-size: 16px;
-  font-weight: 550;
+  margin-bottom: 10px;
+  font-size: clamp(19px, 2.2vw, 23px);
+  font-weight: 560;
+  letter-spacing: -.02em;
+  line-height: 1.25;
+  text-wrap: balance;
 }
 
-.status-subscribe-copy p {
-  max-width: 58ch;
+.status-subscribe-copy p,
+.status-subscribe-more p {
+  max-width: 54ch;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.8;
 }
 
-.status-subscribe small {
+.status-subscribe-form {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+}
+
+.status-subscribe-row {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.status-subscribe-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  /* 16px keeps iOS from zooming the page on focus. */
+  font: 400 16px/1.4 var(--font-body);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.status-subscribe-input::placeholder {
+  color: var(--faint);
+}
+
+.status-subscribe-input:focus-visible {
+  outline: none;
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.status-subscribe-submit {
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding: 0 20px;
+  border: 1px solid var(--text);
+  border-radius: 10px;
+  background: var(--text);
+  color: var(--surface);
+  font: 550 14px/1 var(--font-body);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 160ms var(--status-ease-out), opacity 160ms ease;
+}
+
+.status-subscribe-submit:active {
+  transform: scale(0.97);
+}
+
+.status-subscribe-submit:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
+}
+
+.status-topics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.status-topic {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.status-topic:has(input:checked) {
+  border-color: color-mix(in srgb, var(--status-ok) 45%, var(--hairline));
+  background: color-mix(in srgb, var(--status-ok) 7%, var(--surface));
+}
+
+.status-topic:has(input:focus-visible) {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.status-topic input {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--status-ok);
+}
+
+.status-topic span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.status-topic b {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.status-topic small {
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.status-subscribe-trap {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  left: -9999px;
+}
+
+.status-subscribe-fine {
+  color: var(--faint);
+  font-size: 11.5px;
+  line-height: 1.7;
+}
+
+.status-subscribe-fine a,
+.status-subscribe-more a {
+  color: var(--muted);
+  text-underline-offset: 3px;
+}
+
+.status-subscribe-more {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 12px 40px;
+  align-items: start;
+  padding-top: 22px;
+  border-top: 1px solid var(--hairline);
+}
+
+.status-subscribe-more strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.status-subscribe-more small {
+  grid-column: 1 / -1;
   color: var(--faint);
   font-size: 11px;
   line-height: 1.7;
+}
+
+/* ── The subscription page: one card that says what just happened ───────── */
+
+.status-subscription {
+  max-width: 560px;
+  margin: clamp(32px, 8vh, 80px) auto 0;
+  padding: clamp(24px, 4vw, 36px);
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  background: var(--card);
+}
+
+.status-subscription[data-tone="ok"] { --tone: var(--status-ok); }
+.status-subscription[data-tone="warn"] { --tone: var(--status-warn); }
+.status-subscription[data-tone="info"] { --tone: var(--status-info); }
+
+.status-subscription-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--tone, var(--text)) 14%, transparent);
+  color: var(--tone, var(--text));
+}
+
+.status-subscription h1 {
+  font-size: clamp(24px, 3.4vw, 30px);
+  font-weight: 560;
+  letter-spacing: -.03em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.status-subscription p {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.status-subscription-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.status-subscription-actions form {
+  display: contents;
+}
+
+.status-subscription-actions :is(a, button) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: 500 14px/1 var(--font-body);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.status-subscription-actions .is-primary {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--surface);
+}
+
+.status-subscription-actions :is(a, button):active {
+  transform: scale(0.97);
+}
+
+@media (max-width: 760px) {
+  .status-subscribe,
+  .status-subscribe-more {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 420px) {
+  .status-subscribe-row {
+    flex-direction: column;
+  }
+
+  .status-topics {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ── Motion ──────────────────────────────────────────────────────────────── */
@@ -613,9 +897,22 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
+  .status-subscribe-submit:hover,
+  .status-subscription-actions .is-primary:hover {
+    opacity: .88;
+  }
+
+  .status-topic:hover {
+    border-color: var(--border-strong);
+  }
+
   .status-subscribe-button:hover {
     transform: translateY(-1px);
     box-shadow: 0 14px 30px -18px var(--text);
+  }
+
+  .status-subscribe-button:hover:active {
+    transform: scale(0.97);
   }
 
   .status-subscribe-button:hover > span {

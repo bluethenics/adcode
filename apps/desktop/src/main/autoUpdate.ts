@@ -8,19 +8,24 @@
  * worse than one that quietly tries again later. Failures are recorded in the debug log,
  * which Help > Report a Problem carries, so "it never updates" has an answer.
  *
- * Downloads happen in the background. When an update is ready the window says so once and
- * offers Restart now; ADCode never quits on its own. Ignored, the update installs when you
- * next close ADCode.
+ * Downloads happen in the background. A new-version card offers Update now, which finishes
+ * downloading before installing. Otherwise a ready card offers a restart, or the update
+ * installs when ADCode is next closed normally. Closing early always requires a user action.
  */
 import { readFile, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
-import { app, ipcMain } from "electron";
+import { app, ipcMain, shell } from "electron";
 import { CHANNELS, type UpdateStatus } from "../shared/api.ts";
 import { recordDebug } from "./debugLog.ts";
 import { draftWritesSettled } from "./draftWrites.ts";
 import { blockMapFitsInstaller, canSelfUpdate, runningFromWindowsStore } from "./updatePolicy.ts";
+import { apiBaseUrl } from "./backend.ts";
+import { fetchPublishedUpdate, MANUAL_UPDATE_URL, STORE_UPDATE_URL } from "./externalUpdates.ts";
+import { createUpdatePreparation, type UpdateWindowContents } from "./updatePreparation.ts";
+import { recordDraft } from "./history.ts";
+import { currentSettings } from "./settings.ts";
 
 /**
  * Soon enough that a short session still finishes the download, late enough to stay off
@@ -37,7 +42,9 @@ let initialization: Promise<void> | null = null;
 let requestCheck: (() => Promise<void>) | null = null;
 let installNow: (() => void) | null = null;
 let restartRequested = false;
-let announced: string | null = null;
+let restartPromise: Promise<UpdateStatus> | null = null;
+const announced = new Set<string>();
+let preparation: ReturnType<typeof createUpdatePreparation> | null = null;
 
 /**
  * Where "Restart now" is offered. Windows' installer waits for this process to exit before
@@ -147,8 +154,8 @@ function startSimulation(): void {
   const steps: UpdateStatus[] = [
     { state: "checking" },
     { state: "downloading", version: "9.9.9" },
-    { state: "downloading", percent: 42 },
-    { state: "downloading", percent: 100 },
+    { state: "downloading", version: "9.9.9", percent: 42 },
+    { state: "downloading", version: "9.9.9", percent: 100 },
     { state: "ready", version: "9.9.9", restartable: true },
   ];
   requestCheck = async () => {
@@ -158,7 +165,11 @@ function startSimulation(): void {
       setStatus(step);
     }
   };
-  installNow = () => updaterLog.info("simulated restart to update");
+  installNow = () => {
+    updaterLog.info("simulated restart to update");
+    // The fixture never exits, so release its edit lock after exercising protection.
+    preparation?.cancel();
+  };
 }
 
 export function startAutoUpdate(enabled: () => boolean): Promise<void> {
@@ -173,7 +184,31 @@ async function initializeAutoUpdate(enabled: () => boolean): Promise<void> {
   }
 
   if (!updatable()) {
-    setStatus({ state: "unsupported" });
+    const externalSource = runningFromWindowsStore() ? "store" : process.env["PORTABLE_EXECUTABLE_DIR"] !== undefined ? "download" : null;
+    if (!app.isPackaged || process.env["ADCODE_DISABLE_UPDATES"] === "1" || externalSource === null) {
+      setStatus({ state: "unsupported" });
+      return;
+    }
+    let activeCheck: Promise<void> | null = null;
+    requestCheck = () => {
+      if (activeCheck !== null) return activeCheck;
+      const previous = status;
+      activeCheck = (async () => {
+        setStatus({ state: "checking" });
+        try {
+          const version = await fetchPublishedUpdate(apiBaseUrl(), app.getVersion());
+          setStatus(version === null ? { state: "current" } : { state: "available", version, source: externalSource });
+        } catch (error) {
+          updaterLog.error(error);
+          setStatus(previous.state === "available" ? previous : { state: "failed" });
+        } finally {
+          activeCheck = null;
+        }
+      })();
+      return activeCheck;
+    };
+    setTimeout(() => { if (enabled()) void requestCheck?.(); }, FIRST_CHECK_DELAY_MS);
+    setInterval(() => { if (enabled()) void requestCheck?.(); }, RECHECK_INTERVAL_MS);
     return;
   }
 
@@ -190,13 +225,15 @@ async function initializeAutoUpdate(enabled: () => boolean): Promise<void> {
   updater.autoDownload = true;
   // Ignored, a downloaded update installs as the editor closes. It never closes the editor.
   updater.autoInstallOnAppQuit = true;
+  // Non-silent NSIS installs use this property, not quitAndInstall's second argument.
+  updater.autoRunAppAfterInstall = true;
   updater.logger = updaterLog;
 
   updater.on("checking-for-update", () => setStatus({ state: "checking" }));
   updater.on("update-available", (info) => setStatus({ state: "downloading", version: info.version }));
   updater.on("update-not-available", () => setStatus({ state: "current" }));
   updater.on("download-progress", (progress) =>
-    setStatus({ state: "downloading", percent: Math.round(progress.percent) }),
+    setStatus({ state: "downloading", ...(versionOf(status) === undefined ? {} : { version: versionOf(status)! }), percent: Math.round(progress.percent) }),
   );
   updater.on("update-downloaded", (info) =>
     setStatus({ state: "ready", version: info.version, restartable: restartOffered() }),
@@ -204,6 +241,7 @@ async function initializeAutoUpdate(enabled: () => boolean): Promise<void> {
   updater.on("error", (error) => {
     // No dialog: a failed check is not the user's problem to solve. The log keeps why.
     updaterLog.error(error);
+    preparation?.cancel(); restartRequested = false; restartPromise = null;
     setStatus({ state: "failed" });
   });
 
@@ -224,8 +262,10 @@ async function initializeAutoUpdate(enabled: () => boolean): Promise<void> {
     return activeCheck;
   };
   requestCheck = check;
-  // Silent install, then ADCode reopens itself: the person asked for exactly this restart.
-  installNow = () => updater.quitAndInstall(true, true);
+  // Show installation progress for an explicit update. The NSIS update-only hook
+  // finishes without another wizard page and reopens the app after replacement.
+  // Automatic install-on-quit stays on electron-updater's separate silent path.
+  installNow = () => updater.quitAndInstall(false, true);
 
   await dropStaleBlockMap();
 
@@ -250,24 +290,57 @@ export async function checkForUpdatesNow(): Promise<UpdateStatus> {
  */
 async function restartToUpdate(): Promise<UpdateStatus> {
   if (initialization !== null) await initialization;
-  if (restartRequested || status.state !== "ready" || status.restartable !== true || installNow === null) return status;
+  if (status.state === "available") {
+    await shell.openExternal(status.source === "store" ? STORE_UPDATE_URL : MANUAL_UPDATE_URL);
+    return status;
+  }
+  if (restartPromise !== null) return restartPromise;
+  if (restartRequested || status.state !== "ready" || installNow === null) return status;
   restartRequested = true;
-  await draftWritesSettled();
-  updaterLog.info(`restart to install ${status.version}`);
-  installNow();
-  return status;
+  restartPromise = (async () => {
+    try {
+      if (preparation === null) throw new Error("Editor windows cannot prepare this update");
+      await preparation.prepare();
+      if (!preparation.ready()) throw new Error("An editor window changed while preparing the update");
+      preparation.commit();
+      updaterLog.info(`restart to install ${status.version}`);
+      if (status.state === "ready" && status.restartable === true) installNow!();
+      else app.quit();
+      return status;
+    } catch (error) {
+      preparation?.cancel();
+      restartRequested = false; restartPromise = null;
+      throw error;
+    }
+  })();
+  return restartPromise;
 }
 
 /** Two windows can be open: the first to ask announces the version, the other stays quiet. */
-function claimNotice(version: unknown): boolean {
-  if (status.state !== "ready" || status.version !== version || announced === version) return false;
-  announced = version;
+function claimNotice(version: unknown, phase: unknown = "ready"): boolean {
+  if (phase !== "available" && phase !== "ready") return false;
+  if (typeof version !== "string" || versionOf(status) !== version) return false;
+  if (phase === "ready" ? status.state !== "ready" : !["available", "downloading", "ready"].includes(status.state)) return false;
+  const key = `${phase}:${version}`;
+  if (announced.has(key)) return false;
+  if (announced.size >= 100) announced.delete(announced.values().next().value!);
+  announced.add(key);
   return true;
 }
 
-export function registerUpdateIpc(): void {
+export function registerUpdateIpc(windows: () => readonly UpdateWindowContents[] = () => []): void {
+  preparation = createUpdatePreparation({ windows, save: async drafts => {
+    // Finish older timer writes before persisting the exact snapshots each window sent.
+    await draftWritesSettled();
+    if (drafts.length > 0 && currentSettings()["adcode.session.crashRecovery"] === false) throw new Error("Save unsaved files before updating");
+    await Promise.all(drafts.map(draft => recordDraft(draft.path, draft.text, true)));
+  } });
   ipcMain.handle(CHANNELS.updateStatus, () => currentUpdateStatus());
   ipcMain.handle(CHANNELS.updateCheck, () => checkForUpdatesNow());
-  ipcMain.handle(CHANNELS.updateInstall, () => restartToUpdate());
-  ipcMain.handle(CHANNELS.updateClaimNotice, (_event, version: unknown) => claimNotice(version));
+  ipcMain.handle(CHANNELS.updateInstall, (event) => {
+    if (!windows().includes(event.sender)) throw new Error("Only an ADCode editor window can request an update");
+    return restartToUpdate();
+  });
+  ipcMain.handle(CHANNELS.updateClaimNotice, (_event, version: unknown, phase: unknown) => claimNotice(version, phase));
+  ipcMain.handle(CHANNELS.updatePrepared, (event, id: unknown, result: unknown) => preparation!.answer(event.sender, id, result));
 }

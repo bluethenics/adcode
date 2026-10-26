@@ -23,6 +23,10 @@ export interface CheckoutRequest {
   /** Where Dodo returns the browser once payment finishes. */
   returnUrl: string;
   cancelUrl: string;
+  /** Which Dodo product the payment is for; missing is an advertiser deposit. */
+  product?: "advertiser" | "ai-tokens" | "plan-weekly" | "plan-monthly" | "plan-pro";
+  /** Server-authored subscription identity; never copied from an untrusted request. */
+  metadata?: Record<string, string>;
 }
 
 /** Two uppercase letters. Anything else is refused rather than sent on to the provider. */
@@ -37,8 +41,12 @@ export interface CheckoutSession {
 }
 
 export interface PaymentProvider {
+  /** Preflight known missing credentials/products before reserving a subscription checkout. */
+  canCreateCheckout?(product: NonNullable<CheckoutRequest["product"]>): boolean;
   /** Null on any provider failure; the caller turns that into a 502 rather than a 500. */
   createCheckout(request: CheckoutRequest): Promise<CheckoutSession | null>;
+  /** A short-lived hosted portal session for this account's provider customer. */
+  customerPortal?(customerId: string, returnUrl: string): Promise<string | null>;
 }
 
 /** Smallest currency unit, which is what Dodo takes and returns. Micros are a millionth. */

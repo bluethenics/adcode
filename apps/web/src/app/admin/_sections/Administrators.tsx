@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { HelpNote } from "@/components/HelpNote";
+import { AdminFootnote, AdminPanel, AdminWorkspace } from "@/components/AdminUI";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
@@ -119,8 +120,8 @@ export function AdminsBody() {
         method, gets everything on these tabs. Appoint accordingly.
       </HelpNote>
 
-      <form onSubmit={add} style={{ maxWidth: 560, marginBottom: 34 }}>
-        <h3 style={{ fontSize: 18, marginBottom: 12 }}>Appoint an administrator</h3>
+      <AdminWorkspace compose={
+      <AdminPanel title="Appoint an administrator" hint="They get everything in this panel the first time they sign in with this address." onSubmit={add}>
 
         <div className="field">
           <label htmlFor="a-email">Email address</label>
@@ -145,10 +146,9 @@ export function AdminsBody() {
             Appoint
           </button>
         </div>
-      </form>
-
-      <h3 style={{ fontSize: 18, marginBottom: 12 }}>Administrators</h3>
-
+      </AdminPanel>
+      }>
+      <AdminPanel title="Administrators" bare actions={`${rows.length} ${rows.length === 1 ? "person" : "people"}`}>
       <div className="rows">
         {rows.map((row) => (
           <div className="row" key={row.email}>
@@ -178,12 +178,14 @@ export function AdminsBody() {
         ))}
       </div>
 
-      <p className="field-hint" style={{ marginTop: 18, maxWidth: "64ch" }}>
+      <AdminFootnote>
         The last administrator cannot be removed. Nothing else in the system can appoint
         one, so an empty list would lock everybody out of this panel for good — the only way
         back would be editing the database by hand. Removing yourself is fine as long as
         somebody else is left.
-      </p>
+      </AdminFootnote>
+      </AdminPanel>
+      </AdminWorkspace>
     </>
   );
 }

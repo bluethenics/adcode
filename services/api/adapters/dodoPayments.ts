@@ -21,13 +21,19 @@ function baseUrl(): string {
     ? "https://live.dodopayments.com"
     : "https://test.dodopayments.com";
 }
+function productId(product: NonNullable<CheckoutRequest["product"]>): string | undefined {
+  return ({ advertiser: process.env["DODO_PRODUCT_ID"], "ai-tokens": process.env["DODO_AI_PRODUCT_ID"],
+    "plan-weekly": process.env["DODO_PLAN_WEEKLY_ID"], "plan-monthly": process.env["DODO_PLAN_MONTHLY_ID"], "plan-pro": process.env["DODO_PLAN_PRO_ID"] })[product];
+}
 
 export function createDodoProvider(): PaymentProvider {
   return {
+    canCreateCheckout: product => Boolean(process.env["DODO_API_KEY"]?.trim() && productId(product)?.trim()),
     async createCheckout(request: CheckoutRequest): Promise<CheckoutSession | null> {
       const apiKey = process.env["DODO_API_KEY"];
-      const productId = process.env["DODO_PRODUCT_ID"];
-      if (apiKey === undefined || productId === undefined) return null;
+      const selectedProductId = productId(request.product ?? "advertiser");
+      const subscription = request.product?.startsWith("plan-") === true;
+      if (!apiKey?.trim() || !selectedProductId?.trim()) return null;
 
       try {
         const response = await fetch(`${baseUrl()}/checkouts`, {
@@ -41,14 +47,14 @@ export function createDodoProvider(): PaymentProvider {
             cancel_url: request.cancelUrl,
             product_cart: [
               {
-                product_id: productId,
+                product_id: selectedProductId,
                 quantity: 1,
-                amount: microsToMinorUnits(request.amountMicros),
+                ...(subscription ? {} : { amount: microsToMinorUnits(request.amountMicros) }),
               },
             ],
             customer: { name: request.advertiserName, email: request.advertiserEmail },
             billing_address: { country: request.billingCountry },
-            metadata: { orderId: request.orderId },
+            metadata: { ...request.metadata, orderId: request.orderId },
           }),
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });
@@ -64,6 +70,18 @@ export function createDodoProvider(): PaymentProvider {
       } catch {
         return null;
       }
+    },
+    async customerPortal(customerId, returnUrl) {
+      const apiKey = process.env["DODO_API_KEY"];
+      if (!apiKey?.trim() || customerId.length === 0) return null;
+      try {
+        const response = await fetch(`${baseUrl()}/customers/${encodeURIComponent(customerId)}/customer-portal/session?return_url=${encodeURIComponent(returnUrl)}`, {
+          method: "POST", headers: { authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+        if (!response.ok) return null;
+        const parsed = await response.json() as Record<string, unknown>;
+        return typeof parsed["link"] === "string" && parsed["link"].startsWith("https://") ? parsed["link"] : null;
+      } catch { return null; }
     },
   };
 }

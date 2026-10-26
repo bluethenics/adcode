@@ -138,6 +138,12 @@ Resend delivers these messages. It receives the recipient email address and the 
 
 Every product email includes an unsubscribe link that works without signing in. You can also change your preference in the dashboard. Unsubscribing stops future product emails, reminders, status emails and model emails without changing your ADCode account or service notices. A status email's own link stops only status emails, and a model email's own link stops only model emails.
 
+### Status alerts without an account
+
+The [status page](/status#subscribe) lets anyone ask for email alerts, with no ADCode account: when an included AI model degrades, fails, or is back to normal, and incident updates if you choose them. We store the address, which of the two lists you chose, when you asked and confirmed, and a count of confirmation emails sent to it, so the form cannot be used to flood someone. Nothing but one confirmation email is sent until you click it; an unconfirmed address is never put on a list. A one-way hash of the network address that submitted the form counts attempts in ten-minute windows to limit repeats; it is not stored with the email address.
+
+Alerts come from noreply@bluethenics.com through Resend, on the same terms as above, and each one has a one-click unsubscribe. Unsubscribing takes the address off both lists. A bounce or spam complaint does the same and adds the address to the suppression list.
+
 When ADCode asks you to verify your email before using free AI, the verification link is sent by Firebase Authentication from the project's Firebase address, at most once an hour.
 
 ## Sharing

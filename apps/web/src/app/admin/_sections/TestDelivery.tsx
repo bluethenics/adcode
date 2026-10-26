@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { UserPicker } from "@/components/UserPicker";
 import { useAuth } from "@/components/AuthProvider";
+import { AdminPanel, AdminWorkspace } from "@/components/AdminUI";
 import { apiFetch, MESSAGES, type CreativeView } from "@/lib/api";
 
 /**
@@ -108,21 +109,18 @@ export function TestAdsBody() {
         </div>
       )}
 
-      <h3 style={{ fontSize: 18, marginBottom: 6 }}>Send a test ad</h3>
-      <p className="field-hint" style={{ marginBottom: 20, maxWidth: "64ch" }}>
-        Puts one creative at the front of the queue for a single account, ignoring
-        targeting, budget, and whether its campaign is live. It fires once. The resulting
-        view is recorded but charges no advertiser and credits no user, so testing
-        delivery never moves real money.
-      </p>
-
+      <AdminWorkspace compose={
+      <AdminPanel
+        title="Send a test ad"
+        hint="Puts one creative at the front of the queue for a single account, ignoring targeting, budget, and whether its campaign is live. It fires once, charges no advertiser and credits no user."
+      >
       {creatives.length === 0 ? (
         <div className="empty">
           <h3>No creatives to test</h3>
           <p>Once an advertiser submits a creative, you can send it to yourself from here.</p>
         </div>
       ) : (
-        <form onSubmit={send} style={{ maxWidth: 520 }}>
+        <form onSubmit={send}>
           <div className="field">
             <label htmlFor="t-creative">Creative</label>
             <select
@@ -153,13 +151,17 @@ export function TestAdsBody() {
         </form>
       )}
 
-      <div className="notice" data-tone="info" style={{ marginTop: 26, maxWidth: "64ch" }}>
-        <strong>If ads aren&apos;t arriving at all</strong>, check in this order: the kill
-        switch in server config, whether the campaign is live and funded, whether its
-        creative is approved, and whether the user&apos;s cadence is set to off. A test ad
-        skips the middle two, so if the test arrives but real ads don&apos;t, the problem
-        is the campaign, not delivery.
-      </div>
+      </AdminPanel>
+      }>
+      <AdminPanel title="If ads are not arriving" hint="Check in this order. A test ad skips the middle two, so if the test arrives but real ads do not, the problem is the campaign, not delivery.">
+        <ol className="adm-checklist">
+          <li><b>The kill switch</b><span>Serving is switched on in server config.</span></li>
+          <li><b>The campaign</b><span>It is live and has budget left.</span></li>
+          <li><b>The creative</b><span>It is approved in Review.</span></li>
+          <li><b>The person</b><span>Their ad cadence is not set to off, the editor is the window in front, and they are not debugging.</span></li>
+        </ol>
+      </AdminPanel>
+      </AdminWorkspace>
     </>
   );
 }

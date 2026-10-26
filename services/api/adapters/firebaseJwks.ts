@@ -37,6 +37,8 @@ const SKEW_SECONDS = 60;
 
 /** Used only when Google's response carries no usable `Cache-Control: max-age`. */
 const FALLBACK_TTL_MS = 60 * 60 * 1000;
+/** A key refresh must finish within the request that owns its network operation. */
+export const JWKS_TIMEOUT_MS = 5_000;
 
 interface Jwk {
   kty: string;
@@ -98,11 +100,8 @@ export function createFirebaseJwksVerifier(options: FirebaseJwksOptions = {}): T
 
   let keys = new Map<string, CryptoKey>();
   let expiresAt = 0;
-  /** In-flight refresh, so a burst of requests on a cold worker fetches the keys once. */
-  let refreshing: Promise<void> | null = null;
-
   const refresh = async (): Promise<void> => {
-    const response = await fetchImpl(JWKS_URL);
+    const response = await fetchImpl(JWKS_URL, { signal: AbortSignal.timeout(JWKS_TIMEOUT_MS) });
     if (!response.ok) throw new Error(`jwks fetch failed: ${response.status}`);
 
     const body = (await response.json()) as { keys?: Jwk[] };
@@ -139,10 +138,10 @@ export function createFirebaseJwksVerifier(options: FirebaseJwksOptions = {}): T
     let refreshed = false;
 
     if (now() >= expiresAt || keys.size === 0) {
-      refreshing ??= refresh().finally(() => {
-        refreshing = null;
-      });
-      await refreshing;
+      // Cache completed keys, never a fetch promise. Cloudflare I/O belongs to the
+      // request that started it: a cancelled request can strand its promise forever.
+      // Another request must be able to refresh independently (as in dbGuard.ts).
+      await refresh();
       refreshed = true;
     }
 
@@ -150,10 +149,7 @@ export function createFirebaseJwksVerifier(options: FirebaseJwksOptions = {}): T
     if (found !== undefined) return found;
     if (refreshed) return null;
 
-    refreshing ??= refresh().finally(() => {
-      refreshing = null;
-    });
-    await refreshing;
+    await refresh();
     return keys.get(kid) ?? null;
   };
 

@@ -6,6 +6,18 @@ import { describe, expect, it } from "vitest";
 const repo = resolve(import.meta.dirname, "../../..");
 
 describe("desktop packaging dependency boundary", () => {
+  it("keeps fresh installs assisted and loads the update-only finish hook", () => {
+    const require = createRequire(import.meta.url);
+    const { load } = require("js-yaml");
+    const config = load(readFileSync(resolve(repo, "electron-builder.yml"), "utf8"));
+    expect(config.nsis.oneClick).toBe(false);
+    expect(config.nsis.perMachine).toBe(false);
+    // The assisted installer's stock StartApp function is enabled by default.
+    expect(config.nsis.runAfterFinish).not.toBe(false);
+    expect(typeof config.nsis.include).toBe("string");
+    expect(readFileSync(resolve(repo, config.nsis.include), "utf8")).toMatch(/!macro customInstall\b/);
+  });
+
   it("unpacks terminal binaries and helpers from the external dependency source", () => {
     const require = createRequire(import.meta.url);
     const { load } = require("js-yaml");

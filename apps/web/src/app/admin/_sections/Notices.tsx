@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { HelpNote } from "@/components/HelpNote";
+import { AdminFootnote, AdminPanel, AdminWorkspace } from "@/components/AdminUI";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
@@ -117,8 +118,8 @@ export function NoticesBody() {
         planned downtime, not for every error in the logs.
       </HelpNote>
 
-      <form onSubmit={publish} style={{ maxWidth: 560, marginBottom: 34 }}>
-        <h3 style={{ fontSize: 18, marginBottom: 12 }}>Send a notice</h3>
+      <AdminWorkspace compose={
+      <AdminPanel title="Send a notice" hint="Shown once on every machine running ADCode, within half an hour." onSubmit={publish}>
 
         <div className="field">
           <label htmlFor="n-sev">Weight</label>
@@ -164,7 +165,7 @@ export function NoticesBody() {
 
         <div className="field">
           <label>Preview</label>
-          <div style={{ background: "var(--ink)", padding: 22, borderRadius: "var(--radius-md)", display: "flex", justifyContent: "flex-end" }}>
+          <div className="adm-preview-stage">
             <div
               className="toast"
               style={{
@@ -186,9 +187,9 @@ export function NoticesBody() {
             Send to everyone
           </button>
         </div>
-      </form>
-
-      <h3 style={{ fontSize: 18, marginBottom: 12 }}>Sent</h3>
+      </AdminPanel>
+      }>
+      <AdminPanel title="Sent" bare actions={`${rows.filter((row) => row.active).length} showing`}>
 
       {rows.length === 0 ? (
         <div className="empty">
@@ -218,10 +219,12 @@ export function NoticesBody() {
         </div>
       )}
 
-      <p className="field-hint" style={{ marginTop: 18, maxWidth: "64ch" }}>
+      <AdminFootnote>
         Retracting stops new machines seeing it. Anyone already shown it keeps what they
         saw — there is no way to un-tell someone something.
-      </p>
+      </AdminFootnote>
+      </AdminPanel>
+      </AdminWorkspace>
     </>
   );
 }

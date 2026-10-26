@@ -743,3 +743,20 @@ describe("reasoning handed back during a tool loop", () => {
     expect(assistants.every((message) => !("reasoning_content" in message))).toBe(true);
   });
 });
+
+describe("the included-AI paid-token refusal", () => {
+  it("keeps an edge error retryable without showing its HTML in chat", async () => {
+    const fetchImpl = (async () => new Response('<!DOCTYPE html><html><title>Worker threw exception</title><body>edge details</body></html>', { status: 500, headers: { "content-type": "text/html" } })) as typeof fetch;
+    const provider = createOpenAiCompatibleProvider({ id: "tagflow", displayName: "Included AI", baseUrl: "https://relay.test/v1/ai/tagflow", apiKey: "", models: ["glm"], fetchImpl });
+    const error = await collect(provider.stream(request, new AbortController().signal)).then(() => null, (error: unknown) => error);
+    expect(error).toMatchObject({ status: 500 });
+    expect((error as Error).message).toContain("temporarily unavailable");
+    expect((error as Error).message).not.toMatch(/DOCTYPE|<html|edge details/);
+  });
+  it("keeps the paid limit and where to buy tokens", async () => {
+    const refusal = (async () => new Response(JSON.stringify({ error: { code: "daily-limit", limit: "paid", retryable: true, resetsAt: 1_900_000_000_000, buyUrl: "https://adcode.bluethenics.com/ai-tokens", message: "You've used this week's 10,000,000 free tokens on Heabsy models." } }), { status: 429, headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+    const provider = createOpenAiCompatibleProvider({ id: "tagflow", displayName: "Included AI", baseUrl: "https://relay.test/v1/ai/tagflow", apiKey: "", models: ["glm"], fetchImpl: refusal });
+    const caught = await collect(provider.stream(request, new AbortController().signal)).then(() => null, (error: unknown) => error as { limit?: string; buyUrl?: string; code?: string });
+    expect(caught).toMatchObject({ code: "daily-limit", limit: "paid", buyUrl: "https://adcode.bluethenics.com/ai-tokens" });
+  });
+});

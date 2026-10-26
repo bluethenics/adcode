@@ -5,6 +5,7 @@ import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
+import { AdminFootnote, AdminPanel, AdminWorkspace } from "@/components/AdminUI";
 
 interface ReleaseRow {
   version: string;
@@ -173,14 +174,15 @@ export function ReleasesBody() {
         releases should be published without it.
       </div>
 
-      <form
+      <AdminWorkspace editor compose={
+      <AdminPanel
+        title="Write a release note"
+        hint="Goes on the changelog and in the editor's What's New. Saving a version again edits its note."
         onSubmit={(event) => {
           event.preventDefault();
           void save("published");
         }}
-        style={{ maxWidth: 620, marginBottom: 34 }}
       >
-        <h3 style={{ fontSize: 18, marginBottom: 12 }}>Write a release note</h3>
 
         <div className="field">
           <label htmlFor="r-version">Version</label>
@@ -288,9 +290,9 @@ export function ReleasesBody() {
             Save draft
           </button>
         </div>
-      </form>
-
-      <h3 style={{ fontSize: 18, marginBottom: 12 }}>Notes</h3>
+      </AdminPanel>
+      }>
+      <AdminPanel title="Notes" bare actions={`${rows.filter((row) => row.status === "published").length} published · ${rows.filter((row) => row.status !== "published").length} drafts`}>
 
       {rows.length === 0 ? (
         <div className="empty">
@@ -331,19 +333,17 @@ export function ReleasesBody() {
         </div>
       )}
 
+      </AdminPanel>
+
       {/* New docs are code, not admin content, so their announcement names the page and says what it is. */}
-      <form
+      <AdminPanel
+        title="Announce new docs"
+        hint="Emails people who said yes to ADCode updates - once per docs page. Nothing is sent while email sending is switched off."
         onSubmit={(event) => {
           event.preventDefault();
           void announce({ topic: "product", docs: { path: docsDraft.path.trim(), title: docsDraft.title.trim(), summary: docsDraft.summary.trim() } }, docsDraft.path.trim());
         }}
-        style={{ maxWidth: 620, marginTop: 34 }}
       >
-        <h3 style={{ fontSize: 18, marginBottom: 6 }}>Announce new docs</h3>
-        <p className="field-hint" style={{ marginBottom: 12 }}>
-          Emails people who said yes to ADCode updates - once per docs page. Nothing is sent while
-          email sending is switched off.
-        </p>
         <div className="field">
           <label htmlFor="d-path">Docs page</label>
           <input id="d-path" className="input" placeholder="/docs/background-chats" value={docsDraft.path} onChange={(e) => setDocsDraft({ ...docsDraft, path: e.target.value })} />
@@ -361,14 +361,15 @@ export function ReleasesBody() {
             Email subscribers about these docs
           </button>
         </div>
-      </form>
-      {announced !== null && <p className="field-hint" role="status" style={{ marginTop: 10 }}>{announced}</p>}
+        {announced !== null && <p className="field-hint" role="status" style={{ marginTop: 10 }}>{announced}</p>}
+      </AdminPanel>
 
-      <p className="field-hint" style={{ marginTop: 18, maxWidth: "64ch" }}>
+      <AdminFootnote>
         Editing a published note changes what the changelog says, but not who has already
         been shown the card. Each person sees a given version once and there is no way to
         show it to them again — which is the point.
-      </p>
+      </AdminFootnote>
+      </AdminWorkspace>
     </>
   );
 }

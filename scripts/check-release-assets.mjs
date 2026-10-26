@@ -18,7 +18,7 @@
  * The asset table lives in `packages/release/src/downloadAssets.ts` so it is tested
  * without a filesystem; this is the shell that reads the disk.
  */
-import { readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 import {
@@ -26,13 +26,19 @@ import {
   missingFrom,
   TERMINAL_REQUIRED_ASSETS,
 } from "../packages/release/src/downloadAssets.ts";
+import { verifyUpdateArtifacts } from "./release-artifacts.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 
 const args = process.argv.slice(2);
-const platformAt = args.indexOf("--platform");
-const only = platformAt === -1 ? undefined : args[platformAt + 1];
-const directory = args.find((arg) => !arg.startsWith("--") && arg !== only) ?? "release";
+let only, directory, version = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;
+for (let index = 0; index < args.length; index++) {
+  if (args[index] === "--platform" && args[index + 1]) only = args[++index];
+  else if (args[index] === "--version" && args[index + 1]) version = args[++index];
+  else if (!args[index].startsWith("--") && directory === undefined) directory = args[index];
+  else { console.error(`Unknown or incomplete option: ${args[index]}`); process.exit(1); }
+}
+directory ??= "release";
 
 try {
   statSync(directory);
@@ -70,4 +76,10 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-process.stdout.write(`All ${wanted.length} required asset(s) present in ${directory}.\n`);
+try {
+  const checked = await verifyUpdateArtifacts(directory, version, only);
+  process.stdout.write(`All ${wanted.length} required asset(s) present; ${checked.join(", ") || "no updater manifest for this platform"} verified for ${version}.\n`);
+} catch (error) {
+  process.stderr.write(`Update validation failed: ${error.message}\n`);
+  process.exit(1);
+}

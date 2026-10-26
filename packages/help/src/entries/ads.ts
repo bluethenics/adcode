@@ -9,6 +9,16 @@ import type { HelpEntry } from "../types.ts";
 
 export const ADS_ENTRIES: readonly HelpEntry[] = [
   {
+    id: "ads.networks",
+    title: "Ad network connections",
+    plain: "Administrators can connect an ad provider and choose what users earn for verified views or clicks.",
+    why: "Provider inventory can fill an empty sponsored slot while keeping the existing ad controls and direct campaigns.",
+    how: "Open Ad network settings on the website and sign in as an administrator. Add a Generic JSON API connection with the provider's documented serve and event-verification endpoints and field mappings. Save it disabled, save its API key, test the preview, then enable delivery. Set the user payout in dollars per view or click. Keys are encrypted and never shown again. An API key alone is not enough: each provider must support the configured delivery and verification contract. Imprezia supports non-billable Native Exchange previews with an Exchange-enabled key and a provisioned app bundle or domain. Live delivery stays disabled until its inventory, privacy, tracking and billing requirements are met. The beehiiv connection previews newsletter offer content only; it cannot deliver desktop ads or generate earnings. Users keep control over sponsored messages and frequency.",
+    group: "ads",
+    settingIds: [],
+    related: ["adcode.ads.enabled", "adcode.ads.frequency", "account.earnings"],
+  },
+  {
     id: "adcode.ads.enabled",
     title: "Sponsored messages",
     plain:

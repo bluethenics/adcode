@@ -10,13 +10,14 @@
  * queue - a receipt it keeps retrying forever is a client that never stops sending - and
  * telling an attacker precisely which forgeries were detected helps only the attacker.
  */
+import { settleAdNetworkReceipt, type AdNetworkRuntime } from "./adNetworks.ts";
 import type { ReceiptsRequestBody, ReceiptsResponseBody, SubmittedReceipt } from "./contract.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
 import { checkReceipt, CLOCK_SKEW_MS, RECEIPT_UPLOAD_GRACE_MS } from "./plausibility.ts";
 import { userCreditMicros } from "./money.ts";
 import type { LedgerEntry } from "./ledger.ts";
 
-export interface ReceiptDeps {
+export interface ReceiptDeps extends AdNetworkRuntime {
   store: Store;
   clock: Clock;
   ids: IdGen;
@@ -39,7 +40,27 @@ export async function handleReceipts(
   const now = deps.clock.now();
   const config = await deps.store.getConfig();
 
+  // Released desktops upload their entire disk queue with a 3 s deadline. Verify small
+  // waves in parallel and acknowledge completed work; the rest stays queued for the next flush.
+  if (deps.store.adNetworks) {
+    const pending = body.receipts.filter(receipt => receipt.creativeId.startsWith("an_"));
+    const deadline = Date.now() + 600;
+    for (let offset = 0; offset < pending.length && Date.now() < deadline; offset += 4) {
+      const wave = pending.slice(offset, offset + 4);
+      const results = await Promise.all(wave.map(receipt => settleAdNetworkReceipt(deps, uid, receipt)));
+      for (let index = 0; index < wave.length; index++) {
+        const receipt = wave[index]!; const network = results[index]!;
+        deps.onResult?.({ creativeId: receipt.creativeId, status: `network-${network}` });
+        if (network !== "unavailable") acked.push(receipt.receiptId);
+      }
+    }
+  }
+
   for (const receipt of body.receipts) {
+    if (deps.store.adNetworks && receipt.creativeId.startsWith("an_")) {
+      // Unprocessed events deliberately remain unacknowledged after the deadline.
+      continue;
+    }
     // A view must start while its creative is valid. Allow the normal upload timer
     // to finish after expiry, and never match a newer prefetch to an older view.
     const serve = await deps.store.findServe(

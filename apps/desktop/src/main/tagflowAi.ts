@@ -25,7 +25,8 @@ export function refreshTagflowModels(force = false): Promise<void> {
       if (!response.ok) return;
       const raw: unknown = await response.json();
       if (typeof raw !== "object" || raw === null) return;
-      const config = raw as { available?: unknown; defaultModel?: unknown; models?: unknown };
+      const config = raw as { available?: unknown; defaultModel?: unknown; models?: unknown; paid?: { enabled?: unknown; freeWeeklyTokens?: unknown } };
+      const freeWeekly = config.paid?.enabled === true && typeof config.paid.freeWeeklyTokens === "number" ? config.paid.freeWeeklyTokens : null;
       if (config.available !== true) { offered = null; defaultModel = ""; return; }
       if (typeof config.defaultModel !== "string" || !Array.isArray(config.models)) return;
       const models: CatalogueProvider["models"][number][] = [];
@@ -37,7 +38,9 @@ export function refreshTagflowModels(force = false): Promise<void> {
         const source = typeof model["providerName"] === "string" ? ` from ${model["providerName"]}` : "";
         // Older relays send no rate: every model then costs the standard credit.
         const rate = typeof model["creditRate"] === "number" && Number.isFinite(model["creditRate"]) && model["creditRate"] >= 0 ? model["creditRate"] : 1;
-        const cost = rate === 0 ? "free, no credits used" : rate === 1 ? "uses your free AI credits" : `uses ${rate < 1 ? "fewer" : "more"} credits (${rate}× the standard rate)`;
+        // A paid provider's model (relays from 2026-10-21) says what it costs once the free week is spent.
+        const cost = model["paid"] === true && freeWeekly !== null ? `${Math.round(freeWeekly / 1_000_000)}M free tokens a week, then purchased tokens`
+          : rate === 0 ? "free, no credits used" : rate === 1 ? "uses your free AI credits" : `uses ${rate < 1 ? "fewer" : "more"} credits (${rate}× the standard rate)`;
         models.push({ id: model["id"], name: model["name"], toolCall: true, reasoning: false, contextWindow: model["contextWindow"], maxOutput: model["maxOutput"], inputs: ["text"], outputs: ["text"], inputCostMicrosPerMillion: 0, outputCostMicrosPerMillion: 0, note: `Included${source} · ${cost}` });
       }
       if (!models.some((model) => model.id === config.defaultModel)) return;

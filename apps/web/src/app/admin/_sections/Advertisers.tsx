@@ -6,6 +6,7 @@ import { HelpNote } from "@/components/HelpNote";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { money, when } from "@/components/money";
+import { AdminSummary } from "@/components/AdminUI";
 
 interface AdvertiserRow {
   advertiserId: string;
@@ -86,6 +87,13 @@ export function AdvertisersBody({ initialQuery = "" }: { initialQuery?: string }
         moderation one. Pause those explicitly if that&apos;s what you mean.
       </HelpNote>
 
+      <AdminSummary items={[
+        { label: "Advertisers", value: rows.length },
+        { label: "Active", value: rows.filter((row) => row.status !== "suspended").length },
+        { label: "Suspended", value: rows.filter((row) => row.status === "suspended").length },
+        { label: "Funded, all time", value: <span className="money">{money(rows.reduce((total, row) => total + BigInt(row.fundedMicros), 0n).toString())}</span> },
+      ]} />
+
       <div className="admin-toolbar">
         <input
           className="input admin-toolbar-search"
@@ -128,12 +136,12 @@ export function AdvertisersBody({ initialQuery = "" }: { initialQuery?: string }
 
               <span className="row-num mono">{money(row.fundedMicros)}</span>
 
-              <span style={{ flex: "none" }}>
+              <span className="adm-row-actions">
                 <button type="button" className="btn btn-outline btn-small"
                   aria-expanded={openAdvertiser === row.advertiserId}
                   onClick={() => setOpenAdvertiser((current) => current === row.advertiserId ? null : row.advertiserId)}>
                   {openAdvertiser === row.advertiserId ? "Hide campaigns" : "View campaigns"}
-                </button>{" "}
+                </button>
                 {row.status === "suspended" ? (
                   <button
                     className="btn btn-outline btn-small"
@@ -144,7 +152,7 @@ export function AdvertisersBody({ initialQuery = "" }: { initialQuery?: string }
                   </button>
                 ) : (
                   <button
-                    className="btn btn-outline btn-small"
+                    className="btn btn-outline btn-small adm-quiet-danger"
                     disabled={busy === row.advertiserId}
                     onClick={() => void setStatus(row.advertiserId, "suspended")}
                   >

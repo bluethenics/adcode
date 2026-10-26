@@ -192,6 +192,7 @@ export interface ReleaseAnnouncement {
 
 export type UpdateStatus =
   | { readonly state: "idle" | "checking" | "current" | "failed" | "unsupported" }
+  | { readonly state: "available"; readonly version: string; readonly source: "store" | "download" }
   | { readonly state: "downloading"; readonly version?: string; readonly percent?: number }
   | {
       readonly state: "ready";
@@ -203,6 +204,12 @@ export type UpdateStatus =
        */
       readonly restartable?: boolean;
     };
+
+export interface UpdatePreparation {
+  readonly ready: boolean;
+  /** Recovery snapshots remain on this machine and must reach disk before an update. */
+  readonly drafts: readonly { readonly path: string; readonly text: string }[];
+}
 
 export interface AppInfo {
   readonly version: string;
@@ -806,6 +813,9 @@ export const CHANNELS = {
   updateCheck: "update:check",
   updateInstall: "update:install",
   updateClaimNotice: "update:claim-notice",
+  updatePrepare: "update:prepare",
+  updatePrepared: "update:prepared",
+  updatePrepareCancel: "update:prepare-cancel",
   serviceNotice: "notice:show",
   releaseAnnouncement: "release:announcement",
   releaseMarkSeen: "release:mark-seen",
@@ -2269,10 +2279,13 @@ export interface AdcodeApi {
     status(): Promise<UpdateStatus>;
     check(): Promise<UpdateStatus>;
     onChanged(listener: (status: UpdateStatus) => void): () => void;
-    /** Restart into a downloaded update. Does nothing, and resolves the status, unless it is `ready`. */
+    /** Install a ready update, or open the official Store/portable download destination. */
     install(): Promise<UpdateStatus>;
-    /** True for the first window to ask about this ready version; false for every later ask. */
-    claimNotice(version: string): Promise<boolean>;
+    /** One window announces each available/ready phase of a version. */
+    claimNotice(version: string, phase?: "available" | "ready"): Promise<boolean>;
+    onPrepare(listener: (id: string) => void): () => void;
+    onPrepareCancel(listener: (id: string) => void): () => void;
+    prepared(id: string, result: UpdatePreparation): Promise<boolean>;
   };
   readonly support: {
     /** Never rejects: a failure comes back as `{ ok: false, message }` to show the user. */

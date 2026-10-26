@@ -7,7 +7,11 @@ const mock = vi.hoisted(() => ({
   listeners: new Map<string, (value: { version?: string; percent?: number }) => void>(),
   checkCalls: 0,
   quitAndInstall: [] as unknown[][],
+  quitCalls: 0,
+  opened: [] as string[],
   packaged: true,
+  prepareReady: true,
+  cancelNotices: 0,
 }));
 
 // debugLog.ts, which the updater logs through, imports these too.
@@ -21,6 +25,7 @@ vi.mock("electron", () => ({
     getVersion: () => "0.0.0",
     getLocale: () => "en",
     on: () => undefined,
+    quit: () => { mock.quitCalls += 1; },
   },
   ipcMain: {
     handle: (name: string, handler: Handler) => mock.handlers.set(name, handler),
@@ -29,6 +34,7 @@ vi.mock("electron", () => ({
   BrowserWindow: { getAllWindows: () => [] },
   clipboard: {},
   dialog: {},
+  shell: { openExternal: async (url: string) => { mock.opened.push(url); } },
 }));
 
 vi.mock("electron-updater", () => ({
@@ -45,6 +51,11 @@ vi.mock("electron-updater", () => ({
   },
 }));
 
+// A fresh updater module must not install another debug logger's process listeners.
+vi.mock("../src/main/debugLog.ts", () => ({ recordDebug: () => undefined }));
+vi.mock("../src/main/history.ts", () => ({ recordDraft: async () => undefined }));
+vi.mock("../src/main/settings.ts", () => ({ currentSettings: () => ({ "adcode.session.crashRecovery": true }) }));
+
 /** The updater keeps module state, so every case gets a module of its own. */
 async function fresh(): Promise<typeof import("../src/main/autoUpdate.ts")> {
   vi.resetModules();
@@ -52,10 +63,23 @@ async function fresh(): Promise<typeof import("../src/main/autoUpdate.ts")> {
   mock.listeners.clear();
   mock.checkCalls = 0;
   mock.quitAndInstall = [];
+  mock.quitCalls = 0;
+  mock.opened = [];
+  mock.prepareReady = true;
+  mock.cancelNotices = 0;
   return import("../src/main/autoUpdate.ts");
 }
 
-const call = (name: string, ...args: unknown[]): unknown => mock.handlers.get(name)?.({}, ...args);
+const editorWindow = {
+  isDestroyed: () => false,
+  on: () => undefined,
+  removeListener: () => undefined,
+  send: (channel: string, id: unknown) => {
+    if (channel === "update:prepare-cancel") mock.cancelNotices++;
+    if (channel === "update:prepare") queueMicrotask(() => { void mock.handlers.get("update:prepared")?.({ sender: editorWindow }, id, { ready: mock.prepareReady, drafts: [] }); });
+  },
+};
+const call = (name: string, ...args: unknown[]): unknown => mock.handlers.get(name)?.({ sender: editorWindow }, ...args);
 
 // Restart-now is decided per platform, so every case says which one it is on.
 const realPlatform = process.platform;
@@ -68,10 +92,13 @@ beforeEach(() => {
   delete process.env["ADCODE_UPDATE_SIMULATE"];
   delete process.env["PORTABLE_EXECUTABLE_DIR"];
   setPlatform("win32");
+  vi.stubGlobal("fetch", async () => Response.json({ releases: [] }));
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
+  Reflect.deleteProperty(process, "windowsStore");
   setPlatform(realPlatform);
 });
 
@@ -79,7 +106,7 @@ describe("manual update check", () => {
   it("checks even with automatic updates off and reports an already downloaded update", async () => {
     vi.useFakeTimers();
     const { registerUpdateIpc, startAutoUpdate } = await fresh();
-    registerUpdateIpc();
+    registerUpdateIpc(() => [editorWindow]);
     await startAutoUpdate(() => false);
 
     expect(await call("update:status")).toEqual({ state: "idle" });
@@ -109,70 +136,102 @@ describe("automatic check", () => {
 describe("restart to update", () => {
   it("does nothing until an update is ready", async () => {
     const { registerUpdateIpc, startAutoUpdate } = await fresh();
-    registerUpdateIpc();
+    registerUpdateIpc(() => [editorWindow]);
     await startAutoUpdate(() => false);
 
     expect(await call("update:install")).toEqual({ state: "idle" });
     expect(mock.quitAndInstall).toEqual([]);
   });
 
-  it("installs silently and reopens ADCode once ready", async () => {
+  it("shows installer progress and reopens ADCode once ready", async () => {
     const { registerUpdateIpc, startAutoUpdate } = await fresh();
-    registerUpdateIpc();
+    registerUpdateIpc(() => [editorWindow]);
     await startAutoUpdate(() => false);
     await call("update:check");
 
     expect(await call("update:install")).toEqual({ state: "ready", version: "1.0.3", restartable: true });
-    expect(mock.quitAndInstall).toEqual([[true, true]]);
+    expect(mock.quitAndInstall).toEqual([[false, true]]);
   });
 });
 
 describe("restart to update, asked more than once", () => {
+  it("unlocks prepared windows after an asynchronous installer error and permits a fresh retry", async () => {
+    const { registerUpdateIpc, startAutoUpdate } = await fresh();
+    registerUpdateIpc(() => [editorWindow]); await startAutoUpdate(() => false); await call("update:check");
+    await call("update:install");
+    expect(mock.quitAndInstall).toHaveLength(1); expect(mock.cancelNotices).toBe(0);
+    mock.listeners.get("error")?.({});
+    expect(mock.cancelNotices).toBe(1);
+    await call("update:check"); await call("update:install");
+    expect(mock.quitAndInstall).toHaveLength(2);
+  });
+  it("shares a refused preparation across concurrent requests, then allows a safe retry", async () => {
+    const { registerUpdateIpc, startAutoUpdate } = await fresh();
+    registerUpdateIpc(() => [editorWindow]); await startAutoUpdate(() => false); await call("update:check");
+    mock.prepareReady = false;
+    const outcomes = await Promise.allSettled([call("update:install"), call("update:install")]);
+    expect(outcomes.map(outcome => outcome.status)).toEqual(["rejected", "rejected"]);
+    expect(mock.quitAndInstall).toEqual([]);
+    mock.prepareReady = true; await call("update:install");
+    expect(mock.quitAndInstall).toEqual([[false, true]]);
+  });
   /*
    * A second quitAndInstall makes electron-updater clear its "already installing" flag, so
    * the quit handler installs again - on an AppImage that second install deletes the app.
    */
   it("restarts once, however many times it is asked", async () => {
     const { registerUpdateIpc, startAutoUpdate } = await fresh();
-    registerUpdateIpc();
+    registerUpdateIpc(() => [editorWindow]);
     await startAutoUpdate(() => false);
     await call("update:check");
 
     await Promise.all([call("update:install"), call("update:install")]);
     await call("update:install");
-    expect(mock.quitAndInstall).toEqual([[true, true]]);
+    expect(mock.quitAndInstall).toEqual([[false, true]]);
   });
 });
 
 describe("where restart-now is offered", () => {
-  it("never restarts on Linux: the update installs when ADCode closes", async () => {
+  it("closes Linux only on an explicit update request, letting the update install on quit", async () => {
     setPlatform("linux");
     const { registerUpdateIpc, startAutoUpdate } = await fresh();
-    registerUpdateIpc();
+    registerUpdateIpc(() => [editorWindow]);
     await startAutoUpdate(() => false);
 
     expect(await call("update:check")).toEqual({ state: "ready", version: "1.0.3", restartable: false });
     await call("update:install");
     expect(mock.quitAndInstall).toEqual([]);
+    expect(mock.quitCalls).toBe(1);
   });
 
   /* The portable build has no installer to update; electron-updater would install a second copy. */
-  it("stands down entirely in the portable build", async () => {
+  it("checks published releases without running the installer in the portable build", async () => {
     process.env["PORTABLE_EXECUTABLE_DIR"] = "C:\Tools\ADCode";
     const { registerUpdateIpc, startAutoUpdate } = await fresh();
-    registerUpdateIpc();
+    registerUpdateIpc(() => [editorWindow]);
     await startAutoUpdate(() => true);
 
-    expect(await call("update:check")).toEqual({ state: "unsupported" });
+    expect(await call("update:check")).toEqual({ state: "current" });
     expect(mock.checkCalls).toBe(0);
   });
 });
 
 describe("the ready card", () => {
+  it("keeps the version during download and claims available and ready notices independently", async () => {
+    const { registerUpdateIpc, startAutoUpdate } = await fresh();
+    registerUpdateIpc(() => [editorWindow]); await startAutoUpdate(() => false);
+    mock.listeners.get("update-available")?.({ version: "1.0.3" });
+    mock.listeners.get("download-progress")?.({ percent: 42 });
+    expect(await call("update:status")).toEqual({ state: "downloading", version: "1.0.3", percent: 42 });
+    expect(await call("update:claim-notice", "1.0.3", "available")).toBe(true);
+    expect(await call("update:claim-notice", "1.0.3", "available")).toBe(false);
+    mock.listeners.get("update-downloaded")?.({ version: "1.0.3" });
+    expect(await call("update:claim-notice", "1.0.3", "ready")).toBe(true);
+  });
   /* Two windows are open at once; only the first to ask may announce the version. */
   it("is claimed once per version, and only for the version that is ready", async () => {
     const { registerUpdateIpc, startAutoUpdate } = await fresh();
-    registerUpdateIpc();
+    registerUpdateIpc(() => [editorWindow]);
     await startAutoUpdate(() => false);
 
     expect(await call("update:claim-notice", "1.0.3")).toBe(false);
@@ -183,12 +242,53 @@ describe("the ready card", () => {
   });
 });
 
+describe("externally managed updates", () => {
+  const published = { releases: [{ version: "1.0.3", title: "An update", publishedAt: 1 }] };
+  it("offers the official Store destination without downloading a second installer", async () => {
+    (process as NodeJS.Process & { windowsStore?: boolean }).windowsStore = true;
+    vi.stubGlobal("fetch", async () => Response.json(published));
+    const { registerUpdateIpc, startAutoUpdate } = await fresh();
+    registerUpdateIpc(() => [editorWindow]); await startAutoUpdate(() => false);
+    expect(await call("update:check")).toEqual({ state: "available", version: "1.0.3", source: "store" });
+    await call("update:install");
+    expect(mock.opened).toEqual(["ms-windows-store://pdp/?ProductId=9MSW2N027GJX"]);
+    expect(mock.quitAndInstall).toEqual([]); expect(mock.checkCalls).toBe(0);
+  });
+  it("opens the official download page for a portable version", async () => {
+    process.env["PORTABLE_EXECUTABLE_DIR"] = "C:\\Tools\\ADCode";
+    vi.stubGlobal("fetch", async () => Response.json(published));
+    const { registerUpdateIpc, startAutoUpdate } = await fresh();
+    registerUpdateIpc(() => [editorWindow]); await startAutoUpdate(() => false);
+    expect(await call("update:check")).toEqual({ state: "available", version: "1.0.3", source: "download" });
+    await call("update:install");
+    expect(mock.opened).toEqual(["https://adcode.bluethenics.com/#download"]);
+    expect(mock.quitAndInstall).toEqual([]);
+  });
+  it("shares an overlapping automatic and manual Store check, and retains an available update after a failed recheck", async () => {
+    vi.useFakeTimers();
+    (process as NodeJS.Process & { windowsStore?: boolean }).windowsStore = true;
+    let finish: (response: Response) => void = () => undefined;
+    const fetchImpl = vi.fn(() => new Promise<Response>(resolve => { finish = resolve; }));
+    vi.stubGlobal("fetch", fetchImpl);
+    const { registerUpdateIpc, startAutoUpdate } = await fresh();
+    registerUpdateIpc(() => [editorWindow]); await startAutoUpdate(() => true);
+    await vi.advanceTimersByTimeAsync(10_000);
+    const manual = call("update:check");
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    finish(Response.json(published));
+    expect(await manual).toEqual({ state: "available", version: "1.0.3", source: "store" });
+    fetchImpl.mockRejectedValueOnce(new Error("Offline"));
+    expect(await call("update:check")).toEqual({ state: "available", version: "1.0.3", source: "store" });
+    expect(mock.checkCalls).toBe(0);
+  });
+});
+
 describe("smoke simulation", () => {
   it("walks to ready on a check and never quits, in an unpackaged build", async () => {
     mock.packaged = false;
     process.env["ADCODE_UPDATE_SIMULATE"] = "1";
     const { registerUpdateIpc, startAutoUpdate } = await fresh();
-    registerUpdateIpc();
+    registerUpdateIpc(() => [editorWindow]);
     await startAutoUpdate(() => true);
 
     expect(await call("update:check")).toEqual({ state: "ready", version: "9.9.9", restartable: true });
@@ -199,7 +299,7 @@ describe("smoke simulation", () => {
   it("is ignored by a packaged build", async () => {
     process.env["ADCODE_UPDATE_SIMULATE"] = "1";
     const { registerUpdateIpc, startAutoUpdate } = await fresh();
-    registerUpdateIpc();
+    registerUpdateIpc(() => [editorWindow]);
     await startAutoUpdate(() => false);
 
     expect(await call("update:check")).toEqual({ state: "ready", version: "1.0.3", restartable: true });

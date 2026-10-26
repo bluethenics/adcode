@@ -1,0 +1,160 @@
+/* The AI tokens page: the site's stats, fields, notices and buttons, plus the pack list. */
+.ai-tokens {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 48px 16px 80px;
+  display: grid;
+  /* A grid column grows to its widest child's minimum width unless allowed to shrink. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+
+.ai-tokens > * {
+  min-width: 0;
+}
+
+.ai-tokens-head h1 {
+  font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+}
+
+.ai-tokens-head p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--muted, inherit);
+  line-height: 1.55;
+}
+
+.ai-tokens-country .input {
+  max-width: 100px;
+}
+
+.token-packs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.token-pack {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 20px;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+  border-radius: 14px;
+}
+
+.token-pack-price {
+  font-size: 32px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.token-pack-tokens {
+  font-weight: 550;
+}
+
+.token-pack .btn {
+  margin-top: 10px;
+}
+
+.ai-tokens-history h2 {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+
+.ai-tokens-history td:last-child {
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-plans-section,
+.ai-packs-section,
+.ai-token-code {
+  min-width: 0;
+}
+
+.ai-plans-section h2,
+.ai-packs-section h2,
+.ai-token-code h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.ai-plans-section > .field-hint,
+.ai-packs-section > .field-hint {
+  margin: 0 0 16px;
+  max-width: 68ch;
+  line-height: 1.6;
+}
+
+.ai-plan-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ai-plan-card {
+  min-width: 0;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.ai-plan-card[data-current="true"] {
+  border-color: var(--accent);
+}
+
+.ai-plan-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+}
+
+.ai-plan-title h3 { margin: 0; font-size: 17px; }
+.ai-plan-badge { font-size: 11px; color: var(--muted); }
+.ai-plan-price { margin: 0; font-size: 36px; font-weight: 650; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.ai-plan-price span { margin-left: 3px; font-size: 14px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+.ai-plan-allowance { margin: 0; font-size: 14px; font-weight: 550; }
+.ai-plan-card .field-hint { margin: 0 0 8px; line-height: 1.6; }
+.ai-plan-card .btn { margin-top: auto; width: 100%; white-space: nowrap; }
+
+.ai-plan-management { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; }
+.ai-plan-management p { flex: 1 1 240px; margin: 0; font-size: 13px; line-height: 1.6; color: var(--muted); }
+.ai-plan-management .btn { flex-shrink: 0; }
+.ai-token-code { padding: 20px 0; border-block: 1px solid var(--hairline); }
+.ai-token-code > .field-hint { margin: 0 0 16px; line-height: 1.6; }
+.ai-code-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto; gap: 12px; align-items: end; }
+.ai-code-form .field { margin: 0; min-width: 0; }
+.ai-code-form .field > span { font-size: 13px; font-weight: 500; }
+.ai-code-form .input, .ai-code-form .select { width: 100%; min-width: 0; }
+.ai-code-form .btn, .ai-invite-copy .btn { white-space: nowrap; }
+.ai-invite-copy { display: flex; flex-wrap: wrap; gap: 12px; }
+.ai-invite-copy .input { flex: 1 1 160px; min-width: 0; max-width: 280px; font-family: var(--font-mono); letter-spacing: .04em; }
+.ai-token-code .notice { margin: 16px 0 0; }
+.ai-token-table-scroll { width: 100%; overflow-x: auto; }
+.ai-token-table-scroll table { min-width: 420px; }
+.ai-tokens .notice { overflow-wrap: anywhere; }
+
+@media (max-width: 680px) {
+  .ai-plan-cards { grid-template-columns: minmax(0, 1fr); }
+  .ai-plan-title { min-height: 0; }
+  .ai-plan-card { gap: 10px; }
+  .ai-code-form { grid-template-columns: minmax(0, 1fr); }
+  .ai-code-form .btn { justify-self: start; }
+  .token-packs { grid-template-columns: minmax(0, 1fr); }
+}

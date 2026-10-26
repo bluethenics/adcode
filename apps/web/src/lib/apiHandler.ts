@@ -25,7 +25,7 @@ import { createFirebaseJwksVerifier } from "@adcode/api/adapters/firebaseJwks.ts
 import { createDodoProvider } from "@adcode/api/adapters/dodoPayments.ts";
 import { createWebsiteAnalyticsStore } from "@adcode/api/adapters/websiteAnalyticsStore.ts";
 import { createFirebaseIdentity } from "@adcode/api/src/accountIdentity.ts";
-import { mailingStore, sendReportReplyEmail } from "./mailing";
+import { mailingStore, sendReportReplyEmail, sendStatusConfirmationEmail, statusAlertStore } from "./mailing";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export const handleApiRequest = createFetchHandler({
@@ -38,6 +38,8 @@ export const handleApiRequest = createFetchHandler({
   mailing: mailingStore,
   mailingWebhookSecret: () => process.env["RESEND_WEBHOOK_SECRET"],
   reportReplyMailer: sendReportReplyEmail,
+  statusAlerts: statusAlertStore,
+  statusConfirmationMailer: sendStatusConfirmationEmail,
   store: createSupabaseStore(),
   verifier: createFirebaseJwksVerifier(),
   payments: createDodoProvider(),

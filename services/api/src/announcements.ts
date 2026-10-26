@@ -13,11 +13,14 @@
 import type { Clock, Store } from "./store.ts";
 import type { AnnouncementPayload, AnnouncementTopic, MailingStore } from "./mailing.ts";
 import { readStatusView, statusCatalog, type StatusModelView } from "./status.ts";
+import type { StatusAlertStore } from "./statusAlerts.ts";
 
 export interface AnnounceDeps {
   store: Store;
   clock: Clock;
   mailing?: MailingStore;
+  /** The status page's own subscribers, who also hear about incident updates. */
+  statusAlerts?: StatusAlertStore;
   siteOrigin: string;
 }
 
@@ -135,8 +138,13 @@ export async function handleAnnounce(deps: AnnounceDeps, adminUid: string, raw: 
   }
 
   const now = deps.clock.now();
-  const queued = await deps.mailing.announce({ topic: topic as AnnouncementTopic, ref, subject: subject.slice(0, 200), payload, by: adminUid, now });
-  if (queued < 0) return { status: 409, body: { error: "already-announced" } };
+  const accounts = await deps.mailing.announce({ topic: topic as AnnouncementTopic, ref, subject: subject.slice(0, 200), payload, by: adminUid, now });
+  // An incident update also reaches everyone who joined the status page's incident list without an account.
+  const visitors = topic === "status" && deps.statusAlerts !== undefined
+    ? await deps.statusAlerts.queueAlert({ topic: "incidents", ref, subject: subject.slice(0, 200), payload: { title: payload.title, summary: payload.summary, status: payload.status ?? "investigating", url: `${deps.siteOrigin}/status#incidents` }, now })
+    : -1;
+  if (accounts < 0 && visitors < 0) return { status: 409, body: { error: "already-announced" } };
+  const queued = Math.max(accounts, 0) + Math.max(visitors, 0);
   await deps.store.writeAudit({ adminUid, action: `announce:${topic}:${ref}`, subjectUid: "*", at: now });
   return { status: 200, body: { queued, sendingEnabled: (await deps.mailing.settings()).enabled } };
 }

@@ -694,6 +694,8 @@ export interface WithdrawalPage {
 }
 
 export interface Store extends TagflowStore {
+  /** External ad demand is optional on legacy persistence adapters. */
+  adNetworks?: import("./adNetworkConfig.ts").AdNetworkStore;
   /**
    * Anonymous lifetime totals, plus accounts created in the seven days before `now`.
    * Excludes zero-cost test receipts; counts active users only; no account data.
@@ -793,7 +795,7 @@ export interface Store extends TagflowStore {
   listCreditOrders(advertiserId: string): Promise<CreditOrderRecord[]>;
   /** Applies provider idempotency, order validation, credit movement, and suspension atomically. */
   applyCreditEvent(
-    event: import("./providerEvents.ts").NormalizedProviderEvent,
+    event: Exclude<import("./providerEvents.ts").NormalizedProviderEvent, { type: "subscription" }>,
   ): Promise<CreditEventResult>;
 
   createReport(report: ReportRecord): Promise<void>;

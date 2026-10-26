@@ -3,6 +3,28 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.4.2 — 2026-10-27
+
+- **Update now.** A new-version notice offers Update now or Later, with background download progress. On Windows, an explicit update protects unsaved work in every window, closes ADCode, shows installation progress and opens the updated app automatically. Store and portable users get the appropriate update destination.
+- **AI plans and tokens.** Heabsy models include 10M free tokens each week. Weekly ($3/week) and Monthly ($9/month) raise that to 60M/week; Pro ($19/month) gives 150M/week. One-time packs never expire and are used after the weekly allowance. The composer meter, AI usage and Upgrade Plan action make the balance and next step clear. Tagflow AI keeps its existing free access.
+- **Codes and invitations.** Redeem promo codes for tokens or plan days. A Pro subscriber can invite two friends; each friend's first eligible subscription rewards both accounts with 4M tokens while the inviter's Pro plan is active. Administrators can gift plans, boost allowances and reset eligible weeks, including bounded batches with retry.
+- **Provider connections.** Administrators can connect compatible documented ad-serving and event-verification APIs with encrypted keys and per-network payout rules. Imprezia and beehiiv have clearly marked previews; these previews do not bill desktop impressions or promise earnings.
+- Busy included models hand off to an available fallback promptly. Interrupted or cancelled answers finish cleanly with a readable error, and valid final answer data is preserved. A task paused by an account allowance rechecks soon after the allowance changes; real provider throttling remains distinct.
+- Account changes during a task are explained, temporary failures use bounded retries, and settings and automation schedules recover from redirected Windows folders. File watching falls back when a native watcher fails. Checklist compatibility and repeated-tool-failure recovery are improved.
+- Scroll overflowing chat tabs with the mouse wheel. Update preparation can be retried safely after a window refuses to close.
+- Updated Electron, Next.js, DOMPurify and affected dependencies to patched versions. Release preparation supports fresh daily patch versions, and release checks verify installer metadata and the installed Windows upgrade before producing a draft.
+
+## 2.4.1 — 2026-10-26 (build withheld)
+
+- **Update now.** A new-version notice offers Update now or Later, with background download progress. On Windows, an explicit update protects unsaved work in every window, closes ADCode, shows installation progress and opens the updated app automatically. Store and portable users get the appropriate update destination.
+- **AI plans and tokens.** Heabsy models include 10M free tokens each week. Weekly ($3/week) and Monthly ($9/month) raise that to 60M/week; Pro ($19/month) gives 150M/week. One-time packs never expire and are used after the weekly allowance. The composer meter, AI usage and Upgrade Plan action make the balance and next step clear. Tagflow AI keeps its existing free access.
+- **Codes and invitations.** Redeem promo codes for tokens or plan days. A Pro subscriber can invite two friends; each friend's first eligible subscription rewards both accounts with 4M tokens while the inviter's Pro plan is active. Administrators can gift plans, boost allowances and reset eligible weeks, including bounded batches with retry.
+- **Provider connections.** Administrators can connect compatible documented ad-serving and event-verification APIs with encrypted keys and per-network payout rules. Imprezia and beehiiv have clearly marked previews; these previews do not bill desktop impressions or promise earnings.
+- Busy included models hand off to an available fallback promptly. Interrupted or cancelled answers finish cleanly with a readable error, and valid final answer data is preserved. A task paused by an account allowance rechecks soon after the allowance changes; real provider throttling remains distinct.
+- Account changes during a task are explained, temporary failures use bounded retries, and settings and automation schedules recover from redirected Windows folders. File watching falls back when a native watcher fails. Checklist compatibility and repeated-tool-failure recovery are improved.
+- Scroll overflowing chat tabs with the mouse wheel. Update preparation can be retried safely after a window refuses to close.
+- Updated Electron, Next.js, DOMPurify and affected dependencies to patched versions. Release preparation supports fresh daily patch versions, and release checks verify installer metadata and the installed Windows upgrade before producing a draft.
+
 ## 2.4.0 — 2026-10-21
 
 - **The assistant uses ADCode for you.** Ask it to connect a tool such as Roblox Studio, change a setting or open a view, and it does it instead of telling you where to click. It looks ADCode's own features up before it answers, and asks first for anything that changes ads, updates or what runs as a command. Roblox Studio is in the Connectors catalogue.

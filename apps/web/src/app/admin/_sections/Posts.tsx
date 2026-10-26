@@ -5,6 +5,7 @@ import { MarkdownEditor } from "@/components/MarkdownEditor";
 import { useAuth } from "@/components/AuthProvider";
 import { apiFetch, MESSAGES } from "@/lib/api";
 import { when } from "@/components/money";
+import { AdminPanel, AdminWorkspace } from "@/components/AdminUI";
 
 type Surface = "blog" | "docs" | "both";
 
@@ -171,11 +172,12 @@ export function BlogBody() {
         </div>
       )}
 
-      <div style={{ display: "grid", gap: 30, gridTemplateColumns: "1fr", maxWidth: 720 }}>
-        <form onSubmit={(e) => e.preventDefault()}>
-          <h3 style={{ fontSize: 18, marginBottom: 12 }}>
-            {editing === null ? "Write a page" : `Editing ${editing}`}
-          </h3>
+      <AdminWorkspace editor compose={
+        <AdminPanel
+          title={editing === null ? "Write a page" : `Editing ${editing}`}
+          hint="Published pages appear on the site straight away, at /docs/ and the address below."
+          onSubmit={(e) => e.preventDefault()}
+        >
 
           <div className="field">
             <label htmlFor="p-title">Title</label>
@@ -322,10 +324,9 @@ export function BlogBody() {
               </button>
             )}
           </div>
-        </form>
-
-        <div>
-          <h3 style={{ fontSize: 18, marginBottom: 12 }}>Pages</h3>
+        </AdminPanel>
+      }>
+        <AdminPanel title="Pages" bare actions={`${posts.length}`}>
           {posts.length === 0 ? (
             <div className="empty">
               <h3>Nothing written yet</h3>
@@ -356,8 +357,8 @@ export function BlogBody() {
               ))}
             </div>
           )}
-        </div>
-      </div>
+        </AdminPanel>
+      </AdminWorkspace>
     </>
   );
 }

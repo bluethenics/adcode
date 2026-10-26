@@ -11,9 +11,19 @@
  * Without it Next would try to answer some of them at build time, when there is no
  * request, no token and no database.
  */
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { handleApiRequest } from "@/lib/apiHandler";
+import { withEdgeCache, type EdgeCacheStore } from "@/lib/edgeCache";
 
 export const dynamic = "force-dynamic";
+
+/** Public reads come from the data centre's cache - see `edgeCache.ts`. Everything else goes straight through. */
+const cachedRead = (request: Request): Promise<Response> => {
+  const cache = (globalThis as { caches?: { default?: EdgeCacheStore } }).caches?.default ?? null;
+  let waitUntil = (task: Promise<unknown>): void => { void task; };
+  try { const { ctx } = getCloudflareContext(); waitUntil = (task) => ctx.waitUntil(task); } catch { /* Not on Cloudflare: the cache is null too. */ }
+  return withEdgeCache(request, handleApiRequest, { cache, waitUntil, now: Date.now });
+};
 
 /**
  * The methods the API actually answers.
@@ -22,7 +32,7 @@ export const dynamic = "force-dynamic";
  * header - the handler answers it before authenticating for exactly that reason. A method
  * not listed here gets Next's own 405, which is the right answer.
  */
-export const GET = handleApiRequest;
+export const GET = cachedRead;
 export const POST = handleApiRequest;
 export const PATCH = handleApiRequest;
 export const PUT = handleApiRequest;

@@ -39,6 +39,10 @@ const command = (commandId: string, label: string): FeatureCommandAction => ({
  * looking for the feature actually wants: Commit, not Fetch.
  */
 const METADATA: Readonly<Record<string, FeatureMetadata>> = {
+  "ads.networks": {
+    actions: [command("ads.openNetworks", "Open ad network settings")],
+    keywords: ["ad networks", "provider api key", "imprezia", "beehiiv", "click payout", "view payout", "advertising inventory"],
+  },
   "workbench.modes": {
     actions: [command("workspace.vibe", "Vibe"), command("workspace.code", "Code"), command("workspace.project", "Project"), command("workspace.tasks", "AI tasks"), command("workspace.preview", "Preview")],
     keywords: ["vibe mode", "code mode", "workspace", "build", "review", "task history"],
@@ -126,6 +130,14 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("ai.showCredits", "Show credits")],
     keywords: ["credits", "free credits", "ai credits", "5 hour", "five hour", "session limit", "weekly limit", "usage limit", "refill", "reset", "claude max", "allowance", "daily allowance", "quota", "out of credits", "heabsy", "rate"],
   },
+  "ai.buyTokens": {
+    actions: [command("ai.buyTokens", "Buy tokens")],
+    keywords: ["buy tokens", "buy credits", "top up", "pay", "purchase", "more tokens", "out of tokens", "glm", "qwen", "mimo", "50m", "pricing", "price", "paid ai", "dodo"],
+  },
+  "ai.plans": {
+    actions: [command("ai.upgradePlan", "Upgrade plan")],
+    keywords: ["subscription", "subscribe", "monthly", "weekly", "pro plan", "promo code", "invite", "referral", "cancel subscription"],
+  },
   "ai.projectInstructions": {
     actions: [command("ai.initInstructions", "Write AGENTS.md")],
     keywords: ["agents.md", "claude.md", "gemini.md", "copilot instructions", "project rules", "instructions file", "init", "/init", "custom instructions", "coding standards", "conventions"],
@@ -141,6 +153,10 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
   "ai.tagflow": {
     actions: [command("ai.tagflow", "Choose included AI")],
     keywords: ["tagflow", "included ai", "no api key", "free models", "free ai", "server providers", "admin models", "custom free providers"],
+  },
+  "ai.statusAlerts": {
+    actions: [command("help.statusAlerts", "Get status alerts")],
+    keywords: ["status page", "outage", "is it down", "degraded", "model down", "ai not working", "email alerts", "notify me", "subscribe", "back to normal", "uptime", "incident", "status email"],
   },
   "adcode.ai.designTaste": {
     keywords: ["taste skill", "design skill", "anti slop", "generic ai design", "better ui", "landing page", "frontend", "built-in skills", "leonxlnx"],
@@ -529,8 +545,8 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     keywords: ["crash", "lost work", "unsaved", "recover"],
   },
   "adcode.updates.auto": {
-    actions: [command("updates.check", "Check now"), command("updates.restart", "Restart to update")],
-    keywords: ["update", "new version", "upgrade", "latest", "restart to update", "update ready"],
+    actions: [command("updates.check", "Check now"), command("updates.restart", "Update now")],
+    keywords: ["update", "new version", "upgrade", "latest", "restart to update", "update ready", "update notification", "Microsoft Store", "portable update"],
   },
 
   /* ── Languages ─────────────────────────────────────────────────────────── */

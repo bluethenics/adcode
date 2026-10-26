@@ -114,6 +114,22 @@ describe("crash recovery", () => {
     expect(drafts[0]).toMatchObject({ path: "E:/work/a.ts", text: "typed but not saved" });
   });
 
+  it("confirms a strict update draft only after its exact text is readable from disk", async () => {
+    await history.draft("E:/work/a.ts", "last edit before updating", true);
+    expect(await history.drafts()).toEqual([expect.objectContaining({ path: "E:/work/a.ts", text: "last edit before updating" })]);
+  });
+
+  it("rejects an oversized strict update draft rather than silently skipping recovery", async () => {
+    await expect(history.draft("E:/work/big.ts", "x".repeat(3_000_000), true)).rejects.toThrow("Save this large file");
+    expect(await history.drafts()).toEqual([]);
+  });
+
+  it("rejects a strict update draft when its directory cannot be written", async () => {
+    const blocked = join(dir, "blocked");
+    await writeFile(blocked, "This is a file, so it cannot contain a drafts directory.");
+    await expect(createLocalHistory(blocked).draft("E:/work/a.ts", "must survive", true)).rejects.toThrow();
+  });
+
   it("replaces the previous draft rather than piling them up", async () => {
     await history.draft("E:/work/a.ts", "first");
     await history.draft("E:/work/a.ts", "second");

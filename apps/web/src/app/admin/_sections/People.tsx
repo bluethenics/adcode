@@ -210,7 +210,7 @@ export function UsersBody({ initialQuery = "" }: { initialQuery?: string }) {
                   </span>
                 </span>
 
-                <span style={{ display: "flex", gap: 8, flex: "none" }}>
+                <span className="adm-row-actions">
                   <button className="btn btn-outline btn-small" onClick={() => void openLedger(row.uid)}>
                     {open === row.uid ? "Hide ledger" : "Ledger"}
                   </button>
@@ -224,7 +224,7 @@ export function UsersBody({ initialQuery = "" }: { initialQuery?: string }) {
                     </button>
                   ) : (
                     <button
-                      className="btn btn-outline btn-small"
+                      className="btn btn-outline btn-small adm-quiet-danger"
                       disabled={busy === row.uid}
                       onClick={() => void setStatus(row.uid, "banned")}
                     >
@@ -235,7 +235,7 @@ export function UsersBody({ initialQuery = "" }: { initialQuery?: string }) {
               </div>
 
               {open === row.uid && (
-                <div style={{ padding: "0 18px 18px" }}>
+                <div className="adm-row-detail">
                   {invites !== null && invitesLine(invites) !== null && <p className="field-hint">{invitesLine(invites)}</p>}
                   {ledger.length === 0 ? (
                     <p className="field-hint">No entries on this account.</p>
@@ -250,7 +250,7 @@ export function UsersBody({ initialQuery = "" }: { initialQuery?: string }) {
       )}
 
       {cursor !== null && (
-        <p className="field-hint" style={{ marginTop: 14 }}>
+        <p className="adm-footnote">
           Showing the {rows.length} most recent accounts. Older ones are not searched.
         </p>
       )}

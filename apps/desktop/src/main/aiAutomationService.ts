@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { atomicReplace } from "./atomicReplace.ts";
 import {
   cancelAiAutomation,
   claimAiAutomation,
@@ -77,17 +78,32 @@ export function createAiAutomationService(options: AiAutomationServiceOptions): 
   const makeId = options.id ?? (() => `automation-${randomUUID()}`);
   const root = join(options.userDataDirectory, "ai-automations");
   const target = join(root, "items.json");
+  const backup = `${target}.bak`;
+  let lastRead: readonly AiAutomation[] = [];
   let serial = Promise.resolve();
+
+  function parse(text: string): AiAutomation[] {
+    const parsed: unknown = JSON.parse(text);
+    if (!Array.isArray(parsed) || !parsed.every(validItem)) throw new Error("AI automation store is corrupt");
+    return parsed;
+  }
 
   async function load(): Promise<AiAutomation[]> {
     try {
-      const parsed: unknown = JSON.parse(await readFile(target, "utf8"));
-      if (!Array.isArray(parsed) || !parsed.every(validItem)) {
-        throw new Error("AI automation store is corrupt");
-      }
+      const parsed = parse(await readFile(target, "utf8"));
+      lastRead = parsed;
       return parsed;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      // Some virtual/cloud drives cannot rename even adjacent files. Their copy
+      // fallback keeps the previous validated state in case a copy is interrupted.
+      try {
+        const previous = parse(await readFile(backup, "utf8"));
+        lastRead = previous;
+        return previous;
+      } catch (backupError) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT" && (backupError as NodeJS.ErrnoException).code === "ENOENT") { lastRead = []; return []; }
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") throw backupError;
+      }
       throw error;
     }
   }
@@ -96,7 +112,17 @@ export function createAiAutomationService(options: AiAutomationServiceOptions): 
     await mkdir(root, { recursive: true });
     const temporary = `${target}.tmp`;
     await writeFile(temporary, JSON.stringify(items, null, 2), "utf8");
-    await rename(temporary, target);
+    try {
+      await atomicReplace(temporary, target);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
+      // Write the last validated state before touching the destination. Never
+      // delete the only complete state to work around a filesystem limitation.
+      await writeFile(backup, JSON.stringify(lastRead, null, 2), "utf8");
+      await copyFile(temporary, target);
+      await rm(temporary, { force: true });
+    }
+    lastRead = items;
   }
 
   function mutate<T>(operation: () => Promise<T>): Promise<T> {
@@ -240,7 +266,7 @@ export function createAiAutomationService(options: AiAutomationServiceOptions): 
                 : "Delivery time passed while ADCode was closed",
           };
         });
-        await save(recovered);
+        if (recovered.some((item, index) => item !== items[index])) await save(recovered);
       });
     },
 
@@ -253,7 +279,7 @@ export function createAiAutomationService(options: AiAutomationServiceOptions): 
             ? { ...missAiAutomation(item, now()), lastError: reason.slice(0, 500) }
             : item,
         );
-        await save(next);
+        if (next.some((item, index) => item !== items[index])) await save(next);
       });
     },
   };

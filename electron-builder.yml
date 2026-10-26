@@ -173,6 +173,7 @@ appx:
 
 nsis:
   oneClick: false
+  include: build/update-installer.nsh
   perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true

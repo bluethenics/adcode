@@ -24,7 +24,7 @@ import { createReadStream } from "node:fs";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
-import { watch, type FSWatcher } from "node:fs";
+import { watchForReload } from "./reloadWatcher.ts";
 import { isInsideWorkspace } from "./pathSafety.ts";
 import type { PreviewStatus } from "../shared/api.ts";
 
@@ -327,7 +327,7 @@ const STOPPED: LiveServerStatus = {
 };
 
 let server: Server | null = null;
-let watcher: FSWatcher | null = null;
+let watcher: ReturnType<typeof watchForReload> | null = null;
 let clients: ServerResponse[] = [];
 let status: LiveServerStatus = STOPPED;
 let reloadTimer: ReturnType<typeof setTimeout> | null = null;
@@ -432,15 +432,7 @@ function startWatching(root: string): void {
    * means a Linux user still gets reloads for files in the folder they opened, which is
    * where a beginner's index.html lives, rather than getting an error about inotify.
    */
-  try {
-    watcher = watch(root, { recursive: true }, () => broadcastReload());
-  } catch {
-    try {
-      watcher = watch(root, () => broadcastReload());
-    } catch {
-      watcher = null;
-    }
-  }
+  watcher = watchForReload(root, () => broadcastReload());
 }
 
 export async function startLiveServer(root: string | null): Promise<LiveServerStatus> {

@@ -35,8 +35,10 @@ export const historyVersions = (path: string): Promise<HistoryEntry[]> =>
 export const historyRead = (path: string, id: string): Promise<string | null> =>
   get().read(path, id);
 
-export const recordDraft = (path: string, text: string): Promise<void> =>
-  recoveryOn() ? get().draft(path, text) : Promise.resolve();
+export function recordDraft(path: string, text: string, strict = false): Promise<void> {
+  if (recoveryOn()) return get().draft(path, text, strict);
+  return strict ? Promise.reject(new Error("Save unsaved files before updating ADCode")) : Promise.resolve();
+}
 
 export const clearDraft = (path: string): Promise<void> => get().clearDraft(path);
 

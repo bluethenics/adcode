@@ -74,6 +74,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
      * above warns about.
      */
     { url: url("/status"), lastModified: at(siteDay), changeFrequency: "daily", priority: 0.6 },
+    { url: url("/ai-tokens"), lastModified: at(siteDay), changeFrequency: "monthly", priority: 0.5 },
     { url: url("/docs"), lastModified: at(newest([releaseDay, writingDay], writingDay)), changeFrequency: "weekly", priority: 0.8 },
     ...docs.map((page) => ({
       url: url(`/docs/${page.slug}`),

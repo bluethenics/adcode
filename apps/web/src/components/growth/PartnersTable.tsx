@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { moneyExact } from "@/components/money";
+import { moneyProgress } from "@/components/money";
 import type { ReferrerRowView } from "@/lib/sources";
 import { useSources, WindowPicker } from "./useGrowthData";
 
@@ -64,9 +64,9 @@ export function PartnersTable() {
                     <td>{row.realUsers.toLocaleString("en-US")}</td>
                     <td>{row.cameBack.toLocaleString("en-US")}</td>
                     <td>{row.advertisers.toLocaleString("en-US")}</td>
-                    <td>{moneyExact(broughtIn(row))}</td>
-                    <td>{moneyExact(row.paidMicros)}</td>
-                    <td>{moneyExact(row.keptMicros)}</td>
+                    <td>{moneyProgress(broughtIn(row))}</td>
+                    <td>{moneyProgress(row.paidMicros)}</td>
+                    <td>{moneyProgress(row.keptMicros)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { CopyField } from "@/components/CopyField";
-import { money, moneyExact, when } from "@/components/money";
+import { money, moneyExact, moneyProgress, when } from "@/components/money";
 import { countryName } from "@/lib/payoutOptions";
+import { AdminSummary } from "@/components/AdminUI";
 import {
   apiFetch,
   MESSAGES,
@@ -109,11 +110,12 @@ export function Withdrawals({ initialQuery = "" }: { initialQuery?: string }) {
         />
       </div>
 
-      {(filter === "requested" || filter === "approved") && inQueue.length > 0 && (
-        <p className="field-hint" style={{ marginBottom: 14 }}>
-          {inQueue.length} {inQueue.length === 1 ? "request" : "requests"},{" "}
-          <strong className="money">{money(held.toString())}</strong> held.
-        </p>
+      {(filter === "requested" || filter === "approved") && !loading && (
+        <AdminSummary items={[
+          { label: filter === "requested" ? "To review" : "To send", value: inQueue.length, hint: inQueue.length === 1 ? "request" : "requests", ...(inQueue.length > 0 ? { tone: "warn" as const } : {}) },
+          { label: "Held for them", value: <span className="money">{money(held.toString())}</span>, hint: "Released if rejected or failed" },
+          { label: "Oldest waiting", value: inQueue.length === 0 ? "—" : when(Math.min(...inQueue.map((row) => row.createdAt))), hint: "Answer the oldest first" },
+        ]} />
       )}
 
       {loading ? (
@@ -123,7 +125,7 @@ export function Withdrawals({ initialQuery = "" }: { initialQuery?: string }) {
           <h3>Nothing here</h3>
           <p>No payout requests match this filter.</p>
         </div>
-      ) : shown.map((row) => (
+      ) : <div className="adm-stack-list">{shown.map((row) => (
         <WithdrawalRow
           key={row.withdrawalId}
           row={row}
@@ -132,7 +134,7 @@ export function Withdrawals({ initialQuery = "" }: { initialQuery?: string }) {
           onDone={() => { setOpen(null); void load(); }}
           onError={setError}
         />
-      ))}
+      ))}</div>}
     </>
   );
 }
@@ -223,8 +225,8 @@ function WithdrawalRow({ row, expanded, onToggle, onDone, onError }: {
         <div><dt>Destination</dt><dd className="mono">{summary.accountHint}</dd></div>
         <div><dt>Recipient currency</dt><dd>{summary.currency}</dd></div>
         <div><dt>Country</dt><dd>{countryName(summary.country)}</dd></div>
-        <div><dt>Available after hold</dt><dd className="money">{moneyExact(row.availableMicros)}</dd></div>
-        <div><dt>Earned all time</dt><dd className="money">{moneyExact(row.lifetimeMicros)}</dd></div>
+        <div><dt>Available after hold</dt><dd className="money" title={moneyExact(row.availableMicros)}>{moneyProgress(row.availableMicros)}</dd></div>
+        <div><dt>Earned all time</dt><dd className="money" title={moneyExact(row.lifetimeMicros)}>{moneyProgress(row.lifetimeMicros)}</dd></div>
       </dl>
 
       {row.status === "paid" && row.providerRef !== null && (
@@ -262,7 +264,7 @@ function WithdrawalRow({ row, expanded, onToggle, onDone, onError }: {
       {canAct && (
         <>
           <div className="actions">
-            <button className="btn btn-outline btn-small" onClick={onToggle}>
+            <button className={`btn btn-small ${expanded ? "btn-outline" : "btn-primary"}`} onClick={onToggle}>
               {expanded ? "Hide details" : row.status === "requested" ? "Review request" : "Transfer details"}
             </button>
           </div>

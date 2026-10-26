@@ -370,7 +370,7 @@ export const UPDATE_PLAN: ToolDefinition = {
           type: "object",
           properties: {
             step: { type: "string", description: "A few words, e.g. Add the pricing section" },
-            status: { type: "string", enum: ["pending", "in_progress", "done"] },
+            status: { type: "string", enum: ["pending", "in_progress", "done", "completed"] },
           },
           required: ["step", "status"],
         },

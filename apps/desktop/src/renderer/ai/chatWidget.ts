@@ -108,6 +108,7 @@ import { openChatAppearanceDialog } from "./chatAppearanceDialog.ts";
 import { createQuestionCard } from "./chatQuestionCard.ts";
 import { openUsageDialog } from "./usageDialog.ts";
 import { firstBuildPrompt, looksLikeBuildRequest } from "../../shared/firstBuild.ts";
+import { BUY_TOKENS_URL } from "../../shared/tagflow.ts";
 
 export interface ChatWidget {
   readonly element: HTMLElement;
@@ -3298,6 +3299,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         retry.disabled = lastUserPrompt.trim().length === 0;
       } else if (kind === "usage") {
         action("View AI usage", () => void openUsageDialog(), primary);
+      } else if (kind === "buy-tokens") {
+        // Paying happens on the website; the paused task resumes by itself once the tokens arrive.
+        action("Buy tokens", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"), primary);
+      } else if (kind === "upgrade-plan") {
+        action("Upgrade plan", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener"), primary);
       } else if (kind === "models") {
         action("Switch model", () => deps.openConnect(), primary).title = "Choose another model - the request carries on with it";
       } else if (kind === "new-conversation") {

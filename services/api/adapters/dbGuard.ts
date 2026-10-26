@@ -48,7 +48,10 @@ export function createBreaker(inner: typeof fetch, options: BreakerOptions = DEF
   const now = options.now ?? Date.now;
   let failures = 0;
   let openUntil = 0;
-  let probing = false;
+  // When the probe in flight runs out of time. A deadline, not a flag cleared by the probe: on
+  // Cloudflare a probe's own timeout dies with the request that sent it, so a probe from a
+  // cancelled request may never settle - and a flag would then keep the circuit shut for good.
+  let probeUntil = 0;
   const fail = (): void => {
     failures += 1;
     if (failures >= options.threshold) openUntil = now() + options.coolDownMs;
@@ -56,9 +59,9 @@ export function createBreaker(inner: typeof fetch, options: BreakerOptions = DEF
   const guarded = (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const open = now() < openUntil;
     // Open: refuse at once. Half-open (cool-down over, failures not reset): one probe at a time.
-    if (open || (failures >= options.threshold && probing)) throw new DatabaseUnavailableError();
+    if (open || (failures >= options.threshold && now() < probeUntil)) throw new DatabaseUnavailableError();
     const halfOpen = failures >= options.threshold;
-    if (halfOpen) probing = true;
+    if (halfOpen) probeUntil = now() + options.timeoutMs;
     const timeout = AbortSignal.timeout(options.timeoutMs);
     const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
     try {
@@ -71,7 +74,7 @@ export function createBreaker(inner: typeof fetch, options: BreakerOptions = DEF
       if (!(init?.signal?.aborted ?? false)) fail();
       throw error;
     } finally {
-      if (halfOpen) probing = false;
+      if (halfOpen) probeUntil = 0;
     }
   }) as typeof fetch;
   return { fetch: guarded, state: () => ({ open: now() < openUntil, failures, openUntil }) };
@@ -84,22 +87,23 @@ export interface CacheOptions {
   readonly now?: () => number;
 }
 
-/** A read-through cache of one async value, with in-flight sharing and serve-stale-on-error. */
+/**
+ * A read-through cache of one async value, with serve-stale-on-error.
+ *
+ * Requests share finished values, never a load in flight. On Cloudflare a promise belongs to
+ * the request that made it: when that request is cancelled its fetch never settles, and every
+ * other request awaiting the same promise hung with it - for 100 minutes, on 2026-10-21.
+ */
 export function cached<T>(load: () => Promise<T>, options: CacheOptions): { get(): Promise<T>; clear(): void } {
   const now = options.now ?? Date.now;
   let value: { readonly at: number; readonly data: T } | null = null;
-  let pending: Promise<T> | null = null;
-  const refresh = (): Promise<T> => {
-    pending ??= load()
-      .then((data) => { value = { at: now(), data }; return data; })
-      .finally(() => { pending = null; });
-    return pending;
-  };
   return {
     async get(): Promise<T> {
       if (value !== null && now() - value.at < options.ttlMs) return value.data;
       try {
-        return await refresh();
+        const data = await load();
+        value = { at: now(), data };
+        return data;
       } catch (error) {
         if (value !== null && now() - value.at < options.staleMs) return value.data;
         throw error;

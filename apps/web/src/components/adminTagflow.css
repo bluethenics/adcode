@@ -11,3 +11,11 @@
 @media (max-width: 640px) { .tagflow-fields { grid-template-columns: 1fr; } }
 .tagflow-key { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
 .tagflow-key h4 { margin: 0; font-size: 14px; font-weight: 600; }
+.plans-admin .plans-admin-group { min-width: 0; padding-top: 22px; margin-top: 22px; border-top: 1px solid var(--line); }
+.plans-admin h4 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+.plans-admin .admin-card-head h4 { margin: 0; }
+.plans-admin .admin-card-head { margin-bottom: 14px; }
+.plans-admin .tagflow-field small { color: var(--muted); line-height: 1.6; }
+.plans-admin .notice { margin-top: 14px; overflow-wrap: anywhere; }
+.plans-admin .admin-models-scroll { max-width: 100%; }
+.plans-admin .btn { max-width: 100%; }

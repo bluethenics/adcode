@@ -329,6 +329,9 @@ export const BRIDGE = [
   { path: "updates.onChanged", kind: "subscribe", channel: CHANNELS.updateChanged },
   { path: "updates.install", kind: "invoke", channel: CHANNELS.updateInstall },
   { path: "updates.claimNotice", kind: "invoke", channel: CHANNELS.updateClaimNotice },
+  { path: "updates.onPrepare", kind: "subscribe", channel: CHANNELS.updatePrepare },
+  { path: "updates.onPrepareCancel", kind: "subscribe", channel: CHANNELS.updatePrepareCancel },
+  { path: "updates.prepared", kind: "invoke", channel: CHANNELS.updatePrepared },
 
   // support
   { path: "support.submitReport", kind: "invoke", channel: CHANNELS.supportSubmitReport },

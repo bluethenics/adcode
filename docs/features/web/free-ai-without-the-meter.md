@@ -1,18 +1,19 @@
 ---
 slug: free-ai-without-the-meter
-title: Free AI, without the meter
-description: Included AI with a verified ADCode account: no API key, no personal usage quota, and no meter to watch. What still has limits, and what to do when a request fails.
+title: Free AI, every week
+description: Included AI with a verified ADCode account: 10 million free Heabsy tokens a week, Tagflow AI without a personal quota, and bought tokens that never expire.
 section: The assistant
 published: 2026-10-20
+updated: 2026-10-26
 order: 4
-related: whats-new-october-2026, connectors, teach-the-assistant-your-project
+related: whats-new-october-2026, ai-plans, ai-buy-tokens
 ---
 
-# Free AI, without the meter
+# Free AI, every week
 
-ADCode includes AI with a verified ADCode account. You do not need an API key, a card, or a separate subscription. In version 2.4 there is also no personal meter to watch: included models have no ADCode request, token, daily or weekly quota.
+ADCode includes AI with a verified ADCode account. You do not need an API key, a card, or a separate subscription. Tagflow AI has no personal quota. Heabsy's models include 10 million free tokens each week, and you can raise that with a plan or top up with tokens you buy.
 
-That is a change from 2.3's daily token allowance, which is gone rather than enlarged. This page explains what you get now, what "free" still does not cover, and what happens when a request fails.
+Nothing is required to start: sign in, verify your email, and choose an included model. The rest of this page explains the weekly allowance, what still has limits, and what happens when a request fails.
 
 ## Start with an included model
 
@@ -20,22 +21,43 @@ Sign in from Account with Google, GitHub or email, and verify your email address
 
 On a new installation, an included model is already selected, so you can type a message without opening a settings screen. If you used ADCode before and had no model connected, it selects one for you as well. Your own connected providers are left alone.
 
-The model menu lists every included model, alongside models from any provider you connected yourself. Each entry says what the model can read at once and what it costs per million tokens; included models cost you nothing. Switching takes effect on your next message and keeps the conversation, including its summary and completed tool results.
+The model menu lists every included model, alongside models from any provider you connected yourself. Each entry says what the model can read at once. Tagflow AI is free with no weekly limit; Heabsy's models use the weekly allowance described below. Switching takes effect on your next message and keeps the conversation, including its summary and completed tool results.
 
 Included AI accepts text and tool calls, so it can read and search your project, edit files, run commands and check its work. It does not accept image attachments. If a tool returns an image, the assistant works from the tool's text findings instead.
 
-## The daily allowance, and why it is gone
+## The weekly allowance
 
-Version 2.3 gave each account 1,000,000 included tokens per day, shared across devices, with unlimited request counts. The allowance reset daily. When it ran low, a long task could stop and wait for the reset, and a request larger than the remaining balance could fail even though the next day would have had room.
+Two included services have different rules.
 
-That design made a free tool feel like a budget to manage. You could see the meter, so you planned around it: stop before the reset, postpone a large job, or wonder whether a failure was your code or your balance. Version 2.4 removes the personal allowance so included AI works like the rest of the editor. There is no daily refill to wait for and no quota screen to check before starting.
+- **Tagflow AI.** No personal request, token, daily or weekly quota from ADCode.
+- **Heabsy's models (GLM 5.3 Flash, Qwen 3.8, Mimo).** 10 million free tokens each week per account, then tokens you buy.
 
-"Unlimited" in the composer means ADCode sets no personal usage limit. It does not mean infinite capacity. The service still has real providers, real costs, and busy periods. What changed is that ADCode no longer adds a personal quota on top.
+Tagflow AI is the always-free option. ADCode sets no personal request or token limit on it, and you can switch to it at any time.
+
+Heabsy's models give every verified account 10 million free tokens a week, shared across your devices. The week starts with your first request on them, not on a fixed day. When the free tokens are gone, Heabsy uses tokens you bought. If you have none, the chat offers Buy tokens; a task that paused carries on by itself once they arrive.
+
+The daily allowance from 2.3 is gone. This is one weekly balance on Heabsy's models, not a daily meter, and it is separate from Tagflow AI.
+
+## When the week runs long
+
+A plan raises the weekly Heabsy allowance. It does not change Tagflow AI.
+
+- **Weekly:** $3 a week for 60M tokens each week.
+- **Monthly:** $9 a month for 60M tokens each week.
+- **Pro:** $19 a month for 150M tokens each week, plus two invites.
+
+A plan renews at the interval shown, and its Heabsy tokens arrive each week. Pro's two invites can each earn 4M purchased tokens for you and the friend once the friend accepts the invite before starting a paid plan and their first subscription becomes active while your Pro plan is still active. Each friend can earn the reward once.
+
+One-time packs add tokens without a subscription: $10 for 50M, $25 for 140M, $50 for 300M. They never expire and are used only after the weekly allowance. Promo codes can add tokens or plan days once per account while they are unexpired and have uses left.
+
+Open [AI plans and tokens](https://adcode.bluethenics.com/ai-tokens), or run AI: Upgrade Plan in ADCode, and sign in with the same account. Payment is handled by Dodo. Manage subscription on the page handles billing and cancellation; cancelling keeps the plan until the paid period ends. The step-by-step pages are [AI plans](/docs/ai-plans) and [Buying AI tokens](/docs/ai-buy-tokens).
 
 ## What free does not mean
 
-Free refers to payment and to ADCode's metering. It does not promise that every model, every request size or every moment will work.
+Free refers to Tagflow AI and to the weekly Heabsy allowance. It does not promise that every model, every request size or every moment will work, and past the weekly allowance Heabsy uses tokens you bought.
 
+- **Tagflow AI.** No personal request, token, daily or weekly quota from ADCode.
+- **Heabsy's models.** 10 million free tokens a week; after that, bought tokens. A plan raises the allowance but does not make capacity infinite.
 - **Provider availability.** A provider can be slow, rate-limit requests, or be unavailable for a while. The chat names the provider and explains the wait.
 - **Context limits.** The conversation, tool results and reply share the model's context window. ADCode compacts a long conversation as it fills, but a single request can still be too large, and a reply can still reach its output limit.
 - **Shared service capacity.** Included AI is a shared service. At a busy time you may be asked to wait or try again. Free does not reserve a private machine for each request.
@@ -49,17 +71,21 @@ Included AI does not put a provider key on your computer. When you send a messag
 
 Only the context needed for the request is sent.
 
-## Check Usage without watching a quota
+## Check Usage
 
-Select Usage in the chat's header, or run AI: Show Usage from the command palette. Choose Today, 7 days, 30 days or All time to see this computer's history: tokens in and out, requests, and an estimated cost for models you pay for. The included AI card says that included AI is unlimited and that there is no ADCode allowance. The composer's Today meter shows how many included requests you made across your devices.
+Select Usage in the chat's header, or run AI: Show Usage from the command palette. Choose Today, 7 days, 30 days or All time to see this computer's history: tokens in and out, requests, and an estimated cost for models you pay for.
+
+With a Heabsy model selected, the included AI card and the composer meter show the weekly allowance, what is left and when it refills, plus your purchased balance. Tagflow AI shows no personal quota.
 
 The activity calendar always shows the past year. Each square is a local calendar day with at least one AI request from chat or an agent on this computer. It shows your current streak, longest streak and active days. Hover, select or focus a square to see its date, requests and tokens; the arrow keys move between days, and Home and End jump to the oldest and newest day.
 
-Clear usage removes this computer's history, activity and streaks. It does not change your account's access to included AI. Your own provider's billing page remains the exact record for models you pay for.
+Clear usage removes this computer's history, activity and streaks. It does not change your account's allowance or bought tokens. Your own provider's billing page remains the exact record for models you pay for.
 
 ## If a request fails
 
 A dropped connection does not end the turn. ADCode retries inside the same turn for about two minutes, with a short pause between attempts and a status line that says what is happening. Stop cancels the wait. Completed tool steps are not repeated when the request resumes, so the assistant carries on from where it was instead of re-reading files or re-running commands. If the connection stays down, the message names the network error.
+
+If the week's allowance is used up, the card offers Buy tokens instead. The task that paused continues by itself once the tokens arrive.
 
 If the problem is the model rather than the network, the failure card offers a way forward. Choose Switch model, either from the card or from the model chip beside the send button. After a rate limit, an unavailable model or a rejected key, choosing a model that can answer resumes the request by itself. You do not retype the prompt, and the conversation, its compacted summary and its completed tool results travel with it.
 
