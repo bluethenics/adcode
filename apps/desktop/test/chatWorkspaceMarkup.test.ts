@@ -54,6 +54,44 @@ describe("AI Chat workspace", () => {
     expect(mainSource).toContain("content: chat.inspector.element");
   });
 
+  it("pins a conversation from its own history row, and holds it above the date groups", () => {
+    // The context menu carries the toggle next to Open and Rename.
+    expect(source).toContain('label: "Pin conversation"');
+    expect(source).toContain('label: "Unpin conversation"');
+    expect(source).toContain("window.adcode.chat.pin(id, pinned)");
+    // The mark rides the row even when a search flattens the groups away.
+    expect(source).toContain('className = "chat-history-pin"');
+    expect(source).toContain('row.dataset["pinned"] = "true"');
+    expect(styles).toContain(".chat-history-pin");
+    // The group sits ahead of Today, and the list animates the lift rather than flashing.
+    expect(source).toContain("groupChatSessions(shown)");
+    expect(source).toContain("playFlip(new Map(historyRowBoxes()), before)");
+  });
+
+  it("gives a pinned conversation a grip to drag, and the keyboard the same move", () => {
+    // Only a pinned row grows a grip, and the drag carries a type of its own so the
+    // chat card's file drop and the file tree's path drag never see it.
+    expect(source).toContain('grip.className = "chat-history-grip"');
+    expect(source).toContain("grip.draggable = true");
+    expect(source).toContain('grip.append(createIcon(WEB_ICON.grip))');
+    expect(source).toContain('event.dataTransfer.setData(HISTORY_DRAG_TYPE, session.id)');
+    expect(source).toContain('"application/x-adcode-pinned-conversation"');
+    // The drop seats the dragged pin directly above the row it landed on, under an
+    // outline the tree's own drop marker does not share.
+    expect(source).toContain('row.dataset["pinnedDrop"] = "true"');
+    expect(source).toContain("movePinnedTo(dragged, session.id)");
+    expect(styles).toContain(".chat-history-grip");
+    expect(styles).toContain('.chat-history-row[data-pinned-drop="true"]');
+    // The save is one whole order; a refresh waits behind it, and a failure puts the
+    // pins back and says why rather than silently moving nothing.
+    expect(source).toContain("window.adcode.chat.reorderPinned(order)");
+    expect(source).toContain("await reorderFlight");
+    expect(source).toContain('title: "Could not save the new order"');
+    // The row menu is the keyboard twin of the grip.
+    expect(source).toContain('"Move up above the next pinned conversation"');
+    expect(source).toContain('"Move down below the next pinned conversation"');
+  });
+
   it("leaves MCP, skills and saved agents to the Tools and Agents pages", () => {
     expect(source).not.toContain("createAssistantControls");
     expect(source).not.toContain("createAgentLibrary");

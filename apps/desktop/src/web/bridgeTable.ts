@@ -86,6 +86,8 @@ export const BRIDGE = [
   { path: "chat.resume", kind: "invoke", channel: CHANNELS.aiResumeSession },
   { path: "chat.rename", kind: "invoke", channel: CHANNELS.aiRenameSession },
   { path: "chat.remove", kind: "invoke", channel: CHANNELS.aiDeleteSession },
+  { path: "chat.pin", kind: "invoke", channel: CHANNELS.aiPinSession },
+  { path: "chat.reorderPinned", kind: "invoke", channel: CHANNELS.aiReorderPinnedSessions },
   { path: "chat.clear", kind: "invoke", channel: CHANNELS.aiClearSessions },
   { path: "chat.current", kind: "invoke", channel: CHANNELS.aiSessionChanged },
   { path: "chat.onChanged", kind: "subscribe", channel: CHANNELS.aiSessionChanged },

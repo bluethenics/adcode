@@ -64,7 +64,7 @@ import { WEB_ICON } from "../workbench/webIcons.ts";
 import { createContextMenu, attachContextMenuDismissal, type ContextMenuNode } from "../workbench/contextMenu.ts";
 import { contextMeterModel, createContextMeter } from "./contextMeter.ts";
 import { openModelFeedback } from "./modelFeedback.ts";
-import { markFor } from "../motionFlip.ts";
+import { markFor, measure, playFlip } from "../motionFlip.ts";
 import { button as dialogButton, el as dialogEl, openFormModal } from "../dialogs/formDialog.ts";
 import type { CodeReference } from "../editor/codeReferences.ts";
 import {
@@ -975,6 +975,18 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   history.append(historyHeading, historySearch, historyList, clearAll);
 
   let saved: readonly ChatSessionView[] = [];
+  /**
+   * The reorder in flight, if any. A save writes the pins one session at a time on the
+   * other side; a list refresh that raced it could read the pins half moved and hand
+   * back an order the user never made, so every refresh waits here first.
+   */
+  let reorderFlight: Promise<unknown> = Promise.resolve();
+  /**
+   * A pin is dragged under a type of its own, so the chat card's file drop and the file
+   * tree's path drag - each of which matches on its own type - never see it.
+   */
+  const HISTORY_DRAG_TYPE = "application/x-adcode-pinned-conversation";
+  let draggingHistoryId: string | null = null;
   let activeSessionId: string | null = null;
 
   /*
@@ -1080,8 +1092,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   attachContextMenuDismissal(historyMenu, () => historyMenuTrigger?.focus());
 
   async function refreshHistory(): Promise<void> {
-    saved = await window.adcode.chat.sessions();
     const current = await window.adcode.chat.current().catch(() => null);
+    // A reorder writes the pins one session at a time in the main process. A list read
+    // that landed mid-save could catch them half moved and hand back an order the user
+    // never made, so a refresh waits behind the save instead of racing it.
+    await reorderFlight;
+    saved = await window.adcode.chat.sessions();
     activeSessionId = current?.id ?? null;
     conversationTitle.textContent = current === null || current.messages.length === 0
       ? "New conversation"
@@ -1117,6 +1133,82 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     status.title = isWorking ? "Working" : ending === "finished" ? "Finished - not opened yet" : ending !== undefined ? "Stopped before finishing - open it to see why" : session.renamed ? "Renamed" : "Idle";
     row.append(status);
 
+    // The pin's own handle. A pinned conversation gets a grip to take hold of, sitting
+    // between the status mark and the title; anything not pinned has no order to move
+    // in, so it gets no grip.
+    if (typeof session.pinnedAt === "number") {
+      const grip = document.createElement("span");
+      grip.className = "chat-history-grip";
+      grip.dataset["grip"] = "true";
+      grip.setAttribute("aria-hidden", "true");
+      grip.title = "Drag to reorder pinned conversations";
+      grip.append(createIcon(WEB_ICON.grip));
+      grip.draggable = true;
+      grip.addEventListener("dragstart", (event) => {
+        draggingHistoryId = session.id;
+        if (event.dataTransfer !== null) {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData(HISTORY_DRAG_TYPE, session.id);
+        }
+        row.dataset["dragging"] = "true";
+      });
+      grip.addEventListener("dragend", () => {
+        draggingHistoryId = null;
+        delete row.dataset["dragging"];
+        for (const target of historyList.querySelectorAll<HTMLElement>('[data-pinned-drop="true"]')) {
+          delete target.dataset["pinnedDrop"];
+        }
+      });
+      row.append(grip);
+
+      // The drop. A pinned row takes the drag only where it belongs, seats the dragged
+      // pin directly above itself, and says so by taking an outline. The file tree's
+      // own drop marker keys off a different attribute, so neither draws the other's
+      // state.
+      row.addEventListener("dragover", (event) => {
+        if (draggingHistoryId === null || draggingHistoryId === session.id) return;
+        if (!event.dataTransfer?.types.includes(HISTORY_DRAG_TYPE)) return;
+        event.preventDefault();
+        if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "move";
+        row.dataset["pinnedDrop"] = "true";
+      });
+      row.addEventListener("dragleave", (event) => {
+        // Moving between the row's own children fires dragleave too; only leaving the
+        // row for good takes the outline down.
+        if (event.relatedTarget !== null && row.contains(event.relatedTarget as Node)) return;
+        delete row.dataset["pinnedDrop"];
+      });
+      row.addEventListener("drop", (event) => {
+        const dragged = event.dataTransfer?.getData(HISTORY_DRAG_TYPE) || draggingHistoryId;
+        delete row.dataset["pinnedDrop"];
+        if (!dragged || dragged === session.id) return;
+        event.preventDefault();
+        event.stopPropagation();
+        // Upper half seats the pin above this row, lower half below it. Without that,
+        // every drop would land "above", and the last seat in the pinned group could
+        // never be reached by dragging.
+        const box = row.getBoundingClientRect();
+        const below = event.clientY > box.top + box.height / 2;
+        if (!below) { movePinnedTo(dragged, session.id); return; }
+        const order = pinnedIdsNow();
+        const seat = order.indexOf(session.id);
+        movePinnedTo(dragged, order[seat + 1] ?? null);
+      });
+    }
+
+    // A pinned conversation keeps its mark even though the group heading already says
+    // "Pinned": a list is scanned by its glyphs before it is read by its headings, and a
+    // search flattens the groups away entirely.
+    if (typeof session.pinnedAt === "number") {
+      row.dataset["pinned"] = "true";
+      const pin = document.createElement("span");
+      pin.className = "chat-history-pin";
+      pin.setAttribute("aria-hidden", "true");
+      pin.title = "Pinned";
+      pin.append(createIcon(WEB_ICON.pin));
+      row.append(pin);
+    }
+
     const openIt = document.createElement("button");
     openIt.type = "button";
     openIt.className = "chat-history-open";
@@ -1141,6 +1233,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       const rect = options.getBoundingClientRect();
       historyMenu.open(rect.left, rect.bottom + 4, [
         { label: "Open", run: () => void resume(session.id) },
+        // The keyboard twin of the grip: dragging is a pointer gesture, but the order
+        // is reachable either way - each entry names the seat a pin is moving to.
+        ...(typeof session.pinnedAt === "number" ? movePinnedItems(session) : []),
+        session.pinnedAt === undefined
+          ? { label: "Pin conversation", run: () => void pinConversation(session.id, true) }
+          : { label: "Unpin conversation", run: () => void pinConversation(session.id, false) },
         { label: "Rename conversation…", run: async () => {
           const name = await deps.askForName(session.title);
           if (name === null) return;
@@ -1178,7 +1276,118 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     return row;
   }
 
+  /** Hold a conversation at the top of History, or let it fall back into the timeline. */
+  async function pinConversation(id: string, pinned: boolean): Promise<void> {
+    // A pin taken while a reorder is still writing would race its writes for the same
+    // sessions, so it waits its turn like a refresh does.
+    await reorderFlight;
+    saved = await window.adcode.chat.pin(id, pinned);
+    renderHistory();
+  }
+
+  /**
+   * The pinned conversations in the order they are shown: newest pin first, which is the
+   * order the main process expects back. Taken from the whole list rather than the DOM,
+   * so a search - which filters the rows - can never hand back a partial order.
+   */
+  function pinnedIdsNow(): string[] {
+    return saved
+      .filter((session) => session.pinnedAt !== undefined)
+      .sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0))
+      .map((session) => session.id);
+  }
+
+  /**
+   * Write a new pinned order: the list moves here at once, then the main process is told.
+   *
+   * A reorder is one request carrying every pin, so the list can be re-seated locally with
+   * the same rule the main process uses (see reorderPinned in packages/ai) - the rows glide
+   * under the pointer instead of waiting a round trip. The answer that comes back is the
+   * saved truth and replaces the local guess. If the save fails, the old list comes back and
+   * the reason is said out loud in the chat's own dialog: a drag that silently did nothing,
+   * or moved the pins once and back, would be worse than an error.
+   */
+  async function commitPinnedOrder(order: readonly string[]): Promise<void> {
+    const previous = saved;
+    const top = saved.reduce((max, session) => Math.max(max, session.pinnedAt ?? 0), 0);
+    const seat = new Map<string, number>(order.map((id, index): [string, number] => [id, top - index]));
+    saved = saved.map((session) => {
+      const at = seat.get(session.id);
+      return at === undefined ? session : { ...session, pinnedAt: at };
+    });
+    renderHistory();
+
+    const flight = window.adcode.chat.reorderPinned(order).then((sessions) => {
+      saved = sessions;
+      renderHistory();
+    });
+    // A refresh must never read the pins half saved: it waits behind this save instead.
+    reorderFlight = Promise.all([reorderFlight, flight]).catch(() => undefined);
+    try {
+      await flight;
+    } catch (error) {
+      saved = previous;
+      renderHistory();
+      await askThemed({
+        title: "Could not save the new order",
+        body: `The pinned conversations are back where they were. Reason: ${error instanceof Error ? error.message : String(error)}`,
+        confirmLabel: "Back to the list",
+        danger: true,
+      });
+    }
+  }
+
+  /**
+   * Seat one pinned conversation directly above another - or at the end of the pinned
+   * group when beforeId is null. The menu's move entries and the drop both land here, so
+   * the two ways of reaching an order produce exactly the same list before it is sent.
+   */
+  function movePinnedTo(id: string, beforeId: string | null): void {
+    const order = pinnedIdsNow();
+    if (!order.includes(id)) return;
+    const rest = order.filter((entry) => entry !== id);
+    const at = beforeId === null ? rest.length : rest.indexOf(beforeId);
+    if (at < 0) return;
+    const next = [...rest.slice(0, at), id, ...rest.slice(at)];
+    if (next.every((entry, index) => entry === order[index])) return;
+    void commitPinnedOrder(next);
+  }
+
+  /** The row menu's twin of the grip: an ordered pair of entries, greyed at the ends. */
+  function movePinnedItems(session: ChatSessionView): ContextMenuNode[] {
+    const order = pinnedIdsNow();
+    const index = order.indexOf(session.id);
+    const entry = (label: string, beforeId: string | null, enabled: boolean): ContextMenuNode => ({
+      label,
+      disabled: !enabled,
+      run: () => { movePinnedTo(session.id, beforeId); },
+    });
+    return [
+      entry("Move up above the next pinned conversation", order[index - 1] ?? null, index > 0),
+      entry(
+        "Move down below the next pinned conversation",
+        order[index + 2] ?? null,
+        index >= 0 && index + 1 < order.length,
+      ),
+    ];
+  }
+
+  /**
+   * Rebuild the list. Rows are keyed by session id so the FLIP pass can tell a row that
+   * merely moved (a pin landing at the top) from one that never existed.
+   */
   function renderHistory(): void {
+    const before = measure(historyRowBoxes());
+    drawHistory();
+    playFlip(new Map(historyRowBoxes()), before);
+  }
+
+  function historyRowBoxes(): [string, HTMLElement][] {
+    return [...historyList.querySelectorAll<HTMLElement>(".chat-history-row[data-session-id]")]
+      .map((element) => [element.dataset["sessionId"] ?? "", element] as [string, HTMLElement]);
+  }
+
+  function drawHistory(): void {
     const needle = historySearch.value.trim().toLowerCase();
     historyList.replaceChildren();
 
@@ -1202,7 +1411,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
 
     if (needle.length > 0) {
-      for (const session of [...shown].sort((a, b) => b.updatedAt - a.updatedAt)) {
+      // The flat search results keep the list's own order: a pin is not a date, so it
+      // leads rather than landing wherever its last message happened to fall.
+      for (const session of [...shown].sort((a, b) => {
+        const pinned = (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0);
+        return pinned !== 0 ? pinned : b.updatedAt - a.updatedAt;
+      })) {
         historyList.append(renderHistoryRow(session));
       }
       return;
@@ -1211,6 +1425,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     for (const group of groupChatSessions(shown)) {
       const heading = document.createElement("h3");
       heading.className = "chat-history-group";
+      if (group.pinned) heading.dataset["pinned"] = "true";
       heading.textContent = group.label;
       historyList.append(heading);
       for (const entry of group.sessions) {
@@ -2405,7 +2620,11 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     }
     try {
       const sessions = await window.adcode.chat.sessions();
-      const latest = sessions.find((one) => one.messages.length > 0 && one.id !== activeSessionId) ?? null;
+      // Pinned conversations come back first, and "where you left off" means the last
+      // thing said - not the last thing pinned.
+      const latest = [...sessions]
+        .filter((one) => one.messages.length > 0 && one.id !== activeSessionId)
+        .sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null;
       continueId = latest?.id ?? null;
       continueAction.hidden = latest === null;
       if (latest !== null) {

@@ -125,4 +125,33 @@ describe("chatMarkdown", () => {
     ]);
     expect(groups[0]?.sessions[0]?.id).toBe("today");
   });
+
+  /* A pin leaves the timeline: the group is "Pinned", not the day the message landed. */
+  it("lifts pinned conversations into their own group above the date groups", () => {
+    const noon = new Date(2026, 8, 13, 12, 0, 0).getTime();
+    const day = 24 * 60 * 60 * 1000;
+    const groups = groupChatSessions(
+      [
+        { id: "old", title: "Old", updatedAt: noon - 40 * day },
+        { id: "pinned-long-ago", title: "Starred", updatedAt: noon - 60 * day, pinnedAt: 100 },
+        { id: "today", title: "Today", updatedAt: noon - 60_000 },
+        { id: "pinned-today", title: "Kept", updatedAt: noon - 5 * day, pinnedAt: 900 },
+      ],
+      noon,
+    );
+
+    expect(groups.map((group) => group.label)).toEqual(["Pinned", "Today", "Older"]);
+    expect(groups[0]?.pinned).toBe(true);
+    // Newest pin first, regardless of when each conversation last spoke.
+    expect(groups[0]?.sessions.map((one) => one.id)).toEqual(["pinned-today", "pinned-long-ago"]);
+    // The pinned ones are gone from the day groups.
+    expect(groups.flatMap((group) => group.sessions).map((one) => one.id)).not.toContain("today-unpinned");
+    expect(groups[1]?.sessions.map((one) => one.id)).toEqual(["today"]);
+  });
+
+  it("adds no group for nothing pinned", () => {
+    const noon = new Date(2026, 8, 13, 12, 0, 0).getTime();
+    const groups = groupChatSessions([{ id: "a", title: "A", updatedAt: noon }], noon);
+    expect(groups.some((group) => group.pinned)).toBe(false);
+  });
 });

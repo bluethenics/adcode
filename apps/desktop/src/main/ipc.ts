@@ -115,6 +115,8 @@ import {
   aiCurrentSession,
   aiDeleteSession,
   aiRenameSession,
+  aiPinSession,
+  aiReorderPinnedSessions,
   aiResumeSession,
   aiRuns,
   aiLiveTurn,
@@ -647,6 +649,20 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
   ipcMain.handle(CHANNELS.aiDeleteSession, (_event, id: unknown) =>
     isString(id) ? aiDeleteSession(id) : aiSessions(),
   );
+
+  ipcMain.handle(CHANNELS.aiPinSession, (_event, id: unknown, pinned: unknown) =>
+    isString(id) && typeof pinned === "boolean" ? aiPinSession(id, pinned) : aiSessions(),
+  );
+
+  ipcMain.handle(CHANNELS.aiReorderPinnedSessions, (_event, order: unknown) => {
+    // A malformed order is a bug in the caller, not something to quietly absorb: it
+    // throws, the promise rejects, and the sidebar shows the reason rather than
+    // dropping the drag on the floor.
+    if (!Array.isArray(order) || !order.every(isString)) {
+      throw new Error("reorder expected an array of session ids");
+    }
+    return aiReorderPinnedSessions(order);
+  });
 
   ipcMain.handle(CHANNELS.aiClearSessions, () => aiClearSessions());
 

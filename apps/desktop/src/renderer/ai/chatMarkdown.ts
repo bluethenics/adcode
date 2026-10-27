@@ -330,6 +330,8 @@ export function renderChatMessageHtml(text: string): string {
 
 export interface ChatSessionGroup {
   readonly label: string;
+  /** True for the group a pin creates; it sits above every date group. */
+  readonly pinned: boolean;
   readonly sessions: readonly {
     readonly id: string;
     readonly title: string;
@@ -337,12 +339,23 @@ export interface ChatSessionGroup {
   }[];
 }
 
+/** A pin is a usable timestamp, never a stray zero or a word. */
+function pinOf(session: { readonly pinnedAt?: number }): number | null {
+  return typeof session.pinnedAt === "number" && Number.isFinite(session.pinnedAt) && session.pinnedAt > 0
+    ? session.pinnedAt
+    : null;
+}
+
 /**
  * Claude-style "Chats and tasks" grouping: Today, Yesterday, Previous 7 days,
  * Previous 30 days, Older. Pure date math on `updatedAt`, newest first.
+ *
+ * A pinned conversation does not belong to a day - it was pulled out of the timeline on
+ * purpose - so it forms its own group above the date groups, ordered by when it was pinned
+ * (newest pin first) rather than by what it said last.
  */
 export function groupChatSessions(
-  sessions: readonly { readonly id: string; readonly title: string; readonly updatedAt: number }[],
+  sessions: readonly { readonly id: string; readonly title: string; readonly updatedAt: number; readonly pinnedAt?: number }[],
   now: number = Date.now(),
 ): readonly ChatSessionGroup[] {
   const startOfDay = (at: number): number => {
@@ -359,7 +372,14 @@ export function groupChatSessions(
     { label: "Previous 30 days", sessions: [] },
     { label: "Older", sessions: [] },
   ];
-  const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
+
+  const pinned = sessions
+    .filter((session) => pinOf(session) !== null)
+    .sort((a, b) => (pinOf(b) ?? 0) - (pinOf(a) ?? 0));
+  const sorted = sessions
+    .filter((session) => pinOf(session) === null)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+
   for (const session of sorted) {
     const age = today - startOfDay(session.updatedAt);
     const days = Math.round(age / day);
@@ -370,5 +390,17 @@ export function groupChatSessions(
     else if (days <= 30) buckets[3]?.sessions.push(entry);
     else buckets[4]?.sessions.push(entry);
   }
-  return buckets.filter((bucket) => bucket.sessions.length > 0);
+
+  const groups: ChatSessionGroup[] = [];
+  if (pinned.length > 0) {
+    groups.push({
+      label: "Pinned",
+      pinned: true,
+      sessions: pinned.map((session) => ({ id: session.id, title: session.title, updatedAt: session.updatedAt })),
+    });
+  }
+  for (const bucket of buckets) {
+    if (bucket.sessions.length > 0) groups.push({ label: bucket.label, pinned: false, sessions: bucket.sessions });
+  }
+  return groups;
 }

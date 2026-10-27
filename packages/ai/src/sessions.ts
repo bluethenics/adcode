@@ -29,6 +29,13 @@ export interface ChatSession {
   readonly title: string;
   /** True once renamed, so auto-titling stops overwriting the user's own words. */
   readonly renamed: boolean;
+  /**
+   * When it was pinned, in epoch ms; absent means not pinned.
+   *
+   * The timestamp rather than a flag: two pinned conversations still need an order of
+   * their own, and "whichever was pinned last" is the order people expect to find them in.
+   */
+  readonly pinnedAt?: number;
   readonly createdAt: number;
   readonly updatedAt: number;
   readonly messages: readonly ChatMessage[];
@@ -80,9 +87,50 @@ export function titleFor(messages: readonly ChatMessage[]): string {
   return `${lastSpace > TITLE_LENGTH / 2 ? cut.slice(0, lastSpace) : cut}…`;
 }
 
-/** Newest first, which is the order a history list is read in. */
+/**
+ * Newest first, which is the order a history list is read in - with pinned conversations
+ * above everything else.
+ *
+ * A pin is the user saying "this one, keep it where I can see it": later activity in any
+ * other conversation, pinned or not, must not push it back down. Among the pinned and among
+ * the rest, recency still decides - a pin holds a place, it does not freeze a rank.
+ */
 export function sortSessions(sessions: readonly ChatSession[]): ChatSession[] {
-  return [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
+  return [...sessions].sort((a, b) => {
+    const pinned = (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0);
+    if (pinned !== 0) return pinned;
+    return b.updatedAt - a.updatedAt;
+  });
+}
+
+/**
+ * Seat the pinned conversations in the order the user dragged them into.
+ *
+ * The pin timestamps are what order the pinned group, so there is no second field for a
+ * manual rank: a new order is written by handing each pin the timestamp that says it -
+ * the first name in the list gets the newest one, and they descend from there. Every
+ * reader of `pinnedAt` (the list, the groups, a search) then agrees without being taught
+ * a second rule.
+ *
+ * The order has to name every pinned conversation exactly once. Anything else - a name
+ * that is not pinned, a name twice, a pin left out - throws rather than guessing, because
+ * half an order silently rearranges whichever conversations it failed to mention.
+ */
+export function reorderPinned(sessions: readonly ChatSession[], order: readonly string[]): ChatSession[] {
+  const pinnedIds = new Set(sessions.filter((one) => one.pinnedAt !== undefined).map((one) => one.id));
+  const listed = new Set(order);
+  if (order.length !== pinnedIds.size || listed.size !== order.length || [...pinnedIds].some((id) => !listed.has(id))) {
+    throw new Error("the order must name every pinned conversation exactly once");
+  }
+
+  // Above the newest current pin, so the rewritten stamps land strictly inside the range
+  // the rest of the app already produces; the previous top is then simply in the past.
+  const top = sessions.reduce((max, one) => Math.max(max, one.pinnedAt ?? 0), 0);
+  const seat = new Map(order.map((id, index) => [id, top - index]));
+  return sessions.map((one) => {
+    const at = seat.get(one.id);
+    return at === undefined ? one : { ...one, pinnedAt: at };
+  });
 }
 
 /**
@@ -155,10 +203,15 @@ export function validateSession(raw: unknown): ChatSession | null {
   const updatedAt = record["updatedAt"];
   const title = record["title"];
 
+  // A pin read as anything but a usable timestamp costs the pin, never the conversation.
+  const pinnedAt = record["pinnedAt"];
+  const pin = typeof pinnedAt === "number" && Number.isFinite(pinnedAt) && pinnedAt > 0 ? pinnedAt : undefined;
+
   return {
     id,
     title: typeof title === "string" && title.length > 0 ? title : titleFor(messages),
     renamed: record["renamed"] === true,
+    ...(pin !== undefined ? { pinnedAt: pin } : {}),
     createdAt: typeof createdAt === "number" ? createdAt : 0,
     updatedAt: typeof updatedAt === "number" ? updatedAt : 0,
     messages,

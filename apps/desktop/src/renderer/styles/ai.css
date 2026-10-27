@@ -855,6 +855,20 @@
   transition: opacity 140ms ease, background-color 140ms ease, color 140ms ease;
 }
 
+/* A pin is state, not an action: it stays put so the list scans by glyph, and the
+   groups are still invisible in a flattened search result. */
+.chat-history-pin {
+  order: -1;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-tertiary);
+  padding: 2px 0;
+  margin-right: 4px;
+}
+.chat-history-pin svg { width: 12px; height: 12px; }
+.chat-history-row[data-pinned="true"] .chat-history-pin { color: var(--accent); }
+
 .chat-history-row:hover .chat-history-action,
 .chat-history-action:focus-visible {
   opacity: 1;
@@ -2184,6 +2198,7 @@ button.chat-model[data-ready="false"]::before {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+.chat-history-group[data-pinned="true"] { color: var(--accent); }
 
 .chat-history-row[data-active="true"] { background: var(--bg-selected); }
 .chat-history-row[data-active="true"] .chat-history-open { color: var(--accent); font-weight: 600; }
@@ -4311,3 +4326,43 @@ input[type="checkbox"]:checked + .chat-question-mark::after { content: "✓"; }
 .chat-quick-action.chat-quick-continue[hidden] {
   display: none;
 }
+
+/*
+ * The handle a pinned conversation is dragged by. Faint until the row is under the
+ * pointer, so the list still reads as a list of titles rather than a column of handles.
+ */
+.chat-history-grip {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 2px;
+  border-radius: 4px;
+  color: var(--text-tertiary);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+
+.chat-history-grip svg { width: 12px; height: 12px; stroke-width: 1.8; }
+
+.chat-history-row:hover .chat-history-grip,
+.chat-history-grip:focus-visible { opacity: 1; }
+
+.chat-history-grip:hover { background: var(--bg-active); color: var(--text-primary); }
+
+/*
+ * The pin in flight, and the row that will take it. The file tree's own drop marker
+ * keys off [data-drop-target], so this outline is drawn only by the pin drag - neither
+ * gesture can paint the other's state.
+ */
+.chat-history-row[data-dragging="true"] { opacity: 0.45; }
+
+.chat-history-row[data-pinned-drop="true"] {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  background: var(--bg-selected);
+}
+
+:root[data-reduced-motion="true"] .chat-history-grip { transition: none; }

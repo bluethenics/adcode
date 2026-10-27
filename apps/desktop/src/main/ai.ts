@@ -65,6 +65,7 @@ import {
   withMessage,
   withSummary,
   summaryCoverage,
+  reorderPinned,
   restoreHistory,
   historyForModelSwitch,
   estimateTokens,
@@ -817,6 +818,64 @@ export async function aiRenameSession(id: string, title: string): Promise<ChatSe
   else if (session?.id === id) session = renamed;
 
   return aiSessions();
+}
+
+/**
+ * Pin a conversation to the top of History, or take the pin off.
+ *
+ * The pin carries the moment it was set, so pinned conversations keep an order of their
+ * own - last pinned first - and stay above the recency list no matter what else is said.
+ */
+export async function aiPinSession(id: string, pinned: boolean): Promise<ChatSession[]> {
+  const all = await aiSessions();
+  const found = threads.get(id)?.session ?? all.find((one) => one.id === id);
+  if (found === undefined) return all;
+
+  const next: ChatSession = pinned
+    ? { ...found, pinnedAt: Date.now() }
+    : (() => { const { pinnedAt: _dropped, ...rest } = found; return rest; })();
+  await writeSession(currentWorkspace()?.root ?? null, next);
+  const thread = threads.get(id);
+  if (thread !== undefined) adoptSession(thread, next);
+  else if (session?.id === id) session = next;
+
+  return aiSessions();
+}
+
+/**
+ * Seat the pinned conversations in the order the sidebar dragged them into.
+ *
+ * The renderer sends every pin in list order, first dragged first; the pure function
+ * decides the timestamps (and rejects an order that does not name every pin exactly
+ * once), and each name is persisted the same way a pin already is - one whole session
+ * write - so a write that fails cannot leave the order half applied.
+ *
+ * Reorders run one behind the other. Each one rewrites every pin from its own complete
+ * list, so two of them interleaved would each restore part of their order over the
+ * other's - queued, the later order simply wins, which is what was dragged last.
+ */
+let reorderTail: Promise<unknown> = Promise.resolve();
+
+export function aiReorderPinnedSessions(order: readonly string[]): Promise<ChatSession[]> {
+  const run = async (): Promise<ChatSession[]> => {
+    const all = await aiSessions();
+    const reordered = reorderPinned(all, order);
+
+    for (const next of reordered) {
+      const was = all.find((one) => one.id === next.id);
+      if (was === undefined || was.pinnedAt === next.pinnedAt) continue;
+      await writeSession(currentWorkspace()?.root ?? null, next);
+      const thread = threads.get(next.id);
+      if (thread !== undefined) adoptSession(thread, next);
+      else if (session?.id === next.id) session = next;
+    }
+
+    return aiSessions();
+  };
+
+  const flight = reorderTail.then(run, run);
+  reorderTail = flight.catch(() => undefined);
+  return flight;
 }
 
 /**

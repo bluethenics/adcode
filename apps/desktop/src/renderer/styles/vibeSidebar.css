@@ -308,6 +308,7 @@ body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-group {
   text-transform: none;
 }
 body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-group:first-child { margin-top: 2px; }
+body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-group[data-pinned="true"] { color: var(--accent); font-weight: 650; }
 body[data-workspace-mode="vibe"] .vibe-history-host .chat-history-row {
   min-height: 32px;
   gap: 4px;

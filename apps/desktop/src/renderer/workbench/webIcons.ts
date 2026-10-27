@@ -1,5 +1,5 @@
 /** Official Lucide icons, imported individually so unused icons are excluded from the bundle. */
-import { MessageSquarePlus, FileDiff, PanelsTopLeft, CalendarClock, CircleUserRound, Users, PanelTop, Menu, FolderOpen, ChevronDown, ChevronRight, MessageSquare, Bot, Wrench, Bell, Settings, CodeXml, Search, Sparkles, Gift, MonitorDown, BookOpen, LayoutGrid, PanelLeft, Wallet, X, Ellipsis, MessageSquareText, Globe, GitBranch, Plug, GraduationCap, BookMarked, Keyboard, Hammer, Bug, Lightbulb, Gamepad2, ListChecks, UserRound, History } from "lucide";
+import { MessageSquarePlus, FileDiff, PanelsTopLeft, CalendarClock, CircleUserRound, Users, PanelTop, Menu, FolderOpen, ChevronDown, ChevronRight, MessageSquare, Bot, Wrench, Bell, Settings, CodeXml, Search, Sparkles, Gift, MonitorDown, BookOpen, LayoutGrid, PanelLeft, Wallet, X, Ellipsis, MessageSquareText, Globe, GitBranch, Plug, GraduationCap, BookMarked, Keyboard, Hammer, Bug, Lightbulb, Gamepad2, ListChecks, UserRound, History, Pin, PinOff, GripVertical } from "lucide";
 
 export const WEB_ICON = {
   newChat: MessageSquarePlus,
@@ -44,4 +44,9 @@ export const WEB_ICON = {
   todo: ListChecks,
   person: UserRound,
   resume: History,
+  // A conversation held at the top of History, and the same mark struck out once it is let go.
+  pin: Pin,
+  pinOff: PinOff,
+  // The handle a pinned conversation is dragged by to give it a new seat.
+  grip: GripVertical,
 } as const;

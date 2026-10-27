@@ -131,6 +131,7 @@ export { THINKING_FILLED_ALLOWANCE } from "./agent.ts";
 
 export {
   pruneSessions,
+  reorderPinned,
   searchSessions,
   sortSessions,
   titleFor,
