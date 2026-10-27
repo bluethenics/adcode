@@ -35,9 +35,16 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function powershell(source) {
   return run("powershell.exe", ["-NoProfile", "-NonInteractive", "-OutputFormat", "Text", "-EncodedCommand", Buffer.from(`$ErrorActionPreference='Stop'\n$ProgressPreference='SilentlyContinue'\n${source}`, "utf16le").toString("base64")]);
 }
-// Default userData belongs to this ephemeral account. Using its normal location also
-// tests a stock installer relaunch, which intentionally passes only --updated.
-const profile = join(process.env.APPDATA ?? "", "ADCode");
+/*
+ * Default userData belongs to this ephemeral account. Using its normal location also tests a
+ * stock installer relaunch, which goes through Explorer and passes only --updated - so the
+ * baseline must start in that same folder, Electron's default %APPDATA%\<package name>.
+ * Until 27 October 2026 this was %APPDATA%\ADCode, which no installed ADCode uses (2.4.0
+ * writes to %APPDATA%\@adcode\desktop): the updated app logged to its real profile, and the
+ * "preserved" checks compared a folder it never opened.
+ */
+const desktopPackageName = JSON.parse(await readFile(join(repo, "apps", "desktop", "package.json"), "utf8")).name;
+const profile = join(process.env.APPDATA ?? "", ...desktopPackageName.split("/"));
 if (!process.env.APPDATA || !process.env.LOCALAPPDATA) throw new Error("Runner profile locations unavailable.");
 const existingProcessCount = await powershell("@(Get-Process -Name ADCode -ErrorAction SilentlyContinue).Count");
 if (existingProcessCount !== "0") {
@@ -56,7 +63,7 @@ const cache = join(process.env.LOCALAPPDATA, cacheName);
 const marker = `installed-update-${randomUUID()}`;
 const firewallRule = `ADCode CI update ${marker}`;
 await mkdir(baseline);
-await mkdir(profile);
+await mkdir(profile, { recursive: true });
 await writeFile(join(profile, "update-acceptance-marker.txt"), marker);
 await writeFile(join(profile, "settings.json"), JSON.stringify({ version: 1, values: { "adcode.updates.auto": false, "adcode.updates.announce": true } }));
 const log = join(profile, "logs", "debug.log");
@@ -284,7 +291,8 @@ public class UpdateWindows {
   await writeFile(stopFile, "stop").catch(() => {});
   // Kill only executables in the CI-owned install or unique updater cache; never names
   // alone. A separate preflight refused to touch any existing ADCode process/profile.
-  await powershell(`$roots=@(${psQuote(install + "\\")},${psQuote(cache + "\\")}); $isOwned={ $p=$_.ExecutablePath; $p -and ($roots | Where-Object { $p.StartsWith($_,[StringComparison]::OrdinalIgnoreCase) }) }; $owned=@(Get-CimInstance Win32_Process | Where-Object $isOwned); foreach ($ownedProcess in $owned) { Stop-Process -Id $ownedProcess.ProcessId -Force -ErrorAction SilentlyContinue; Wait-Process -Id $ownedProcess.ProcessId -Timeout 15 -ErrorAction SilentlyContinue }; if (@(Get-CimInstance Win32_Process | Where-Object $isOwned).Count -ne 0) { throw 'A CI-owned app or installer did not stop' }`).catch(error => cleanupFailure(`Owned-process cleanup: ${error.message}`));
+  // Several rounds: Chromium helpers can still be starting when the first pass lists them.
+  await powershell(`$roots=@(${psQuote(install + "\\")},${psQuote(cache + "\\")}); $isOwned={ $p=$_.ExecutablePath; $p -and ($roots | Where-Object { $p.StartsWith($_,[StringComparison]::OrdinalIgnoreCase) }) }; for ($round=0; $round -lt 4; $round++) { $owned=@(Get-CimInstance Win32_Process | Where-Object $isOwned); if ($owned.Count -eq 0) { break }; foreach ($ownedProcess in $owned) { Stop-Process -Id $ownedProcess.ProcessId -Force -ErrorAction SilentlyContinue; Wait-Process -Id $ownedProcess.ProcessId -Timeout 15 -ErrorAction SilentlyContinue }; Start-Sleep -Seconds 2 }; if (@(Get-CimInstance Win32_Process | Where-Object $isOwned).Count -ne 0) { throw 'A CI-owned app or installer did not stop' }`).catch(error => cleanupFailure(`Owned-process cleanup: ${error.message}`));
   watcher?.kill();
   if (firewallAdded) await powershell(`Get-NetFirewallRule -DisplayName ${psQuote(firewallRule)} -ErrorAction SilentlyContinue | Remove-NetFirewallRule`).catch(error => cleanupFailure(`Firewall cleanup: ${error.message}`));
   if (firewallProfilesMayHaveChanged) {
