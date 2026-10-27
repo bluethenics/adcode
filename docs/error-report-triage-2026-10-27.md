@@ -57,3 +57,17 @@ Sender: `ADCode <adcode@bluethenics.com>`. Recipients come from each account's k
 > Thanks for the suggestion - it's on our list. (Sub-agents: their progress appears in the Helpers step of the chat today; opening each one's own session is the part we'll add. IntelliSense: the IDE has language-server completions for TypeScript/JavaScript and more; tell us which language you need, and we'll prioritise it.)
 
 No reply: `rep-1-1793050205167`.
+
+## Follow-up, 28 October 2026 (IST): queue closed out
+
+Six more reports arrived after the cutoff above (`rep-9-1793107079245`, `rep-1-1793107083758`, `rep-5-1793107181502`, `rep-32-1793107306597`, `rep-17-1793107792475`, `rep-25-1793122723930`); all six are "Included AI stream interrupted" from 2.4.0, all sent before the relay fix went live (17:38 UTC at the latest; Worker `f23c70eb` was deployed at about 17:45 UTC).
+
+The relay fix (`f13e2620`) halved the failure but did not remove it. `ai_model_requests`, each row one request after its retries: in the six hours before the deploy, 137 of 10,376 requests (1.32%) ended `stream-interrupted`, 136 of them before any token; in the first 1 h 45 min after it, 15 of 2,041 (0.73%), all before any token - so these reached people even after two restarts.
+
+Queue actions, with an `audit_log` row each (`report:<status>:<id>`, admin `FPEuDxd945b5OTF38Jdlg5Oxg2V2`):
+
+- **Closed 68**: the 52 already triaged and answered on 24-26 October, and 16 open ones that are fixed in 2.4.4 (Unlimited badge, PowerShell in cmd, "No API key" on Linux), working as designed (images on text-only models, email verification), the person's own provider failing (Gemini 503, custom provider 502), or feature requests (IntelliSense; sub-agent sessions on the web).
+- **Deleted 2** that are not reports: `rep-1-1793050205167` ("NEXUS STORE" / "boraa") and `rep-11-1792633259685` (a build prompt pasted into the form).
+- **Kept 32 as triaged**: the 26 stream-interruption reports in group A above and the six new ones, until the stream failure rate is near zero.
+
+The draft replies above have still not been sent.
