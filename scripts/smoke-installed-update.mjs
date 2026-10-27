@@ -185,6 +185,7 @@ public class UpdateWindows {
   [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr p);
   [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr h, EnumProc f, IntPtr p);
   [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder b, int n);
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder b, int n);
   [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
@@ -209,9 +210,13 @@ public class UpdateWindows {
             File.AppendAllText(output, "{\\"unownedProgressPid\\":" + pid + ",\\"pathBase64\\":\\"" + encodedPath + "\\"}\\n");
           }
           if (String.Equals(path,install,StringComparison.OrdinalIgnoreCase) && pid != oldPid) {
-            string key = "app:" + pid;
             string version = process.MainModule.FileVersionInfo.ProductVersion;
-            if (seen.Add(key)) File.AppendAllText(output, "{\\"newAppPid\\":" + pid + ",\\"version\\":\\"" + version + "\\",\\"windowVisible\\":true}\\n");
+            // Class and title, so a crash dialog cannot pass for the app's own window.
+            var windowClass = new StringBuilder(256); GetClassName(h, windowClass, 256);
+            var windowTitle = new StringBuilder(512); GetWindowText(h, windowTitle, 512);
+            string key = "app:" + pid + ":" + windowClass + ":" + windowTitle;
+            string described = Convert.ToBase64String(Encoding.UTF8.GetBytes(windowClass + "|" + windowTitle));
+            if (seen.Add(key)) File.AppendAllText(output, "{\\"newAppPid\\":" + pid + ",\\"version\\":\\"" + version + "\\",\\"windowVisible\\":true,\\"windowBase64\\":\\"" + described + "\\"}\\n");
           }
         } catch { }
         return true;
@@ -257,6 +262,20 @@ public class UpdateWindows {
   console.error(`Installed-update failure: ${error.message}`);
   console.error(`Updater log tail:\n${(await readFile(log, "utf8").catch(() => "(not created)")).slice(-8000)}`);
   console.error(`Native observations:\n${(await readFile(watcherLog, "utf8").catch(() => "(not created)")).slice(-4000)}`);
+  /*
+   * Where did the updated app go? The installer relaunches it through Explorer
+   * (ExecShellAsUser), so it inherits neither this script's arguments nor its environment.
+   * Window class and title tell a real window from a crash dialog, command lines say which
+   * profile it was given, and the fresh logs say which profile it used.
+   */
+  const windows = (await readFile(watcherLog, "utf8").catch(() => "")).split(/\r?\n/).flatMap(line => {
+    try { const item = JSON.parse(line); return item.windowBase64 ? [`${item.newAppPid}: ${Buffer.from(item.windowBase64, "base64").toString("utf8")}`] : []; } catch { return []; }
+  });
+  console.error(`Updated app windows (class|title):\n${windows.join("\n") || "(none)"}`);
+  const commandLines = await powershell(`@(Get-CimInstance Win32_Process -Filter "Name='ADCode.exe'" | ForEach-Object { "$($_.ProcessId) $($_.CommandLine)" }) -join [Environment]::NewLine`).catch(failure => failure.message);
+  console.error(`Running ADCode command lines:\n${commandLines}`);
+  const freshLogs = await powershell(`@(Get-ChildItem -LiteralPath ${psQuote(process.env.APPDATA)},${psQuote(process.env.LOCALAPPDATA)} -Filter debug.log -Recurse -Depth 4 -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-15) } | ForEach-Object { "== $($_.FullName)"; Get-Content -LiteralPath $_.FullName -Tail 15 }) -join [Environment]::NewLine`).catch(failure => failure.message);
+  console.error(`Debug logs written during this run:\n${freshLogs}`);
   throw error;
 } finally {
   const cleanupFailures = [];
