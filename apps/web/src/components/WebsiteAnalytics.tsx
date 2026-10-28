@@ -113,7 +113,7 @@ export function WebsiteAnalytics() {
     };
   }, [pathname, choice, ready]);
 
-  if (!ready || pathname.startsWith("/admin")) return null;
+  if (!ready || pathname.startsWith("/admin") || pathname.startsWith("/sponsored/")) return null;
   const choose = (value: AnalyticsChoice) => { setAnalyticsChoice(value); setEditing(false); };
   return (
     <>

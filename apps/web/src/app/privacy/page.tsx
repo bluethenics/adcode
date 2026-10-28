@@ -38,14 +38,29 @@ This explains what ADCode collects, what it does not, and why. It covers the ADC
 - ADCode's **advertising, earnings, and analytics services never receive file contents, file paths, or project names.**
 - AI features may send source text and prompts to the provider you select. ADCode explains and limits that separate path below.
 - Ads are targeted using a fixed list of **45 generic tags** describing the language or framework you have open.
+- **Sponsored cards under AI replies are off unless you turn them on.** If you do, your message and the assistant's reply under which the card appears go to our ad partner, Imprezia, to choose that card. See below.
 - You are identified by an **anonymous account created automatically**, with no email, name, or password, unless you choose to add one.
-- We do not sell personal data, and there are no third-party advertising trackers in the editor or on this site.
+- We do not sell personal data. There are no third-party advertising trackers in the editor or on this site, except inside an opt-in sponsored card under an AI reply, which is described below.
 
 ## What the editor sends
 
 ### To serve an ad
 
 A request contains three things: the tags for what you have open, whether your theme is light or dark, and how many cards to return.
+
+When no direct campaign fills the card, ADCode's server may ask our ad partner Imprezia for one. Imprezia then receives the same generic tags and a daily one-way code that cannot be traced back to you - never your code, prompts, or account.
+
+### Sponsored cards under AI replies (only if you turn them on)
+
+**Settings → Ads → Sponsored cards under AI replies** is off by default. Nothing in this section happens unless you turn it on, and turning it off stops it at once.
+
+When it is on, after the assistant answers in the desktop app, ADCode shows a sponsored card chosen for that exchange under the reply. To choose it, Imprezia receives:
+
+- **your message and the assistant's reply** under which the card appears, cut to the first 4,000 characters of each. A reply can contain code, and that code is included;
+- **an identifier for that conversation**, so the cards in one conversation are chosen together. It is not your account, and a new conversation has a new one;
+- **your IP address and your browser's user-agent string**, which Imprezia uses for location targeting and to detect fraud.
+
+Nothing else from your project is sent: no other files, file paths, or project names. The card is a separate page from adcode.bluethenics.com, shown inside the editor but walled off from it, so neither Imprezia nor anyone it works with can reach your files or the rest of the editor. Imprezia's own measurement partners may load inside that card to count views and clicks. ADCode does not store the message or the reply for this.
 
 Tags come from a closed vocabulary compiled into the editor — values like \`lang:rust\`, \`fw:react\`, \`tool:docker\`, \`platform:backend\`. There are 45 of them. The server cannot add to the list, and any tag the editor does not recognise is never sent.
 
@@ -148,15 +163,16 @@ When ADCode asks you to verify your email before using free AI, the verification
 
 ## Sharing
 
-We share personal data with nobody for advertising purposes.
+We share personal data for advertising only if you turn on sponsored cards under AI replies. Then Imprezia receives what that section lists, to choose and measure those cards. Otherwise we share personal data with nobody for advertising purposes.
 
 Advertisers receive **aggregate** reporting: how many times their campaign was served, viewed, and clicked. They never receive your identifier, your tags, or anything that identifies you individually.
 
-We use Google Cloud and Firebase to run the service, Dodo Payments to take payment from advertisers, and Wise to send withdrawals. Each receives only what it needs to do its part — Wise receives your payout details and the amount, and nothing about how you earned it.
+Imprezia is our ad partner: it receives generic tags when it fills a sponsored card, and the exchange described above only if you turn on sponsored cards under AI replies. We use Google Cloud and Firebase to run the service, Dodo Payments to take payment from advertisers, and Wise to send withdrawals. Each receives only what it needs to do its part — Wise receives your payout details and the amount, and nothing about how you earned it.
 
 ## Your choices
 
 - **Turn ads off.** Settings has a cadence control with an off position. The editor is otherwise identical, with no reduced features and no prompts to turn it back on.
+- **Keep your AI conversations out of ads.** Sponsored cards under AI replies are off by default. If you turned them on, turn them off in Settings → Ads at any time.
 - **Ask for your data or its deletion.** Write to adcode.support@gmail.com. Deleting your account removes your identifier and your ledger. Records we must keep for accounting are retained where the law requires.
 
 ## Retention

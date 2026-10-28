@@ -2,8 +2,9 @@
 #
 # `pull_request`, never the variant that runs in the base repository's context: that one
 # runs with the base repository's credentials against code from a fork, which is how a pull
-# request steals a signing key. This workflow references no credentials at all and can only
-# read the repository.
+# request steals a signing key. The one credential here is `ADCODE_PKG_TOKEN`, which only
+# reads the package that holds the website's ad SDK; it is scoped to npm.pkg.github.com and
+# reaches `npm ci` for `apps/web`, nothing else.
 name: verify
 
 on:
@@ -31,7 +32,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      # Imprezia's ad SDK (`@adimpress/imprezia-sdk`) lives in GitHub Packages and needs the
+      # read-only token from Imprezia's dashboard. Without the secret this step fails on a
+      # 401 naming the registry, so it is a repository setting, not a contributor one.
       - run: npm --prefix apps/web ci --ignore-scripts
+        env:
+          ADCODE_PKG_TOKEN: ${{ secrets.ADCODE_PKG_TOKEN }}
       - run: npm --prefix apps/cloud ci --ignore-scripts
       - name: Prepare Electron sandbox for GUI tests
         run: |

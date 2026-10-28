@@ -77,7 +77,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+      # The website's ad SDK is in GitHub Packages; the token reads that one package.
       - run: npm --prefix apps/web ci --ignore-scripts
+        env:
+          ADCODE_PKG_TOKEN: ${{ secrets.ADCODE_PKG_TOKEN }}
       - run: npm --prefix apps/cloud ci --ignore-scripts
       - name: Prepare Electron sandbox for GUI tests
         run: |

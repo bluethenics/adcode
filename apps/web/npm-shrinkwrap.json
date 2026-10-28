@@ -9,12 +9,26 @@
       "version": "2.4.0",
       "license": "Apache-2.0",
       "dependencies": {
+        "@adimpress/imprezia-sdk": "^0.5.24",
         "lucide": "1.59.0",
         "next": "~16.4.3"
       },
       "devDependencies": {
         "@opennextjs/cloudflare": "^1.20.13",
         "wrangler": "^4.125.0"
+      }
+    },
+    "node_modules/@adimpress/imprezia-sdk": {
+      "version": "0.5.24",
+      "resolved": "https://npm.pkg.github.com/download/@adimpress/imprezia-sdk/0.5.24/f46e5c74258929980076c20da821ea1a91886562",
+      "integrity": "sha512-9hSlcwuwBIokEbZ44vAzpscV4/IDjj10Nw9tWVzXcdCcmOM6v5WWp8wMBbJmjG+BBBYCwgYp7AiuNOwBGNIS7Q==",
+      "license": "Proprietary",
+      "dependencies": {
+        "dompurify": "^3.4.0",
+        "marked": "^17.0.1"
+      },
+      "peerDependencies": {
+        "react": ">=16.8.0"
       }
     },
     "node_modules/@ast-grep/napi": {
@@ -3473,6 +3487,13 @@
         "form-data": "^4.0.4"
       }
     },
+    "node_modules/@types/trusted-types": {
+      "version": "2.0.7",
+      "resolved": "https://registry.npmjs.org/@types/trusted-types/-/trusted-types-2.0.7.tgz",
+      "integrity": "sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==",
+      "license": "MIT",
+      "optional": true
+    },
     "node_modules/abort-controller": {
       "version": "3.0.0",
       "resolved": "https://registry.npmjs.org/abort-controller/-/abort-controller-3.0.0.tgz",
@@ -4009,6 +4030,15 @@
       "license": "Apache-2.0",
       "engines": {
         "node": ">=8"
+      }
+    },
+    "node_modules/dompurify": {
+      "version": "3.4.17",
+      "resolved": "https://registry.npmjs.org/dompurify/-/dompurify-3.4.17.tgz",
+      "integrity": "sha512-B/pSlYVHQ58kqISD/yDjuJ1yfzI34m1gF4lAod2bwSRhiN4K5Cl3H8Af7hqB2PmTL911tdEudnnXn5FnhRoz0w==",
+      "license": "(MPL-2.0 OR Apache-2.0)",
+      "optionalDependencies": {
+        "@types/trusted-types": "^2.0.7"
       }
     },
     "node_modules/dunder-proto": {
@@ -4720,6 +4750,18 @@
       "resolved": "https://registry.npmjs.org/lucide/-/lucide-1.59.0.tgz",
       "integrity": "sha512-0KTOAFYlTuLHdJOqnRCuPhscU29xtx/QnlHyrOfK0FynDhuPm50O3BH/e4wRnOS67ph0z7uovveCVcXUPLTPBw==",
       "license": "ISC"
+    },
+    "node_modules/marked": {
+      "version": "17.0.6",
+      "resolved": "https://registry.npmjs.org/marked/-/marked-17.0.6.tgz",
+      "integrity": "sha512-gB0gkNafnonOw0obSTEGZTT86IuhILt2Wfx0mWH/1Au83kybTayroZ/V6nS25mN7u8ASy+5fMhgB3XPNrOZdmA==",
+      "license": "MIT",
+      "bin": {
+        "marked": "bin/marked.js"
+      },
+      "engines": {
+        "node": ">= 20"
+      }
     },
     "node_modules/math-intrinsics": {
       "version": "1.1.0",

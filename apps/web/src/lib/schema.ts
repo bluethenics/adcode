@@ -336,7 +336,7 @@ export const FAQ: readonly { q: string; a: string }[] = [
   },
   {
     q: "Does ADCode read my source code?",
-    a: "Ads are targeted using generic programming language and framework tags, such as 'lang:rust' or 'fw:react', rather than source code, file paths or project names. AI requests and browser cloud workspaces process project data separately, as described in the privacy policy.",
+    a: "Ads are targeted using generic programming language and framework tags, such as 'lang:rust' or 'fw:react', rather than source code, file paths or project names. The one exception is opt in: if you turn on sponsored cards under AI replies, your message and the assistant's reply go to ADCode's ad partner to choose that card. It is off unless you turn it on. AI requests and browser cloud workspaces process project data separately, as described in the privacy policy.",
   },
   {
     q: "Is ADCode open source?",

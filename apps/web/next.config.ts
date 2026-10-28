@@ -66,8 +66,22 @@ const config: NextConfig = {
 
   async headers() {
     return [
+      /*
+       * The opt-in sponsored cards under AI replies (`/sponsored/chat`) are shown inside the
+       * desktop app's window, `app://adcode`, and nowhere else: that one embedder replaces DENY.
+       */
       {
-        source: "/:path*",
+        source: "/sponsored/:path*",
+        headers: [
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Content-Security-Policy", value: "frame-ancestors app://adcode" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+      {
+        source: "/((?!sponsored/).*)",
         headers: [
           /*
            * HTTPS only, remembered for a year. `middleware.ts` redirects plain http on the

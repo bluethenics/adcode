@@ -23,6 +23,8 @@ import { createAgentViewCard, createPlanCard, planStepsFrom, type AgentViewCard,
 import { createChatLiveRoom } from "../liveAgents/chatLiveRoom.ts";
 import { createTaskDetailsDialog } from "./taskDetailsDialog.ts";
 import { createTasksPopupDialog } from "./tasksPopupDialog.ts";
+import { SPONSORED_SETTING, sponsoredReplyFrame } from "./sponsoredReply.ts";
+import { isWebSurface } from "../surface.ts";
 import type { PreviewStatus } from "../../shared/api.ts";
 import type {
   AiAttachmentView,
@@ -288,6 +290,19 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   let streamingBubble: HTMLElement | null = null;
   const messageSources = new WeakMap<HTMLElement, string>();
   window.adcode.settings.onChanged(() => { if (open) void refreshModelStatus(); });
+  // Sponsored cards under replies are opt in: read now and whenever settings change.
+  let sponsoredReplies = false;
+  const readSponsored = (): void => {
+    void window.adcode.settings.read().then((values) => {
+      const record = values as Record<string, unknown>;
+      // Desktop only: the web workspace's own policy does not admit the sponsored frame yet.
+      sponsoredReplies = !isWebSurface() && record[SPONSORED_SETTING] === true && record["adcode.ads.enabled"] !== false;
+      // Turning the setting off stops the cards already on screen, not just the next reply.
+      if (!sponsoredReplies) for (const frame of document.querySelectorAll(".chat-sponsored-frame")) frame.remove();
+    }, () => { sponsoredReplies = false; });
+  };
+  readSponsored();
+  window.adcode.settings.onChanged(readSponsored);
   const dirtyMessages = new Set<HTMLElement>();
   const streamPaint = createFrameTask(() => {
     for (const element of dirtyMessages) {
@@ -4694,6 +4709,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         if (finished && !finished.nextElementSibling?.classList.contains("chat-message-actions")) {
           finished.after(messageActions(finished));
           scrollToEnd();
+        }
+        // Opt-in sponsored cards (sponsoredReply.ts): a live finished reply only, never a replay.
+        if (finished && !replaying && sponsoredReplies) {
+          const frame = sponsoredReplyFrame({
+            request: lastUserPrompt,
+            response: messageSources.get(finished) ?? "",
+            sessionId: eventSession ?? activeSessionId ?? "",
+            theme: document.documentElement.dataset["theme"] === "light" ? "light" : "dark",
+          });
+          // Below the reply's own actions row, so copy/retry stay attached to the reply.
+          if (frame !== null) (finished.nextElementSibling ?? finished).after(frame);
         }
         void refreshHistory();
         // A follow-up typed while this turn ran goes now.

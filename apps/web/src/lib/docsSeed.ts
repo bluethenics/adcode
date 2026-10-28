@@ -1529,6 +1529,17 @@ export const DOC_SEED: readonly DocSeed[] = [
     related: ["ads-enabled", "account-earnings"],
   },
   {
+    slug: "ads-chat-sponsored",
+    title: "Sponsored cards under AI replies",
+    section: "Ads and earnings",
+    description: "If you turn it on, a sponsored card chosen for the conversation can appear under the assistant's reply. It is off unless you turn it on.",
+    why: "A card that matches what you are asking about is more useful than one picked from the language you have open, and it is worth more to advertisers. But choosing it means your message and the reply leave your computer for ADCode's ad partner, so it is your choice, not a default.",
+    how: "Open Settings, choose Ads, and turn on Sponsored cards under AI replies; it needs Sponsored messages on too. After each answer in the desktop app, your message and the reply (the first 4,000 characters of each), an identifier for that conversation, and your IP address and browser details go to Imprezia, which picks a card or none. The card appears under the reply, or nothing does. It is a page from adcode.bluethenics.com walled off from the editor, so the ad partner cannot reach your files or the rest of ADCode. Clicking a card opens your browser. Nothing else from your project is sent. Turn it off in the same place and the next reply sends nothing. Not yet in the web version.",
+    keywords: ["Sponsored cards under AI replies", "Ads and earnings", "imprezia", "ads in chat", "sponsored reply", "ad under answer", "chat ads", "send my prompt to advertisers", "ad partner", "turn off chat ads"],
+    access: ["All Features → Sponsored cards under AI replies", "Turn on or off (setting:adcode.ads.chatSponsored)", "Settings → adcode.ads.chatSponsored"],
+    related: ["ads-enabled", "ads-frequency", "account-earnings"],
+  },
+  {
     slug: "ads-enabled",
     title: "Sponsored messages",
     section: "Ads and earnings",

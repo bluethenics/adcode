@@ -672,6 +672,24 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Most AI editors' assistants know the code but not the editor they live in, so they send you hunting through settings - and sometimes confidently say a feature does not exist. ADCode's assistant reads the same feature catalogue its Feature library is built from, and acts through the same commands and settings you would use. Other MCP clients need you to paste a config and restart; here the assistant adds and connects the server while you watch.",
   },
 
+  "ads-chat-sponsored": {
+    steps: [
+      "It is off when you install ADCode. Nothing on this page happens until you turn it on.",
+      "To turn it on, open Settings, choose Ads, and switch on Sponsored cards under AI replies. Sponsored messages must be on as well.",
+      "Ask the assistant something in the desktop app. When it finishes answering, your message and its reply go to ADCode's ad partner, Imprezia, which picks a sponsored card for that conversation or none.",
+      "If there is a card, it appears under the reply. Clicking it opens your browser; the editor itself never navigates.",
+      "To stop, switch it off in the same place. The next reply sends nothing.",
+    ],
+    benefits: [
+      "A card about what you are actually asking, rather than one picked from the language you have open.",
+      "Nothing else from your project is sent: no other files, file paths or project names, and only the first 4,000 characters of your message and of the reply.",
+      "The card is a separate, walled-off page from adcode.bluethenics.com, so the ad partner and its measurement partners cannot reach your files or the editor.",
+      "No API key ships in the app: ADCode's own server adds it, and the administrator can switch the whole thing off.",
+    ],
+    betterThan:
+      "Ads in AI chat products usually arrive on by default, with the conversation already shared. Here it is off until you choose it, the privacy policy names exactly what is sent and to whom, and the ad code runs outside the editor, so turning it on never trades away access to your files.",
+  },
+
   "ai-mcp-sign-in": {
     steps: [
       "Open Tools and choose Add custom connector. Give it a name and the server's URL - for Gmail, https://gmailmcp.googleapis.com/mcp/v1 - and save.",
@@ -1666,7 +1684,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "If ADCode stopped tomorrow, the code would still be yours to build and run.",
     ],
     betterThan:
-      "Most ad-supported software is closed: you are told what it collects and have to believe it. ADCode's editor, website and ad server are all in one public repository under a permissive licence, so the claim that it never reads your code to target ads is one you can verify.",
+      "Most ad-supported software is closed: you are told what it collects and have to believe it. ADCode's editor, website and ad server are all in one public repository under a permissive licence, so the claim that it never reads your code to target ads unless you opt in to sponsored cards under AI replies is one you can verify.",
   },
 
   "workbench-changes": {

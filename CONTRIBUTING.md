@@ -17,6 +17,10 @@ You need Node 24 or newer and npm 11 or newer.
     npm start                         # build and launch the editor
     npm run dev                       # the editor with hot reload
 
+The site depends on Imprezia's ad SDK from GitHub Packages. Before the `apps/web` install,
+set `ADCODE_PKG_TOKEN` to the token from Imprezia's dashboard (API Keys > Web & Android SDK
+Access Token). It is only sent to `npm.pkg.github.com`.
+
 A source build talks to ADCode's production ad server by default. To work with no backend at
 all, run the mock server and point the editor at it:
 

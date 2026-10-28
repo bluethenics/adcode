@@ -75,7 +75,11 @@ const CSP = [
   // The frame is cross-origin - `http://127.0.0.1:port` against the renderer's
   // `app://adcode` - so same-origin policy already keeps the previewed page out of the
   // workbench's DOM. Nothing else in this list moves to accommodate it.
-  "frame-src http://127.0.0.1:* http://localhost:*",
+  //
+  // ADCode's own site is the second and last: the opt-in sponsored cards under AI replies
+  // (renderer/ai/sponsoredReply.ts) live there, cross-origin and sandboxed, so the ad SDK and
+  // its measurement scripts never run in this window. Only that origin, never `https:`.
+  "frame-src http://127.0.0.1:* http://localhost:* https://adcode.bluethenics.com",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",

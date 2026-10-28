@@ -161,6 +161,14 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
       { value: "max", label: "Max", detail: "5 min · 60/day" },
     ],
   },
+  bool(
+    "adcode.ads.chatSponsored",
+    "ads",
+    "Sponsored cards under AI replies",
+    "Off unless you turn it on. When on, your message and the assistant's reply are sent to Imprezia, ADCode's ad partner, to choose a relevant sponsored card shown under that reply. Nothing else from your project is sent.",
+    false,
+    true,
+  ),
 
   /* ── Appearance (§3) ────────────────────────────────────────────────── */
   {

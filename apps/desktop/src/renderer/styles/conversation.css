@@ -1112,3 +1112,17 @@
 .chat-toolbar .composer-tools-item.chat-voice[data-recording="true"] > svg { display: block; color: var(--danger); }
 .chat-toolbar .composer-tools-item.chat-voice[data-recording="true"]::after { content: none; }
 @media (prefers-reduced-motion: reduce) { .composer-tools-item:active { transform: none !important; } }
+
+/*
+ * The opt-in sponsored cards under an AI reply (ai/sponsoredReply.ts). The frame is ADCode's
+ * own site, sandboxed; it starts at no height and takes the height its page reports, so a
+ * reply with no card leaves no gap.
+ */
+.chat-sponsored-frame {
+  display: block;
+  width: 100%;
+  margin: 4px 0 12px;
+  border: 0;
+  background: transparent;
+  color-scheme: normal;
+}

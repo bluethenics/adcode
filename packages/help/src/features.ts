@@ -385,6 +385,9 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("tools.signInConnector", "Sign in to a connector")],
     keywords: ["oauth", "sign in to connector", "connector sign in", "gmail mcp", "gmail connector", "google mcp", "missing required authentication credential", "bearer token", "mcp login", "authorization", "pkce", "refresh token", "sign out connector"],
   },
+  "adcode.ads.chatSponsored": {
+    keywords: ["imprezia", "ads in chat", "sponsored reply", "ad under answer", "chat ads", "send my prompt to advertisers", "ad partner", "turn off chat ads"],
+  },
   "adcode.ai.askBeforeConnectorTools": {
     keywords: ["connector permission", "mcp permission", "stop asking", "allow once", "auto approve tools", "approve connector calls", "mcp approval"],
   },
@@ -612,7 +615,7 @@ const DESKTOP_GROUPS: ReadonlySet<string> = new Set(["editing", "formatting", "n
 const DESKTOP_ONLY: ReadonlySet<string> = new Set([
   "adcode.git.gutterDiff", "adcode.git.blame", "adcode.git.fileTimeline", "adcode.git.mergeConflict",
   "adcode.session.autoSave", "adcode.session.localFileHistory", "adcode.session.crashRecovery",
-  "adcode.updates.auto", "adcode.appearance.zoom",
+  "adcode.updates.auto", "adcode.appearance.zoom", "adcode.ads.chatSponsored",
   "ai.inlineEdit", "adcode.ai.inlineCompletion", "adcode.ai.terminalAgentDetection", "ai.terminalTeam", "adcode.ai.autoContinue", "adcode.ai.mcpServer", "ai.agentRules",
   "workbench.modes", "workbench.openIde", "workbench.aiContext", "workbench.terminal", "workbench.run", "workbench.collab",
   "workbench.imagePreview", "workbench.webVersion", "gestures.multiSelect", "structure.popup", "structure.cssLinks",
