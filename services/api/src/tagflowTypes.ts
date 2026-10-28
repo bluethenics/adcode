@@ -4,6 +4,7 @@ import type { ModelFeedbackRecord, ModelReportData, ModelReportRange, ModelReque
 import type { ModelAudienceProfile } from "./modelAudience.ts";
 import type { CreditCharge, CreditPlan, CreditWindows } from "./credits.ts";
 import type { FreeWindow, PaidConfig, TokenBalance } from "./paidTokens.ts";
+import type { UsageCampaign } from "./usageCampaign.ts";
 import type { AiPlanState, PlanId, PromoInput } from "./aiPlans.ts";
 // Defined beside the providers, which can carry their own allowance, so neither file imports the other.
 export type { TagflowLimits } from "./includedProviders.ts";
@@ -40,6 +41,8 @@ export interface TagflowConfig {
   credits?: CreditPlan;
   /** Paid tokens on some providers' models; missing means none are paid. See paidTokens.ts. */
   paid?: PaidConfig;
+  /** A time-boxed window with no weekly cap on paid models. See usageCampaign.ts. */
+  campaign?: UsageCampaign;
 }
 
 export interface TagflowConfigRecord {

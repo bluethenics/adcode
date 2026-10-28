@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { PLANS, subscriptionBlocksCheckout } from "../../../services/api/src/aiPlans.ts";
 import { CodeRedeemer, PlanCards, PlanRequestError, codeMessage, planArrivalMessage, planRequest } from "../src/app/ai-tokens/Plans";
 import { BalanceSummary, checkoutArrived } from "../src/app/ai-tokens/AiTokens";
+import { UsageCampaignAdmin, campaignStatus } from "../src/components/UsageCampaignAdmin";
 import { PlansAdmin, PromoAdminTable, SubscriptionSummaryTable, newResetProgress, resetEveryoneInBatches, resetHasMore, resetResultMessage } from "../src/components/PlansAdmin";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
@@ -113,9 +114,18 @@ describe("admin plans and promotions", () => {
     expect(html).toContain("$83"); expect(html).toContain("Total");
     expect(renderToStaticMarkup(<SubscriptionSummaryTable plans={[]} />)).toContain("No active paid subscriptions");
   });
-  it("has independently submitted allowance and promo forms and visible loading states", () => {
+  it("says whether a usage campaign is running, ended or absent, and offers to start one", () => {
+    const campaign = { name: "Free week", startsAt: 0, endsAt: Date.UTC(2026, 10, 2, 12) };
+    expect(campaignStatus(null)).toBe("Loading…");
+    expect(campaignStatus({ campaign: null, active: false })).toContain("No campaign is running");
+    expect(campaignStatus({ campaign, active: true })).toContain("Free week is running until 2026-11-02 12:00 UTC");
+    expect(campaignStatus({ campaign, active: false })).toContain("ended 2026-11-02 12:00 UTC");
+    const html = renderToStaticMarkup(<UsageCampaignAdmin call={async <T,>() => ({} as T)} />);
+    expect(html).toContain("Start campaign"); expect(html).toContain("Days, starting now");
+  });
+  it("has independently submitted allowance, promo and campaign forms and visible loading states", () => {
     const html = renderToStaticMarkup(<PlansAdmin call={async <T,>() => ({} as T)} />);
-    expect(html.match(/<form/g)).toHaveLength(2);
+    expect(html.match(/<form/g)).toHaveLength(3);
     expect(html).toContain("Reset weekly usage"); expect(html).toContain("Boost weekly allowance"); expect(html).toContain("Gift a plan");
     expect(html).toContain("Everyone"); expect(html).toContain("Loading subscriptions"); expect(html).toContain("Loading promo codes");
   });

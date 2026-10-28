@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PlanId, PromoInput } from "@adcode/api/src/aiPlans.ts";
 import { dollars, formatTokens } from "@/app/ai-tokens/tokenFormatting";
 import { planName } from "@/app/ai-tokens/Plans";
+import { UsageCampaignAdmin } from "./UsageCampaignAdmin";
 
 type AdminCall = <T>(path: string, body?: unknown) => Promise<T>;
 type PromoView = PromoInput & { redemptions: number };
@@ -166,6 +167,7 @@ export function PlansAdmin({ call }: { call: AdminCall }) {
   return <section className="admin-models-provider plans-admin" aria-labelledby="plans-admin-heading">
     <h3 id="plans-admin-heading">Plans &amp; promotions</h3>
     <p className="row-sub">Raise allowances for an account or everyone, share promo codes, and track subscriptions. Plans and boosts apply while paid models are enabled.</p>
+    <UsageCampaignAdmin call={call} />
     <div className="plans-admin-group">
       <h4>Allowance actions</h4>
       <form onSubmit={(event) => { event.preventDefault(); void applyAction(); }} aria-label="Plan allowance action">

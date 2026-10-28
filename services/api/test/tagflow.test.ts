@@ -131,6 +131,56 @@ describe("included Tagflow AI", () => {
       expect((await store.getPaidTokens("user")).free).toBeNull();
     });
 
+    describe("usage campaign", () => {
+      const start = (days = 4) => call("/admin/ai-plans/campaign", "admin", { name: "Free week", days });
+
+      it("lifts the weekly cap on paid models for its days, counts nothing, and the cap returns when it ends", async () => {
+        await save(paidConfig(true, 1));
+        expect((await start()).status).toBe(200);
+        for (let i = 0; i < 4; i++) { const r = await ask("glm"); expect(r.status).toBe(200); await r.text(); }
+        // Nothing was held against the week or the balance, so nobody is behind when it ends.
+        expect((await store.getPaidTokens("user")).free).toBeNull();
+        now += 4 * 86_400_000;
+        const first = await ask("glm"); expect(first.status).toBe(200); await first.text();
+        expect((await ask("glm")).status).toBe(429);
+      });
+
+      it("is shown on the usage view and the public config while it runs", async () => {
+        await save(paidConfig(true, 1));
+        expect((await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { campaign: unknown } }).tokens.campaign).toBeNull();
+        await start();
+        const view = await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { campaign: { name: string; endsAt: number } } };
+        expect(view.tokens.campaign).toEqual({ name: "Free week", endsAt: now + 4 * 86_400_000 });
+        expect((await (await call("/ai/tagflow/config")).json() as { campaign: { name: string } }).campaign.name).toBe("Free week");
+      });
+
+      it("can be stopped early, and the cap applies again at once", async () => {
+        await save(paidConfig(true, 1));
+        await start();
+        const r = await ask("glm"); expect(r.status).toBe(200); await r.text();
+        expect((await call("/admin/ai-plans/campaign", "admin", { stop: true })).status).toBe(200);
+        expect(await (await call("/admin/ai-plans/campaign", "admin")).json()).toMatchObject({ campaign: null, active: false });
+        const first = await ask("glm"); expect(first.status).toBe(200); await first.text();
+        expect((await ask("glm")).status).toBe(429);
+      });
+
+      it("survives saving the settings form, which does not know about campaigns", async () => {
+        await save(paidConfig(true, 1));
+        await start();
+        const saved = await call("/admin/tagflow", "admin", paidConfig(true, 5));
+        expect(saved.status).toBe(200);
+        expect(await (await call("/admin/ai-plans/campaign", "admin")).json()).toMatchObject({ active: true });
+      });
+
+      it("is admin only and refuses a bad name or length", async () => {
+        await save(paidConfig(true, 1));
+        expect((await call("/admin/ai-plans/campaign", "user", { name: "x", days: 4 })).status).toBe(403);
+        expect((await call("/admin/ai-plans/campaign", "user")).status).toBe(403);
+        expect((await call("/admin/ai-plans/campaign", "admin", { name: "", days: 4 })).status).toBe(400);
+        expect((await call("/admin/ai-plans/campaign", "admin", { name: "x", days: 400 })).status).toBe(400);
+      });
+    });
+
     it("uses purchased tokens after the free week", async () => {
       await save(paidConfig(true, 1));
       await store.grantTokens("user", 1_000_000, "admin-1", "test", now);

@@ -13,6 +13,7 @@ import { DEFAULT_CREDIT_PLAN, creditCharge, creditsView, millicreditsFor, modelC
 import { BUY_TOKENS_URL, DEFAULT_PAID_CONFIG, TOKEN_ORDER_PREFIX, isPaidModel, tokensView } from "./paidTokens.ts";
 import type { PaymentProvider } from "./payments.ts";
 import { PLANS, effectiveWeeklyAllowance, parsePromo, planById } from "./aiPlans.ts";
+import { activeCampaign, startCampaign } from "./usageCampaign.ts";
 import { MODEL_FEEDBACK_CATEGORIES, type ModelRequestOutcome, type ModelRequestRecord, type ModelRequestSource } from "./tagflowReportTypes.ts";
 import { completeModelReport, parseReportRange } from "./tagflowReports.ts";
 import { AUDIENCE_ROLES, AUDIENCE_EXPERIENCE, DECLARED_USES, AI_PERSONAS, audienceChoice, audienceCountry, observedUse, type ModelAudienceProfile } from "./modelAudience.ts";
@@ -87,7 +88,7 @@ export function isTagflowPath(path: string): boolean {
     path === "/v1/ai/tagflow/feedback" || path === "/v1/ai/tagflow/audience" || path === "/v1/admin/tagflow/reports" ||
     path === "/v1/admin/tagflow" || path === "/v1/admin/tagflow/usage" || path === "/v1/admin/tagflow/keys" || /^\/v1\/admin\/tagflow\/users\/[^/]+$/.test(path) ||
     path === "/v1/ai/plans/checkout" || path === "/v1/ai/plans/portal" || path === "/v1/ai/promo/redeem" || path === "/v1/ai/invites" || path === "/v1/ai/invites/redeem" ||
-    ["reset", "boost", "gift", "promo", "subscriptions"].some((route) => path === `/v1/admin/ai-plans/${route}`) ||
+    ["reset", "boost", "gift", "promo", "subscriptions", "campaign"].some((route) => path === `/v1/admin/ai-plans/${route}`) ||
     path === "/v1/ai/tokens/checkout" || path === "/v1/ai/tokens/orders" || path === "/v1/admin/ai-tokens/grant" || path === "/v1/admin/ai-tokens/sales";
 }
 
@@ -352,7 +353,7 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
       const resetsAt = Date.parse(`${day}T00:00:00Z`) + 86_400_000;
       const remainingDay = { "retry-after": String(Math.max(1, Math.ceil((resetsAt - deps.clock.now()) / 1000))) };
       if (url.pathname === "/v1/ai/tagflow/config" && request.method === "GET") {
-        return json(200, { available, defaultModel: offeredModels.some((model) => model.id === config.defaultModel) ? config.defaultModel : offeredModels[0]?.id ?? config.defaultModel, models: available ? offeredModels.map((model) => ({ id: model.id, name: model.name, providerName: includedProvider(modelProvider(model), config.providers)?.name ?? "Included AI", contextWindow: Math.min(model.contextWindow, config.maxInputTokens), maxOutput: Math.min(model.maxOutput, config.maxOutputTokens), creditRate: modelCreditRate(model, config), paid: isPaidModel(model, config.paid) })) : [], requiresVerifiedAccount: true, unlimited: true, credits: config.credits ?? DEFAULT_CREDIT_PLAN, paid: { ...(config.paid ?? DEFAULT_PAID_CONFIG), plans: PLANS } });
+        return json(200, { available, defaultModel: offeredModels.some((model) => model.id === config.defaultModel) ? config.defaultModel : offeredModels[0]?.id ?? config.defaultModel, models: available ? offeredModels.map((model) => ({ id: model.id, name: model.name, providerName: includedProvider(modelProvider(model), config.providers)?.name ?? "Included AI", contextWindow: Math.min(model.contextWindow, config.maxInputTokens), maxOutput: Math.min(model.maxOutput, config.maxOutputTokens), creditRate: modelCreditRate(model, config), paid: isPaidModel(model, config.paid) })) : [], requiresVerifiedAccount: true, unlimited: true, credits: config.credits ?? DEFAULT_CREDIT_PLAN, paid: { ...(config.paid ?? DEFAULT_PAID_CONFIG), plans: PLANS }, campaign: activeCampaign(config.campaign, deps.clock.now()) });
       }
       const auth = await authenticate(deps, request.headers.get("authorization") ?? undefined);
       if (!auth.ok) return fail(auth.failure === "banned" ? 403 : 401, auth.failure, "Sign in to use included AI. Banned accounts cannot use it.");
@@ -438,8 +439,19 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
         const route = url.pathname.slice("/v1/admin/ai-plans/".length);
         if (request.method === "GET" && route === "promo") { await audit("read-ai-promos"); return json(200, { promos: await deps.store.listPromos() }); }
         if (request.method === "GET" && route === "subscriptions") { await audit("read-ai-subscriptions"); return json(200, { plans: await deps.store.subscriptionSummary(deps.clock.now()) }); }
-        if (request.method !== "POST" || !["reset", "boost", "gift", "promo"].includes(route)) return json(405, { error: "method" });
+        if (route === "campaign" && request.method === "GET") { await audit("read-usage-campaign"); return json(200, { campaign: config.campaign ?? null, active: activeCampaign(config.campaign, deps.clock.now()) !== null, now: deps.clock.now() }); }
+        if (request.method !== "POST" || !["reset", "boost", "gift", "promo", "campaign"].includes(route)) return json(405, { error: "method" });
         const raw = await readJson(request);
+        if (route === "campaign") {
+          // Start (name + whole days, beginning now) or stop. Read-modify-write on the one config record.
+          const stopping = isRecord(raw) && raw["stop"] === true;
+          const started = stopping || !isRecord(raw) ? null : startCampaign(raw["name"], raw["days"], deps.clock.now());
+          if (!stopping && started === null) return json(400, { error: "bad-campaign" });
+          await audit(stopping ? "stop-usage-campaign" : "start-usage-campaign");
+          const { campaign: _previous, ...rest } = config;
+          await deps.store.putTagflowConfig({ config: started === null ? rest : { ...rest, campaign: started }, updatedAt: deps.clock.now(), updatedBy: auth.uid });
+          return json(200, { campaign: started, active: started !== null });
+        }
         if (route === "promo") {
           const promo = parsePromo(raw);
           if (promo === null || promo.expiresAt <= deps.clock.now()) return json(400, { error: "bad-promo" });
@@ -528,7 +540,9 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
       if (url.pathname === "/v1/admin/tagflow") {
         if (request.method === "GET") return json(200, { config, updatedAt: saved?.updatedAt ?? 0, updatedBy: saved?.updatedBy ?? "", keyConfigured: defaultKeyConfigured(config), connections: connections(config), keysManageable: secrets.configured() });
         if (request.method === "POST") {
-          const next = parseTagflowConfig(await readJson(request));
+          const body = await readJson(request);
+          // The settings form knows nothing about campaigns: saving it must not end one.
+          const next = parseTagflowConfig(isRecord(body) && body["campaign"] === undefined && config.campaign !== undefined ? { ...body, campaign: config.campaign } : body);
           if (next === null) return fail(400, "bad-config", "Check the providers (custom ones need a public HTTPS API address), the Tagflow HTTPS base URL, unique model IDs, prices, and non-negative limits.");
           if (next.enabled && !defaultKeyConfigured(next)) {
             const provider = includedProvider(modelProvider(next.models.find((model) => model.id === next.defaultModel)!), next.providers);
@@ -610,7 +624,8 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
         const view = tokensView(config.paid === undefined ? undefined : { ...config.paid, freeWeeklyTokens: effectiveWeeklyAllowance(planState, config.paid.freeWeeklyTokens, deps.clock.now()) },
           paidState.free, paidState.balance, deps.clock.now());
         // Which offered models draw on it, so the editor's meter shows tokens only for those.
-        const tokens = { ...view, plan: planState.plan !== null && planState.plan.endsAt > deps.clock.now() ? planState.plan : null, paidModels: offeredModels.filter((model) => isPaidModel(model, config.paid)).map((model) => model.id) };
+        const running = activeCampaign(config.campaign, deps.clock.now());
+        const tokens = { ...view, campaign: running === null ? null : { name: running.name, endsAt: running.endsAt }, plan:planState.plan !== null && planState.plan.endsAt > deps.clock.now() ? planState.plan : null, paidModels: offeredModels.filter((model) => isPaidModel(model, config.paid)).map((model) => model.id) };
         const usage = stored ?? { uid: subject, day, requests: 0, inputTokens: 0, outputTokens: 0, costMicros: 0, estimatedRequests: 0, reservedTokens: 0, reservedCostMicros: 0 };
         const credits = creditsView(plan, windows, Object.fromEntries(offeredModels.map((model) => [model.id, modelCreditRate(model, config)])), deps.clock.now());
         if (userMatch !== null) return json(200, { available, policy, limits, usage, resetsAt, blocked: policy?.blocked === true, unlimited: true, credits, tokens });
@@ -655,9 +670,10 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
       // Tokens are no longer a limit; the day keeps its spending and request ceilings.
       const rate = modelCreditRate(parsed.model, config);
       const tokens = parsed.input + parsed.output;
-      const paidModel = isPaidModel(parsed.model, config.paid);
+      // During a usage campaign a paid model holds nothing from anyone's week or balance, so nothing counts against them.
+      const paidModel = isPaidModel(parsed.model, config.paid) && activeCampaign(config.campaign, deps.clock.now()) === null;
       // The week's free allowance: the account's plan or boost when better than everyone's. Cached per isolate.
-      const freeWeeklyTokens = paidModel ? effectiveWeeklyAllowance(await deps.store.getAiPlanState(auth.uid, deps.clock.now()), config.paid!.freeWeeklyTokens, deps.clock.now()) : 0;
+      const freeWeeklyTokens = paidModel ?effectiveWeeklyAllowance(await deps.store.getAiPlanState(auth.uid, deps.clock.now()), config.paid!.freeWeeklyTokens, deps.clock.now()) : 0;
       const reservation = { unlimited: true, id: randomUUID(), uid: auth.uid, day, minute: Math.floor(deps.clock.now() / 60_000), tokens, costMicros: tagflowCost(parsed.model, parsed.input, parsed.output),
         limits: { ...limits, dailyTokens: NO_TOKEN_LIMIT }, credits: creditCharge(plan, millicreditsFor(tokens, rate), deps.clock.now()),
         // A paid provider's model holds its tokens from the free week, then purchased ones.
