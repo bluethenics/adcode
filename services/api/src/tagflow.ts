@@ -624,8 +624,11 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
         const view = tokensView(config.paid === undefined ? undefined : { ...config.paid, freeWeeklyTokens: effectiveWeeklyAllowance(planState, config.paid.freeWeeklyTokens, deps.clock.now()) },
           paidState.free, paidState.balance, deps.clock.now());
         // Which offered models draw on it, so the editor's meter shows tokens only for those.
+        // During a campaign nothing is metered, so report paid tokens as off: every released desktop
+        // then shows Unlimited in its usage card, composer meter and sidebar badge, with no update.
         const running = activeCampaign(config.campaign, deps.clock.now());
-        const tokens = { ...view, campaign: running === null ? null : { name: running.name, endsAt: running.endsAt }, plan:planState.plan !== null && planState.plan.endsAt > deps.clock.now() ? planState.plan : null, paidModels: offeredModels.filter((model) => isPaidModel(model, config.paid)).map((model) => model.id) };
+        const tokens = { ...view, ...(running === null ? {} : { enabled: false }), campaign: running === null ? null : { name: running.name, endsAt: running.endsAt }, plan: planState.plan !== null && planState.plan.endsAt > deps.clock.now() ? planState.plan : null,
+          paidModels: running !== null ? [] : offeredModels.filter((model) => isPaidModel(model, config.paid)).map((model) => model.id) };
         const usage = stored ?? { uid: subject, day, requests: 0, inputTokens: 0, outputTokens: 0, costMicros: 0, estimatedRequests: 0, reservedTokens: 0, reservedCostMicros: 0 };
         const credits = creditsView(plan, windows, Object.fromEntries(offeredModels.map((model) => [model.id, modelCreditRate(model, config)])), deps.clock.now());
         if (userMatch !== null) return json(200, { available, policy, limits, usage, resetsAt, blocked: policy?.blocked === true, unlimited: true, credits, tokens });

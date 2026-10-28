@@ -37,6 +37,12 @@ describe("AI plans on the website", () => {
     const html = renderToStaticMarkup(<BalanceSummary tokens={{ enabled: true, free: { limit: 150_000_000, used: 1_000_000, held: 0, remaining: 149_000_000, resetsAt: null }, purchased: 4_000_000, plan: { id: "pro", source: "gift", endsAt: 2_000_000_000_000 } }} now={1_900_000_000_000} />);
     expect(html).toContain("Pro this week"); expect(html).toContain("149M of 150M free"); expect(html).toContain("Gifted plan");
   });
+  it("says a running usage campaign is unlimited, and drops it once it has ended", () => {
+    const tokens = { enabled: false, free: { limit: 10_000_000, used: 6_200_000, held: 0, remaining: 3_800_000, resetsAt: null }, purchased: 0, campaign: { name: "Unlimited usage", endsAt: 2_000_000_000_000 } };
+    const html = renderToStaticMarkup(<BalanceSummary tokens={tokens} now={1_900_000_000_000} />);
+    expect(html).toContain("Unlimited usage"); expect(html).toContain("Unlimited Heabsy use"); expect(html).toContain("Nothing you use is counted");
+    expect(renderToStaticMarkup(<BalanceSummary tokens={tokens} now={2_000_000_000_000} />)).not.toContain("Unlimited Heabsy use");
+  });
 
   it("offers both promotion and invite redemption with labelled fields", () => {
     const html = renderToStaticMarkup(<CodeRedeemer token={async () => "test"} onRedeem={() => undefined} />);

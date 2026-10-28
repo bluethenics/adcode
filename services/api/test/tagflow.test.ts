@@ -149,9 +149,13 @@ describe("included Tagflow AI", () => {
         await save(paidConfig(true, 1));
         expect((await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { campaign: unknown } }).tokens.campaign).toBeNull();
         await start();
-        const view = await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { campaign: { name: string; endsAt: number } } };
+        const view = await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { enabled: boolean; paidModels: string[]; campaign: { name: string; endsAt: number } } };
         expect(view.tokens.campaign).toEqual({ name: "Free week", endsAt: now + 4 * 86_400_000 });
+        // Released desktops read "paid tokens off" as Unlimited on every surface.
+        expect(view.tokens).toMatchObject({ enabled: false, paidModels: [] });
         expect((await (await call("/ai/tagflow/config")).json() as { campaign: { name: string } }).campaign.name).toBe("Free week");
+        now += 4 * 86_400_000;
+        expect((await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { enabled: boolean; paidModels: string[] } }).tokens).toMatchObject({ enabled: true, paidModels: ["glm", "mimo"], campaign: null });
       });
 
       it("can be stopped early, and the cap applies again at once", async () => {

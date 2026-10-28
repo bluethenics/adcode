@@ -20,7 +20,7 @@ import { dollars, formatTokens } from "./tokenFormatting";
 export { formatTokens } from "./tokenFormatting";
 
 export interface TokenPack { id: string; priceCents: number; tokens: number }
-export interface TokensView { enabled: boolean; free: { limit: number; used: number; held: number; remaining: number; resetsAt: number | null }; purchased: number; plan?: { id: PlanId; endsAt: number; source: "subscription" | "gift" } | null }
+export interface TokensView { enabled: boolean; free: { limit: number; used: number; held: number; remaining: number; resetsAt: number | null }; purchased: number; plan?: { id: PlanId; endsAt: number; source: "subscription" | "gift" } | null; campaign?: { name: string; endsAt: number } | null }
 interface TokenOrderView { orderId: string; packId: string; priceCents: number; tokens: number; status: "pending" | "paid" | "refunded" | "abandoned"; createdAt: number; paidAt: number | null }
 interface TokenLedgerView { id: string; delta: number; kind: "purchase" | "usage" | "refund" | "grant"; note: string; createdAt: number }
 interface TokenActivityView { tokens: TokensView; orders: TokenOrderView[]; ledger: TokenLedgerView[]; subscription?: { plan: PlanId; status: string; periodEnd: number; active?: boolean } | null }
@@ -74,8 +74,14 @@ export function PackList({ packs, busy, onBuy }: { packs: TokenPack[]; busy: str
 }
 
 export function BalanceSummary({ tokens, now }: { tokens: TokensView; now: number }) {
+  const campaign = tokens.campaign !== undefined && tokens.campaign !== null && tokens.campaign.endsAt > now ? tokens.campaign : null;
   return (
     <div className="stats">
+      {campaign !== null && <div className="stat">
+        <span className="stat-label">{campaign.name}</span>
+        <span className="stat-value">Unlimited Heabsy use</span>
+        <span className="stat-hint">Until {new Date(campaign.endsAt).toLocaleString()}. Nothing you use is counted against your week or your purchased tokens.</span>
+      </div>}
       <div className="stat">
         <span className="stat-label">{tokens.plan ? `${planName(tokens.plan.id)} this week` : "Free this week"}</span>
         <span className="stat-value">{formatTokens(tokens.free.remaining)} of {formatTokens(tokens.free.limit)} free</span>
