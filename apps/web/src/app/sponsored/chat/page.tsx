@@ -30,7 +30,13 @@ function readExchange(data: unknown): Exchange | null {
   return { request: request.slice(0, 4_000), response: response.slice(0, 4_000), sessionId, theme: theme === "light" ? "light" : "dark" };
 }
 
-const tell = (message: Record<string, unknown>): void => window.parent.postMessage(message, EMBEDDER);
+/**
+ * Outgoing messages say only that the frame is ready, that it found nothing, or how tall
+ * the card is: none of the exchange travels this way. So any embedder may hear them, and
+ * `*` keeps the page working in an ordinary browser, which cannot parse the editor's
+ * `app://` origin as a postMessage target. Incoming messages stay pinned to EMBEDDER.
+ */
+const tell = (message: Record<string, unknown>): void => window.parent.postMessage(message, "*");
 
 export default function SponsoredChat() {
   const [exchange, setExchange] = useState<Exchange | null>(null);
