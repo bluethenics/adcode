@@ -8,7 +8,7 @@ export async function readAdNetworkArtwork(store: Store, key: string, fetchImpl:
   if (!match || !store.adNetworks) return null;
   const source = await store.adNetworks.artwork(match[1]!, match[2] as "light" | "dark");
   if (!publicHttpsUrl(source)) return null;
-  const response = await fetchImpl(source, { headers: { accept: "image/png,image/jpeg,image/webp" }, redirect: "error", signal: AbortSignal.timeout(1_200) });
+  const response = await fetchImpl(source, { headers: { accept: "image/png,image/jpeg,image/webp" }, redirect: "manual", signal: AbortSignal.timeout(1_200) });
   if (!response.ok) return null;
   const contentType = response.headers.get("content-type")?.split(";")[0]?.trim();
   if (contentType !== "image/png" && contentType !== "image/jpeg" && contentType !== "image/webp") return null;

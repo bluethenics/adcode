@@ -40,6 +40,14 @@ describe("the Imprezia SDK relay", () => {
     expect(headers["X-Forwarded-User-Agent"]).toBe("Mozilla/5.0 ADCode");
     expect(headers["X-Forwarded-For"]).toBe("203.0.113.9");
     expect(JSON.parse(String(init!.body))).toEqual({ request: "q", response: "a", sessionId: "chat-1" });
+    // Workers rejects "error"; "manual" keeps a redirect from being followed with the key.
+    expect(init!.redirect).toBe("manual");
+  });
+
+  it("refuses an upstream redirect instead of following it with the key", async () => {
+    await connect();
+    fetchImpl.mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: "https://elsewhere.example/" } }));
+    expect((await relayImprezia(deps(), call())).status).toBe(502);
   });
 
   it("keeps the SDK's platform, and treats an unknown one as a browser", async () => {

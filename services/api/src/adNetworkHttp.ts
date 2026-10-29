@@ -27,7 +27,8 @@ function template(raw: unknown, values: Record<string, unknown>, depth = 0): unk
 /** Never follow redirects with an API key and never reflect upstream bodies or errors into the admin page. */
 export async function json(url: string, init: RequestInit, fetchImpl: typeof fetch, timeoutMs = 1_200): Promise<unknown> {
   try {
-    const response = await fetchImpl(url, { ...init, redirect: "error", signal: AbortSignal.timeout(timeoutMs) });
+    // Workers only accepts "follow" or "manual". "manual" leaves a 3xx unfollowed; !response.ok rejects it.
+    const response = await fetchImpl(url, { ...init, redirect: "manual", signal: AbortSignal.timeout(timeoutMs) });
     if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) throw new AdNetworkProviderError();
     const reader = response.body?.getReader();
     if (!reader) throw new AdNetworkProviderError();

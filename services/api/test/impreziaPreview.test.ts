@@ -16,7 +16,7 @@ describe("Imprezia Exchange non-billable preview", () => {
       expect(body).toMatchObject({ id: "request-1", at: 1, test: 1, tmax: 250, app: { bundle: "com.publisher.editor" } });
       expect(body.site).toBeUndefined(); expect(body.user).toBeUndefined(); expect(body.device).toBeUndefined();
       expect(JSON.parse(body.imp[0].native.request).ver).toBe("1.2");
-      expect(init?.redirect).toBe("error");
+      expect(init?.redirect).toBe("manual");
       expect(init?.headers).toMatchObject({ "X-API-Key": "private-key", "X-OpenRTB-Version": "2.6" });
       return Response.json(bid());
     });

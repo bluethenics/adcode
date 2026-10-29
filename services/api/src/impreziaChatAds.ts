@@ -64,12 +64,13 @@ export async function requestImpreziaChatAd(
   sessionId: string,
   ttlMs: number,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs = 2_000,
 ): Promise<(ServedCreative & { providerCreativeId: string }) | null> {
   const raw = await json(`${impreziaBaseUrl(key)}/v1/ads/chat`, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json", "X-API-Key": key },
     body: JSON.stringify({ ...impreziaContext(body.tags), sessionId }),
-  }, fetchImpl, 2_000) as { ad?: unknown } | null;
+  }, fetchImpl, timeoutMs) as { ad?: unknown } | null;
   const ad = raw?.ad as { format?: unknown; creative?: Record<string, unknown>; clickUrl?: unknown; impression?: { impressionUuid?: unknown; beaconToken?: { token?: unknown; issuedAt?: unknown; kid?: unknown } } } | null | undefined;
   if (ad === null || ad === undefined) return null;
   const creative = ad.creative, impression = ad.impression, beacon = impression?.beaconToken;
@@ -98,7 +99,7 @@ export async function requestImpreziaChatAd(
  */
 export async function reportImpreziaImpression(key: string, impression: ImpreziaImpression, fetchImpl: typeof fetch = fetch): Promise<void> {
   const response = await fetchImpl(`${impreziaBaseUrl(key)}/v1/events/sdk-impression`, {
-    method: "POST", redirect: "error", signal: AbortSignal.timeout(1_500),
+    method: "POST", redirect: "manual", signal: AbortSignal.timeout(1_500),
     headers: { "content-type": "application/json", "X-API-Key": key },
     body: JSON.stringify({ impressionUuid: impression.uuid, beaconToken: { token: impression.token, issuedAt: impression.issuedAt, kid: impression.kid } }),
   });

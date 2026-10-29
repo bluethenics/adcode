@@ -113,7 +113,8 @@ export async function relayImprezia(deps: ImpreziaProxyDeps, request: ImpreziaPr
   try {
     const upstream = await (deps.fetchImpl ?? fetch)(`${impreziaBaseUrl(key)}${request.path}`, {
       method: request.method,
-      redirect: "error",
+      // Workers only accepts "follow" or "manual"; a 3xx is refused below rather than followed with the key.
+      redirect: "manual",
       signal: AbortSignal.timeout(8_000),
       headers: {
         "content-type": "application/json",
@@ -125,6 +126,7 @@ export async function relayImprezia(deps: ImpreziaProxyDeps, request: ImpreziaPr
       },
       ...(request.method === "GET" ? {} : { body: JSON.stringify(body) }),
     });
+    if (upstream.status >= 300 && upstream.status < 400) return json(502, "upstream-unavailable");
     return { status: upstream.status, contentType: upstream.headers.get("content-type") ?? "application/json", body: await upstream.text() };
   } catch {
     return json(502, "upstream-unavailable");

@@ -120,7 +120,8 @@ export async function handleAdNetworkAdmin(deps: AdNetworkDeps, adminUid: string
     if (!encrypted) return response(409, { error: "key-required" });
     try {
       const key = decryptAdNetworkKey(id, encrypted, keysFor(deps));
-      if (isImpreziaChat(config)) return response(200, { ok: true, creative: await requestImpreziaChatAd(key, { tags: ["TypeScript", "React"] }, impreziaSessionId(adminUid, deps.clock.now()), 60_000, deps.fetchImpl), sandbox: isImpreziaSandboxKey(key) });
+      // The admin test is not on the editor's serve deadline, so it can wait for Imprezia's slower first call.
+      if (isImpreziaChat(config)) return response(200, { ok: true, creative: await requestImpreziaChatAd(key, { tags: ["TypeScript", "React"] }, impreziaSessionId(adminUid, deps.clock.now()), 60_000, deps.fetchImpl, 6_000), sandbox: isImpreziaSandboxKey(key) });
       if (config.provider === "imprezia") return response(200, { ok: true, creative: await previewImprezia(config, key, deps.ids.next("test"), deps.fetchImpl), readiness: "exchange-test-only" });
       if (config.provider === "beehiiv") return response(200, { ok: true, advertisements: await previewBeehiiv(config, key, deps.fetchImpl), readiness: "newsletter-preview-only" });
       const creative = await requestNetworkCreative(config, key, { tags: [], themeKind: "light", count: 1 }, deps.ids.next("test"), 60_000, deps.fetchImpl);
