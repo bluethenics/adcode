@@ -12,7 +12,9 @@ Windows app.
 **The advertiser platform is real too.** `services/api` serves ads, verifies receipts, and
 keeps an append-only money ledger; `apps/web` is the marketing site, advertiser portal,
 user dashboard, and admin panel. Not built: full language intelligence (LSP, DAP), and
-paying users out.
+automated payouts. Payouts work by hand: a user requests a withdrawal, an admin sends it
+from an ordinary Wise account and records the outcome as a ledger entry; see
+`services/api/src/withdrawals.ts`.
 
 **Deploying it?** `SETUP.md` (kept outside this repository) is the ordered list of everything that needs your account,
 your card, or a lawyer. Nothing in it is a coding task. The current public-release decision
