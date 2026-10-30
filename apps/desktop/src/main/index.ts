@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { BrowserWindow, app, ipcMain, shell } from "electron";
 import { registerAppProtocol, registerSchemePrivileges, RENDERER_ORIGIN } from "./protocol.ts";
 import { registerIpc } from "./ipc.ts";
+import { flushSharedProject } from "./sharedProjects.ts";
 import { closeAssistantControls } from "./assistantControls.ts";
 import { registerSupportIpc } from "./supportIpc.ts";
 import { registerActivityIpc } from "./activity.ts";
@@ -369,7 +370,17 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
+let projectQuitFlushed = false;
+app.on("before-quit", (event) => {
+  if (!projectQuitFlushed) {
+    const pending = flushSharedProject();
+    if (pending) {
+      event.preventDefault(); projectQuitFlushed = true;
+      // Best effort final sync, bounded so an offline connection cannot prevent quitting.
+      // The local copy and merge base persist for recovery on the next launch.
+      void Promise.race([pending.catch(() => undefined), new Promise(done => setTimeout(done, 8000))]).then(() => app.quit());
+    }
+  }
   void flushModelOutcomes();
   void flushAiUsage();
   void closeAssistantControls();

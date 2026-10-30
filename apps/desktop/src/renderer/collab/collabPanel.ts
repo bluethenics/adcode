@@ -20,6 +20,7 @@
 import { abbreviateInvite } from "@adcode/collab";
 import { INVITE_ORIGIN, collabInviteText, inviteLink } from "../../shared/invite.ts";
 import { ICON, iconButton } from "../workbench/icons.ts";
+import { sharedProjectsPanel } from "./sharedProjectsPanel.ts";
 import type {
   CollabParticipantView,
   CollabRole,
@@ -98,7 +99,7 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
   const card = document.createElement("section");
   card.className = "collab-card";
   card.setAttribute("role", "dialog");
-  card.setAttribute("aria-label", "Live session");
+  card.setAttribute("aria-label", "Share projects");
   card.hidden = true;
 
   /* ── Header ─────────────────────────────────────────────────────────────── */
@@ -108,7 +109,7 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
 
   const title = document.createElement("h2");
   title.className = "collab-title";
-  title.textContent = "Live session";
+  title.textContent = "Share projects";
 
   const closeButton = iconButton("Close", ICON.close, "collab-close");
   closeButton.addEventListener("click", () => api.close());
@@ -203,7 +204,8 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
   errorLine.className = "collab-error";
   errorLine.hidden = true;
 
-  card.append(header, errorLine, offState, onState);
+  const projects = sharedProjectsPanel(deps);
+  card.append(header, projects.element, errorLine, offState, onState);
   deps.host.append(card);
 
   let open = false;
@@ -541,6 +543,7 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
 
       open = true;
       card.hidden = false;
+      void projects.refresh().then(() => { if (open) place(); });
       deps.anchor.setAttribute("aria-expanded", "true");
       // After unhiding: a hidden element measures zero, so placing first pins it to a corner.
       place();

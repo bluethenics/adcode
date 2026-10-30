@@ -402,6 +402,9 @@ const api: AdcodeApi = {
     setSuppressed: (suppressed) => ipcRenderer.send(CHANNELS.adSuppressionChanged, suppressed),
     reportSignals: (signals) => ipcRenderer.send(CHANNELS.adSignals, signals),
   },
+  projects: {
+    action: (operation: string, input?: Record<string, unknown>) => ipcRenderer.invoke(CHANNELS.sharedProjects, operation, input),
+  },
   collab: {
     host: (options) => ipcRenderer.invoke(CHANNELS.collabHost, options),
     join: (code, displayName) => ipcRenderer.invoke(CHANNELS.collabJoin, code, displayName),

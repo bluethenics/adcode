@@ -472,6 +472,16 @@ export interface CollabCapabilitiesView {
   readonly administer: boolean;
 }
 
+export interface SharedProjectView {
+  id: string;
+  name: string;
+  owner: string;
+  isOwner: boolean;
+  revision: number;
+  invite?: string;
+  members?: Record<string, string>;
+}
+
 export interface CollabStatusView {
   readonly mode: "off" | "hosting" | "joined" | "connecting";
   readonly participants: readonly CollabParticipantView[];
@@ -757,6 +767,7 @@ export const CHANNELS = {
   lspStates: "lsp:states",
   lspDiagnostics: "lsp:diagnostics",
   lspStateChanged: "lsp:state-changed",
+  sharedProjects: "projects:action",
   collabHost: "collab:host",
   collabJoin: "collab:join",
   collabLeave: "collab:leave",
@@ -2409,6 +2420,10 @@ export interface AdcodeApi {
    * renderer under that policy cannot open a socket to another machine at all. So the renderer's
    * job here is to draw a roster, bind Monaco to a document, and paint other people's cursors.
    */
+  readonly projects: {
+    action(operation: "list", input?: Record<string, unknown>): Promise<{ owned: SharedProjectView[]; joined: SharedProjectView[]; current: SharedProjectView | null; syncError: string | null }>;
+    action(operation: "publish" | "join" | "open" | "sync" | "delete" | "rotate" | "remove", input?: Record<string, unknown>): Promise<SharedProjectView>;
+  };
   readonly collab: {
     /**
      * Start sharing the open folder.

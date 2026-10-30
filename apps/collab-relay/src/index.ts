@@ -1,7 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
 import { verifyIdToken } from "../../cloud/src/auth.ts";
+import { projectRequest, type ProjectEnv } from "./projects.ts";
+export { CloudProject, ProjectAccount } from "./projects.ts";
 
-interface Env { ROOMS: DurableObjectNamespace<CollabRoom>; FIREBASE_PROJECT_ID: string }
+interface Env extends ProjectEnv { ROOMS: DurableObjectNamespace<CollabRoom> }
 type Attachment = { role: "host" | "guest"; id: string; generation: string; minute: number; count: number; bytes: number };
 type Keys = { host: string; guest: string; expires: number; generation: string };
 const json = (value: unknown, status = 200): Response => Response.json(value, { status, headers: { "cache-control": "no-store" } });
@@ -75,6 +77,10 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/health") return json({ ok: true });
+    if (url.pathname === "/projects" || url.pathname.startsWith("/projects/")) {
+      try { return await projectRequest(request, env); }
+      catch { return json({ error: "The project could not be saved. Check its size and try again." }, 400); }
+    }
     if (url.pathname === "/rooms" && request.method === "POST") {
       if (Number(request.headers.get("content-length") ?? 0) > 1024) return json({ error: "Request too large." }, 413);
       const who = await verifyIdToken((request.headers.get("authorization") ?? "").replace(/^Bearer /, ""), env.FIREBASE_PROJECT_ID);

@@ -10,6 +10,7 @@ export const PRICING_FAQ: readonly { q: string; a: string }[] = [
   { q: "When does my allowance refill?", a: "The shared allowance day starts with your first included AI request. Finite allowances refill each day, including with a monthly plan. Pro has no daily token cap. It is shared across signed-in devices and does not roll over. Purchased tokens are separate and never expire." },
   { q: "What happens when I use the daily allowance?", a: "Heabsy models use your purchased tokens next. If none remain, you can add a pack, choose a plan or use your own connected model. A paused task carries on by itself when your allowance refills or you add tokens. A bigger plan does not remove a provider’s temporary rate limits." },
   { q: WHERE_TO_MANAGE, a: "Use AI plans and tokens with the same ADCode account you use in the editor. Review your balance, manage a subscription, or redeem a promo or invite code there. Checkout and official invoices are handled by Dodo Payments." },
+  { q: "How many online projects can I share?", a: "Free includes up to 3 owned online projects. An active Weekly, Monthly or Pro plan lets you create more. Joining a friend's project does not use an owned project slot. Each person has separate chats and uses their own AI allowance. Online files stay available when the owner closes ADCode. If a plan ends, existing projects remain accessible; creating another requires a plan or fewer than 3 owned projects." },
 ];
 
 export function PricingContent({ offer }: { offer: PricingOffer }) {
@@ -35,7 +36,7 @@ export function PricingContent({ offer }: { offer: PricingOffer }) {
           <p>Code, run your project and work with agents without buying a plan.</p>
           <dl>
             <div><dt>All included models, including Heabsy</dt><dd>{tokenAmount(offer.freeWeeklyTokens)} free tokens each day, shared across your devices.</dd></div>
-            <div><dt>Heabsy models</dt><dd><strong>Requires an active Weekly, Monthly or Pro plan</strong>, shared across your devices.</dd></div>
+            <div><dt>Online project sharing</dt><dd>Own up to 3 online projects free. Friends can join, edit shared files and start their own chats using their own AI allowance.</dd></div>
             <div><dt>Your own models</dt><dd>Connect a provider key or a local model. Your provider sets its own prices.</dd></div>
           </dl>
           <p className="pricing-small">Included AI requires a verified ADCode account. Sponsored cards help fund the editor. Provider availability, shared capacity and model context limits still apply.</p>
@@ -56,7 +57,7 @@ export function PricingContent({ offer }: { offer: PricingOffer }) {
             </li>
           ))}
         </ul>
-        <p className="pricing-small pricing-plan-note">Plans renew at the billing interval shown. Manage or cancel in your Dodo portal; cancellation keeps access until the paid period ends. A plan raises the allowance for the day, so tokens already used today still count.</p>
+        <p className="pricing-small pricing-plan-note">Every active paid plan also lets you create more than 3 online projects. Plans renew at the billing interval shown. Manage or cancel in your Dodo portal; cancellation keeps access until the paid period ends. A plan raises the allowance for the day, so tokens already used today still count.</p>
       </section>
 
       <section className="pricing-section pricing-packs-section" aria-labelledby="pricing-packs-heading">

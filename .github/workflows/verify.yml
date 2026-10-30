@@ -39,6 +39,8 @@ jobs:
         env:
           ADCODE_PKG_TOKEN: ${{ secrets.ADCODE_PKG_TOKEN }}
       - run: npm --prefix apps/cloud ci --ignore-scripts
+      - run: node apps/cloud/node_modules/wrangler/bin/wrangler.js deploy --dry-run --config apps/collab-relay/wrangler.jsonc --outdir output/collab-relay-build
+      - run: node scripts/check-shared-projects.mjs
       - name: Prepare Electron sandbox for GUI tests
         run: |
           node node_modules/electron/install.js

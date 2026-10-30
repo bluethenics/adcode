@@ -387,6 +387,7 @@ export const BRIDGE = [
   { path: "ads.reportSignals", kind: "send", channel: CHANNELS.adSignals },
 
   // collab
+  { path: "projects.action", kind: "invoke", channel: CHANNELS.sharedProjects },
   { path: "collab.host", kind: "invoke", channel: CHANNELS.collabHost },
   { path: "collab.join", kind: "invoke", channel: CHANNELS.collabJoin },
   { path: "collab.leave", kind: "invoke", channel: CHANNELS.collabLeave },

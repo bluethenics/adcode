@@ -144,7 +144,7 @@ export function createAccountMenu(
     planBox.dataset["plan"] = plan === null ? "free" : plan.toLowerCase();
     planName.textContent = plan === null ? "Free plan" : `${plan} plan`;
     const ends = plan !== null && tokens.plan ? ` · ${tokens.plan.source === "gift" ? "gift ends" : "renews"} ${new Date(tokens.plan.endsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "";
-    planDetail.textContent = `${percentLeft(tokens.free.remaining, tokens.free.limit)}% of this week's included AI tokens left${tokens.purchased > 0 ? `, + ${shortTokens(tokens.purchased)} purchased` : ""}${ends}. Shared by Tagflow AI and all other included models.`;
+    planDetail.textContent = `${percentLeft(tokens.free.remaining, tokens.free.limit)}% of today's included AI tokens left${tokens.purchased > 0 ? `, + ${shortTokens(tokens.purchased)} purchased` : ""}${ends}. Shared by Tagflow AI and all other included models. Free includes 3 owned online projects; active paid plans allow more.`;
     planAction.textContent = plan === null ? "Upgrade plan" : "Manage plan";
   }
 

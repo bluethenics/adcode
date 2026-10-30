@@ -125,10 +125,10 @@ export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
   },
   {
     id: "workbench.collab",
-    title: "Live collaboration",
-    plain: "Someone else can open the same files at the same time and you both see each other typing.",
+    title: "Shared projects and live collaboration",
+    plain: "Share an online project with friends. Each person opens their own chats and uses their own AI allowance.",
     why: "For fixing something together without one of you reading the other's screen over a call.",
-    how: "Open a project connected to GitHub, choose the live-session button on the sidebar, and share its invite. Keep the host app open. The connection uses ADCode’s encrypted internet relay and expires after 24 hours. New guests join view-only; grant edit access in People. Guests can open shared files and use their own AI models to read or edit the host’s current files. Guest commands and private memory are unavailable. The host reviews commits and pushes to GitHub. End session revokes the invite.",
+    how: "Open or create a project, choose the sharing button, and select Share project online. Send its adproject: invite to friends; they choose Join project without needing GitHub or a matching checkout. Online projects stay available when you close ADCode. Saved files sync every few seconds; each person has separate local chats and uses their own AI account. Free includes 3 owned online projects; joining does not use a slot. An active paid plan lets you create more. Files are limited to 1 MB each, 4,000 files and 16 MB total; private configuration, links, dependencies and generated folders are excluded. Conflicting edits pause sync until you choose a version, with both versions backed up locally. Use Copy invite, Reset invite, Remove member or Delete online project to manage access. The separate live session controls still offer cursor sharing for GitHub checkouts while the host stays open.",
     group: "workbench",
     settingIds: [],
     related: ["workbench.terminal"],
@@ -190,7 +190,7 @@ export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
     plain:
       "Choose ready models in Free · no API key, or use Bring your own key to connect a provider or named API endpoint.",
     why: "A key that was pasted wrong should say so immediately, not silently fail the first time you ask a question.",
-    how: "Open Connect a model. Free · no API key opens first with included models and ready local models: choose Use this model. Included models require a verified ADCode account; Tagflow AI and all other included models share one weekly free allowance. Use the local setup buttons to start or download Ollama. Bring your own key contains personal provider connections and the three-step guide: choose a provider, check and save its key, pick a model. Add a named connection with an OpenAI-compatible base URL and exact model ID for other endpoints; the NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system. Administrators can add, hide and select default models in the linked Free models and BYOK models catalogs.",
+    how: "Open Connect a model. Free · no API key opens first with included models and ready local models: choose Use this model. Included models require a verified ADCode account; Tagflow AI and all other included models share one 5M-token daily free allowance. Use the local setup buttons to start or download Ollama. Bring your own key contains personal provider connections and the three-step guide: choose a provider, check and save its key, pick a model. Add a named connection with an OpenAI-compatible base URL and exact model ID for other endpoints; the NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system. Administrators can add, hide and select default models in the linked Free models and BYOK models catalogs.",
     group: "ai",
     settingIds: ["adcode.ai.connections"],
     related: ["ai.freeKey", "adcode.ai.provider", "adcode.ai.model", "ai.sessions", "ai.team"],

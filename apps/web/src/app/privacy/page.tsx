@@ -82,6 +82,12 @@ With a claim, the editor also sends the identifiers of other ADCode accounts thi
 
 If you use the feedback button, we receive what you typed, the app version, and your operating system name. Nothing else about your machine or your work is attached.
 
+### Online projects
+
+Choosing Share project online uploads project files to ADCode's persistent Cloudflare storage so invited members can read and edit them while the owner is offline. We store the project name, owner and member account identifiers, member email labels, access credentials, file content and revision. This is separate from a temporary live session. Chats and AI credentials are not uploaded by project sharing; each person's AI requests use their own account. Private configuration such as .env files and keys, linked files, dependencies and generated folders are excluded. Source files can still contain sensitive information, so review them before sharing.
+
+Owners can reset invitations, remove members or delete an online project from the sharing panel. Removing access does not delete copies already downloaded by members. Deleted project data may remain in Cloudflare recovery backups for up to 30 days. Local copies, chats and conflict backups stay on each person's computer until removed there. Free accounts may own 3 online projects; active paid plans permit additional creation. Joining does not consume an owned slot. Existing projects remain accessible after a plan ends.
+
 ### AI features
 
 You choose included AI when available, a provider using your own API key, or a local model. Chat and agent tools can send your prompt, relevant source text, and tool results to the chosen provider so it can answer or edit your project. Automatic inline completion sends bounded text around the cursor (up to 6,000 characters before it and 2,000 after it), the language, and a small output allowance; it does not send the file path. You can turn inline completion off in Settings.

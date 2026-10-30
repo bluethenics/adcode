@@ -1,0 +1,19 @@
+# Online shared projects
+
+Open or create a folder in ADCode, open **Share projects**, and choose **Share project online**. Send the copied `adproject:` invitation to a friend. They sign in, select **Join project**, paste the invitation and get a local project copy. No GitHub account or matching checkout is required.
+
+The files persist in ADCode's Cloudflare storage after the owner closes the app. Every member can start their own chats in the project and uses their own AI account, allowance or provider key. Chat histories, credentials and private local agent state are not shared. Code and terminals run on each member's computer; online project storage does not provide an always-running cloud terminal or agent.
+
+Free includes **3 owned online projects**. The server serializes creation per account, so concurrent devices cannot bypass the limit. Joining someone else's project does not consume an owned slot. An active Weekly, Monthly or Pro subscription or gift permits additional creation. Existing projects remain accessible when a plan ends, but creating more requires an active plan or fewer than 3 owned projects. Deleting an online project frees its owned slot and keeps downloaded local copies.
+
+Saved files synchronize every five seconds while that project is open. A final sync is attempted on quit for up to eight seconds. Offline changes remain local and retry when the project is reopened. Use **Sync now** before closing when you need to confirm that the latest saved work is online. Unsaved editor buffers are local until saved.
+
+The initial limits are 4,000 files, 1 MB per file and 16 MB of encoded file data per project. `.gitignore` rules, private configuration (`.env`, keys and credential files), linked files or folders, dependencies and generated folders are excluded. Source files can still contain secrets; review the folder before sharing.
+
+Sync uses the last common snapshot to merge changes to different files. Different edits to the same file, including an edit versus deletion, pause synchronization. The sharing panel offers **Keep my conflicting files** or **Use online conflicting files**; both available versions are backed up outside the project in ADCode's `shared-projects/<account>/conflicts` cache before resolution. A server revision check rejects stale uploads. This is saved-file collaboration; the separate live-session feature supplies shared cursors while a host is connected.
+
+Owners can copy or reset invitations, remove individual members, and delete online projects. A reset invalidates the old invitation without removing existing members. A removed member cannot read or write online files, but already downloaded copies remain on their device. Source and chat content are not sent to advertising analytics. Existing fixed collaboration milestones record only event names, counts and times.
+
+The backend is in `apps/collab-relay/src/projects.ts`; the original temporary relay remains compatible. `ProjectAccount` objects own the quota/index and `CloudProject` objects own membership and revisioned files. Firebase verification happens before routing, and paid eligibility is read from the billing service rather than trusting the desktop. All project reads and writes recheck membership. New namespaces use SQLite-backed Durable Objects; deleting data removes active storage, while Cloudflare recovery backups may retain it for up to 30 days.
+
+Validation: `scripts/check-shared-projects.mjs` checks concurrent quota enforcement, paid creation, membership, host-independent reads, stale writes, path protection, invite reset and removal against the local Workers runtime. Desktop file tests cover ignored/private files, merge conflicts, stale local writes and linked paths. The Chromium fixture exercises project controls and narrow-width overflow.

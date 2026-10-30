@@ -81,6 +81,7 @@
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "fast-check": "^4.9.0",
+    "ignore": "7.0.6",
     "monaco-editor": "^0.56.0",
     "tree-sitter-wasms": "^0.1.13",
     "typescript": "^5.9.3",
