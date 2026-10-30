@@ -3,6 +3,12 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.4.7 — 2026-10-30
+
+- Use paid models with prepaid ADCode dollar credits, with clear model prices and an available-balance display.
+- Open paid-credit top-ups when the dollar balance is too low; show included allowances separately.
+- Refresh shared-allowance help and update a vulnerable dependency.
+
 ## 2.4.6 — 2026-10-30
 
 - Refresh help for shared included allowances.
