@@ -564,6 +564,18 @@ describe("included Tagflow AI", () => {
       expect(calledWith("coder")).toBe(4);
     });
 
+    it("continues to a third model when the first backup is also rate limited, without revisiting models", async () => {
+      const third = { ...backup, id: "third", name: "Third" };
+      await save({ ...config, models: [config.models[0]!, backup, third] });
+      upstream.mockImplementation(async (_url, init) => JSON.parse(String(init?.body)).model === "third" ? reply() : new Response("busy", { status: 429 }));
+      const writes = vi.spyOn(store, "putModelRequest");
+      const response = await chat();
+      expect(response.status).toBe(200); expect(response.headers.get("x-adcode-fallback-model")).toBe("third");
+      expect(await response.text()).toContain("Hello");
+      expect(calledWith("coder")).toBe(1); expect(calledWith("backup")).toBe(1); expect(calledWith("third")).toBe(1);
+      expect(recorded(writes).map(({ modelId, outcome }) => [modelId, outcome])).toEqual([["coder", "provider_error"], ["backup", "provider_error"], ["third", "success"]]);
+    });
+
     it("moves on at the first refusal instead of retrying the busy model", async () => {
       // A refusal from a saturated provider is slow: on 2026-10-21 each 429 took ~16 s, so two
       // retries kept people waiting ~48 s before the backup that answers in ~3 s.
@@ -572,6 +584,17 @@ describe("included Tagflow AI", () => {
       const response = await chat();
       expect(response.status).toBe(200); expect(response.headers.get("x-adcode-fallback-model")).toBe("backup"); await response.text();
       expect(calledWith("coder")).toBe(1); expect(calledWith("backup")).toBe(1);
+    });
+
+    it("gives paid users a higher-rate provider backup at the original credit rate", async () => {
+      await save({ ...config, paid: { ...DEFAULT_PAID_CONFIG, enabled: true }, models: [{ ...config.models[0]!, creditRate: 0.2 }, pricey] });
+      await store.giftPlan("user", "weekly", 1, "admin-1", "gift", now);
+      refuseCoder();
+      const response = await chat();
+      expect(response.status).toBe(200); expect(response.headers.get("x-adcode-fallback-model")).toBe("pricey"); await response.text();
+      const credits = (await (await call("/ai/tagflow/usage", "user")).json() as { credits: { session: { used: number } } }).credits.session.used;
+      expect(credits).toBe(0.003);
+      expect(calledWith("coder")).toBe(1); expect(calledWith("pricey")).toBe(1);
     });
 
     it("still retries a busy model when nothing else can answer", async () => {

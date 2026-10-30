@@ -299,11 +299,12 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
   };
   /**
    * A healthy included model to answer instead, in the administrator's own model order: offered,
-   * not cooling, never at a higher credit rate than the person chose (they are never charged more
-   * than they agreed to), and able to take this exact request - the same validation, context
+   * not cooling, and able to take this exact request. Free recovery stays within the chosen
+   * model's rate; paid recovery may use a more expensive provider with the charge capped below.
+   * Both use the same validation, context
    * check and output cap the chosen model passed.
    */
-  const fallbackFor = (config: TagflowConfig, raw: Record<string, unknown>, chosen: Extract<ChatBody, { model: TagflowModel }>, maxRate: number, signal: AbortSignal, now: number) => {
+  const fallbackFor = (config: TagflowConfig, raw: Record<string, unknown>, chosen: Extract<ChatBody, { model: TagflowModel }>, maxRate: number, signal: AbortSignal, now: number, attempted: ReadonlySet<string> = new Set(), subscriber = false) => {
     if (chosen.model.billing === "wallet") return null;
     if (deps.fallback === false) return null;
     // The same request with the same output ceiling, so the answer fits the reservation made for it.
@@ -313,7 +314,7 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
       // Public models cannot route a free account into a subscription-only provider.
       if (requiresSubscription(model) && !requiresSubscription(chosen.model)) continue;
       // A fallback may use a shared token hold only when the chosen model reserved one.
-      if (model.id === chosen.model.id || model.enabled === false || health.cooling(model.id, now) || modelCreditRate(model, config) > maxRate || (isPaidModel(model, config.paid) && !isPaidModel(chosen.model, config.paid))) continue;
+      if (attempted.has(model.id) || model.id === chosen.model.id || model.enabled === false || health.cooling(model.id, now) || (!subscriber && modelCreditRate(model, config) > maxRate) || (isPaidModel(model, config.paid) && !isPaidModel(chosen.model, config.paid))) continue;
       const parsed = chatBody({ ...rest, model: model.id, max_tokens: chosen.output }, config);
       if ("error" in parsed) continue;
       const route = target(config, parsed, signal);
@@ -865,7 +866,10 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
           void writeMetric();
         }
         headers["x-adcode-fallback-model"] = fallback.parsed.model.id;
-        route = fallback.route; served = fallback.parsed; servedRate = modelCreditRate(fallback.parsed.model, config);
+        route = fallback.route; served = fallback.parsed;
+        // Paid recovery can use a separate provider with a higher internal rate. ADCode
+        // absorbs that difference; the original credit reservation still covers it.
+        servedRate = Math.min(rate, modelCreditRate(fallback.parsed.model, config));
       };
       const retryRateLimit = async (response: Response): Promise<Response> => {
         let current = response;
@@ -889,25 +893,27 @@ export function createTagflowHandler(deps: TagflowOptions): (request: Request) =
         const body = raw as Record<string, unknown>;
         // A model that keeps refusing is cooling: skip it rather than make this person wait to be refused.
         if (health.cooling(parsed.model.id, deps.clock.now())) {
-          const fallback = fallbackFor(config, body, parsed, rate, abort.signal, deps.clock.now());
+          const fallback = fallbackFor(config, body, parsed, rate, abort.signal, deps.clock.now(), new Set(), hasActivePlan(accountPlan, deps.clock.now()));
           if (fallback !== null) await switchTo(fallback, "rejected", "model-busy");
         }
         upstream = await route.send();
         // A saturated provider is slow to refuse - each 429 from GLM took ~16 s on 2026-10-21, so
         // two retries held people ~48 s before a backup that answers in ~3 s. With a backup to
         // hand, the first refusal moves on; the retries are for when nothing else can answer.
-        const subscriberFallback = hasActivePlan(accountPlan, deps.clock.now()) && [500, 502, 503, 504].includes(upstream.status);
-        const fallback = (upstream.status === 429 || subscriberFallback) && !abort.signal.aborted && served === parsed ? fallbackFor(config, body, parsed, rate, abort.signal, deps.clock.now()) : null;
-        if (fallback === null) upstream = await retryRateLimit(upstream);
-        if ((upstream.status === 429 || subscriberFallback) && !abort.signal.aborted) {
+        const attempted = new Set([parsed.model.id, served.model.id]);
+        // Several models share a saturated provider. A second refusal must be allowed to
+        // reach another compatible provider, without cycling or replaying streamed output.
+        for (let hop = 0; hop < Math.min(config.models.length, 4); hop++) {
+          const subscriberFallback = hasActivePlan(accountPlan, deps.clock.now()) && [500, 502, 503, 504].includes(upstream.status);
+          if ((upstream.status !== 429 && !subscriberFallback) || abort.signal.aborted) break;
           health.strike(served.model.id, deps.clock.now());
-          if (fallback !== null) {
+          const fallback = fallbackFor(config, body, parsed, rate, abort.signal, deps.clock.now(), attempted, hasActivePlan(accountPlan, deps.clock.now()));
+          if (fallback === null) { upstream = await retryRateLimit(upstream); break; }
+          attempted.add(fallback.parsed.model.id);
             if (metric !== null) metric.upstreamStatus = upstream.status;
             await upstream.body?.cancel();
             await switchTo(fallback, "provider_error", upstream.status === 429 ? "upstream-rate-limit" : "upstream-http");
-            upstream = await retryRateLimit(await route.send());
-            if (upstream.status === 429) health.strike(served.model.id, deps.clock.now());
-          }
+            upstream = await route.send();
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
