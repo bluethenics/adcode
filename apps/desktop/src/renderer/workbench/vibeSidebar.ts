@@ -530,7 +530,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
         const refill = paid.free.resetsAt === null ? "" : ` Refills in ${untilText(paid.free.resetsAt, Date.now())}.`;
         const week = percentLeft(paid.free.remaining, paid.free.limit);
         setBadge(row, "Included AI", week === 0 && paid.purchased > 0 ? "Purchased" : `${week}% left`, left <= 0,
-          `Tagflow AI has no limit. Heabsy models: ${formatTokens(Math.max(0, paid.free.remaining))} of ${formatTokens(paid.free.limit)} free tokens left this week, then ${formatTokens(paid.purchased)} purchased.${refill}`);
+          `Shared by Tagflow AI and all other included models: ${formatTokens(Math.max(0, paid.free.remaining))} of ${formatTokens(paid.free.limit)} free tokens left this week, then ${formatTokens(paid.purchased)} purchased.${refill}`);
         return;
       }
       if (view?.unlimited) { setBadge(row, "Included AI", "Unlimited", false, "Tagflow AI has no ADCode usage limit"); return; }

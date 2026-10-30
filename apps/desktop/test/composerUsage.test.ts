@@ -12,6 +12,13 @@ const allowance = (extra: Partial<TagflowAllowanceView> = {}): TagflowAllowanceV
 });
 
 describe("composer usage meters", () => {
+  it("shows paid dollars separately even when included AI is unlimited", () => {
+    const view=allowance({unlimited:true,wallet:{availableMicros:12_345_600,reservedMicros:654_400,models:["paid-model"]}});
+    const [balance,held]=composerUsageModels(null,view,true,"paid-model");
+    expect(balance).toMatchObject({label:"Paid credits",value:"$12.3456",tone:"ok"});
+    expect(held).toMatchObject({label:"Held",value:"$0.6544"});
+    expect(composerUsageModels(null,view,true,"free-model")[0].value).toBe("∞");
+  });
   it("shows the session and weekly credit windows when the relay meters credits", () => {
     const now = Date.now();
     const view = allowance({ credits: {
@@ -145,9 +152,10 @@ describe("the composer meter on a paid model", () => {
     expect(free.tooltip).toContain("Buy tokens");
   });
 
-  it("keeps the unlimited meter for a model that is not paid", () => {
+  it("shows the shared weekly meter for Tagflow too", () => {
     const [free] = composerUsageModels(null, allowance({ unlimited: true, tokens }), true, "tagflow-code-27b");
-    expect(free).toMatchObject({ value: "∞", detail: "Unlimited" });
+    expect(free).toMatchObject({ value: "60%", detail: "60% free left" });
+    expect(free.tooltip).toContain("Tagflow AI and all other included models");
   });
 });
 
@@ -156,8 +164,8 @@ describe("the usage dialog's paid-token line", () => {
     const { paidTokensSummary } = await import("../src/shared/tagflow.ts");
     const now = Date.parse("2026-10-21T00:00:00Z");
     expect(paidTokensSummary({ enabled: true, free: { limit: 10_000_000, used: 4_000_000, held: 0, remaining: 6_000_000, resetsAt: now + 3 * 86_400_000 }, purchased: 48_000_000 }, now))
-      .toBe("Heabsy models: 60% of your free tokens left this week (refill in 3 days), then 48M purchased tokens. Tagflow AI stays unlimited.");
+      .toBe("Included AI: 60% of your free tokens left this week (refill in 3 days), then 48M purchased tokens. Shared by Tagflow AI and all other included models.");
     expect(paidTokensSummary({ enabled: true, free: { limit: 10_000_000, used: 0, held: 0, remaining: 10_000_000, resetsAt: null }, purchased: 0 }, now))
-      .toBe("Heabsy models: 10M free tokens a week, starting with your first request on them. Tagflow AI stays unlimited.");
+      .toBe("Included AI: 10M free tokens a week, starting with your first request on them. Shared by Tagflow AI and all other included models.");
   });
 });

@@ -38,6 +38,7 @@ export interface CreditsAllowance {
 
 /** Included AI's account-wide allowance, separate from this machine's usage history. */
 export interface TagflowAllowanceView {
+  wallet?: { availableMicros: number; reservedMicros: number; models: string[] };
   unlimited?: boolean;
   available: boolean;
   blocked: boolean;
@@ -77,7 +78,7 @@ export function aiPlanName(plan: NonNullable<TagflowAllowanceView["tokens"]>["pl
   return plan.id === "weekly" ? "Weekly" : plan.id === "monthly" ? "Monthly" : plan.id === "pro" ? "Pro" : null;
 }
 
-/** The usage dialog's one line about paid tokens: the weekly allowance on Heabsy's models, then what was bought. */
+/** The usage dialog's one line about paid tokens: the weekly allowance on all included models, then what was bought. */
 export function paidTokensSummary(tokens: NonNullable<TagflowAllowanceView["tokens"]>, now: number): string {
   const free = tokens.free;
   const plan = aiPlanName(tokens.plan, now);
@@ -86,7 +87,7 @@ export function paidTokensSummary(tokens: NonNullable<TagflowAllowanceView["toke
     ? `${shortTokens(free.limit)} ${kind} tokens a week, starting with your first request on them`
     : `${percentLeft(free.remaining, free.limit)}% of your ${kind} tokens left this week (refill in ${untilText(free.resetsAt, now)})`;
   const bought = tokens.purchased > 0 ? `, then ${shortTokens(tokens.purchased)} purchased tokens` : "";
-  return `Heabsy models: ${plan === null ? "" : `${plan} plan, `}${week}${bought}. Tagflow AI stays unlimited.`;
+  return `Included AI: ${plan === null ? "" : `${plan} plan, `}${week}${bought}. Shared by Tagflow AI and all other included models.`;
 }
 
 /** "3 hr 12 min", "45 min", "under a minute": how long until a credit window refills. */

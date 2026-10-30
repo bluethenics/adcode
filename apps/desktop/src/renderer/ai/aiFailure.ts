@@ -85,6 +85,17 @@ export function describeAiFailure(raw: string): AiFailure {
   const make = (kind: AiFailure["kind"], title: string, explanation: string, actions: readonly AiFailureAction[]): AiFailure =>
     ({ kind, title, explanation, actions, detail });
 
+  if (/wallet-balance|paid credits cannot cover/i.test(detail)) {
+    return make("tokens", "Add paid model credits", detail, ["buy-tokens", "models"]);
+  }
+  if (/wallet-client-update/i.test(detail)) {
+    return make("tokens", "Update ADCode for paid models", detail, ["models"]);
+  }
+
+  if (/subscription-required|Heabsy models require an active subscription/i.test(detail)) {
+    return make("tokens", "Choose a plan to use Heabsy", "Heabsy models require an active subscription. Choose Weekly, Monthly or Pro, or select a free included model. Purchased tokens alone do not unlock Heabsy.", ["upgrade-plan", "models"]);
+  }
+
   if (/The signed-in account changed\./i.test(detail)) {
     return make("auth", "Your signed-in account changed", "This task stopped when the account changed. Try again to continue with the current account. Work already saved in your project is still there.", ["retry"]);
   }
@@ -116,7 +127,7 @@ export function describeAiFailure(raw: string): AiFailure {
   // Paid tokens (relays from 2026-10-21): the free week on a paid provider's models is spent and nothing is bought.
   if (who === "Included AI" && /free tokens on .+ models\. Buy tokens/i.test(detail)) {
     const refill = /refill in ([^,.]{1,40})/i.exec(detail)?.[1]?.trim();
-    return make("tokens", "This week's free Heabsy tokens are used up", `Buy tokens or a plan to keep using Heabsy models now, or switch to Tagflow AI, which stays free. ${refill ? `Your free tokens refill in ${refill}; ` : ""}a task that was running carries on by itself when they do, as long as ADCode stays open.`, ["buy-tokens", "upgrade-plan", "models", "usage"]);
+    return make("tokens", "This week's included AI tokens are used up", `Buy tokens or a plan to keep using included AI now, or use your own connected model. ${refill ? `Your free tokens refill in ${refill}; ` : ""}a task that was running carries on by itself when they do, as long as ADCode stays open.`, ["buy-tokens", "upgrade-plan", "models", "usage"]);
   }
   // Credits (relays from 2026-10-15): the message names the window and when it refills.
   if (who === "Included AI" && /free AI credits/i.test(detail)) {

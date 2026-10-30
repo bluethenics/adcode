@@ -12,6 +12,6 @@ it("shows real activity and allowance in Chromium, keeps keyboard focus live, an
   const line = run.stdout.split(/\r?\n/).find((entry) => entry.startsWith("USAGE_DIALOG_RESULTS="));
   expect(line, run.stdout).toBeDefined();
   const results = JSON.parse(line!.slice("USAGE_DIALOG_RESULTS=".length)) as Record<string, boolean>;
-  expect(Object.keys(results)).toHaveLength(27);
+  expect(Object.keys(results)).toHaveLength(28);
   expect(Object.values(results).every(Boolean)).toBe(true);
 }, 35000);

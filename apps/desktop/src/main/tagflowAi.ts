@@ -39,9 +39,9 @@ export function refreshTagflowModels(force = false): Promise<void> {
         // Older relays send no rate: every model then costs the standard credit.
         const rate = typeof model["creditRate"] === "number" && Number.isFinite(model["creditRate"]) && model["creditRate"] >= 0 ? model["creditRate"] : 1;
         // A paid provider's model (relays from 2026-10-21) says what it costs once the free week is spent.
-        const cost = model["paid"] === true && freeWeekly !== null ? `${Math.round(freeWeekly / 1_000_000)}M free tokens a week, then purchased tokens`
+        const cost = model["billing"] === "wallet" ? `paid USD credits · USD ${Number(model["inputPrice"] ?? 0).toFixed(4)} input / USD ${Number(model["outputPrice"] ?? 0).toFixed(4)} output per million tokens (35% markup included)` : model["subscriptionRequired"] === true ? "requires an active Heabsy plan · included tokens or unlimited Pro" : model["paid"] === true && freeWeekly !== null ? `${Math.round(freeWeekly / 1_000_000)}M free tokens a week, then purchased tokens`
           : rate === 0 ? "free, no credits used" : rate === 1 ? "uses your free AI credits" : `uses ${rate < 1 ? "fewer" : "more"} credits (${rate}× the standard rate)`;
-        models.push({ id: model["id"], name: model["name"], toolCall: true, reasoning: false, contextWindow: model["contextWindow"], maxOutput: model["maxOutput"], inputs: ["text"], outputs: ["text"], inputCostMicrosPerMillion: 0, outputCostMicrosPerMillion: 0, note: `Included${source} · ${cost}` });
+        models.push({ id: model["id"], name: model["name"], toolCall: true, reasoning: false, contextWindow: model["contextWindow"], maxOutput: model["maxOutput"], inputs: ["text"], outputs: ["text"], inputCostMicrosPerMillion: model["billing"] === "wallet" ? Math.round(Number(model["inputPrice"] ?? 0)*1_000_000) : 0, outputCostMicrosPerMillion: model["billing"] === "wallet" ? Math.round(Number(model["outputPrice"] ?? 0)*1_000_000) : 0, note: `Included${source} · ${cost}` });
       }
       if (!models.some((model) => model.id === config.defaultModel)) return;
       offered = { id: "tagflow", name: "Included AI", env: [], doc: "https://adcode.bluethenics.com/docs/ai-tagflow", models };
@@ -79,6 +79,7 @@ export async function buildTagflowProvider(source = "unknown", onRequest?: (requ
       account = identity;
       headers.set("authorization", `Bearer ${credential}`);
       headers.set("x-adcode-ai-source",source);
+      headers.set("x-adcode-paid-credits","1");
       headers.set("x-adcode-ai-persona",includedAiPersona(source,roleId));
       headers.set("x-adcode-platform",reportedPlatform(process.env,process.platform));
       const response = await fetch(input, { ...init, headers });

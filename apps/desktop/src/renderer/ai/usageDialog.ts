@@ -146,24 +146,34 @@ export function openUsageDialog(): Promise<void> {
       }
       return parts;
     }
-    card.append(allowance);
+    const paidWallet = el("section", "usage-allowance");
+    paidWallet.hidden = true;
+    card.append(allowance, paidWallet);
     async function refreshAllowance(): Promise<void> {
       const mine = ++allowanceRequest;
       try {
         const view = await window.adcode.aiUsage.allowance();
         if (mine !== allowanceRequest) return;
+        paidWallet.hidden = view?.wallet === undefined;
+        if (view?.wallet) paidWallet.replaceChildren(
+          el("strong", "", "Paid model credits"),
+          stat("Available", `$${(view.wallet.availableMicros/1_000_000).toFixed(4)}`, "USD · provider cost plus 35%"),
+          el("p", "usage-note", `$${(view.wallet.reservedMicros/1_000_000).toFixed(4)} held for active requests. Separate from included tokens and Heabsy subscriptions.`),
+          button("Add paid credits", "ad-btn ad-btn-secondary", ()=>void window.open(`${BUY_TOKENS_URL}#wallet`,"_blank","noopener")),
+        );
         allowance.hidden = view === null || !view.available;
         allowanceHelp.hidden = allowance.hidden;
         // "Above" only means something when the allowance is there to point at.
         historyNote.textContent = allowance.hidden ? `${historyText} ${freeText}` : `${historyText} The included-AI allowance above applies across your devices. ${freeText}`;
         if (view === null || !view.available) return;
         if (view.blocked) { allowance.textContent = "Included AI is disabled for this account."; allowanceHelp.hidden = true; return; }
+        if (view.tokens?.enabled === true) {
+          allowance.replaceChildren(includedAllowance(view.tokens, view.usage.requests));
+          allowanceHelp.hidden = true;
+          return;
+        }
         if (view.unlimited) {
-          // With paid tokens on, Heabsy's models have a free week; everything else stays unlimited.
-          const paid = view.tokens?.enabled === true ? view.tokens : null;
-          allowance.replaceChildren(...(paid === null
-            ? [el("strong", "", "Unlimited included AI"), el("p", "usage-note", "No ADCode token, request, or credit allowance. Provider availability and model context limits still apply.")]
-            : [includedSplit(paid, view.usage.requests)]));
+          allowance.replaceChildren(el("strong", "", "Unlimited included AI"), el("p", "usage-note", "No ADCode token, request, or credit allowance. Provider availability and model context limits still apply."));
           allowanceHelp.hidden = true;
           return;
         }
@@ -367,34 +377,23 @@ export function openUsageDialog(): Promise<void> {
   });
 }
 
-/**
- * Tagflow and Heabsy, side by side. Reported 2026-10-27: usage read as one pool, while the
- * two work differently - Tagflow has no ADCode limit, Heabsy has a weekly allowance, a plan
- * and purchased tokens.
- */
-function includedSplit(paid: NonNullable<TagflowAllowanceView["tokens"]>, requestsToday: number): HTMLElement {
+/** The account's single weekly balance, shared by every included model. */
+function includedAllowance(paid: NonNullable<TagflowAllowanceView["tokens"]>, requestsToday: number): HTMLElement {
   const now = Date.now();
   const split = el("div", "usage-split");
-  const tagflow = el("section", "usage-split-card");
-  tagflow.dataset["kind"] = "tagflow";
-  tagflow.append(
-    el("span", "usage-split-name", "Tagflow AI"),
-    el("strong", "usage-split-value", "Unlimited"),
-    el("span", "usage-stat-detail", `No ADCode limit · ${requestsToday.toLocaleString()} included AI requests today`),
-  );
   const plan = aiPlanName(paid.plan, now);
   const free = paid.free;
   const used = Math.max(0, free.used + free.held);
   const heabsy = el("section", "usage-split-card");
-  heabsy.dataset["kind"] = "heabsy";
+  heabsy.dataset["kind"] = "included";
   heabsy.dataset["out"] = String(free.remaining <= 0 && paid.purchased <= 0);
   const progress = el("progress", "ad-progress");
   progress.max = Math.max(1, free.limit);
   progress.value = Math.min(free.limit, used);
-  progress.setAttribute("aria-label", "Heabsy tokens used this week");
-  const refill = free.resetsAt === null ? "Your week starts with your first Heabsy request" : `Refills in ${untilText(free.resetsAt, now)}`;
+  progress.setAttribute("aria-label", "Included AI tokens used this week");
+  const refill = free.resetsAt === null ? "Your week starts with your first included AI request" : `Refills in ${untilText(free.resetsAt, now)}`;
   heabsy.append(
-    el("span", "usage-split-name", plan === null ? "Heabsy models · Free" : `Heabsy models · ${plan} plan`),
+    el("span", "usage-split-name", plan === null ? "Included AI · Free" : `Included AI · ${plan} plan`),
     el("strong", "usage-split-value", `${percentLeft(free.remaining, free.limit)}% left`),
     progress,
     el("span", "usage-stat-detail", `${formatTokens(used)} of ${formatTokens(free.limit)} this week · ${refill}${paid.purchased > 0 ? ` · then ${formatTokens(paid.purchased)} purchased` : ""}`),
@@ -405,6 +404,7 @@ function includedSplit(paid: NonNullable<TagflowAllowanceView["tokens"]>, reques
     button("Buy tokens", "ad-btn ad-btn-tertiary", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener")),
   );
   heabsy.append(actions);
-  split.append(tagflow, heabsy);
+  heabsy.append(el("p", "usage-stat-detail", `Shared by Tagflow AI and all other included models · ${requestsToday.toLocaleString()} requests today`));
+  split.append(heabsy);
   return split;
 }

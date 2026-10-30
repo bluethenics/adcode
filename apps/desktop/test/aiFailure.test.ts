@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+it("offers paid credits for a dollar-wallet refusal without claiming a free refill",()=>{
+  const failure=describeAiFailure("wallet-balance: Your paid credits cannot cover this request's maximum charge.");
+  expect(failure).toMatchObject({kind:"tokens",title:"Add paid model credits",actions:["buy-tokens","models"]});
+  expect(failure.explanation).not.toMatch(/refill/i);
+});
 
 it("offers retry with the current account after an account switch", () => {
   const failure = describeAiFailure("The signed-in account changed. Start this task again with the current account.");
@@ -213,7 +218,7 @@ describe("the paid-token limit", () => {
   it("offers to buy tokens or switch models when the free Heabsy week is used up", () => {
     const failure = describeAiFailure("Included AI returned HTTP 429: You've used this week's 10,000,000 free tokens on Heabsy models. Buy tokens at https://adcode.bluethenics.com/ai-tokens, or switch to Tagflow AI, which stays free. Your free tokens refill in 3 days. (code daily-limit)");
     expect(failure.kind).toBe("tokens");
-    expect(failure.title).toBe("This week's free Heabsy tokens are used up");
+    expect(failure.title).toBe("This week's included AI tokens are used up");
     expect(failure.actions).toEqual(["buy-tokens", "upgrade-plan", "models", "usage"]);
     expect(failure.explanation).toContain("Buy tokens or a plan");
     expect(failure.explanation).toContain("3 days");
