@@ -3,6 +3,10 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.4.5 — 2026-10-30
+
+- Support prepaid model credits and shared allowances.
+
 ## 2.4.4 — 2026-10-28
 
 - Check the installed update in the profile ADCode actually uses.
