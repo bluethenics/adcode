@@ -1103,6 +1103,8 @@ function toolRunner(undo: () => CheckpointTurn | null = () => null, sessionId: (
   });
   return { run: (call: Parameters<typeof local.run>[0], signal: AbortSignal) => {
     sharedSession ||= collabIsJoined();
+    // Plans and questions belong to this conversation; only file tools go to the host.
+    if (call.name === "update_plan" || call.name === "ask_user") return local.run(call, signal);
     const remote = collabRemoteTool(call, signal);
     return remote ?? (sharedSession ? Promise.resolve({ content: "The shared project disconnected. Reconnect before continuing this agent; no local file was changed.", isError: true }) : local.run(call, signal));
   } };
