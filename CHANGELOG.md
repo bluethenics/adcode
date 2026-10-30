@@ -3,6 +3,12 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.4.9 — 2026-10-30
+
+- Share online projects that remain available after the owner closes ADCode. Each member has separate chats and AI usage.
+- Include 3 owned online projects on Free; active paid plans allow more. Joining a friend's project does not use an owned slot.
+- Recover through multiple busy models, with additional provider backups for paid plans at the original credit rate.
+
 ## 2.4.8 — 2026-10-30
 
 - Share GitHub projects live and improve included AI recovery.
