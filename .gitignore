@@ -104,3 +104,6 @@ apps/cloud/.wrangler/
 
 # Local workspace memory is runtime state, never release source.
 /.adcode/
+
+# Local build, verification and preview artifacts
+/output/

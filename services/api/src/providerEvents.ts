@@ -24,6 +24,7 @@ export type NormalizedProviderEvent =
       orderId: string;
       amountMicros: bigint;
       currency: "USD";
+      taxMicros?: bigint;
     }
   | {
       type: "refund";
@@ -99,7 +100,9 @@ export function parseProviderEvent(
     const orderId = id(metadata?.["orderId"]);
     const currency = data["currency"];
     if (paymentId === null || sessionId === null || orderId === null || currency !== "USD") return null;
-    return { type: "purchase", webhookId, paymentId, sessionId, orderId, amountMicros, currency };
+    const tax = data["tax"] ?? 0;
+    if (orderId.startsWith("aiw_") && (typeof tax !== "number" || !Number.isSafeInteger(tax) || tax < 0 || BigInt(tax)*10_000n >= amountMicros)) return null;
+    return { type: "purchase", webhookId, paymentId, sessionId, orderId, amountMicros, currency, ...(orderId.startsWith("aiw_") ? { taxMicros: BigInt(tax as number)*10_000n } : {}) };
   }
 
   if (eventType === "refund.succeeded") {

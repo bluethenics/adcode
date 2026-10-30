@@ -16,7 +16,7 @@ export async function previewImprezia(config: AdNetworkConfig, key: string, requ
   ], eventtrackers: [{ event: 1, methods: [1] }] };
   try {
     const response = await fetchImpl("https://x.imprezia.ai/v1/bid", {
-      method: "POST", redirect: "error", signal: AbortSignal.timeout(700),
+      method: "POST", redirect: "manual", signal: AbortSignal.timeout(700),
       headers: { "content-type": "application/json", "X-API-Key": key, "X-OpenRTB-Version": "2.6" },
       body: JSON.stringify({ id: requestId, at: 1, test: 1, tmax: 250, cur: ["USD"],
         imp: [{ id: "1", secure: 1, native: { ver: "1.2", request: JSON.stringify(native) } }],

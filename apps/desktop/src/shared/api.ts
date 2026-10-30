@@ -2417,7 +2417,7 @@ export interface AdcodeApi {
      * codebase and the caller has to ask for it - see `lanTransport.ts` for why that matters.
      */
     host(options: {
-      bind: "lan" | "loopback";
+      bind: "lan" | "loopback" | "internet";
       port: number;
       displayName: string;
     }): Promise<CollabStatusView>;

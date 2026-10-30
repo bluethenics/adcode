@@ -24,8 +24,9 @@ export interface AdNetworkConfig {
   http?: HttpAdNetworkConfig;
   beehiiv?: { publicationId: string; offerId: string };
   /**
-   * `chat` is Imprezia's Chat Ads API (publisher key; `id` is an optional placement label)
-   * and can deliver and pay. `app` and `site` are its OpenRTB Exchange, preview only.
+   * `chat` enables the browser SDK (publisher key; `id` is an optional placement label).
+   * It does not serve native desktop creatives or automatically pay user balances.
+   * `app` and `site` are its OpenRTB Exchange, preview only.
    */
   imprezia?: { kind: "app" | "site" | "chat"; id: string };
 }

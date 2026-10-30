@@ -2,6 +2,12 @@ import type { TagflowStore } from "./tagflowTypes.ts";
 
 /** The retired Firestore adapter cannot offer a paid relay without atomic quota storage. */
 export const tagflowUnavailable: TagflowStore = {
+  async getModelWallet() { throw new Error("Model wallet requires the Supabase adapter"); },
+  async createWalletOrder() { throw new Error("Model wallet requires the Supabase adapter"); },
+  async completeWalletOrder() { throw new Error("Model wallet requires the Supabase adapter"); },
+  async applyWalletEvent() { throw new Error("Model wallet requires the Supabase adapter"); },
+  async reserveModelWallet() { throw new Error("Model wallet requires the Supabase adapter"); },
+  async settleModelWallet() { throw new Error("Model wallet requires the Supabase adapter"); },
   async getModelAudienceProfile() { throw new Error("Audience profiles require the Supabase adapter"); },
   async putModelAudienceProfile() { throw new Error("Audience profiles require the Supabase adapter"); },
   async deleteModelAudienceProfile() { throw new Error("Audience profiles require the Supabase adapter"); },
@@ -21,6 +27,7 @@ export const tagflowUnavailable: TagflowStore = {
   async reserveTagflow() { throw new Error("Tagflow requires the Supabase adapter"); },
   async settleTagflow() { throw new Error("Tagflow requires the Supabase adapter"); },
   async claimVerificationSend() { throw new Error("Tagflow requires the Supabase adapter"); },
+  async retryFailedVerificationSend() { throw new Error("Tagflow requires the Supabase adapter"); },
   async getPaidTokens() { throw new Error("Paid tokens require the Supabase adapter"); },
   async createTokenOrder() { throw new Error("Paid tokens require the Supabase adapter"); },
   async applyTokenEvent() { throw new Error("Paid tokens require the Supabase adapter"); },

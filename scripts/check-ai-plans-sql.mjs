@@ -98,8 +98,8 @@ assert.equal(await redeem("friend"), "already");
 await sub("whf1", "active", "sub_f", "friend", "monthly");
 await sub("whf2", "cancelled", "sub_f", "friend", "monthly", 30 * DAY, 2 * DAY);
 await sub("whf3", "active", "sub_f2", "friend", "monthly");
-assert.equal(await purchased("friend"), 4000000);
-assert.equal(await purchased("pro1"), 4000000);
+assert.equal(await purchased("friend"), 4400000);
+assert.equal(await purchased("pro1"), 4400000);
 assert.equal(Number((await one(`select count(*) n from public.ai_token_ledger where uid in ('pro1','friend') and kind='grant' and ref='invite:friend'`)).n), 2);
 await sub("whx", "active", "sub_x2", "paying", "monthly");
 assert.equal(await redeem("paying"), "has-plan");
@@ -120,7 +120,7 @@ console.log("week reset: refused while held, then fresh");
 
 // Summary and indexes.
 const summary = await q(`select * from public.ai_subscription_summary($1)`, [2 * DAY]);
-assert.ok(summary.some((row) => row.plan === "pro" && Number(row.active) >= 1 && Number(row.mrr_cents) >= 1900));
+assert.ok(summary.some((row) => row.plan === "pro" && Number(row.active) >= 1 && Number(row.mrr_cents) >= 2900));
 await q(`insert into public.ai_subscriptions(provider_subscription_id, uid, plan, status, ends_at, updated_at) select 'bulk'||g, 'bulk'||g, 'monthly', 'active', 99, 0 from generate_series(1,1000) g`);
 await q(`analyze public.ai_subscriptions`);
 const explained = (await q(`explain select 1 from public.ai_subscriptions where uid = 'u' and ends_at > 5`)).map((row) => row["QUERY PLAN"]).join("\n");
@@ -196,4 +196,14 @@ for (const role of ["anon","authenticated"]) {
 }
 console.log("subscription checkouts: one durable account claim, shared pending/session state, expiry and private RPCs");
 
+const releaseNow = Date.now();
+await sub("legacy-weekly-event", "active", "legacy-weekly", "legacy-weekly-owner", "weekly", releaseNow + DAY, releaseNow);
+const priceMigration = readFileSync(join(MIG, "20261029170000_pro_subscription_price.sql"), "utf8");
+await db.exec(priceMigration);
+await db.exec(priceMigration);
+const protectedPlan = await one("select count(*) n, max(weekly_tokens) tokens, max(ends_at) ends_at from public.ai_boosts where uid='legacy-weekly-owner'");
+assert.equal(Number(protectedPlan.n), 1);
+assert.equal(Number(protectedPlan.tokens), 60000000);
+assert.equal(Number(protectedPlan.ends_at), releaseNow + DAY);
+console.log("existing Weekly subscribers: current paid allowance preserved once until period end");
 console.log("AI plans SQL: all checks passed");

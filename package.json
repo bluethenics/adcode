@@ -64,7 +64,7 @@
     "smoke:account": "node scripts/smoke-account.mjs",
     "models:check": "node scripts/models-check.mjs",
     "docs:web": "node scripts/web-docs.mjs",
-    "cloud:typecheck": "tsc --noEmit -p apps/cloud/tsconfig.json"
+    "cloud:typecheck": "tsc --noEmit -p apps/cloud/tsconfig.json && tsc --noEmit -p apps/collab-relay/tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

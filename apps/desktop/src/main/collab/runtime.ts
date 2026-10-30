@@ -18,7 +18,7 @@
  *   3. Is this peer *allowed* to do this? (`permissions.ts`.)
  *   4. Only then, act.
  */
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
   PROTOCOL_VERSION,
   canAdminister,
@@ -50,7 +50,7 @@ import {
   ORIGIN_REMOTE,
   type DocStore,
 } from "./docs.ts";
-import { lanTransport } from "./lanTransport.ts";
+import { sharedTransport, isRelayHost } from "./relayTransport.ts";
 import type { GuestTransport, HostTransport, PeerLink, TransportFactory } from "./transport.ts";
 
 /** How the renderer sees the session. Mirrored in `shared/api.ts`. */
@@ -77,6 +77,7 @@ export interface CommitRequest {
 }
 
 export interface CollabEvents {
+  readonly onToolRequest?: (call: { id: string; name: string; input: Record<string, unknown> }, signal: AbortSignal) => Promise<{ content: string; isError: boolean }>;
   readonly onStatus: (status: CollabStatus) => void;
   /** A document changed and the renderer's replica needs the update. Base64. */
   readonly onDocUpdate: (path: string, update: string) => void;
@@ -88,13 +89,15 @@ export interface CollabEvents {
 }
 
 export interface StartHostingOptions {
+  readonly project?: string;
   /** `"lan"` publishes to the network. Never defaulted - see `lanTransport.ts`. */
-  readonly bind: "lan" | "loopback";
+  readonly bind: "lan" | "loopback" | "internet";
   readonly port: number;
   readonly displayName: string;
 }
 
 export interface CollabRuntime {
+  remoteTool(call: { id: string; name: string; input: Record<string, unknown> }, signal: AbortSignal): Promise<{ content: string; isError: boolean }> | null;
   status(): CollabStatus;
   startHosting(root: string | null, options: StartHostingOptions): Promise<CollabStatus>;
   joinWith(code: string, displayName: string): Promise<CollabStatus>;
@@ -152,7 +155,7 @@ const MAX_FAULTS = 8;
 
 export function createCollabRuntime(
   events: CollabEvents,
-  transport: TransportFactory = lanTransport,
+  transport: TransportFactory = sharedTransport,
 ): CollabRuntime {
   /* ── Session state, one of these at a time ──────────────────────────────── */
 
@@ -161,6 +164,11 @@ export function createCollabRuntime(
   let selfId: string | null = null;
   let docs: DocStore | null = null;
   let error: string | null = null;
+  const toolWaiters = new Map<string, (result: { content: string; isError: boolean }) => void>();
+  const toolControllers = new Map<string, AbortController>();
+  let toolQueue: Promise<void> = Promise.resolve();
+  const readTools = new Set(["read_file", "list_files", "search", "glob_files", "get_outline"]);
+  const editTools = new Set(["edit_file", "propose_edit"]);
 
   // Host only.
   let host: HostTransport | null = null;
@@ -307,7 +315,7 @@ export function createCollabRuntime(
       return;
     }
 
-    session = result.state;
+    session = host?.addresses.some(isRelayHost) ? setSessionRole(result.state, result.participant.id, "viewer") : result.state;
     authenticated.set(link.id, result.participant.id);
 
     link.send({
@@ -455,6 +463,32 @@ export function createCollabRuntime(
         return;
       }
 
+      case "tool-cancel": {
+        toolControllers.get(`${link.id}:${message.id}`)?.abort();
+        return;
+      }
+      case "tool-request": {
+        const key = `${link.id}:${message.id}`;
+        const fail = (content: string): void => link.send({ type: "tool-result", id: message.id, content, isError: true });
+        if ((!readTools.has(message.name) && !editTools.has(message.name)) || (editTools.has(message.name) && !canEdit(participant))) { fail("This tool is not permitted in the shared project. Ask the host to run commands or change access."); return; }
+        if (!events.onToolRequest || toolControllers.size >= 32 || toolControllers.has(key)) { fail("The host is busy or cannot run shared AI tools. Try again shortly."); return; }
+        const controller = new AbortController();
+        toolControllers.set(key, controller);
+        const timer = setTimeout(() => controller.abort(), 120_000);
+        // Serialize remote writes. Exact-text edits still check the latest host file, so
+        // two agents cannot silently overwrite one another from stale local checkouts.
+        toolQueue = toolQueue.then(async () => {
+          try {
+            controller.signal.throwIfAborted();
+            const current = session === null ? null : findParticipant(session, participant.id);
+            if (!current || (editTools.has(message.name) && !canEdit(current))) { fail("Your access changed before this tool ran."); return; }
+            const result = await events.onToolRequest!(message, controller.signal);
+            if (!controller.signal.aborted) link.send({ type: "tool-result", id: message.id, content: result.content.slice(0, 1_000_000), isError: result.isError });
+          } catch { fail("The shared tool stopped before completion. Read the current file before retrying."); }
+          finally { clearTimeout(timer); toolControllers.delete(key); }
+        });
+        return;
+      }
       case "terminal-input":
         // Parsed and permission-checked, but not yet wired to a shell. Refused with the honest
         // reason rather than silently dropped, so a guest is not left typing into nothing.
@@ -470,6 +504,10 @@ export function createCollabRuntime(
 
   function handleGuestMessage(message: Message): void {
     switch (message.type) {
+      case "tool-result": {
+        toolWaiters.get(message.id)?.({ content: message.content, isError: message.isError });
+        return;
+      }
       case "welcome": {
         selfId = message.you;
         session = { participants: [...message.participants], joinCount: message.participants.length };
@@ -547,6 +585,10 @@ export function createCollabRuntime(
   /* ── Teardown ───────────────────────────────────────────────────────────── */
 
   async function teardown(): Promise<void> {
+    for (const done of toolWaiters.values()) done({ content: "The shared project disconnected. Check the host's files before retrying.", isError: true });
+    toolWaiters.clear();
+    for (const controller of toolControllers.values()) controller.abort();
+    toolControllers.clear();
     await host?.close();
     await guest?.close();
     docs?.dispose();
@@ -572,6 +614,21 @@ export function createCollabRuntime(
 
   const runtime: CollabRuntime = {
     status,
+    remoteTool(call, signal) {
+      if (mode !== "joined") return null;
+      if (signal.aborted) return Promise.reject(signal.reason);
+      if (toolWaiters.size >= 8) return Promise.resolve({ content: "Too many shared tools are pending. Wait for the current requests.", isError: true });
+      const id = randomUUID();
+      return new Promise((resolve) => {
+        const finish = (result: { content: string; isError: boolean }): void => { clearTimeout(timer); signal.removeEventListener("abort", cancel); toolWaiters.delete(id); resolve(result); };
+        const cancel = (): void => { guest?.send({ type: "tool-cancel", id }); finish({ content: "Shared tool cancelled. Check the current file before retrying.", isError: true }); };
+        const timer = setTimeout(() => { guest?.send({ type: "tool-cancel", id }); finish({ content: "The host did not confirm this tool. Check the current file before retrying.", isError: true }); }, 125_000);
+        toolWaiters.set(id, finish);
+        signal.addEventListener("abort", cancel, { once: true });
+        guest?.send({ type: "tool-request", id, name: call.name, input: call.input });
+        if (signal.aborted) cancel();
+      });
+    },
 
     async startHosting(root, options) {
       if (root === null) {
@@ -586,7 +643,7 @@ export function createCollabRuntime(
         // `randomBytes`, never `Math.random`. The token is the only credential in the session.
         token = newToken(new Uint8Array(randomBytes(32)));
 
-        host = await transport.startHost(options, {
+        host = await transport.startHost({ ...options, token }, {
           onPeerConnected: (link) => {
             links.set(link.id, link);
           },
@@ -597,6 +654,7 @@ export function createCollabRuntime(
             });
           },
           onPeerClosed: (link) => {
+            for (const [key, controller] of toolControllers) if (key.startsWith(`${link.id}:`)) controller.abort();
             const participantId = authenticated.get(link.id);
             authenticated.delete(link.id);
             faults.delete(link.id);
@@ -615,8 +673,7 @@ export function createCollabRuntime(
           },
           onPeerFault: (link, detail) => noteFault(link, detail),
           onError: (detail) => {
-            error = detail;
-            publishStatus();
+            void teardown().then(() => { error = detail; publishStatus(); });
           },
         });
 
@@ -631,6 +688,7 @@ export function createCollabRuntime(
           port: host.port,
           token,
           label: options.displayName,
+          ...(options.project === undefined ? {} : { project: options.project }),
         });
 
         mode = "hosting";
@@ -659,7 +717,7 @@ export function createCollabRuntime(
 
       try {
         guest = await transport.connectGuest(
-          { host: decoded.host, port: decoded.port },
+          { host: decoded.host, port: decoded.port, token: decoded.token },
           {
             onMessage: handleGuestMessage,
             onClosed: (detail) => {
@@ -761,6 +819,7 @@ export function createCollabRuntime(
       if (session === null || host === null) return status();
 
       session = setSessionRole(session, participantId, role);
+      if (role === "viewer") for (const [key, controller] of toolControllers) if (key.startsWith(`${participantId}:`)) controller.abort();
       broadcastRoster();
       publishStatus();
       return status();

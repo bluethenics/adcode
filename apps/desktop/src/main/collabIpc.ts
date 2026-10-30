@@ -23,9 +23,30 @@ import { CHANNELS, type CollabStatusView } from "../shared/api.ts";
 import { createCollabRuntime, type CollabRuntime } from "./collab/runtime.ts";
 import { localAddresses } from "./collab/lanTransport.ts";
 import { decodeInvite, encodeInvite } from "@adcode/collab";
+import { gitForWorkspace } from "./sourceControl.ts";
+import { recordMilestone } from "./milestones.ts";
+import { isRelayHost } from "./collab/relayTransport.ts";
+
+type RemoteCall = { id: string; name: string; input: Record<string, unknown> };
+type ToolResult = { content: string; isError: boolean };
+let toolHandler: ((call: RemoteCall, signal: AbortSignal) => Promise<ToolResult>) | null = null;
+export function registerCollabToolHandler(handler: NonNullable<typeof toolHandler>): void { toolHandler = handler; }
+export function collabRemoteTool(call: RemoteCall, signal: AbortSignal): Promise<ToolResult> | null { return runtime?.remoteTool(call, signal) ?? null; }
+export function collabIsJoined(): boolean { return runtime?.status().mode === "joined"; }
+async function githubProject(): Promise<string | null> {
+  const remotes = await gitForWorkspace()?.remotes() ?? [];
+  for (const remote of remotes) {
+    const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(remote.url);
+    if (match?.[1]) return match[1].toLowerCase();
+  }
+  return null;
+}
 
 /** The runtime is created lazily: a user who never shares anything never starts one. */
 let runtime: CollabRuntime | null = null;
+let modeListener: (() => void) | null = null;
+let lastMode = "off";
+export function onCollabModeChange(listener: () => void): void { modeListener = listener; }
 
 /**
  * How to find the open folder.
@@ -46,7 +67,11 @@ function ensureRuntime(): CollabRuntime {
   if (runtime !== null) return runtime;
 
   runtime = createCollabRuntime({
-    onStatus: (status) => broadcast(CHANNELS.collabStatusChanged, status satisfies CollabStatusView),
+    onToolRequest: (call, signal) => toolHandler?.(call, signal) ?? Promise.resolve({ content: "The host's AI tools are not ready.", isError: true }),
+    onStatus: (status) => {
+      if (lastMode !== status.mode) { lastMode = status.mode; modeListener?.(); }
+      broadcast(CHANNELS.collabStatusChanged, status satisfies CollabStatusView);
+    },
     onDocUpdate: (path, update) => broadcast(CHANNELS.collabDocUpdate, path, update),
     onPresence: (presence) => broadcast(CHANNELS.collabPresenceChanged, presence),
     onCommitRequest: (request) => broadcast(CHANNELS.collabCommitRequested, request),
@@ -104,7 +129,7 @@ export function registerCollabIpc(deps: { readonly workspaceRoot: () => string |
      * permissive parse here - anything truthy meaning "lan", say - would make the difference
      * between a private and a published session depend on a typo.
      */
-    if (bind !== "lan" && bind !== "loopback") {
+    if (bind !== "lan" && bind !== "loopback" && bind !== "internet") {
       throw new Error('bind must be "lan" or "loopback".');
     }
 
@@ -114,13 +139,18 @@ export function registerCollabIpc(deps: { readonly workspaceRoot: () => string |
     }
 
     const displayName = requireString(options["displayName"], "displayName");
-
-    return ensureRuntime().startHosting(deps.workspaceRoot(), { bind, port, displayName });
+    const project = bind === "internet" ? await githubProject() : null;
+    if (bind === "internet" && project === null) throw new Error("Connect this project's Git repository to GitHub before sharing it online.");
+    const result = await ensureRuntime().startHosting(deps.workspaceRoot(), { bind, port, displayName, ...(project === null ? {} : { project }) });
+    recordMilestone(result.error === null ? "collab_hosted" : "collab_failed");
+    return result;
   });
 
-  ipcMain.handle(CHANNELS.collabJoin, async (_event, code: unknown, displayName: unknown) =>
-    ensureRuntime().joinWith(requireString(code, "code"), requireString(displayName, "displayName")),
-  );
+  ipcMain.handle(CHANNELS.collabJoin, async (_event, code: unknown, displayName: unknown) => {
+    const text = requireString(code, "code"), decoded = decodeInvite(text);
+    if (decoded && isRelayHost(decoded.host) && (!decoded.project || decoded.project !== await githubProject())) throw new Error(`Open a checkout of ${decoded.project ?? "the host's GitHub project"} before joining. Your project tree must match the shared project.`);
+    return ensureRuntime().joinWith(text, requireString(displayName, "displayName"));
+  });
 
   ipcMain.handle(CHANNELS.collabLeave, async () => {
     if (runtime === null) return ensureRuntime().status();

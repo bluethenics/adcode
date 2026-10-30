@@ -33,9 +33,9 @@
 .pricing-plan-extra { display: block; max-width: 18ch; margin-top: 7px; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .pricing-plan-price { display: flex; align-items: baseline; gap: 4px; font-variant-numeric: tabular-nums; }
 .pricing-plan-price strong { font-size: 30px; line-height: 1; font-weight: 500; letter-spacing: -.04em; }
-.pricing-plan-price > span, .pricing-plan-tokens > span { color: var(--muted); font-size: 12px; }
-.pricing-plan-tokens { display: grid; gap: 5px; }
-.pricing-plan-tokens > strong { font-size: 22px; line-height: 1; font-weight: 500; font-variant-numeric: tabular-nums; }
+.pricing-plan-price > span, .pricing-plan-fit > span { color: var(--muted); font-size: 12px; }
+.pricing-plan-fit { display: grid; gap: 5px; }
+.pricing-plan-fit > strong { font-size: 15px; line-height: 1; font-weight: 500; font-variant-numeric: tabular-nums; }
 .pricing-plan-note { margin-top: 18px; max-width: 92ch; }
 .pricing-notice { padding: 16px 20px; margin-bottom: 22px; border: 1px solid var(--hairline); border-radius: 8px; color: var(--text); font-size: 14px; }
 .pricing-packs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; list-style: none; margin: 0 0 20px; padding: 0; }
@@ -75,7 +75,7 @@
   .pricing-free-details dl > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .pricing-section, .pricing-invites { margin-top: 48px; }.pricing-plan-labels { display: none; }
   .pricing-plan { grid-template-columns: 1fr 1fr; align-items: start; padding: 24px 14px; gap: 22px 12px; }
-  .pricing-plan-price { justify-self: end; }.pricing-plan-tokens { align-self: center; }.pricing-plan .pricing-button { justify-self: end; }
+  .pricing-plan-price { justify-self: end; }.pricing-plan-fit { align-self: center; }.pricing-plan .pricing-button { justify-self: end; }
   .pricing-packs { grid-template-columns: minmax(0, 1fr); gap: 0; }.pricing-packs li { flex-direction: row; align-items: center; border-top: 0; padding-block: 22px; }.pricing-packs li:first-child { border-top: 1px solid var(--hairline); }
   .pricing-packs strong { font-size: 24px; }.pricing-packs p { margin-top: 10px; }.pricing-packs a { min-height: 44px; display: inline-flex; align-items: center; }
   .pricing-invites { grid-template-columns: minmax(0, 1fr); gap: 22px; padding-block: 30px; }.pricing-invites h2 { max-width: 22ch; }.pricing-faq { margin-top: 48px; }

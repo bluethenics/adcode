@@ -4,7 +4,8 @@ import { adNetworkEncryptionKeys, decryptAdNetworkKey, encryptAdNetworkKey } fro
 import { AdNetworkProviderError, previewBeehiiv, requestNetworkCreative, verifyNetworkEvent } from "./adNetworkHttp.ts";
 import { checkReceipt, CLOCK_SKEW_MS } from "./plausibility.ts";
 import { previewImprezia } from "./impreziaPreview.ts";
-import { impreziaSessionId, isImpreziaSandboxKey, reportImpreziaImpression, requestImpreziaChatAd, unpackImpression } from "./impreziaChatAds.ts";
+import { isImpreziaSandboxKey, unpackImpression } from "./impreziaChatAds.ts";
+import { impreziaSdkPreviewEndpoint } from "./impreziaSdkPreview.ts";
 import type { AdNetworkConfig } from "./adNetworkConfig.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
 const isImpreziaChat = (config: AdNetworkConfig): boolean => config.provider === "imprezia" && config.imprezia?.kind === "chat";
@@ -19,7 +20,8 @@ export async function serveAdNetwork(deps: AdNetworkDeps, uid: string, body: Ser
   try {
     const keys = keysFor(deps);
     if (keys.length === 0) return { creatives: [] };
-    const configs = (await port.list()).filter(config => config.enabled && (config.provider === "http-json" || isImpreziaChat(config)))
+    // Imprezia serves and measures through its browser SDK, never through the native ad API.
+    const configs = (await port.list()).filter(config => config.enabled && config.provider === "http-json")
       .sort((a, b) => a.priority - b.priority).slice(0, 3);
     // Independent requests share one timeout wave, keeping provider failover within the editor's serve deadline.
     const attempts = await Promise.allSettled(configs.map(async config => {
@@ -27,18 +29,15 @@ export async function serveAdNetwork(deps: AdNetworkDeps, uid: string, body: Ser
       if (!encrypted) return null;
       const key = decryptAdNetworkKey(config.id, encrypted, keys);
       const id = `an_${deps.ids.next("n")}`;
-      const creative = isImpreziaChat(config)
-        ? await requestImpreziaChatAd(key, body, impreziaSessionId(uid, deps.clock.now()), ttlMs, deps.fetchImpl)
-        : await requestNetworkCreative(config, key, body, id, ttlMs, deps.fetchImpl);
-      // A sandbox key serves house ads with no revenue behind them: deliver, never pay.
-      return creative ? { config, id, creative, unpaid: isImpreziaChat(config) && isImpreziaSandboxKey(key) } : null;
+      const creative = await requestNetworkCreative(config, key, body, id, ttlMs, deps.fetchImpl);
+      return creative ? { config, id, creative } : null;
     }));
     for (const attempt of attempts) {
       if (attempt.status !== "fulfilled" || !attempt.value) continue;
-      const { config, id, creative, unpaid } = attempt.value;
+      const { config, id, creative } = attempt.value;
       const now = deps.clock.now();
       await port.recordDelivery({ id, networkId: config.id, uid, creativeId: id, providerCreativeId: creative.providerCreativeId, servedAt: now, expiresAt: now + creative.ttlMs,
-        viewPayoutMicros: unpaid ? "0" : config.viewPayoutMicros, clickPayoutMicros: unpaid ? "0" : config.clickPayoutMicros, logoLight: creative.logoLight, logoDark: creative.logoDark });
+        viewPayoutMicros: config.viewPayoutMicros, clickPayoutMicros: config.clickPayoutMicros, logoLight: creative.logoLight, logoDark: creative.logoDark });
       const { providerCreativeId: _providerId, ...safe } = creative;
       const origin = deps.assetOrigin ?? "https://adcode.bluethenics.com";
       return { creatives: [{ ...safe, creativeId: id, logoLight: `${origin}/assets/network_${id}_light.png`, logoDark: `${origin}/assets/network_${id}_dark.png` }] };
@@ -62,14 +61,11 @@ export async function settleAdNetworkReceipt(deps: AdNetworkDeps, uid: string, r
     if (!config?.enabled || !encrypted) return "rejected";
     const key = decryptAdNetworkKey(config.id, encrypted, keysFor(deps));
     if (isImpreziaChat(config)) {
-      // Imprezia has no verification API: the view is reported to it here, the click went
-      // through its own tracking link, and its reporting is what reconciles revenue.
+      // Honor receipts for previously issued deliveries, without issuing any new provider
+      // requests. New Imprezia cards and their impression reports belong entirely to the SDK.
       const impression = unpackImpression(delivery.providerCreativeId);
       if (!impression) return "rejected";
-      // Settle first: the atomic event row decides which receipt is the view, so two copies
-      // of one receipt in a parallel wave never report the impression twice.
       if (!await port.settle(delivery.id, receipt.outcome, `${impression.uuid}:${receipt.outcome}`, now)) return "duplicate";
-      if (receipt.outcome === "impression") await reportImpreziaImpression(key, impression, deps.fetchImpl).catch(() => undefined);
       return "settled";
     }
     const providerEventId = await verifyNetworkEvent(config, key, delivery, receipt.outcome, deps.fetchImpl);
@@ -120,7 +116,12 @@ export async function handleAdNetworkAdmin(deps: AdNetworkDeps, adminUid: string
     if (!encrypted) return response(409, { error: "key-required" });
     try {
       const key = decryptAdNetworkKey(id, encrypted, keysFor(deps));
-      if (isImpreziaChat(config)) return response(200, { ok: true, creative: await requestImpreziaChatAd(key, { tags: ["TypeScript", "React"] }, impreziaSessionId(adminUid, deps.clock.now()), 60_000, deps.fetchImpl), sandbox: isImpreziaSandboxKey(key) });
+      // The browser runs the real SDK and its renderer. This endpoint only grants access
+      // to the selected saved connection, including while it is disabled for users.
+      if (isImpreziaChat(config)) return response(200, { ok: true, sandbox: isImpreziaSandboxKey(key), sdk: {
+        endpoint: impreziaSdkPreviewEndpoint(id, key, keysFor(deps)[0]!, deps.clock.now()),
+        placementId: config.imprezia!.id,
+      } });
       if (config.provider === "imprezia") return response(200, { ok: true, creative: await previewImprezia(config, key, deps.ids.next("test"), deps.fetchImpl), readiness: "exchange-test-only" });
       if (config.provider === "beehiiv") return response(200, { ok: true, advertisements: await previewBeehiiv(config, key, deps.fetchImpl), readiness: "newsletter-preview-only" });
       const creative = await requestNetworkCreative(config, key, { tags: [], themeKind: "light", count: 1 }, deps.ids.next("test"), 60_000, deps.fetchImpl);

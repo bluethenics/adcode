@@ -12,6 +12,7 @@
  */
 import type { CheckoutRequest, CheckoutSession, PaymentProvider } from "../src/payments.ts";
 import { microsToMinorUnits } from "../src/payments.ts";
+import { planById } from "../src/aiPlans.ts";
 
 const TIMEOUT_MS = 15_000;
 
@@ -22,13 +23,45 @@ function baseUrl(): string {
     : "https://test.dodopayments.com";
 }
 function productId(product: NonNullable<CheckoutRequest["product"]>): string | undefined {
-  return ({ advertiser: process.env["DODO_PRODUCT_ID"], "ai-tokens": process.env["DODO_AI_PRODUCT_ID"],
+  return ({ advertiser: process.env["DODO_PRODUCT_ID"], "ai-tokens": process.env["DODO_AI_PRODUCT_ID"], "ai-wallet": process.env["DODO_WALLET_PRODUCT_ID"],
     "plan-weekly": process.env["DODO_PLAN_WEEKLY_ID"], "plan-monthly": process.env["DODO_PLAN_MONTHLY_ID"], "plan-pro": process.env["DODO_PLAN_PRO_ID"] })[product];
 }
 
 export function createDodoProvider(): PaymentProvider {
+  const checked = new Map<string, number>();
+  const ready = async (product: NonNullable<CheckoutRequest["product"]>): Promise<boolean> => {
+    const apiKey = process.env["DODO_API_KEY"];
+    const selected = productId(product);
+    if (!apiKey?.trim() || !selected?.trim()) return false;
+    if (!product.startsWith("plan-")) return true;
+    if ((checked.get(selected) ?? 0) > Date.now()) return true;
+    try {
+      const response = await fetch(`${baseUrl()}/products/${encodeURIComponent(selected)}`, {
+        headers: { authorization: `Bearer ${apiKey}` }, redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (!response.ok) { console.warn("Dodo plan preflight rejected", { product, status: response.status }); return false; }
+      const data = await response.json() as { price?: { type?: string; currency?: string; price?: number; payment_frequency_count?: number; payment_frequency_interval?: string } };
+      const plan = planById(product.slice(5));
+      const price = data.price;
+      const valid = plan !== null && price?.type === "recurring_price" && price.currency === "USD" && price.price === plan.priceCents &&
+        price.payment_frequency_count === 1 && price.payment_frequency_interval?.toLowerCase() === plan.interval;
+      if (!valid) { console.warn("Dodo plan price mismatch", { product, price }); return false; }
+      checked.set(selected, Date.now() + 60_000);
+      return true;
+    } catch { console.warn("Dodo plan preflight unavailable", { product }); return false; }
+  };
   return {
-    canCreateCheckout: product => Boolean(process.env["DODO_API_KEY"]?.trim() && productId(product)?.trim()),
+    async getSubscription(subscriptionId) {
+      const apiKey = process.env["DODO_API_KEY"];
+      if (!apiKey?.trim()) return null;
+      try {
+        const response = await fetch(`${baseUrl()}/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+          headers: { authorization: `Bearer ${apiKey}` }, redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+        return response.ok ? await response.json() : null;
+      } catch { return null; }
+    },
+    canCreateCheckout: ready,
     async createCheckout(request: CheckoutRequest): Promise<CheckoutSession | null> {
       const apiKey = process.env["DODO_API_KEY"];
       const selectedProductId = productId(request.product ?? "advertiser");
@@ -36,6 +69,7 @@ export function createDodoProvider(): PaymentProvider {
       if (!apiKey?.trim() || !selectedProductId?.trim()) return null;
 
       try {
+        if (subscription && !await ready(request.product!)) return null;
         const response = await fetch(`${baseUrl()}/checkouts`, {
           method: "POST",
           headers: {
@@ -55,6 +89,7 @@ export function createDodoProvider(): PaymentProvider {
             customer: { name: request.advertiserName, email: request.advertiserEmail },
             billing_address: { country: request.billingCountry },
             metadata: { ...request.metadata, orderId: request.orderId },
+            ...(request.product === "ai-wallet" ? { feature_flags: { allow_discount_code: false, allow_currency_selection: false } } : {}),
           }),
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });

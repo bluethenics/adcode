@@ -5,107 +5,100 @@ import { handleReceipts } from "../src/receipts.ts";
 import { handleAdNetworkAdmin } from "../src/adNetworks.ts";
 import { adNetworkReadiness, parseAdNetworkConfig, type AdNetworkConfig } from "../src/adNetworkConfig.ts";
 import { encryptAdNetworkKey } from "../src/adNetworkCrypto.ts";
-import { impreziaBaseUrl, impreziaContext, impreziaSessionId, packImpression, unpackImpression } from "../src/impreziaChatAds.ts";
+import { impreziaBaseUrl, unpackImpression } from "../src/impreziaChatAds.ts";
+import { relayImprezia } from "../src/impreziaProxy.ts";
 
 const encryption = Buffer.alloc(32, 7).toString("base64");
 const LIVE = "api_pub_live_secret", SANDBOX = "api_pub_sandbox_secret";
-const config: AdNetworkConfig = { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "1000", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "" } };
-// The shape the sandbox returned on 27 October 2026, trimmed.
-const chatAd = () => ({ requestId: "req_1", siteId: "site", placementId: null, ad: { format: "native",
-  creative: { brandName: "", title: "Developers. Earn money with your AI app.", description: "Run ads like this, and get paid.", cta: "Sponsored", imageUrl: "https://storage.googleapis.com/imprezia-sandbox/ad.png?sig=1" },
-  clickUrl: "https://go-sandbox.imprezia.ai/go/abc", impression: { impressionUuid: "imp-1", beaconToken: { token: "tok", issuedAt: 1_793_104_707_739, kid: "k1" }, servedAt: "2026-10-27T12:38:27.999Z" } } });
-let store: ReturnType<typeof createMemoryStore>; let now: number; let counter: number;
+const config: AdNetworkConfig = { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "1000", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "editor_card" } };
+let store: ReturnType<typeof createMemoryStore>, now: number;
 let fetchImpl: ReturnType<typeof vi.fn<typeof fetch>>;
-const deps = () => ({ store, clock: { now: () => now }, ids: { next: (prefix: string) => `${prefix}_${++counter}` }, encryptionKeys: () => [encryption], fetchImpl });
-const request = { tags: ["lang:typescript", "React", "<script>"], themeKind: "dark" as const, count: 1 };
-const receipt = (id: string, outcome: "impression" | "click" = "impression", receiptId = "receipt-1") => ({ receiptId, creativeId: id, shownAt: now - 2_000, dwellMs: 1_500, themeKind: "dark" as const, outcome });
+const deps = () => ({ store, clock: { now: () => now }, ids: { next: (prefix: string) => `${prefix}_1` }, encryptionKeys: () => [encryption], fetchImpl });
+const request = { tags: ["lang:typescript", "React"], themeKind: "dark" as const, count: 1 };
 async function connect(key: string, over: Partial<AdNetworkConfig> = {}) {
   await store.adNetworks!.put({ ...config, ...over }, "admin", now);
   await store.adNetworks!.putKey(config.id, encryptAdNetworkKey(config.id, key, encryption));
 }
+const testConnection = () => handleAdNetworkAdmin(deps(), "admin-1", "/v1/admin/ad-networks/imprezia/test", "POST", {});
+const preview = (path: string) => relayImprezia({ adNetworks: store.adNetworks, fetchImpl, encryptionKeys: () => [encryption], bump: async () => 1, now: () => now }, {
+  method: "POST", path, body: JSON.stringify({ request: "q", response: "a", sessionId: "preview-chat" }),
+  contentType: "application/json", sdkVersion: "0.5.24", sdkPlatform: "browser", userAgent: "Mozilla/5.0", ip: undefined,
+});
+async function previewPath() {
+  const tested = await testConnection();
+  return (tested.body["sdk"] as { endpoint: string }).endpoint.slice("/v1/imprezia".length) + "/v1/monetize/append";
+}
 beforeEach(() => {
-  store = createMemoryStore(); now = 1_793_104_700_000; counter = 0;
-  fetchImpl = vi.fn<typeof fetch>(async (input) => String(input).endsWith("/v1/ads/chat") ? Response.json(chatAd()) : new Response(null, { status: 204 }));
+  store = createMemoryStore(); now = 1_793_104_700_000;
+  fetchImpl = vi.fn<typeof fetch>(async () => Response.json({ monetizedResponse: "a", linkData: {} }));
 });
 
-describe("Imprezia Chat Ads settings", () => {
-  it("can be enabled with a payout, unlike the Exchange preview", () => {
+describe("Imprezia SDK-only delivery", () => {
+  it("retains saved settings while selecting environments for the SDK relay", () => {
     expect(parseAdNetworkConfig(config)).toEqual(config);
-    expect(parseAdNetworkConfig({ ...config, imprezia: { kind: "chat", id: "editor_card" } })?.imprezia).toEqual({ kind: "chat", id: "editor_card" });
-    expect(parseAdNetworkConfig({ ...config, imprezia: { kind: "chat", id: "bad id" } })).toBeNull();
-    expect(parseAdNetworkConfig({ ...config, imprezia: { kind: "app", id: "com.adcode.app" } })).toBeNull();
     expect(adNetworkReadiness(config, true)).toBe("ready");
-    expect(adNetworkReadiness(config, false)).toBe("key-required");
-  });
-  it("picks the environment from the key and sends tags, never the user's prompt", () => {
     expect(impreziaBaseUrl(SANDBOX)).toBe("https://api-sandbox.imprezia.ai");
     expect(impreziaBaseUrl(LIVE)).toBe("https://api.imprezia.ai");
-    expect(impreziaContext(["lang:typescript", "React", "<script>"]).request).toBe("Help me with my typescript, React project");
-    expect(impreziaSessionId("alice", now)).toBe(impreziaSessionId("alice", now + 1000));
-    expect(impreziaSessionId("alice", now)).not.toContain("alice");
-    expect(unpackImpression(packImpression({ uuid: "u", token: "t", issuedAt: 5, kid: "k" }))).toEqual({ uuid: "u", token: "t", issuedAt: 5, kid: "k" });
-    expect(unpackImpression("provider-ad-1")).toBeNull();
+    expect(impreziaBaseUrl("api_pub_beta_secret")).toBe("https://api-beta.imprezia.ai");
   });
-});
 
-describe("Imprezia Chat Ads delivery", () => {
-  it("serves a native card server to server, reports the view once and pays the configured rate", async () => {
-    await connect(LIVE);
-    const served = await handleServe(deps(), "alice", request); const creative = served.creatives[0]!;
-    expect(creative).toMatchObject({ advertiser: "Ad via Imprezia", headline: "Developers. Earn money with your AI app.", clickUrl: "https://go-sandbox.imprezia.ai/go/abc" });
-    expect(creative.logoLight).toMatch(/\/assets\/network_an_.*_light\.png$/);
-    const [url, init] = fetchImpl.mock.calls[0]!;
-    expect(String(url)).toBe("https://api.imprezia.ai/v1/ads/chat");
-    expect((init!.headers as Record<string, string>)["X-API-Key"]).toBe(LIVE);
-    expect(init!.headers as Record<string, string>).not.toHaveProperty("Origin");
-    expect(JSON.parse(String(init!.body))).toMatchObject({ request: "Help me with my typescript, React project", sessionId: expect.stringMatching(/^adc_/) });
-    expect(JSON.stringify(served)).not.toContain("tok");
-    now += 3_000;
-    await handleReceipts(deps(), "alice", { receipts: [receipt(creative.creativeId)] });
-    await handleReceipts(deps(), "alice", { receipts: [receipt(creative.creativeId, "impression", "again")] });
-    const beacons = fetchImpl.mock.calls.filter(([url]) => String(url).endsWith("/v1/events/sdk-impression"));
-    expect(beacons).toHaveLength(1);
-    expect(JSON.parse(String(beacons[0]![1]!.body))).toEqual({ impressionUuid: "imp-1", beaconToken: { token: "tok", issuedAt: 1_793_104_707_739, kid: "k1" } });
-    expect((await store.getBalance("alice")).availableMicros).toBe(1000n);
-  });
-  it("reports a view once even when two copies of its receipt arrive in one batch", async () => {
-    await connect(LIVE);
-    const { creatives } = await handleServe(deps(), "alice", request); now += 3_000;
-    const id = creatives[0]!.creativeId;
-    await handleReceipts(deps(), "alice", { receipts: [receipt(id, "impression", "a"), receipt(id, "impression", "b")] });
-    expect(fetchImpl.mock.calls.filter(([url]) => String(url).includes("sdk-impression"))).toHaveLength(1);
-    expect((await store.getBalance("alice")).availableMicros).toBe(1000n);
-  });
-  it("pays by click when the admin chose clicks, without reporting a second view", async () => {
-    await connect(LIVE, { viewPayoutMicros: "0", clickPayoutMicros: "20000" });
-    const { creatives } = await handleServe(deps(), "alice", request); now += 3_000;
-    await handleReceipts(deps(), "alice", { receipts: [receipt(creatives[0]!.creativeId, "click")] });
-    expect(fetchImpl.mock.calls.filter(([url]) => String(url).includes("sdk-impression"))).toHaveLength(0);
-    expect((await store.getBalance("alice")).availableMicros).toBe(20000n);
-  });
-  it("delivers sandbox ads but never pays for them", async () => {
-    await connect(SANDBOX);
-    const { creatives } = await handleServe(deps(), "alice", request);
-    expect(String(fetchImpl.mock.calls[0]![0])).toBe("https://api-sandbox.imprezia.ai/v1/ads/chat");
-    expect((await store.adNetworks!.delivery("alice", creatives[0]!.creativeId))?.viewPayoutMicros).toBe("0");
-    now += 3_000;
-    await handleReceipts(deps(), "alice", { receipts: [receipt(creatives[0]!.creativeId)] });
-    expect(fetchImpl.mock.calls.filter(([url]) => String(url).includes("sdk-impression"))).toHaveLength(1);
-    expect((await store.getBalance("alice")).availableMicros).toBe(0n);
-  });
-  it("leaves the slot empty on no fill or a malformed ad, and never shows banner HTML", async () => {
-    await connect(LIVE);
-    fetchImpl.mockResolvedValueOnce(Response.json({ requestId: "r", ad: null }));
+  it.each([LIVE, SANDBOX])("never calls a provider or creates a native delivery for %s", async key => {
+    await connect(key);
     expect((await handleServe(deps(), "alice", request)).creatives).toEqual([]);
-    fetchImpl.mockResolvedValueOnce(Response.json({ ...chatAd(), ad: { ...chatAd().ad, format: "banner" } }));
-    expect((await handleServe(deps(), "alice", request)).creatives).toEqual([]);
-    fetchImpl.mockResolvedValueOnce(Response.json({ ...chatAd(), ad: { ...chatAd().ad, clickUrl: "javascript:alert(1)" } }));
-    expect((await handleServe(deps(), "alice", request)).creatives).toEqual([]);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(await store.adNetworks!.delivery("alice", "an_n_1")).toBeNull();
   });
-  it("tests the saved connection from the admin panel and says when the key is a sandbox key", async () => {
-    await connect(SANDBOX);
-    const result = await handleAdNetworkAdmin(deps(), "admin-1", "/v1/admin/ad-networks/imprezia/test", "POST", {});
+
+  it("prepares a browser SDK preview without making a handwritten ad request or exposing the key", async () => {
+    await connect(SANDBOX, { enabled: false });
+    const result = await testConnection();
     expect(result.status).toBe(200);
-    expect(result.body).toMatchObject({ ok: true, sandbox: true, creative: { headline: "Developers. Earn money with your AI app." } });
+    expect(result.body).toMatchObject({ ok: true, sandbox: true, sdk: { endpoint: expect.stringMatching(/^\/v1\/imprezia\/preview\/imprezia\//), placementId: "editor_card" } });
+    expect(result.body).not.toHaveProperty("creative");
+    expect(JSON.stringify(result.body)).not.toContain(SANDBOX);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect((await store.getBalance("admin-1")).availableMicros).toBe(0n);
+  });
+
+  it("lets the SDK preview the selected disabled connection, instead of a different enabled network", async () => {
+    await connect(SANDBOX, { enabled: false });
+    await store.adNetworks!.put({ ...config, id: "other" }, "admin", now);
+    await store.adNetworks!.putKey("other", encryptAdNetworkKey("other", LIVE, encryption));
+    expect((await preview(await previewPath())).status).toBe(200);
+    expect(fetchImpl.mock.calls[0]![0]).toBe("https://api-sandbox.imprezia.ai/v1/monetize/append");
+    expect((fetchImpl.mock.calls[0]![1]!.headers as Record<string, string>)["X-API-Key"]).toBe(SANDBOX);
+  });
+
+  it("expires preview permits and rejects tampering, cross-network use, and key rotation", async () => {
+    await connect(SANDBOX);
+    const path = await previewPath();
+    expect((await preview(path.replace("/imprezia/", "/other/"))).status).toBe(403);
+    expect((await preview(path.replace("/v1/monetize", "x/v1/monetize"))).status).not.toBe(200);
+    now += 5 * 60_000;
+    expect((await preview(path)).status).toBe(403);
+    now -= 5 * 60_000;
+    await connect(LIVE);
+    expect((await preview(path)).status).toBe(403);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("does not let a preview permit reach the direct ad endpoint", async () => {
+    await connect(SANDBOX);
+    const path = (await previewPath()).replace("/v1/monetize/append", "/v1/ads/chat");
+    expect((await preview(path)).status).toBe(404);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("honors already-issued receipts once without sending manual impression requests", async () => {
+    await connect(LIVE);
+    const legacy = 'imprezia1:["imp-1","tok",1793104700000,"k1"]';
+    expect(unpackImpression(legacy)?.uuid).toBe("imp-1");
+    await store.adNetworks!.recordDelivery({ id: "an_legacy", networkId: config.id, uid: "alice", creativeId: "an_legacy", providerCreativeId: legacy,
+      servedAt: now, expiresAt: now + 60_000, viewPayoutMicros: "1000", clickPayoutMicros: "0", logoLight: "https://storage.googleapis.com/ad.png", logoDark: "https://storage.googleapis.com/ad.png" });
+    now += 3_000;
+    const receipt = { receiptId: "one", creativeId: "an_legacy", shownAt: now - 2_000, dwellMs: 1_500, themeKind: "dark" as const, outcome: "impression" as const };
+    await handleReceipts(deps(), "alice", { receipts: [receipt, { ...receipt, receiptId: "two" }] });
+    expect((await store.getBalance("alice")).availableMicros).toBe(1000n);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

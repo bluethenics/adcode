@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Paid AI tokens in the admin panel: the switch, the free weekly allowance and the packs (saved
+ * Paid AI tokens in the admin panel: the switch, the free daily allowance and the packs (saved
  * with the rest of the free-models config), plus granting tokens and the sales by day.
  * Spec: docs/superpowers/specs/2026-10-21-paid-ai-tokens-design.md.
  */
@@ -16,15 +16,12 @@ export function PaidTokensSettings({ value, onChange }: { value: PaidConfig | un
   return (
     <>
       <div className="tagflow-checks">
-        <label><input type="checkbox" checked={paid.enabled} onChange={(event) => onChange({ ...paid, enabled: event.target.checked })} /> Sell tokens for paid models</label>
+        <label><input type="checkbox" checked={paid.enabled} onChange={(event) => onChange({ ...paid, enabled: event.target.checked })} /> Enable shared included AI tokens and token sales</label>
       </div>
       <div className="tagflow-fields">
-        <label className="tagflow-field"><span>Paid providers (IDs, comma-separated)</span>
-          <input className="input" value={paid.providers.join(", ")} onChange={(event) => onChange({ ...paid, providers: event.target.value.split(",").map((id) => id.trim()).filter((id) => id.length > 0) })} />
-          <small>Only registered custom providers. Tagflow is always free.</small></label>
-        <label className="tagflow-field"><span>Free tokens per person per week</span>
+        <label className="tagflow-field"><span>Free tokens per person per day</span>
           <input className="input" type="number" min={0} step={1_000_000} value={paid.freeWeeklyTokens} onChange={(event) => onChange({ ...paid, freeWeeklyTokens: event.currentTarget.valueAsNumber || 0 })} />
-          <small>{formatTokens(paid.freeWeeklyTokens)} a week, from a person's first request on these models.</small></label>
+          <small>{formatTokens(paid.freeWeeklyTokens)} a day, from a person's first request on any included model.</small></label>
       </div>
       <div className="admin-models-scroll">
         <table className="admin-models-table">

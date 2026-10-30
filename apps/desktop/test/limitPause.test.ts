@@ -23,7 +23,7 @@ describe("the usage-limit card", () => {
   });
   it("offers an upgrade and the wait, and promises the task carries on by itself", () => {
     const paid = limitPauseView({ reason: "paid", resumeAt: at(2, 30), recheckAt: at(0, 2) }, now, "en-US");
-    expect(paid.title).toBe("You've reached your weekly limit for this model");
+    expect(paid.title).toBe("You've reached today's included AI limit");
     expect(paid.body).toContain("Upgrade your plan or buy tokens to keep going now, or wait until 4:30 PM");
     expect(paid.resume).toBe("Continues automatically at 4:30 PM (in 2 h 30 min) - keep ADCode open.");
     expect(paid.actions).toEqual(["upgrade-plan", "buy-tokens", "models"]);

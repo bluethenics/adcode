@@ -61,14 +61,14 @@ export function limitPauseView(pause: LimitPause, now: number, locale?: string):
   const resume = `Continues automatically ${when} - keep ADCode open.`;
   switch (pause.reason) {
     case "paid":
-      return { title: "You've reached your weekly limit for this model",
+      return { title: "You've reached today's included AI limit",
         body: `Upgrade your plan or buy tokens to keep going now, or wait until ${until}. This task picks up where it stopped - nothing is lost.`,
         resume, actions: ["upgrade-plan", "buy-tokens", "models"] };
     case "weekly":
     case "session":
     case "daily":
       return { title: pause.reason === "session" ? "You've reached this session's free AI limit" : pause.reason === "weekly" ? "You've reached this week's free AI limit" : "You've reached today's free AI limit",
-        body: `Wait until ${until}, or upgrade your plan for more AI on Heabsy models and switch model to keep going now. This task picks up where it stopped - nothing is lost.`,
+        body: `Wait until ${until}, or upgrade your plan for more daily AI usage. You can also use your own connected model now. This task picks up where it stopped - nothing is lost.`,
         resume, actions: ["upgrade-plan", "models"] };
     case "upstream":
       return { title: "This model is busy right now",

@@ -18,6 +18,7 @@ import { createTagflowHandler, isTagflowPath } from "./tagflow.ts";
 import { authenticate, type TokenVerifier } from "./auth.ts";
 import { handleAdNetworkAdmin, type AdNetworkRuntime } from "./adNetworks.ts";
 import { readAdNetworkArtwork } from "./adNetworkArtwork.ts";
+import { relayImprezia } from "./impreziaProxy.ts";
 import { handleServe } from "./serve.ts";
 import { handleReceipts } from "./receipts.ts";
 import { handleBalance, handleLedger } from "./balance.ts";
@@ -541,7 +542,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       }
 
       const result = await handleFundingWebhook(
-        { store, clock, webhookSecret },
+        { store, clock, webhookSecret, ...(options.payments === undefined ? {} : { payments: options.payments }) },
         {
           id: firstHeader(req.headers["webhook-id"]),
           timestamp: firstHeader(req.headers["webhook-timestamp"]),
@@ -606,6 +607,31 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
      * scanners open every link in an email, and would otherwise confirm or unsubscribe people.
      * The one exception is the RFC 8058 one-click POST that mail apps send for List-Unsubscribe.
      */
+    // Imprezia's SDK on the sponsored-card page, relayed with the admin's key (impreziaProxy.ts).
+    if (path.startsWith("/v1/imprezia/")) {
+      let body = "";
+      try { if (req.method === "POST") body = await readBody(req); } catch { send(res, 413, { error: "too-large" }, cors); return; }
+      const relayed = await relayImprezia({
+        adNetworks: store.adNetworks,
+        ...(options.adNetworks?.fetchImpl === undefined ? {} : { fetchImpl: options.adNetworks.fetchImpl }),
+        ...(options.adNetworks?.encryptionKeys === undefined ? {} : { encryptionKeys: options.adNetworks.encryptionKeys }),
+        bump: (bucket, windowStart) => store.bumpRequestCount(bucket, windowStart),
+        now: () => clock.now(),
+      }, {
+        method: req.method ?? "GET",
+        path: path.slice("/v1/imprezia".length) + url.search,
+        body,
+        contentType: firstHeader(req.headers["content-type"]) ?? "",
+        sdkVersion: firstHeader(req.headers["x-sdk-version"]),
+        sdkPlatform: firstHeader(req.headers["x-sdk-platform"]),
+        userAgent: firstHeader(req.headers["user-agent"]),
+        ip: firstHeader(req.headers["cf-connecting-ip"]) ?? firstHeader(req.headers["x-forwarded-for"])?.split(",")[0]?.trim(),
+      });
+      res.writeHead(relayed.status, { "content-type": relayed.contentType, "cache-control": "no-store", ...cors });
+      res.end(relayed.body);
+      return;
+    }
+
     if (path === "/v1/status/subscribe" && req.method === "POST") {
       const form = (req.headers["content-type"] ?? "").includes("application/json") ? "json" : "form";
       const answer = (state: string, status = 200): void => {

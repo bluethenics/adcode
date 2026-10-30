@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PlanId, PromoInput } from "@adcode/api/src/aiPlans.ts";
 import { dollars, formatTokens } from "@/app/ai-tokens/tokenFormatting";
 import { planName } from "@/app/ai-tokens/Plans";
+import { UsageCampaignAdmin } from "./UsageCampaignAdmin";
 
 type AdminCall = <T>(path: string, body?: unknown) => Promise<T>;
 type PromoView = PromoInput & { redemptions: number };
@@ -36,7 +37,7 @@ export function SubscriptionSummaryTable({ plans }: { plans: readonly Subscripti
 }
 
 function PlanSelect({ value, onChange, disabled = false }: { value: PlanId; onChange: (plan: PlanId) => void; disabled?: boolean }) {
-  return <label className="tagflow-field"><span>Plan</span><select className="select" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as PlanId)}><option value="weekly">Weekly (60M/week)</option><option value="monthly">Monthly (60M/week)</option><option value="pro">Pro (150M/week)</option></select></label>;
+  return <label className="tagflow-field"><span>Plan</span><select className="select" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as PlanId)}><option value="weekly">Weekly (60M/day)</option><option value="monthly">Monthly (60M/day)</option><option value="pro">Pro (150M/day)</option></select></label>;
 }
 
 function StatusNotice({ notice }: { notice: Notice | null }) {
@@ -44,7 +45,7 @@ function StatusNotice({ notice }: { notice: Notice | null }) {
 }
 
 export function resetResultMessage(result: { reset: number; busy: number; none: number }): string {
-  return `${result.reset} weekly allowance${result.reset === 1 ? "" : "s"} reset. ${result.busy > 0 ? `${result.busy} account${result.busy === 1 ? " has" : "s have"} a request in progress; try again in a minute. ` : ""}${result.none > 0 ? `${result.none} account${result.none === 1 ? " has" : "s have"} no weekly usage to reset.` : ""}`.trim();
+  return `${result.reset} daily allowance${result.reset === 1 ? "" : "s"} reset. ${result.busy > 0 ? `${result.busy} account${result.busy === 1 ? " has" : "s have"} a request in progress; try again in a minute. ` : ""}${result.none > 0 ? `${result.none} account${result.none === 1 ? " has" : "s have"} no daily usage to reset.` : ""}`.trim();
 }
 
 export interface ResetProgress { reset: number; busy: number; none: number; after: string | null; failed: string[] }
@@ -138,7 +139,7 @@ export function PlansAdmin({ call }: { call: AdminCall }) {
       } else {
         const body = action === "boost" ? { uid: target, weeklyTokens: Number(weeklyTokens), endsAt: end, note: note.trim() } : { uid: target, plan: gift, days: Number(giftDays), note: note.trim() };
         await call(`/admin/ai-plans/${action}`, body);
-        setNotice({ text: action === "boost" ? `${everyone ? "Everyone's" : "This account's"} weekly allowance is at least ${formatTokens(Number(weeklyTokens))} tokens until ${expiry(end)}.` : `Gifted ${giftDays} days of ${planName(gift)} to ${everyone ? "everyone" : target}. The best active allowance applies.`, error: false });
+        setNotice({ text: action === "boost" ? `${everyone ? "Everyone's" : "This account's"} daily allowance is at least ${formatTokens(Number(weeklyTokens))} tokens until ${expiry(end)}.` : `Gifted ${giftDays} days of ${planName(gift)} to ${everyone ? "everyone" : target}. The best active allowance applies.`, error: false });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "The request couldn't be confirmed. Please try again.";
@@ -166,21 +167,22 @@ export function PlansAdmin({ call }: { call: AdminCall }) {
   return <section className="admin-models-provider plans-admin" aria-labelledby="plans-admin-heading">
     <h3 id="plans-admin-heading">Plans &amp; promotions</h3>
     <p className="row-sub">Raise allowances for an account or everyone, share promo codes, and track subscriptions. Plans and boosts apply while paid models are enabled.</p>
+    <UsageCampaignAdmin call={call} />
     <div className="plans-admin-group">
       <h4>Allowance actions</h4>
       <form onSubmit={(event) => { event.preventDefault(); void applyAction(); }} aria-label="Plan allowance action">
         <div className="tagflow-fields">
-          <label className="tagflow-field"><span>Action</span><select className="select" value={action} disabled={busy} onChange={(event) => { setAction(event.target.value as typeof action); setNotice(null); }}><option value="reset">Reset weekly usage</option><option value="boost">Boost weekly allowance</option><option value="gift">Gift a plan</option></select></label>
+          <label className="tagflow-field"><span>Action</span><select className="select" value={action} disabled={busy} onChange={(event) => { setAction(event.target.value as typeof action); setNotice(null); }}><option value="reset">Reset daily usage</option><option value="boost">Boost daily allowance</option><option value="gift">Gift a plan</option></select></label>
           <label className="tagflow-field"><span>Applies to</span><select className="select" value={everyone ? "everyone" : "user"} disabled={busy} onChange={(event) => { setEveryone(event.target.value === "everyone"); setNotice(null); }}><option value="user">One account</option><option value="everyone">Everyone</option></select></label>
           {!everyone && <label className="tagflow-field"><span>User ID from People</span><input className="input" required maxLength={128} disabled={busy} value={uid} onChange={(event) => setUid(event.target.value)} /></label>}
           {action === "boost" && <>
-            <label className="tagflow-field"><span>Weekly tokens</span><input className="input" type="number" required min={1} max={10_000_000_000} step={1} disabled={busy} value={weeklyTokens} onChange={(event) => setWeeklyTokens(event.target.value)} /><small>The allowance becomes at least this amount; existing usage stays counted.</small></label>
+            <label className="tagflow-field"><span>Daily tokens</span><input className="input" type="number" required min={1} max={10_000_000_000} step={1} disabled={busy} value={weeklyTokens} onChange={(event) => setWeeklyTokens(event.target.value)} /><small>The allowance becomes at least this amount; existing usage stays counted.</small></label>
             <label className="tagflow-field"><span>Boost ends (your local time)</span><input className="input" type="datetime-local" required disabled={busy} value={endsAt} onChange={(event) => setEndsAt(event.target.value)} /></label>
           </>}
           {action === "gift" && <><PlanSelect value={gift} onChange={setGift} disabled={busy} /><label className="tagflow-field"><span>Gift days</span><input className="input" type="number" required min={1} max={366} step={1} disabled={busy} value={giftDays} onChange={(event) => setGiftDays(event.target.value)} /></label></>}
           {action !== "reset" && <label className="tagflow-field"><span>Note for admin history</span><input className="input" maxLength={500} disabled={busy} value={note} onChange={(event) => setNote(event.target.value)} /></label>}
         </div>
-        {action === "reset" && <p className="row-sub">Resets weekly Heabsy usage. Accounts with a request in progress are left for a retry. Everyone is processed in small batches; keep this page open to finish, or pause and resume here.</p>}
+        {action === "reset" && <p className="row-sub">Resets daily included AI usage. Accounts with a request in progress are left for a retry. Everyone is processed in small batches; keep this page open to finish, or pause and resume here.</p>}
         <button className="btn" disabled={busy}>{busy ? "Applying…" : action === "reset" && everyone && resetProgress !== null && resetHasMore(resetProgress) ? "Resume reset" : actionLabel}</button>
         {busy && action === "reset" && everyone && <button type="button" className="btn" onClick={() => { pauseReset.current = true; }}>Pause after this batch</button>}
       </form>

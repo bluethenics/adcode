@@ -1,3 +1,4 @@
+import { createModelWalletStore } from "./modelWalletStore.ts";
 import type { TagflowStore, TagflowUsage, TokenLedgerEntry, TokenOrder } from "../src/tagflowTypes.ts";
 import type { PlanId } from "../src/aiPlans.ts";
 import type { CreditWindow } from "../src/credits.ts";
@@ -18,6 +19,7 @@ const check = (error: { message: string } | null): void => { if (error !== null)
 /** Same lazy, server-only service_role client as the other persistence ports. */
 export function createTagflowStore(lazy: () => Promise<SupabaseClient>): TagflowStore {
   return {
+    ...createModelWalletStore(lazy),
     ...createModelReportStore(lazy),
     async getTagflowConfig() {
       const { data, error } = await (await lazy()).from("tagflow_config").select("config, updated_at, updated_by").eq("id", 1).maybeSingle();
@@ -70,6 +72,11 @@ export function createTagflowStore(lazy: () => Promise<SupabaseClient>): Tagflow
     async claimVerificationSend(uid, now, gapMs) {
       const { data, error } = await (await lazy()).rpc("claim_verification_send", { p_uid: uid, p_now: now, p_gap_ms: gapMs });
       check(error); return data === true;
+    },
+    async retryFailedVerificationSend(uid, claimedAt, retryDelayMs, gapMs) {
+      const { error } = await (await lazy()).from("email_verification_sends")
+        .update({ sent_at: claimedAt + retryDelayMs - gapMs }).eq("uid", uid).eq("sent_at", claimedAt);
+      check(error);
     },
     async getPaidTokens(uid) {
       const db = await lazy();

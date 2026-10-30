@@ -39,6 +39,23 @@ async function collect(stream: AsyncIterable<ProviderEvent>): Promise<ProviderEv
 }
 
 describe("streaming text", () => {
+  it("refuses an incomplete stream instead of claiming success or executing partial tools", async () => {
+    const provider = createOpenAiProvider("key", sseFetch([
+      `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "edit", function: { name: "edit_file", arguments: "{}" } }] } }] })}`,
+    ]));
+    const events: ProviderEvent[] = [];
+    await expect((async () => { for await (const event of provider.stream(request, new AbortController().signal)) events.push(event); })())
+      .rejects.toMatchObject({ code: "stream-interrupted", status: 502 });
+    expect(events.some(event => event.kind === "tool-call" || event.kind === "stop")).toBe(false);
+  });
+
+  it("reads a final completion record without a trailing newline", async () => {
+    const fetcher = (async () => new Response('data: {"choices":[{"delta":{"content":"Done"},"finish_reason":"stop"}]}')) as typeof fetch;
+    const provider = createOpenAiProvider("key", fetcher);
+    expect(await collect(provider.stream(request, new AbortController().signal))).toEqual([
+      { kind: "text", text: "Done" }, { kind: "stop", reason: "end-turn" },
+    ]);
+  });
   it("yields each content delta and ends the turn", async () => {
     const provider = createOpenAiProvider(
       "key",

@@ -23,29 +23,11 @@ The source is public at [github.com/bluethenics/adcode](https://github.com/bluet
 
 Help > Open Source Licences shows ADCode's licence, its notice and the licence of every package in the installer; the same files ship in `resources/licenses`. See [Open source licences](/docs/workbench-open-source).
 
-## Included AI: 10 million free tokens a week
+## Included AI and daily plans
 
-ADCode includes AI with a verified account, without an API key or a card. Tagflow AI stays free with no personal quota. Heabsy's models - GLM 5.3 Flash, Qwen 3.8 and Mimo - include 10 million free tokens each week per account, shared across your devices. The free week starts with your first Heabsy request, not on a fixed day.
+All Heabsy models and Tagflow AI now share 5M free tokens daily. No subscription is required for included models. The allowance resets 24 hours after first use. Weekly ($3/week) includes 20M daily, Monthly ($9/month) includes 100M daily, and Pro ($29/month) has unlimited tokens. Purchased tokens are used after finite allowances and never expire.
 
-Past the weekly allowance, Heabsy uses tokens you buy. A task that paused because the allowance ran out carries on by itself once the tokens arrive, and bought tokens never expire. Tagflow AI does not use this allowance.
-
-This is not a return to 2.3's daily meter. The daily allowance is gone; what replaced it is one weekly balance on Heabsy's models, plus optional plans and packs. See [Free AI, every week](/docs/free-ai-without-the-meter).
-
-## A plan, a pack, or a friend's invite
-
-AI plans went live on the website on 25 October. They use the same ADCode account as the editor and raise the weekly Heabsy allowance; they do not change Tagflow AI.
-
-- **Weekly:** $3 a week for 60M tokens each week.
-- **Monthly:** $9 a month for 60M tokens each week.
-- **Pro:** $19 a month for 150M tokens each week, plus two invites.
-
-A plan renews at the interval shown, and its Heabsy tokens arrive each week. Open [AI plans and tokens](https://adcode.bluethenics.com/ai-tokens), or run AI: Upgrade Plan in ADCode, and sign in with the same account. Choose a plan and pay with Dodo; the larger allowance appears once payment is confirmed. Manage subscription on the same page changes billing details or cancels, and cancelling keeps the plan until the paid period ends.
-
-If you do not want a subscription, one-time packs add tokens without renewing: $10 for 50M, $25 for 140M or $50 for 300M. They never expire and are used only after the weekly allowance. Promo codes add tokens or plan days once per account while they are unexpired and have uses left.
-
-A Pro subscriber can share an invite code with two friends. The friend must accept it before starting any paid plan. When their first subscription becomes active while your Pro plan is still active, both accounts get 4M purchased tokens, once per friend.
-
-See [AI plans](/docs/ai-plans) and [Buying AI tokens](/docs/ai-buy-tokens) for the step-by-step versions.
+See [Free AI, every day](/docs/free-ai-without-the-meter) and [AI plans](/docs/ai-plans).
 
 ## Chats keep working, and answers show their work
 

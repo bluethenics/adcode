@@ -320,7 +320,15 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
   footerRow.append(notifications, earnings, settings, deps.more);
   const footer = document.createElement("div");
   footer.className = "vibe-rail-footer";
-  footer.append(ide, footerRow);
+  const discord = button("vibe-nav-item vibe-discord", "Join Discord", WEB_ICON.feedback, () => {
+    window.adcode.milestones.record("discord_opened");
+    window.open("https://discord.gg/WH2UBsQd3", "_blank", "noopener");
+  });
+  const discordLabel = document.createElement("span");
+  discordLabel.textContent = "Join Discord";
+  discord.append(discordLabel);
+  discord.title = "Join the ADCode community on Discord";
+  footer.append(discord, ide, footerRow);
 
   const main = document.createElement("div");
   main.className = "vibe-rail-main";
@@ -401,6 +409,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
       // Where the web offers the desktop app, the desktop offers what its menu bar used to put
       // on screen: the shortcuts, now that the menus live behind a button.
       web ? link("Desktop app", PATH.monitor, () => deps.run("workspace.openIde")) : link("Keyboard shortcuts", WEB_ICON.keyboard, () => deps.run("help.shortcuts")),
+      link("Join Discord", WEB_ICON.feedback, () => { window.adcode.milestones.record("discord_opened"); window.open("https://discord.gg/WH2UBsQd3", "_blank", "noopener"); }),
       link("Docs", PATH.book, () => window.open("https://adcode.bluethenics.com/docs", "_blank", "noopener")),
       link("All features", PATH.grid, () => document.getElementById("open-features")?.click()),
     );

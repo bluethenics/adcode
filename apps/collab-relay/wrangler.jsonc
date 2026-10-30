@@ -1,0 +1,13 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "adcode-collab",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-13",
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [{ "pattern": "collab.bluethenics.com", "custom_domain": true }],
+  "observability": { "enabled": true },
+  "vars": { "FIREBASE_PROJECT_ID": "adcode-idle" },
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "CollabRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CollabRoom"] }]
+}

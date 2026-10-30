@@ -17,8 +17,10 @@ import { verifyWebhook, type WebhookHeaders } from "./billing.ts";
 import { parseProviderEvent } from "./providerEvents.ts";
 import { PLANS, type PlanId } from "./aiPlans.ts";
 import { TOKEN_ORDER_PREFIX } from "./paidTokens.ts";
+import { WALLET_ORDER_PREFIX } from "./modelWallet.ts";
 import { parseReceiptPayment } from "./purchaseReceiptPayments.ts";
 import type { Clock, Store } from "./store.ts";
+import type { PaymentProvider } from "./payments.ts";
 
 export interface FundingDeps {
   store: Store;
@@ -27,6 +29,7 @@ export interface FundingDeps {
   webhookSecret: string;
   /** Configured provider products; overrides environment secrets in tests. */
   subscriptionProducts?: Partial<Record<PlanId, string>>;
+  payments?: PaymentProvider;
 }
 
 export type FundingOutcome =
@@ -63,7 +66,24 @@ export async function handleFundingWebhook(
   if (receiptPayment && deps.store.recordReceiptPayment) {
     try { await deps.store.recordReceiptPayment(receiptPayment); } catch { journalFailed = true; }
   }
-  const outcome = await fund(deps, parsed, headers, nowMs);
+  let outcome: FundingOutcome;
+  if (receiptPayment?.subscriptionId) {
+    // payment.succeeded can arrive without subscription.active, and can be discounted
+    // or paid in another currency. Never infer a plan or paid period from its amount.
+    const subscription = await deps.payments?.getSubscription?.(receiptPayment.subscriptionId);
+    if (!subscription || typeof subscription !== "object") return { ok: false, status: 503, reason: "subscription-sync" };
+    const data = subscription as Record<string, unknown>;
+    const customer = data["customer"] as Record<string, unknown> | undefined;
+    if (data["subscription_id"] !== receiptPayment.subscriptionId || customer?.["customer_id"] !== receiptPayment.customerId) {
+      return { ok: false, status: 503, reason: "subscription-mismatch" };
+    }
+    const status = data["status"];
+    const kind = status === "active" ? "active" : status === "cancelled" ? "cancelled" : status === "on_hold" ? "on_hold" : status === "failed" ? "failed" : status === "expired" ? "expired" : null;
+    if (kind === null) return { ok: false, status: 503, reason: "subscription-state" };
+    // A fresh server read must not be timestamped as the older payment event.
+    outcome = await fund(deps, { type: `subscription.${kind}`, timestamp: new Date(nowMs).toISOString(), data },
+      { ...headers, id: `subscription-sync:${receiptPayment.paymentId}` }, nowMs);
+  } else outcome = await fund(deps, parsed, headers, nowMs);
   return journalFailed && outcome.ok ? { ok: false, status: 503, reason: "receipt-journal" } : outcome;
 }
 
@@ -97,6 +117,13 @@ async function fund(deps: FundingDeps, parsed: unknown, headers: WebhookHeaders,
    * of its orders - an advertiser refund is never applied twice and never lost. A chargeback
    * takes back what is left of the tokens, and a won dispute gives it back, as for advertisers.
    */
+  const walletPurchase = event.type === "purchase" && event.orderId.startsWith(WALLET_ORDER_PREFIX);
+  if (event.type === "purchase" || event.type === "refund" || event.type === "dispute-opened" || event.type === "dispute-release") {
+    if (walletPurchase || event.type !== "purchase") {
+      const wallet = await deps.store.applyWalletEvent({ type: event.type, webhookId: event.type === "refund" ? `wallet-refund:${event.refundId}` : event.type === "dispute-opened" ? `wallet-dispute-opened:${event.disputeId}` : event.type === "dispute-release" ? `wallet-dispute-release:${event.disputeId}` : event.webhookId, orderId: event.type === "purchase" ? event.orderId : null, paymentId: event.paymentId, sessionId: event.type === "purchase" ? event.sessionId : null, amountMicros: event.amountMicros, ...(event.type === "purchase" && event.taxMicros !== undefined ? { taxMicros: event.taxMicros } : {}), now: nowMs });
+      if (wallet !== "not-ai-tokens" || walletPurchase) return { ok: true, credited: wallet === "credited" && event.type === "purchase", reason: wallet === "duplicate" ? "duplicate" : wallet === "credited" && event.type === "purchase" ? "credited" : "ignored" };
+    }
+  }
   const tokenPurchase = event.type === "purchase" && event.orderId.startsWith(TOKEN_ORDER_PREFIX);
   const tokenType = event.type === "purchase" || event.type === "refund" || event.type === "dispute-opened" || event.type === "dispute-release" ? event.type : null;
   if (tokenType !== null && (tokenPurchase || event.type !== "purchase")) {

@@ -58,9 +58,9 @@ export function composerUsageModels(view: AiUsageView | null, allowance: Tagflow
       const refill = paid.free.resetsAt === null ? "" : ` Free tokens refill in ${untilText(paid.free.resetsAt, Date.now())}.`;
       const leftPercent = percentLeft(left, paid.free.limit);
       const free: ComposerMeterModel = {
-        label: plan === null ? "Free this week" : `${plan} this week`, percent: paid.free.limit > 0 ? Math.min(100, Math.round(((paid.free.used + paid.free.held) / paid.free.limit) * 100)) : null,
+        label: plan === null ? "Free today" : `${plan} today`, percent: paid.free.limit > 0 ? Math.min(100, Math.round(((paid.free.used + paid.free.held) / paid.free.limit) * 100)) : null,
         value: `${leftPercent}%`, detail: `${leftPercent}% ${kind} left`, tone: out ? "full" : left <= 0 ? "warn" : "ok",
-        tooltip: `${plan === null ? "" : `${plan} plan: `}${formatTokens(left)} of ${formatTokens(paid.free.limit)} ${kind} tokens left this week across Tagflow AI and all other included models, then ${formatTokens(paid.purchased)} purchased.${refill}${out ? " Buy tokens or a plan, or use your own connected model." : ""}`,
+        tooltip: `${plan === null ? "" : `${plan} plan: `}${formatTokens(left)} of ${formatTokens(paid.free.limit)} ${kind} tokens left today across Tagflow AI and all other included models, then ${formatTokens(paid.purchased)} purchased.${refill}${out ? " Buy tokens or a plan, or use your own connected model." : ""}`,
       };
       const purchased: ComposerMeterModel = { label: "Purchased", percent: null, value: formatTokens(paid.purchased), detail: `${formatTokens(paid.purchased)} purchased`, tone: out ? "full" : "ok", tooltip: "Tokens you bought, used after your free tokens. They never expire. Run AI: Buy AI Tokens to add more." };
       return [free, purchased];

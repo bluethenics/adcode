@@ -1,25 +1,25 @@
 /**
- * Paid AI tokens: a free weekly allowance on the paid providers' models, then tokens the person
- * bought. Tagflow is never paid. Spec: docs/superpowers/specs/2026-10-21-paid-ai-tokens-design.md.
+ * Included AI tokens: one free daily allowance across every included provider, then purchased tokens.
  *
  * A request is admitted while any free or purchased tokens are left, holds its estimate free
  * first, and is charged what it really used when it finishes - so a task is never cut off
  * midway, and one long request may take the purchased balance slightly below zero.
  * Pure functions; the stores apply them atomically.
  */
-import { WEEK_MS } from "./credits.ts";
+export const DAILY_ALLOWANCE_MS = 86_400_000;
+// Legacy weekly field names are retained in persisted settings and API payloads.
 
 export interface PaidPack { id: string; priceCents: number; tokens: number }
-export interface PaidConfig { enabled: boolean; providers: string[]; freeWeeklyTokens: number; packs: PaidPack[] }
+export interface PaidConfig { enabled: boolean; /** Legacy provider selection, retained for saved configurations. All included models now share the allowance. */ providers: string[]; freeWeeklyTokens: number; packs: PaidPack[] }
 
 export const DEFAULT_PAID_CONFIG: PaidConfig = {
   enabled: false,
   providers: ["custom-heabsy"],
-  freeWeeklyTokens: 10_000_000,
+  freeWeeklyTokens: 5_000_000,
   packs: [
-    { id: "50m", priceCents: 1000, tokens: 50_000_000 },
-    { id: "140m", priceCents: 2500, tokens: 140_000_000 },
-    { id: "300m", priceCents: 5000, tokens: 300_000_000 },
+    { id: "50m", priceCents: 1000, tokens: 55_000_000 },
+    { id: "140m", priceCents: 2500, tokens: 154_000_000 },
+    { id: "300m", priceCents: 5000, tokens: 330_000_000 },
   ],
 };
 export const BUY_TOKENS_URL = "https://adcode.bluethenics.com/ai-tokens";
@@ -33,7 +33,7 @@ export function parsePaidConfig(raw: unknown): PaidConfig | null {
   if (!record(raw) || Object.keys(raw).some((key) => !["enabled", "providers", "freeWeeklyTokens", "packs"].includes(key))) return null;
   const { enabled, providers, freeWeeklyTokens, packs } = raw;
   if (typeof enabled !== "boolean" || !whole(freeWeeklyTokens, 0, MAX_TOKENS)) return null;
-  // Only administrator-registered providers can be paid: Tagflow stays free.
+  // Accept legacy provider selections without using them to exempt models from accounting.
   if (!Array.isArray(providers) || providers.length > 20 || providers.some((id) => typeof id !== "string" || !/^custom-[a-z0-9-]{1,40}$/.test(id))) return null;
   if (!Array.isArray(packs) || packs.length === 0 || packs.length > 6) return null;
   const parsed: PaidPack[] = [];
@@ -47,20 +47,24 @@ export function parsePaidConfig(raw: unknown): PaidConfig | null {
   return { enabled, providers: [...providers] as string[], freeWeeklyTokens, packs: parsed };
 }
 
-export function isPaidModel(model: { provider?: string }, paid: PaidConfig | undefined): boolean {
-  return paid?.enabled === true && paid.providers.includes(model.provider ?? "tagflow");
+export function isPaidModel(_model: { provider?: string }, paid: PaidConfig | undefined): boolean {
+  return paid?.enabled === true;
 }
 
 export interface FreeWindow { startedAt: number; endsAt: number; usedTokens: number; reservedTokens: number }
 export interface TokenBalance { purchased: number; reserved: number }
 export interface PaidHold { freeTokens: number; paidTokens: number; windowStartedAt: number }
 
-const live = (window: FreeWindow | null, now: number): FreeWindow | null => window === null || window.endsAt <= now ? null : window;
+function live(window: FreeWindow | null, now: number): FreeWindow | null {
+  if (window === null) return null;
+  const endsAt = Math.min(window.endsAt, window.startedAt + DAILY_ALLOWANCE_MS);
+  return endsAt <= now ? null : { ...window, endsAt };
+}
 
 export function holdTokens(free: FreeWindow | null, balance: TokenBalance, freeWeekly: number, hold: number, now: number):
   | { ok: true; window: FreeWindow; balance: TokenBalance; hold: PaidHold }
   | { ok: false; resetsAt: number } {
-  const window = live(free, now) ?? { startedAt: now, endsAt: now + WEEK_MS, usedTokens: 0, reservedTokens: 0 };
+  const window = live(free, now) ?? { startedAt: now, endsAt: now + DAILY_ALLOWANCE_MS, usedTokens: 0, reservedTokens: 0 };
   const freeLeft = Math.max(0, freeWeekly - window.usedTokens - window.reservedTokens);
   if (freeLeft <= 0 && balance.purchased - balance.reserved <= 0) return { ok: false, resetsAt: window.endsAt };
   const freeTokens = Math.min(Math.max(0, hold), freeLeft);

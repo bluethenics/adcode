@@ -100,10 +100,10 @@ Facts, stated once:
 - ${SITE.name} is a free, ad-supported AI code editor in your browser and on Windows and Linux. A native macOS desktop build is not published yet.
 - Open the browser app at ${WEB_VERSION_URL}. Vibe mode runs in a private cloud workspace,
   with no personal cloud time limit.
-- Tagflow AI has no personal token or request quota from ADCode. Heabsy models include ${tokenAmount(FREE_WEEKLY_TOKENS)} free tokens each week; optional plans raise that allowance. No API key is needed for included models. Provider availability and context limits apply.
+- Tagflow AI and other free included models share ${tokenAmount(FREE_WEEKLY_TOKENS)} free tokens each day; All Heabsy models are available on the free plan. No API key is needed for included models. Provider availability and context limits apply.
   Your own provider key follows that provider's billing; local models run in the desktop app.
-- The editor is free with no subscription required. Optional Heabsy plans: ${PLAN_SUMMARY}.
-- One-time Heabsy token packs: ${PACK_SUMMARY}. Purchased tokens never expire and are used after the weekly allowance. Prices are USD before applicable tax.
+- The editor is free with no subscription required. Optional included AI plans: ${PLAN_SUMMARY}.
+- One-time included AI token packs: ${PACK_SUMMARY}. Purchased tokens never expire and are used after the daily allowance. Prices are USD before applicable tax.
 - Compare plans, packs and free access: ${url("/pricing")}.
 - Advertisers bid in a second-price auction from ${formatMicros(ECONOMICS.floorBlockMicros, 2)}
   per 500 impressions. The developer receives ${ECONOMICS.revSharePercent}% of the clearing price.

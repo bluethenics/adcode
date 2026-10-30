@@ -36,7 +36,7 @@
 .auth-upgrade .auth-form-panel { padding: 34px 40px; }
 .auth-upgrade .auth-form-heading { margin-bottom: 23px; }
 .auth-upgrade .auth-eyebrow { margin: 0 0 10px; color: var(--auth-accent); font: 500 10px/1.6 var(--font-mono), monospace; letter-spacing: .12em; }
-.auth-upgrade .auth-form-heading h1 { margin: 0; color: var(--text); font: 500 clamp(25px, 2.6vw, 31px)/1.2 var(--font-display), sans-serif; letter-spacing: -.04em; text-wrap: balance; }
+.auth-upgrade .auth-form-heading :is(h1, h2) { margin: 0; color: var(--text); font: 500 clamp(25px, 2.6vw, 31px)/1.2 var(--font-display), sans-serif; letter-spacing: -.04em; text-wrap: balance; }
 .auth-upgrade .auth-form-heading > p:last-child { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .auth-upgrade .auth-mode { margin-bottom: 22px; border: 1px solid var(--hairline); border-radius: 10px; background: var(--card); }
 .auth-upgrade .auth-mode::before { border: 1px solid var(--hairline); border-radius: 7px; background: var(--surface); box-shadow: 0 2px 4px light-dark(#26251e08, #0002); }
@@ -103,7 +103,7 @@
   .auth-upgrade .auth-art-top, .auth-upgrade .auth-art-bottom > span { display: none; }
   .auth-upgrade .auth-art-bottom { justify-content: center; border: 0; padding: 0; }
   .auth-screen .auth-upgrade .auth-form-panel, .auth-upgrade .auth-form-panel { padding: 26px 24px; }
-  .auth-upgrade .auth-form-heading h1 { font-size: 26px; }
+  .auth-upgrade .auth-form-heading :is(h1, h2) { font-size: 26px; }
   .auth-screen .auth-upgrade .input, .auth-upgrade .input { font-size: 16px; }
 }
 @media (max-width: 380px) {

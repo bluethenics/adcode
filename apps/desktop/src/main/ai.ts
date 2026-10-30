@@ -106,6 +106,7 @@ import {
 } from "../shared/api.ts";
 import { recordAgentEdit } from "./activity.ts";
 import { recordMilestone } from "./milestones.ts";
+import { collabRemoteTool, registerCollabToolHandler, collabFileChanged, collabIsJoined, onCollabModeChange } from "./collabIpc.ts";
 import { createKeychainStore } from "./keychain.ts";
 import { createAiToolRunner } from "./aiTools.ts";
 import { askQuestionInWindows } from "./aiQuestion.ts";
@@ -1024,12 +1025,17 @@ function describeBackgroundCommands(): string | null {
 
 /** The chat's tools. `undo` is the turn recording the writes, read when each write lands. */
 function toolRunner(undo: () => CheckpointTurn | null = () => null, sessionId: () => string | null = () => null) {
-  return createAiToolRunner({
+  let sharedSession = collabIsJoined();
+  const local = createAiToolRunner({
     openPreview: (path) => openAiPreview(broadcast, path),
     viewPage: (request, signal) => viewPage(request, { previewUrl: () => aiPreviewUrl(broadcast) }, signal),
     backgroundCommands: chatCommands,
     recordUndo: (path, before, after, encoding) => undo()?.record(path, before, after, encoding),
-    onFilesChanged: (paths) => announceProjectFiles(paths),
+    onFilesChanged: (paths) => {
+      announceProjectFiles(paths);
+      const root = currentWorkspace()?.root;
+      if (root) for (const path of paths) void collabFileChanged(join(root, path));
+    },
     workspace: resolveToolWorkspace,
     writeWorkspace: ensureToolWorkspace,
     workspaceUnavailableMessage: () =>
@@ -1095,7 +1101,23 @@ function toolRunner(undo: () => CheckpointTurn | null = () => null, sessionId: (
       return askQuestionInWindows(id, questions, signal);
     },
   });
+  return { run: (call: Parameters<typeof local.run>[0], signal: AbortSignal) => {
+    sharedSession ||= collabIsJoined();
+    const remote = collabRemoteTool(call, signal);
+    return remote ?? (sharedSession ? Promise.resolve({ content: "The shared project disconnected. Reconnect before continuing this agent; no local file was changed.", isError: true }) : local.run(call, signal));
+  } };
 }
+
+onCollabModeChange(() => markAgentsForRebuild());
+registerCollabToolHandler(async (call, signal) => {
+  const root = currentWorkspace()?.root;
+  const checkpoint = root && configuredEditPolicy() === "trusted" ? checkpoints.open(root, session?.id ?? "shared-project") : null;
+  try { return await toolRunner(() => checkpoint).run({ type: "tool-call", ...call }, signal); }
+  finally {
+    const saved = await checkpoint?.finish();
+    if (saved) broadcast(CHANNELS.aiCheckpoint, { ...checkpointView(saved), sessionId: session?.id ?? "shared-project" });
+  }
+});
 
 export async function aiStatus(): Promise<AiStatus> {
   void refreshIncludedAi();
@@ -1504,6 +1526,7 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
         }
       }
       return [
+        collabIsJoined() ? "You are in a shared GitHub project. File tools run on the host workspace. Always use project-relative paths and read the current host file before editing. Other people and agents may edit concurrently. Commands, memory and external tools are unavailable to guests; ask the host to run checks and review commits." : null,
         aiWorkspaceContext(root, blocker, thread.editorContext, configuredEditPolicy() === "review" ? "review" : "direct"),
         lean && root !== null ? await projectFilesHint(root) : null,
         root === null ? null : await projectInstructions(root, homedir(), lean),
@@ -1789,6 +1812,11 @@ async function runTurn(
         continue;
       }
       send(event);
+      if (event.kind === "status" && /Retrying in|Continuing this task from the saved progress/.test(event.text)) recordMilestone("ai_retry_wait");
+      if (event.kind === "status" && /connection interrupted the response/.test(event.text)) recordMilestone("ai_stream_interrupted");
+      if (event.kind === "status" && event.limit !== undefined) recordMilestone(event.limit.reason === "upstream" || event.limit.reason === "rate" ? "ai_retry_wait" : "ai_limit_wait");
+      if (event.kind === "error" && /stream.interrupted|connection.*(?:closed|dropped)|terminated/i.test(event.detail)) recordMilestone("ai_stream_interrupted");
+      if (event.kind === "cancelled") recordMilestone("ai_turn_cancelled");
       if (event.kind === "tool-draft") continue;
       if (event.kind === "compacted") {
         await recordCompaction(thread, ready, event);

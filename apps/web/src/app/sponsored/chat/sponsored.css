@@ -1,0 +1,25 @@
+/*
+ * A frame inside the desktop chat: no site chrome, no background of its own, no scrollbars.
+ * The site's nav, footer and analytics notice step aside on this one route.
+ */
+body:has(.sponsored-chat) {
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+body:has(.sponsored-chat) > .marketplace-nav,
+body:has(.sponsored-chat) .marketplace-footer {
+  display: none;
+}
+
+body:has(.sponsored-chat) main {
+  padding: 0;
+  margin: 0;
+}
+
+.sponsored-chat {
+  /* Keep a card's margins inside the box this page measures for its frame. */
+  display: flow-root;
+  padding: 0;
+}

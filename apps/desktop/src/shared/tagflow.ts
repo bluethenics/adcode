@@ -78,14 +78,14 @@ export function aiPlanName(plan: NonNullable<TagflowAllowanceView["tokens"]>["pl
   return plan.id === "weekly" ? "Weekly" : plan.id === "monthly" ? "Monthly" : plan.id === "pro" ? "Pro" : null;
 }
 
-/** The usage dialog's one line about paid tokens: the weekly allowance on all included models, then what was bought. */
+/** The usage dialog's one line about paid tokens: the daily allowance on all included models, then what was bought. */
 export function paidTokensSummary(tokens: NonNullable<TagflowAllowanceView["tokens"]>, now: number): string {
   const free = tokens.free;
   const plan = aiPlanName(tokens.plan, now);
   const kind = plan === null ? "free" : "included";
   const week = free.resetsAt === null
-    ? `${shortTokens(free.limit)} ${kind} tokens a week, starting with your first request on them`
-    : `${percentLeft(free.remaining, free.limit)}% of your ${kind} tokens left this week (refill in ${untilText(free.resetsAt, now)})`;
+    ? `${shortTokens(free.limit)} ${kind} tokens a day, starting with your first request on them`
+    : `${percentLeft(free.remaining, free.limit)}% of your ${kind} tokens left today (refill in ${untilText(free.resetsAt, now)})`;
   const bought = tokens.purchased > 0 ? `, then ${shortTokens(tokens.purchased)} purchased tokens` : "";
   return `Included AI: ${plan === null ? "" : `${plan} plan, `}${week}${bought}. Shared by Tagflow AI and all other included models.`;
 }

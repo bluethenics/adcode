@@ -20,6 +20,15 @@ export const MILESTONES = [
   "turn_ok",
   "turn_failed",
   "preview_opened",
+  "discord_opened",
+  "collab_opened",
+  "collab_hosted",
+  "collab_joined",
+  "collab_failed",
+  "ai_retry_wait",
+  "ai_limit_wait",
+  "ai_stream_interrupted",
+  "ai_turn_cancelled",
 ] as const;
 
 export type MilestoneName = (typeof MILESTONES)[number];

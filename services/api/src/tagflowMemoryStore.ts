@@ -9,6 +9,7 @@ import type { ModelFeedbackRecord, ModelRequestRecord } from "./tagflowReportTyp
 import { summarizeModelReports } from "./tagflowReports.ts";
 import type { ModelAudienceProfile } from "./modelAudience.ts";
 import { admitCredits, settleWindow, type CreditWindows } from "./credits.ts";
+import { createModelWalletMemoryStore } from "./modelWalletMemoryStore.ts";
 
 export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): void } {
   let config: TagflowConfigRecord | null = null;
@@ -48,6 +49,7 @@ export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): voi
   const addLedger = (entry: Omit<TokenLedgerEntry, "id">): void => { ledger.unshift({ id: `l${ledger.length + 1}`, ...entry }); };
   const key = (uid: string, day: string): string => `${uid}\u0000${day}`;
   return {
+    ...createModelWalletMemoryStore(),
     resetTagflow() { config = null; policies.clear(); days.clear(); reservations.clear(); windows.clear(); minutes.clear(); modelRequests.clear(); modelFeedback.clear(); profiles.clear(); verificationSends.clear(); collectionStartedAt = null;
       freeWeeks.clear(); balances.clear(); holds.clear(); orders.clear(); planCheckouts.clear(); ledger.length = 0; seenWebhooks.clear();
       subscriptions.clear(); gifts.length = 0; boosts.length = 0; promos.clear(); redemptions.clear(); invites.clear(); inviteOf.clear(); invitees.clear(); },
@@ -188,6 +190,9 @@ export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): voi
       const last = verificationSends.get(uid);
       if (last !== undefined && last > now - gapMs) return false;
       verificationSends.set(uid, now); return true;
+    },
+    async retryFailedVerificationSend(uid, claimedAt, retryDelayMs, gapMs) {
+      if (verificationSends.get(uid) === claimedAt) verificationSends.set(uid, claimedAt + retryDelayMs - gapMs);
     },
     async getAiPlanState(uid, now) {
       const live = [

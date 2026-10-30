@@ -6,13 +6,13 @@ import { DEFAULT_PAID_CONFIG } from "@adcode/api/src/paidTokens.ts";
 describe("paid tokens in the admin panel", () => {
   it("shows the switch, the free allowance and every pack, off until switched on", () => {
     const html = renderToStaticMarkup(<PaidTokensSettings value={undefined} onChange={() => undefined} />);
-    expect(html).toContain("Sell tokens for paid models");
+    expect(html).toContain("Enable shared included AI tokens and token sales");
     expect(html).not.toMatch(/type="checkbox"[^>]*checked/);
-    expect(html).toContain('value="10000000"');
+    expect(html).toContain('value="5000000"');
     expect(html).toContain('value="50m"');
     expect(html).toContain('value="1000"');
-    expect(html).toContain('value="300000000"');
-    expect(html).toContain("custom-heabsy");
+    expect(html).toContain('value="330000000"');
+    expect(html).not.toContain("Tagflow is always free");
   });
 
   it("shows a switched-on configuration as on", () => {

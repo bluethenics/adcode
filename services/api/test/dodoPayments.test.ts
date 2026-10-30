@@ -11,6 +11,17 @@ afterEach(() => {
 });
 
 describe("Dodo Checkout Sessions adapter", () => {
+  it("reads the provider subscription for payment recovery and retries unavailable reads", async () => {
+    process.env["DODO_API_KEY"] = "test_replacement_key";
+    const subscription = { subscription_id: "sub_paid", next_billing_date: "2026-11-05T07:50:17Z" };
+    const fetchMock = vi.fn<typeof fetch>(async () => Response.json(subscription));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await createDodoProvider().getSubscription!("sub_paid")).toEqual(subscription);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://test.dodopayments.com/subscriptions/sub_paid");
+    expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe("manual");
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
+    expect(await createDodoProvider().getSubscription!("sub_paid")).toBeNull();
+  });
   it("posts a dynamic-price cart to /checkouts and maps the hosted checkout URL", async () => {
     process.env["DODO_API_KEY"] = "test_replacement_key";
     process.env["DODO_PRODUCT_ID"] = "pdt_credits";
@@ -46,14 +57,24 @@ describe("Dodo Checkout Sessions adapter", () => {
 
 
 describe("Dodo subscriptions adapter", () => {
+  it("refuses an old Pro price or wrong billing interval before opening checkout", async () => {
+    process.env["DODO_API_KEY"] = "test_key";
+    process.env["DODO_PLAN_PRO_ID"] = "pdt_pro";
+    for (const price of [1900, 2900]) {
+      const mock = vi.fn(async () => Response.json({ price: { type: "recurring_price", currency: "USD", price, payment_frequency_count: 1, payment_frequency_interval: price === 2900 ? "week" : "month" } }));
+      vi.stubGlobal("fetch", mock);
+      expect(await createDodoProvider().createCheckout({ product: "plan-pro", orderId: "aip_1", advertiserId: "user", advertiserName: "User", advertiserEmail: "user@test.dev", billingCountry: "US", amountMicros: 29_000_000n, returnUrl: "https://adcode.test/ai-tokens", cancelUrl: "https://adcode.test/ai-tokens" })).toBeNull();
+      expect(mock).toHaveBeenCalledTimes(1);
+    }
+  });
   it("uses the configured subscription product without a dynamic price and preserves identity", async () => {
     process.env["DODO_API_KEY"] = "test_replacement_key";
     process.env["DODO_PLAN_PRO_ID"] = "pdt_pro";
-    expect(createDodoProvider().canCreateCheckout!("plan-pro")).toBe(true);
-    const mock = vi.fn(async () => new Response(JSON.stringify({ session_id: "chk_plan", checkout_url: "https://checkout.dodo/plan" })));
+    const mock = vi.fn(async (url: unknown) => String(url).includes("/products/") ? Response.json({ price: { type: "recurring_price", currency: "USD", price: 2900, payment_frequency_count: 1, payment_frequency_interval: "Month" } }) : Response.json({ session_id: "chk_plan", checkout_url: "https://checkout.dodo/plan" }));
     vi.stubGlobal("fetch", mock);
-    expect(await createDodoProvider().createCheckout({ product: "plan-pro", orderId: "aip_1", advertiserId: "user", advertiserName: "User", advertiserEmail: "user@test.dev", billingCountry: "US", amountMicros: 19_000_000n, returnUrl: "https://adcode.test/ai-tokens", cancelUrl: "https://adcode.test/ai-tokens", metadata: { uid: "user", plan: "pro", orderId: "untrusted-override" } })).toMatchObject({ sessionId: "chk_plan" });
-    const init = (mock.mock.calls as unknown as [string, RequestInit][])[0]![1];
+    expect(await createDodoProvider().createCheckout({ product: "plan-pro", orderId: "aip_1", advertiserId: "user", advertiserName: "User", advertiserEmail: "user@test.dev", billingCountry: "US", amountMicros: 29_000_000n, returnUrl: "https://adcode.test/ai-tokens", cancelUrl: "https://adcode.test/ai-tokens", metadata: { uid: "user", plan: "pro", orderId: "untrusted-override" } })).toMatchObject({ sessionId: "chk_plan" });
+    const init = (mock.mock.calls as unknown as [string, RequestInit][])[1]![1];
+    expect((mock.mock.calls as unknown as [string, RequestInit][])[0]![1].redirect).toBe("manual");
     const body = JSON.parse(String(init.body));
     expect(body.product_cart).toEqual([{ product_id: "pdt_pro", quantity: 1 }]);
     expect(body.metadata).toEqual({ uid: "user", plan: "pro", orderId: "aip_1" });
@@ -62,7 +83,7 @@ describe("Dodo subscriptions adapter", () => {
   it("does not fall back to advertiser products when a plan product is missing", async () => {
     process.env["DODO_API_KEY"] = "test_replacement_key";
     process.env["DODO_PRODUCT_ID"] = "pdt_advertiser";
-    expect(createDodoProvider().canCreateCheckout!("plan-weekly")).toBe(false);
+    expect(await createDodoProvider().canCreateCheckout!("plan-weekly")).toBe(false);
     const mock = vi.fn(); vi.stubGlobal("fetch", mock);
     expect(await createDodoProvider().createCheckout({ product: "plan-weekly", orderId: "aip_1", advertiserId: "user", advertiserName: "User", advertiserEmail: "user@test.dev", billingCountry: "US", amountMicros: 3_000_000n, returnUrl: "https://adcode.test/ai-tokens", cancelUrl: "https://adcode.test/ai-tokens" })).toBeNull();
     expect(mock).not.toHaveBeenCalled();

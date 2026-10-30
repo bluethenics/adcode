@@ -237,7 +237,8 @@ describe("a live session invite for someone without ADCode", () => {
     expect(collabInviteText("https://adcode.bluethenics.com/i/k7p4qzm", "ABCD-1234")).toBe(
       "Join my live coding session in ADCode.\n\n" +
       "1. Install ADCode (free): https://adcode.bluethenics.com/i/k7p4qzm\n" +
-      "2. Open Live Session, choose Join, and paste: ABCD-1234",
+      "2. Open a checkout of the same GitHub project.\n" +
+      "3. Open Live Session, choose Join, and paste: ABCD-1234",
     );
   });
 });

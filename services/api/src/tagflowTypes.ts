@@ -4,6 +4,8 @@ import type { ModelFeedbackRecord, ModelReportData, ModelReportRange, ModelReque
 import type { ModelAudienceProfile } from "./modelAudience.ts";
 import type { CreditCharge, CreditPlan, CreditWindows } from "./credits.ts";
 import type { FreeWindow, PaidConfig, TokenBalance } from "./paidTokens.ts";
+import type { UsageCampaign } from "./usageCampaign.ts";
+import type { WalletStore } from "./modelWallet.ts";
 import type { AiPlanState, PlanId, PromoInput } from "./aiPlans.ts";
 // Defined beside the providers, which can carry their own allowance, so neither file imports the other.
 export type { TagflowLimits } from "./includedProviders.ts";
@@ -24,6 +26,10 @@ export interface TagflowModel {
   outputPrice: number;
   /** Credits per 1,000 tokens; missing derives one (see credits.ts). Zero is free of credits. */
   creditRate?: number;
+  /** Paid dollar credits; never draws from free tokens or a subscription. */
+  billing?: "wallet";
+  cacheInputPrice?: number;
+  pricingSchedule?: "deepseek";
 }
 
 export interface TagflowConfig {
@@ -40,6 +46,8 @@ export interface TagflowConfig {
   credits?: CreditPlan;
   /** Paid tokens on some providers' models; missing means none are paid. See paidTokens.ts. */
   paid?: PaidConfig;
+  /** A time-boxed window with no weekly cap on paid models. See usageCampaign.ts. */
+  campaign?: UsageCampaign;
 }
 
 export interface TagflowConfigRecord {
@@ -105,7 +113,7 @@ export type TokenOrderStatus = "pending" | "paid" | "refunded" | "disputed" | "a
 export interface TokenOrder { orderId: string; uid: string; packId: string; priceCents: number; tokens: number; status: TokenOrderStatus; checkoutSession: string | null; providerPaymentId: string | null; createdAt: number; paidAt: number | null }
 export interface TokenLedgerEntry { id: string; uid: string; delta: number; kind: "purchase" | "usage" | "refund" | "grant"; ref: string; note: string; createdAt: number }
 export interface PaidTokenState { free: FreeWindow | null; balance: TokenBalance }
-export interface TokenEvent { type: "purchase" | "refund" | "dispute-opened" | "dispute-release"; webhookId: string; orderId: string | null; paymentId: string; sessionId: string | null; amountMicros: bigint; now: number }
+export interface TokenEvent { type: "purchase" | "refund" | "dispute-opened" | "dispute-release"; webhookId: string; orderId: string | null; paymentId: string; sessionId: string | null; amountMicros: bigint; taxMicros?: bigint; now: number }
 /** "review": a payment that does not match its order, recorded for an administrator and not credited. */
 export type TokenEventResult = "credited" | "refunded" | "duplicate" | "review" | "not-ai-tokens";
 export interface TokenSalesDay { day: string; orders: number; revenueCents: number; tokensSold: number; tokensUsed: number }
@@ -120,7 +128,7 @@ export interface PromoView extends PromoInput { redemptions: number }
 export interface PlanCheckout { uid: string; orderId: string; plan: PlanId; billingCountry: string; createdAt: number; expiresAt: number; checkoutSession: string | null; checkoutUrl: string | null }
 export type PlanCheckoutClaim = { status: "subscribed" } | { status: "claimed" | "existing"; checkout: PlanCheckout };
 
-export interface TagflowStore {
+export interface TagflowStore extends WalletStore {
   getModelAudienceProfile(uid: string): Promise<ModelAudienceProfile | null>;
   putModelAudienceProfile(profile: ModelAudienceProfile): Promise<void>;
   deleteModelAudienceProfile(uid: string): Promise<void>;
@@ -147,6 +155,8 @@ export interface TagflowStore {
    * from the included-AI gate, or its last one is at least `gapMs` old. Atomic across workers.
    */
   claimVerificationSend(uid: string, now: number, gapMs: number): Promise<boolean>;
+  /** Permit a short retry after a failed delivery, only if this claim is still current. */
+  retryFailedVerificationSend(uid: string, claimedAt: number, retryDelayMs: number, gapMs: number): Promise<void>;
   /** The account's free paid-model week and purchased balance, as stored. */
   getPaidTokens(uid: string): Promise<PaidTokenState>;
   createTokenOrder(order: TokenOrder): Promise<void>;

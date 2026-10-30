@@ -16,6 +16,7 @@ export interface IncludedAiModel {
   maxOutput: number;
   /** Relative credit cost: 1 is the standard rate. */
   creditRate: number;
+  billing?: "wallet";
 }
 
 export interface IncludedAiView {
@@ -48,6 +49,7 @@ function parseModel(raw: unknown): IncludedAiModel | null {
     contextWindow,
     maxOutput: nonNegative(raw["maxOutput"]) ?? 0,
     creditRate: nonNegative(raw["creditRate"]) ?? 1,
+    ...(raw["billing"] === "wallet" ? { billing: "wallet" as const } : {}),
   };
 }
 

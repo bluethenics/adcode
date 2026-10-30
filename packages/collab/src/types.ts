@@ -65,4 +65,4 @@ export interface Presence {
  * ADCode with different message shapes must not half-work: a guest silently dropping the
  * fields it does not understand would corrupt the host's files rather than fail.
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;

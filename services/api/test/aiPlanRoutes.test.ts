@@ -43,11 +43,18 @@ describe("AI plan routes", () => {
     handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: payments(), siteOrigin: "https://adcode.test", tagflow: { apiKey: "k" } });
   });
 
+  it("reports the same subscribed plan and allowance in usage and token orders", async () => {
+    await store.applySubscriptionEvent(active("user", "weekly"));
+    for (const path of ["/ai/tagflow/usage", "/ai/tokens/orders"]) {
+      expect(await (await call(path, "user")).json()).toMatchObject({ tokens: { free: { limit: 20_000_000 }, plan: { id: "weekly" } } });
+    }
+  });
+
   it("opens a Dodo checkout for a plan on its own product, carrying who is subscribing", async () => {
     const response = await call("/ai/plans/checkout", "user", { plan: "pro", billingCountry: "DE" });
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ checkoutUrl: "https://checkout.test/cs_p" });
-    expect(checkouts[0]).toMatchObject({ product: "plan-pro", amountMicros: 19_000_000n, billingCountry: "DE", metadata: { uid: "user", plan: "pro" } });
+    expect(checkouts[0]).toMatchObject({ product: "plan-pro", amountMicros: 29_000_000n, billingCountry: "DE", metadata: { uid: "user", plan: "pro" } });
     expect(checkouts[0]!.orderId.startsWith("aip_")).toBe(true);
   });
 

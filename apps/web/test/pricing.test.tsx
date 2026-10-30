@@ -19,14 +19,14 @@ describe("public pricing and existing checkout", () => {
     vi.mocked(readApi).mockRejectedValue(new Error("offline"));
     const html = renderToStaticMarkup(await PricingPage());
     expect(metadata.alternates?.canonical).toBe(url("/pricing"));
-    for (const amount of ["$3", "$9", "$19", "$10", "$25", "$50", "10M", "60M", "150M", "50M", "140M", "300M"]) expect(html).toContain(amount);
-    expect(html).toContain("Monthly billing still comes with a weekly refill");
+    for (const amount of ["$3", "$9", "$29", "$10", "$25", "$50", "5M", "20M", "100M", "Unlimited", "55M", "154M", "330M"]) expect(html).toContain(amount);
+    expect(html).toContain("Weekly and Monthly refill each day; Pro has unlimited tokens");
     expect(html).toContain("Purchased tokens never expire");
     expect(html).toContain("The standard catalogue is shown");
     expect(html).not.toContain("Sign in to see");
     for (const plan of PLANS) expect(html).toContain(`href="/ai-tokens?plan=${plan.id}#plans"`);
     expect(html).toContain("first subscription becomes active while your Pro plan is active");
-    expect(html).toContain("4M extra tokens");
+    expect(html).toContain("4.4M extra tokens");
     expect(html).toContain("Each friend can earn the reward once");
   });
 
@@ -35,15 +35,15 @@ describe("public pricing and existing checkout", () => {
     const offer = await pricingOffer();
     expect(readApi).toHaveBeenCalledWith("/v1/ai/tagflow/config", 60);
     const html = renderToStaticMarkup(<PricingContent offer={offer} />);
-    expect(html).toContain("12M free tokens each week");
+    expect(html).toContain("12M free tokens each day");
     expect(html).toContain("55M"); expect(html).toContain("$12.50 once");
-    expect(html).not.toContain("300M");
+    expect(html).not.toContain("330M");
     expect(html).toContain("Plan and token sales are temporarily paused");
     expect(html).not.toContain("standard catalogue is shown");
   });
 
   it("falls back safely instead of rendering malformed or unsafe advertised products", async () => {
-    for (const body of [null, { paid: null }, { paid: { enabled: true, providers: ["custom-heabsy"], freeWeeklyTokens: 10_000_000, packs: [{ id: "https://bad.example", priceCents: 1, tokens: -1 }] } }]) {
+    for (const body of [null, { paid: null }, { paid: { enabled: true, providers: ["custom-heabsy"], freeWeeklyTokens: 5_000_000, packs: [{ id: "https://bad.example", priceCents: 1, tokens: -1 }] } }]) {
       vi.mocked(readApi).mockResolvedValue(Response.json(body));
       expect(await pricingOffer()).toBe(STANDARD_PRICING);
     }
@@ -65,13 +65,13 @@ describe("public pricing and existing checkout", () => {
 
   it("keeps homepage and search answers honest about free access and optional paid AI", () => {
     const html = renderToStaticMarkup(<FreePlan />);
-    expect(FREE_WEEKLY_TOKENS).toBe(10_000_000);
-    expect(html).toContain("10M"); expect(html).toContain('href="/pricing"');
+    expect(FREE_WEEKLY_TOKENS).toBe(5_000_000);
+    expect(html).toContain("5M"); expect(html).toContain('href="/pricing"');
     expect(html).not.toContain("Start with unlimited included AI");
     const facts = FAQ.map(item => item.a).join("\n");
     expect(facts).toContain("Weekly $3/week");
     expect(facts).toContain("Monthly $9/month");
-    expect(facts).toContain("Pro $19/month");
+    expect(facts).toContain("Pro $29/month");
     expect(facts).not.toContain("no paid tier");
     expect(facts).not.toContain("no subscription, no trial");
   });

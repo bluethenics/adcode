@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { PLANS, subscriptionBlocksCheckout } from "../../../services/api/src/aiPlans.ts";
 import { CodeRedeemer, PlanCards, PlanRequestError, codeMessage, planArrivalMessage, planRequest } from "../src/app/ai-tokens/Plans";
 import { BalanceSummary, checkoutArrived } from "../src/app/ai-tokens/AiTokens";
+import { UsageCampaignAdmin, campaignStatus } from "../src/components/UsageCampaignAdmin";
 import { PlansAdmin, PromoAdminTable, SubscriptionSummaryTable, newResetProgress, resetEveryoneInBatches, resetHasMore, resetResultMessage } from "../src/components/PlansAdmin";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
@@ -14,11 +15,11 @@ describe("AI plans on the website", () => {
     expect(subscriptionBlocksCheckout("cancelled", 500, 1_000)).toBe(false);
     expect(subscriptionBlocksCheckout("expired", 500, 1_000)).toBe(false);
   });
-  it("shows the real prices, weekly allowances, Pro invites, and current plan", () => {
+  it("shows the real prices, daily allowances, Pro invites, and current plan", () => {
     const html = renderToStaticMarkup(<PlanCards plans={PLANS} current="monthly" busy={null} onChoose={() => undefined} />);
     expect(html).toContain("$3"); expect(html).toContain("/week");
-    expect(html).toContain("$9"); expect(html).toContain("$19"); expect(html).toContain("/month");
-    expect(html).toContain("150M tokens a week"); expect(html).toContain("60M tokens a week");
+    expect(html).toContain("$9"); expect(html).toContain("$29"); expect(html).toContain("/month");
+    expect(html).toContain("Unlimited tokens"); expect(html).toContain("20M tokens a day");
     expect(html).toContain("Invite 2 friends"); expect(html).toContain("Current plan");
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Monthly: current plan"/);
   });
@@ -34,7 +35,13 @@ describe("AI plans on the website", () => {
 
   it("names the plan in the account's weekly balance and identifies gifts", () => {
     const html = renderToStaticMarkup(<BalanceSummary tokens={{ enabled: true, free: { limit: 150_000_000, used: 1_000_000, held: 0, remaining: 149_000_000, resetsAt: null }, purchased: 4_000_000, plan: { id: "pro", source: "gift", endsAt: 2_000_000_000_000 } }} now={1_900_000_000_000} />);
-    expect(html).toContain("Pro this week"); expect(html).toContain("149M of 150M free"); expect(html).toContain("Gifted plan");
+    expect(html).toContain("Pro today"); expect(html).toContain("149M of 150M free"); expect(html).toContain("Gifted plan");
+  });
+  it("says a running usage campaign is unlimited, and drops it once it has ended", () => {
+    const tokens = { enabled: false, free: { limit: 10_000_000, used: 6_200_000, held: 0, remaining: 3_800_000, resetsAt: null }, purchased: 0, campaign: { name: "Unlimited usage", endsAt: 2_000_000_000_000 } };
+    const html = renderToStaticMarkup(<BalanceSummary tokens={tokens} now={1_900_000_000_000} />);
+    expect(html).toContain("Unlimited usage"); expect(html).toContain("Unlimited included AI use"); expect(html).toContain("Nothing you use is counted");
+    expect(renderToStaticMarkup(<BalanceSummary tokens={tokens} now={2_000_000_000_000} />)).not.toContain("Unlimited included AI use");
   });
 
   it("offers both promotion and invite redemption with labelled fields", () => {
@@ -113,16 +120,25 @@ describe("admin plans and promotions", () => {
     expect(html).toContain("$83"); expect(html).toContain("Total");
     expect(renderToStaticMarkup(<SubscriptionSummaryTable plans={[]} />)).toContain("No active paid subscriptions");
   });
-  it("has independently submitted allowance and promo forms and visible loading states", () => {
+  it("says whether a usage campaign is running, ended or absent, and offers to start one", () => {
+    const campaign = { name: "Free week", startsAt: 0, endsAt: Date.UTC(2026, 10, 2, 12) };
+    expect(campaignStatus(null)).toBe("Loading…");
+    expect(campaignStatus({ campaign: null, active: false })).toContain("No campaign is running");
+    expect(campaignStatus({ campaign, active: true })).toContain("Free week is running until 2026-11-02 12:00 UTC");
+    expect(campaignStatus({ campaign, active: false })).toContain("ended 2026-11-02 12:00 UTC");
+    const html = renderToStaticMarkup(<UsageCampaignAdmin call={async <T,>() => ({} as T)} />);
+    expect(html).toContain("Start campaign"); expect(html).toContain("Days, starting now");
+  });
+  it("has independently submitted allowance, promo and campaign forms and visible loading states", () => {
     const html = renderToStaticMarkup(<PlansAdmin call={async <T,>() => ({} as T)} />);
-    expect(html.match(/<form/g)).toHaveLength(2);
-    expect(html).toContain("Reset weekly usage"); expect(html).toContain("Boost weekly allowance"); expect(html).toContain("Gift a plan");
+    expect(html.match(/<form/g)).toHaveLength(3);
+    expect(html).toContain("Reset daily usage"); expect(html).toContain("Boost daily allowance"); expect(html).toContain("Gift a plan");
     expect(html).toContain("Everyone"); expect(html).toContain("Loading subscriptions"); expect(html).toContain("Loading promo codes");
   });
   it("identifies held requests without treating skipped resets as success", () => {
-    expect(resetResultMessage({ reset: 2, busy: 1, none: 3 })).toContain("2 weekly allowances reset");
+    expect(resetResultMessage({ reset: 2, busy: 1, none: 3 })).toContain("2 daily allowances reset");
     expect(resetResultMessage({ reset: 2, busy: 1, none: 3 })).toContain("1 account has a request in progress");
-    expect(resetResultMessage({ reset: 0, busy: 0, none: 1 })).toContain("1 account has no weekly usage");
+    expect(resetResultMessage({ reset: 0, busy: 0, none: 1 })).toContain("1 account has no daily usage");
   });
 
   it("advances everyone resets only after confirmed pages and resumes after a disconnect", async () => {

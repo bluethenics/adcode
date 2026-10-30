@@ -368,8 +368,8 @@ export function HeaderStatus() {
                         {formatContext(model.contextWindow)} context
                       </span>
                     </span>
-                    <span className="header-status-model-rate" title={`${formatRate(model.creditRate)} credit rate`}>
-                      <b>{formatRate(model.creditRate)}</b>
+                    <span className="header-status-model-rate" title={model.billing === "wallet" ? "Purchased USD credits, provider cost plus 35%" : `${formatRate(model.creditRate)} credit rate`}>
+                      <b>{model.billing === "wallet" ? "Paid" : formatRate(model.creditRate)}</b>
                       <span> credits</span>
                     </span>
                   </Link>

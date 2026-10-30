@@ -26,12 +26,20 @@ describe("ad network administration", () => {
     expect(payoutSummary({ viewPayoutMicros: "0", clickPayoutMicros: "50000" })).toBe("$0.05 per click");
     expect(payoutSummary({ viewPayoutMicros: "0", clickPayoutMicros: "0" })).toBe("Nothing yet");
   });
-  it("offers Imprezia Chat Ads as a deliverable connection with a clear sandbox rule", () => {
+  it("offers Imprezia SDK chat cards with explicit privacy and payout rules", () => {
     expect(newAdNetwork("imprezia").imprezia).toEqual({ kind: "chat", id: "" });
     const chat = renderToStaticMarkup(<ProviderReadiness provider="imprezia" chat />);
     expect(chat).toContain("never pays users");
-    expect(chat).toContain("never anyone&#x27;s code or prompts");
+    expect(chat).toContain("message and reply");
+    expect(chat).toContain("SDK handles ad requests");
+    expect(chat).toContain("do not automatically credit ADCode user balances");
     expect(renderToStaticMarkup(<NetworkTestPreview result={{ sandbox: true, creative: null }} />)).toContain("Sandbox deliveries never pay users");
+  });
+  it("renders an SDK preview without claiming that the API already returned an ad", () => {
+    const html = renderToStaticMarkup(<NetworkTestPreview result={{ sandbox: true, sdk: { endpoint: "/v1/imprezia/preview/imprezia/permit", placementId: "" } }} />);
+    expect(html).toContain("SDK connection test");
+    expect(html).toContain("creates no ADCode user payout");
+    expect(html).not.toContain("The provider connected");
   });
   it("states the real limitations of named providers", () => {
     expect(renderToStaticMarkup(<ProviderReadiness provider="imprezia" />)).toContain("Delivery stays disabled");

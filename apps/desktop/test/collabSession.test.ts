@@ -43,7 +43,7 @@ interface Harness {
   status: CollabStatus | null;
 }
 
-function harness(): Harness {
+function harness(onToolRequest?: (call: { id: string; name: string; input: Record<string, unknown> }, signal: AbortSignal) => Promise<{ content: string; isError: boolean }>): Harness {
   const state: Harness = {
     runtime: undefined as unknown as CollabRuntime,
     notices: [],
@@ -53,6 +53,7 @@ function harness(): Harness {
   };
 
   const runtime = createCollabRuntime({
+    ...(onToolRequest ? { onToolRequest } : {}),
     onStatus: (status) => {
       state.status = status;
     },
@@ -108,6 +109,28 @@ describe("a live collaboration session", { timeout: 30_000 }, () => {
     await guest.runtime.joinWith(code, name);
     await until(() => guest.runtime.status().mode === "joined", "the guest to be welcomed");
   }
+
+  it("routes a guest agent to host files, blocks commands, and enforces role changes", async () => {
+    await host.runtime.dispose();
+    const calls: string[] = [];
+    host = harness(async call => { calls.push(call.name); return { content: "Host file contents", isError: false }; });
+    await joinAs("Grace", await share());
+    const signal = new AbortController().signal;
+    expect(await guest.runtime.remoteTool({ id: "read", name: "read_file", input: { path: FILE } }, signal)).toEqual({ content: "Host file contents", isError: false });
+    expect(await guest.runtime.remoteTool({ id: "shell", name: "run_command", input: { command: "anything" } }, signal)).toMatchObject({ isError: true });
+    host.runtime.setRole(guest.runtime.status().selfId!, "viewer");
+    expect(await guest.runtime.remoteTool({ id: "edit", name: "edit_file", input: {} }, signal)).toMatchObject({ isError: true });
+    expect(calls).toEqual(["read_file"]);
+  });
+
+  it("finishes pending guest tools on disconnect instead of leaving the task running", async () => {
+    await host.runtime.dispose();
+    host = harness(async (_call, signal) => new Promise(resolve => signal.addEventListener("abort", () => resolve({ content: "Stopped", isError: true }), { once: true })));
+    await joinAs("Grace", await share());
+    const pending = guest.runtime.remoteTool({ id: "read", name: "read_file", input: {} }, new AbortController().signal);
+    await guest.runtime.leave();
+    expect(await pending).toMatchObject({ isError: true, content: expect.stringContaining("disconnected") });
+  });
 
   it("refuses to host with no folder open", async () => {
     const status = await host.runtime.startHosting(null, {

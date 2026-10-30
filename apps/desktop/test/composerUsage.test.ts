@@ -124,7 +124,7 @@ describe("the composer meter on a paid model", () => {
 
   it("shows the free week and purchased tokens on a paid model", () => {
     const [free, purchased] = composerUsageModels(null, allowance({ unlimited: true, tokens }), true, "heabsy-glm53-flash-unc");
-    expect(free).toMatchObject({ label: "Free this week", value: "60%", detail: "60% free left" });
+    expect(free).toMatchObject({ label: "Free today", value: "60%", detail: "60% free left" });
     expect(free.tooltip).toContain("48M purchased");
     expect(purchased).toMatchObject({ label: "Purchased", value: "48M", detail: "48M purchased" });
   });
@@ -133,7 +133,7 @@ describe("the composer meter on a paid model", () => {
     const now = Date.now();
     const planned = { ...tokens, plan: { id, source, endsAt: now + 86_400_000 }, free: { ...tokens.free, limit: id === "pro" ? 150_000_000 : 60_000_000 } };
     const [weekly] = composerUsageModels(null, allowance({ unlimited: true, tokens: planned }), true, "heabsy-glm53-flash-unc");
-    expect(weekly.label).toBe(`${name} this week`);
+    expect(weekly.label).toBe(`${name} today`);
     expect(weekly.tooltip).toContain(`${name} plan`);
     expect(weekly.detail).toContain("included");
     expect(paidTokensSummary(planned, now)).toContain(`${name} plan`);
@@ -142,7 +142,7 @@ describe("the composer meter on a paid model", () => {
   it("keeps the free label for an expired or unrecognised plan", () => {
     for (const plan of [{ id: "pro", endsAt: Date.now() - 1, source: "subscription" }, { id: "future-plan", endsAt: Date.now() + 86_400_000, source: "gift" }]) {
       const [weekly] = composerUsageModels(null, allowance({ tokens: { ...tokens, plan } }), true, "heabsy-glm53-flash-unc");
-      expect(weekly.label).toBe("Free this week");
+      expect(weekly.label).toBe("Free today");
     }
   });
 
@@ -164,8 +164,8 @@ describe("the usage dialog's paid-token line", () => {
     const { paidTokensSummary } = await import("../src/shared/tagflow.ts");
     const now = Date.parse("2026-10-21T00:00:00Z");
     expect(paidTokensSummary({ enabled: true, free: { limit: 10_000_000, used: 4_000_000, held: 0, remaining: 6_000_000, resetsAt: now + 3 * 86_400_000 }, purchased: 48_000_000 }, now))
-      .toBe("Included AI: 60% of your free tokens left this week (refill in 3 days), then 48M purchased tokens. Shared by Tagflow AI and all other included models.");
+      .toBe("Included AI: 60% of your free tokens left today (refill in 3 days), then 48M purchased tokens. Shared by Tagflow AI and all other included models.");
     expect(paidTokensSummary({ enabled: true, free: { limit: 10_000_000, used: 0, held: 0, remaining: 10_000_000, resetsAt: null }, purchased: 0 }, now))
-      .toBe("Included AI: 10M free tokens a week, starting with your first request on them. Shared by Tagflow AI and all other included models.");
+      .toBe("Included AI: 10M free tokens a day, starting with your first request on them. Shared by Tagflow AI and all other included models.");
   });
 });

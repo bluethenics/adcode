@@ -26,6 +26,7 @@ import type {
   ContentBlock,
 } from "./types.ts";
 import { isRequestTooLarge, LEAN_SYSTEM, leanHistory, leanTools } from "./requestSize.ts";
+import { networkFailure } from "./includedLimitRecovery.ts";
 import { createToolDraftReader, type ToolDraftReader } from "./toolDraft.ts";
 import {
   compactedHistory,
@@ -415,6 +416,7 @@ export function createAgent(deps: AgentDeps): Agent {
     let budget = maxOutput;
     let continuations = 0;
     let emptyRetries = 0;
+    let interruptionRecoveries = 0;
     const grow = (): void => {
       budget = Math.min(ceiling, budget * 2);
     };
@@ -441,6 +443,7 @@ export function createAgent(deps: AgentDeps): Agent {
       let stop: StopReason = "end-turn";
       let stopDetail: string | undefined;
       let failed = false;
+      let continueInterrupted = false;
       // What this request cost: the provider's count when it gives one, otherwise counted
       // here from what went out and what came back.
       let sent: ProviderRequest | null = null;
@@ -594,7 +597,13 @@ export function createAgent(deps: AgentDeps): Agent {
         }
         // §9: the provider being down costs the user an answer, never the editor.
         failed = true;
-        if (!signal.aborted) yield { kind: "error", detail };
+        const transient = error as { code?: string; status?: number } | null;
+        // Preserve the partial answer in history and request a continuation. Completed tools
+        // from prior steps stay in history; drafts from this interrupted response never run.
+        continueInterrupted = deps.provider.id === "tagflow" && !signal.aborted && interruptionRecoveries < 2 && pendingCalls.length === 0 &&
+          assistantContent.some(block => block.type === "text" && block.text.trim().length > 0) &&
+          (transient?.code === "stream-interrupted" || networkFailure(error) !== null);
+        if (!signal.aborted && !continueInterrupted) yield { kind: "error", detail };
       }
 
       // A request the provider refused outright cost nothing; one that answered, even in
@@ -625,6 +634,12 @@ export function createAgent(deps: AgentDeps): Agent {
         return;
       }
 
+      if (continueInterrupted) {
+        interruptionRecoveries++;
+        messages.push({ role: "user", content: [{ type: "text", text: "The connection interrupted your last response. Continue the same task from where that response stopped. Do not repeat text already delivered or completed tool actions. Read current files before making further edits." }] });
+        yield { kind: "status", text: "The connection interrupted the response. Continuing this task from the saved progress without repeating completed tools…" };
+        continue;
+      }
       if (failed) return;
 
       if (stop === "refusal") {

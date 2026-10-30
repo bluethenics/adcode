@@ -3,7 +3,10 @@
 /** Subscription, promo and invite controls. Access is only confirmed by the server. */
 import { useCallback, useEffect, useState } from "react";
 import type { PlanId, PlanSpec } from "@adcode/api/src/aiPlans.ts";
-import { dollars, formatTokens } from "./tokenFormatting";
+import { dollars } from "./tokenFormatting";
+import { PLAN_BENEFITS } from "@/lib/pricing";
+import { Icon } from "@/components/Icon";
+import { ArrowUpRight, Check } from "lucide";
 
 export const planName = (id: string): string => ({ weekly: "Weekly", monthly: "Monthly", pro: "Pro" } as Record<string, string>)[id] ?? "Plan";
 
@@ -16,14 +19,21 @@ export function PlanCards({ plans, current, busy, onChoose, subscribed = false, 
   selected?: PlanId | null;
 }) {
   return <ul className="ai-plan-cards" aria-label="AI plans">
-    {plans.map((plan) => <li key={plan.id} className="ai-plan-card" data-current={current === plan.id} data-selected={selected === plan.id}>
-      <div className="ai-plan-title"><h3>{plan.name}</h3>{current === plan.id ? <span className="ai-plan-badge">Current plan</span> : selected === plan.id && <span className="ai-plan-badge">Selected from pricing</span>}</div>
+    {plans.map((plan) => <li key={plan.id} className="ai-plan-card" data-featured={plan.id === "pro"} data-current={current === plan.id} data-selected={selected === plan.id}>
+      <div className="ai-plan-title"><h3>{plan.name}</h3>{current === plan.id ? <span className="ai-plan-badge">Current plan</span> : selected === plan.id ? <span className="ai-plan-badge">Selected from pricing</span> : plan.id === "pro" && <span className="ai-plan-badge">Recommended</span>}</div>
+      <p className="ai-plan-audience">{PLAN_BENEFITS[plan.id].audience}</p>
       <p className="ai-plan-price">{dollars(plan.priceCents)}<span>/{plan.interval}</span></p>
-      <p className="ai-plan-allowance">{formatTokens(plan.weeklyTokens)} tokens a week</p>
-      <p className="field-hint">{plan.invites > 0 ? `Invite ${plan.invites} friends. When each subscribes, you both get 4M extra tokens.` : "A bigger weekly allowance for Heabsy models."}</p>
+      <p className="field-hint">{PLAN_BENEFITS[plan.id].description}</p>
+      <ul className="ai-plan-features">
+        <li><Icon node={Check} />{PLAN_BENEFITS[plan.id].allowance}</li>
+        <li><Icon node={Check} />{plan.unlimited ? "No daily token cap" : "Automatic daily refill"}</li>
+        <li><Icon node={Check} />One account across devices</li>
+        {plan.invites > 0 && <li><Icon node={Check} />Invite {plan.invites} friends with AI rewards</li>}
+      </ul>
       <button type="button" className={`btn ${plan.id === "pro" ? "btn-primary" : "btn-outline"}`} disabled={busy !== null || current === plan.id || subscribed} onClick={() => onChoose(plan)} aria-label={current === plan.id ? `${plan.name}: current plan` : `Choose ${plan.name}`}>
-        {busy === plan.id ? "Opening checkout…" : current === plan.id ? "Current plan" : subscribed ? "Manage in portal" : `Choose ${plan.name}`}
+        {busy === plan.id ? "Opening checkout…" : current === plan.id ? "Current plan" : subscribed ? "Manage in portal" : <>Choose {plan.name} <Icon node={ArrowUpRight} /></>}
       </button>
+      <p className="ai-plan-renewal">Renews every {plan.interval}. Cancel in your billing portal.</p>
     </li>)}
   </ul>;
 }
@@ -71,8 +81,8 @@ export async function planRequest<T>(path: string, idToken: string | null, body?
 export function codeMessage(result: string, invite = false): string {
   const messages: Record<string, string> = {
     tokens: "Your promo tokens have been added to your balance.",
-    plan: "Your promo plan is active. Your weekly allowance has been updated.",
-    joined: "Invite accepted. Start any paid plan and you and your friend will each receive 4M tokens.",
+    plan: "Your promo plan is active. Your daily allowance has been updated.",
+    joined: "Invite accepted. Start any paid plan to unlock bonus AI usage for you and your friend.",
     unknown: invite ? "That invite code wasn't found. Check the code with your friend." : "That promo code wasn't found. Check the spelling and try again.",
     expired: "That promo code has expired.",
     "used-up": invite ? "That invite code has no uses left." : "That promo code has reached its redemption limit.",
@@ -134,7 +144,7 @@ export function InviteCard({ token }: { token: () => Promise<string | null> }) {
   }
   return <section className="ai-token-code" aria-labelledby="ai-invite-heading">
     <h2 id="ai-invite-heading">Your Pro invites</h2>
-    <p className="field-hint">When a friend accepts your invite and starts a paid plan, you both get 4M purchased tokens. Each friend can earn this reward once.</p>
+    <p className="field-hint">When a friend accepts your invite and starts a paid plan while your Pro subscription is active, you both unlock bonus AI usage. Each friend can earn this reward once.</p>
     {loading ? <p role="status">Loading your invite code…</p> : error ? <p className="notice" data-tone="error" role="alert">{error} <button type="button" className="btn btn-outline btn-small" onClick={() => void load()}>Retry</button></p> : invite !== null && <>
       <div className="ai-invite-copy"><input className="input" aria-label="Your invite code" readOnly value={invite.code} onFocus={(event) => event.target.select()} /><button type="button" className="btn btn-outline" onClick={() => void copy()}>Copy code</button></div>
       <p className="field-hint">{Math.max(0, invite.maxUses - invite.uses)} of {invite.maxUses} invites remaining.</p>
@@ -145,6 +155,6 @@ export function InviteCard({ token }: { token: () => Promise<string | null> }) {
 
 export function planArrivalMessage(arrival: "checking" | "added" | "not-yet", plan: PlanId): string {
   if (arrival === "checking") return `Checking your ${planName(plan)} subscription… Your allowance updates after payment is confirmed.`;
-  if (arrival === "added") return `Your ${planName(plan)} plan is active. Your weekly allowance has been updated.`;
+  if (arrival === "added") return `Your ${planName(plan)} plan is active. Your daily allowance has been updated.`;
   return "Your subscription hasn't been confirmed yet. If you paid, allow a few minutes, then press Refresh. Need help? Contact us from the Help page.";
 }

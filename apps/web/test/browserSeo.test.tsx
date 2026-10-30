@@ -37,8 +37,8 @@ describe("browser app search discovery", () => {
       const text = await response.text();
       expect(text).toContain(url("/online-ai-code-editor"));
       expect(text).toContain(WEB_VERSION_URL);
-      expect(text).toContain("Tagflow AI has no personal token or request quota");
-      expect(text).toContain("10M free tokens");
+      expect(text).toContain("Tagflow AI and all other included models share");
+      expect(text).toContain("5M free tokens");
       expect(text).toContain(url("/pricing"));
     }
   });

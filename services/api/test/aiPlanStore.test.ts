@@ -74,8 +74,8 @@ describe("AI plans in the memory store", () => {
     expect(await store.redeemInvite(invite.code, "friend", DAY)).toBe("already");
     await store.applySubscriptionEvent(sub({ uid: "friend", subscriptionId: "sub_f", webhookId: "whf1" }));
     await store.applySubscriptionEvent(sub({ uid: "friend", subscriptionId: "sub_f2", webhookId: "whf2" }));
-    expect((await store.getPaidTokens("friend")).balance.purchased).toBe(4_000_000);
-    expect((await store.getPaidTokens("pro1")).balance.purchased).toBe(4_000_000);
+    expect((await store.getPaidTokens("friend")).balance.purchased).toBe(4_400_000);
+    expect((await store.getPaidTokens("pro1")).balance.purchased).toBe(4_400_000);
     expect((await store.listTokenActivity("pro1")).ledger).toContainEqual(expect.objectContaining({ kind: "grant", ref: "invite:friend" }));
     expect(await store.getInvite("nopro", DAY)).toBeNull();
     expect(await store.redeemInvite(invite.code, "has-sub", DAY)).toBe("joined");
@@ -144,6 +144,6 @@ describe("AI plans in the memory store", () => {
     const store = createTagflowMemoryStore();
     await store.applySubscriptionEvent(sub());
     await store.applySubscriptionEvent(sub({ uid: "v", subscriptionId: "sub_2", webhookId: "w2", plan: "pro" }));
-    expect(await store.subscriptionSummary(2 * DAY)).toEqual([{ plan: "monthly", active: 1, mrrCents: 900 }, { plan: "pro", active: 1, mrrCents: 1900 }]);
+    expect(await store.subscriptionSummary(2 * DAY)).toEqual([{ plan: "monthly", active: 1, mrrCents: 900 }, { plan: "pro", active: 1, mrrCents: 2900 }]);
   });
 });

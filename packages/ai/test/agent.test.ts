@@ -36,6 +36,26 @@ const echoTool: ToolDefinition = {
   mutating: false,
 };
 
+it("continues a partial included response in the same task without replaying completed tools", async () => {
+  let round = 0;
+  const requests: readonly Message[][] = [];
+  const seen = requests as Message[][];
+  const provider: Provider = { id: "tagflow", displayName: "Included", models: [], async *stream(request) {
+    seen.push([...request.messages]);
+    if (round++ === 0) { yield { kind: "tool-call", call: { type: "tool-call", id: "once", name: "echo", input: {} } }; yield { kind: "stop", reason: "tool-use" }; return; }
+    if (round === 2) { yield { kind: "text", text: "Saved progress. " }; throw Object.assign(new Error("Interrupted"), { code: "stream-interrupted", status: 502 }); }
+    yield { kind: "text", text: "Continuing." }; yield { kind: "stop", reason: "end-turn" };
+  } };
+  const run = runner();
+  const agent = createAgent({ provider, model: "test", tools: [echoTool], runner: run });
+  const events: AgentEvent[] = [];
+  for await (const event of agent.send("Finish this task")) events.push(event);
+  expect(run.calls.map(call => call.id)).toEqual(["once"]);
+  expect(events.some(event => event.kind === "error")).toBe(false);
+  expect(JSON.stringify(seen[2])).toContain("Saved progress.");
+  expect(events.at(-1)).toMatchObject({ kind: "turn-end", reason: "end-turn" });
+});
+
 function runner(impl?: Partial<ToolRunner>): ToolRunner & { calls: ToolCallBlock[] } {
   const calls: ToolCallBlock[] = [];
   return {

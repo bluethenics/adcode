@@ -24,7 +24,7 @@ export interface CheckoutRequest {
   returnUrl: string;
   cancelUrl: string;
   /** Which Dodo product the payment is for; missing is an advertiser deposit. */
-  product?: "advertiser" | "ai-tokens" | "plan-weekly" | "plan-monthly" | "plan-pro";
+  product?: "advertiser" | "ai-tokens" | "ai-wallet" | "plan-weekly" | "plan-monthly" | "plan-pro";
   /** Server-authored subscription identity; never copied from an untrusted request. */
   metadata?: Record<string, string>;
 }
@@ -41,8 +41,10 @@ export interface CheckoutSession {
 }
 
 export interface PaymentProvider {
+  /** Read the authoritative paid period when a lifecycle webhook was missed. */
+  getSubscription?(subscriptionId: string): Promise<unknown | null>;
   /** Preflight known missing credentials/products before reserving a subscription checkout. */
-  canCreateCheckout?(product: NonNullable<CheckoutRequest["product"]>): boolean;
+  canCreateCheckout?(product: NonNullable<CheckoutRequest["product"]>): boolean | Promise<boolean>;
   /** Null on any provider failure; the caller turns that into a 502 rather than a 500. */
   createCheckout(request: CheckoutRequest): Promise<CheckoutSession | null>;
   /** A short-lived hosted portal session for this account's provider customer. */

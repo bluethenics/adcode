@@ -123,7 +123,7 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
   const blurb = document.createElement("p");
   blurb.className = "collab-blurb";
   blurb.textContent =
-    "Share this folder with people on your network. They edit the files on this machine — nothing is copied to theirs.";
+    "Share your GitHub project live over an encrypted connection. Keep the host app open. New people join view-only; give trusted teammates edit access in People. Everyone’s AI file tools use the host’s current files. The host reviews commits and pushes to GitHub.";
 
   const shareButton = document.createElement("button");
   shareButton.type = "button";
@@ -210,6 +210,18 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
   let latest: CollabStatusView | null = null;
 
   /* ── Actions ────────────────────────────────────────────────────────────── */
+  let busy = false;
+  async function action(work: () => Promise<void>): Promise<void> {
+    if (busy) return;
+    busy = true; shareButton.disabled = true; joinButton.disabled = true;
+    try { await work(); }
+    catch (error) {
+      const message = error instanceof Error ? error.message : "The shared project could not connect.";
+      errorLine.textContent = message; errorLine.hidden = false;
+      window.adcode.milestones.record("collab_failed");
+      deps.notify(message);
+    } finally { busy = false; shareButton.disabled = false; joinButton.disabled = false; }
+  }
 
   async function askName(): Promise<string | null> {
     const existing = storedName();
@@ -229,7 +241,7 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
   }
 
   shareButton.addEventListener("click", () => {
-    void (async () => {
+    void action(async () => {
       const name = await askName();
       if (name === null) return;
 
@@ -241,27 +253,28 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
        * reachable and by whom, before it happens rather than after.
        */
       const agreed = await deps.confirm(
-        "Share this folder on your network?",
-        "Anyone on your Wi-Fi or local network who has the invite code will be able to open and edit the files in this folder, on this machine. The connection is not encrypted, so avoid this on public or shared networks.",
+        "Share this project online?",
+        "Anyone with this invite can read project files while you keep ADCode open. New guests join view-only. You can grant edit access in People or end everyone's access by ending the session. Traffic passes through ADCode’s encrypted relay.",
         "Share",
       );
       if (!agreed) return;
 
       const status = await window.adcode.collab.host({
-        bind: "lan",
+        bind: "internet",
         port: 0,
         displayName: name,
       });
 
+      window.adcode.milestones.record(status.error !== null ? "collab_failed" : status.mode === "hosting" ? "collab_hosted" : "collab_joined");
       if (status.error !== null) deps.notify(status.error);
-    })();
+    });
   });
 
   joinButton.addEventListener("click", () => {
-    void (async () => {
+    void action(async () => {
       const code = await deps.prompt(
         "Join a session",
-        "Paste the invite code the host sent you.",
+        "Open a checkout of the same GitHub repository, then paste the invite code the host sent you.",
         "",
       );
       if (code === null || code.trim().length === 0) return;
@@ -270,8 +283,9 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
       if (name === null) return;
 
       const status = await window.adcode.collab.join(code.trim(), name);
+      window.adcode.milestones.record(status.error !== null ? "collab_failed" : status.mode === "hosting" ? "collab_hosted" : "collab_joined");
       if (status.error !== null) deps.notify(status.error);
-    })();
+    });
   });
 
   copyButton.addEventListener("click", () => {
@@ -290,7 +304,7 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
       const view = await window.adcode.referrals.get().catch(() => null);
       const link = view === null ? `${INVITE_ORIGIN}/versions` : inviteLink(view.code, "collab");
       await window.adcode.clipboard.writeText(collabInviteText(link, code));
-      deps.notify("Copied: how to install ADCode, then how to join. They need to be on your network.");
+      deps.notify("Copied: how to install ADCode, open the GitHub project, and join the session.");
     })();
   });
 
@@ -443,7 +457,7 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
     }
 
     blurb.textContent =
-      "Share this folder with people on your network. They edit the files on this machine — nothing is copied to theirs.";
+      "Share your GitHub project live over an encrypted connection. New people join view-only; grant edit access in People. Everyone’s AI file tools use the host’s current files. Keep the host app open; the host reviews commits and pushes to GitHub.";
 
     if (!running) return;
 
@@ -474,7 +488,7 @@ export function createCollabPanel(deps: CollabPanelDeps): CollabPanel {
       }
       addressPicker.hidden = options.length < 2;
 
-      exposure.textContent =
+      exposure.textContent = status.addresses.some(address => address.endsWith(".relay.adcode")) ? "Encrypted internet session · keep the host app open · expires after 24 hours" :
         status.port === null
           ? ""
           : `Reachable on your network at ${addressPicker.value || options[0]}:${status.port}. The connection is not encrypted.`;

@@ -128,7 +128,7 @@ export const WORKBENCH_ENTRIES: readonly HelpEntry[] = [
     title: "Live collaboration",
     plain: "Someone else can open the same files at the same time and you both see each other typing.",
     why: "For fixing something together without one of you reading the other's screen over a call.",
-    how: "Choose the live-session button on the Vibe window's rail and share the invitation it shows. It works over your local network - the code does not travel through anybody else's server.",
+    how: "Open a project connected to GitHub, choose the live-session button on the sidebar, and share its invite. Keep the host app open. The connection uses ADCode’s encrypted internet relay and expires after 24 hours. New guests join view-only; grant edit access in People. Guests can open shared files and use their own AI models to read or edit the host’s current files. Guest commands and private memory are unavailable. The host reviews commits and pushes to GitHub. End session revokes the invite.",
     group: "workbench",
     settingIds: [],
     related: ["workbench.terminal"],

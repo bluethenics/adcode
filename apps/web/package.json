@@ -22,6 +22,7 @@
     "wrangler": "^4.125.0"
   },
   "dependencies": {
+    "@adimpress/imprezia-sdk": "^0.5.24",
     "lucide": "1.59.0",
     "next": "~16.4.3"
   },

@@ -390,13 +390,13 @@ function includedAllowance(paid: NonNullable<TagflowAllowanceView["tokens"]>, re
   const progress = el("progress", "ad-progress");
   progress.max = Math.max(1, free.limit);
   progress.value = Math.min(free.limit, used);
-  progress.setAttribute("aria-label", "Included AI tokens used this week");
-  const refill = free.resetsAt === null ? "Your week starts with your first included AI request" : `Refills in ${untilText(free.resetsAt, now)}`;
+  progress.setAttribute("aria-label", "Included AI tokens used today");
+  const refill = free.resetsAt === null ? "Your daily allowance starts with your first included AI request" : `Refills in ${untilText(free.resetsAt, now)}`;
   heabsy.append(
     el("span", "usage-split-name", plan === null ? "Included AI · Free" : `Included AI · ${plan} plan`),
     el("strong", "usage-split-value", `${percentLeft(free.remaining, free.limit)}% left`),
     progress,
-    el("span", "usage-stat-detail", `${formatTokens(used)} of ${formatTokens(free.limit)} this week · ${refill}${paid.purchased > 0 ? ` · then ${formatTokens(paid.purchased)} purchased` : ""}`),
+    el("span", "usage-stat-detail", `${formatTokens(used)} of ${formatTokens(free.limit)} today · ${refill}${paid.purchased > 0 ? ` · then ${formatTokens(paid.purchased)} purchased` : ""}`),
   );
   const actions = el("div", "usage-split-actions");
   actions.append(

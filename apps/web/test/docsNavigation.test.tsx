@@ -180,10 +180,10 @@ describe("public documentation navigation", () => {
     expect(recent.length).toBe(4);
     expect(recent.every((page) => page.authored)).toBe(true);
     expect(recent.map((page) => page.slug)).toEqual([
+      "shared-github-projects",
       "adcode-in-your-browser",
       "connectors",
       "chats-that-keep-working",
-      "free-ai-without-the-meter",
     ]);
   });
 

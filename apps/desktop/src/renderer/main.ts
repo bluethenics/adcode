@@ -5138,7 +5138,8 @@ const collabPanel = createCollabPanel({
   prompt: (title, body, value) => promptDialog.ask({ title, body, value }),
 });
 
-el("status-collab").addEventListener("click", () => collabPanel.toggle());
+el("status-collab").addEventListener("click", () => { window.adcode.milestones.record("collab_opened"); collabPanel.toggle(); });
+document.getElementById("join-discord")?.addEventListener("click", () => { window.adcode.milestones.record("discord_opened"); window.open("https://discord.gg/WH2UBsQd3", "_blank", "noopener"); });
 
 window.adcode.collab.onStatus((status) => {
   collabPanel.update(status);

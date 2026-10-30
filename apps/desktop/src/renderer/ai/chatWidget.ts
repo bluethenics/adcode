@@ -4479,7 +4479,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       bringCardsDown();
     }
     // Anything but a status line means the paused task is moving again.
-    if (event.kind !== "status") hideLimitCard();
+    if (event.kind !== "status") { waitingForIncludedLimit = false; if (!(choosingModel && event.kind === "cancelled")) includedWaitGeneration += 1; hideLimitCard(); }
     if (event.kind === "tool-draft") {
       const path = typeof event["path"] === "string" ? event["path"] : null;
       const label = path === null ? "Writing a file" : `Writing ${path}`;
@@ -4520,6 +4520,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           break;
         }
         hideLimitCard();
+        waitingForIncludedLimit = false;
         if (/^(?:Free AI (?:allowance reached|is temporarily limited)|This (?:session|week)'s free AI credits are used up)\./.test(text)) waitingForIncludedLimit = true;
         else if (text === "Checking the limit and resuming this task automatically…") waitingForIncludedLimit = false;
         // A helper's own line ("Helper 2 of 3 · Tests: editing src/a.ts") belongs to its
