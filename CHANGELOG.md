@@ -3,6 +3,10 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.4.8 — 2026-10-30
+
+- Share GitHub projects live and improve included AI recovery.
+
 ## 2.4.7 — 2026-10-30
 
 - Use paid models with prepaid ADCode dollar credits, with clear model prices and an available-balance display.
