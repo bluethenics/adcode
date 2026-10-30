@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 it("offers paid credits for a dollar-wallet refusal without claiming a free refill",()=>{
   const failure=describeAiFailure("wallet-balance: Your paid credits cannot cover this request's maximum charge.");
-  expect(failure).toMatchObject({kind:"tokens",title:"Add paid model credits",actions:["buy-tokens","models"]});
+  expect(failure).toMatchObject({kind:"tokens",title:"Add paid model credits",actions:["buy-model-credits","models"]});
   expect(failure.explanation).not.toMatch(/refill/i);
 });
 

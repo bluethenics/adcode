@@ -12,7 +12,7 @@
  */
 import { CONTINUE_PROMPT } from "../../shared/continuePrompt.ts";
 
-export type AiFailureAction = "retry" | "models" | "usage" | "new-conversation" | "report" | "sign-in" | "buy-tokens" | "upgrade-plan";
+export type AiFailureAction = "retry" | "models" | "usage" | "new-conversation" | "report" | "sign-in" | "buy-tokens" | "buy-model-credits" | "upgrade-plan";
 
 export interface AiFailure {
   readonly kind:
@@ -86,7 +86,7 @@ export function describeAiFailure(raw: string): AiFailure {
     ({ kind, title, explanation, actions, detail });
 
   if (/wallet-balance|paid credits cannot cover/i.test(detail)) {
-    return make("tokens", "Add paid model credits", detail, ["buy-tokens", "models"]);
+    return make("tokens", "Add paid model credits", detail, ["buy-model-credits", "models"]);
   }
   if (/wallet-client-update/i.test(detail)) {
     return make("tokens", "Update ADCode for paid models", detail, ["models"]);
