@@ -15,7 +15,7 @@ export class CollabRoom extends DurableObject<Env> {
     if (path === "/create") {
       return this.ctx.blockConcurrencyWhile(async () => {
       keys = await this.ctx.storage.get<Keys>("keys");
-      if (keys && keys.expires > Date.now()) return json({ error: "End your current shared project before starting another." }, 409);
+      if (keys && keys.expires > Date.now() && (this.ctx.getWebSockets("host").length > 0 || keys.expires - Date.now() > 24 * 60 * 60_000 - 30_000)) return json({ error: "End your current shared project first. If its connection failed, wait 30 seconds before trying again." }, 409);
       const body = await request.json() as { guestKey?: unknown };
       if (typeof body.guestKey !== "string" || !/^[A-Za-z0-9_-]{32}$/.test(body.guestKey)) return json({ error: "Invalid invite." }, 400);
       keys = { host: secret(), guest: body.guestKey, expires: Date.now() + 24 * 60 * 60_000, generation: crypto.randomUUID() };

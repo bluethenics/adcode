@@ -16,6 +16,14 @@ async function connect(path: string, key: string): Promise<WebSocket> {
     socket.once("open", resolve);
     socket.once("error", reject);
   });
+  let alive = true;
+  const heartbeat = setInterval(() => {
+    if (!alive) { socket.terminate(); return; }
+    if (socket.readyState === WebSocket.OPEN) { alive = false; socket.ping(); }
+  }, 20_000);
+  heartbeat.unref();
+  socket.on("pong", () => { alive = true; });
+  socket.once("close", () => clearInterval(heartbeat));
   return socket;
 }
 
