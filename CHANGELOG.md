@@ -3,6 +3,12 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.4.6 — 2026-10-30
+
+- Refresh help for shared included allowances.
+- Link paid balance errors to dollar credits.
+- Support prepaid model credits and shared allowances.
+
 ## 2.4.5 — 2026-10-30
 
 - Support prepaid model credits and shared allowances.
