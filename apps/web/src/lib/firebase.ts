@@ -28,10 +28,12 @@ import {
 } from "firebase/auth";
 
 const CONFIG = {
-  apiKey: process.env["NEXT_PUBLIC_FIREBASE_API_KEY"] ?? "",
-  authDomain: process.env["NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN"] ?? "",
-  projectId: process.env["NEXT_PUBLIC_FIREBASE_PROJECT_ID"] ?? "",
-  appId: process.env["NEXT_PUBLIC_FIREBASE_APP_ID"] ?? "",
+  // Public project identifiers, also shipped by the desktop. Fresh release checkouts
+  // must keep sign-in working without relying on an ignored local environment file.
+  apiKey: process.env["NEXT_PUBLIC_FIREBASE_API_KEY"] ?? "AIzaSyATZzX5Fw2HjR34VxB3UQWTmljprA5uXqE",
+  authDomain: process.env["NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN"] ?? "adcode-idle.firebaseapp.com",
+  projectId: process.env["NEXT_PUBLIC_FIREBASE_PROJECT_ID"] ?? "adcode-idle",
+  appId: process.env["NEXT_PUBLIC_FIREBASE_APP_ID"] ?? "1:345488063416:web:43ed6b46f3dfe43eb06d4d",
 } as const;
 
 export const firebaseConfigured = CONFIG.apiKey.length > 0 && CONFIG.projectId.length > 0;
