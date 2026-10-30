@@ -7,6 +7,7 @@ import { DiskFileStore, FetchHttpTransport, SystemClock } from "./adPorts.ts";
 import { currentWorkspace, openWorkspaceAt } from "./workspace.ts";
 import { scan, applyFiles, mergeFiles, type Files } from "./sharedProjectFiles.ts";
 import { recordMilestone } from "./milestones.ts";
+import { sharedProjectAccountKey } from "./sharedProjectIdentity.ts";
 
 type Snapshot = SharedProjectView & { files: Files };
 type Local = { id: string; root: string; revision: number; files: Files };
@@ -21,9 +22,9 @@ async function identity(): Promise<{ token: string; uid: string }> {
   const token = await tokens.getToken();
   if (!token.ok) throw Error("Sign in to use shared projects.");
   // Used only to separate local caches. The server independently verifies every request.
-  const uid: unknown = JSON.parse(Buffer.from(token.value.split(".")[1]!, "base64url").toString("utf8")).sub;
-  if (typeof uid !== "string" || !uid) throw Error("Sign in again to use shared projects.");
-  return { token: token.value, uid: Buffer.from(uid).toString("hex") };
+  const uid = sharedProjectAccountKey(token.value);
+  if (!uid) throw Error("Sign in to use online projects.");
+  return { token: token.value, uid };
 }
 async function request<T>(auth: { token: string }, path: string, method = "GET", body?: unknown): Promise<T> {
   const response = await fetch(ORIGIN + path, { method, headers: { authorization: `Bearer ${auth.token}`, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(45_000) });
@@ -68,7 +69,13 @@ async function sync(auth: { token: string; uid: string }, local: Local, all: Loc
 export function registerSharedProjects(): void {
   ipcMain.handle(CHANNELS.sharedProjects, (_event, operation: unknown, input: unknown) => serial(async () => {
     if (typeof operation !== "string" || !["list", "publish", "join", "open", "sync", "delete", "rotate", "remove"].includes(operation)) throw Error("Invalid project action.");
-    const auth = await identity(); const all = await states(auth.uid);
+    let auth: Awaited<ReturnType<typeof identity>>;
+    try { auth = await identity(); }
+    catch (error) {
+      if (operation === "list") return { owned: [], joined: [], current: null, syncError: "Sign in to use online projects." };
+      throw error;
+    }
+    const all = await states(auth.uid);
     const data = typeof input === "object" && input !== null ? input as Record<string, unknown> : {};
     if (operation === "publish") {
       const root = currentWorkspace()?.root;
