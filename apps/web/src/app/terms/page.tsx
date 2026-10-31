@@ -19,7 +19,7 @@ const UPDATED_LABEL = TERMS_UPDATED.label;
 /*
  * These terms describe what the software actually does.
  *
- * Every factual claim below is checkable against the code: the $50 minimum and the five
+ * Every factual claim below is checkable against the code: the $50 minimum and the six
  * withdrawal conditions are in `services/api`, the revenue share and the CPM come from
  * `lib/site.ts`, and "only verified views earn" is true because a receipt only pays when it
  * matches a card the server itself served. Terms that describe a different product than the
