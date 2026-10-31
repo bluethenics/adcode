@@ -10,7 +10,7 @@ export const metadata: Metadata = pageMetadata({
   title: "Invite & earn",
   socialTitle: "Invite & earn: get a share of what ADCode makes from the people you bring",
   description:
-    "Invite people to ADCode and earn for a year: 10% of ADCode's ad earnings from invited users and 5% of invited advertisers' spend. See how referrals work.",
+    "Invite people to ADCode and earn for a year: 10% of the cost of paid views from invited users and 5% of invited advertisers' spend. See how referrals work.",
 });
 
 /*
@@ -24,7 +24,7 @@ const BODY = `
 1. **Get your link.** In ADCode, open **Invite & earn** - from the Invite friends row in the Vibe sidebar, from the Earnings panel, or by typing "invite" in the command palette. Signed in on this site? It is on your [dashboard](/dashboard#invites) too.
 2. **Send it.** Copy it, or post it on X or Threads, or email it, from the same panel.
 3. **They install ADCode.** The invite page copies your invite as their download starts, and ADCode picks it up by itself the first time it opens. If it asks, they paste the code shown on the page.
-4. **You earn for a year.** For 365 days you get **10% of what ADCode earns from the ads they see**. It lands in your balance the day after, like your own ad earnings, and you withdraw it the same way.
+4. **You earn for a year.** For 365 days you get **10% of the cost of every paid view they see**, paid out of ADCode's half — the person you invited keeps their own 50% in full. It lands in your balance the day after, like your own ad earnings, and you withdraw it the same way.
 
 ## Bring an advertiser
 
