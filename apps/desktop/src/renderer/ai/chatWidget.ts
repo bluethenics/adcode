@@ -3378,9 +3378,9 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
           waiting = window.adcode.account.onChanged((state) => {
             if (state.state !== "linked") return;
             waiting?.(); waiting = null;
-            signIn.textContent = needsVerification?"Email verified":"Signed in";
+            signIn.textContent = needsVerification?"Account refreshed":"Signed in";
             signIn.disabled = true;
-            text.textContent = needsVerification?"Your email is verified. Sending your message again…":"You're signed in. Sending your message again…";
+            text.textContent = needsVerification?"Checking your account and sending your message again…":"You're signed in. Sending your message again…";
             continueWhenIdle(request);
           });
         }, primary);
