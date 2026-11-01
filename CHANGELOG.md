@@ -3,6 +3,13 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
+## 2.4.11 — 2026-11-01
+
+- Wait for the previous AI turn to finish before retrying or continuing; Stop also cancels a pending retry.
+- Support secure browser-based Google sign-in when a build has no embedded desktop credential.
+- Show daily cost credits, Max and Unlimited allowances, and saved purchased balances consistently with the new plans.
+- Reserve space for selected debug logs in problem reports and keep overlong text available to edit.
+
 ## 2.4.10 — 2026-10-30
 
 - Share online projects that remain available after the owner closes ADCode. Each member has separate chats and AI usage.
