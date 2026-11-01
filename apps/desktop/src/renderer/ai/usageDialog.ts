@@ -379,6 +379,10 @@ export function openUsageDialog(): Promise<void> {
 
 /** The account's single weekly balance, shared by every included model. */
 function includedAllowance(paid: NonNullable<TagflowAllowanceView["tokens"]>, requestsToday: number): HTMLElement {
+  const costCredits=paid.accounting==="cost-v1";
+  const amount=costCredits?(value:number)=>(value/11000).toLocaleString("en-US",{maximumFractionDigits:2}):formatTokens;
+  const unit=costCredits?"credits":"tokens";
+  const fairUse=paid.plan?.id==="unlimited";
   const now = Date.now();
   const split = el("div", "usage-split");
   const plan = aiPlanName(paid.plan, now);
@@ -386,22 +390,22 @@ function includedAllowance(paid: NonNullable<TagflowAllowanceView["tokens"]>, re
   const used = Math.max(0, free.used + free.held);
   const heabsy = el("section", "usage-split-card");
   heabsy.dataset["kind"] = "included";
-  heabsy.dataset["out"] = String(free.remaining <= 0 && paid.purchased <= 0);
+  heabsy.dataset["out"] = String(free.remaining <= 0 && (fairUse || paid.purchased <= 0));
   const progress = el("progress", "ad-progress");
   progress.max = Math.max(1, free.limit);
   progress.value = Math.min(free.limit, used);
-  progress.setAttribute("aria-label", "Included AI tokens used today");
+  progress.setAttribute("aria-label", `Included AI ${unit} used today`);
   const refill = free.resetsAt === null ? "Your daily allowance starts with your first included AI request" : `Refills in ${untilText(free.resetsAt, now)}`;
   heabsy.append(
     el("span", "usage-split-name", plan === null ? "Included AI · Free" : `Included AI · ${plan} plan`),
     el("strong", "usage-split-value", `${percentLeft(free.remaining, free.limit)}% left`),
     progress,
-    el("span", "usage-stat-detail", `${formatTokens(used)} of ${formatTokens(free.limit)} today · ${refill}${paid.purchased > 0 ? ` · then ${formatTokens(paid.purchased)} purchased` : ""}`),
+    el("span", "usage-stat-detail", `${amount(used)} of ${amount(free.limit)} ${unit} today · ${refill}${fairUse ? " · daily fair-use limit; saved credits are not charged" : paid.purchased > 0 ? ` · then ${amount(paid.purchased)} purchased ${unit}` : ""}`),
   );
   const actions = el("div", "usage-split-actions");
   actions.append(
     button(plan === null ? "Upgrade plan" : "Manage plan", "ad-btn ad-btn-secondary", () => void window.open(`${BUY_TOKENS_URL}#plans`, "_blank", "noopener")),
-    button("Buy tokens", "ad-btn ad-btn-tertiary", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener")),
+    button(costCredits?"Buy credits":"Buy tokens", "ad-btn ad-btn-tertiary", () => void window.open(BUY_TOKENS_URL, "_blank", "noopener")),
   );
   heabsy.append(actions);
   heabsy.append(el("p", "usage-stat-detail", `Shared by Tagflow AI and all other included models · ${requestsToday.toLocaleString()} requests today`));

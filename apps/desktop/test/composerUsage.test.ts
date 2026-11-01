@@ -149,13 +149,27 @@ describe("the composer meter on a paid model", () => {
   it("warns when the free week and purchased tokens are both gone", () => {
     const [free] = composerUsageModels(null, allowance({ unlimited: true, tokens: { ...tokens, free: { ...tokens.free, used: 10_000_000, remaining: 0 }, purchased: 0 } }), true, "heabsy-glm53-flash-unc");
     expect(free.tone).toBe("full");
-    expect(free.tooltip).toContain("Buy tokens");
+    expect(free.tooltip).toContain("Buy credits");
   });
 
   it("shows the shared weekly meter for Tagflow too", () => {
     const [free] = composerUsageModels(null, allowance({ unlimited: true, tokens }), true, "tagflow-code-27b");
     expect(free).toMatchObject({ value: "60%", detail: "60% free left" });
     expect(free.tooltip).toContain("Tagflow AI and all other included models");
+  });
+
+  it("shows normalized credits rather than internal accounting units", () => {
+    const [free, purchased] = composerUsageModels(null, allowance({ tokens: { ...tokens, accounting: "cost-v1", free: { ...tokens.free, limit: 110000, remaining: 82500, used: 27500 }, purchased: 55000 } }), true, "heabsy-glm53-flash-unc");
+    expect(free.tooltip).toContain("7.5 of 10 free credits");
+    expect(purchased.value).toBe("5");
+  });
+
+  it("uses Unlimited fair use for a wallet model and preserves purchased balances when exhausted", () => {
+    const [free, purchased] = composerUsageModels(null, allowance({ tokens: { ...tokens, accounting: "cost-v1", plan: { id: "unlimited", source: "subscription", endsAt: Date.now() + 86400000 }, free: { ...tokens.free, limit: 55000000, remaining: 0 }, purchased: 55000 }, wallet: { availableMicros: 2000000, reservedMicros: 0, models: ["premium-model"] } }), true, "premium-model");
+    expect(free).toMatchObject({label: "Unlimited today", tone: "full"});
+    expect(free.tooltip).toContain("Wait for the daily refill");
+    expect(free.tooltip).not.toContain("Buy credits");
+    expect(purchased.tooltip).toContain("does not charge them automatically");
   });
 });
 

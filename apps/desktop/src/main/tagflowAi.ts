@@ -25,7 +25,7 @@ export function refreshTagflowModels(force = false): Promise<void> {
       if (!response.ok) return;
       const raw: unknown = await response.json();
       if (typeof raw !== "object" || raw === null) return;
-      const config = raw as { available?: unknown; defaultModel?: unknown; models?: unknown; paid?: { enabled?: unknown; freeWeeklyTokens?: unknown } };
+      const config = raw as { available?: unknown; defaultModel?: unknown; models?: unknown; paid?: { enabled?: unknown; freeWeeklyTokens?: unknown; accounting?: string } };
       const freeWeekly = config.paid?.enabled === true && typeof config.paid.freeWeeklyTokens === "number" ? config.paid.freeWeeklyTokens : null;
       if (config.available !== true) { offered = null; defaultModel = ""; return; }
       if (typeof config.defaultModel !== "string" || !Array.isArray(config.models)) return;
@@ -39,7 +39,7 @@ export function refreshTagflowModels(force = false): Promise<void> {
         // Older relays send no rate: every model then costs the standard credit.
         const rate = typeof model["creditRate"] === "number" && Number.isFinite(model["creditRate"]) && model["creditRate"] >= 0 ? model["creditRate"] : 1;
         // A paid provider's model (relays from 2026-10-21) says what it costs once the free week is spent.
-        const cost = model["billing"] === "wallet" ? `paid USD credits · USD ${Number(model["inputPrice"] ?? 0).toFixed(4)} input / USD ${Number(model["outputPrice"] ?? 0).toFixed(4)} output per million tokens (35% markup included)` : model["subscriptionRequired"] === true ? "requires an active Heabsy plan · included tokens or unlimited Pro" : model["paid"] === true && freeWeekly !== null ? `${Math.round(freeWeekly / 1_000_000)}M free tokens a week, then purchased tokens`
+        const cost = config.paid?.accounting === "cost-v1" && typeof model["inputCreditsPer1k"] === "number" ? `${model["inputCreditsPer1k"]} input / ${model["outputCreditsPer1k"]} output credits per 1K tokens; shared daily balance` : model["billing"] === "wallet" ? `paid USD credits · USD ${Number(model["inputPrice"] ?? 0).toFixed(4)} input / USD ${Number(model["outputPrice"] ?? 0).toFixed(4)} output per million tokens (35% markup included)` : model["paid"] === true && freeWeekly !== null ? `${Math.round(freeWeekly / 1_000_000)}M free tokens a week, then purchased tokens`
           : rate === 0 ? "free, no credits used" : rate === 1 ? "uses your free AI credits" : `uses ${rate < 1 ? "fewer" : "more"} credits (${rate}× the standard rate)`;
         models.push({ id: model["id"], name: model["name"], toolCall: true, reasoning: false, contextWindow: model["contextWindow"], maxOutput: model["maxOutput"], inputs: ["text"], outputs: ["text"], inputCostMicrosPerMillion: model["billing"] === "wallet" ? Math.round(Number(model["inputPrice"] ?? 0)*1_000_000) : 0, outputCostMicrosPerMillion: model["billing"] === "wallet" ? Math.round(Number(model["outputPrice"] ?? 0)*1_000_000) : 0, note: `Included${source} · ${cost}` });
       }

@@ -42,7 +42,8 @@ export function composerUsageModels(view: AiUsageView | null, allowance: Tagflow
       const blocked: ComposerMeterModel = { percent: null, value: "!", detail: "Disabled", tone: "full", tooltip: "Included AI is disabled for this account. Open AI usage for details." };
       return [blocked, blocked];
     }
-    if (modelId !== null && allowance.wallet?.models.includes(modelId)) {
+    const unlimitedPlan = allowance.tokens?.enabled === true && allowance.tokens.plan?.id === "unlimited" && aiPlanName(allowance.tokens.plan, Date.now()) !== null;
+    if (modelId !== null && allowance.wallet?.models.includes(modelId) && !unlimitedPlan) {
       const wallet=allowance.wallet;
       const available:ComposerMeterModel={label:"Paid credits",percent:null,value:`$${(wallet.availableMicros/1_000_000).toFixed(4)}`,detail:"USD available",tone:wallet.availableMicros>0?"ok":"full",tooltip:"Purchased USD credits. This model charges its provider cost plus 35%. Unused request holds are released after the response. Manage credits from AI usage."};
       const held:ComposerMeterModel={label:"Held",percent:null,value:`$${(wallet.reservedMicros/1_000_000).toFixed(4)}`,detail:"For active requests",tone:"ok",tooltip:"Maximum charges reserved for running paid requests. Unused amounts return to your available credits."};
@@ -54,15 +55,17 @@ export function composerUsageModels(view: AiUsageView | null, allowance: Tagflow
       const plan = aiPlanName(paid.plan, Date.now());
       const kind = plan === null ? "free" : "included";
       const left = paid.free.remaining;
-      const out = left <= 0 && paid.purchased <= 0;
-      const refill = paid.free.resetsAt === null ? "" : ` Free tokens refill in ${untilText(paid.free.resetsAt, Date.now())}.`;
+      const amount = paid.accounting === "cost-v1" ? (v: number) => (v / 11000).toLocaleString("en-US", { maximumFractionDigits: 2 }) : formatTokens;
+      const unit = paid.accounting === "cost-v1" ? "credits" : "tokens";
+      const out = left <= 0 && (paid.plan?.id === "unlimited" || paid.purchased <= 0);
+      const refill = paid.free.resetsAt === null ? "" : ` Daily ${unit} refill in ${untilText(paid.free.resetsAt, Date.now())}.`;
       const leftPercent = percentLeft(left, paid.free.limit);
       const free: ComposerMeterModel = {
         label: plan === null ? "Free today" : `${plan} today`, percent: paid.free.limit > 0 ? Math.min(100, Math.round(((paid.free.used + paid.free.held) / paid.free.limit) * 100)) : null,
         value: `${leftPercent}%`, detail: `${leftPercent}% ${kind} left`, tone: out ? "full" : left <= 0 ? "warn" : "ok",
-        tooltip: `${plan === null ? "" : `${plan} plan: `}${formatTokens(left)} of ${formatTokens(paid.free.limit)} ${kind} tokens left today across Tagflow AI and all other included models, then ${formatTokens(paid.purchased)} purchased.${refill}${out ? " Buy tokens or a plan, or use your own connected model." : ""}`,
+        tooltip: `${plan === null ? "" : `${plan} plan: `}${amount(left)} of ${amount(paid.free.limit)} ${kind} ${unit} left today across Tagflow AI and all other included models, ${unlimitedPlan ? "usage pauses at the daily fair-use allowance; purchased balances stay saved" : `then ${amount(paid.purchased)} purchased`}.${refill}${out ? unlimitedPlan ? " Wait for the daily refill, or use your own connected model." : " Buy credits or upgrade your plan, or use your own connected model." : ""}`,
       };
-      const purchased: ComposerMeterModel = { label: "Purchased", percent: null, value: formatTokens(paid.purchased), detail: `${formatTokens(paid.purchased)} purchased`, tone: out ? "full" : "ok", tooltip: "Tokens you bought, used after your free tokens. They never expire. Run AI: Buy AI Tokens to add more." };
+      const purchased: ComposerMeterModel = { label: "Purchased", percent: null, value: amount(paid.purchased), detail: `${amount(paid.purchased)} purchased`, tone: out ? "full" : "ok", tooltip: paid.plan?.id === "unlimited" ? "Saved purchased credits. Unlimited does not charge them automatically; usage waits for the daily fair-use refill." : "Purchased usage, used after your daily allowance. They never expire. Run AI: Buy AI Tokens to add more." };
       return [free, purchased];
     }
     // The server sets no allowance for included AI: say so rather than draw a meter that never fills.

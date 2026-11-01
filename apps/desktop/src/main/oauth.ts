@@ -22,6 +22,7 @@ import { createServer, type ServerResponse } from "node:http";
 import { createHash, randomBytes } from "node:crypto";
 import { shell } from "electron";
 import { resultPage, RESULT_PAGE_HEADERS } from "./oauthResultPage.ts";
+import { browserGoogleFlow } from "./googleBrowserFlow.ts";
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -72,9 +73,8 @@ const GOOGLE_CLIENT_SECRET =
 
 /** Whether sign-in can be offered at all. The UI hides the buttons when it cannot. */
 export const oauthConfigured = {
-  // Both, for Google: the id alone gets as far as the browser and then fails at the token
-  // exchange, which is a worse experience than saying up front that it is not set up.
-  google: () => GOOGLE_CLIENT_ID.length > 0 && GOOGLE_CLIENT_SECRET.length > 0,
+  // A missing desktop secret uses the hosted, state-bound browser sign-in flow.
+  google: () => GOOGLE_CLIENT_ID.length > 0,
   github: () => GITHUB_CLIENT_ID.length > 0,
 };
 
@@ -84,7 +84,7 @@ export const oauthConfigured = {
  * the scopes the connector asks for must be enabled on its consent screen.
  */
 export function googleDesktopClient(): { clientId: string; clientSecret: string } | null {
-  return oauthConfigured.google() ? { clientId: GOOGLE_CLIENT_ID, clientSecret: GOOGLE_CLIENT_SECRET } : null;
+  return GOOGLE_CLIENT_ID.length > 0 && GOOGLE_CLIENT_SECRET.length > 0 ? { clientId: GOOGLE_CLIENT_ID, clientSecret: GOOGLE_CLIENT_SECRET } : null;
 }
 
 export type OAuthResult =
@@ -119,9 +119,10 @@ const base64url = (buffer: Buffer): string =>
 export async function linkWithGoogle(): Promise<OAuthResult> {
   if (cancelActive !== null) return { ok: false, reason: "Another sign-in is open. Finish or cancel it first." };
   const clientId = GOOGLE_CLIENT_ID;
-  if (clientId.length === 0 || GOOGLE_CLIENT_SECRET.length === 0) {
+  if (clientId.length === 0) {
     return { ok: false, reason: "Google sign-in isn't configured in this build." };
   }
+  if (!GOOGLE_CLIENT_SECRET) return browserGoogleFlow({ origin: "https://adcode.bluethenics.com", open: url => shell.openExternal(url), cancellation: cancel => { cancelActive = cancel; } });
 
   const verifier = base64url(randomBytes(32));
   const challenge = base64url(createHash("sha256").update(verifier).digest());

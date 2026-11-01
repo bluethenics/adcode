@@ -15,6 +15,7 @@
  */
 import { CONTINUE_PROMPT, describeAiFailure, OUTPUT_LIMIT_AGAIN, resumeAfterModelSwitch, retryAfterFailure, type AiFailure } from "./aiFailure.ts";
 import { createChatQueue, type QueuedMessage } from "./chatQueue.ts";
+import { sendWhenConversationIdle } from "./conversationSend.ts";
 import { createEditSummary } from "./editSummary.ts";
 import { chipLabel, modelChoices, rememberModel, switchedFrom, type ModelChoice, type ModelInUse } from "./modelSwitch.ts";
 import { askThemed } from "../dialogs/confirmDialog.ts";
@@ -3212,29 +3213,39 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
   /** Re-send a prompt, unless a turn is already running. */
   /** Output-limit stops since a turn last finished: a second one means Continue is not helping. */
   let outputLimitStops = 0;
+  let recoverySend: AbortController | null = null;
+  let recoveryWaiting = false;
+  let recoverySendGeneration = 0;
+  async function sendRecovery(prompt: string, attachments: readonly AiAttachmentView[] | undefined, editor: AiEditorContextView | null, stillWanted?: () => boolean): Promise<boolean> {
+    recoverySend?.abort();
+    const controller=new AbortController(), generation=++recoverySendGeneration, conversation=activeSessionId;
+    recoverySend=controller;
+    const current=()=>generation===recoverySendGeneration && activeSessionId===conversation && (stillWanted?.() ?? true);
+    try {
+      const ok=await sendWhenConversationIdle({sessionId:conversation,runs:()=>window.adcode.ai.runs(),subscribe:listener=>window.adcode.ai.onRunsChanged(listener),signal:controller.signal,current,waiting:()=>{recoveryWaiting=true;},sending:()=>{recoveryWaiting=false;},send:()=>window.adcode.ai.send(prompt,attachments,editor,conversation ?? undefined)});
+      if(!ok && current()){finishActivityFailed();setSendMode("send");}
+      return ok;
+    } catch(error) {
+      if(!controller.signal.aborted && current()) { finishActivityFailed();setSendMode("send");failureCard(error instanceof Error?error.message:String(error)); }
+      return false;
+    } finally { if(recoverySend===controller){recoverySend=null;recoveryWaiting=false;} }
+  }
   /**
    * Send once the turn that just ended has fully returned. The step-limit error arrives
    * while main is still finishing that turn, and a send in that moment is refused.
    */
-  function continueWhenIdle(prompt: string, attempts = 12, stillWanted?: () => boolean): void {
+  function continueWhenIdle(prompt: string, _attempts = 12, stillWanted?: () => boolean): void {
     if (stillWanted !== undefined && !stillWanted()) return;
     setSendMode("stop");
     streamingBubble = null;
-    void window.adcode.ai.send(prompt, undefined, currentEditorContext()).then((ok) => {
-      if (!ok) setSendMode("send");
-    }, (error: unknown) => {
-      if (attempts > 0 && /already handling/i.test(String(error))) {
-        window.setTimeout(() => continueWhenIdle(prompt, attempts - 1, stillWanted), 400);
-        return;
-      }
-      setSendMode("send");
-    });
+    void sendRecovery(prompt,undefined,currentEditorContext(),stillWanted);
   }
 
   function resend(prompt: string): boolean {
     if (sendButton.dataset["mode"] === "stop") return false;
     if (prompt.trim().length === 0) return false;
     const editor = currentEditorContext();
+    const conversation=activeSessionId;
     if (parseSlashCommand(prompt)?.command.kind === "diff") {
       // A retried /review or /commit looks at the changes as they are now, attached again.
       void (deps.uncommittedDiff?.() ?? Promise.resolve(""))
@@ -3242,10 +3253,10 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         .then((diff) => {
           const data = diff.length > MAX_TEXT_CHARS ? diff.slice(0, MAX_TEXT_CHARS) : diff;
           const attached: AiAttachmentView[] = data.trim().length === 0 ? [] : [{ name: DIFF_CHIP, kind: "text", mediaType: "text/plain", data }];
-          return window.adcode.ai.send(prompt, attached.length === 0 ? undefined : attached, editor);
+          return sendRecovery(prompt, attached.length === 0 ? undefined : attached, editor,()=>activeSessionId===conversation);
         })
         .catch(() => undefined);
-    } else void window.adcode.ai.send(prompt, undefined, editor).catch(() => undefined);
+    } else void sendRecovery(prompt, undefined, editor);
     setSendMode("stop");
     streamingBubble = null;
     return true;
@@ -3359,16 +3370,17 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
         // links - a newcomer's first build carries on instead of waiting to be retyped.
         const request = lastUserPrompt;
         let waiting: (() => void) | null = null;
-        const signIn = action("Sign in", () => {
+        const needsVerification=failure.title==="Verify your email to use free AI";
+        const signIn = action(needsVerification?"Verify email":"Sign in", () => {
           deps.openAccount?.();
           if (waiting !== null || request.trim().length === 0) return;
-          signIn.textContent = "Waiting for sign-in…";
+          signIn.textContent = needsVerification?"Waiting for verification…":"Waiting for sign-in…";
           waiting = window.adcode.account.onChanged((state) => {
             if (state.state !== "linked") return;
             waiting?.(); waiting = null;
-            signIn.textContent = "Signed in";
+            signIn.textContent = needsVerification?"Email verified":"Signed in";
             signIn.disabled = true;
-            text.textContent = "You're signed in. Sending your message again…";
+            text.textContent = needsVerification?"Your email is verified. Sending your message again…":"You're signed in. Sending your message again…";
             continueWhenIdle(request);
           });
         }, primary);
@@ -4971,9 +4983,12 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
    */
   function stopTurn(): void {
     if (sendButton.dataset["mode"] !== "stop") return;
+    const onlyWaiting=recoveryWaiting && (activeSessionId===null || !runningChats.has(activeSessionId));
+    recoverySend?.abort(); recoverySend=null; recoveryWaiting=false; recoverySendGeneration+=1;
     waitingForIncludedLimit = false;
     includedWaitGeneration += 1;
     closeOpenMenu();
+    if(onlyWaiting){setSendMode("send");return;}
     workingText.textContent = "Stopping";
     workingStop.disabled = true;
     window.adcode.ai.cancel(activeSessionId ?? undefined);
@@ -5007,22 +5022,7 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       resetActivity();
       ensureTimeline();
     }
-    void window.adcode.ai.send(text, payload.length === 0 ? undefined : payload, currentEditorContext()).then(
-      (ok) => {
-        if (!ok) {
-          finishActivityFailed();
-          setSendMode("send");
-        }
-      },
-      (error: unknown) => {
-        if (attempts > 0 && /already handling/i.test(String(error))) {
-          window.setTimeout(() => sendQueued(item, attempts - 1), 400);
-          return;
-        }
-        finishActivityFailed();
-        setSendMode("send");
-      },
-    );
+    void sendRecovery(text, payload.length === 0 ? undefined : payload, currentEditorContext());
   }
 
   /** The next queued follow-up, once the turn before it has finished well. */
