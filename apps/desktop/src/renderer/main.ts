@@ -5924,6 +5924,7 @@ function registerCommands(): void {
     editorHost.triggerInlineCompletion(),
   );
   add("ai.newConversation", "New Conversation", () => chat.newConversation());
+  add("ai.forkConversation", "AI: Fork This Conversation", () => chat.forkConversation());
   add("ai.showConversations", "AI: Show Working Chats", () => chat.showConversations());
   add("ai.team", "Set Up AI Team", () => chat.openTeamSetup());
   add("ai.schedule", "Schedule an AI Message", () => chat.openScheduleComposer());

@@ -22,6 +22,11 @@ import {
   DELEGATE_TASK,
   withSubagents,
   BUNDLED_CATALOGUE,
+  CHAT_FORK_TOOLS,
+  CHAT_FORK_PARTICIPANT_TOOLS,
+  chatForkBriefing,
+  forkChatSession,
+  isChatForkTool,
   DEFAULT_ANTHROPIC_MODEL,
   SNAPSHOT_TAKEN_ON,
   TOOLS_WITHOUT_MEMORY,
@@ -113,6 +118,7 @@ import { resolveSandboxPath } from "./aiSandbox.ts";
 import { createCheckpointStore, type CheckpointTurn, type UndoResult } from "./aiCheckpoints.ts";
 import { announceFinishedUnseen, keepAwakeWhileWorking } from "./backgroundWork.ts";
 import { createChatRuns, KEEP_GOING_LIMIT, MAX_PARALLEL_CHATS, shouldKeepGoing } from "./chatRuns.ts";
+import { createChatForkService, MAX_FORKS_PER_CHAT, withChatForks, type ChatForkService } from "./aiChatForks.ts";
 import { CONTINUE_PROMPT } from "../shared/continuePrompt.ts";
 import { checkpointView, checkpointsForSession } from "./aiCheckpointView.ts";
 import { ADCODE_APP_TOOLS, ASSISTANT_EXTENSION_TOOLS, withAssistantExtensions } from "./assistantControls.ts";
@@ -626,6 +632,11 @@ function configuredEditPolicy(): "review" | "trusted" {
   return currentSettings()["adcode.ai.editPolicy"] === "review" ? "review" : "trusted";
 }
 
+/** Review mode stages a turn's edits in one task for Apply: one chat at a time there. */
+function maxParallelChats(): number {
+  return configuredEditPolicy() === "review" ? 1 : MAX_PARALLEL_CHATS;
+}
+
 // The debug log names the selected provider and model - ids only, never keys.
 describeDebugContext({
   aiSelection: () => {
@@ -705,6 +716,8 @@ interface ChatThread {
   status: ((text: string) => void) | null;
   /** What this conversation's sessionStart hooks printed; undefined until they have run. */
   startContext: string | null | undefined;
+  /** A fork is told what it is and who its siblings are once, before its first turn. */
+  forkBriefed: boolean;
   /** Stops a running hook command when the person presses Stop. */
   hookAbort: AbortController | null;
 }
@@ -715,8 +728,31 @@ const IDLE_THREADS_KEPT = 8;
 
 const runs = createChatRuns({
   // Review mode stages a turn's edits in one task for Apply: one chat at a time there.
-  maxParallel: () => (configuredEditPolicy() === "review" ? 1 : MAX_PARALLEL_CHATS),
+  maxParallel: () => maxParallelChats(),
 });
+
+/**
+ * The fork family's shared state: mailboxes, who is working, and the tools that start and
+ * message visible chats. Created once and reused by every agent, so a fork started in one
+ * turn is still reachable from the next.
+ */
+let chatForkService: ChatForkService | null = null;
+function chatForks(): ChatForkService {
+  chatForkService ??= createChatForkService({
+    sessions: () => aiSessions(),
+    write: async (fork) => {
+      // A fork belongs to the project its parent was started in, even if the window has
+      // moved on by the time the child is written.
+      const root = threads.get(fork.parentId ?? "")?.root ?? currentWorkspace()?.root ?? null;
+      await writeSession(root, fork);
+    },
+    isRunning: (sessionId) => runs.isRunning(sessionId),
+    startTurn: (sessionId, text) => aiSend(text, [], null, sessionId),
+    cancel: (sessionId) => aiCancel(sessionId),
+    freeSlots: () => maxParallelChats() - runs.list().length,
+  });
+  return chatForkService;
+}
 
 function threadFor(chat: ChatSession): ChatThread {
   const existing = threads.get(chat.id);
@@ -739,6 +775,7 @@ function threadFor(chat: ChatSession): ChatThread {
     lastUsed: Date.now(),
     status: null,
     startContext: undefined,
+    forkBriefed: false,
     hookAbort: null,
   };
   threads.set(chat.id, created);
@@ -840,6 +877,30 @@ export async function aiResumeSession(id: string): Promise<ChatSession | null> {
 /** What the assistant is carrying into the next turn, for the memory strip. */
 export function aiCurrentSession(): ChatSession | null {
   return session;
+}
+
+/**
+ * Copy a conversation into its own visible chat, leaving the original where it is.
+ *
+ * The manual counterpart of the `fork_chats` tool: same record, same family, no task to run.
+ * It is refused for a fork and once the family is full, so the sidebar cannot grow a tree.
+ */
+export async function aiForkSession(id: string): Promise<ChatSession | null> {
+  const all = await aiSessions();
+  const parent = threads.get(id)?.session ?? all.find((one) => one.id === id) ?? null;
+  if (parent === null || parent.parentId !== undefined) return null;
+  if (all.filter((one) => one.parentId === parent.id).length >= MAX_FORKS_PER_CHAT) return null;
+  const at = Date.now();
+  const suffix = " (fork)";
+  const child = forkChatSession({
+    parent,
+    id: `s${randomUUID()}`,
+    title: `${parent.title.slice(0, 120 - suffix.length)}${suffix}`,
+    at,
+  });
+  const root = threads.get(id)?.root ?? currentWorkspace()?.root ?? null;
+  await writeSession(root, child);
+  return child;
 }
 
 /** The conversations working right now. */
@@ -1486,12 +1547,22 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
   const lean = providerId === "ollama";
   // Sub-agents share this runner, so their edits land in the same undoable turn. A lean
   // (local) model is not offered them: it should not be juggling helpers.
-  const runner = withBuiltinSkills(withAssistantExtensions(toolRunner(() => thread.checkpoint, () => thread.session.id)), designTasteOn);
+  const baseRunner = withBuiltinSkills(withAssistantExtensions(toolRunner(() => thread.checkpoint, () => thread.session.id)), designTasteOn);
   // The project's tool rules and hooks check every call exactly once: the chat's own calls
   // (delegate_task included) at its runner, each helper's at the helpers' runner.
   const rules = { root: () => thread.root, sessionId: () => thread.session.id };
-  const helperRunner = withAgentRules(runner, { ...rules, agent: "helper" });
-  const tools = lean ? chatTools() : [...chatTools(), DELEGATE_TASK];
+  const helperRunner = withAgentRules(baseRunner, { ...rules, agent: "helper" });
+  // Forks talk to their family; only the main chat can start or stop one.
+  const isFork = thread.session.parentId !== undefined;
+  const forkRunner = withChatForks(baseRunner, {
+    service: chatForks(),
+    session: () => thread.session,
+  });
+  const tools = [
+    ...chatTools(),
+    ...(isFork ? CHAT_FORK_PARTICIPANT_TOOLS : CHAT_FORK_TOOLS),
+    ...(lean || isFork ? [] : [DELEGATE_TASK]),
+  ];
   const context = async (): Promise<string> => {
       const root = thread.root;
       let blocker: string | null = null;
@@ -1529,9 +1600,11 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
     compaction: compactionFor(providerId, model),
     initialMessages: carried ?? restoreHistory(thread.session),
     context,
-    runner: withAgentRules(withSubagents(runner, {
+    runner: withAgentRules(withSubagents(forkRunner, {
       start: (_task, helperTools) => helper(helperTools),
-      tools: () => tools,
+      // Helpers are hidden and cannot reach the fork service; a fork must stay a visible chat
+      // started by the main conversation.
+      tools: () => tools.filter((tool) => !isChatForkTool(tool.name)),
       status: (text) => thread.status?.(text),
       onEvent: (_task, event) => { if (event.kind === "usage") noteUsage("agents", providerId, model, event); },
     }), { ...rules, agent: "chat" }),
@@ -1700,6 +1773,19 @@ export async function aiSend(
   }
 }
 
+/** What a fork is told once, before its first turn: its parent, its task and its siblings. */
+async function forkBriefingFor(thread: ChatThread): Promise<string | null> {
+  const parentId = thread.session.parentId;
+  if (parentId === undefined) return null;
+  const all = await aiSessions();
+  const parent = all.find((session) => session.id === parentId);
+  return chatForkBriefing({
+    parentTitle: parent?.title ?? "the main chat",
+    task: thread.session.forkTask ?? "",
+    siblings: all.filter((session) => session.parentId === parentId && session.id !== thread.session.id).map((session) => session.title),
+  });
+}
+
 /** One turn of a conversation: the message, the model's work on it, and saving the result. */
 async function runTurn(
   thread: ChatThread,
@@ -1744,7 +1830,14 @@ async function runTurn(
     const { images, documentText, names } = splitAttachments(attachments);
     // `/fix the login bug` is recorded as typed - the bubble and the title read that way -
     // and only the model is given the command's full instruction.
-    const turnText = `${expandSlashCommand(text)}${documentText}`;
+    let turnText = `${expandSlashCommand(text)}${documentText}`;
+    // A fork's first request explains the family it belongs to. The task itself is the
+    // message, so this is context rather than another bubble in the transcript.
+    if (!thread.forkBriefed && thread.session.parentId !== undefined) {
+      thread.forkBriefed = true;
+      const briefing = await forkBriefingFor(thread).catch(() => null);
+      if (briefing !== null) turnText = `${briefing}\n\n${turnText}`;
+    }
     const recordedText =
       names.length === 0 ? text : `${text}\n[Attached: ${names.join(", ")}]`;
 

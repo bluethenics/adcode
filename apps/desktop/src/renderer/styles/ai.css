@@ -806,6 +806,12 @@
   background: var(--bg-active);
 }
 
+.chat-history-row[data-fork="true"] {
+  margin-left: 20px;
+  border-left: 1px solid var(--border-hairline);
+  border-radius: 0 8px 8px 0;
+}
+
 .chat-history-open {
   flex: 1;
   min-width: 0;
@@ -2049,6 +2055,27 @@ button.chat-model[data-ready="false"]::before {
 
 .chat-identity { min-width: 0; }
 .chat-identity .chat-title { flex: none; }
+
+.chat-lineage {
+  justify-self: start;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 1px 8px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-tertiary);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chat-lineage:hover {
+  background: var(--bg-active);
+  color: var(--text-secondary);
+}
 
 .chat-connect-banner {
   display: flex;

@@ -146,6 +146,10 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     actions: [command("ai.delegate", "Split a task across helpers")],
     keywords: ["sub-agent", "subagent", "sub agents", "helpers", "agents start agents", "spawn agent", "delegate", "split task", "divide task", "parallel", "fan out", "task tool", "explore agent"],
   },
+  "ai.chatForks": {
+    actions: [command("ai.forkConversation", "Fork this conversation")],
+    keywords: ["fork", "fork chat", "branch conversation", "parallel chats", "chat with chat", "chats talk", "visible agent", "side chat", "split conversation", "new tab", "start another chat", "sibling chat", "main chat controls", "fork family"],
+  },
   "ai.agentRules": {
     actions: [command("ai.agentRules", "Open the project rules"), command("ai.agentRulesUser", "Open my rules for every project")],
     keywords: ["permissions", "permission rules", "allow", "deny", "ask first", "approval", "block a command", "git push", "hooks", "pre tool use", "post tool use", "stop hook", "session start", "settings.json", ".adcode/settings.json", "unattended", "guardrails", "safety", "claude code hooks", "lint after edit"],

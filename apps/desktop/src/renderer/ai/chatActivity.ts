@@ -47,6 +47,12 @@ export function toolHeaderLabel(toolName: string): string {
   const clean = toolName.trim();
   if (clean.length === 0) return "Working";
   if (clean === "delegate_task") return "Working with helpers";
+  if (clean === "fork_chats") return "Starting fork chats";
+  if (clean === "send_chat_message") return "Messaging a chat";
+  if (clean === "read_chat_messages") return "Reading chat messages";
+  if (clean === "wait_for_chat_forks") return "Waiting for fork chats";
+  if (clean === "list_chat_forks") return "Listing fork chats";
+  if (clean === "stop_chat") return "Stopping a chat";
   if (clean === "discover_capabilities") return "Finding tools and skills";
   if (clean === "load_skill") return "Reading skill instructions";
   if (clean === "load_builtin_skill") return "Reading product guidance";

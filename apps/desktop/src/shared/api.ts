@@ -624,6 +624,7 @@ export const CHANNELS = {
   aiSessionChanged: "ai:session-changed",
   aiSessions: "ai:sessions",
   aiResumeSession: "ai:resume-session",
+  aiForkSession: "ai:fork-session",
   aiRenameSession: "ai:rename-session",
   aiDeleteSession: "ai:delete-session",
   aiClearSessions: "ai:clear-sessions",
@@ -1195,6 +1196,12 @@ export interface ChatSessionView {
   readonly messages: readonly ChatMessageView[];
   /** The latest compaction summary; it stands for the first `coversUntil` messages. */
   readonly summary?: { readonly text: string; readonly coversUntil: number; readonly at: number } | null;
+  /** The main chat this conversation was forked from. Absent for a normal conversation. */
+  readonly parentId?: string;
+  /** When the fork was made; the copied history is everything before this. */
+  readonly forkedAt?: number;
+  /** The part the parent gave this fork. */
+  readonly forkTask?: string;
 }
 
 /** How full the chat's context is. Token counts are estimates. */
@@ -2175,6 +2182,8 @@ export interface AdcodeApi {
   readonly chat: {
     sessions(): Promise<readonly ChatSessionView[]>;
     resume(id: string): Promise<ChatSessionView | null>;
+    /** Copy this conversation into its own visible chat. Null when it cannot be forked. */
+    fork(id: string): Promise<ChatSessionView | null>;
     rename(id: string, title: string): Promise<readonly ChatSessionView[]>;
     remove(id: string): Promise<readonly ChatSessionView[]>;
     clear(): Promise<readonly ChatSessionView[]>;
