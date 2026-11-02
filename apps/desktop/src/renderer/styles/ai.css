@@ -806,10 +806,120 @@
   background: var(--bg-active);
 }
 
-.chat-history-row[data-fork="true"] {
-  margin-left: 20px;
+/*
+ * A chat with forks reads as one branch: the parent at the top, the forks indented
+ * under a thin spine, each joined by a short tick. Only the structure is new - the
+ * colours stay on the same theme tokens as every other History row.
+ */
+.chat-history-tree[data-forks="true"] > .chat-history-row {
+  border: 1px solid var(--border-hairline);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+}
+
+.chat-history-tree[data-forks="true"] > .chat-history-row:hover {
+  background: var(--bg-active);
+}
+
+.chat-history-tree[data-forks="true"] > .chat-history-row[data-active="true"] {
+  background: var(--bg-selected);
+}
+
+.chat-history-forks {
+  --fork-spine-top: -2px;
+  --fork-spine-end: 17px;
+  position: relative;
+  margin-left: 27px;
+  padding-left: 18px;
+}
+
+/* The card's rows are taller; the spine has to meet the last row's centre there too. */
+.chat-card .chat-history-forks {
+  --fork-spine-top: -4px;
+  --fork-spine-end: 23px;
+}
+
+.chat-history-forks::before {
+  content: "";
+  position: absolute;
+  top: var(--fork-spine-top);
+  bottom: var(--fork-spine-end);
+  left: 0;
   border-left: 1px solid var(--border-hairline);
-  border-radius: 0 8px 8px 0;
+}
+
+.chat-history-forks > .chat-history-row {
+  position: relative;
+  margin-left: 0;
+  margin-right: 8px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+}
+
+/*
+ * The card gives every row a 10px inline margin, which would pull a fork off the spine
+ * and leave its tick short. Geometry belongs to the tree, so it wins here.
+ */
+.chat-history .chat-history-forks > .chat-history-row {
+  margin-left: 0;
+}
+
+.chat-history-forks > .chat-history-row:hover {
+  background: var(--bg-active);
+}
+
+.chat-history-forks > .chat-history-row[data-active="true"] {
+  background: var(--bg-selected);
+}
+
+.chat-history-forks > .chat-history-row::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -18px;
+  width: 18px;
+  border-top: 1px solid var(--border-hairline);
+}
+
+.chat-history-toggle {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.chat-history-toggle svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 140ms ease;
+}
+
+.chat-history-toggle[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
+.chat-history-toggle:hover,
+.chat-history-toggle:focus-visible {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.chat-history-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .chat-history-open {
@@ -2725,6 +2835,10 @@ button.chat-model[data-ready="false"]::before {
 
 /* History: current conversation stays legible, not orange. */
 .chat-card .chat-history-row[data-active="true"] {
+  background: var(--bg-active);
+}
+
+.chat-card .chat-history-tree[data-forks="true"] > .chat-history-row[data-active="true"] {
   background: var(--bg-active);
 }
 

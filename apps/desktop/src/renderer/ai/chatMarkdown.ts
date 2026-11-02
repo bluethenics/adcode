@@ -338,6 +338,51 @@ export interface ChatSessionGroup {
 }
 
 /**
+ * Chats split into the conversations that stand on their own and the forks that hang
+ * beneath them. Forks are one level deep by design, so a session only nests when its
+ * parent is present and is itself a root; an orphan or a malformed chain stays visible
+ * as its own row rather than disappearing.
+ */
+export function groupChatForks<T extends {
+  readonly id: string;
+  readonly title: string;
+  readonly parentId?: string;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}>(sessions: readonly T[]): {
+  readonly roots: readonly T[];
+  readonly children: ReadonlyMap<string, readonly T[]>;
+  /** When each root's branch last moved; a working fork speaks for its whole family. */
+  readonly activity: ReadonlyMap<string, number>;
+} {
+  const byId = new Map(sessions.map((session) => [session.id, session] as const));
+  const children = new Map<string, T[]>();
+  const roots: T[] = [];
+  for (const session of sessions) {
+    const parent = session.parentId === undefined ? undefined : byId.get(session.parentId);
+    if (parent === undefined || parent.id === session.id || parent.parentId !== undefined) {
+      roots.push(session);
+      continue;
+    }
+    const siblings = children.get(parent.id);
+    if (siblings === undefined) children.set(parent.id, [session]);
+    else siblings.push(session);
+  }
+  // Creation order is stable while a fork works; newest-under-parent is not.
+  for (const siblings of children.values()) {
+    siblings.sort((a, b) => a.createdAt - b.createdAt || a.title.localeCompare(b.title));
+  }
+  const activity = new Map<string, number>();
+  for (const root of roots) activity.set(root.id, root.updatedAt);
+  for (const [parentId, siblings] of children) {
+    let latest = activity.get(parentId) ?? 0;
+    for (const fork of siblings) latest = Math.max(latest, fork.updatedAt);
+    activity.set(parentId, latest);
+  }
+  return { roots, children, activity };
+}
+
+/**
  * Claude-style "Chats and tasks" grouping: Today, Yesterday, Previous 7 days,
  * Previous 30 days, Older. Pure date math on `updatedAt`, newest first.
  */

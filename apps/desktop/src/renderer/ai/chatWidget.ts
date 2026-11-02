@@ -70,6 +70,7 @@ import { markFor } from "../motionFlip.ts";
 import { button as dialogButton, el as dialogEl, openFormModal } from "../dialogs/formDialog.ts";
 import type { CodeReference } from "../editor/codeReferences.ts";
 import {
+  groupChatForks,
   groupChatSessions,
   renderChatMessageHtml,
 } from "./chatMarkdown.ts";
@@ -1027,6 +1028,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
 
   let saved: readonly ChatSessionView[] = [];
   let activeSessionId: string | null = null;
+  /** Parent chats whose fork list is folded away in History. */
+  const collapsedForks = new Set<string>();
 
   /*
    * Chats working at once. A turn belongs to its conversation, not to this window: it goes on
@@ -1162,6 +1165,8 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       return;
     }
     saved = await window.adcode.chat.sessions();
+    // A new fork should not arrive inside a branch the person had folded away.
+    collapsedForks.delete(id);
     renderHistory();
     await resume(child.id);
     complain("Forked into a new conversation. Both stay in History.");
@@ -1174,7 +1179,15 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     if (historyOpen) void refreshHistory();
   }
 
-  function renderHistoryRow(session: ChatSessionView): HTMLElement {
+  interface HistoryRowTree {
+    /** How many forks hang under this row; zero means no disclosure control. */
+    readonly forkCount?: number;
+    readonly forksId?: string;
+    readonly forksOpen?: boolean;
+    readonly onToggleForks?: (open: boolean) => void;
+  }
+
+  function renderHistoryRow(session: ChatSessionView, tree: HistoryRowTree = {}): HTMLElement {
     const row = document.createElement("div");
     row.className = "chat-history-row";
     if (session.id === activeSessionId) row.dataset["active"] = "true";
@@ -1257,7 +1270,64 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
     });
 
     row.append(openIt, options);
+
+    if ((tree.forkCount ?? 0) > 0) {
+      const count = tree.forkCount ?? 0;
+      const label = count === 1 ? "1 fork chat" : `${String(count)} fork chats`;
+      const open = tree.forksOpen !== false;
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "chat-history-toggle";
+      toggle.append(createIcon(ICON.chevronDown));
+      toggle.dataset["collapsed"] = open ? "false" : "true";
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      toggle.setAttribute("aria-label", `${open ? "Hide" : "Show"} ${label}`);
+      toggle.title = `${open ? "Hide" : "Show"} ${label}`;
+      if (tree.forksId !== undefined) toggle.setAttribute("aria-controls", tree.forksId);
+      toggle.addEventListener("click", () => {
+        const next = toggle.getAttribute("aria-expanded") !== "true";
+        tree.onToggleForks?.(next);
+        toggle.setAttribute("aria-expanded", next ? "true" : "false");
+        toggle.dataset["collapsed"] = next ? "false" : "true";
+        const nextLabel = `${next ? "Hide" : "Show"} ${label}`;
+        toggle.setAttribute("aria-label", nextLabel);
+        toggle.title = nextLabel;
+      });
+      row.append(toggle);
+    }
     return row;
+  }
+
+  /** A root chat and its forks, drawn as one branch of the History tree. */
+  function renderHistoryTree(root: ChatSessionView, forks: readonly ChatSessionView[]): HTMLElement {
+    const tree = document.createElement("div");
+    tree.className = "chat-history-tree";
+    const open = !collapsedForks.has(root.id);
+    let group: HTMLElement | null = null;
+    if (forks.length > 0) {
+      group = document.createElement("div");
+      group.className = "chat-history-forks";
+      group.id = `chat-history-forks-${root.id}`;
+      group.hidden = !open;
+      tree.dataset["forks"] = "true";
+    }
+    const row = renderHistoryRow(root, {
+      forkCount: forks.length,
+      ...(group === null ? {} : { forksId: group.id }),
+      forksOpen: open,
+      onToggleForks: (next) => {
+        if (group === null) return;
+        group.hidden = !next;
+        if (next) collapsedForks.delete(root.id);
+        else collapsedForks.add(root.id);
+      },
+    });
+    tree.append(row);
+    if (group !== null) {
+      for (const fork of forks) group.append(renderHistoryRow(fork));
+      tree.append(group);
+    }
+    return tree;
   }
 
   function renderHistory(): void {
@@ -1283,21 +1353,25 @@ export function createChatWidget(deps: ChatWidgetDeps): ChatWidget {
       return;
     }
 
+    const { roots, children, activity } = groupChatForks(shown);
+    const recency = (session: ChatSessionView): number => activity.get(session.id) ?? session.updatedAt;
     if (needle.length > 0) {
-      for (const session of [...shown].sort((a, b) => b.updatedAt - a.updatedAt)) {
-        historyList.append(renderHistoryRow(session));
+      for (const root of [...roots].sort((a, b) => recency(b) - recency(a))) {
+        historyList.append(renderHistoryTree(root, children.get(root.id) ?? []));
       }
       return;
     }
 
-    for (const group of groupChatSessions(shown)) {
+    const rootsById = new Map(roots.map((root) => [root.id, root] as const));
+    const dated = roots.map((root) => ({ id: root.id, title: root.title, updatedAt: recency(root) }));
+    for (const group of groupChatSessions(dated)) {
       const heading = document.createElement("h3");
       heading.className = "chat-history-group";
       heading.textContent = group.label;
       historyList.append(heading);
       for (const entry of group.sessions) {
-        const full = shown.find((session) => session.id === entry.id);
-        if (full) historyList.append(renderHistoryRow(full));
+        const root = rootsById.get(entry.id);
+        if (root) historyList.append(renderHistoryTree(root, children.get(root.id) ?? []));
       }
     }
   }
