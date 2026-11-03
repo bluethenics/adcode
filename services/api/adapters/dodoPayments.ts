@@ -89,10 +89,11 @@ export function createDodoProvider(): PaymentProvider {
             customer: { name: request.advertiserName, email: request.advertiserEmail },
             billing_address: { country: request.billingCountry },
             metadata: { ...request.metadata, orderId: request.orderId },
-            ...(request.product === "ai-wallet" ? { feature_flags: { allow_discount_code: false, allow_currency_selection: false } } : {}),
-            // Fulfilment checks a token pack against its USD price; a local-currency charge could
-            // never match it, so the buyer paid and got nothing. Charge token packs in USD.
-            ...(request.product === "ai-tokens" ? { billing_currency: "USD", feature_flags: { allow_currency_selection: false } } : {}),
+            // Every one-time order is fulfilled from a USD amount, and the webhook drops any other
+            // currency for advertiser and wallet top-ups (only a token pack is held for review).
+            // A local-currency charge meant the buyer paid and got nothing - four token packs on
+            // 1-2 November 2026 - so every one-time checkout is charged in USD.
+            ...(subscription ? {} : { billing_currency: "USD", feature_flags: { allow_currency_selection: false, ...(request.product === "ai-wallet" ? { allow_discount_code: false } : {}) } }),
           }),
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });
