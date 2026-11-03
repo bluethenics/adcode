@@ -86,13 +86,13 @@ export default function Home() {
         <div className="marketplace-wrap">
           <div className="home-advertiser-intro" data-home-reveal>
             <header><p className="marketplace-eyebrow">Advertise on ADCode</p><h2>Good tools meet<br />the right people.</h2><p>Reach developers as they build. Start from <strong>$1 per 500 verified impressions.</strong></p></header>
-            <Link className="home-link-button" href="/portal">Start advertising <Icon node={ArrowUpRight} /></Link>
+            <Link className="home-link-button" href="/advertisers">Start advertising <Icon node={ArrowUpRight} /></Link>
           </div>
           {/* Open from the start: the bid builder answers "what would it cost me", which is the question that brings an advertiser this far. */}
           <details className="home-campaign-details" open>
             <summary><span><strong>Create your first campaign</strong><span>Set your bid and preview your ad.</span></span><span className="home-details-toggle" aria-hidden="true">+</span></summary>
             <LandingBidBuilder />
-            <section className="marketplace-principles" aria-label="How ADCode advertising works"><div className="marketplace-wrap"><p><span>01</span><strong>Verified attention</strong><small>Only a real, eligible view can bill.</small></p><p><span>02</span><strong>Second-price auction</strong><small>Win at your maximum; often pay less.</small></p><p><span>03</span><strong>Human review</strong><small>Every creative is checked before delivery.</small></p></div></section>
+            <section className="marketplace-principles" aria-label="How ADCode advertising works"><div className="marketplace-wrap"><p><span>01</span><strong>Verified attention</strong><small>Only a real, eligible view can bill.</small></p><p><span>02</span><strong>Second-price auction</strong><small>Win at your maximum; often pay less.</small></p><p><span>03</span><strong>Checked on submit</strong><small>Automated checks run before a card can serve.</small></p></div></section>
           </details>
         </div>
       </section>

@@ -108,7 +108,7 @@ export function Nav() {
       <Link href="/#product" className="glass-nav-link">Product</Link>
       <Link href="/pricing" className="glass-nav-link" aria-current={pathname === "/pricing" ? "page" : undefined}>Pricing</Link>
       <a href="/#about" className="glass-nav-link">About us</a>
-      <Link href="/portal" className="glass-nav-link">Advertise</Link>
+      <Link href="/advertisers" className="glass-nav-link" aria-current={pathname === "/advertisers" ? "page" : undefined}>Advertise</Link>
       <Link
         href="/docs"
         className="glass-nav-link"

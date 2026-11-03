@@ -5,7 +5,7 @@ import { ArrowUpRight } from "lucide";
 export function PortalActions() {
   return (
     <span className="glass-portal-rail" role="group" aria-label="Advertise on ADCode">
-      <Link href="/portal" className="glass-portal-button header-advertise">
+      <Link href="/advertisers" className="glass-portal-button header-advertise">
         <span>Advertise</span><i aria-hidden="true"><Icon node={ArrowUpRight} /></i>
       </Link>
     </span>
