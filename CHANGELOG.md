@@ -3,7 +3,7 @@
 All notable changes to ADCode. Dates are the date the version was prepared; a version is
 only public once its installers are attached to a GitHub release.
 
-## 2.4.12 — 2026-11-03
+## 2.4.13 — 2026-11-03
 
 - **Fork chats.** One conversation can split a job into visible fork chats that work at the same time, already know the conversation, and message each other and the main chat. The assistant forks independent multi-step work by itself and says which forks it started; turn this off in Settings > AI > Fork chats on its own. Fork with the Fork button, a conversation's menu, or AI: Fork This Conversation. History shows each family as a tree. A wait for forks returns after ten minutes with their progress, so a stuck fork never holds the main chat.
 - **Credits that say what is happening.** Running out of today's credits pauses a task until the refill instead of failing, and the card says when, with Upgrade plan and Buy credits to keep going now. The composer meter shows credits spent, not credits held for a reply in progress, so it no longer plunges and recovers. A credit shortfall is no longer called a conversation that is too big.
@@ -12,6 +12,10 @@ only public once its installers are attached to a GitHub release.
 - **More room on smaller screens.** AI usage scrolls as one, with the range tabs pinned at the top. Under 900 pixels tall, the sidebar's links fold into one row of icons, so chat history keeps its space.
 - **New tags.** Models and features added in the last 45 days are marked New in the model menu, Connect a model and the Feature library.
 - **Smaller changes.** Join Discord shows Discord's icon. "1 chats are already working" now names the busy chat. Buy actions say credits, not tokens. Starting or joining a live session is paused; a session already running can still be managed and left.
+
+## 2.4.12 — 2026-11-03 (build withheld)
+
+- Tagged but never built: the release check found a high-severity advisory in the re2js regular expression library. 2.4.13 ships the same changes with re2js updated to 2.9.1.
 
 ## 2.4.11 — 2026-11-01
 
