@@ -104,6 +104,16 @@ export function chatForkBriefing(input: {
   ].filter((line): line is string => line !== null).join("\n");
 }
 
+/**
+ * What the main chat is told when it may fork without being asked. The tool's own description
+ * says what forks are; this says when to reach for them, so a model splits a large independent
+ * job by itself instead of grinding through it serially (owner's request, 3 November 2026).
+ */
+export const AUTO_FORK_GUIDANCE = [
+  "Parallel work: when the user's request has two or more independent parts that each need several steps of real work - separate features, separate files or areas, an investigation alongside a build, tests alongside the code - start them as fork chats with fork_chats instead of doing them one after another, and say in one line which forks you started.",
+  "Keep small, quick or tightly connected work in this chat, and do not fork just to read a few files. Give each fork the files it owns so two forks never edit the same file, then collect their reports with wait_for_chat_forks, check the result, and summarise it for the user.",
+].join(" ");
+
 export const FORK_CHATS: ToolDefinition = {
   name: FORK_CHATS_NAME,
   description: [

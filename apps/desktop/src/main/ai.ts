@@ -25,6 +25,7 @@ import {
   BUNDLED_CATALOGUE,
   CHAT_FORK_TOOLS,
   CHAT_FORK_PARTICIPANT_TOOLS,
+  AUTO_FORK_GUIDANCE,
   chatForkBriefing,
   forkChatSession,
   isChatForkTool,
@@ -1624,6 +1625,9 @@ async function ensureChatAgent(thread: ChatThread, providerId: string, model: st
         // A lean request does not offer the guide's tool, so it is not told about the guide.
         lean ? null : builtinSkillGuidance(designTasteOn()),
         await agentRulesContext(root).catch(() => null),
+        // The main chat splits independent multi-step work into forks by itself unless turned off.
+        // Review mode runs one chat at a time, so forks could not start there.
+        !isFork && currentSettings()["adcode.ai.autoFork"] !== false && configuredEditPolicy() !== "review" ? AUTO_FORK_GUIDANCE : null,
         thread.startContext ?? null,
       ].filter((line): line is string => line !== null).join("\n");
   };

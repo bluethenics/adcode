@@ -162,6 +162,7 @@ const METADATA: Readonly<Record<string, FeatureMetadata>> = {
     keywords: ["sub-agent", "subagent", "sub agents", "helpers", "agents start agents", "spawn agent", "delegate", "split task", "divide task", "parallel", "fan out", "task tool", "explore agent"],
   },
   "ai.chatForks": {
+    added: "2026-11-03",
     actions: [command("ai.forkConversation", "Fork this conversation")],
     keywords: ["fork", "fork chat", "branch conversation", "parallel chats", "chat with chat", "chats talk", "visible agent", "side chat", "split conversation", "new tab", "start another chat", "sibling chat", "main chat controls", "fork family"],
   },

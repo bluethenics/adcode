@@ -130,3 +130,12 @@ describe("session validation", () => {
     expect(invalid?.forkTask).toBeUndefined();
   });
 });
+
+describe("forking without being asked", () => {
+  it("tells the main chat when to fork, using the tools it is actually offered", async () => {
+    const { AUTO_FORK_GUIDANCE, CHAT_FORK_TOOLS } = await import("../src/chatForks.ts");
+    const offered = CHAT_FORK_TOOLS.map((tool) => tool.name);
+    for (const name of AUTO_FORK_GUIDANCE.match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? []) expect(offered, name).toContain(name);
+    expect(AUTO_FORK_GUIDANCE).toMatch(/independent parts/);
+  });
+});

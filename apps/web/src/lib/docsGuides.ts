@@ -1353,13 +1353,15 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
 
   "ai-chat-forks": {
     steps: [
-      "Ask for a job with independent parts, or start the fork yourself: press Fork in the chat header, choose Fork this conversation from a conversation's ••• menu, or run AI: Fork This Conversation.",
+      "Ask for a job with independent parts - a page, its API and its tests, say. The assistant splits it into forks by itself and says which forks it started; it keeps small or tightly connected work in one chat. To have it fork only when you ask, turn off Fork chats on its own in Settings > AI.",
+      "Or start a fork yourself: press Fork in the chat header, choose Fork this conversation from a conversation's ••• menu, or run AI: Fork This Conversation.",
       "A manual fork copies the conversation into its own chat and opens it. It is in History with a branch mark and the chip under its title opens the conversation it came from. It waits for your next message, so you can take it in a different direction.",
       "The assistant can start a family too. When a task splits cleanly it calls its fork tool with one to three titled parts; each fork opens its own chat, starts from a copy of the conversation and begins work on its part. A chat keeps up to six forks, and only the main chat can start or stop one.",
       "Let the family talk. Forks and the main chat can send each other short messages - a decision, a warning that two chats are about to edit the same file, or a question. A message to an idle chat starts it on that message; a message to a busy chat arrives at its next tool call.",
       "The main chat waits for its forks and reads their reports, then checks the combined result. A fork's reply is saved in its own history, so open it to read the whole turn.",
     ],
     benefits: [
+      "A large job finishes sooner: the assistant runs its independent parts at the same time instead of one after another, without being asked.",
       "Parallel work stays visible: each fork is a real chat with its own tab, history and Stop, not a hidden helper whose report is the only trace.",
       "Forks already know the conversation they came from, so you do not repeat the project brief for every part.",
       "The family divides the work and coordinates mid-task - useful when one part must warn another about a shared file or a changed decision.",
