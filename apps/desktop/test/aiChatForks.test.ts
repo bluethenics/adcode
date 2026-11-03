@@ -26,7 +26,7 @@ interface PendingTurn {
   fail(detail: string): Promise<void>;
 }
 
-function harness(options: { readonly free?: () => number } = {}) {
+function harness(options: { readonly free?: () => number; readonly maxWaitMs?: number } = {}) {
   let sessions: ChatSession[] = [parent];
   const running = new Set<string>();
   const pending: PendingTurn[] = [];
@@ -66,6 +66,7 @@ function harness(options: { readonly free?: () => number } = {}) {
     }),
     cancel: (id) => { cancelled.push(id); },
     freeSlots: options.free ?? (() => 4),
+    ...(options.maxWaitMs === undefined ? {} : { maxWaitMs: options.maxWaitMs }),
     id: () => `fork-${String(++nextId)}`,
     now: () => 50,
   });
@@ -245,5 +246,16 @@ describe("withChatForks", () => {
     const result = await runner.run({ type: "tool-call", id: "1", name: "fork_chats", input: tasks(1) }, new AbortController().signal);
     expect(result.isError).toBe(true);
     expect(result.content).toMatch(/no longer open/);
+  });
+});
+
+describe("waiting for forks", () => {
+  it("returns progress instead of holding the main chat forever when a fork hangs", async () => {
+    const h = harness({ maxWaitMs: 20 });
+    await h.service.create(parent, { tasks: [{ title: "Stuck", prompt: "Never finishes" }] });
+    const result = await h.service.wait(parent, {}, new AbortController().signal);
+    expect(result.isError).toBe(false);
+    expect(result.content).toMatch(/Waited 0 minutes. 0 of 1 fork chat finished; the rest are still working/);
+    expect(result.content).toContain("Stuck");
   });
 });

@@ -51,7 +51,16 @@ export interface ChatForkServiceDeps {
   readonly now?: () => number;
   readonly id?: () => string;
   readonly mailbox?: TeamMailbox;
+  /** How long one wait_for_chat_forks call may hold the main chat; defaults to ten minutes. */
+  readonly maxWaitMs?: number;
 }
+
+/**
+ * One wait returns after this long even if forks are still working. Without it a fork that
+ * hangs keeps the main chat - and its chat slot - waiting until someone presses Stop; with it
+ * the main chat gets the reports so far and decides whether to wait again, message, or stop.
+ */
+export const MAX_FORK_WAIT_MS = 10 * 60_000;
 
 export interface ChatForkService {
   create(parent: ChatSession, input: unknown): Promise<ToolRunResult>;
@@ -300,6 +309,7 @@ export function createChatForkService(deps: ChatForkServiceDeps): ChatForkServic
       }
 
       let stopped = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const onAbort = (): void => { stopped = true; };
       signal.addEventListener("abort", onAbort, { once: true });
       try {
@@ -309,8 +319,10 @@ export function createChatForkService(deps: ChatForkServiceDeps): ChatForkServic
             if (signal.aborted) resolve();
             else signal.addEventListener("abort", () => resolve(), { once: true });
           }),
+          new Promise<void>((resolve) => { timer = setTimeout(resolve, deps.maxWaitMs ?? MAX_FORK_WAIT_MS); }),
         ]);
       } finally {
+        clearTimeout(timer);
         signal.removeEventListener("abort", onAbort);
       }
 
@@ -325,7 +337,9 @@ export function createChatForkService(deps: ChatForkServiceDeps): ChatForkServic
       return done([
         stopped
           ? `Stopped waiting. ${String(waiting)} fork${waiting === 1 ? " is" : "s are"} still working; ask again with wait_for_chat_forks.`
-          : `${String(fresh.length - waiting)} of ${String(fresh.length)} fork chat${fresh.length === 1 ? "" : "s"} finished.`,
+          : waiting > 0
+            ? `Waited ${String(Math.round((deps.maxWaitMs ?? MAX_FORK_WAIT_MS) / 60_000))} minutes. ${String(fresh.length - waiting)} of ${String(fresh.length)} fork chat${fresh.length === 1 ? "" : "s"} finished; the rest are still working. Read their progress below, then wait again, send one a message, or stop it.`
+            : `${String(fresh.length - waiting)} of ${String(fresh.length)} fork chat${fresh.length === 1 ? "" : "s"} finished.`,
         "",
         ...sections,
         ...(inbox.length === 0 ? [] : ["", "Messages for you:", formatInbox(inbox, titleMap(freshAll))]),
