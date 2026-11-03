@@ -216,7 +216,8 @@ describe("included Tagflow AI", () => {
       now=end;
       const next=await chat("user",{...body,model:"heabsy-qwen38"});expect(next.status).toBe(200);await next.text();
       expect((await store.getPaidTokens("user",true)).free?.usedTokens).toBe(99);
-      expect(await (await call("/ai/tokens/orders","user")).json()).toMatchObject({tokens:{accounting:"cost-v1",free:{limit:2475000}}});
+      // A Weekly period from before the 3 November allowance change keeps the better of old and new.
+      expect(await (await call("/ai/tokens/orders","user")).json()).toMatchObject({tokens:{accounting:"cost-v1",free:{limit:3080000}}});
     });
     it("keeps Pro finite and refills daily", async () => {
       await store.giftPlan("user", "pro", 1, "admin-1", "gift", now);
@@ -331,7 +332,7 @@ describe("included Tagflow AI", () => {
       await save(withHeabsy({ ...DEFAULT_PAID_CONFIG, enabled: true }));
       const published = await (await call("/ai/tagflow/config")).json() as { paid: { enabled: boolean; packs: unknown[] }; models: { id: string; paid: boolean }[] };
       expect(published.paid).toMatchObject({ enabled: true, freeWeeklyTokens: 5_000_000 });
-      expect(published.paid.packs).toHaveLength(3);
+      expect(published.paid.packs.map((pack: { id: string }) => pack.id)).toEqual(["starter", "50m", "140m", "300m"]);
       expect(published.models.map(({ id, paid }) => [id, paid])).toEqual([["coder", true], ["glm", true]]);
     });
 
@@ -356,7 +357,7 @@ describe("included Tagflow AI", () => {
       const refused = await ask("glm");
       expect(refused.status).toBe(429);
       const { error } = await refused.json() as { error: { code: string; limit: string; retryable: boolean; resetsAt: number; buyUrl: string; message: string } };
-      expect(error).toMatchObject({ code: "daily-limit", limit: "paid", retryable: true, buyUrl: "https://adcode.bluethenics.com/ai-tokens" });
+      expect(error).toMatchObject({ code: "daily-limit", limit: "paid", retryable: true, buyUrl: "https://adcode.bluethenics.com/ai-tokens#packs" });
       expect(error.resetsAt).toBeGreaterThan(now);
       expect(error.message).toContain("https://adcode.bluethenics.com/ai-tokens");
       expect(error.message).toContain("included AI");

@@ -1400,7 +1400,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "ai-plans": {
     steps: [
       "Run AI: Upgrade Plan in ADCode or open adcode.bluethenics.com/ai-tokens. Sign in with the same verified account you use in the editor.",
-      "Choose Weekly ($3 a week, 225 credits each day), Monthly ($9 a month, 225 credits each day), or Pro ($29 a month, 900 credits each day). Monthly billing still gives a daily token allowance.",
+      "Choose Weekly ($3 a week, 280 credits each day), Monthly ($9 a month, 200 credits each day), or Pro ($29 a month, 650 credits each day). Monthly billing still gives a daily token allowance.",
       "Complete payment with Dodo. After payment is confirmed, your daily included AI allowance rises automatically. The page, AI usage and composer meter show your plan. Existing usage still counts toward the week; purchased tokens cover anything beyond your allowance.",
       "To change billing details or cancel, select Manage subscription on the same page. Cancelling keeps access until the paid period ends; afterward the account returns to its free allowance unless another plan or gift applies.",
       "With a Pro subscription, copy your invite code and share it with up to two friends. Each friend signs in and redeems it in the invite-code box before starting a paid plan. When their first subscription becomes active while your Pro plan is still active, you and that friend each receive 100 credits. Each friend earns the reward only once.",

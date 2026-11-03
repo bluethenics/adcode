@@ -17,6 +17,8 @@ export const DEFAULT_PAID_CONFIG: PaidConfig = {
   providers: ["custom-heabsy"],
   freeWeeklyTokens: 5_000_000,
   packs: [
+    // A first purchase under the $10 Boost, at the same $2 per 1,000 credits (3 November 2026).
+    { id: "starter", priceCents: 300, tokens: 16_500_000 },
     { id: "50m", priceCents: 1000, tokens: 55_000_000 },
     { id: "140m", priceCents: 2500, tokens: 154_000_000 },
     { id: "300m", priceCents: 5000, tokens: 330_000_000 },
@@ -24,6 +26,8 @@ export const DEFAULT_PAID_CONFIG: PaidConfig = {
 };
 export const COST_PAID_CONFIG: PaidConfig = { ...DEFAULT_PAID_CONFIG, accounting: "cost-v1", freeWeeklyTokens: 1_100_000 };
 export const BUY_TOKENS_URL = "https://adcode.bluethenics.com/ai-tokens";
+/** Where "Buy credits" lands when credits run out: the packs, smallest first. */
+export const BUY_PACKS_URL = `${BUY_TOKENS_URL}#packs`;
 export const TOKEN_ORDER_PREFIX = "ait_";
 const MAX_TOKENS = 10_000_000_000;
 

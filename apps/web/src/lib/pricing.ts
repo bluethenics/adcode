@@ -1,4 +1,4 @@
-import { INVITE_REWARD_TOKENS, PLANS } from "@adcode/api/src/aiPlans.ts";
+import { INVITE_REWARD_TOKENS, PLANS, type PlanSpec } from "@adcode/api/src/aiPlans.ts";
 import { PROJECT_PLANS, type ProjectPlan } from "../../../../packages/collab/src/projects.ts";
 export { PROJECT_PLANS };
 export function projectPlanBenefits(plan: ProjectPlan) {
@@ -22,17 +22,19 @@ export const price = (cents: number): string => `$${Number.isInteger(cents / 100
 export const CREDITS_PER_AGENT_STEP = 6.8;
 export const agentStepsPerDay = (units: number): number => Math.floor(units / 11_000 / CREDITS_PER_AGENT_STEP);
 /** A plan's price spread over its days, so a monthly figure reads at the scale it is used. */
-export const pricePerDay = (cents: number, interval: "week" | "month"): string => `${(cents / (interval === "week" ? 7 : 30) / 100).toFixed(2)}`;
+export const pricePerDay = (cents: number, interval: "week" | "month"): string => `$${(cents / (interval === "week" ? 7 : 30) / 100).toFixed(2)}`;
 export const PLAN_SUMMARY = PLANS.map(plan => `${plan.name} ${price(plan.priceCents)}/${plan.interval}`).join(", ");
-export const topUpName = (id: string): string => ({ "50m": "Boost", "140m": "Plus", "300m": "Power" } as Record<string, string>)[id] ?? "AI top-up";
-export const topUpDescription = (id: string): string => ({ "50m": "A little extra for your next task.", "140m": "More flexibility for a busy stretch.", "300m": "More room for your biggest projects." } as Record<string, string>)[id] ?? "Extra AI usage, whenever you need it.";
+export const topUpName = (id: string): string => ({ starter: "Starter", "50m": "Boost", "140m": "Plus", "300m": "Power" } as Record<string, string>)[id] ?? "AI top-up";
+export const topUpDescription = (id: string): string => ({ starter: "A small first top-up to finish what you started.", "50m": "A little extra for your next task.", "140m": "More flexibility for a busy stretch.", "300m": "More room for your biggest projects." } as Record<string, string>)[id] ?? "Extra AI usage, whenever you need it.";
 export const PACK_SUMMARY = COST_PAID_CONFIG.packs.map(pack => `${topUpName(pack.id)} ${price(pack.priceCents)} once`).join(", ");
+/** A plan's daily credits, from the plan table, so the copy cannot drift from what is enforced. */
+export const planCredits = (id: PlanSpec["id"]): string => creditAmount(PLANS.find(plan => plan.id === id)?.weeklyTokens ?? 0);
 export const PLAN_BENEFITS = {
-  weekly: { audience: "For a focused project", allowance: "225 credits a day", description: "All Heabsy models with the flexibility of weekly billing." },
-  monthly: { audience: "For your everyday workflow", allowance: "225 credits a day", description: "Keep your momentum with a daily refill and one monthly payment." },
-  pro: { audience: "For ambitious builds", allowance: "900 credits a day", description: "4× the Monthly allowance, plus rewards when friends join." },
-  max: { audience: "For your biggest projects", allowance: "3,000 credits a day", description: "4× Pro’s daily credits for $99 a month. Keep larger projects moving." },
-  unlimited: { audience: "Every hosted model, one plan", allowance: "7,500 daily credits · fair use", description: "Unlimited model access, including premium models. Usage pauses at the daily fair-use allowance; no automatic wallet charges." },
+  weekly: { audience: "For a focused project", allowance: `${planCredits("weekly")} credits a day`, description: "All Heabsy models with the flexibility of weekly billing." },
+  monthly: { audience: "For your everyday workflow", allowance: `${planCredits("monthly")} credits a day`, description: "Keep your momentum with a daily refill and one monthly payment." },
+  pro: { audience: "For ambitious builds", allowance: `${planCredits("pro")} credits a day`, description: "Over three times the Monthly allowance, plus rewards when friends join." },
+  max: { audience: "For your biggest projects", allowance: `${planCredits("max")} credits a day`, description: "Over three times Pro’s daily credits for $99 a month. Keep larger projects moving." },
+  unlimited: { audience: "Every hosted model, one plan", allowance: `${planCredits("unlimited")} daily credits · fair use`, description: "Unlimited model access, including premium models. Usage pauses at the daily fair-use allowance; no automatic wallet charges." },
 } as const;
 
 /** One included model's rates in credits per 1,000 tokens (equal to USD per million). */

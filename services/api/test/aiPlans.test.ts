@@ -1,12 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { effectiveWeeklyAllowance, hasActivePlan, hasUnlimitedPlan, requiresSubscription, parsePromo, planById, PLANS } from "../src/aiPlans.ts";
+import { effectiveWeeklyAllowance, hasActivePlan, hasUnlimitedPlan, requiresSubscription, parsePromo, planById, PLANS, ALLOWANCE_CHANGED_AT, planAllowance } from "../src/aiPlans.ts";
 
 describe("AI plans", () => {
   it("prices and sizes the five plans", () => {
     expect(PLANS.map((p) => [p.id, p.priceCents, p.interval, p.weeklyTokens, p.invites])).toEqual([
-      ["weekly", 300, "week", 2_475_000, 0], ["monthly", 900, "month", 2_475_000, 0], ["pro", 2900, "month", 9_900_000, 2], ["max", 9900, "month", 33_000_000, 0], ["unlimited", 29900, "month", 82_500_000, 0]]);
+      ["weekly", 300, "week", 3_080_000, 0], ["monthly", 900, "month", 2_200_000, 0], ["pro", 2900, "month", 7_150_000, 2], ["max", 9900, "month", 24_200_000, 0], ["unlimited", 29900, "month", 73_700_000, 0]]);
     expect(planById("pro")?.name).toBe("Pro");
     expect(planById("free")).toBeNull();
+  });
+
+  it("keeps a paid period bought before the change on its old allowance until it renews", () => {
+    const pro = planById("pro")!, weekly = planById("weekly")!, day = 86_400_000;
+    // Ends within a month of the change: it began before it, so it keeps 900 credits a day.
+    expect(planAllowance(pro, ALLOWANCE_CHANGED_AT + 20 * day)).toBe(9_900_000);
+    // The next period, bought after the change, gets the new allowance.
+    expect(planAllowance(pro, ALLOWANCE_CHANGED_AT + 40 * day)).toBe(7_150_000);
+    // Weekly went up, so every Weekly period gets the higher figure at once.
+    expect(planAllowance(weekly, ALLOWANCE_CHANGED_AT + day)).toBe(3_080_000);
+    expect(effectiveWeeklyAllowance({ plan: { id: "pro", endsAt: ALLOWANCE_CHANGED_AT + 20 * day, source: "subscription" }, boostTokens: 0 }, 1_100_000, ALLOWANCE_CHANGED_AT)).toBe(9_900_000);
   });
 
   it("takes the best of plan, boost and the free allowance", () => {

@@ -27,7 +27,7 @@ describe("AI plans on the website", () => {
     const html = renderToStaticMarkup(<PlanCards plans={PLANS} current="monthly" busy={null} onChoose={() => undefined} />);
     expect(html).toContain("$3"); expect(html).toContain("/week");
     expect(html).toContain("$9"); expect(html).toContain("$29"); expect(html).toContain("/month");
-    expect(html).toContain("900 credits a day"); expect(html).toContain("225 credits a day");
+    expect(html).toContain("650 credits a day"); expect(html).toContain("200 credits a day"); expect(html).toContain("$0.97 a day");
     expect(html).toContain("Invite 2 friends"); expect(html).toContain("Current plan");
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Monthly: current plan"/);
   });

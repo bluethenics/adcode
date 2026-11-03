@@ -11,9 +11,11 @@ describe("cost-based credits", () => {
     expect(HEABSY_PRICES).toHaveLength(37);
   });
   it("preserves purchased pack units and gives bounded daily allowances", () => {
-    expect(COST_PAID_CONFIG.packs.map(p => p.tokens / CREDIT_UNITS)).toEqual([5000, 14000, 30000]);
+    expect(COST_PAID_CONFIG.packs.map(p => p.tokens / CREDIT_UNITS)).toEqual([1500, 5000, 14000, 30000]);
+    // Starter is a smaller first purchase, not a discount: the same price per credit as Boost.
+    expect(COST_PAID_CONFIG.packs[0]!.priceCents / (COST_PAID_CONFIG.packs[0]!.tokens / CREDIT_UNITS)).toBe(COST_PAID_CONFIG.packs[1]!.priceCents / (COST_PAID_CONFIG.packs[1]!.tokens / CREDIT_UNITS));
     expect(COST_PAID_CONFIG.freeWeeklyTokens / CREDIT_UNITS).toBe(100);
-    expect(PLANS.map(p => p.weeklyTokens / CREDIT_UNITS)).toEqual([225, 225, 900, 3000, 7500]);
+    expect(PLANS.map(p => p.weeklyTokens / CREDIT_UNITS)).toEqual([280, 200, 650, 2200, 6700]);
     expect(hasUnlimitedPlan({ plan: { id: "pro", endsAt: 10, source: "subscription" }, boostTokens: 0 }, 1)).toBe(false);
   });
   it("keeps positive contribution even at 31 days of full subscription usage without the discount", () => {

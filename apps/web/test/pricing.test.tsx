@@ -19,7 +19,7 @@ describe("public pricing and existing checkout", () => {
     vi.mocked(readApi).mockRejectedValue(new Error("offline"));
     const html = renderToStaticMarkup(await PricingPage());
     expect(metadata.alternates?.canonical).toBe(url("/pricing"));
-    for (const amount of ["$3", "$9", "$29", "$10", "$25", "$50", "100 free credits", "225 credits", "900 credits", "5,000", "14,000", "30,000"]) expect(html).toContain(amount);
+    for (const amount of ["$3", "$9", "$29", "$10", "$25", "$50", "100 free credits", "280 credits", "650 credits", "2,200 credits", "$0.97 a day", "5,000", "14,000", "30,000"]) expect(html).toContain(amount);
     expect(html).toContain("Monthly for everyday tasks, Pro for daily coding, Max for larger projects");
     expect(html).toContain("Purchased credits never expire");
     expect(html).toContain("The standard catalogue is shown");

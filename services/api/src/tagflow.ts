@@ -16,7 +16,7 @@ import { HEABSY_RELEASE_DATES } from "./heabsyCatalog.ts";
 import { createWorkerSecrets, type WorkerSecrets } from "./workerSecrets.ts";
 import { includedProvider, isCustomProviderUrl, modelProvider, providerConnections, type IncludedProviderId } from "./includedProviders.ts";
 import { DEFAULT_CREDIT_PLAN, creditCharge, creditsView, millicreditsFor, modelCreditRate, parseCreditPlan, untilText, type CreditPlan } from "./credits.ts";
-import { BUY_TOKENS_URL, DEFAULT_PAID_CONFIG, TOKEN_ORDER_PREFIX, isSponsoredTagflow, isPaidModel, tokensView } from "./paidTokens.ts";
+import { BUY_PACKS_URL, BUY_TOKENS_URL, DEFAULT_PAID_CONFIG, TOKEN_ORDER_PREFIX, isSponsoredTagflow, isPaidModel, tokensView } from "./paidTokens.ts";
 import { CREDIT_UNITS, includedCharge, subscriptionCharge } from "./aiEconomics.ts";
 import { WALLET_MARKUP_PERCENT, WALLET_ORDER_PREFIX, WALLET_TOPUPS_CENTS, WALLET_URL, walletCharge, walletRates } from "./modelWallet.ts";
 import type { PaymentProvider } from "./payments.ts";
@@ -840,7 +840,7 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
           const refill = state.free?.endsAt ?? deps.clock.now() + 86_400_000;
           const free = offeredModels.find((model) => isSponsoredTagflow(model) && model.id !== parsed.model.id);
           const message = `You have ${(remaining / CREDIT_UNITS).toFixed(2)} credits left today - not enough for another step on ${parsed.model.name}. Your daily credits refill in ${untilText(refill, deps.clock.now())}, and a running task carries on by itself then.${free === undefined ? "" : ` ${free.name} uses no credits if you want to keep going now.`}${allModelAccess ? "" : ` Add credits or upgrade at ${BUY_TOKENS_URL}.`}`;
-          return json(429, { error: { code: "daily-limit", limit: "paid", message, retryable: true, resetsAt: refill, buyUrl: BUY_TOKENS_URL } }, { "retry-after": String(Math.max(1, Math.ceil((refill - deps.clock.now()) / 1000))) });
+          return json(429, { error: { code: "daily-limit", limit: "paid", message, retryable: true, resetsAt: refill, buyUrl: BUY_PACKS_URL } }, { "retry-after": String(Math.max(1, Math.ceil((refill - deps.clock.now()) / 1000))) });
         }
         if (remaining > 0 && outputBudget < Math.min(parsed.output, 512)) {
           await finishMetric("rejected", "credit-context");
@@ -897,7 +897,7 @@ function createTagflowCore(deps: TagflowOptions, health = createModelHealth(), s
           const state = await deps.store.getPaidTokens(auth.uid, costCredits);
           const refill = state.free?.endsAt ?? deps.clock.now() + 86_400_000;
           const message = allModelAccess ? `Your remaining daily fair-use credits cannot cover this request. Shorten the conversation or wait for your refill in ${untilText(refill, deps.clock.now())}. Your purchased balances are not charged automatically.` : costCredits ? `Your remaining credits cannot cover this request. Shorten the conversation, choose a cheaper model, or upgrade for more daily credits at ${BUY_TOKENS_URL}. Your daily allowance refills in ${untilText(refill, deps.clock.now())}.` : `You've used today's ${freeWeeklyTokens.toLocaleString("en-US")} free tokens on included AI models. Buy tokens or a plan at ${BUY_TOKENS_URL}, or use your own connected model. Your free tokens refill in ${untilText(refill, deps.clock.now())}.`;
-          return json(429, { error: { code: "daily-limit", limit: "paid", message, retryable: true, resetsAt: refill, buyUrl: BUY_TOKENS_URL } }, { "retry-after": String(Math.max(1, Math.ceil((refill - deps.clock.now()) / 1000))) });
+          return json(429, { error: { code: "daily-limit", limit: "paid", message, retryable: true, resetsAt: refill, buyUrl: BUY_PACKS_URL } }, { "retry-after": String(Math.max(1, Math.ceil((refill - deps.clock.now()) / 1000))) });
         }
         if (reserved === "session-limit" || reserved === "weekly-limit") {
           const view = creditsView(plan, await deps.store.getCreditWindows(auth.uid), {}, deps.clock.now());
