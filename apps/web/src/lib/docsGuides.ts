@@ -1351,6 +1351,24 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Claude Code's Task tool and Codex's sub-agents made this the way serious agents work, but they live in a terminal. ADCode brings it to the chat, with each helper's progress on screen and one Undo for everything they did. When you want named roles that talk to each other and a plan you approve first, use Team; helpers are for when you just want the job done faster.",
   },
 
+  "ai-chat-forks": {
+    steps: [
+      "Ask for a job with independent parts, or start the fork yourself: press Fork in the chat header, choose Fork this conversation from a conversation's ••• menu, or run AI: Fork This Conversation.",
+      "A manual fork copies the conversation into its own chat and opens it. It is in History with a branch mark and the chip under its title opens the conversation it came from. It waits for your next message, so you can take it in a different direction.",
+      "The assistant can start a family too. When a task splits cleanly it calls its fork tool with one to three titled parts; each fork opens its own chat, starts from a copy of the conversation and begins work on its part. A chat keeps up to six forks, and only the main chat can start or stop one.",
+      "Let the family talk. Forks and the main chat can send each other short messages - a decision, a warning that two chats are about to edit the same file, or a question. A message to an idle chat starts it on that message; a message to a busy chat arrives at its next tool call.",
+      "The main chat waits for its forks and reads their reports, then checks the combined result. A fork's reply is saved in its own history, so open it to read the whole turn.",
+    ],
+    benefits: [
+      "Parallel work stays visible: each fork is a real chat with its own tab, history and Stop, not a hidden helper whose report is the only trace.",
+      "Forks already know the conversation they came from, so you do not repeat the project brief for every part.",
+      "The family divides the work and coordinates mid-task - useful when one part must warn another about a shared file or a changed decision.",
+      "The main chat keeps control: it starts, messages and stops forks, and forks cannot start more of them.",
+    ],
+    betterThan:
+      "Sub-agents are one tool call deep: their work appears as a report and disappears. Separate browser chats run in other tools with no shared project and no way to talk to each other. A fork is a real conversation in the same project that you can open, redirect or continue tomorrow, and the chats can hand decisions to each other while they work.",
+  },
+
   "ai-tagflow": {
     steps: [
       "Open Account and sign in with an email verified by your provider.",

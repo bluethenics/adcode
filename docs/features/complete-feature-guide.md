@@ -730,6 +730,17 @@ How to use it: In Code mode, select the lines to change - or put the cursor wher
 
 Access: `All Features → Edit with AI`; `Edit with AI`; `Keyboard → Ctrl+E`.
 
+<!-- feature:ai.chatForks -->
+### Fork chats
+
+One chat can start visible fork chats that work in parallel, copy the conversation so they already know the task, and message the main chat or each other while they work.
+
+Why use it: Some jobs split naturally into independent parts - research two APIs while a third part writes the tests. Helpers disappear into one tool result, but a fork is a real conversation you can open, redirect or continue afterwards.
+
+How to use it: Ask for a task that splits cleanly, or fork the conversation yourself: press Fork in the chat header, choose Fork this conversation from a conversation's menu, or run AI: Fork This Conversation. A manual fork copies the conversation, appears in History with a branch mark, and waits for you to send in it. The assistant can also start up to three forks in one go with up to six per chat; only the main chat can start or stop a fork. Each fork has its own tab, model turn and history, and starts from a copy of the parent's conversation so it does not need the same explanation again. Forks can send each other short messages - a decision, a warning about a shared file, a question - which arrive between tool calls, and the main chat can wait for its forks and collect their reports. Fork chats cannot start more forks. All chats share the same project files, so assign separate files where possible. The family can exchange up to forty messages before it is asked to finish.
+
+Access: `All Features → Fork chats`; `Fork this conversation`.
+
 <!-- feature:ai.credits -->
 ### Free AI credits
 

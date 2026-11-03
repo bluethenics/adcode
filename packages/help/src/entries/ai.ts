@@ -414,6 +414,16 @@ export const AI_ENTRIES: readonly HelpEntry[] = [
     related: ["ai.team", "ai.agentTools", "ai.credits"],
   },
   {
+    id: "ai.chatForks",
+    title: "Fork chats",
+    plain: "One chat can start visible fork chats that work in parallel, copy the conversation so they already know the task, and message the main chat or each other while they work.",
+    why: "Some jobs split naturally into independent parts - research two APIs while a third part writes the tests. Helpers disappear into one tool result, but a fork is a real conversation you can open, redirect or continue afterwards.",
+    how: "Ask for a task that splits cleanly, or fork the conversation yourself: press Fork in the chat header, choose Fork this conversation from a conversation's menu, or run AI: Fork This Conversation. A manual fork copies the conversation, appears in History with a branch mark, and waits for you to send in it. The assistant can also start up to three forks in one go with up to six per chat; only the main chat can start or stop a fork. Each fork has its own tab, model turn and history, and starts from a copy of the parent's conversation so it does not need the same explanation again. Forks can send each other short messages - a decision, a warning about a shared file, a question - which arrive between tool calls, and the main chat can wait for its forks and collect their reports. Fork chats cannot start more forks. All chats share the same project files, so assign separate files where possible. The family can exchange up to forty messages before it is asked to finish.",
+    group: "ai",
+    settingIds: [],
+    related: ["ai.subagents", "ai.team", "adcode.ai.chatWidget"],
+  },
+  {
     id: "ai.tagflow",
     title: "Included AI without a key",
     plain: "Use the AI included with your verified ADCode account without buying or pasting an API key.",

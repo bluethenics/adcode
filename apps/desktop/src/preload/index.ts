@@ -79,6 +79,7 @@ const api: AdcodeApi = {
   chat: {
     sessions: () => ipcRenderer.invoke(CHANNELS.aiSessions),
     resume: (id) => ipcRenderer.invoke(CHANNELS.aiResumeSession, id),
+    fork: (id) => ipcRenderer.invoke(CHANNELS.aiForkSession, id),
     rename: (id, title) => ipcRenderer.invoke(CHANNELS.aiRenameSession, id, title),
     remove: (id) => ipcRenderer.invoke(CHANNELS.aiDeleteSession, id),
     clear: () => ipcRenderer.invoke(CHANNELS.aiClearSessions),

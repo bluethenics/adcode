@@ -116,6 +116,7 @@ import {
   aiDeleteSession,
   aiRenameSession,
   aiResumeSession,
+  aiForkSession,
   aiRuns,
   aiLiveTurn,
   aiSessions,
@@ -638,6 +639,10 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
 
   ipcMain.handle(CHANNELS.aiResumeSession, (_event, id: unknown) =>
     isString(id) ? aiResumeSession(id) : null,
+  );
+
+  ipcMain.handle(CHANNELS.aiForkSession, (_event, id: unknown) =>
+    isString(id) ? aiForkSession(id) : null,
   );
 
   ipcMain.handle(CHANNELS.aiRenameSession, (_event, id: unknown, title: unknown) =>
