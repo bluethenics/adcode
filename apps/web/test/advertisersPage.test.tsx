@@ -64,6 +64,19 @@ describe("the advertiser landing page", () => {
     expect(markup).toContain('href="/portal"');
   });
 
+  it("shows both placements, labels the sample workspace as a sample, and repeats the way in", async () => {
+    vi.mocked(readApi).mockRejectedValue(new Error("offline"));
+    const html = text(renderToStaticMarkup(await AdvertisersPage()));
+
+    expect(html).toContain("Desktop app");
+    expect(html).toContain("Browser editor");
+    // Illustrative numbers must say so, and must obey the real price: 12,480 views at the floor.
+    expect(html).toContain("Sample campaign with illustrative figures");
+    expect(html).toContain(`12,480`);
+    expect(html).toContain(`$${((12_480 / 1000) * 2).toFixed(2)}`);
+    expect(html.match(/Start a campaign/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+
   it("is the canonical advertiser address, and the old one moves here", async () => {
     expect(metadata.alternates?.canonical).toMatch(/\/advertisers$/);
     const redirects = await config.redirects?.();
