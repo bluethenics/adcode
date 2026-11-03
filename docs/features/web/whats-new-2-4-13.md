@@ -1,6 +1,6 @@
 ---
-slug: whats-new-2-4-12
-title: "What's new in ADCode 2.4.12"
+slug: whats-new-2-4-13
+title: "What's new in ADCode 2.4.13"
 description: "Fork chats that split a job into parallel conversations, clearer credits that pause instead of failing, purchases in any currency, and more room on smaller screens."
 section: Start here
 published: 2026-11-03
@@ -8,9 +8,9 @@ order: 1
 related: ai-chat-forks, free-ai-without-the-meter, whats-new-october-2026, helpers
 ---
 
-# What's new in ADCode 2.4.12
+# What's new in ADCode 2.4.13
 
-2.4.12 brings fork chats: one conversation can split a job into several that work at the same time and talk to each other. It also fixes most of what you reported about credits in early November, makes the app easier to use on laptop-sized screens, and points the way out of the errors that used to be dead ends.
+2.4.13 brings fork chats: one conversation can split a job into several that work at the same time and talk to each other. It also fixes most of what you reported about credits in early November, makes the app easier to use on laptop-sized screens, and points the way out of the errors that used to be dead ends.
 
 Some of these changes are on ADCode's servers and already live in every version. Each section below says which.
 
