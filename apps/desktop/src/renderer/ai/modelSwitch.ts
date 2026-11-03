@@ -19,6 +19,8 @@ export interface ModelChoice {
   readonly current: boolean;
   readonly recommended: boolean;
   readonly free: boolean;
+  /** Joined its provider's list recently; the menu says so. */
+  readonly isNew: boolean;
 }
 
 /** Shown at most, so the menu stays a menu. */
@@ -71,6 +73,7 @@ export function modelChoices(status: AiStatus, recent: readonly string[]): Model
         current: provider.id === status.activeProvider && id === status.activeModel,
         recommended: model?.recommended === true,
         free: model?.free === true,
+        isNew: model?.isNew === true,
       });
     }
   }

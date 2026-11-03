@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { AdNetworkConfig, AdNetworkStore } from "./adNetworkConfig.ts";
 import { adNetworkEncryptionKeys, decryptAdNetworkKey } from "./adNetworkCrypto.ts";
 import { impreziaBaseUrl } from "./impreziaChatAds.ts";
+import { validImpreziaSdkPreview } from "./impreziaSdkPreview.ts";
 
 /**
  * `/v1/imprezia/*` - the server-side relay Imprezia's SDK recommends for production.
@@ -12,7 +13,9 @@ import { impreziaBaseUrl } from "./impreziaChatAds.ts";
  *
  * Deliberately narrow:
  * - only the Imprezia Chat Ads connection the admin has turned on, with a saved key, is used,
- *   so Admin > Ad networks > Turn off stops this as well as the sponsored card;
+ *   so Admin > Ad networks > Turn off stops live sponsored cards;
+ * - an authenticated admin can issue a five-minute permit to preview one saved connection,
+ *   including a disabled connection, using exactly the same SDK and relay;
  * - only the SDK's monetize and event paths are forwarded, so the key cannot be used to reach
  *   anything else on Imprezia's API;
  * - each network address gets a request budget per minute, because these calls carry no
@@ -92,7 +95,9 @@ async function activeKey(deps: ImpreziaProxyDeps): Promise<string | null> {
 
 export async function relayImprezia(deps: ImpreziaProxyDeps, request: ImpreziaProxyRequest): Promise<ImpreziaProxyResponse> {
   if (request.method !== "POST" && request.method !== "GET") return json(405, "method-not-allowed");
-  if (!FORWARDED.test(request.path)) return json(404, "not-found");
+  const preview = /^\/preview\/([a-z][a-z0-9-]{1,39})\/([A-Za-z0-9_.-]{1,100})(\/.*)$/.exec(request.path);
+  const path = preview?.[3] ?? request.path;
+  if (!FORWARDED.test(path)) return json(404, "not-found");
   if (request.body.length > MAX_BODY_CHARS) return json(413, "too-large");
   // Beacons arrive as text/plain to avoid a preflight while the page unloads; both are JSON.
   let body: unknown = undefined;
@@ -106,12 +111,20 @@ export async function relayImprezia(deps: ImpreziaProxyDeps, request: ImpreziaPr
   if (await deps.bump(`imprezia-relay:${network}`, now - (now % 60_000)) > PER_NETWORK_PER_MINUTE) return json(429, "busy");
 
   let key: string | null;
-  try { key = await activeKey(deps); } catch { key = null; }
+  try {
+    if (preview) {
+      const id = preview[1]!, keys = (deps.encryptionKeys ?? adNetworkEncryptionKeys)();
+      const config = await deps.adNetworks?.get(id);
+      const encrypted = await deps.adNetworks?.key(id);
+      key = config?.provider === "imprezia" && config.imprezia?.kind === "chat" && encrypted ? decryptAdNetworkKey(id, encrypted, keys) : null;
+      if (key === null || !validImpreziaSdkPreview(id, key, preview[2]!, keys, now)) return json(403, "preview-expired");
+    } else key = await activeKey(deps);
+  } catch { key = null; }
   // Off in the admin, or no key saved: the SDK falls back to the reply unchanged.
   if (key === null) return json(503, "not-configured");
 
   try {
-    const upstream = await (deps.fetchImpl ?? fetch)(`${impreziaBaseUrl(key)}${request.path}`, {
+    const upstream = await (deps.fetchImpl ?? fetch)(`${impreziaBaseUrl(key)}${path}`, {
       method: request.method,
       // Workers only accepts "follow" or "manual"; a 3xx is refused below rather than followed with the key.
       redirect: "manual",

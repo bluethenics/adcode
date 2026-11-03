@@ -23,9 +23,38 @@ import { CHANNELS, type CollabStatusView } from "../shared/api.ts";
 import { createCollabRuntime, type CollabRuntime } from "./collab/runtime.ts";
 import { localAddresses } from "./collab/lanTransport.ts";
 import { decodeInvite, encodeInvite } from "@adcode/collab";
+import { gitForWorkspace } from "./sourceControl.ts";
+import { recordMilestone } from "./milestones.ts";
+import { isRelayHost } from "./collab/relayTransport.ts";
+import { projectsStore, recentFolders } from "./recents.ts";
+import { recentKey } from "./recentsStore.ts";
+import { readProjectDetails } from "./projects.ts";
+import { basename } from "node:path";
+import { createSharedProject, currentRepository, projectRequest, registerSharedProjectsIpc } from "./sharedProjects.ts";
+import type { SharedProjectSnapshot } from "../shared/api.ts";
+
+type RemoteCall = { id: string; name: string; input: Record<string, unknown> };
+type ToolResult = { content: string; isError: boolean };
+let toolHandler: ((call: RemoteCall, signal: AbortSignal) => Promise<ToolResult>) | null = null;
+export function registerCollabToolHandler(handler: NonNullable<typeof toolHandler>): void { toolHandler = handler; }
+export function collabRemoteTool(call: RemoteCall, signal: AbortSignal): Promise<ToolResult> | null { return runtime?.remoteTool(call, signal) ?? null; }
+export function collabIsJoined(): boolean { return runtime?.status().mode === "joined"; }
+async function githubProject(): Promise<string | null> {
+  const remotes = await gitForWorkspace()?.remotes() ?? [];
+  for (const remote of remotes) {
+    const match = /^(?:https:\/\/github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(remote.url);
+    if (match?.[1]) return match[1].toLowerCase();
+  }
+  return null;
+}
 
 /** The runtime is created lazily: a user who never shares anything never starts one. */
 let runtime: CollabRuntime | null = null;
+let modeListener: (() => void) | null = null;
+let lastMode = "off";
+let activeProject: SharedProjectSnapshot | null = null;
+const statusView = (status: CollabStatusView): CollabStatusView => ({ ...status, sharedProjectId: activeProject?.id ?? null, projectInvite: activeProject?.invite ?? null });
+export function onCollabModeChange(listener: () => void): void { modeListener = listener; }
 
 /**
  * How to find the open folder.
@@ -46,7 +75,12 @@ function ensureRuntime(): CollabRuntime {
   if (runtime !== null) return runtime;
 
   runtime = createCollabRuntime({
-    onStatus: (status) => broadcast(CHANNELS.collabStatusChanged, status satisfies CollabStatusView),
+    onToolRequest: (call, signal) => toolHandler?.(call, signal) ?? Promise.resolve({ content: "The host's AI tools are not ready.", isError: true }),
+    onStatus: (status) => {
+      if (status.mode === "off" && lastMode === "hosting" && activeProject) void projectRequest(`/projects/${activeProject.id}/live`,{invite:null}).catch(()=>{});
+      if (lastMode !== status.mode) { lastMode = status.mode; modeListener?.(); }
+      broadcast(CHANNELS.collabStatusChanged, statusView(status));
+    },
     onDocUpdate: (path, update) => broadcast(CHANNELS.collabDocUpdate, path, update),
     onPresence: (presence) => broadcast(CHANNELS.collabPresenceChanged, presence),
     onCommitRequest: (request) => broadcast(CHANNELS.collabCommitRequested, request),
@@ -90,8 +124,27 @@ function requirePosition(value: unknown, field: string): { line: number; column:
 
 export function registerCollabIpc(deps: { readonly workspaceRoot: () => string | null }): void {
   workspaceRootOf = deps.workspaceRoot;
+  registerSharedProjectsIpc();
+
+  async function knownProjects() {
+    const root = deps.workspaceRoot();
+    await projectsStore().remember([
+      ...await recentFolders(),
+      ...(root === null ? [] : [{ path: root, name: basename(root), openedAt: Date.now() }]),
+    ]);
+    return projectsStore().list();
+  }
+  ipcMain.handle(CHANNELS.projectsList, knownProjects);
+  ipcMain.handle(CHANNELS.projectsDetails, async (_event, raw: unknown) => {
+    const root = requireString(raw, "Project path");
+    const projects = await knownProjects();
+    const project = projects.find(p => recentKey(p.path) === recentKey(root));
+    if (!project) throw new Error("Open this project in ADCode first.");
+    return readProjectDetails(project.path);
+  });
 
   ipcMain.handle(CHANNELS.collabHost, async (_event, raw: unknown) => {
+    if (runtime && runtime.status().mode !== "off") throw new Error("End or leave the current live-file session before starting another. Project chats remain available in Projects.");
     if (typeof raw !== "object" || raw === null) throw new Error("Options must be an object.");
 
     const options = raw as Record<string, unknown>;
@@ -104,7 +157,7 @@ export function registerCollabIpc(deps: { readonly workspaceRoot: () => string |
      * permissive parse here - anything truthy meaning "lan", say - would make the difference
      * between a private and a published session depend on a typo.
      */
-    if (bind !== "lan" && bind !== "loopback") {
+    if (bind !== "lan" && bind !== "loopback" && bind !== "internet") {
       throw new Error('bind must be "lan" or "loopback".');
     }
 
@@ -114,20 +167,41 @@ export function registerCollabIpc(deps: { readonly workspaceRoot: () => string |
     }
 
     const displayName = requireString(options["displayName"], "displayName");
-
-    return ensureRuntime().startHosting(deps.workspaceRoot(), { bind, port, displayName });
+    const project = bind === "internet" ? await githubProject() : null;
+    if (bind === "internet" && project === null) throw new Error("Connect this project's Git repository to GitHub before sharing it online.");
+    if (bind === "internet") {
+      const id = options["sharedProjectId"];
+      if (id !== undefined && (typeof id !== "string" || !/^[a-f0-9]{64}$/.test(id))) throw new Error("Choose a shared project.");
+      activeProject = typeof id === "string" ? await projectRequest<SharedProjectSnapshot>(`/projects/${id}`) : await createSharedProject(undefined,displayName);
+      if (activeProject.repository !== await currentRepository()) throw new Error("Open the shared project's GitHub checkout before starting live files.");
+    } else activeProject = null;
+    const result = await ensureRuntime().startHosting(deps.workspaceRoot(), { bind, port, displayName, ...(activeProject ? { sharedProjectId: activeProject.id } : {}), ...(project === null ? {} : { project }) });
+    if (activeProject && result.mode === "hosting" && result.invite) await projectRequest(`/projects/${activeProject.id}/live`,{invite:result.invite});
+    recordMilestone(result.error === null ? "collab_hosted" : "collab_failed");
+    return statusView(result);
   });
 
-  ipcMain.handle(CHANNELS.collabJoin, async (_event, code: unknown, displayName: unknown) =>
-    ensureRuntime().joinWith(requireString(code, "code"), requireString(displayName, "displayName")),
-  );
+  ipcMain.handle(CHANNELS.collabJoin, async (_event, code: unknown, displayName: unknown) => {
+    if (runtime && runtime.status().mode !== "off") throw new Error("Leave the current live-file session before joining another. Other shared project chats remain available in Projects.");
+    let text = requireString(code, "code").trim();
+    if (text.startsWith("adproject:")) {
+      activeProject = await projectRequest<SharedProjectSnapshot>("/projects/join",{invite:text,displayName:requireString(displayName,"displayName")});
+      if (!activeProject.liveInvite || activeProject.repository !== await currentRepository()) {
+        const status = statusView(ensureRuntime().status()); broadcast(CHANNELS.collabStatusChanged,status); return status;
+      }
+      text = activeProject.liveInvite;
+    }
+    const decoded = decodeInvite(text);
+    if (decoded && isRelayHost(decoded.host) && (!decoded.project || decoded.project !== await githubProject())) throw new Error(`Open a checkout of ${decoded.project ?? "the host's GitHub project"} before joining. Your project tree must match the shared project.`);
+    return statusView(await ensureRuntime().joinWith(text, requireString(displayName, "displayName")));
+  });
 
   ipcMain.handle(CHANNELS.collabLeave, async () => {
     if (runtime === null) return ensureRuntime().status();
     return runtime.leave();
   });
 
-  ipcMain.handle(CHANNELS.collabStatus, async () => ensureRuntime().status());
+  ipcMain.handle(CHANNELS.collabStatus, async () => statusView(ensureRuntime().status()));
 
   // Reported from the main process because only it can enumerate interfaces, and the renderer
   // has no business with `node:os`.

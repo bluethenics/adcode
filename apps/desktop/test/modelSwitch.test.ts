@@ -42,6 +42,16 @@ describe("modelChoices", () => {
     expect(shown).toEqual(["free-a", "free-b", "free-c", "free-d", "free-e"]);
   });
 
+  it("marks a newly added model so the menu can say New", () => {
+    const included = provider("tagflow", { needsKey: false, models: [
+      { id: "fresh", name: "Fresh", toolCall: true, reasoning: false, isNew: true },
+      { id: "steady", name: "Steady", toolCall: true, reasoning: false },
+    ] });
+    const choices = modelChoices(status([included], "tagflow", "steady"), []);
+    expect(choices.find((one) => one.model === "fresh")?.isNew).toBe(true);
+    expect(choices.find((one) => one.model === "steady")?.isNew).toBe(false);
+  });
+
   it("offers only providers that can answer now, the active one first", () => {
     const choices = modelChoices(status([
       provider("anthropic"),

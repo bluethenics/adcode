@@ -28,6 +28,16 @@ describe("parseProviderEvent", () => {
     });
   });
 
+  it("keeps a token pack paid in a local currency instead of dropping it", () => {
+    // Reported: buyers paying in EUR, BRL or GBP were charged and never credited.
+    const paid = (data: Record<string, unknown>) => parseProviderEvent({ type: "payment.succeeded", data: { payment_id: "pay_1", checkout_session_id: "chk_1", metadata: { orderId: "ait_1" }, ...data } }, "evt_1");
+    expect(paid({ total_amount: 5655, currency: "BRL", settlement_amount: 1000, settlement_currency: "USD" })).toMatchObject({ type: "purchase", orderId: "ait_1", amountMicros: 10_000_000n });
+    // Settled in EUR: the local amount cannot match the USD price, so the order is held for review.
+    expect(paid({ total_amount: 894, currency: "EUR", settlement_amount: 894, settlement_currency: "EUR" })).toMatchObject({ type: "purchase", orderId: "ait_1", amountMicros: 8_940_000n });
+    // Any other order credits the amount itself, so it still accepts USD only.
+    expect(parseProviderEvent({ type: "payment.succeeded", data: { payment_id: "pay_1", checkout_session_id: "chk_1", total_amount: 894, currency: "EUR", settlement_amount: 1000, settlement_currency: "USD", metadata: { orderId: "ord-1" } } }, "evt_1")).toBeNull();
+  });
+
   it("normalizes successful refunds and dispute transitions", () => {
     expect(
       parseProviderEvent(

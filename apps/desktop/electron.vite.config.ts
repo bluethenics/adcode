@@ -54,8 +54,8 @@ export const alias = {
  * environment or from a gitignored `.env` beside this file - reaching the installer
  * without ever reaching git.
  *
- * Absent, it becomes an empty string and the app says Google sign-in is not configured,
- * which is what it is.
+ * Absent, account sign-in uses the hosted browser flow. Google MCP connections still
+ * require native desktop credentials because they request additional service scopes.
  */
 function googleClientSecret(): string {
   const fromEnv = process.env["ADCODE_GOOGLE_CLIENT_SECRET"];
@@ -70,6 +70,11 @@ function googleClientSecret(): string {
   }
 }
 
+// ws probes these native accelerators inside try/catch and has JavaScript fallbacks.
+// Converting those probes into imports lets Vite's missing-peer stub throw before the
+// catch can run. Leave the optional requires inside their original guarded blocks.
+export const mainCommonjsOptions = { ignore: ["bufferutil", "utf-8-validate"] };
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
@@ -78,6 +83,7 @@ export default defineConfig({
       __ADCODE_GOOGLE_CLIENT_SECRET__: JSON.stringify(googleClientSecret()),
     },
     build: {
+      commonjsOptions: mainCommonjsOptions,
       rollupOptions: {
         input: { index: resolve(import.meta.dirname, "src/main/index.ts") },
         // node-pty loads a `.node` binary by building a path at runtime. Bundled, that

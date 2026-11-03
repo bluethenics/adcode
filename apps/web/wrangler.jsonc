@@ -89,6 +89,7 @@
    * this binding, so nobody waits for it.
    */
   "services": [
+    { "binding": "AI_PRIORITY", "service": "adcode-projects", "entrypoint": "RequestPriority" },
     {
       "binding": "WORKER_SELF_REFERENCE",
       "service": "adcode"

@@ -601,11 +601,11 @@ Access: `All Features → AI file tools`; `Turn on or off`; `Settings`.
 <!-- feature:ai.plans -->
 ### AI plans, promo codes and invites
 
-Choose a weekly or monthly plan for more Heabsy tokens each week, with no API key to set up.
+Choose Weekly, Monthly, Pro, Max or Unlimited model access for more daily AI credits, with no provider key to set up.
 
-Why use it: A plan gives regular work a larger weekly allowance. Purchased tokens cover extra work beyond it, while Tagflow AI stays free without a personal quota.
+Why use it: A plan gives regular work a larger daily allowance, shared across included models and devices. Expensive models use more credits.
 
-How to use it: Run AI: Upgrade Plan or open adcode.bluethenics.com/ai-tokens and sign in with the same account as the editor. Weekly costs $3 a week for 60M tokens each week; Monthly costs $9 a month for 60M each week; Pro costs $19 a month for 150M each week. Pay with Dodo; the larger allowance appears once payment is confirmed. Check the plan and remaining tokens in AI usage or the composer meter with a Heabsy model selected. Purchased tokens are used after the weekly allowance and never expire. Use Manage subscription on the page to manage billing or cancel; cancellation keeps your plan until its paid period ends. A Pro subscriber can share a personal invite code with two friends. A friend must redeem it before starting any paid plan; when their first subscription becomes active while your Pro plan is still active, both accounts get 4M tokens, once per friend. Enter promo codes in the same page's code box for tokens or plan days, subject to the code's expiry and redemption limit. Plans raise Heabsy's allowance; they do not change Tagflow AI.
+How to use it: Run AI: Upgrade Plan or open adcode.bluethenics.com/ai-tokens using the same account as the editor. Weekly is $3/week for 225 daily credits; Monthly $9/month for 225; Pro $29/month for 750; Max $99/month for 3,000. Unlimited is $299/month for all available hosted-model access with 7,500 daily fair-use credits, including separate USD-wallet routes. Unlimited means model access, not unlimited tokens; usage pauses when its daily allowance cannot cover the request and does not spend saved balances automatically. All daily credits refill 24 hours after first use. Manage or cancel renewal in your Dodo portal; access lasts through the paid period. Existing paid periods retain their previous allowance on original models until their fixed end. Pro includes two friend invites: each eligible friend's first subscription can award both accounts 100 extra credits while your Pro plan is active. Promo code expiry and redemption limits apply. Available Heabsy models also work on Free.
 
 Access: `All Features → AI plans, promo codes and invites`; `Upgrade plan`.
 
@@ -625,7 +625,7 @@ Access: `All Features → AI Team`; `Set up Team`; `Settings`.
 
 Shows your AI activity, daily streaks, tokens and estimated cost, model by model.
 
-Why use it: See where your own provider spending goes and how much of the weekly Heabsy allowance and purchased balance you have left.
+Why use it: See where your own provider spending goes and how much of the daily included AI allowance and purchased balance you have left.
 
 How to use it: Select Usage in the chat's header (or ••• when docked), choose Usage by model in the Conversation menu, or run AI: Show Usage. Pick Today, 7 days, 30 days or All time for this machine's history. Activity always shows the past year: current streak, longest streak and days with AI requests on this computer. Hover or select a square for its date, requests and tokens; arrow keys move between days, Home and End jump to the oldest and newest day. Streaks use local calendar days and include yesterday while today is still empty. Counts not reported by a provider are estimated and marked ≈; a model with no catalogue price says No price. Input the provider read back from its prompt cache shows as cached under Tokens, and hovering a model shows its cached share; the estimated cost prices it at the catalogue's cache rate. Tagflow AI has no personal usage quota; Heabsy's models show their weekly free allowance and any purchased balance. Clear usage removes this computer's history, activity and streaks. Your own provider's billing page has the exact bill.
 
@@ -656,13 +656,13 @@ Access: `All Features → Ask before connector tools`; `Turn on or off`; `Settin
 <!-- feature:ai.buyTokens -->
 ### Buying AI tokens
 
-Heabsy's models in ADCode include 10 million free tokens a week; after that you can buy more, or keep going on Tagflow AI, which stays free.
+Buy one-time AI credits for extra included-model usage after the daily allowance, or connect your own model.
 
 Why use it: Keep working on the fastest included models during a heavy week without setting up your own provider key or a card with a model company.
 
-How to use it: Run AI: Buy AI Tokens, or press Buy tokens on the card that appears in the chat when your free week is used up. The card says when the task carries on by itself, with a live countdown, and offers Upgrade plan, Buy tokens and Switch model. Sign in on the page that opens, choose $10 for 50M tokens, $25 for 140M or $50 for 300M, and pay with Dodo. The tokens appear within seconds and never expire. ADCode uses your free tokens first each week and purchased tokens only after them, and a task that paused carries on by itself. Your balance is in AI usage and on the composer's meter when a Heabsy model is selected. Tagflow AI is free with no weekly limit, so you can switch to it at any time instead. For a refund of unused tokens, contact the team from the same page.
+How to use it: Run AI: Buy AI Credits or open adcode.bluethenics.com/ai-tokens. Boost gives 5,000 credits for $10, Plus 14,000 for $25, and Power 30,000 for $50, paid once through Dodo. Purchased credits never expire. They are used after daily credits on Free, Weekly, Monthly, Pro and Max. Unlimited does not spend saved purchased credits automatically; it waits for the daily fair-use refill. Separate USD-wallet routes have a separate balance. Your balance appears in AI usage and on the composer meter. Contact the team from the account page about unused-credit refunds.
 
-Access: `All Features → Buying AI tokens`; `Buy tokens`.
+Access: `All Features → Buying AI tokens`; `Buy credits`.
 
 <!-- feature:ai.sessions -->
 ### Chat history and memory
@@ -693,7 +693,7 @@ Choose ready models in Free · no API key, or use Bring your own key to connect 
 
 Why use it: A key that was pasted wrong should say so immediately, not silently fail the first time you ask a question.
 
-How to use it: Open Connect a model. Free · no API key opens first with included models and ready local models: choose Use this model. Included models require a verified ADCode account; Tagflow AI has no personal quota, and Heabsy's models include a weekly free allowance. Use the local setup buttons to start or download Ollama. Bring your own key contains personal provider connections and the three-step guide: choose a provider, check and save its key, pick a model. Add a named connection with an OpenAI-compatible base URL and exact model ID for other endpoints; the NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system. Administrators can add, hide and select default models in the linked Free models and BYOK models catalogs.
+How to use it: Open Connect a model. Free · no API key opens first with included models and ready local models: choose Use this model. Included models require a verified ADCode account; Tagflow AI and all other included models share one weekly free allowance. Use the local setup buttons to start or download Ollama. Bring your own key contains personal provider connections and the three-step guide: choose a provider, check and save its key, pick a model. Add a named connection with an OpenAI-compatible base URL and exact model ID for other endpoints; the NVIDIA NIM preset fills its hosted endpoint. Set requests per minute, save the connection, then check and save its API key. Select the connection for chat or an agent. Chat, completion, and team requests share its queue. Server cooldowns are respected; token or account quotas can still cause rate-limit errors. Keys remain encrypted by the operating system. Administrators can add, hide and select default models in the linked Free models and BYOK models catalogs.
 
 Access: `All Features → Connect a model`; `Connect`; `Settings`.
 
@@ -733,11 +733,11 @@ Access: `All Features → Edit with AI`; `Edit with AI`; `Keyboard → Ctrl+E`.
 <!-- feature:ai.credits -->
 ### Free AI credits
 
-Tagflow AI has no personal quota. Heabsy's models include 10M free tokens a week per account, then use tokens you buy.
+Included models share 10 free AI credits a day per account. Model prices determine how many credits each request uses.
 
-Why use it: Build with included models without watching a personal quota on Tagflow, and keep going on Heabsy's models through a heavy week if you need to. Provider availability and model context limits still apply.
+Why use it: Build with included models with a shared daily allowance across Tagflow AI and all other included models. Provider availability and model context limits still apply.
 
-How to use it: Sign in with a verified account and choose an included model. Tagflow AI has no personal request, token, daily or weekly quota. Heabsy's models (GLM 5.3 Flash, Qwen 3.8, Mimo) include 10M free tokens a week from your first request on them; after that they use tokens you buy - see Buying AI tokens - or you can switch to Tagflow AI. Provider availability and model context limits still apply. The Conversation menu lets you compact a long conversation or view its summary. The composer meter and AI usage show the weekly allowance and purchased balance when a Heabsy model is selected.
+How to use it: Sign in with a verified account and choose an included model. The Free plan includes 10 credits, refilling 24 hours after first use, shared across devices. Input, cached input and output use their model's displayed rates: expensive models use more credits. Daily credits do not roll over. On Free, Weekly, Monthly, Pro and Max, purchased credits are used after the daily allowance; Unlimited waits for its daily fair-use refill and keeps purchased credits saved. Provider availability and context limits still apply. The Conversation menu lets you compact a long conversation to use less input. The composer meter and AI usage show your balance. Existing paid periods may retain their previous allowance until their fixed period end.
 
 Access: `All Features → Free AI credits`; `Show credits`.
 
@@ -770,7 +770,7 @@ Use the AI included with your verified ADCode account without buying or pasting 
 
 Why use it: Start with an allowance paid for by ADCode. You can still switch to your own provider or a local model when you need more capacity.
 
-How to use it: Open Account, sign in and verify your email, then send a message. If you send one before signing in, the chat offers Sign in and sends it again by itself once you are. If the connection drops mid-task, the task retries by itself for about two minutes and carries on where it was. Included AI is selected automatically for new installations when enabled, using the administrator's default model. Older installations with an unconnected default provider also switch automatically. In Connect a model, the Free · no API key tab lists included and ready local models; choose Use this model to switch. Bring your own key keeps your personal provider connections separate. Administrators manage Free models and BYOK models from separate linked catalogs: add new models, set defaults, and hide models. Free models can use Tagflow, OpenAI, Gemini, Groq, OpenRouter or any OpenAI-compatible provider an administrator registers, through configured server keys. On Tagflow AI, chat, completions and agents have no personal quota; Heabsy's models include 10M free tokens a week, then use tokens you buy (see Buying AI tokens). Open AI usage to review activity. Provider availability and model context limits still apply. Prompts, project context and tool results pass through ADCode's server to the selected provider; the server stores usage counts, not prompts or replies. Included AI currently accepts text and tool calls, not image attachments.
+How to use it: Open Account, sign in and verify your email, then send a message. If you send one before signing in, the chat offers Sign in and sends it again by itself once you are. If the connection drops mid-task, the task retries by itself for about two minutes and carries on where it was. Included AI is selected automatically for new installations when enabled, using the administrator's default model. Older installations with an unconnected default provider also switch automatically. In Connect a model, the Free · no API key tab lists included and ready local models; choose Use this model to switch. Bring your own key keeps your personal provider connections separate. Administrators manage Free models and BYOK models from separate linked catalogs: add new models, set defaults, and hide models. Free models can use Tagflow, OpenAI, Gemini, Groq, OpenRouter or any OpenAI-compatible provider an administrator registers, through configured server keys. Chat, completions and agents across all included models share 5M free tokens a day, then use tokens you buy (see Buying AI tokens). Open AI usage to review activity. Provider availability and model context limits still apply. Prompts, project context and tool results pass through ADCode's server to the selected provider; the server stores usage counts, not prompts or replies. Included AI currently accepts text and tool calls, not image attachments.
 
 Access: `All Features → Included AI without a key`; `Choose included AI`.
 
@@ -1271,9 +1271,9 @@ Someone else can open the same files at the same time and you both see each othe
 
 Why use it: For fixing something together without one of you reading the other's screen over a call.
 
-How to use it: Choose the live-session button on the Vibe window's rail and share the invitation it shows. It works over your local network - the code does not travel through anybody else's server.
+How to use it: Open a project connected to GitHub, choose the live-session button on the sidebar, and share its invite. Keep the host app open. The connection uses ADCode’s encrypted internet relay and expires after 24 hours. New guests join view-only; grant edit access in People. Guests can open shared files and use their own AI models to read or edit the host’s current files. Guest commands and private memory are unavailable. The host reviews commits and pushes to GitHub. End session revokes the invite.
 
-Access: `All Features → Live collaboration`; `Open`; `Leave session`.
+Access: `All Features → Live collaboration`; `Leave session`.
 
 <!-- feature:workbench.preview -->
 ### Live preview

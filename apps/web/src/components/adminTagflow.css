@@ -28,6 +28,7 @@
 .admin-section-bar a[aria-current="location"] { background: var(--text); border-color: var(--text); color: var(--bg, #0f0f0e); }
 [id^="free-"] { scroll-margin-top: 64px; }
 .admin-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tagflow-model[hidden] { display: none; }
 .admin-row-note { color: var(--muted); animation: admin-note-in 200ms cubic-bezier(0.23, 1, 0.32, 1) both; }
 @keyframes admin-note-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .admin-section-bar a:active { transform: none; } .admin-row-note { animation: none; } }

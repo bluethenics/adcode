@@ -1,0 +1,47 @@
+/* Motion guidance: Emil Kowalski. Design informed by Unslop by Damir Sokolovsky (CC BY 4.0). */
+.account-gate { font-family:var(--font-ui,system-ui,sans-serif); box-sizing:border-box; position:fixed; inset:0; width:100%; height:100%; max-width:none; max-height:none; margin:0; border:0; border-radius:0; background:#151617; color:#ededed; padding:32px 24px; overflow:auto; isolation:isolate; }
+.account-gate::backdrop { background:#151617; }
+.account-gate-backdrop { position:fixed; inset:0; z-index:-1; overflow:hidden; pointer-events:none; mask-image:linear-gradient(transparent,#000 15%,#000 70%,transparent); }
+.account-gate-art { position:absolute; inset:50% auto auto 50%; transform:translate(-50%,-50%); margin:0; color:#92969a; opacity:.08; font:clamp(8px,1.1vw,14px)/1.15 monospace; user-select:none; }
+.account-gate-light { position:absolute; inset:0 auto auto 0; width:360px; height:360px; background:radial-gradient(circle,#ffffff0d,transparent 70%); opacity:0; transition:opacity 180ms ease; }
+.account-gate-brand { position:absolute; top:34%; left:50%; transform:translate(-50%,-50%); font-size:clamp(44px,6vw,64px); font-weight:550; letter-spacing:-.045em; user-select:none; }
+.account-gate-content { position:relative; width:min(100%,360px); margin:calc(56vh - 32px) auto 0; text-align:center; }
+.account-gate h1 { font-size:18px; font-weight:500; line-height:1.3; margin:0 0 12px; }
+.account-gate-detail { font-size:13px; line-height:1.6; color:#a5a6a8; margin:0 0 20px; overflow-wrap:anywhere; }
+.account-gate .account-embedded { position:static; display:grid; width:auto; max-width:none; padding:0; border:0; border-radius:0; box-shadow:none; background:transparent; margin:0; text-align:center; }
+.account-gate .account-panel-title,.account-gate .account-plan:has(.account-plan-name) { display:none; }
+.account-gate .account-panel-body { color:#b0b1b3; }
+.account-gate .account-panel-body:empty { display:none; }
+.account-gate[data-step="verify"] .account-gate-brand { top:22%; }
+.account-gate[data-step="verify"] .account-gate-content { margin-top:calc(36vh - 32px); }
+.account-gate[data-step="verify"] .account-panel-body,.account-gate[data-step="verify"] .account-gate-status { display:none; }
+.account-gate .account-panel-actions { gap:10px; margin:4px auto 0; width:min(100%,248px); }
+.account-gate .account-provider { min-height:44px; padding:11px 18px; border-radius:999px; background:#101112; border:1px solid #343638; color:#e8e8e8; font-size:14px; transition:transform 120ms cubic-bezier(.23,1,.32,1); }
+.account-gate .account-provider:first-child { background:#e0e0df; color:#161718; border-color:transparent; }
+.account-gate .account-panel-foot { margin:12px 0 0; color:#8f9194; }
+.account-gate .account-plan { text-align:left; background:#1d1f20; }
+.account-gate-status { font-size:12px; line-height:1.6; color:#aaa; margin:16px 0 0; }
+.account-gate-status:empty { display:none; }
+.account-gate-add-email { display:grid; gap:10px; width:min(100%,280px); margin:20px auto 0; animation:account-arrive 200ms cubic-bezier(.23,1,.32,1) both; }
+.account-gate-add-email[hidden] { display:none; }
+.account-gate-add-email input { min-height:44px; box-sizing:border-box; padding:10px 16px; border-radius:999px; border:1px solid #343638; background:#101112; color:#ededed; font:inherit; font-size:14px; transition:border-color 120ms ease; }
+.account-gate-add-email input:focus { border-color:#8f9194; outline:none; }
+.account-gate-add-email button { min-height:44px; border-radius:999px; border:0; background:#e0e0df; color:#161718; font:inherit; font-size:14px; cursor:pointer; transition:transform 120ms cubic-bezier(.23,1,.32,1),background 120ms ease; }
+.account-gate-add-email button:disabled { opacity:.6; cursor:progress; }
+.account-gate[data-step="verify"]:has(.account-gate-add-email:not([hidden])) .account-gate-status:not(:empty) { display:block; }
+.account-gate-retry { min-height:44px; padding:10px 24px; margin:16px auto 0; border:1px solid #414346; border-radius:999px; font:inherit; cursor:pointer; color:#ededed; background:#202223; }
+.account-gate button:active:not(:disabled):not(:focus-visible) { transform:scale(.98); }
+.account-gate :focus-visible { outline:2px solid #ededed; outline-offset:4px; }
+.account-gate[data-step="checking"] .account-gate-detail,.account-gate[data-step="checking"] .account-gate-form,.account-gate[data-step="checking"] .account-gate-retry { display:none; }
+@media(hover:hover) and (pointer:fine) { .account-gate .account-provider:hover:not(:disabled) { background:#292b2d; } .account-gate .account-provider:first-child:hover:not(:disabled) { background:#fff; } }
+@media(max-height:650px) { .account-gate-brand,.account-gate[data-step="verify"] .account-gate-brand { top:70px; font-size:44px; } .account-gate-content,.account-gate[data-step="verify"] .account-gate-content { margin-top:120px; } }
+@keyframes account-arrive { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+.chat-hover-preview { position:fixed; z-index:1500; width:300px; max-width:calc(100vw - 24px); box-sizing:border-box; pointer-events:none; border:1px solid var(--border-hairline); border-radius:12px; background:var(--bg-elevated,#262728); color:var(--text-primary); padding:16px 20px; box-shadow:0 8px 24px #0002; }
+.chat-hover-preview strong { display:block; font-size:13px; font-weight:500; overflow-wrap:anywhere; line-height:1.5; }
+.chat-hover-preview p { margin:12px -20px -16px; padding:12px 20px; border-top:1px solid var(--border-hairline); color:var(--text-secondary); font-size:12px; }
+@media(hover:hover) and (pointer:fine) { .chat-hover-preview[data-pointer="true"] { animation:account-arrive 160ms var(--ease-toast) both; } }
+@media(prefers-reduced-motion:reduce) { .chat-hover-preview[data-pointer="true"],.account-gate-add-email { animation:none; } .account-gate button,.account-gate-light { transition:none; } .account-gate button:active:not(:disabled):not(:focus-visible) { transform:none; } }
+:root[data-reduced-motion="true"] .account-gate-light { display:none; }
+:root[data-reduced-motion="true"] .account-gate button { transition:none; }
+:root[data-reduced-motion="true"] .account-gate button:active:not(:disabled):not(:focus-visible) { transform:none; }
+:root[data-reduced-motion="true"] .chat-hover-preview { animation:none; }

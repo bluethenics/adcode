@@ -119,6 +119,30 @@ describe("the Imprezia SDK relay", () => {
     }
   });
 
+  it("requires an admin to prepare a disabled connection, then relays only the SDK preview", async () => {
+    await connect({ enabled: false });
+    await store.addAdmin({ email: "admin@example.com", addedAt: 0, addedBy: "setup" });
+    const server = await createApiServer({ store,
+      verifier: { async verify(token) { return token === "admin" ? { uid: "admin", claims: { email: "admin@example.com", email_verified: true } } : null; } },
+      adNetworks: { fetchImpl, encryptionKeys: () => [encryption] },
+    });
+    try {
+      const url = `${server.url}/v1/admin/ad-networks/imprezia/test`;
+      expect((await fetch(url, { method: "POST" })).status).toBe(401);
+      const prepared = await fetch(url, { method: "POST", headers: { authorization: "Bearer admin", "content-type": "application/json" }, body: "{}" });
+      expect(prepared.status).toBe(200);
+      const { sdk } = await prepared.json() as { sdk: { endpoint: string } };
+      expect(fetchImpl).not.toHaveBeenCalled();
+      const body = { request: "sample", response: "sample answer", sessionId: "preview-conversation", sdkCapabilities: ["tracker-frames"] };
+      const response = await fetch(`${server.url}${sdk.endpoint}/v1/monetize/append`, {
+        method: "POST", headers: { "content-type": "application/json", "x-sdk-platform": "browser", "x-sdk-version": "0.5.24" }, body: JSON.stringify(body),
+      });
+      expect(response.status).toBe(200);
+      expect(fetchImpl.mock.calls[0]![0]).toBe("https://api.imprezia.ai/v1/monetize/append");
+      expect(JSON.parse(String(fetchImpl.mock.calls[0]![1]!.body))).toEqual(body);
+    } finally { await server.close(); }
+  });
+
   it("never forwards a private, loopback or placeholder address", () => {
     expect(forwardableIp("203.0.113.9")).toBe("203.0.113.9");
     expect(forwardableIp("2001:db8::1")).toBe("2001:db8::1");

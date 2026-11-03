@@ -61,6 +61,8 @@ export interface ReportInput {
 }
 
 import type { ActivityDelta } from "./activity.ts";
+import type { SharedProjectLibrary, SharedProjectSnapshot, ProjectChatMessage } from "@adcode/collab";
+export type { SharedProjectLibrary, SharedProjectSnapshot, ProjectChatMessage };
 import type { MilestoneName } from "./milestones.ts";
 import type { AssistantControlAction, AssistantControlsView } from "./assistantControls.ts";
 import type { McpNodeCheck } from "./mcpNode.ts";
@@ -452,6 +454,15 @@ export interface EarningsSnapshot {
  */
 export type CollabRole = "host" | "editor" | "viewer";
 
+export interface ProjectDetailsView {
+  readonly commitCount: number;
+  readonly branch: string;
+  readonly repository: string | null;
+  readonly changedFiles: number;
+  readonly contributors: readonly { readonly name: string; readonly email: string; readonly commits: number }[];
+  readonly commits: readonly { readonly hash: string; readonly author: string; readonly date: string; readonly subject: string }[];
+}
+
 export interface CollabParticipantView {
   readonly id: string;
   readonly name: string;
@@ -473,6 +484,8 @@ export interface CollabCapabilitiesView {
 }
 
 export interface CollabStatusView {
+  readonly sharedProjectId?: string | null;
+  readonly projectInvite?: string | null;
   readonly mode: "off" | "hosting" | "joined" | "connecting";
   readonly participants: readonly CollabParticipantView[];
   /** Our own id, so the renderer knows which cursor is its own and does not draw it twice. */
@@ -761,6 +774,16 @@ export const CHANNELS = {
   collabJoin: "collab:join",
   collabLeave: "collab:leave",
   collabStatus: "collab:status",
+  projectsList: "projects:list",
+  projectsDetails: "projects:details",
+  sharedProjectLibrary: "shared-project:library",
+  sharedProjectCreate: "shared-project:create",
+  sharedProjectJoin: "shared-project:join",
+  sharedProjectSnapshot: "shared-project:snapshot",
+  sharedProjectSession: "shared-project:session",
+  sharedProjectMessage: "shared-project:message",
+  sharedProjectManage: "shared-project:manage",
+  sharedProjectChanged: "shared-project:changed",
   collabSetRole: "collab:set-role",
   collabSetTerminalWrite: "collab:set-terminal-write",
   collabOpenDoc: "collab:open-doc",
@@ -822,6 +845,7 @@ export const CHANNELS = {
   releaseList: "release:list",
   licencesRead: "licences:read",
   accountStatus: "account:status",
+  accountVerification: "account:verification",
   accountChanged: "account:changed",
   accountLink: "account:link",
   accountLinkEmail: "account:link-email",
@@ -2235,6 +2259,7 @@ export interface AdcodeApi {
     onChanged(listener: (values: Record<string, boolean | string>) => void): () => void;
   };
   readonly account: {
+    verification(send: boolean): Promise<{ verified?: boolean; sent?: boolean; email?: string | null; retryAfter?: number; message: string }>;
     status(): Promise<AccountState>;
     /** Never rejects; a failure comes back as `{ ok: false, message }`. */
     link(provider: "google" | "github"): Promise<LinkOutcome>;
@@ -2410,6 +2435,16 @@ export interface AdcodeApi {
    * job here is to draw a roster, bind Monaco to a document, and paint other people's cursors.
    */
   readonly collab: {
+    sharedLibrary(): Promise<SharedProjectLibrary>;
+    sharedCreate(): Promise<SharedProjectSnapshot>;
+    sharedJoin(invite: string): Promise<SharedProjectSnapshot>;
+    sharedSnapshot(id: string, session?: string | null, before?: number): Promise<SharedProjectSnapshot>;
+    sharedSession(id: string, title: string): Promise<SharedProjectSnapshot>;
+    sharedMessage(id: string, session: string, text: string, ask: boolean, nonce: string): Promise<SharedProjectSnapshot>;
+    sharedManage(id: string, action: "archive" | "invite" | "remove", target?: string): Promise<unknown>;
+    onSharedChanged(listener: (id: string) => void): () => void;
+    projects(): Promise<readonly RecentFolderView[]>;
+    projectDetails(root: string): Promise<ProjectDetailsView>;
     /**
      * Start sharing the open folder.
      *
@@ -2417,7 +2452,8 @@ export interface AdcodeApi {
      * codebase and the caller has to ask for it - see `lanTransport.ts` for why that matters.
      */
     host(options: {
-      bind: "lan" | "loopback";
+      sharedProjectId?: string;
+      bind: "lan" | "loopback" | "internet";
       port: number;
       displayName: string;
     }): Promise<CollabStatusView>;

@@ -12,7 +12,7 @@ const expiry = (at: number): string => `${new Date(at).toISOString().slice(0, 16
 /** What the status line says; a campaign that already ended is history, not news. */
 export function campaignStatus(state: CampaignState | null): string {
   if (state === null) return "Loading…";
-  if (state.campaign === null) return "No campaign is running. Paid models use each account's weekly allowance.";
+  if (state.campaign === null) return "No campaign is running. Paid models use each account's daily allowance.";
   return state.active
     ? `${state.campaign.name} is running until ${expiry(state.campaign.endsAt)}. Paid models have no weekly cap and nothing is counted against anyone's week.`
     : `The last campaign, ${state.campaign.name}, ended ${expiry(state.campaign.endsAt)}.`;

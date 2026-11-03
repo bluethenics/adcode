@@ -43,11 +43,18 @@ describe("AI plan routes", () => {
     handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, payments: payments(), siteOrigin: "https://adcode.test", tagflow: { apiKey: "k" } });
   });
 
+  it("reports the same subscribed plan and allowance in usage and token orders", async () => {
+    await store.applySubscriptionEvent(active("user", "weekly"));
+    for (const path of ["/ai/tagflow/usage", "/ai/tokens/orders"]) {
+      expect(await (await call(path, "user")).json()).toMatchObject({ tokens: { free: { limit: 20_000_000 }, plan: { id: "weekly" } } });
+    }
+  });
+
   it("opens a Dodo checkout for a plan on its own product, carrying who is subscribing", async () => {
     const response = await call("/ai/plans/checkout", "user", { plan: "pro", billingCountry: "DE" });
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ checkoutUrl: "https://checkout.test/cs_p" });
-    expect(checkouts[0]).toMatchObject({ product: "plan-pro", amountMicros: 19_000_000n, billingCountry: "DE", metadata: { uid: "user", plan: "pro" } });
+    expect(checkouts[0]).toMatchObject({ product: "plan-pro", amountMicros: 29_000_000n, billingCountry: "DE", metadata: { uid: "user", plan: "pro" } });
     expect(checkouts[0]!.orderId.startsWith("aip_")).toBe(true);
   });
 
@@ -143,7 +150,39 @@ describe("AI plan routes", () => {
     const promos = await (await call("/admin/ai-plans/promo", "admin")).json() as { promos: { code: string }[] };
     expect(promos.promos.map((p) => p.code)).toContain("WEEK7");
     await store.applySubscriptionEvent(active("subscriber", "monthly"));
-    expect(await (await call("/admin/ai-plans/subscriptions", "admin")).json()).toEqual({ plans: [{ plan: "monthly", active: 1, mrrCents: 900 }] });
+    expect(await (await call("/admin/ai-plans/subscriptions", "admin")).json()).toMatchObject({ plans: [{ plan: "monthly", active: 1, mrrCents: 900 }], subscriptions: [{ uid: "subscriber", plan: "monthly", subscriptionId: "sub-subscriber" }], nextCursor: null });
+  });
+
+  it("lists only paid access, protects identities, and pages subscribers without gaps", async () => {
+    for (let i = 0; i < 52; i++) {
+      const uid = `subscriber-${String(i).padStart(3, "0")}`;
+      await store.putUser({ uid, status: "active", createdAt: NOW, email: `${uid}@adcode.test` });
+      await store.applySubscriptionEvent(active(uid, "pro"));
+    }
+    await store.applySubscriptionEvent({ ...active("expired", "weekly"), periodEnd: NOW });
+    await store.giftPlan("gift", "pro", 7, "admin-1", "test", NOW);
+    expect((await call("/admin/ai-plans/subscriptions", "user")).status).toBe(403);
+    expect((await call("/admin/ai-plans/subscriptions")).status).toBe(401);
+    type SubscriberPage = { subscriptions: { uid: string; email: string | null }[]; nextCursor: string | null };
+    const first = await (await call("/admin/ai-plans/subscriptions", "admin")).json() as SubscriberPage;
+    expect(first.subscriptions).toHaveLength(50);
+    expect(first.subscriptions[0]!.email).toBe("subscriber-000@adcode.test");
+    const second = await (await call(`/admin/ai-plans/subscriptions?after=${first.nextCursor}`, "admin")).json() as SubscriberPage;
+    expect(second.subscriptions).toHaveLength(2);
+    expect(second.nextCursor).toBeNull();
+    expect(new Set([...first.subscriptions, ...second.subscriptions].map(one => one.uid)).size).toBe(52);
+  });
+
+  it("limits verification tests to the authenticated administrator and throttles delivery", async () => {
+    const testVerification = vi.fn().mockResolvedValue({ sent: true, reason: null });
+    handle = createFetchHandler({ store, verifier, clock: { now: () => NOW }, tagflow: { apiKey: "k", identity: {
+      lookup: async () => null, sendVerification: async () => true, testVerification,
+    } } });
+    expect((await call("/admin/ai-plans/verification-test", "user", { email: "other@adcode.test" })).status).toBe(403);
+    expect(testVerification).not.toHaveBeenCalled();
+    expect(await (await call("/admin/ai-plans/verification-test", "admin", { email: "other@adcode.test" })).json()).toEqual({ sent: true, reason: null });
+    expect(testVerification).toHaveBeenCalledExactlyOnceWith("admin");
+    expect((await call("/admin/ai-plans/verification-test", "admin", {})).status).toBe(429);
   });
 
   it("audits admin reads and rejects invalid grants before changing anything", async () => {

@@ -17,6 +17,7 @@
 export interface AccountIdentity {
   lookup(idToken: string): Promise<{ email: string | null; emailVerified: boolean } | null>;
   sendVerification(idToken: string): Promise<boolean>;
+  testVerification?(idToken: string): Promise<{ sent: boolean; reason: string | null }>;
 }
 
 const IDENTITY_TOOLKIT = "https://identitytoolkit.googleapis.com/v1/accounts:";
@@ -29,27 +30,39 @@ export function createFirebaseIdentity(apiKey: () => string, fetchImpl: typeof f
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(5_000),
     });
+  const testVerification = async (idToken: string): Promise<{ sent: boolean; reason: string | null }> => {
+    if (!apiKey().trim()) return { sent: false, reason: "NOT_CONFIGURED" };
+    try {
+      const response = await post("sendOobCode", { requestType: "VERIFY_EMAIL", idToken });
+      if (response.ok) return { sent: true, reason: null };
+      const data = await response.json() as { error?: { message?: unknown } };
+      const code = typeof data.error?.message === "string" ? data.error.message.split(/[ :]/)[0] ?? "" : "";
+      return { sent: false, reason: /^[A-Z][A-Z_]{0,79}$/.test(code) ? code : `HTTP_${response.status}` };
+    } catch { return { sent: false, reason: "UNREACHABLE" }; }
+  };
   return {
+    testVerification,
     async lookup(idToken) {
       if (apiKey().length === 0) return null;
       try {
         const response = await post("lookup", { idToken });
         if (!response.ok) return null;
-        const data = await response.json() as { users?: { email?: unknown; emailVerified?: unknown }[] };
+        const data = await response.json() as { users?: { email?: unknown; emailVerified?: unknown; providerUserInfo?: { email?: unknown }[] }[] };
         const user = data.users?.[0];
         if (user === undefined) return null;
-        return { email: typeof user.email === "string" && user.email.length > 0 ? user.email.toLowerCase() : null, emailVerified: user.emailVerified === true };
+        const own = typeof user.email === "string" && user.email.length > 0 ? user.email.toLowerCase() : null;
+        if (own !== null) return { email: own, emailVerified: user.emailVerified === true };
+        // Reported (2.4.10, 1 November 2026): GitHub sign-ins whose account carried no top-level
+        // email could never verify - there was no address to send the link to. The provider's
+        // address is only where ADCode's own link is sent; opening that link is still the proof.
+        const provided = user.providerUserInfo?.map((info) => info.email).find((email): email is string => typeof email === "string" && email.includes("@"));
+        return { email: provided?.toLowerCase() ?? null, emailVerified: false };
       } catch {
         return null;
       }
     },
     async sendVerification(idToken) {
-      if (apiKey().length === 0) return false;
-      try {
-        return (await post("sendOobCode", { requestType: "VERIFY_EMAIL", idToken })).ok;
-      } catch {
-        return false;
-      }
+      return (await testVerification(idToken)).sent;
     },
   };
 }

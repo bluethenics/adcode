@@ -71,7 +71,7 @@ export function recoverIncludedLimits(provider: Provider): Provider {
         let producedOutput = false;
         try {
           for await (const event of provider.stream(request, signal)) {
-            if (event.kind !== "status") producedOutput = true;
+            if (event.kind === "text" || event.kind === "tool-call" || event.kind === "tool-input") producedOutput = true;
             yield event;
           }
           return;
@@ -84,14 +84,14 @@ export function recoverIncludedLimits(provider: Provider): Provider {
               throw new Error(`fetch failed (${network}) - still unreachable after ${NETWORK_RETRY_SECONDS.length} retries`, { cause: caught });
             }
             const seconds = NETWORK_RETRY_SECONDS[networkRetries++]!;
-            yield { kind: "status", text: `The connection to free AI dropped (${network}). Retrying in ${seconds}s - this task carries on where it was. Press Stop to cancel.` };
+            yield { kind: "status", text: `The connection to included AI dropped (${network}). Retrying in ${seconds}s - this task carries on where it was. Press Stop to cancel.` };
             await waitUntil(Date.now() + seconds * 1000, signal);
             continue;
           }
           const error = caught as LimitError;
           if (error.retryable !== false && [500, 502, 503, 504].includes(error.status ?? 0) && serverRetries < SERVER_RETRY_SECONDS.length) {
             const seconds = SERVER_RETRY_SECONDS[serverRetries++]!;
-            yield { kind: "status", text: `Free AI is temporarily unavailable. Retrying in ${seconds}s without repeating completed tools. Press Stop to cancel.` };
+            yield { kind: "status", text: `Included AI is temporarily unavailable. Retrying in ${seconds}s without repeating completed tools. Press Stop to cancel.` };
             await waitUntil(Date.now() + seconds * 1000, signal);
             continue;
           }
@@ -102,7 +102,7 @@ export function recoverIncludedLimits(provider: Provider): Provider {
             const buyUrl = error.buyUrl ?? "https://adcode.bluethenics.com/ai-tokens";
             const recheckAt = Math.min(resetTime(error, daily), Date.now() + PAID_RECHECK_MS);
             const limit: LimitPause = { reason: "paid", resumeAt: resetTime(error, daily), recheckAt, buyUrl };
-            yield { kind: "status", limit, text: `This week's free tokens for this model are used up. Buy tokens or a plan at ${buyUrl}, or switch to Tagflow AI, which stays free. This task checks again every two minutes and carries on by itself once you have tokens. Press Stop to cancel.` };
+            yield { kind: "status", limit, text: `Today's shared included AI tokens are used up. Buy tokens or a plan at ${buyUrl}, or use your own connected model. This task checks again every two minutes and carries on by itself once you have tokens. Press Stop to cancel.` };
             await waitUntil(recheckAt, signal);
             continue;
           }

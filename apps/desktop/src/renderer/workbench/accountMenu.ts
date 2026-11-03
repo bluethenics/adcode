@@ -5,19 +5,16 @@ import { isWebSurface, openWebAccount } from "../surface.ts";
  * Anonymous, it is a bust outline and the panel offers Google and GitHub. Linked, it
  * becomes the provider's photo and the panel says whose account this is.
  *
- * It never blocks anything. §8.4 promises first launch has no wall, and earnings accrue
- * whether or not anyone ever presses this. What signing in buys is keeping the money -
- * reaching it from the web dashboard, and withdrawing it from there. The copy
- * says exactly that and no more, because "sign in to earn" would be false and would stop
- * being believed the first time someone watched their balance rise while signed out.
+ * The startup account gate embeds these same controls. After sign-in, this remains
+ * the familiar account popover for verification, plan details and signing out.
  */
 import type { ConfirmDialog } from "../dialogs/confirmDialog.ts";
 import type { AccountState, LinkOutcome } from "../../shared/api.ts";
-import { BUY_TOKENS_URL, aiPlanName, percentLeft } from "../../shared/tagflow.ts";
-import { formatTokens as shortTokens } from "../../shared/aiUsage.ts";
+import { BUY_TOKENS_URL, aiPlanName } from "../../shared/tagflow.ts";
 
 export interface AccountMenu {
   isOpen(): boolean;
+  attachTo(host: HTMLElement | null): void;
   /** `free-ai` explains the sign-in in terms of what the person was trying to do. */
   open(reason?: "free-ai"): void;
   close(): void;
@@ -115,6 +112,31 @@ export function createAccountMenu(
   signOut.textContent = "Sign out";
   signOut.hidden = true;
 
+  const verificationBox = document.createElement("section");
+  verificationBox.className = "account-plan"; verificationBox.hidden = true;
+  const verificationTitle = document.createElement("strong"); verificationTitle.textContent = "Verify your email";
+  const verificationStatus = document.createElement("p"); verificationStatus.className = "account-plan-detail"; verificationStatus.setAttribute("role", "status");
+  const sendVerification = document.createElement("button"); sendVerification.type = "button"; sendVerification.className = "account-plan-action"; sendVerification.textContent = "Send verification link";
+  const checkVerification = document.createElement("button"); checkVerification.type = "button"; checkVerification.className = "account-plan-action"; checkVerification.textContent = "I've verified";
+  verificationBox.append(verificationTitle, verificationStatus, sendVerification, checkVerification);
+  let verificationBusy = false, verificationCooldown = 0;
+  async function refreshVerification(send = false): Promise<void> {
+    if (verificationBusy || state.state !== "linked") return;
+    verificationBusy = true; sendVerification.disabled = true; checkVerification.disabled = true;
+    try {
+      const result = await window.adcode.account.verification(send);
+      verificationBox.hidden = result.verified === true || state.state !== "linked";
+      verificationStatus.textContent = result.message;
+      if (result.retryAfter) {
+        verificationCooldown = Date.now() + result.retryAfter * 1000;
+        window.setTimeout(() => { if (!verificationBusy) sendVerification.disabled = false; }, result.retryAfter * 1000);
+      }
+    } catch { verificationBox.hidden = false; verificationStatus.textContent = "Verification could not connect. Please try again."; }
+    finally { verificationBusy = false; sendVerification.disabled = Date.now() < verificationCooldown; checkVerification.disabled = false; }
+  }
+  sendVerification.addEventListener("click", () => { void refreshVerification(true); });
+  checkVerification.addEventListener("click", () => { void refreshVerification(); });
+
   /*
    * The account's AI plan, where people look for their account (asked for 2026-10-27):
    * which plan, how much of this week's Heabsy allowance is left, and the way to change it.
@@ -144,7 +166,7 @@ export function createAccountMenu(
     planBox.dataset["plan"] = plan === null ? "free" : plan.toLowerCase();
     planName.textContent = plan === null ? "Free plan" : `${plan} plan`;
     const ends = plan !== null && tokens.plan ? ` · ${tokens.plan.source === "gift" ? "gift ends" : "renews"} ${new Date(tokens.plan.endsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "";
-    planDetail.textContent = `${percentLeft(tokens.free.remaining, tokens.free.limit)}% of this week's Heabsy tokens left${tokens.purchased > 0 ? `, + ${shortTokens(tokens.purchased)} purchased` : ""}${ends}. Tagflow AI is unlimited.`;
+    planDetail.textContent = `Daily AI credits refill automatically${ends}. Open usage for your current balance. Sponsored Tagflow does not consume credits.`;
     planAction.textContent = plan === null ? "Upgrade plan" : "Manage plan";
   }
 
@@ -160,14 +182,16 @@ export function createAccountMenu(
    * the accent fill separates it from the row of neutral buttons it would otherwise be
    * mistaken for a third member of.
    */
-  panel.append(heading, body, planBox, codeBox, signInInstead, actions, cancel, signOut, footnote);
+  panel.append(heading, body, verificationBox, planBox, codeBox, signInInstead, actions, cancel, signOut, footnote);
   host.append(panel);
 
   let state: AccountState = { state: "anonymous" };
   let open = false;
+  let embedded = false;
   let reason: "free-ai" | null = null;
 
   function place(): void {
+    if (embedded) return;
     const rect = button.getBoundingClientRect();
     /*
      * Right-aligned to the button, then pulled back inside the window.
@@ -201,6 +225,7 @@ export function createAccountMenu(
     button.hidden = false;
 
     if (state.state === "linked") {
+      void refreshVerification();
       const who = state.displayName ?? state.email ?? "your account";
       button.title = `Signed in as ${who}`;
       button.setAttribute("aria-label", button.title);
@@ -230,10 +255,11 @@ export function createAccountMenu(
     }
 
     button.title = "Sign in";
+    verificationBox.hidden = true;
     button.setAttribute("aria-label", "Sign in");
     // Opened from a free AI request, the panel speaks to that; otherwise to earnings.
     heading.textContent = reason === "free-ai" ? "Sign in for free AI" : "Keep your earnings";
-    body.textContent = reason === "free-ai"
+    body.textContent = embedded ? "" : reason === "free-ai"
       ? "Free AI needs an account with a verified email. It takes a few seconds, and your message carries on once you're in. Your earnings come with you."
       : "You're already earning — no account needed for that. Sign in to see your balance on the web and to withdraw it later.";
     actions.hidden = false;
@@ -246,6 +272,7 @@ export function createAccountMenu(
   }
 
   function setOpen(next: boolean, why: "free-ai" | null = null): void {
+    if (embedded && !next) return;
     open = next;
     if (next) void refreshPlan();
     if (reason !== why) { reason = why; render(); }
@@ -285,7 +312,9 @@ export function createAccountMenu(
     signInInstead.hidden = !("decide" in outcome);
   };
 
+  let attemptVersion = 0;
   const attempt = (provider: "google" | "github") => {
+    const request = ++attemptVersion;
     google.disabled = true;
     github.disabled = true;
     signInInstead.hidden = true;
@@ -298,8 +327,9 @@ export function createAccountMenu(
 
     void window.adcode.account
       .link(provider)
-      .then(settle)
+      .then(outcome => { if (request === attemptVersion) settle(outcome); })
       .catch(() => {
+        if (request !== attemptVersion) return;
         idle();
         signInInstead.hidden = true;
         body.textContent = "Sign-in didn't complete. Try again.";
@@ -307,6 +337,7 @@ export function createAccountMenu(
   };
 
   signInInstead.addEventListener("click", () => {
+    const request = ++attemptVersion;
     signInInstead.disabled = true;
     google.disabled = true;
     github.disabled = true;
@@ -314,8 +345,9 @@ export function createAccountMenu(
 
     void window.adcode.account
       .signInInstead()
-      .then(settle)
+      .then(outcome => { if (request === attemptVersion) settle(outcome); })
       .catch(() => {
+        if (request !== attemptVersion) return;
         idle();
         signInInstead.hidden = true;
         body.textContent = "Sign-in didn't complete. Try again.";
@@ -326,6 +358,7 @@ export function createAccountMenu(
   github.addEventListener("click", () => attempt("github"));
 
   cancel.addEventListener("click", () => {
+    attemptVersion++;
     // Optimistic: the flow resolves as cancelled a moment later and calls `idle()` itself,
     // but the button has to stop looking stuck the instant it is pressed.
     idle();
@@ -417,6 +450,11 @@ export function createAccountMenu(
 
   return {
     isOpen: () => open,
+    attachTo: (target) => {
+      if (panel.parentElement === (target ?? host) && embedded === (target !== null)) return;
+      embedded = target !== null; (target ?? host).append(panel); panel.classList.toggle("account-embedded", embedded);
+      panel.setAttribute("role", embedded ? "group" : "dialog"); render(); setOpen(embedded);
+    },
     open: (why) => setOpen(true, why ?? null),
     close: () => setOpen(false),
   };

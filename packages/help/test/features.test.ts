@@ -169,3 +169,15 @@ describe("feature catalogue", () => {
     expect(kinds).toEqual(["command", "toggle", "setting"]);
   });
 });
+
+describe("new features", () => {
+  it("marks a feature New for 45 days after it ships, and never before", async () => {
+    const { isNewFeature, featureFor } = await import("../src/features.ts");
+    const shipped = Date.parse("2026-10-25T00:00:00Z");
+    expect(isNewFeature({ added: "2026-10-25" }, shipped + 86_400_000)).toBe(true);
+    expect(isNewFeature({ added: "2026-10-25" }, shipped + 45 * 86_400_000)).toBe(false);
+    expect(isNewFeature({ added: "2026-10-25" }, shipped - 1)).toBe(false);
+    expect(isNewFeature({}, shipped)).toBe(false);
+    expect(featureFor("ai.plans")?.added).toBe("2026-10-25");
+  });
+});

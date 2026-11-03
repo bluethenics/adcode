@@ -1,3 +1,4 @@
+import { createModelWalletStore } from "./modelWalletStore.ts";
 import type { TagflowStore, TagflowUsage, TokenLedgerEntry, TokenOrder } from "../src/tagflowTypes.ts";
 import type { PlanId } from "../src/aiPlans.ts";
 import type { CreditWindow } from "../src/credits.ts";
@@ -18,6 +19,7 @@ const check = (error: { message: string } | null): void => { if (error !== null)
 /** Same lazy, server-only service_role client as the other persistence ports. */
 export function createTagflowStore(lazy: () => Promise<SupabaseClient>): TagflowStore {
   return {
+    ...createModelWalletStore(lazy),
     ...createModelReportStore(lazy),
     async getTagflowConfig() {
       const { data, error } = await (await lazy()).from("tagflow_config").select("config, updated_at, updated_by").eq("id", 1).maybeSingle();
@@ -54,7 +56,7 @@ export function createTagflowStore(lazy: () => Promise<SupabaseClient>): Tagflow
       const credits = request.credits;
       // A paid-model request holds its tokens in the same transaction as everything else.
       const paid = request.paid === undefined ? {} : { p_paid: true, p_free_weekly: request.paid.freeWeeklyTokens };
-      const { data, error } = await (await lazy()).rpc(request.paid !== undefined ? "reserve_ai_with_tokens" : request.unlimited ? "reserve_unlimited_ai" : "reserve_included_ai", { ...paid, p_id: request.id, p_uid: request.uid, p_day: request.day, p_minute: request.minute, p_tokens: request.tokens, p_cost: request.costMicros, p_requests_limit: request.limits.dailyRequests, p_tokens_limit: request.limits.dailyTokens, p_cost_limit: request.limits.dailyCostMicros, p_rpm: request.limits.requestsPerMinute,
+      const { data, error } = await (await lazy()).rpc(request.paid?.dailyOnly ? "reserve_ai_fair_use" : request.paid?.costCredits ? "reserve_ai_cost_credits" : request.paid !== undefined ? "reserve_ai_with_tokens" : request.unlimited ? "reserve_unlimited_ai" : "reserve_included_ai", { ...paid, p_id: request.id, p_uid: request.uid, p_day: request.day, p_minute: request.minute, p_tokens: request.tokens, p_cost: request.costMicros, p_requests_limit: request.limits.dailyRequests, p_tokens_limit: request.limits.dailyTokens, p_cost_limit: request.limits.dailyCostMicros, p_rpm: request.limits.requestsPerMinute,
         p_now: credits?.now ?? 0, p_credits: credits?.millicredits ?? 0, p_session_limit: credits?.sessionLimit ?? 0, p_weekly_limit: credits?.weeklyLimit ?? 0, p_session_ms: credits?.sessionMs ?? 0, p_metered: credits !== undefined });
       check(error);
       if (!RESERVE_RESULTS.includes(data)) throw new Error("Invalid Tagflow reservation result");
@@ -71,10 +73,15 @@ export function createTagflowStore(lazy: () => Promise<SupabaseClient>): Tagflow
       const { data, error } = await (await lazy()).rpc("claim_verification_send", { p_uid: uid, p_now: now, p_gap_ms: gapMs });
       check(error); return data === true;
     },
-    async getPaidTokens(uid) {
+    async retryFailedVerificationSend(uid, claimedAt, retryDelayMs, gapMs) {
+      const { error } = await (await lazy()).from("email_verification_sends")
+        .update({ sent_at: claimedAt + retryDelayMs - gapMs }).eq("uid", uid).eq("sent_at", claimedAt);
+      check(error);
+    },
+    async getPaidTokens(uid, costCredits = false) {
       const db = await lazy();
       const [week, balance] = await Promise.all([
-        db.from("ai_credit_windows").select("started_at, ends_at, used_millicredits, reserved_millicredits").eq("uid", uid).eq("kind", "paid_week").maybeSingle(),
+        db.from("ai_credit_windows").select("started_at, ends_at, used_millicredits, reserved_millicredits").eq("uid", uid).eq("kind", costCredits ? "cost_day" : "paid_week").maybeSingle(),
         db.from("ai_token_balances").select("purchased, reserved").eq("uid", uid).maybeSingle(),
       ]);
       check(week.error); check(balance.error);
@@ -110,10 +117,10 @@ export function createTagflowStore(lazy: () => Promise<SupabaseClient>): Tagflow
       };
     },
     async getAiPlanState(uid, now) {
-      const { data, error } = await (await lazy()).rpc("ai_plan_state_v2", { p_uid: uid, p_now: now });
+      const { data, error } = await (await lazy()).rpc("ai_plan_state_v3", { p_uid: uid, p_now: now });
       check(error);
-      const row = ((data ?? []) as { plan: PlanId | null; ends_at: number | string | null; source: "subscription" | "gift" | null; boost_tokens: number | string; valid_until: number | string | null }[])[0];
-      return { plan: row?.plan == null ? null : { id: row.plan, endsAt: Number(row.ends_at), source: row.source ?? "gift" }, boostTokens: Number(row?.boost_tokens ?? 0), validUntil: row?.valid_until == null ? null : Number(row.valid_until) };
+      const row = ((data ?? []) as { plan: PlanId | null; ends_at: number | string | null; source: "subscription" | "gift" | null; boost_tokens: number | string; valid_until: number | string | null; legacy_until: number | string | null }[])[0];
+      return { legacyUntil: Number(row?.legacy_until ?? 0), plan: row?.plan == null ? null : { id: row.plan, endsAt: Number(row.ends_at), source: row.source ?? "gift" }, boostTokens: Number(row?.boost_tokens ?? 0), validUntil: row?.valid_until == null ? null : Number(row.valid_until) };
     },
     async applySubscriptionEvent(event) {
       const { data, error } = await (await lazy()).rpc("apply_ai_subscription_event_v2", { p_webhook: event.webhookId, p_type: event.type, p_subscription: event.subscriptionId, p_uid: event.uid, p_plan: event.plan,
@@ -155,7 +162,7 @@ export function createTagflowStore(lazy: () => Promise<SupabaseClient>): Tagflow
       return data;
     },
     async listPaidWeekUids(after, limit) {
-      const { data, error } = await (await lazy()).from("ai_credit_windows").select("uid").eq("kind", "paid_week").gt("uid", after).order("uid").limit(limit);
+      const { data, error } = await (await lazy()).from("ai_credit_windows").select("uid").in("kind", ["paid_week", "cost_day"]).gt("uid", after).order("uid").limit(limit);
       check(error);
       return ((data ?? []) as { uid: string }[]).map((row) => row.uid);
     },
@@ -189,6 +196,15 @@ export function createTagflowStore(lazy: () => Promise<SupabaseClient>): Tagflow
       check(error);
       if (!["joined", "unknown", "used-up", "own-code", "already", "has-plan"].includes(data)) throw new Error("Invalid invite result");
       return data;
+    },
+    async listActiveSubscriptions(now, after, limit) {
+      const { data, error } = await (await lazy()).from("ai_subscriptions")
+        .select("provider_subscription_id,uid,plan,status,ends_at,cancel_at_period_end")
+        .gt("ends_at", now).gt("provider_subscription_id", after)
+        .order("provider_subscription_id").limit(limit);
+      check(error);
+      return (data ?? []).map(row => ({ subscriptionId: row.provider_subscription_id, uid: row.uid, plan: row.plan as PlanId,
+        status: row.status, endsAt: Number(row.ends_at), cancelAtPeriodEnd: row.cancel_at_period_end }));
     },
     async subscriptionSummary(now) {
       const { data, error } = await (await lazy()).rpc("ai_subscription_summary", { p_now: now });

@@ -24,6 +24,7 @@ export type NormalizedProviderEvent =
       orderId: string;
       amountMicros: bigint;
       currency: "USD";
+      taxMicros?: bigint;
     }
   | {
       type: "refund";
@@ -98,8 +99,23 @@ export function parseProviderEvent(
     const sessionId = id(data["checkout_session_id"] ?? data["session_id"]);
     const orderId = id(metadata?.["orderId"]);
     const currency = data["currency"];
-    if (paymentId === null || sessionId === null || orderId === null || currency !== "USD") return null;
-    return { type: "purchase", webhookId, paymentId, sessionId, orderId, amountMicros, currency };
+    if (paymentId === null || sessionId === null || orderId === null) return null;
+    /*
+     * A token pack paid in a local currency (Dodo adaptive pricing: EUR, BRL, GBP...) was dropped
+     * here, so the buyer paid and never received credits (four orders, 1-2 November 2026). A
+     * token order checks its amount against the order's USD price, so pass it the USD settlement
+     * when Dodo gives one, and otherwise the local amount, which fails that check and is held
+     * for review - recorded for an administrator, never lost and never credited at a wrong rate.
+     * Every other kind of order still accepts USD only, because it credits the amount itself.
+     */
+    if (currency !== "USD") {
+      if (!orderId.startsWith("ait_")) return null;
+      const settled = data["settlement_currency"] === "USD" ? amount({ amount: data["settlement_amount"] }) : null;
+      return { type: "purchase", webhookId, paymentId, sessionId, orderId, amountMicros: settled ?? amountMicros, currency: "USD" };
+    }
+    const tax = data["tax"] ?? 0;
+    if (orderId.startsWith("aiw_") && (typeof tax !== "number" || !Number.isSafeInteger(tax) || tax < 0 || BigInt(tax)*10_000n >= amountMicros)) return null;
+    return { type: "purchase", webhookId, paymentId, sessionId, orderId, amountMicros, currency, ...(orderId.startsWith("aiw_") ? { taxMicros: BigInt(tax as number)*10_000n } : {}) };
   }
 
   if (eventType === "refund.succeeded") {

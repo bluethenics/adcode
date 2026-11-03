@@ -13,6 +13,17 @@ import { runScheduledMailing, runScheduledStatus } from "./src/lib/mailing";
 import openNext from "./.open-next/worker.js";
 import { serveWithRanges, type AssetFetcher } from "./src/lib/byteRange";
 import { withClientCancellation } from "./src/lib/clientCancellation";
+import { WorkerEntrypoint } from "cloudflare:workers";
+import { createSupabaseStore } from "../../services/api/adapters/supabaseStore.ts";
+
+/** Service binding only; this RPC is never exposed through the public HTTP router. */
+export class ProjectEntitlements extends WorkerEntrypoint<{ SUPABASE_URL: string; SUPABASE_SERVICE_ROLE_KEY: string }> {
+  async getPlan(uid: string) {
+    if (!uid || uid.length > 128) throw new Error("Invalid account.");
+    const state = await createSupabaseStore({ url: this.env.SUPABASE_URL, serviceRoleKey: this.env.SUPABASE_SERVICE_ROLE_KEY }).getAiPlanState(uid, Date.now());
+    return state.plan && state.plan.endsAt > Date.now() ? { plan: state.plan.id, endsAt: state.plan.endsAt } : { plan: "free" as const, endsAt: 0 };
+  }
+}
 
 export default {
   /*

@@ -11,7 +11,7 @@
  * disk error on first paint should not produce a modal over an editor somebody is already
  * using, and the cost of that choice is one missed tour rather than a recurring one.
  */
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { app, ipcMain } from "electron";
 import { CHANNELS } from "../shared/api.ts";
@@ -27,29 +27,33 @@ async function read(): Promise<OnboardingFile | null> {
   try {
     const raw = await readFile(filePath(), "utf8");
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return null;
+    if (typeof parsed !== "object" || parsed === null || typeof (parsed as OnboardingFile).completed !== "boolean") return { completed: true, at: 0 };
     return { completed: (parsed as OnboardingFile).completed === true, at: 0 };
-  } catch {
-    // Missing on a fresh install, which is exactly when the tour should run.
-    return null;
+  } catch (error) {
+    // Only a missing file identifies a fresh install. An unreadable existing welcome
+    // record should not make a returning user repeat setup.
+    return (error as NodeJS.ErrnoException).code === "ENOENT" ? null : { completed: true, at: 0 };
   }
 }
 
 export function registerOnboardingIpc(): void {
+  let completedThisSession = false;
   ipcMain.handle(CHANNELS.onboardingState, async (): Promise<boolean> => {
+    if (completedThisSession) return true;
     const found = await read();
     return found?.completed ?? false;
   });
 
   ipcMain.handle(CHANNELS.onboardingComplete, async (): Promise<void> => {
+    completedThisSession = true;
     try {
       const path = filePath();
       await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, JSON.stringify({ completed: true, at: Date.now() }), "utf8");
+      const temporary = `${path}.tmp`;
+      await writeFile(temporary, JSON.stringify({ completed: true, at: Date.now() }), "utf8");
+      await rename(temporary, path);
     } catch {
-      // §9: the worst permitted outcome is that a feature quietly does nothing. Here that
-      // means the tour offers itself again next launch, which is survivable; throwing
-      // would take out the click that dismissed it.
+      // Retain completion for this session even if the disk cannot be written.
     }
   });
 }

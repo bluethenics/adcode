@@ -97,7 +97,12 @@ app.whenReady().then(async () => {
       const card = transcript.querySelector('.chat-checkpoint');
       const restoredCard = card.querySelector('.chat-checkpoint-file').textContent === 'app.js' && !!card.querySelector('.chat-checkpoint-review') && transcript.textContent.indexOf('Built three files.') < transcript.textContent.indexOf('Undid edits');
       const restoredUndoState = card.dataset.state === 'undone' && card.querySelector('.chat-checkpoint-undo').hidden;
-      return { typingInline, followsGrowingCode, respectsScrollUp, settlesCode, oneWindowPerTurn, cardsFollowTheWork, cardsSettleAboveTheTurn, realTable, narrowTable, restoredCard, restoredUndoState, errors };
+      const historyButton=document.querySelector('.chat-history-open'); historyButton.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
+      const hoverPreview=document.querySelector('.chat-hover-preview');
+      const chatPreview=!!hoverPreview&&hoverPreview.textContent.includes('Earlier edits')&&hoverPreview.textContent.includes('2 messages')&&!hoverPreview.querySelector('img');
+      historyButton.dispatchEvent(new FocusEvent('focusout',{bubbles:true}));
+      const previewDismissed=!document.querySelector('.chat-hover-preview');
+      return { chatPreview, previewDismissed, typingInline, followsGrowingCode, respectsScrollUp, settlesCode, oneWindowPerTurn, cardsFollowTheWork, cardsSettleAboveTheTurn, realTable, narrowTable, restoredCard, restoredUndoState, errors };
     })()`);
     console.log('CHAT_WORK_RESULTS=' + JSON.stringify(results)); win.destroy(); app.exit(0);
   } catch (error) { console.error(error); win.destroy(); app.exit(1); }

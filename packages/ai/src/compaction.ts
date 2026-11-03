@@ -207,7 +207,10 @@ export function summaryRequest(
   maxChars = 400_000,
 ): { system: string; messages: Message[] } {
   const entries = older.map((message) => transcriptLines(message).join("\n")).filter((entry) => entry.length > 0);
-  const pinned = older[0] !== undefined && isSummaryMessage(older[0]) ? entries.shift() : undefined;
+  const previousSummary = older[0] !== undefined && isSummaryMessage(older[0]) ? entries.shift() : undefined;
+  // A previous summary can itself exceed a later model/credit budget. Leave room
+  // for recent progress instead of pinning an unbounded summary forever.
+  const pinned = previousSummary === undefined ? undefined : clip(previousSummary, Math.max(0, Math.floor(maxChars * 0.6)));
 
   let budget = maxChars - (pinned?.length ?? 0);
   const kept: string[] = [];

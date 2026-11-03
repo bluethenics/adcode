@@ -92,4 +92,6 @@ export interface FeatureRecord {
   readonly keywords: readonly string[];
   /** Where the feature can be reached: the desktop app, the web version, or both. */
   readonly surface: "desktop" | "web" | "both";
+  /** "YYYY-MM-DD" the feature shipped; surfaces mark it New for a while (see isNewFeature). */
+  readonly added?: string;
 }

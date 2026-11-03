@@ -44,6 +44,9 @@ export const LIMITS = {
 } as const;
 
 export type Message =
+  | { readonly type: "tool-request"; readonly id: string; readonly name: string; readonly input: Record<string, unknown> }
+  | { readonly type: "tool-result"; readonly id: string; readonly content: string; readonly isError: boolean }
+  | { readonly type: "tool-cancel"; readonly id: string }
   /* ── Handshake ────────────────────────────────────────────────────────────── */
   | { readonly type: "hello"; readonly protocol: number; readonly token: string; readonly name: string }
   | { readonly type: "welcome"; readonly protocol: number; readonly you: string; readonly participants: readonly Participant[] }
@@ -266,6 +269,19 @@ export function parse(raw: string): Message | null {
   if (typeof type !== "string") return null;
 
   switch (type) {
+    case "tool-request": {
+      const id = filled(envelope["id"], 128), name = filled(envelope["name"], 64), input = envelope["input"];
+      if (id === null || name === null || typeof input !== "object" || input === null || Array.isArray(input) || JSON.stringify(input).length > 1_000_000) return null;
+      return { type, id, name, input: input as Record<string, unknown> };
+    }
+    case "tool-result": {
+      const id = filled(envelope["id"], 128), content = str(envelope["content"], 1_000_000), isError = envelope["isError"];
+      return id === null || content === null || typeof isError !== "boolean" ? null : { type, id, content, isError };
+    }
+    case "tool-cancel": {
+      const id = filled(envelope["id"], 128);
+      return id === null ? null : { type, id };
+    }
     case "hello": {
       const token = filled(envelope["token"], LIMITS.token);
       const name = str(envelope["name"], LIMITS.name);

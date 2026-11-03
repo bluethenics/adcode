@@ -121,6 +121,7 @@ export function createBrowserClient(session: Pick<WebSession, "refresh"> & { rea
       headers.set("x-adcode-ai-source", "chat");
       headers.set("x-adcode-ai-persona", "coding-assistant");
       headers.set("x-adcode-platform", "web");
+      headers.set("x-adcode-paid-credits", "1");
     }
     const response = await doFetch(path, { method, headers, ...(body === undefined ? {} : { body: JSON.stringify(body) }), ...(signal === undefined ? {} : { signal }), redirect: "error" });
     if (!response.ok) throw await responseError(response);
@@ -131,8 +132,8 @@ export function createBrowserClient(session: Pick<WebSession, "refresh"> & { rea
 
   const client: BrowserClient = {
     async config() {
-      const raw = await json<{ available: boolean; defaultModel: string; models: { id: string; name?: string; label?: string; contextWindow: number; maxOutput: number }[] }>("/v1/ai/tagflow/config");
-      return { available: raw.available, defaultModel: raw.defaultModel, models: raw.models.map((model) => ({ id: model.id, label: model.name ?? model.label ?? model.id, contextWindow: model.contextWindow, maxOutput: model.maxOutput })) };
+      const raw = await json<{ available: boolean; defaultModel: string; models: { id: string; name?: string; label?: string; contextWindow: number; maxOutput: number; billing?: string; inputPrice?: number; outputPrice?: number }[] }>("/v1/ai/tagflow/config");
+      return { available: raw.available, defaultModel: raw.defaultModel, models: raw.models.map((model) => ({ id: model.id, label: model.billing === "wallet" ? `${model.name ?? model.id} · $${Number(model.inputPrice ?? 0).toFixed(4)} / $${Number(model.outputPrice ?? 0).toFixed(4)} per 1M` : model.name ?? model.label ?? model.id, contextWindow: model.contextWindow, maxOutput: model.maxOutput })) };
     },
     async listChats() { return (await json<{ chats: BrowserChatSummary[] }>("/api/chats")).chats; },
     getChat: (id) => json(`/api/chats/${encodeURIComponent(id)}`),

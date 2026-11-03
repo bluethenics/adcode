@@ -273,7 +273,7 @@ function firstHeader(value: string | string[] | undefined): string | undefined {
 
 export interface ApiOptions {
   adNetworks?: AdNetworkRuntime;
-  tagflow?: { apiKey?: string; fetchImpl?: typeof fetch; country?: (request: Request) => string | undefined; workerSecrets?: WorkerSecrets; rateLimitWaitsMs?: readonly number[]; fallback?: boolean; identity?: AccountIdentity; timeouts?: Partial<{ firstMs: number; idleMs: number; maxMs: number }> };
+  tagflow?: { modelMetadata?: boolean; priority?: import("./requestPriority.ts").RequestPriority; apiKey?: string; fetchImpl?: typeof fetch; country?: (request: Request) => string | undefined; workerSecrets?: WorkerSecrets; rateLimitWaitsMs?: readonly number[]; fallback?: boolean; identity?: AccountIdentity; emailProof?: import("./accountEmailProof.ts").AccountEmailProof; timeouts?: Partial<{ firstMs: number; idleMs: number; maxMs: number }> };
   websiteAnalytics?: WebsiteAnalyticsStore;
   mailing?: MailingStore;
   mailingWebhookSecret?: () => string | undefined;
@@ -542,7 +542,7 @@ export function createRequestHandler(options: ApiOptions = {}): RequestHandler {
       }
 
       const result = await handleFundingWebhook(
-        { store, clock, webhookSecret },
+        { store, clock, webhookSecret, ...(options.payments === undefined ? {} : { payments: options.payments }) },
         {
           id: firstHeader(req.headers["webhook-id"]),
           timestamp: firstHeader(req.headers["webhook-timestamp"]),

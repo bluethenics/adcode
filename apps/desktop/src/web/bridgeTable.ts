@@ -303,6 +303,7 @@ export const BRIDGE = [
   { path: "settings.onChanged", kind: "subscribe", channel: CHANNELS.settingsChanged },
 
   // account
+  { path: "account.verification", kind: "invoke", channel: CHANNELS.accountVerification },
   { path: "account.status", kind: "invoke", channel: CHANNELS.accountStatus },
   { path: "account.link", kind: "invoke", channel: CHANNELS.accountLink },
   { path: "account.linkEmail", kind: "invoke", channel: CHANNELS.accountLinkEmail },
@@ -387,6 +388,16 @@ export const BRIDGE = [
   { path: "ads.reportSignals", kind: "send", channel: CHANNELS.adSignals },
 
   // collab
+  { path: "collab.sharedLibrary", kind: "invoke", channel: CHANNELS.sharedProjectLibrary },
+  { path: "collab.sharedCreate", kind: "invoke", channel: CHANNELS.sharedProjectCreate },
+  { path: "collab.sharedJoin", kind: "invoke", channel: CHANNELS.sharedProjectJoin },
+  { path: "collab.sharedSnapshot", kind: "invoke", channel: CHANNELS.sharedProjectSnapshot },
+  { path: "collab.sharedSession", kind: "invoke", channel: CHANNELS.sharedProjectSession },
+  { path: "collab.sharedMessage", kind: "invoke", channel: CHANNELS.sharedProjectMessage },
+  { path: "collab.sharedManage", kind: "invoke", channel: CHANNELS.sharedProjectManage },
+  { path: "collab.onSharedChanged", kind: "subscribe", channel: CHANNELS.sharedProjectChanged },
+  { path: "collab.projects", kind: "invoke", channel: CHANNELS.projectsList },
+  { path: "collab.projectDetails", kind: "invoke", channel: CHANNELS.projectsDetails },
   { path: "collab.host", kind: "invoke", channel: CHANNELS.collabHost },
   { path: "collab.join", kind: "invoke", channel: CHANNELS.collabJoin },
   { path: "collab.leave", kind: "invoke", channel: CHANNELS.collabLeave },

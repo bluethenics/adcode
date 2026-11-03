@@ -1,6 +1,4 @@
 import { createWorkspaceControls } from "./workspaceControls.ts";
-import { formatTokens } from "../../shared/aiUsage.ts";
-import { percentLeft, untilText } from "../../shared/tagflow.ts";
 import { openWebAccount } from "../surface.ts";
 /**
  * The Vibe window's sidebar: one place to start, switch project, and see what needs you.
@@ -26,7 +24,7 @@ import { describeVibeProject, projectName, recentProjectsFor, summarizeVibeChang
 import { GIT_CHANGED_EVENT } from "./changesView.ts";
 import { isWebSurface, usesWebFrame } from "../surface.ts";
 import { brandMark } from "./brandMark.ts";
-import { WEB_ICON } from "./webIcons.ts";
+import { DISCORD_ICON, WEB_ICON } from "./webIcons.ts";
 import { createChatTabs, createWebRail, type WebRail } from "./webShell.ts";
 import type { AppMenu } from "./appMenu.ts";
 
@@ -320,7 +318,15 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
   footerRow.append(notifications, earnings, settings, deps.more);
   const footer = document.createElement("div");
   footer.className = "vibe-rail-footer";
-  footer.append(ide, footerRow);
+  const discord = button("vibe-nav-item vibe-discord", "Join Discord", DISCORD_ICON, () => {
+    window.adcode.milestones.record("discord_opened");
+    window.open("https://discord.gg/WH2UBsQd3", "_blank", "noopener");
+  });
+  const discordLabel = document.createElement("span");
+  discordLabel.textContent = "Join Discord";
+  discord.append(discordLabel);
+  discord.title = "Join the ADCode community on Discord";
+  footer.append(discord, ide, footerRow);
 
   const main = document.createElement("div");
   main.className = "vibe-rail-main";
@@ -380,7 +386,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
     const time = document.querySelector<HTMLElement>(".web-time");
     if (time !== null) usage.append(time);
     deps.onEarnings((label) => setBadge(earningsRow, "Earnings", label, false, label === "" ? "Your earnings" : `${label} available`));
-    void watchCredits(credits);
+    credits.control.title = "Included AI — view usage and plans";
 
     const projectLabel = document.createElement("h2");
     projectLabel.className = "vibe-nav-label";
@@ -401,6 +407,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
       // Where the web offers the desktop app, the desktop offers what its menu bar used to put
       // on screen: the shortcuts, now that the menus live behind a button.
       web ? link("Desktop app", PATH.monitor, () => deps.run("workspace.openIde")) : link("Keyboard shortcuts", WEB_ICON.keyboard, () => deps.run("help.shortcuts")),
+      link("Join Discord", DISCORD_ICON, () => { window.adcode.milestones.record("discord_opened"); window.open("https://discord.gg/WH2UBsQd3", "_blank", "noopener"); }),
       link("Docs", PATH.book, () => window.open("https://adcode.bluethenics.com/docs", "_blank", "noopener")),
       link("All features", PATH.grid, () => document.getElementById("open-features")?.click()),
     );
@@ -447,6 +454,7 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
       places: VIBE_PAGES.map((page) => ({ id: page.id, label: page.label, icon: WEB_ICON[page.id], run: () => { deps.showPage(page.id); closeDrawer(); } })),
       panels: [
         accountPanel,
+        ...(document.getElementById("open-projects") === null || document.getElementById("open-projects")!.hidden ? [] : [{ id: "projects", control: document.getElementById("open-projects")! }]),
         { id: "changes", label: "Changes", icon: WEB_ICON.changes, run: () => { deps.toggleContext("changes"); closeDrawer(); } },
         { id: "preview", label: "Preview", icon: WEB_ICON.preview, run: () => { deps.togglePreview(); closeDrawer(); } },
         { id: "automations", label: "Automations", shortLabel: "Schedule", icon: WEB_ICON.automations, run: () => { chat.openScheduleComposer(); closeDrawer(); } },
@@ -516,34 +524,6 @@ export function createVibeSidebar(deps: VibeSidebarDeps): VibeSidebar {
   }
 
   /** The session window's credits on the Credits row, as Freebuff shows its daily count. */
-  async function watchCredits(row: { control: HTMLButtonElement; badge: HTMLElement }): Promise<void> {
-    const paint = async (): Promise<void> => {
-      const view = await window.adcode.aiUsage.allowance().catch(() => null);
-      /*
-       * Reported 2026-10-27 ("Ur doing Wrong marketing"): the badge said Unlimited while Heabsy
-       * models stopped at their free weekly tokens. Tagflow is unlimited; Heabsy is not, so with
-       * paid models on, the badge counts what is actually left of the Heabsy week.
-       */
-      const paid = view?.tokens;
-      if (paid?.enabled === true) {
-        const left = Math.max(0, paid.free.remaining) + Math.max(0, paid.purchased);
-        const refill = paid.free.resetsAt === null ? "" : ` Refills in ${untilText(paid.free.resetsAt, Date.now())}.`;
-        const week = percentLeft(paid.free.remaining, paid.free.limit);
-        setBadge(row, "Included AI", week === 0 && paid.purchased > 0 ? "Purchased" : `${week}% left`, left <= 0,
-          `Tagflow AI has no limit. Heabsy models: ${formatTokens(Math.max(0, paid.free.remaining))} of ${formatTokens(paid.free.limit)} free tokens left this week, then ${formatTokens(paid.purchased)} purchased.${refill}`);
-        return;
-      }
-      if (view?.unlimited) { setBadge(row, "Included AI", "Unlimited", false, "Tagflow AI has no ADCode usage limit"); return; }
-      const session = view?.credits?.session;
-      if (session === undefined) { setBadge(row, "Included AI", "", false, "See your free AI usage"); return; }
-      const left = Math.max(0, Math.floor(session.remaining));
-      setBadge(row, "Included AI", `${percentLeft(left, session.limit)}% left`, left <= session.limit * 0.1, `${left.toLocaleString()} of ${session.limit.toLocaleString()} left in this session`);
-    };
-    window.adcode.aiUsage.onChanged(() => void paint());
-    window.setInterval(() => { if (!document.hidden) void paint(); }, 60_000);
-    await paint();
-  }
-
   /* ── Compact top bar ─────────────────────────────────────────────────── */
 
   const topbar = document.createElement("div");

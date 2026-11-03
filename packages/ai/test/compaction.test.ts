@@ -233,3 +233,9 @@ describe("compactedHistory", () => {
     expect(isSummaryMessage(assistant(SUMMARY_OPEN))).toBe(false);
   });
 });
+
+it("bounds an earlier summary while preserving recent instructions", () => {
+  const old=user(SUMMARY_OPEN + "x".repeat(12000));
+  const text=JSON.stringify(summaryRequest([old,user("RECENT: continue the existing task")],undefined,1000).messages);
+  expect(text.length).toBeLessThan(2000);expect(text).toContain("RECENT: continue");
+});

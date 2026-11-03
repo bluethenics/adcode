@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+it("offers paid credits for a dollar-wallet refusal without claiming a free refill",()=>{
+  const failure=describeAiFailure("wallet-balance: Your paid credits cannot cover this request's maximum charge.");
+  expect(failure).toMatchObject({kind:"tokens",title:"Add paid model credits",actions:["buy-model-credits","models"]});
+  expect(failure.explanation).not.toMatch(/refill/i);
+});
 
 it("offers retry with the current account after an account switch", () => {
   const failure = describeAiFailure("The signed-in account changed. Start this task again with the current account.");
@@ -24,6 +29,55 @@ it("explains invalid file arguments and retries the remaining work in smaller ed
 });
 
 describe("assistant failure explanations", () => {
+  it("names a credit shortfall instead of calling a fresh conversation too big", () => {
+    // Reports 1-2 November 2026: users with 3-32 credits left saw "conversation too big".
+    for (const raw of [
+      "Included AI returned HTTP 413: This request is too large for the remaining 11.06 credits. Your balance is not exhausted. Compact the conversation or retry with less old tool output, or choose a cheaper model. (code context-length)",
+      "Included AI returned HTTP 413: Not enough credits left for this step: you have 2.79 credits and this conversation's input on DeepSeek costs about 4.10. Your balance is not exhausted. Compact the conversation, switch to Tagflow Code, which uses no credits, or add credits at https://adcode.bluethenics.com/ai-tokens. (code context-length)",
+    ]) {
+      const failure = describeAiFailure(raw);
+      expect(failure, raw).toMatchObject({ kind: "too-large", title: "Not enough credits left for this long step", actions: ["compact-continue", "models", "buy-tokens"] });
+    }
+    expect(describeAiFailure("Included AI returned HTTP 413: Not enough credits left for this step: you have 2.79 credits and this conversation's input on X costs about 4.10. Compact the conversation, switch to Tagflow Code, which uses no credits, or add credits.").explanation).toContain("switch to Tagflow Code (free, no credits)");
+  });
+  it("asks a signed-in account with no email to add one rather than sign in again", () => {
+    expect(describeAiFailure("Included AI returned HTTP 403: Your sign-in did not share an email address, so there is nowhere to send a verification link. Add an email in Account, or sign out and continue with Google. No API key is needed. (code verify-account)")).toMatchObject({ kind: "sign-in", title: "Add an email to use free AI" });
+  });
+  it("does not tell a subscriber on an older paid period that they are out of credit", () => {
+    const failure = describeAiFailure("Included AI returned HTTP 402: Your current paid period keeps its original model allowances. Change to a new plan in billing to use the newly added models, or use a USD-wallet model. (code legacy-plan-model)");
+    expect(failure).toMatchObject({ kind: "model-missing", title: "This model was added after your plan period began" });
+  });
+  it("tells an Ollama user how to raise its context window", () => {
+    const failure = describeAiFailure("ollama returned HTTP 400: request (5293 tokens) exceeds the available context size (4096 tokens), try increasing it");
+    expect(failure).toMatchObject({ kind: "too-large", title: "Ollama's context window is too small", actions: ["retry", "models"] });
+    expect(failure.explanation).toContain("OLLAMA_CONTEXT_LENGTH");
+  });
+  it("tells a queue refusal apart from a per-minute limit", () => {
+    expect(describeAiFailure("Included AI returned HTTP 429: ADCode is busy and your request could not get a provider slot yet. Please try again shortly. (code rate-limit)")).toMatchObject({ kind: "rate-limit", title: "Free AI is busy right now" });
+    expect(describeAiFailure("Included AI returned HTTP 429: Your account already has the most AI requests running at once that its plan allows (parallel chats and helpers count too). (code rate-limit)")).toMatchObject({ kind: "rate-limit", title: "Your other AI chats are still running" });
+  });
+  it("offers a way to keep going when today's credits are spent, except where a pack cannot help", () => {
+    for (const raw of [
+      "Included AI returned HTTP 429: Your remaining credits cannot cover this request. Shorten the conversation, choose a cheaper model, or upgrade for more daily credits at https://adcode.bluethenics.com/ai-tokens. Your daily allowance refills in 5h 12m. (code daily-limit)",
+      "Included AI returned HTTP 429: You have 0.94 credits left today - not enough for another step on DeepSeek. Your daily credits refill in 5h. Add credits or upgrade at https://adcode.bluethenics.com/ai-tokens. (code daily-limit)",
+    ]) {
+      const failure = describeAiFailure(raw);
+      expect(failure, raw).toMatchObject({ kind: "daily-limit", title: "You've used today's credits", actions: ["upgrade-plan", "buy-tokens", "models"] });
+      expect(failure.explanation).toMatch(/They refill in 5h/);
+    }
+    const unlimited = describeAiFailure("Included AI returned HTTP 429: Your remaining daily fair-use credits cannot cover this request. Shorten the conversation or wait for your refill in 3h. Your purchased balances are not charged automatically. (code daily-limit)");
+    expect(unlimited).toMatchObject({ title: "You've used today's fair-use credits", actions: ["models", "usage"] });
+  });
+  it("turns the unsaved-work guard into one click instead of a dead end", () => {
+    const failure = describeAiFailure("Stopped after three identical failed calls to run_command. Save main.c, main.h, main.hpp, and 3 more before AI file edits, so nothing you have not saved gets overwritten.");
+    expect(failure).toMatchObject({ title: "Save your open files to let the assistant continue", actions: ["save-continue", "models"] });
+    expect(failure.explanation).toContain("main.c, main.h, main.hpp, and 3 more have unsaved changes");
+  });
+  it("passes on the successor a provider names when it retires a model", () => {
+    const failure = describeAiFailure("Google returned HTTP 404: This model models/gemini-2.5-flash-lite is no longer available to new users. Please update your code to use models/gemini-3.5-flash-lite for the latest features and improvements. (NOT_FOUND)");
+    expect(failure).toMatchObject({ kind: "model-missing" });
+    expect(failure.explanation).toContain("suggests gemini-3.5-flash-lite instead");
+  });
   it("asks a signed-out newcomer to sign in for free AI instead of blaming a key they never had", () => {
     for (const raw of [
       "Included AI returned HTTP 401: Sign in to use included AI. Banned accounts cannot use it. (code missing-token)",
@@ -101,7 +155,7 @@ describe("assistant failure explanations", () => {
     expect(failure.kind).toBe("too-large");
     expect(failure.explanation).toContain("6,000");
     expect(failure.explanation).toContain("7,543");
-    expect(failure.actions[0]).toBe("new-conversation");
+    expect(failure.actions[0]).toBe("compact-continue");
   });
 
   it("recognises a garbled tool call and suggests trying again", () => {
@@ -213,7 +267,7 @@ describe("the paid-token limit", () => {
   it("offers to buy tokens or switch models when the free Heabsy week is used up", () => {
     const failure = describeAiFailure("Included AI returned HTTP 429: You've used this week's 10,000,000 free tokens on Heabsy models. Buy tokens at https://adcode.bluethenics.com/ai-tokens, or switch to Tagflow AI, which stays free. Your free tokens refill in 3 days. (code daily-limit)");
     expect(failure.kind).toBe("tokens");
-    expect(failure.title).toBe("This week's free Heabsy tokens are used up");
+    expect(failure.title).toBe("This week's included AI tokens are used up");
     expect(failure.actions).toEqual(["buy-tokens", "upgrade-plan", "models", "usage"]);
     expect(failure.explanation).toContain("Buy tokens or a plan");
     expect(failure.explanation).toContain("3 days");

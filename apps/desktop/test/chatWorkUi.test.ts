@@ -9,5 +9,5 @@ it("shows main-chat edits as they stream, follows growth, keeps the turn's cards
   expect(run.status, run.stderr || String(run.error)).toBe(0);
   const line = /^CHAT_WORK_RESULTS=(.+)$/m.exec(run.stdout);
   expect(line, run.stdout).not.toBeNull();
-  expect(JSON.parse(line![1]!)).toEqual({ typingInline: true, followsGrowingCode: true, respectsScrollUp: true, settlesCode: true, oneWindowPerTurn: true, cardsFollowTheWork: true, cardsSettleAboveTheTurn: true, realTable: true, narrowTable: true, restoredCard: true, restoredUndoState: true, errors: [] });
+  expect(JSON.parse(line![1]!)).toEqual({ chatPreview: true, previewDismissed: true, typingInline: true, followsGrowingCode: true, respectsScrollUp: true, settlesCode: true, oneWindowPerTurn: true, cardsFollowTheWork: true, cardsSettleAboveTheTurn: true, realTable: true, narrowTable: true, restoredCard: true, restoredUndoState: true, errors: [] });
 }, 50_000);

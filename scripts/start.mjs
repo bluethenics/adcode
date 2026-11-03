@@ -13,6 +13,7 @@ import { createRequire } from "node:module";
 import process from "node:process";
 import { validateOpenTarget } from "./openTarget.mjs";
 import { createBuildProgress, quipAt, renderFrame, renderSummary } from "./buildProgress.mjs";
+import { sourceProfile } from "./sourceProfile.mjs";
 
 const REPO = process.cwd();
 const require = createRequire(join(REPO, "package.json"));
@@ -325,4 +326,5 @@ const electronPath = require("electron");
 process.stdout.write("Starting ADCode…\n");
 
 const launchArguments = openTarget.target === null ? [] : ["--adcode-open", openTarget.target];
-process.exit(await run(electronPath, [join(REPO, "apps", "desktop"), ...launchArguments]));
+const profile = sourceProfile(REPO);
+process.exit(await run(electronPath, [join(REPO, "apps", "desktop"), `--user-data-dir=${profile}`, ...launchArguments]));

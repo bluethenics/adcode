@@ -8,6 +8,12 @@ import { stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { app } from "electron";
 import { createRecentsStore, type RecentFolder, type RecentsStore } from "./recentsStore.ts";
+import { createProjectsStore } from "./projects.ts";
+
+let projects: ReturnType<typeof createProjectsStore> | null = null;
+export function projectsStore(): ReturnType<typeof createProjectsStore> {
+  return projects ??= createProjectsStore(app.getPath("userData"));
+}
 
 let store: RecentsStore | null = null;
 
@@ -53,6 +59,7 @@ export async function recentFolders(): Promise<readonly RecentFolder[]> {
 export async function rememberRecent(root: string): Promise<void> {
   if (typeof root !== "string" || root.length === 0) return;
   await get().remember(root, basename(root) || root, Date.now());
+  await projectsStore().remember([{ path: root, name: basename(root) || root, openedAt: Date.now() }]).catch(() => {});
 }
 
 export async function forgetRecent(root: string): Promise<readonly RecentFolder[]> {

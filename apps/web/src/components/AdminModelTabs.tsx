@@ -3,7 +3,7 @@ import Link from "next/link";
 /** The three model catalogues, in the same tab style as every other admin page with sections. */
 export function AdminModelTabs({ active }: { active: "free" | "byok" | "reports" }) {
   const tabs = [
-    { id: "free", label: "Free models", href: "/admin/tagflow" },
+    { id: "free", label: "ADCode models", href: "/admin/tagflow" },
     { id: "reports", label: "Provider reports", href: "/admin/tagflow/reports" },
     { id: "byok", label: "Bring your own key models", href: "/admin/models" },
   ] as const;

@@ -1,5 +1,5 @@
 import type { PlanCheckout, PromoView, TagflowConfigRecord, TagflowReservation, TagflowStore, TagflowUsage, TagflowUserPolicy, TokenLedgerEntry, TokenOrder, TokenSalesDay } from "./tagflowTypes.ts";
-import { INVITE_REWARD_TOKENS, PLAN_CHECKOUT_GUARD_MS, PLANS, planById, subscriptionBlocksCheckout, type PlanId } from "./aiPlans.ts";
+import { INVITE_REWARD_TOKENS, planRank, PLAN_CHECKOUT_GUARD_MS, PLANS, planById, subscriptionBlocksCheckout, type PlanId } from "./aiPlans.ts";
 
 /** Uses of one Pro subscriber's invite code. */
 const INVITE_MAX_USES = 2;
@@ -9,6 +9,7 @@ import type { ModelFeedbackRecord, ModelRequestRecord } from "./tagflowReportTyp
 import { summarizeModelReports } from "./tagflowReports.ts";
 import type { ModelAudienceProfile } from "./modelAudience.ts";
 import { admitCredits, settleWindow, type CreditWindows } from "./credits.ts";
+import { createModelWalletMemoryStore } from "./modelWalletMemoryStore.ts";
 
 export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): void } {
   let config: TagflowConfigRecord | null = null;
@@ -48,6 +49,7 @@ export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): voi
   const addLedger = (entry: Omit<TokenLedgerEntry, "id">): void => { ledger.unshift({ id: `l${ledger.length + 1}`, ...entry }); };
   const key = (uid: string, day: string): string => `${uid}\u0000${day}`;
   return {
+    ...createModelWalletMemoryStore(),
     resetTagflow() { config = null; policies.clear(); days.clear(); reservations.clear(); windows.clear(); minutes.clear(); modelRequests.clear(); modelFeedback.clear(); profiles.clear(); verificationSends.clear(); collectionStartedAt = null;
       freeWeeks.clear(); balances.clear(); holds.clear(); orders.clear(); planCheckouts.clear(); ledger.length = 0; seenWebhooks.clear();
       subscriptions.clear(); gifts.length = 0; boosts.length = 0; promos.clear(); redemptions.clear(); invites.clear(); inviteOf.clear(); invitees.clear(); },
@@ -78,11 +80,11 @@ export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): voi
       if (!request.unlimited && ((request.limits.dailyRequests !== UNLIMITED_DAILY_REQUESTS && row.requests + 1 > request.limits.dailyRequests) || row.inputTokens + row.outputTokens + row.reservedTokens + request.tokens > request.limits.dailyTokens || row.costMicros + row.reservedCostMicros + request.costMicros > request.limits.dailyCostMicros)) return "daily-limit";
       const admitted = request.credits === undefined ? null : admitCredits(windows.get(request.uid) ?? { session: null, week: null }, request.credits, request.unlimited);
       if (admitted !== null && !admitted.ok) return admitted.limit;
-      const paid = request.paid === undefined ? null : holdTokens(freeWeeks.get(request.uid) ?? null, balanceOf(request.uid), request.paid.freeWeeklyTokens, request.tokens, request.paid.now);
+      const paid = request.paid === undefined ? null : holdTokens(freeWeeks.get(request.paid?.costCredits ? `cost:${request.uid}` : request.uid) ?? null, request.paid.dailyOnly ? { purchased: 0, reserved: 0 } : balanceOf(request.uid), request.paid.freeWeeklyTokens, request.tokens, request.paid.now, request.paid.requireFull);
       if (paid !== null && !paid.ok) return "paid-limit";
       if (!request.unlimited && request.limits.requestsPerMinute !== UNLIMITED_REQUESTS_PER_MINUTE && (minutes.get(minuteKey) ?? 0) >= request.limits.requestsPerMinute) return "rate-limit";
       if (admitted !== null) windows.set(request.uid, admitted.windows);
-      if (paid !== null && paid.ok) { freeWeeks.set(request.uid, paid.window); balances.set(request.uid, paid.balance); holds.set(request.id, paid.hold); }
+      if (paid !== null && paid.ok) { freeWeeks.set(request.paid?.costCredits ? `cost:${request.uid}` : request.uid, paid.window); if (!request.paid?.dailyOnly) balances.set(request.uid, paid.balance); holds.set(request.id, paid.hold); }
       days.set(key(request.uid, request.day), { ...row, requests: row.requests + 1, reservedTokens: row.reservedTokens + request.tokens, reservedCostMicros: row.reservedCostMicros + request.costMicros });
       minutes.set(minuteKey, (minutes.get(minuteKey) ?? 0) + 1);
       reservations.set(request.id, { ...request, sessionStartedAt: admitted?.ok ? admitted.windows.session.startedAt : null, weekStartedAt: admitted?.ok ? admitted.windows.week.startedAt : null });
@@ -107,15 +109,15 @@ export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): voi
       });
       const hold = holds.get(id);
       if (hold !== undefined) {
-        const done = chargeTokens(freeWeeks.get(reservation.uid) ?? null, balanceOf(reservation.uid), hold, usage.failed ? 0 : usage.tokenCharge ?? usage.inputTokens + usage.outputTokens);
-        if (done.window !== null) freeWeeks.set(reservation.uid, done.window);
+        const done = chargeTokens(freeWeeks.get(reservation.paid?.costCredits ? `cost:${reservation.uid}` : reservation.uid) ?? null, balanceOf(reservation.uid), hold, usage.failed ? 0 : usage.tokenCharge ?? usage.inputTokens + usage.outputTokens);
+        if (done.window !== null) freeWeeks.set(reservation.paid?.costCredits ? `cost:${reservation.uid}` : reservation.uid, done.window);
         balances.set(reservation.uid, done.balance);
         if (done.paidCharged > 0) addLedger({ uid: reservation.uid, delta: -done.paidCharged, kind: "usage", ref: id, note: "", createdAt: Date.now() });
         holds.delete(id);
       }
       reservations.delete(id);
     },
-    async getPaidTokens(uid) { return structuredClone({ free: freeWeeks.get(uid) ?? null, balance: balanceOf(uid) }); },
+    async getPaidTokens(uid, costCredits = false) { return structuredClone({ free: freeWeeks.get(costCredits ? `cost:${uid}` : uid) ?? null, balance: balanceOf(uid) }); },
     async createTokenOrder(value) {
       if (orders.has(value.orderId)) throw new Error("Duplicate order");
       orders.set(value.orderId, structuredClone(value));
@@ -189,6 +191,9 @@ export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): voi
       if (last !== undefined && last > now - gapMs) return false;
       verificationSends.set(uid, now); return true;
     },
+    async retryFailedVerificationSend(uid, claimedAt, retryDelayMs, gapMs) {
+      if (verificationSends.get(uid) === claimedAt) verificationSends.set(uid, claimedAt + retryDelayMs - gapMs);
+    },
     async getAiPlanState(uid, now) {
       const live = [
         ...[...subscriptions.values()].filter((one) => one.uid === uid && one.endsAt > now).map((one) => ({ id: one.plan, endsAt: one.endsAt, source: "subscription" as const })),
@@ -245,12 +250,12 @@ export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): voi
     async giftPlan(uid, plan, days, adminUid, note, now) { gifts.push({ uid, plan, startsAt: now, endsAt: now + days * 86_400_000, source: "admin", ref: `${adminUid}:${note}` }); },
     async boostAllowance(uid, weeklyTokens, endsAt, adminUid, note, now) { void adminUid; void note; boosts.push({ uid, weeklyTokens, startsAt: now, endsAt }); },
     async resetAiWeek(uid) {
-      const week = freeWeeks.get(uid);
-      if (week === undefined) return "none";
-      if (week.reservedTokens > 0) return "busy";
-      freeWeeks.delete(uid); return "reset";
+      const weeks = [freeWeeks.get(uid), freeWeeks.get(`cost:${uid}`)].filter(w => w !== undefined);
+      if (weeks.length === 0) return "none";
+      if (weeks.some(w => w.reservedTokens > 0)) return "busy";
+      freeWeeks.delete(uid); freeWeeks.delete(`cost:${uid}`); return "reset";
     },
-    async listPaidWeekUids(after, limit) { return [...freeWeeks.keys()].filter((uid) => uid > after).sort().slice(0, limit); },
+    async listPaidWeekUids(after, limit) { return [...new Set([...freeWeeks.keys()].map(uid => uid.replace(/^cost:/,"")))].filter((uid) => uid > after).sort().slice(0, limit); },
     async createPromo(promo, adminUid, now) {
       void adminUid; void now;
       if (promos.has(promo.code)) return false;
@@ -287,6 +292,12 @@ export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): voi
       invite.uses += 1; invitees.set(uid, { inviter: invite.inviter, rewarded: false });
       return "joined";
     },
+    async listActiveSubscriptions(now, after, limit) {
+      return [...subscriptions.entries()].filter(([id, one]) => id > after && one.endsAt > now)
+        .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).slice(0, limit)
+        .map(([subscriptionId, one]) => ({ subscriptionId, uid: one.uid, plan: one.plan, status: one.status,
+          endsAt: one.endsAt, cancelAtPeriodEnd: one.status === "cancelled" }));
+    },
     async subscriptionSummary(now) {
       const totals = new Map<PlanId, number>();
       for (const one of subscriptions.values()) if (one.endsAt > now) totals.set(one.plan, (totals.get(one.plan) ?? 0) + 1);
@@ -295,6 +306,6 @@ export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): voi
   };
 }
 
-const planRank = (id: PlanId): number => id === "pro" ? 3 : id === "monthly" ? 2 : 1;
+
 /** A weekly plan's monthly revenue: 52 weeks a year over 12 months. */
 const monthlyCents = (id: PlanId): number => { const plan = planById(id)!; return plan.interval === "week" ? Math.round((plan.priceCents * 52) / 12) : plan.priceCents; };

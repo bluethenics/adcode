@@ -16,8 +16,8 @@ import {
   type CreativeView,
   type SeriesPointView,
 } from "@/lib/api";
-import { BillingBody } from "./billing/page";
-import { NewCampaignForm } from "./campaigns/new/page";
+import { BillingBody } from "./billing/BillingBody";
+import { NewCampaignForm } from "./campaigns/new/NewCampaignForm";
 import { CreativeForm } from "./campaigns/[id]/CreativeForm";
 import { campaignRowToggle, loadPortalReport } from "@/lib/portalReport";
 import { CampaignBudgetMove } from "@/components/CampaignBudgetMove";

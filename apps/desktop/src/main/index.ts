@@ -62,7 +62,9 @@ const useDevServer = !app.isPackaged && devUrl !== undefined;
 /** A single instance keeps one workspace lock and one set of pty children. */
 const hasInstanceLock = app.requestSingleInstanceLock();
 if (!hasInstanceLock) {
-  app.quit();
+  // The existing instance receives the open request. Exit before whenReady can
+  // initialize another Chromium session against its locked cache on Windows.
+  app.exit(0);
 }
 
 let pendingOpenIntent: SessionState | null = null;

@@ -32,7 +32,7 @@ const MUST_BE_MODAL = [
  * so this file has to assert the boundary in both directions or it just argues for making
  * everything a dialog.
  */
-const MUST_STAY_QUIET = ["URL copied.", "Invite code copied. Send it to whoever is joining."];
+const MUST_STAY_QUIET = ["URL copied.", "Project invite copied. Teammates can join its shared chats even when live files are offline."];
 
 const RENDERER = ["panels/sourceControl.ts", "panels/searchPanel.ts", "collab/collabPanel.ts", "panels/portsPanel.ts"];
 

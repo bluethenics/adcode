@@ -487,6 +487,22 @@
 }
 :root[data-frame="web"] .web-promo .vibe-ide-button:active { transform: scale(0.97); }
 
+/*
+ * Short windows: Chats is the one part of the panel that grows, and on a laptop the footer left it
+ * a strip a few rows tall (reported 2 November 2026). Below 900px the four links become one row of
+ * icon buttons - each keeps its name as label and tooltip - and the desktop card keeps only its
+ * button, which gives Chats back about 200px.
+ */
+@media (max-height: 900px) {
+  :root[data-frame="web"] .web-sidebar-footer { gap: 8px; padding: 8px 10px 10px; }
+  :root[data-frame="web"] body[data-workspace-mode="vibe"] .web-links { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+  :root[data-frame="web"] .web-links .web-link-row { justify-content: center; min-height: 32px; padding: 0; }
+  :root[data-frame="web"] .web-links .web-link-row > .vibe-nav-text,
+  :root[data-frame="web"] .web-links .web-link-row > svg:last-child { display: none; }
+  .web-promo { padding: 0; border: 0; background: none; }
+  .web-promo p { display: none; }
+}
+
 /* ── Chat tabs ─────────────────────────────────────────────────────────── */
 
 .web-tabs { display: none; }

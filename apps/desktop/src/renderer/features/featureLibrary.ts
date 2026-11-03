@@ -1,5 +1,6 @@
 import {
   featureRecords,
+  isNewFeature,
   type FeatureAction,
   type FeatureRecord,
   type HelpGroupId,
@@ -32,6 +33,7 @@ export interface FeatureLibrary {
 
 export interface FeatureLibraryDeps {
   readonly overlayHost?: HTMLElement;
+  readonly visibleFeature?: (feature: FeatureRecord) => boolean;
   readonly onRequestClose: () => void;
   readonly hasCommand: (command: string) => boolean;
   readonly settingValue: (settingId: string) => boolean | undefined;
@@ -60,7 +62,7 @@ const titleFor = (group: FeatureLibraryCategory): string =>
   GROUP_TITLES[group] ?? group;
 
 export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
-  const records = featureRecords();
+  const records = featureRecords().filter(feature => deps.visibleFeature?.(feature) ?? true);
   const categories = featureLibraryCategories(records);
   const helpPopover = createHelpPopover(deps.overlayHost ?? document.body);
   let open = false;
@@ -194,6 +196,12 @@ export function createFeatureLibrary(deps: FeatureLibraryDeps): FeatureLibrary {
     const heading = document.createElement("h3");
     heading.className = "feature-library-row-title";
     heading.textContent = feature.entry.title;
+    if (isNewFeature(feature)) {
+      const fresh = document.createElement("span");
+      fresh.className = "feature-library-new";
+      fresh.textContent = "New";
+      heading.append(" ", fresh);
+    }
     const plain = document.createElement("p");
     plain.className = "feature-library-row-plain";
     plain.textContent = feature.entry.plain;

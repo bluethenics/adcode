@@ -31,8 +31,8 @@ describe("included Tagflow AI", () => {
       expect(await memory.reserveTagflow({ id: `unlimited-${index}`, uid: "busy", day: "2026-10-11", minute: 1, tokens: 1, costMicros: 0, limits })).toBe("ok");
     }
     expect(await memory.getTagflowUsage("busy", "2026-10-11")).toMatchObject({ requests: 1002, reservedTokens: 1002 });
-    expect(await memory.reserveTagflow({ id: "token-overflow", uid: "busy", day: "2026-10-11", minute: 1, tokens: 1_000_000, costMicros: 0, limits })).toBe("daily-limit");
-    expect(await memory.reserveTagflow({ id: "cost-overflow", uid: "busy", day: "2026-10-11", minute: 1, tokens: 1, costMicros: 1_000_001, limits })).toBe("daily-limit");
+    expect(await memory.reserveTagflow({ id: "token-overflow", uid: "busy", day: "2026-10-11", minute: 1, tokens: 1_100_000, costMicros: 0, limits })).toBe("daily-limit");
+    expect(await memory.reserveTagflow({ id: "cost-overflow", uid: "busy", day: "2026-10-11", minute: 1, tokens: 1, costMicros: 1_100_001, limits })).toBe("daily-limit");
   });
   let store: ReturnType<typeof createMemoryStore>;
   let now: number;
@@ -62,9 +62,25 @@ describe("included Tagflow AI", () => {
     expect(published.models[0]!.contextWindow).toBe(262144);
     const accepted = await chat("user",{ ...body,messages:[{ role:"user",content:"x".repeat(450000) }] });
     expect(accepted.status).toBe(200); await accepted.text(); expect(upstream).toHaveBeenCalledTimes(1);
-    const rejected = await chat("user",{ ...body,max_tokens:4096,messages:[{ role:"user",content:"x".repeat(780000) }] });
+    const rejected = await chat("user",{ ...body,max_tokens:4096,messages:[{ role:"user",content:"x".repeat(800000) }] });
     expect(rejected.status).toBe(413); expect(await rejected.json()).toMatchObject({ error:{ code:"context-length" } });
     expect(upstream).toHaveBeenCalledTimes(1);
+  });
+
+  it("publishes when a model joined ADCode, from its config or the catalogue's record", async () => {
+    await save({ ...config, models: [config.models[0]!, { ...config.models[0]!, id: "heabsy-qwen38-queen" }, { ...config.models[0]!, id: "dated", releaseDate: "2026-10-30" }] });
+    const published = await (await call("/ai/tagflow/config")).json() as { models: { id: string; releaseDate?: string }[] };
+    expect(published.models.map((model) => [model.id, model.releaseDate])).toEqual([["coder", undefined], ["heabsy-qwen38-queen", "2026-11-01"], ["dated", "2026-10-30"]]);
+  });
+
+  it("uses provider context metadata and accepts histories beyond the former 1 MB transport ceiling", async () => {
+    const fetcher=vi.fn<typeof fetch>().mockImplementation(async url=>String(url).endsWith("/models")?Response.json({data:[{id:"coder",context_length:1048576}]}):reply());
+    const relay=createFetchHandler({store,verifier,clock:{now:()=>now},tagflow:{apiKey:"test",modelMetadata:true,fetchImpl:fetcher}});
+    const published=await relay(new Request("https://adcode.test/v1/ai/tagflow/config"));
+    expect(await published.json()).toMatchObject({models:[{contextWindow:1048576}]});
+    const response=await relay(new Request("https://adcode.test/v1/ai/tagflow/chat/completions",{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer user"},body:JSON.stringify({...body,messages:[{role:"user",content:"x".repeat(1200000)}]})}));
+    pending.push(response);expect(response.status).toBe(200);await response.text();
+    expect(fetcher.mock.calls.filter(call=>String(call[0]).endsWith("/models"))).toHaveLength(1);
   });
 
   it("continues past historical session allowances while accounting for every request", async () => {
@@ -82,6 +98,230 @@ describe("included Tagflow AI", () => {
     expect(await (await call("/ai/tagflow/usage", "user")).json()).toMatchObject({ unlimited: true, credits: { weekly: { used: 1.015 } } });
   });
 
+  describe("cost-credit accounting", () => {
+    beforeEach(async () => { await save({ ...config, paid: { ...DEFAULT_PAID_CONFIG, enabled: true, accounting: "cost-v1", freeWeeklyTokens: 110000 }, models: [{ ...config.models[0]!, inputPrice: .4, outputPrice: 1.4, cacheInputPrice: .04 }] }); });
+    it("charges model cost instead of raw tokens and publishes the accounting unit", async () => {
+      const response = await chat(); expect(response.status).toBe(200); await response.text();
+      expect((await store.getPaidTokens("user", true)).free?.usedTokens).toBe(99);
+      expect(await (await call("/ai/tokens/orders", "user")).json()).toMatchObject({ tokens: { accounting: "cost-v1", free: { limit: 110000, used: 99 } } });
+    });
+    it("fits reply headroom into the free balance instead of rejecting a new account", async () => {
+      const response = await chat("user", { ...body, max_tokens: 50000 }); expect(response.status).toBe(200); await response.text();
+      expect(JSON.parse(upstream.mock.calls[0]![1]!.body as string).max_tokens).toBeGreaterThan(0);
+      expect((await store.getPaidTokens("user", true)).balance.purchased).toBe(0);
+    });
+    it("asks for compaction while credits remain instead of claiming the day is exhausted", async () => {
+      const response = await chat("user", { ...body, messages: [{ role: "user", content: "x".repeat(90000) }] });
+      expect(response.status).toBe(413);
+      const message = (await response.json() as { error: { message: string } }).error.message;
+      expect(message).toContain("balance is not exhausted"); expect(message).toContain("you have 10.00 credits");
+      expect(upstream).not.toHaveBeenCalled();
+    });
+    it("prices admission on the token estimate, not one token per byte", async () => {
+      // 30 KB is ~10k tokens: 4.5 credits of input against a 10-credit day. Pricing bytes as
+      // tokens made it 12 credits and refused a user who had most of the day left.
+      const response = await chat("user", { ...body, messages: [{ role: "user", content: "x".repeat(30000) }] });
+      expect(response.status).toBe(200); await response.text();
+      expect(upstream).toHaveBeenCalledTimes(1);
+    });
+    it("lets a paid period from before cost credits use newly added models", async () => {
+      const saved=(await store.getTagflowConfig())!.config;
+      await save({...saved,defaultModel:"heabsy-qwen38",models:[{...saved.models[0]!,id:"heabsy-qwen38"},{...saved.models[0]!,id:"coder-newer"}]});
+      await store.giftPlan("user","weekly",2,"admin-1","old paid period",now);
+      const state=store.getAiPlanState.bind(store);
+      vi.spyOn(store,"getAiPlanState").mockImplementation(async(uid,at)=>({...await state(uid,at),legacyUntil:now+86400000}));
+      const response=await chat("user",{...body,model:"coder-newer"});
+      expect(response.status).toBe(200); await response.text();
+      expect((await store.getPaidTokens("user",true)).free?.usedTokens).toBe(99);
+      expect((await store.getPaidTokens("user")).free).toBeNull();
+    });
+    it("shows a paid pack as purchased credits wherever the website and the app read the balance", async () => {
+      // Reported repeatedly on 1-3 November: "paid, credits never arrived". Once a payment applies,
+      // both the account page's orders view and the app's usage view must carry it.
+      await store.createTokenOrder({ orderId: "ait_paid", uid: "user", packId: "50m", priceCents: 1000, tokens: 55_000_000, status: "pending", checkoutSession: "chk", providerPaymentId: null, createdAt: now, paidAt: null });
+      expect(await store.applyTokenEvent({ type: "purchase", webhookId: "evt", orderId: "ait_paid", paymentId: "pay", sessionId: "chk", amountMicros: 10_000_000n, now })).toBe("credited");
+      const orders = await (await call("/ai/tokens/orders", "user")).json() as { tokens: { purchased: number; accounting?: string } };
+      const usage = await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { purchased: number } };
+      expect(orders.tokens).toMatchObject({ accounting: "cost-v1", purchased: 55_000_000 });
+      expect(usage.tokens.purchased).toBe(55_000_000);
+    });
+    it("pauses a near-empty balance until the refill instead of asking to compact again", async () => {
+      // Reported: with under a credit left, a 413 sent one client into 84 retries in 15 minutes.
+      expect(await store.reserveTagflow({ id: "nearly", uid: "user", day: "2026-10-10", minute: 0, tokens: 77000, costMicros: 0, unlimited: true, limits: config.limits, paid: { freeWeeklyTokens: 110000, now, requireFull: true, costCredits: true } })).toBe("ok");
+      await store.settleTagflow("nearly", { inputTokens: 1, outputTokens: 0, costMicros: 0, estimated: false, failed: false, tokenCharge: 77000 });
+      const response = await chat("user", { ...body, messages: [{ role: "user", content: "x".repeat(60000) }] });
+      expect(response.status).toBe(429);
+      const error = (await response.json() as { error: { code: string; resetsAt: number; message: string } }).error;
+      expect(error).toMatchObject({ code: "daily-limit", resetsAt: expect.any(Number) });
+      expect(error.message).toContain("You have 3.00 credits left today");
+      expect(response.headers.get("retry-after")).not.toBeNull();
+      expect(upstream).not.toHaveBeenCalled();
+    });
+    it("records provider cost with cached input at the cache rate", async () => {
+      upstream.mockImplementation(async () => new Response(event({ choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] }) + event({ choices: [], usage: { prompt_tokens: 1000, completion_tokens: 10, prompt_tokens_details: { cached_tokens: 900 } } }) + "data: [DONE]\n\n", { headers: { "content-type": "text/event-stream" } }));
+      const response = await chat(); expect(response.status).toBe(200); await response.text();
+      // 100 uncached at 0.4 + 900 cached at 0.04 + 10 output at 1.4, in micro-dollars.
+      expect((await usage())?.costMicros).toBe(90);
+    });
+    it("compacts an oversized step with 66 percent left and continues using the same balance", async () => {
+      expect(await store.reserveTagflow({ id: "spent", uid: "user", day: "2026-10-10", minute: 0, tokens: 37400, costMicros: 0, unlimited: true, limits: config.limits, paid: { freeWeeklyTokens: 110000, now, requireFull: true, costCredits: true } })).toBe("ok");
+      await store.settleTagflow("spent", { inputTokens: 1, outputTokens: 0, costMicros: 0, estimated: false, failed: false, tokenCharge: 37400 });
+      const large = await chat("user", { ...body, messages: [{ role: "user", content: "x".repeat(60000) }] });
+      expect(large.status).toBe(413);
+      expect(await large.json()).toMatchObject({ error: { code: "context-length", retryable: false } });
+      expect(upstream).not.toHaveBeenCalled();
+      expect((await store.getPaidTokens("user", true)).free?.usedTokens).toBe(37400);
+      const compacted = await chat(); expect(compacted.status).toBe(200); await compacted.text();
+      expect((await store.getPaidTokens("user", true)).free?.usedTokens).toBe(37499);
+      expect((await store.getPaidTokens("user", true)).free?.reservedTokens).toBe(0);
+    });
+    it("covers premium models for Unlimited without a USD wallet and charges the daily budget", async () => {
+      const saved = (await store.getTagflowConfig())!.config;
+      await save({ ...saved, models: [{ ...saved.models[0]!, billing: "wallet" }] });
+      await store.giftPlan("user", "unlimited", 1, "admin-1", "gift", now);
+      await store.grantTokens("user", 999999, "admin-1", "saved top-up", now);
+      const response = await chat(); expect(response.status).toBe(200); await response.text();
+      expect((await store.getPaidTokens("user", true)).free?.usedTokens).toBe(143);
+      expect((await store.getPaidTokens("user", true)).balance.purchased).toBe(999999);
+      expect((await store.getModelWallet("user", now)).balanceMicros).toBe(0);
+      expect(await (await call("/ai/tagflow/usage", "user")).json()).toMatchObject({ tokens: { free: { limit: 82500000 }, paidModels: ["coder"] }, wallet: { models: [] } });
+    });
+    it("does not spend purchased balances beyond Unlimited fair use, then refills the next day", async () => {
+      await store.giftPlan("user", "unlimited", 2, "admin-1", "gift", now);
+      await store.grantTokens("user", 999999999, "admin-1", "saved top-up", now);
+      await store.reserveTagflow({ id: "fair-used", uid: "user", day: "2026-10-10", minute: 0, tokens: 82500000, costMicros: 0, unlimited: true, limits: config.limits, paid: { freeWeeklyTokens: 82500000, now, dailyOnly: true, requireFull: true, costCredits: true } });
+      await store.settleTagflow("fair-used", { inputTokens: 1, outputTokens: 0, costMicros: 0, estimated: false, failed: false, tokenCharge: 82500000 });
+      const blocked = await chat(); expect(blocked.status).toBe(429);
+      expect((await store.getPaidTokens("user", true)).balance.purchased).toBe(999999999);
+      expect(upstream).not.toHaveBeenCalled();
+      now += 86400000;
+      const resumed = await chat(); expect(resumed.status).toBe(200); await resumed.text();
+    });
+    it("does not grant premium wallet access to Max", async () => {
+      const saved = (await store.getTagflowConfig())!.config;
+      await save({ ...saved, models: [{ ...saved.models[0]!, billing: "wallet" }] });
+      await store.giftPlan("user", "max", 1, "admin-1", "gift", now);
+      const response = await chat(); expect(response.status).toBe(402); expect(upstream).not.toHaveBeenCalled();
+    });
+    it("protects an existing paid period on the original models and ends protection on time", async () => {
+      const saved=(await store.getTagflowConfig())!.config;
+      await save({...saved, defaultModel:"heabsy-qwen38",models:[{...saved.models[0]!,id:"heabsy-qwen38"}]});
+      await store.giftPlan("user","weekly",2,"admin-1","old paid period",now);
+      const state=store.getAiPlanState.bind(store); const end=now+86400000;
+      vi.spyOn(store,"getAiPlanState").mockImplementation(async(uid,at)=>({...await state(uid,at),legacyUntil:end}));
+      const response=await chat("user",{...body,model:"heabsy-qwen38"});expect(response.status).toBe(200);await response.text();
+      expect((await store.getPaidTokens("user")).free?.usedTokens).toBe(15);
+      expect((await store.getPaidTokens("user",true)).free).toBeNull();
+      expect(await (await call("/ai/tokens/orders","user")).json()).toMatchObject({tokens:{free:{limit:20000000},legacyUntil:end}});
+      now=end;
+      const next=await chat("user",{...body,model:"heabsy-qwen38"});expect(next.status).toBe(200);await next.text();
+      expect((await store.getPaidTokens("user",true)).free?.usedTokens).toBe(99);
+      expect(await (await call("/ai/tokens/orders","user")).json()).toMatchObject({tokens:{accounting:"cost-v1",free:{limit:2475000}}});
+    });
+    it("keeps Pro finite and refills daily", async () => {
+      await store.giftPlan("user", "pro", 1, "admin-1", "gift", now);
+      expect(await (await call("/ai/tokens/orders", "user")).json()).toMatchObject({ tokens: { enabled: true, free: { limit: 9900000 } } });
+    });
+  });
+
+  it("keeps sponsored Tagflow available without credits while rejecting unknown zero prices", async () => {
+    const sponsored = { ...config.models[0]!, id: "tagflow-code-27b", inputPrice: 0, outputPrice: 0 };
+    await save({ ...config, defaultModel: sponsored.id, paid: { ...DEFAULT_PAID_CONFIG, enabled: true, accounting: "cost-v1", freeWeeklyTokens: 0 }, models: [sponsored, { ...sponsored, id: "unknown-free" }] });
+    const published = await (await call("/ai/tagflow/config")).json() as { models: { id: string; paid: boolean }[] };
+    expect(published.models).toEqual([expect.objectContaining({ id: sponsored.id, paid: false })]);
+    const response = await chat("user", { ...body, model: sponsored.id });
+    expect(response.status).toBe(200); await response.text();
+    expect((await store.getPaidTokens("user", true)).free).toBeNull();
+    expect((await store.getPaidTokens("user", true)).balance.purchased).toBe(0);
+    const rejected = await chat("user", { ...body, model: "unknown-free" });
+    expect(rejected.status).toBe(503);
+    expect(upstream).toHaveBeenCalledTimes(1);
+  });
+
+  it("reduces repeated agent tool output while preserving instructions and the latest step", async () => {
+    const old = "old-log-".repeat(2000), latest = "latest-log-".repeat(2000);
+    const messages = [{ role: "user", content: old }, { role: "assistant", content: null, tool_calls: [{ id: "old", type: "function", function: { name: "read_file", arguments: "{}" } }] }, { role: "tool", tool_call_id: "old", content: old }, { role: "assistant", content: null, tool_calls: [{ id: "latest", type: "function", function: { name: "run_command", arguments: "{}" } }] }, { role: "tool", tool_call_id: "latest", content: latest }];
+    const response = await handle(new Request("https://adcode.test/v1/ai/tagflow/chat/completions", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer user", "x-adcode-ai-source": "agent" }, body: JSON.stringify({ ...body, messages }) }));
+    pending.push(response); expect(response.status).toBe(200); await response.text();
+    const sent = JSON.parse(upstream.mock.calls[0]![1]!.body as string).messages;
+    expect(sent[0].content).toBe(old); expect(sent[2].content.length).toBeLessThan(6000);
+    expect(sent[2].content).toContain("Earlier tool output shortened"); expect(sent[2].tool_call_id).toBe("old");
+    expect(sent[4].content).toBe(latest); expect(messages[2]!.content).toBe(old);
+  });
+
+  describe("Heabsy free access", () => {
+    const heabsy = { ...config.models[0]!, id: "heabsy", provider: "custom-heabsy" as const };
+    beforeEach(async () => {
+      vi.stubEnv("INCLUDED_AI_CUSTOM_HEABSY_API_KEY", "k");
+      await save({ ...config, providers: [{ id: "custom-heabsy", name: "Heabsy", baseUrl: "https://api.heabsy.com/v1" }], models: [config.models[0]!, heabsy], paid: { ...DEFAULT_PAID_CONFIG, enabled: true } });
+    });
+    it("admits a free account without purchased tokens or a subscription", async () => {
+      const result = await chat("user", { ...body, model: "heabsy" });
+      expect(result.status).toBe(200); await result.text();
+      expect(await (await call("/ai/tagflow/usage", "user")).json()).toMatchObject({ tokens: { enabled: true, free: { limit: 5_000_000, used: 15 } } });
+    });
+    it("moves a paid subscriber to a healthy backup after a temporary provider server error", async () => {
+      await store.giftPlan("user", "weekly", 1, "admin-1", "gift", now);
+      upstream.mockResolvedValueOnce(new Response(null, { status: 503 }));
+      const result = await chat("user", { ...body, model: "heabsy" });
+      expect(result.status).toBe(200);
+      expect(result.headers.get("x-adcode-fallback-model")).toBe("coder");
+      await result.text();
+      expect(upstream).toHaveBeenCalledTimes(2);
+    });
+    it("resets exhausted free Heabsy usage after exactly 24 hours", async () => {
+      await store.reserveTagflow({ id: "daily-spent", uid: "user", day: "2026-10-10", minute: 0, tokens: 5_000_000, costMicros: 0, limits: { ...config.limits, dailyTokens: 5_000_000 }, paid: { freeWeeklyTokens: 5_000_000, now } });
+      await store.settleTagflow("daily-spent", { inputTokens: 5_000_000, outputTokens: 0, costMicros: 0, estimated: false, failed: false, tokenCharge: 5_000_000 });
+      const denied = await chat("user", { ...body, model: "heabsy" });
+      expect(denied.status).toBe(429);
+      expect(await denied.json()).toMatchObject({ error: { resetsAt: now + 86_400_000 } });
+      now += 86_400_000;
+      const result = await chat("user", { ...body, model: "heabsy" });
+      expect(result.status).toBe(200); await result.text();
+    });
+    it("returns an expired finite plan to the free daily allowance", async () => {
+      await store.giftPlan("user", "weekly", 1, "admin-1", "gift", now);
+      const result = await chat("user", { ...body, model: "heabsy" });
+      expect(result.status).toBe(200); await result.text();
+      expect(await (await call("/ai/tagflow/usage", "user")).json()).toMatchObject({ tokens: { enabled: true, free: { limit: 20_000_000, used: 15 } } });
+      now += 86_400_000;
+      const freeResult = await chat("user", { ...body, model: "heabsy" });
+      expect(freeResult.status).toBe(200); await freeResult.text();
+    });
+    it("gives Monthly 100M and preserves its cap after the shared allowance is spent", async () => {
+      await store.giftPlan("user", "monthly", 1, "admin-1", "gift", now);
+      await store.reserveTagflow({ id: "spent", uid: "user", day: "2026-10-10", minute: 0, tokens: 100_000_000, costMicros: 0, limits: { ...config.limits, dailyTokens: 200_000_000 }, paid: { freeWeeklyTokens: 100_000_000, now } });
+      await store.settleTagflow("spent", { inputTokens: 100_000_000, outputTokens: 0, costMicros: 0, estimated: false, failed: false, tokenCharge: 100_000_000 });
+      const result = await chat("user", { ...body, model: "heabsy" });
+      expect(result.status).toBe(429);
+      expect(upstream).not.toHaveBeenCalled();
+      expect(await (await call("/ai/tagflow/usage", "user")).json()).toMatchObject({ tokens: { free: { limit: 100_000_000, remaining: 0 } } });
+    });
+    it("allows free Heabsy access while token sales are switched off", async () => {
+      const saved = await store.getTagflowConfig();
+      await save({ ...saved!.config, paid: { ...DEFAULT_PAID_CONFIG, enabled: false } });
+      expect((await chat("user", { ...body, model: "heabsy" })).status).toBe(200);
+      expect(upstream).toHaveBeenCalled();
+    });
+    it("never reserves or spends purchased tokens for Pro and reports unlimited in both views", async () => {
+      await store.giftPlan("user", "pro", 1, "admin-1", "gift", now);
+      const reserve = vi.spyOn(store, "reserveTagflow");
+      const result = await chat("user", { ...body, model: "heabsy" });
+      expect(result.status).toBe(200); await result.text();
+      expect(reserve.mock.calls[0]![0].paid).toBeUndefined();
+      expect((await store.getPaidTokens("user")).balance.purchased).toBe(0);
+      for (const path of ["/ai/tagflow/usage", "/ai/tokens/orders"]) {
+        expect(await (await call(path, "user")).json()).toMatchObject({ tokens: { enabled: false, plan: { id: "pro" } } });
+      }
+    });
+    it("allows fallback from another free model into Heabsy", async () => {
+      upstream.mockImplementation(async () => new Response(null, { status: 429 }));
+      const result = await chat();
+      expect(result.status).toBe(429);
+      expect(upstream.mock.calls.some(([url]) => String(url).includes("heabsy.com"))).toBe(true);
+    });
+  });
+
   describe("paid tokens in the published config", () => {
     const heabsy = { id: "glm", name: "GLM", provider: "custom-heabsy" as const, contextWindow: 65_536, maxOutput: 4096, inputPrice: 0, outputPrice: 0 };
     const withHeabsy = (paid: unknown) => ({ ...config, providers: [{ id: "custom-heabsy", name: "Heabsy", baseUrl: "https://api.heabsy.com/v1" }], models: [config.models[0]!, heabsy], paid }) as unknown as TagflowConfig;
@@ -90,9 +330,9 @@ describe("included Tagflow AI", () => {
       vi.stubEnv("INCLUDED_AI_CUSTOM_HEABSY_API_KEY", "k");
       await save(withHeabsy({ ...DEFAULT_PAID_CONFIG, enabled: true }));
       const published = await (await call("/ai/tagflow/config")).json() as { paid: { enabled: boolean; packs: unknown[] }; models: { id: string; paid: boolean }[] };
-      expect(published.paid).toMatchObject({ enabled: true, freeWeeklyTokens: 10_000_000 });
+      expect(published.paid).toMatchObject({ enabled: true, freeWeeklyTokens: 5_000_000 });
       expect(published.paid.packs).toHaveLength(3);
-      expect(published.models.map(({ id, paid }) => [id, paid])).toEqual([["coder", false], ["glm", true]]);
+      expect(published.models.map(({ id, paid }) => [id, paid])).toEqual([["coder", true], ["glm", true]]);
     });
 
     it("rejects a config whose paid section is malformed", () => {
@@ -102,13 +342,13 @@ describe("included Tagflow AI", () => {
     });
   });
 
-  describe("paid Heabsy tokens", () => {
-    const glm = { id: "glm", name: "GLM", provider: "custom-heabsy" as const, contextWindow: 65_536, maxOutput: 4096, inputPrice: 0, outputPrice: 0 };
+  describe("shared metered provider tokens", () => {
+    const glm = { id: "glm", name: "GLM", provider: "custom-metered" as const, contextWindow: 65_536, maxOutput: 4096, inputPrice: 0, outputPrice: 0 };
     const mimo = { ...glm, id: "mimo", name: "Mimo" };
-    const paidConfig = (enabled = true, freeWeeklyTokens = 1000) => ({ ...config, providers: [{ id: "custom-heabsy", name: "Heabsy", baseUrl: "https://api.heabsy.com/v1" }],
+    const paidConfig = (enabled = true, freeWeeklyTokens = 1000) => ({ ...config, providers: [{ id: "custom-metered", name: "Heabsy", baseUrl: "https://api.heabsy.com/v1" }],
       models: [config.models[0]!, glm, mimo], paid: { ...DEFAULT_PAID_CONFIG, enabled, freeWeeklyTokens } }) as unknown as TagflowConfig;
     const ask = (model: string) => chat("user", { ...body, model });
-    beforeEach(() => { vi.stubEnv("INCLUDED_AI_CUSTOM_HEABSY_API_KEY", "k"); });
+    beforeEach(() => { vi.stubEnv("INCLUDED_AI_CUSTOM_METERED_API_KEY", "k"); });
 
     it("refuses a paid model once the free week is spent, in words an old desktop understands", async () => {
       await save(paidConfig(true, 1));
@@ -119,16 +359,20 @@ describe("included Tagflow AI", () => {
       expect(error).toMatchObject({ code: "daily-limit", limit: "paid", retryable: true, buyUrl: "https://adcode.bluethenics.com/ai-tokens" });
       expect(error.resetsAt).toBeGreaterThan(now);
       expect(error.message).toContain("https://adcode.bluethenics.com/ai-tokens");
-      expect(error.message).toContain("Tagflow");
+      expect(error.message).toContain("included AI");
       expect(refused.headers.get("retry-after")).not.toBeNull();
     });
 
-    it("never charges Tagflow, and charges nothing while the switch is off", async () => {
-      await save(paidConfig(true, 1));
-      for (let i = 0; i < 3; i++) { const r = await ask("coder"); expect(r.status).toBe(200); await r.text(); }
+    it("counts Tagflow and Heabsy together and refuses both when the week is spent", async () => {
+      await save(paidConfig(true, 30));
+      for (const model of ["coder", "glm"]) { const r = await ask(model); expect(r.status).toBe(200); await r.text(); }
+      expect((await store.getPaidTokens("user")).free).toMatchObject({ usedTokens: 30, reservedTokens: 0 });
+      for (const model of ["coder", "glm"]) expect((await ask(model)).status).toBe(429);
+      const view = await (await call("/ai/tagflow/usage", "user")).json();
+      expect(view).toMatchObject({ unlimited: false, tokens: { free: { used: 30, remaining: 0 }, paidModels: ["coder", "glm", "mimo"] } });
       await save(paidConfig(false, 1));
-      for (let i = 0; i < 3; i++) { const r = await ask("glm"); expect(r.status).toBe(200); await r.text(); }
-      expect((await store.getPaidTokens("user")).free).toBeNull();
+      const unmetered = await ask("glm"); expect(unmetered.status).toBe(200); await unmetered.text();
+      expect((await store.getPaidTokens("user")).free?.usedTokens).toBe(30);
     });
 
     describe("usage campaign", () => {
@@ -155,7 +399,7 @@ describe("included Tagflow AI", () => {
         expect(view.tokens).toMatchObject({ enabled: false, paidModels: [] });
         expect((await (await call("/ai/tagflow/config")).json() as { campaign: { name: string } }).campaign.name).toBe("Free week");
         now += 4 * 86_400_000;
-        expect((await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { enabled: boolean; paidModels: string[] } }).tokens).toMatchObject({ enabled: true, paidModels: ["glm", "mimo"], campaign: null });
+        expect((await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { enabled: boolean; paidModels: string[] } }).tokens).toMatchObject({ enabled: true, paidModels: ["coder", "glm", "mimo"], campaign: null });
       });
 
       it("can be stopped early, and the cap applies again at once", async () => {
@@ -197,26 +441,26 @@ describe("included Tagflow AI", () => {
       await store.grantTokens("user", 50_000_000, "admin-1", "test", now);
       const r = await ask("glm"); await r.text();
       const view = await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { enabled: boolean; free: { limit: number; used: number }; purchased: number } };
-      expect(view.tokens).toMatchObject({ enabled: true, free: { limit: 10_000_000, used: 15 }, purchased: 50_000_000, paidModels: ["glm", "mimo"] });
+      expect(view.tokens).toMatchObject({ enabled: true, free: { limit: 10_000_000, used: 15 }, purchased: 50_000_000, paidModels: ["coder", "glm", "mimo"] });
     });
 
-    it("falls back from a busy paid model only to a free one", async () => {
+    it("falls back between included providers using the shared allowance", async () => {
       // Mimo comes first in the administrator's order, so only the paid rule keeps it out.
       const ordered = paidConfig(true, 10_000_000);
       await save({ ...ordered, models: [glm, mimo, config.models[0]!] } as TagflowConfig);
       upstream.mockImplementation(async (_url, init) => JSON.parse(String(init?.body)).model === "glm" ? new Response("busy", { status: 429 }) : reply());
       const r = await ask("glm");
       expect(r.status).toBe(200);
-      expect(r.headers.get("x-adcode-fallback-model")).toBe("coder");
+      expect(r.headers.get("x-adcode-fallback-model")).toBe("mimo");
       await r.text();
     });
 
-    it("charges no purchased tokens when a busy paid model falls back to Tagflow", async () => {
+    it("charges the shared balance when a busy model falls back to Tagflow", async () => {
       await save(paidConfig(true, 1));
       await store.grantTokens("user", 1_000_000, "admin-1", "test", now);
       upstream.mockImplementation(async (_url, init) => JSON.parse(String(init?.body)).model === "glm" ? new Response("busy", { status: 429 }) : reply());
       const r = await ask("glm"); expect(r.headers.get("x-adcode-fallback-model")).toBe("coder"); await r.text();
-      expect(await store.getPaidTokens("user")).toMatchObject({ balance: { purchased: 1_000_000, reserved: 0 }, free: { usedTokens: 0, reservedTokens: 0 } });
+      expect(await store.getPaidTokens("user")).toMatchObject({ balance: { purchased: 999_986, reserved: 0 }, free: { usedTokens: 1, reservedTokens: 0 } });
     });
 
     it("reads no paid-token rows while paid tokens are off", async () => {
@@ -232,7 +476,7 @@ describe("included Tagflow AI", () => {
       await store.applySubscriptionEvent({ webhookId: "w", type: "active", subscriptionId: "s", uid: "user", plan: "pro", customerId: "c", status: "active", periodEnd: now + 30 * 86_400_000, cancelAtPeriodEnd: false, now });
       for (let i = 0; i < 3; i++) { const r = await ask("glm"); expect(r.status).toBe(200); await r.text(); }
       const view = await (await call("/ai/tagflow/usage", "user")).json() as { tokens: { free: { limit: number }; plan: { id: string } | null } };
-      expect(view.tokens.free.limit).toBe(150_000_000);
+      expect(view.tokens).toMatchObject({ enabled: false });
       expect(view.tokens.plan).toMatchObject({ id: "pro" });
     });
 
@@ -247,7 +491,7 @@ describe("included Tagflow AI", () => {
     it("publishes the plans", async () => {
       await save(paidConfig(true, 1));
       const published = await (await call("/ai/tagflow/config")).json() as { paid: { plans: { id: string; priceCents: number; weeklyTokens: number }[] } };
-      expect(published.paid.plans.map((p) => [p.id, p.priceCents, p.weeklyTokens])).toEqual([["weekly", 300, 60_000_000], ["monthly", 900, 60_000_000], ["pro", 1900, 150_000_000]]);
+      expect(published.paid.plans.map((p) => [p.id, p.priceCents, p.weeklyTokens])).toEqual([["weekly", 300, 20_000_000], ["monthly", 900, 100_000_000], ["pro", 2900, 0]]);
     });
 
     it("names plans as well as tokens when the free week is spent", async () => {
@@ -378,7 +622,7 @@ describe("included Tagflow AI", () => {
       expect(await first.json()).toMatchObject({ error: { code: "verify-account", message: expect.stringContaining("We sent a verification link to stuck@adcode.test") } });
       expect(sends).toEqual(["unverified-1"]);
       const again = await chat("unverified-2");
-      expect((await again.json() as { error: { message: string } }).error.message).toContain("Open the verification link we emailed to stuck@adcode.test");
+      expect((await again.json() as { error: { message: string } }).error.message).toContain("If you received an ADCode verification link at stuck@adcode.test");
       expect(sends).toHaveLength(1);
       now += 3_600_001;
       await (await chat("unverified-3")).text();
@@ -399,10 +643,38 @@ describe("included Tagflow AI", () => {
     });
 
     it("says so when Firebase would not send the link, instead of pointing at an email that never went", async () => {
+      const send = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
       handle = createFetchHandler({ store, verifier: unverifying, clock: { now: () => now }, tagflow: { apiKey: "server-secret", fetchImpl: upstream, rateLimitWaitsMs: [0, 0],
-        identity: { async lookup() { return live; }, async sendVerification() { return false; } } } });
+        identity: { async lookup() { return live; }, sendVerification: send } } });
       const response = await chat("unverified-1");
       expect((await response.json() as { error: { message: string } }).error.message).toContain("could not be sent just now");
+      const immediate = await chat("unverified-2");
+      expect((await immediate.json() as { error: { message: string } }).error.message).not.toContain("we emailed");
+      expect(send).toHaveBeenCalledTimes(1);
+      now += 60_001;
+      expect(await (await chat("unverified-3")).json()).toMatchObject({error:{message:expect.stringContaining("We sent a verification link")}});
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(upstream).not.toHaveBeenCalled();
+    });
+
+    it("does not release a newer verification claim when an older send fails late", async () => {
+      const original = now;
+      expect(await store.claimVerificationSend("stuck", original, 3_600_000)).toBe(true);
+      now += 3_600_001;
+      expect(await store.claimVerificationSend("stuck", now, 3_600_000)).toBe(true);
+      await store.retryFailedVerificationSend("stuck", original, 60_000, 3_600_000);
+      expect(await store.claimVerificationSend("stuck", now + 60_001, 3_600_000)).toBe(false);
+    });
+
+    it("also makes a thrown verification-delivery failure retryable without granting AI access", async () => {
+      const send = vi.fn().mockRejectedValueOnce(new Error("mail unavailable")).mockResolvedValue(true);
+      handle = createFetchHandler({ store, verifier: unverifying, clock: { now: () => now }, tagflow: { apiKey: "server-secret", fetchImpl: upstream,
+        identity: { async lookup() { return live; }, sendVerification: send } } });
+      expect(await (await chat("unverified-1")).json()).toMatchObject({error:{code:"verify-account",message:expect.stringContaining("could not be sent just now")}});
+      now += 60_001;
+      expect((await chat("unverified-2")).status).toBe(403);
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(upstream).not.toHaveBeenCalled();
     });
 
     it("asks an account with no email to sign in, and sends nothing", async () => {
@@ -410,6 +682,14 @@ describe("included Tagflow AI", () => {
       const response = await chat("anonymous");
       expect(response.status).toBe(403);
       expect((await response.json() as { error: { message: string } }).error.message).toContain("Sign in to use included AI");
+      expect(sends).toHaveLength(0);
+    });
+    it("tells a linked account with no email to add one, instead of to sign in again", async () => {
+      live = { email: null, emailVerified: false };
+      await store.putUser({ uid: "anonymous", status: "active", createdAt: 0, linkedAt: 1 });
+      const response = await chat("anonymous");
+      expect(response.status).toBe(403);
+      expect((await response.json() as { error: { message: string } }).error.message).toContain("did not share an email address");
       expect(sends).toHaveLength(0);
     });
   });
@@ -592,7 +872,7 @@ describe("included Tagflow AI", () => {
     expect((await call("/admin/tagflow", "admin", (await store.getTagflowConfig())!.config)).status).toBe(200);
     const published = await (await call("/ai/tagflow/config")).json() as { models: { id: string; creditRate: number }[]; credits: unknown };
     // 1M main tokens a day against a 5M partner pool: the partner costs 0.2 credits per 1,000 tokens.
-    expect(published.models.map((model) => [model.id, model.creditRate])).toEqual([["coder", 1], ["free-llama", 0.2], ["priced", 3]]);
+    expect(published.models.map((model) => [model.id, model.creditRate])).toEqual([["coder", 1], ["free-llama", 0.22], ["priced", 3]]);
     expect(published.credits).toEqual(DEFAULT_CREDIT_PLAN);
     const response = await chat("user", { ...body, model: customModel.id }); expect(response.status).toBe(200); await response.text();
     // Charged to the account itself, never to a separate pool any more.
@@ -600,8 +880,8 @@ describe("included Tagflow AI", () => {
     expect(await store.getTagflowUsage("user#custom-together-ai", new Date(now).toISOString().slice(0, 10))).toBeNull();
     const main = await chat(); expect(main.status).toBe(200); await main.text();
     const view = await (await call("/ai/tagflow/usage", "user")).json() as { credits: { session: { used: number }; rates: Record<string, number> }; pools?: unknown };
-    expect(view.credits.session.used).toBe(0.018);
-    expect(view.credits.rates).toEqual({ coder: 1, "free-llama": 0.2, priced: 3 });
+    expect(view.credits.session.used).toBe(0.019);
+    expect(view.credits.rates).toEqual({ coder: 1, "free-llama": 0.22, priced: 3 });
     expect(view.pools).toBeUndefined();
     expect(parseTagflowConfig({ ...config, models: [...config.models, customModel], providers: [{ ...custom, limits: { dailyTokens: -1 } }] })).toBeNull();
     expect(parseTagflowConfig({ ...config, models: [{ ...config.models[0]!, creditRate: -1 }] })).toBeNull();

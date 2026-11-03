@@ -39,6 +39,15 @@ export const MILESTONE_LABELS: Readonly<Record<string, string>> = {
   turn_ok: "Got a working answer",
   turn_failed: "Hit an AI error",
   preview_opened: "Saw it running",
+  discord_opened: "Opened the Discord invite",
+  collab_opened: "Opened shared projects",
+  collab_hosted: "Hosted a shared project",
+  collab_joined: "Joined a shared project",
+  collab_failed: "Hit a collaboration error",
+  ai_retry_wait: "Waited for an AI retry",
+  ai_limit_wait: "Paused at an AI allowance",
+  ai_stream_interrupted: "Hit an interrupted AI stream",
+  ai_turn_cancelled: "Stopped an AI task",
 };
 
 export interface Growth {
