@@ -330,9 +330,9 @@ describe("included Tagflow AI", () => {
     it("marks the paid provider's models and publishes the packs", async () => {
       vi.stubEnv("INCLUDED_AI_CUSTOM_HEABSY_API_KEY", "k");
       await save(withHeabsy({ ...DEFAULT_PAID_CONFIG, enabled: true }));
-      const published = await (await call("/ai/tagflow/config")).json() as { paid: { enabled: boolean; packs: unknown[] }; models: { id: string; paid: boolean }[] };
+      const published = await (await call("/ai/tagflow/config")).json() as { paid: { enabled: boolean; packs: { id: string }[] }; models: { id: string; paid: boolean }[] };
       expect(published.paid).toMatchObject({ enabled: true, freeWeeklyTokens: 5_000_000 });
-      expect(published.paid.packs.map((pack: { id: string }) => pack.id)).toEqual(["starter", "50m", "140m", "300m"]);
+      expect(published.paid.packs.map((pack) => pack.id)).toEqual(["starter", "50m", "140m", "300m"]);
       expect(published.models.map(({ id, paid }) => [id, paid])).toEqual([["coder", true], ["glm", true]]);
     });
 
