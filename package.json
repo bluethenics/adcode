@@ -1,6 +1,6 @@
 {
   "name": "adcode",
-  "version": "2.4.2",
+  "version": "2.4.11",
   "bin": {
     "adcode": "scripts/adcode.mjs"
   },
