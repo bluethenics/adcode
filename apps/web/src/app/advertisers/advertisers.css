@@ -79,11 +79,12 @@
 .adv-facts li { display: grid; gap: 4px; padding-left: 16px; border-left: 2px solid var(--hairline); }
 .adv-facts strong { font-size: 14px; font-weight: 600; }
 .adv-facts span { color: var(--muted); font-size: 14px; line-height: 1.55; }
-/* Placements: the two places the card serves, as framed windows. The second is offset and
-   overlaps the first, so the pair reads as depth rather than a row of equal tiles. */
-.adv-placements { display: grid; gap: 0; }
+/* Placements: the two places the card serves, as framed windows. The pair is staggered, so it
+   reads as two places rather than a row of equal tiles, and neither hides the other's caption. */
+.adv-placements { display: grid; gap: 22px; }
 .adv-placement { margin: 0; }
-.adv-placement + .adv-placement { width: 88%; margin: -48px 0 0 auto; position: relative; }
+.adv-placement:first-child { width: 92%; }
+.adv-placement + .adv-placement { width: 92%; margin-left: auto; }
 .adv-window { overflow: hidden; border-radius: 18px; background: var(--surface); box-shadow: var(--adv-mock-shadow); transition: transform 260ms var(--adv-ease); }
 .adv-placement:hover .adv-window { transform: translateY(-4px); }
 .adv-window-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--hairline); background: var(--card); }
@@ -216,7 +217,7 @@
   .adv-tag-groups { grid-template-columns: minmax(0, 1fr); }
   .adv-launch ol { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .adv-launch li, .adv-launch li + li { padding: 0; border-left: 0; }
-  .adv-placement + .adv-placement { width: 100%; margin-top: 24px; }
+  .adv-placement:first-child, .adv-placement + .adv-placement { width: 100%; }
   .adv-console-app { grid-template-columns: minmax(0, 1fr); }
   .adv-console-nav { display: flex; flex-wrap: wrap; align-items: center; border-right: 0; border-bottom: 1px solid var(--hairline); }
   .adv-console-nav strong { margin: 0 8px 0 4px; }
