@@ -3393,7 +3393,7 @@ const accountMenu = createAccountMenu(
  * animation, and short enough that it is still obviously about the app that just opened -
  * the same reasoning behind the 900ms the sheet itself waits for.
  */
-const accountGate = createAccountGate(accountMenu, () => {});
+const accountGate = createAccountGate(accountMenu, () => {}, window.adcode.platform.info().then((info) => info.accountGate !== false));
 const PIN_PROMPT_DELAY_MS = 1_200;
 
 const pinPromptCard = createPinPromptCard(document.body);

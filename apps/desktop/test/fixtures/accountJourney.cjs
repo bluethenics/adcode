@@ -74,6 +74,16 @@ app.whenReady().then(async()=>{
    await Promise.race([gate.wait(),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Returning account stayed gated')),1000))]);
    observer.disconnect();return {coldStartResumed:!gate.isOpen()&&ready===1,returningNoLogin:signedInFormShown.length===0};
   })()`));
+  // A source checkout run for automation can switch the gate off; it must never open then.
+  await win.loadURL('about:blank');
+  Object.assign(result,await win.webContents.executeJavaScript(`(async()=>{
+   ${script}
+   let checked=0,ready=0;
+   window.adcode={account:{status:async()=>{checked++;return {state:'anonymous'};},verification:async()=>({verified:false,message:''}),onChanged:()=>{}}};
+   const gate=Fixture.createAccountGate({attachTo:()=>{}},()=>ready++,Promise.resolve(false));
+   await Promise.race([gate.wait(),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Switched-off gate held the app')),1000))]);
+   return {gateOffNeverOpens:!gate.isOpen()&&!document.querySelector('.account-gate').open&&checked===0&&ready===1};
+  })()`));
   // Reported on 2.4.10: a GitHub sign-in that shared no email could never be verified.
   await win.loadURL('about:blank');
   Object.assign(result,await win.webContents.executeJavaScript(`(async()=>{

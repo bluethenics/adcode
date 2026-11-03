@@ -2,7 +2,7 @@ import type { AccountMenu } from "../workbench/accountMenu.ts";
 import { createAccountBackdrop } from "./accountBackdrop.ts";
 
 /** Authentication and server-side verification remain required, independently of the tour. */
-export function createAccountGate(menu: AccountMenu, ready: () => void) {
+export function createAccountGate(menu: AccountMenu, ready: () => void, required: Promise<boolean> = Promise.resolve(true)) {
   const dialog = document.createElement("dialog");
   dialog.className = "account-gate";
   dialog.setAttribute("aria-labelledby", "account-gate-title");
@@ -96,12 +96,18 @@ export function createAccountGate(menu: AccountMenu, ready: () => void) {
   }
   retry.addEventListener("click", () => { void check(); });
   window.addEventListener("focus", () => { if (dialog.open) void check(); });
+  let guarding = true;
   window.adcode.account.onChanged(() => {
+    if (!guarding) return;
     version++; verified = false;
     title.textContent = "Checking your account"; status.textContent = "";
     open("checking"); void check();
   });
   // Avoid flashing the sign-in form for an already verified returning account.
-  open("checking"); void check();
+  // A source checkout run for automation may switch the gate off (see PlatformInfo.accountGate).
+  void required.catch(() => true).then((on) => {
+    if (on) { open("checking"); void check(); return; }
+    guarding = false; verified = true; ready(); waiting.splice(0).forEach(resolve => resolve());
+  });
   return { wait: () => verified && !dialog.open ? Promise.resolve() : new Promise<void>(resolve => waiting.push(resolve)), isOpen: () => dialog.open };
 }

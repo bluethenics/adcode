@@ -286,6 +286,12 @@ export interface PlatformInfo {
    * IPC would add a second source of truth that can disagree with the CSS.
    */
   readonly isPackaged: boolean;
+  /**
+   * Whether the sign-in gate guards the app. False only for a source checkout started with
+   * ADCODE_ACCOUNT_GATE=off - the smoke run, whose mock backend has no verified account.
+   * The gate has its own UI test; an installed build always keeps it. Missing means true.
+   */
+  readonly accountGate?: boolean;
 }
 
 /** What the pin card says, once the main process has decided it should say anything. */

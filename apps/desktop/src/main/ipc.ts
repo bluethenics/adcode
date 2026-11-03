@@ -792,6 +792,7 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
   ipcMain.handle(CHANNELS.platformInfo, () => ({
     platform: process.platform,
     isPackaged: app.isPackaged,
+    accountGate: app.isPackaged || process.env["ADCODE_ACCOUNT_GATE"] !== "off",
   }));
 
   /* ── Live preview ─────────────────────────────────────────────────────── */
