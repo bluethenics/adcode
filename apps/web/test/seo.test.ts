@@ -112,6 +112,7 @@ describe("crawling", () => {
       // footer, which is exactly the state the landing work was meant to leave behind.
       "/free-ai-code-editor",
       "/earn-while-you-code",
+      "/advertisers",
       "/compare",
       "/compare/vscode",
       "/compare/cursor",

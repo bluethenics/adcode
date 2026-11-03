@@ -112,6 +112,6 @@ describe("landing page focus", () => {
     // Advertising remains reachable after the developer's closing install action.
     expect(at('class="hero-proof"')).toBeLessThan(at('class="closing-cta'));
     expect(at('class="closing-cta')).toBeLessThan(at('id="advertise"'));
-    expect(at('id="advertise"')).toBeLessThan(at('href="/portal"'));
+    expect(at('id="advertise"')).toBeLessThan(at('href="/advertisers"'));
   });
 });

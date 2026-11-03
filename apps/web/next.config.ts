@@ -58,7 +58,7 @@ const config: NextConfig = {
       { source: "/download", destination: "/versions", permanent: true },
       { source: "/downloads", destination: "/versions", permanent: true },
       { source: "/install", destination: "/versions", permanent: true },
-      { source: "/advertise", destination: "/#advertise", permanent: true },
+      { source: "/advertise", destination: "/advertisers", permanent: true },
       { source: "/rss.xml", destination: "/feed.xml", permanent: true },
       { source: "/rss", destination: "/feed.xml", permanent: true },
     ];

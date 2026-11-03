@@ -25,7 +25,7 @@ describe("advertisers have a real way in from the hero", () => {
     expect(home).not.toContain('class="hero-advertise"');
     const advertiserSection = home.slice(home.indexOf('id="advertise"'));
     expect(home).toContain('id="advertise"');
-    expect(advertiserSection).toContain('href="/portal"');
+    expect(advertiserSection).toContain('href="/advertisers"');
     expect(advertiserSection).toContain("Create your first campaign");
     expect(advertiserSection).toMatch(/<form\b[\s\S]*?<button\b[^>]*type="submit"/);
     expect(advertiserSection).toContain("$1 per 500 verified impressions");

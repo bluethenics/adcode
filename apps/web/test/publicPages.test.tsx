@@ -57,7 +57,7 @@ describe("global portal actions", () => {
     const markup = renderToStaticMarkup(<PortalActions />);
 
     expect(markup).toContain("glass-portal-rail");
-    expect(markup).toContain('href="/portal"');
+    expect(markup).toContain('href="/advertisers"');
     expect(markup).toContain("Advertise</span>");
     expect(markup).not.toContain('href="/dashboard"');
     expect(markup).not.toContain("User portal");
