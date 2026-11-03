@@ -97,7 +97,9 @@ export function NetworkBand({ initial }: { initial: PublicStats | null }) {
     { label: "Developers on ADCode", value: stats.developers, note: "Accounts active in the editor, all time" },
     { label: "New in the last 7 days", value: stats.developersThisWeek, note: `${share}% of the network joined this week` },
     { label: "Verified ad views", value: stats.impressions, note: "On screen 4+ seconds in a focused editor" },
-    { label: "Campaigns live now", value: stats.activeCampaigns, note: "Competing for the next card" },
+    // With none running, the next campaign is the only bidder: it serves every slot it targets
+    // and a second-price auction with no runner-up clears at the floor.
+    { label: "Campaigns live now", value: stats.activeCampaigns, note: stats.activeCampaigns === 0 ? "None right now. The next one takes every slot it targets, at the floor price" : "Competing for the next card" },
   ];
 
   return (

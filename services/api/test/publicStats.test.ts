@@ -12,9 +12,16 @@ describe("public network statistics", () => {
     await store.createReceiptIfAbsent({ ...receipt, receiptId: "click", outcome: "click" });
     await store.createReceiptIfAbsent({ ...receipt, receiptId: "test", outcome: "view", costMicros: 0n, creditedMicros: 0n });
     await store.createReceiptIfAbsent({ ...receipt, receiptId: "view", outcome: "view" });
+    await store.putAdvertiser({ advertiserId: "private-advertiser", name: "Private", ownerUids: ["private-owner"], status: "active", fundedMicros: 100000000n, reservedMicros: 30000000n, createdAt: 1 });
     const campaign = { advertiserId: "private-advertiser", name: "Private", cpmMicros: 2000000n, budgetMicros: 10000000n, targetTags: [], createdAt: 1 };
     await store.putCampaign({ ...campaign, campaignId: "active", status: "active" });
     await store.putCampaign({ ...campaign, campaignId: "paused", status: "paused" });
+    // Still marked active, but its whole budget is spent: it cannot win a slot, so it is no competitor.
+    await store.putCampaign({ ...campaign, campaignId: "spent", status: "active" });
+    await store.addSpend("spent", 10000000n);
+    for (const campaignId of ["active", "paused", "spent"]) {
+      await store.putCreative({ creativeId: `private-${campaignId}`, campaignId, advertiser: "Private", headline: "Private", body: null, clickUrl: "https://example.test", logoLight: "https://example.test/l.png", logoDark: "https://example.test/d.png", status: "approved" });
+    }
     await store.putUser({ uid: "active-developer", status: "active", createdAt: 1 });
     await store.putUser({ uid: "banned-developer", status: "banned", createdAt: 1 });
     await store.putUser({ uid: "new-developer", status: "active", createdAt: NOW - 86_400_000 });

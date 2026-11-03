@@ -21,8 +21,17 @@ describe("the advertiser landing page", () => {
     expect(html).toContain("7,027");
     expect(html).toContain("62% of the network joined this week");
     expect(html).toContain("20,116");
+    expect(html).toContain("Competing for the next card");
     // The composite activity score is not ad inventory, so it never reaches this page.
     expect(readApi).not.toHaveBeenCalledWith("/v1/impressions", expect.anything());
+  });
+
+  it("tells an advertiser when no campaign is running that the next one has the slots to itself", async () => {
+    vi.mocked(readApi).mockResolvedValue(Response.json({ ...LIVE, activeCampaigns: 0 }));
+    const html = text(renderToStaticMarkup(await AdvertisersPage()));
+
+    expect(html).toContain("None right now. The next one takes every slot it targets, at the floor price");
+    expect(html).not.toContain("Competing for the next card");
   });
 
   it("states no audience size at all when the figures are unavailable", async () => {
