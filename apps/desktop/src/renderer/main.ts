@@ -5063,6 +5063,9 @@ window.adcode.releases.onAnnouncement((announcement) =>
 );
 
 window.adcode.ads.onShow((toast) => notifications.showSponsored(toast));
+// The ad partner fills a slot no direct campaign did. Its frame only answers the desktop app,
+// so the web version hands the slot straight back.
+window.adcode.ads.onPartnerShow((toast) => isWebSurface() ? window.adcode.ads.partnerResult(toast.id, "empty") : notifications.showPartner(toast));
 
 /*
  * Telling the ad client what the editor is currently showing.

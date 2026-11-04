@@ -13,6 +13,7 @@ const NOOP_RUNTIME: AdRuntime = {
   start: async () => undefined,
   stop: () => undefined,
   notePainted: () => undefined,
+  notePartnerResult: () => undefined,
   noteDismissed: () => undefined,
   noteClicked: () => undefined,
   setSuppressed: () => undefined,

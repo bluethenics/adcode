@@ -66,6 +66,15 @@ export interface AdServiceDeps {
     get(url: string): Promise<Result<Uint8Array, AssetError>>;
     has(url: string): Promise<boolean>;
   };
+  /**
+   * An ad partner that may fill a slot no direct creative could.
+   *
+   * Asked only when every rule above inventory said yes - the person's settings, focus,
+   * debugging, the daily cap and the minimum gap - so a partner card interrupts exactly as
+   * often as one of ours would, and counts against the same cap. Returns whether it took the
+   * slot; `false` (switched off, no window) leaves the slot empty and uncounted.
+   */
+  readonly fallback?: { present(theme: ThemeKind): boolean };
 }
 
 export interface AdService {
@@ -78,6 +87,11 @@ export interface AdService {
   onThemeChange(theme: ThemeKind): void;
   dismiss(): void;
   click(): string | null;
+  /**
+   * The partner took a slot and then had nothing to show. The slot is handed back, so an
+   * empty answer never uses up the day's cap or starts the minimum gap.
+   */
+  fallbackUnfilled(): void;
   /** Why the last tick did not show. `null` if it did. */
   lastReason(): SuppressReason | null;
   effectiveCaps(): FrequencyCaps;
@@ -113,6 +127,8 @@ export function createAdService(deps: AdServiceDeps): AdService {
   let inventory: Creative[] = [];
   let inventoryFetchedAt: number | null = null;
   let impressions: number[] = [];
+  /** When the partner last took a slot, so an empty answer can give exactly that one back. */
+  let fallbackAt: number | null = null;
   let lastReason: SuppressReason | null = null;
   let stopped = false;
 
@@ -223,6 +239,15 @@ export function createAdService(deps: AdServiceDeps): AdService {
         });
 
         if (!decision.show) {
+          // Only inventory was missing: everything that protects the person already passed.
+          const fallback = deps.fallback;
+          if (decision.reason === "no-creative" && fallback !== undefined &&
+            signal(() => fallback.present(signal(() => deps.ide.themeKind(), "dark")), false)) {
+            lastReason = null;
+            impressions.push(now);
+            fallbackAt = now;
+            return;
+          }
           lastReason = decision.reason;
           return;
         }
@@ -287,6 +312,13 @@ export function createAdService(deps: AdServiceDeps): AdService {
       } catch {
         return null;
       }
+    },
+
+    fallbackUnfilled(): void {
+      if (fallbackAt === null) return;
+      const at = impressions.lastIndexOf(fallbackAt);
+      if (at >= 0) impressions.splice(at, 1);
+      fallbackAt = null;
     },
 
     lastReason: () => lastReason,

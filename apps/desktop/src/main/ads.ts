@@ -20,6 +20,7 @@ import {
   createAssetCache,
   createReceiptQueue,
   formatMicros,
+  tag,
   type AdService,
   type Balance,
   type FrequencyPreset,
@@ -30,7 +31,7 @@ import {
   type ThemeKind,
   type TokenProvider,
 } from "@adcode/ads";
-import { CHANNELS, type EarningsSnapshot, type SponsoredToast } from "../shared/api.ts";
+import { CHANNELS, type EarningsSnapshot, type PartnerToast, type SponsoredToast } from "../shared/api.ts";
 import { DiskFileStore, FetchHttpTransport, SystemClock, toDataUrl } from "./adPorts.ts";
 import { currentSettings } from "./settings.ts";
 import { apiBaseUrl, apiOrigin, createBackendTokens } from "./backend.ts";
@@ -105,6 +106,8 @@ interface AdRuntime {
   start(): Promise<void>;
   stop(): void;
   notePainted(creativeId: string): void;
+  /** The partner frame's answer for a slot it took: `empty` gives the slot back. */
+  notePartnerResult(id: string, outcome: "shown" | "empty"): void;
   noteDismissed(creativeId: string): void;
   noteClicked(creativeId: string): void;
   setSuppressed(suppressed: boolean): void;
@@ -299,8 +302,42 @@ export function createAdRuntime(): AdRuntime {
     },
   });
 
+  /** Longer than a direct card's 8s: the partner's card loads in its frame first. */
+  const PARTNER_DISMISS_MS = 12_000;
+  let partnerId: string | null = null;
+  /** One conversation id per launch, so the partner sees one session rather than many. */
+  const launchedAtId = clock.now().toString(36);
+
+  /**
+   * The ad partner (Imprezia), in a slot no direct campaign filled - only when the person
+   * turned it on. What it is told is the project's topic tags in plain words, the same tags
+   * our own ads are targeted by: no file names, paths, code or project name. Not in the web
+   * version, whose origin the partner's frame does not answer.
+   */
+  function presentPartner(theme: ThemeKind): boolean {
+    if (currentSettings()["adcode.ads.partnerNotifications"] !== true) return false;
+    const target = toastTarget();
+    if (target === null || target.isDestroyed()) return false;
+    // "lang:typescript" reads as "typescript": the partner matches on words, not our scheme.
+    const topics = tag({ languageIds, filenames }).map((one) => one.slice(one.indexOf(":") + 1)).slice(0, 6);
+    const named = topics.length === 0 ? "software" : topics.join(", ");
+    const toast: PartnerToast = {
+      id: `partner-${clock.now().toString(36)}`,
+      request: `I'm building a ${named} project in a code editor. What tools and services would help me build, ship and run it?`,
+      response: `For a ${named} project, the useful pieces are hosting and deployment, a database, monitoring and error tracking, testing, and developer tools that fit ${named}.`,
+      sessionId: `partner-${launchedAtId}`,
+      theme,
+      autoDismissMs: PARTNER_DISMISS_MS,
+    };
+    partnerId = toast.id;
+    debug("partner notification", { id: toast.id, topics });
+    target.webContents.send(CHANNELS.adPartnerShow, toast);
+    return true;
+  }
+
   const service: AdService = createAdService({
     clock,
+    fallback: { present: presentPartner },
     queue,
     renderer: adRenderer,
     client,
@@ -430,6 +467,13 @@ export function createAdRuntime(): AdRuntime {
       timer = null;
       clearWatchdog();
       service.stop();
+    },
+
+    notePartnerResult(id: string, outcome: "shown" | "empty"): void {
+      if (id !== partnerId) return;
+      partnerId = null;
+      debug("partner result", { id, outcome });
+      if (outcome === "empty") service.fallbackUnfilled();
     },
 
     notePainted(creativeId: string): void {

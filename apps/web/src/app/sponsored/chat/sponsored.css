@@ -8,6 +8,18 @@ body:has(.sponsored-chat) {
   overflow: hidden;
 }
 
+/*
+ * A frame is only see-through when its document's colour scheme matches the one its <iframe>
+ * declares. The desktop's frames declare `normal`; the site's root says `light dark`, so on a
+ * dark system Chrome painted an opaque canvas behind the card - the dark box around it in the
+ * chat and in partner notifications. The card brings its own colours either way.
+ */
+:root:has(.sponsored-chat),
+:root:has(.sponsored-chat) body {
+  color-scheme: normal;
+  background: transparent;
+}
+
 body:has(.sponsored-chat) > .marketplace-nav,
 body:has(.sponsored-chat) .marketplace-footer {
   display: none;

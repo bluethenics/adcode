@@ -10,7 +10,8 @@
  * one application where latency is unforgivable. `will-change` is set on enter and
  * removed on completion so no compositor layer stays pinned for the session.
  */
-import type { SponsoredToast } from "../../shared/api.ts";
+import type { PartnerToast, SponsoredToast } from "../../shared/api.ts";
+import { sponsoredReplyFrame } from "../ai/sponsoredReply.ts";
 import { reveal } from "../motion.ts";
 import { ICON, createIcon, iconButton } from "../workbench/icons.ts";
 
@@ -35,6 +36,8 @@ export interface Notification {
 export interface NotificationCentre {
   show(notification: Notification): void;
   showSponsored(toast: SponsoredToast): void;
+  /** The ad partner's card, in a slot no direct campaign filled. Same one-at-a-time slot. */
+  showPartner(toast: PartnerToast): void;
   dismissAll(): void;
   toggleInbox(): void;
   onUnreadChanged(listener: (count: number) => void): () => void;
@@ -169,12 +172,14 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
   // `clearTimer` is a closure rather than a timer id: hovering pauses the auto-dismiss
   // and un-hovering re-arms it with a fresh id, so a stored id goes stale the first time
   // the pointer crosses the toast.
-  let live: { element: HTMLElement; creativeId: string; clearTimer: () => void } | null = null;
+  // A partner card holds the same slot but is not one of the ad client's creatives, so its
+  // dismissal is never reported as one.
+  let live: { element: HTMLElement; creativeId: string; clearTimer: () => void; partner?: boolean } | null = null;
 
   function teardown(creativeId: string, notify: boolean): void {
     if (live === null || live.creativeId !== creativeId) return;
 
-    const { element, clearTimer } = live;
+    const { element, clearTimer, partner } = live;
     live = null;
     clearTimer();
 
@@ -182,7 +187,51 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
     element.dataset["state"] = "exiting";
     removeAfterExit(element);
 
-    if (notify) window.adcode.ads.dismissed(creativeId);
+    if (notify && partner !== true) window.adcode.ads.dismissed(creativeId);
+  }
+
+  /**
+   * §1's auto-dismiss for a sponsored card, drawn by its timer bar: it drains over `ms` and
+   * holds while the pointer is on the card or keyboard focus is inside it - somebody reading,
+   * or tabbing to a button, should not watch it vanish.
+   */
+  function dismissTimer(card: HTMLElement, id: string, ms: number): { arm: () => void; clearTimer: () => void } {
+    let timerId: number | undefined;
+    let remaining = ms;
+    let startedAt = Date.now();
+    const clearTimer = (): void => {
+      if (timerId !== undefined) window.clearTimeout(timerId);
+      timerId = undefined;
+    };
+    const arm = (): void => {
+      startedAt = Date.now();
+      timerId = window.setTimeout(() => teardown(id, true), remaining);
+    };
+    let hovered = false;
+    let focused = false;
+    let paused = false;
+    const sync = (): void => {
+      const held = hovered || focused;
+      if (held && !paused) {
+        paused = true;
+        clearTimer();
+        remaining = Math.max(0, remaining - (Date.now() - startedAt));
+        card.dataset["paused"] = "true";
+      } else if (!held && paused) {
+        paused = false;
+        delete card.dataset["paused"];
+        if (live !== null && live.creativeId === id && remaining > 0) arm();
+      }
+    };
+    card.addEventListener("mouseenter", () => { hovered = true; sync(); });
+    card.addEventListener("mouseleave", () => { hovered = false; sync(); });
+    card.addEventListener("focusin", () => { focused = true; sync(); });
+    card.addEventListener("focusout", (event) => {
+      if (event.relatedTarget instanceof Node && card.contains(event.relatedTarget)) return;
+      focused = false;
+      sync();
+    });
+    return { arm, clearTimer };
   }
 
   /** Plain toasts stack; only the sponsored kind is limited to one at a time. */
@@ -373,46 +422,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       });
 
       // §1's 8s auto-dismiss, with the timer pausing on hover.
-      let timerId: number | undefined;
-      let remaining = toast.autoDismissMs;
-      let startedAt = Date.now();
-
-      const clearTimer = (): void => {
-        if (timerId !== undefined) window.clearTimeout(timerId);
-        timerId = undefined;
-      };
-
-      const arm = (): void => {
-        startedAt = Date.now();
-        timerId = window.setTimeout(() => teardown(toast.creativeId, true), remaining);
-      };
-
-      // Paused while the pointer is on the card or keyboard focus is inside it - somebody
-      // reading, or tabbing to Visit site, should not watch it vanish.
-      let hovered = false;
-      let focused = false;
-      let paused = false;
-      const sync = (): void => {
-        const held = hovered || focused;
-        if (held && !paused) {
-          paused = true;
-          clearTimer();
-          remaining = Math.max(0, remaining - (Date.now() - startedAt));
-          card.dataset["paused"] = "true";
-        } else if (!held && paused) {
-          paused = false;
-          delete card.dataset["paused"];
-          if (live !== null && live.creativeId === toast.creativeId && remaining > 0) arm();
-        }
-      };
-      card.addEventListener("mouseenter", () => { hovered = true; sync(); });
-      card.addEventListener("mouseleave", () => { hovered = false; sync(); });
-      card.addEventListener("focusin", () => { focused = true; sync(); });
-      card.addEventListener("focusout", (event) => {
-        if (event.relatedTarget instanceof Node && card.contains(event.relatedTarget)) return;
-        focused = false;
-        sync();
-      });
+      const { arm, clearTimer } = dismissTimer(card, toast.creativeId, toast.autoDismissMs);
 
       // Always the notification layer, which is on the right in both windows. Vibe used to
       // park the card in its left sidebar; it now sits top-right there (vibeSidebar.css),
@@ -434,6 +444,81 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
 
       arm();
       live = { element: card, creativeId: toast.creativeId, clearTimer };
+    },
+
+    showPartner(toast: PartnerToast): void {
+      const answer = (outcome: "shown" | "empty"): void => window.adcode.ads.partnerResult(toast.id, outcome);
+      // One sponsored card at a time; a busy slot is an empty answer, and the slot goes back.
+      if (live !== null) { answer("empty"); return; }
+
+      const card = document.createElement("article");
+      card.className = "toast toast-sponsored toast-partner";
+      card.dataset["state"] = "entering";
+      card.style.willChange = "transform, opacity";
+      card.setAttribute("role", "complementary");
+      card.setAttribute("aria-label", "Sponsored message from ADCode's ad partner");
+
+      const label = document.createElement("span");
+      label.className = "toast-sponsored-label";
+      label.textContent = "Sponsored";
+      // No earnings line: partner cards are not credited to anyone's balance yet, and the
+      // line on our own cards is a promise this one cannot make.
+      const note = document.createElement("span");
+      note.className = "toast-partner-note";
+      note.textContent = "From ADCode's ad partner";
+      const meta = document.createElement("div");
+      meta.className = "toast-sponsored-meta";
+      meta.append(label, note);
+
+      const close = iconButton("Dismiss", ICON.close, "toast-close");
+      close.addEventListener("click", (event) => {
+        event.stopPropagation();
+        teardown(toast.id, false);
+      });
+
+      const content = document.createElement("div");
+      content.className = "toast-content";
+      const timer = document.createElement("div");
+      timer.className = "toast-sponsored-timer";
+      timer.setAttribute("aria-hidden", "true");
+      card.style.setProperty("--toast-duration", `${String(toast.autoDismissMs)}ms`);
+
+      const { arm, clearTimer } = dismissTimer(card, toast.id, toast.autoDismissMs);
+      let settled = false;
+      // A frame that never answers is an empty slot, not a card stuck off-screen.
+      const giveUp = window.setTimeout(() => settle("empty"), 15_000);
+      function settle(outcome: "shown" | "empty"): void {
+        if (settled || live === null || live.creativeId !== toast.id) return;
+        settled = true;
+        window.clearTimeout(giveUp);
+        answer(outcome);
+        if (outcome === "empty") {
+          live = null;
+          card.remove();
+          return;
+        }
+        // Only now does it come in: the card arrives with something in it, never empty.
+        reveal(card, "entered");
+        window.setTimeout(() => { card.style.willChange = "auto"; }, ENTER_MS);
+        arm();
+      }
+
+      // The card is the same walled-off page as under a chat reply: Imprezia's SDK runs on
+      // adcode.bluethenics.com, never in this window, and clicks open the browser.
+      const frame = sponsoredReplyFrame(
+        { request: toast.request, response: toast.response, sessionId: toast.sessionId, theme: toast.theme },
+        undefined,
+        settle,
+      );
+      if (frame === null) { window.clearTimeout(giveUp); answer("empty"); return; }
+      frame.classList.add("toast-partner-frame");
+      frame.loading = "eager";
+      content.append(frame);
+      card.append(meta, close, content, timer);
+
+      live = { element: card, creativeId: toast.id, clearTimer: () => { clearTimer(); window.clearTimeout(giveUp); }, partner: true };
+      // In the layer but still off-screen (`entering`), so the frame loads before it shows.
+      host.append(card);
     },
 
     dismissAll(): void {

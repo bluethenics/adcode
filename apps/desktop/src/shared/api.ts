@@ -322,6 +322,21 @@ export interface PinResult {
  * main process, cached, and handed over inline - so the renderer never opens a
  * connection to an advertiser, and there is no request that could carry the user's IP.
  */
+/**
+ * A notification whose card comes from ADCode's ad partner (Imprezia), filling a slot no
+ * direct campaign could. The window hands `request`/`response` to the sandboxed
+ * /sponsored/chat frame and reports whether a card came back.
+ */
+export interface PartnerToast {
+  readonly id: string;
+  /** What the partner picks a card for: the project's topic tags in words, nothing more. */
+  readonly request: string;
+  readonly response: string;
+  readonly sessionId: string;
+  readonly theme: "light" | "dark";
+  readonly autoDismissMs: number;
+}
+
 export interface SponsoredToast {
   readonly creativeId: string;
   readonly advertiser: string;
@@ -588,6 +603,8 @@ export const CHANNELS = {
   platformInfo: "platform:info",
   windowFocus: "window:focus",
   adShow: "ads:show",
+  adPartnerShow: "ads:partner-show",
+  adPartnerResult: "ads:partner-result",
   adPainted: "ads:painted",
   adDismissed: "ads:dismissed",
   adClicked: "ads:clicked",
@@ -2400,6 +2417,10 @@ export interface AdcodeApi {
   readonly ads: {
     /** The main process asks the renderer to show a toast. */
     onShow(listener: (toast: SponsoredToast) => void): () => void;
+    /** The main process asks for an ad-partner notification in a slot nothing else filled. */
+    onPartnerShow(listener: (toast: PartnerToast) => void): () => void;
+    /** Whether the partner's frame came back with a card; "empty" hands the slot back. */
+    partnerResult(id: string, outcome: "shown" | "empty"): void;
     onEarnings(listener: (earnings: EarningsSnapshot) => void): () => void;
     /**
      * The toast actually painted. One of the three conditions §1 requires before an

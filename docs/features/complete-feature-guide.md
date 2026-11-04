@@ -1591,6 +1591,17 @@ How to use it: On by default. This switch is the final say on this machine: with
 
 Access: `All Features → Sponsored messages`; `Turn on or off`; `Settings`.
 
+<!-- feature:adcode.ads.partnerNotifications -->
+### Sponsored notifications from ADCode's ad partner
+
+If you turn it on, a sponsored notification from Imprezia, ADCode's ad partner, can appear when no ADCode advertiser has one for you. It is off unless you turn it on.
+
+Why use it: Sponsored messages are what keep ADCode free, but on many days no ADCode advertiser has one that fits. This lets the ad partner fill that moment instead of leaving it empty, without showing you any more ads than you already agreed to: it uses the same schedule, daily limit and quiet times.
+
+How to use it: Open Settings, choose Ads, and turn on Sponsored notifications from ADCode's ad partner; it needs Sponsored messages on too. When a sponsored message is due and no ADCode advertiser has one, the desktop app asks Imprezia instead, telling it only the names of the languages and frameworks you have open (like typescript, react, docker), an identifier that changes every time ADCode starts, and your IP address and browser details. If Imprezia has a card, it slides in like any sponsored message, with a countdown that pauses while you read and a close button; if not, nothing appears and the slot does not count toward your daily limit. The card is a page from adcode.bluethenics.com walled off from the editor, so the ad partner cannot reach your files. Clicking it opens your browser. ADCode advertisers always come first. These notifications are not credited to your earnings yet. Not in the web version.
+
+Access: `All Features → Sponsored notifications from ADCode's ad partner`; `Turn on or off`; `Settings`.
+
 ## Updates
 
 <!-- feature:adcode.updates.auto -->

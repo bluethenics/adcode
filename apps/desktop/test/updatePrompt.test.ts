@@ -33,7 +33,7 @@ function harness(initial: UpdateStatus) {
   vi.stubGlobal("window", Object.assign(new EventTarget(), { adcode: { updates }, setTimeout, clearTimeout }));
   const flushDrafts = vi.fn();
   const notifications: NotificationCentre = {
-    show: card => { cards.push(card); }, showSponsored: () => undefined, dismissAll: () => undefined,
+    show: card => { cards.push(card); }, showSponsored: () => undefined, showPartner: () => undefined, dismissAll: () => undefined,
     toggleInbox: () => undefined, onUnreadChanged: () => () => undefined,
   };
   const recoveryDrafts = vi.fn(() => [{ path: "C:/project/a.ts", text: "latest edit" }]);

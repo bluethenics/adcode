@@ -672,6 +672,25 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Most AI editors' assistants know the code but not the editor they live in, so they send you hunting through settings - and sometimes confidently say a feature does not exist. ADCode's assistant reads the same feature catalogue its Feature library is built from, and acts through the same commands and settings you would use. Other MCP clients need you to paste a config and restart; here the assistant adds and connects the server while you watch.",
   },
 
+  "ads-partner-notifications": {
+    steps: [
+      "It is off when you install ADCode. Nothing on this page happens until you turn it on.",
+      "To turn it on, open Settings, choose Ads, and switch on Sponsored notifications from ADCode's ad partner. Sponsored messages must be on as well.",
+      "Keep working. When a sponsored message is due and no ADCode advertiser has one for you, the desktop app asks ADCode's ad partner, Imprezia, telling it only the names of the languages and frameworks you have open.",
+      "If Imprezia has a card, it slides in at the top right like any sponsored message. Hover it to pause the countdown; close it with the X. Clicking the card opens your browser.",
+      "If Imprezia has nothing, nothing appears, and that moment does not count toward your daily limit.",
+      "To stop, switch it off in the same place. The next empty moment asks nobody.",
+    ],
+    benefits: [
+      "No more interruptions than before: it uses the same schedule, daily limit and quiet times as every sponsored message, and only fills moments that would otherwise be empty.",
+      "ADCode advertisers always come first; the partner only fills what they leave.",
+      "Only language and framework names are sent - never file names, paths, code, prompts or project names.",
+      "The card is a separate, walled-off page from adcode.bluethenics.com, so the ad partner cannot reach your files or the editor.",
+    ],
+    betterThan:
+      "Editors that show ad-network ads usually load the network's code into the app itself and decide on their own how often to interrupt. Here the partner's code never runs in the editor, it is off until you choose it, and it is held to the limits you already set.",
+  },
+
   "ads-chat-sponsored": {
     steps: [
       "It is off when you install ADCode. Nothing on this page happens until you turn it on.",

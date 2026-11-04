@@ -379,6 +379,8 @@ export const BRIDGE = [
 
   // ads
   { path: "ads.onShow", kind: "subscribe", channel: CHANNELS.adShow },
+  { path: "ads.onPartnerShow", kind: "subscribe", channel: CHANNELS.adPartnerShow },
+  { path: "ads.partnerResult", kind: "send", channel: CHANNELS.adPartnerResult },
   { path: "ads.onEarnings", kind: "subscribe", channel: CHANNELS.earningsChanged },
   { path: "ads.painted", kind: "send", channel: CHANNELS.adPainted },
   { path: "ads.dismissed", kind: "send", channel: CHANNELS.adDismissed },

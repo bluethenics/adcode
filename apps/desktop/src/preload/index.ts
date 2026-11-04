@@ -395,6 +395,8 @@ const api: AdcodeApi = {
   },
   ads: {
     onShow: (listener) => subscribe(CHANNELS.adShow, listener),
+    onPartnerShow: (listener) => subscribe(CHANNELS.adPartnerShow, listener),
+    partnerResult: (id, outcome) => ipcRenderer.send(CHANNELS.adPartnerResult, id, outcome),
     onEarnings: (listener) => subscribe(CHANNELS.earningsChanged, listener),
     painted: (creativeId) => ipcRenderer.send(CHANNELS.adPainted, creativeId),
     dismissed: (creativeId) => ipcRenderer.send(CHANNELS.adDismissed, creativeId),

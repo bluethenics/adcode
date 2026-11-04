@@ -39,8 +39,9 @@ This explains what ADCode collects, what it does not, and why. It covers the ADC
 - AI features may send source text and prompts to the provider you select. ADCode explains and limits that separate path below.
 - Ads are targeted using a fixed list of **45 generic tags** describing the language or framework you have open.
 - **Sponsored cards under AI replies are off unless you turn them on.** If you do, your message and the assistant's reply under which the card appears go to our ad partner, Imprezia, to choose that card. See below.
+- **Sponsored notifications from our ad partner are off unless you turn them on.** If you do, only the names of the languages and frameworks you have open go to Imprezia, to choose a notification when no ADCode advertiser has one. See below.
 - You are identified by an **anonymous account created automatically**, with no email, name, or password, unless you choose to add one.
-- We do not sell personal data. There are no third-party advertising trackers in the editor or on this site, except inside an opt-in sponsored card under an AI reply, which is described below.
+- We do not sell personal data. There are no third-party advertising trackers in the editor or on this site, except inside an opt-in sponsored card under an AI reply or an opt-in partner notification, both described below.
 
 ## What the editor sends
 
@@ -61,6 +62,18 @@ When it is on, after the assistant answers in the desktop app, ADCode shows a sp
 - **your IP address and your browser's user-agent string**, which Imprezia uses for location targeting and to detect fraud.
 
 Nothing else from your project is sent: no other files, file paths, or project names. The card is a separate page from adcode.bluethenics.com, shown inside the editor but walled off from it, so neither Imprezia nor anyone it works with can reach your files or the rest of the editor. Imprezia's own measurement partners may load inside that card to count views and clicks. ADCode does not store the message or the reply for this.
+
+### Sponsored notifications from our ad partner (only if you turn them on)
+
+**Settings → Ads → Sponsored notifications from ADCode's ad partner** is off by default. Nothing in this section happens unless you turn it on, and turning it off stops it at once.
+
+When it is on and no ADCode advertiser has a sponsored message for you at a moment one may be shown, the desktop app can show a notification chosen by Imprezia instead. It follows the same schedule, daily limit and quiet times as every other sponsored message. To choose it, Imprezia receives:
+
+- **a sentence naming the languages and frameworks you have open**, such as "typescript, react, docker" - the same tags described below, without their prefixes. Never file contents, file names, paths, code, prompts or project names;
+- **an identifier for that run of the app**, which changes every time ADCode starts and is not your account;
+- **your IP address and your browser's user-agent string**, which Imprezia uses for location targeting and to detect fraud.
+
+The notification's card is the same walled-off page from adcode.bluethenics.com as a card under an AI reply, so neither Imprezia nor its measurement partners can reach your files or the editor. These notifications are not credited to your earnings yet.
 
 Tags come from a closed vocabulary compiled into the editor — values like \`lang:rust\`, \`fw:react\`, \`tool:docker\`, \`platform:backend\`. There are 45 of them. The server cannot add to the list, and any tag the editor does not recognise is never sent.
 
@@ -167,11 +180,11 @@ When ADCode asks you to verify your email before using free AI, ADCode sends a v
 
 ## Sharing
 
-We share personal data for advertising only if you turn on sponsored cards under AI replies. Then Imprezia receives what that section lists, to choose and measure those cards. Otherwise we share personal data with nobody for advertising purposes.
+We share personal data for advertising only if you turn on sponsored cards under AI replies or sponsored notifications from our ad partner. Then Imprezia receives what those sections list, to choose and measure those cards. Otherwise we share personal data with nobody for advertising purposes.
 
 Advertisers receive **aggregate** reporting: how many times their campaign was served, viewed, and clicked. They never receive your identifier, your tags, or anything that identifies you individually.
 
-Imprezia is our ad partner: it receives generic tags when it fills a sponsored card, and the exchange described above only if you turn on sponsored cards under AI replies. We use Google Cloud and Firebase to run the service, Dodo Payments to take payment from advertisers, and Wise to send withdrawals. Each receives only what it needs to do its part — Wise receives your payout details and the amount, and nothing about how you earned it.
+Imprezia is our ad partner: it receives generic tags when it fills a sponsored card, the exchange described above only if you turn on sponsored cards under AI replies, and your open languages and frameworks only if you turn on its sponsored notifications. We use Google Cloud and Firebase to run the service, Dodo Payments to take payment from advertisers, and Wise to send withdrawals. Each receives only what it needs to do its part — Wise receives your payout details and the amount, and nothing about how you earned it.
 
 ## Your choices
 

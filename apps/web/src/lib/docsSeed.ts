@@ -1551,6 +1551,17 @@ export const DOC_SEED: readonly DocSeed[] = [
     related: ["ads-frequency", "account-earnings"],
   },
   {
+    slug: "ads-partner-notifications",
+    title: "Sponsored notifications from ADCode's ad partner",
+    section: "Ads and earnings",
+    description: "If you turn it on, a sponsored notification from Imprezia, ADCode's ad partner, can appear when no ADCode advertiser has one for you. It is off unless you turn it on.",
+    why: "Sponsored messages are what keep ADCode free, but on many days no ADCode advertiser has one that fits. This lets the ad partner fill that moment instead of leaving it empty, without showing you any more ads than you already agreed to: it uses the same schedule, daily limit and quiet times.",
+    how: "Open Settings, choose Ads, and turn on Sponsored notifications from ADCode's ad partner; it needs Sponsored messages on too. When a sponsored message is due and no ADCode advertiser has one, the desktop app asks Imprezia instead, telling it only the names of the languages and frameworks you have open (like typescript, react, docker), an identifier that changes every time ADCode starts, and your IP address and browser details. If Imprezia has a card, it slides in like any sponsored message, with a countdown that pauses while you read and a close button; if not, nothing appears and the slot does not count toward your daily limit. The card is a page from adcode.bluethenics.com walled off from the editor, so the ad partner cannot reach your files. Clicking it opens your browser. ADCode advertisers always come first. These notifications are not credited to your earnings yet. Not in the web version.",
+    keywords: ["Sponsored notifications from ADCode's ad partner", "Ads and earnings", "imprezia", "partner ads", "partner notifications", "sponsored notification", "ad network notification", "fill empty ad slot", "more ads", "turn off partner ads"],
+    access: ["All Features → Sponsored notifications from ADCode's ad partner", "Turn on or off (setting:adcode.ads.partnerNotifications)", "Settings → adcode.ads.partnerNotifications"],
+    related: ["ads-enabled", "ads-frequency", "ads-chat-sponsored"],
+  },
+  {
     slug: "updates-auto",
     title: "Install updates automatically",
     section: "Updates",

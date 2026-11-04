@@ -193,6 +193,33 @@
   to { transform: scaleX(0); }
 }
 
+/*
+ * The ad partner's card (notifications.ts `showPartner`): no logo column, because the card is
+ * a sandboxed page from adcode.bluethenics.com that draws its own. It waits off-screen while
+ * that page loads, and must not catch clicks meant for the editor while it does.
+ */
+.toast-sponsored.toast-partner {
+  width: min(400px, calc(100vw - 32px));
+  grid-template-columns: minmax(0, 1fr) 24px;
+  grid-template-areas:
+    "meta close"
+    "content content";
+}
+.toast-sponsored.toast-partner[data-state="entering"] { pointer-events: none; }
+.toast-partner-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color-scheme: normal;
+}
+.toast-partner-note {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
 /* Arriving: from below and slightly smaller, settling with a little give. */
 .toast.toast-sponsored[data-state="entering"] {
   transform: translate3d(0, 14px, 0) scale(0.96);

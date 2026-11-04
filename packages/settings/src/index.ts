@@ -162,6 +162,14 @@ export const SETTINGS_SCHEMA: readonly Setting[] = [
     ],
   },
   bool(
+    "adcode.ads.partnerNotifications",
+    "ads",
+    "Sponsored notifications from ADCode's ad partner",
+    "Off unless you turn it on. When no ADCode advertiser has a card for you, a sponsored notification from Imprezia, ADCode's ad partner, can take the slot instead, on the same schedule and limits as other sponsored messages. Only your project's language and framework names are sent to choose it.",
+    false,
+    true,
+  ),
+  bool(
     "adcode.ads.chatSponsored",
     "ads",
     "Sponsored cards under AI replies",

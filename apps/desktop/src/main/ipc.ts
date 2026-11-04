@@ -1247,6 +1247,10 @@ export function registerIpc(openWindow: (role: "vibe" | "ide", file?: string, co
     if (isString(creativeId)) ads.notePainted(creativeId);
   });
 
+  ipcMain.on(CHANNELS.adPartnerResult, (_event, id: unknown, outcome: unknown) => {
+    if (isString(id) && (outcome === "shown" || outcome === "empty")) ads.notePartnerResult(id, outcome);
+  });
+
   ipcMain.on(CHANNELS.adDismissed, (_event, creativeId: unknown) => {
     if (isString(creativeId)) ads.noteDismissed(creativeId);
   });

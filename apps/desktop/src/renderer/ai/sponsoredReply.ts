@@ -38,8 +38,9 @@ export function sponsoredMessage(exchange: SponsoredExchange): { type: "adcode-s
 /**
  * The frame for one reply, or null when there is nothing to send. It starts at no height and
  * takes the height the page reports; a page that finds no ad says so and the frame goes.
+ * `onOutcome` hears, once, whether a card arrived - the partner notification waits on it.
  */
-export function sponsoredReplyFrame(exchange: SponsoredExchange, origin = SPONSORED_ORIGIN): HTMLIFrameElement | null {
+export function sponsoredReplyFrame(exchange: SponsoredExchange, origin = SPONSORED_ORIGIN, onOutcome?: (outcome: "shown" | "empty") => void): HTMLIFrameElement | null {
   const message = sponsoredMessage(exchange);
   if (message === null) return null;
   const frame = document.createElement("iframe");
@@ -52,15 +53,23 @@ export function sponsoredReplyFrame(exchange: SponsoredExchange, origin = SPONSO
   frame.referrerPolicy = "no-referrer";
   frame.loading = "lazy";
   frame.style.height = "0px";
+  let told = false;
+  const tell = (outcome: "shown" | "empty"): void => {
+    if (told) return;
+    told = true;
+    onOutcome?.(outcome);
+  };
   const onMessage = (event: MessageEvent): void => {
     if (event.source !== frame.contentWindow || event.origin !== origin) return;
     const data = event.data as { type?: unknown; height?: unknown } | null;
     if (data?.type === "adcode-sponsored-ready") frame.contentWindow?.postMessage(message, origin);
     else if (data?.type === "adcode-sponsored-size" && typeof data.height === "number" && Number.isFinite(data.height)) {
       frame.style.height = `${Math.max(0, Math.min(MAX_HEIGHT, Math.ceil(data.height)))}px`;
+      if (data.height > 0) tell("shown");
     } else if (data?.type === "adcode-sponsored-empty") {
       window.removeEventListener("message", onMessage);
       frame.remove();
+      tell("empty");
     }
   };
   window.addEventListener("message", onMessage);

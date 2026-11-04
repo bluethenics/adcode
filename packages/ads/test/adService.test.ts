@@ -449,3 +449,62 @@ describe("prefetch", () => {
     expect(serveCalls).toBe(2);
   });
 });
+
+describe("a partner fills an empty slot", () => {
+  const empty = stubClient({ serve: async () => ({ ok: true, value: [] }) });
+  async function ready(fallback: AdServiceDeps["fallback"], overrides: Partial<AdServiceDeps> = {}): Promise<AdService> {
+    const service = build({ client: empty, ...(fallback === undefined ? {} : { fallback }), ...overrides });
+    await service.start();
+    clock.advance(SETTLE_MS + 1);
+    return service;
+  }
+
+  it("is asked only when inventory is the one thing missing, and the slot counts", async () => {
+    const asked: string[] = [];
+    const service = await ready({ present: (theme) => { asked.push(theme); return true; } });
+    await service.tick();
+    expect(asked).toEqual(["dark"]);
+    expect(sink.shown).toHaveLength(0);
+    expect(service.lastReason()).toBeNull();
+    // It used the slot: the minimum gap applies to the next tick, as after any ad.
+    await service.tick();
+    expect(asked).toHaveLength(1);
+    expect(service.lastReason()).toBe("min-interval");
+  });
+
+  it("hands the slot back when the partner had nothing to show", async () => {
+    let calls = 0;
+    const service = await ready({ present: () => { calls++; return true; } });
+    await service.tick();
+    service.fallbackUnfilled();
+    await service.tick();
+    expect(calls).toBe(2);
+  });
+
+  it("leaves the slot empty and uncounted when the partner declines", async () => {
+    const service = await ready({ present: () => false });
+    await service.tick();
+    expect(service.lastReason()).toBe("no-creative");
+  });
+
+  it("never outranks a direct creative or the person's own settings", async () => {
+    let calls = 0;
+    const present = (): boolean => { calls++; return true; };
+    const direct = build({ fallback: { present } });
+    await direct.start();
+    clock.advance(SETTLE_MS + 1);
+    await direct.tick();
+    expect(sink.shown).toHaveLength(1);
+
+    const off = await ready({ present }, { settings: { adsEnabled: false, preset: "standard" } });
+    await off.tick();
+    expect(off.lastReason()).toBe("ads-disabled");
+    expect(calls).toBe(0);
+  });
+
+  it("contains a partner that throws", async () => {
+    const service = await ready({ present: () => { throw new Error("frame failed"); } });
+    await expect(service.tick()).resolves.toBeUndefined();
+    expect(service.lastReason()).toBe("no-creative");
+  });
+});
