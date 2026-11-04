@@ -179,10 +179,21 @@ describe("handleReceipts", () => {
     expect(page.rows[0]?.description).toBe("Ad from Acme, 4.2s");
   });
 
-  it("links the ledger entry back to the receipt that caused it", async () => {
+  it("links the ledger entry back to the serve and outcome that caused it", async () => {
     await handleReceipts(deps(), "u-1", { receipts: [receipt()] });
     const page = await store.listEntries("u-1", { limit: 10, cursor: null });
-    expect(page.rows[0]?.refId).toBe("r-1");
+    expect(page.rows[0]?.refId).toBe("s-1:impression");
+  });
+
+  it("bills one serve once per outcome, however many receipt ids a client invents", async () => {
+    // 28 October 2026: one account sent tens of thousands of click receipts with fresh ids
+    // against a few thousand serves, and every one was billed to the advertiser.
+    const forged = Array.from({ length: 50 }, (_, index) => receipt({ receiptId: `forged-${index}`, outcome: "click" }));
+    const res = await handleReceipts(deps(), "u-1", { receipts: [receipt({ receiptId: "view" }), ...forged] });
+
+    expect(res.acked).toHaveLength(51);
+    expect(await store.getSpend("camp-1")).toBe(2n * 5_010n);
+    expect((await store.getBalance("u-1")).availableMicros).toBe(2n * 2_505n);
   });
 
   it("handles a batch, paying only the receipts that earn", async () => {

@@ -97,8 +97,19 @@ export async function handleReceipts(
     const cost = isTest ? 0n : serve.costMicros;
     const credit = isTest ? 0n : userCreditMicros(cost, config.revSharePercent);
 
+    /*
+     * One serve settles at most once per outcome: one view and one click.
+     *
+     * The client chooses its receipt ids, so keying settlement on them made every forged id
+     * "new": on 28 October 2026 one account billed 82,070 clicks against 2,532 serves and
+     * spent most of three advertisers' budgets. The record is keyed on the serve this server
+     * issued instead. An honest editor reports each card once, so it loses nothing; the
+     * client's own id is still the one acked, so its queue clears.
+     */
+    const settlementId = `${serve.serveId}:${receipt.outcome}`;
+
     const receiptRecord = {
-      receiptId: receipt.receiptId,
+      receiptId: settlementId,
       uid,
       creativeId: receipt.creativeId,
       campaignId: creative.campaignId,
@@ -116,7 +127,7 @@ export async function handleReceipts(
       uid,
       kind: receipt.outcome === "click" ? "click" : "impression",
       micros: credit,
-      refId: receipt.receiptId,
+      refId: settlementId,
       createdAt: now,
       description: describeEntry(creative.advertiser, receipt),
     };
