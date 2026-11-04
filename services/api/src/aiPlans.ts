@@ -14,17 +14,17 @@ export interface PlanSpec {
 }
 
 /*
- * Three plans on sale: Starter $9, Pro $29, Max $59. Max is the "practically unlimited" plan:
- * 1,900 cost credits a day ($1.90 of model list price) covers every hosted model, so its fair use
+ * Three plans on sale: Builder $9, Pro $29, Max $59. Max is the "practically unlimited" plan:
+ * 1,330 cost credits a day ($1.33 of model list price) covers every hosted model, so its fair use
  * follows each model's price - cheap models stretch it to hundreds of agent steps, premium ones
  * to fewer - and a month of maximum use still costs less than the plan. Weekly and Unlimited
  * stay defined so their existing subscriptions, gifts and promo codes keep working.
  */
 export const PLANS: readonly PlanSpec[] = [
   { id: "weekly", name: "Weekly", priceCents: 300, interval: "week", weeklyTokens: 2_475_000, invites: 0, onSale: false },
-  { id: "monthly", name: "Starter", priceCents: 900, interval: "month", weeklyTokens: 2_475_000, invites: 0, onSale: true },
+  { id: "monthly", name: "Builder", priceCents: 900, interval: "month", weeklyTokens: 2_475_000, invites: 0, onSale: true },
   { id: "pro", name: "Pro", priceCents: 2900, interval: "month", weeklyTokens: 9_900_000, invites: 2, onSale: true },
-  { id: "max", name: "Max", priceCents: 5900, interval: "month", weeklyTokens: 20_900_000, invites: 0, onSale: true, allModels: true },
+  { id: "max", name: "Max", priceCents: 5900, interval: "month", weeklyTokens: 14_630_000, invites: 0, onSale: true, allModels: true },
   { id: "unlimited", name: "Unlimited", priceCents: 29900, interval: "month", weeklyTokens: 82_500_000, invites: 0, onSale: false, allModels: true },
 ];
 

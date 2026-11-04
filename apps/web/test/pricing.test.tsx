@@ -19,9 +19,9 @@ describe("public pricing and existing checkout", () => {
     vi.mocked(readApi).mockRejectedValue(new Error("offline"));
     const html = renderToStaticMarkup(await PricingPage());
     expect(metadata.alternates?.canonical).toBe(url("/pricing"));
-    for (const amount of ["$9", "$29", "$59", "$10", "$25", "$50", "100 free credits", "225", "900", "1,900", "5,000", "14,000", "30,000"]) expect(html).toContain(amount);
+    for (const amount of ["$9", "$29", "$59", "$10", "$25", "$50", "100 free credits", "225", "900", "1,330", "5,000", "14,000", "30,000"]) expect(html).toContain(amount);
     expect(html).toContain("Practically unlimited.");
-    expect(html).toContain("Up to <strong>$95</strong> of top-up credits a month");
+    expect(html).toContain("Up to <strong>$67</strong> of top-up credits a month");
     expect(html).not.toContain("$299");
     expect(html).not.toContain("ai-tokens?plan=weekly");
     expect(html).toContain("Purchased credits never expire");
@@ -72,7 +72,7 @@ describe("public pricing and existing checkout", () => {
     expect(html).toContain("100"); expect(html).toContain('href="/pricing"');
     expect(html).not.toContain("Start with unlimited included AI");
     const facts = FAQ.map(item => item.a).join("\n");
-    expect(facts).toContain("Starter $9/month");
+    expect(facts).toContain("Builder $9/month");
     expect(facts).toContain("Pro $29/month");
     expect(facts).toContain("Max $59/month");
     expect(facts).not.toContain("Weekly");

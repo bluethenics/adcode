@@ -156,7 +156,7 @@
 @media (max-width: 960px) {
   .pricing-intro { align-items: start; flex-direction: column; gap: 24px; }
   .pricing-plans { grid-template-columns: minmax(0, 1fr); max-width: 560px; margin-inline: auto; }
-  /* Stacked, the anchor comes first: Max, then Pro, then Starter. */
+  /* Stacked, the anchor comes first: Max, then Pro, then Builder. */
   .pricing-plan[data-plan="max"] { order: -2; }
   .pricing-plan[data-plan="pro"] { order: -1; }
   .pricing-finder, .pricing-fairuse { grid-template-columns: minmax(0, 1fr); gap: 32px; padding: 28px; }

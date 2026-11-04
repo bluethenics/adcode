@@ -30,8 +30,8 @@ export const PACK_SUMMARY = COST_PAID_CONFIG.packs.map(pack => `${topUpName(pack
 export const PLAN_BENEFITS = {
   weekly: { audience: "For a focused week", allowance: "225 credits a day", description: "All included models with weekly billing. No longer offered to new subscribers." },
   monthly: { audience: "For side projects and evenings", allowance: "225 credits a day", description: "More than twice the free allowance, every day, for less than a lunch." },
-  pro: { audience: "For coding every day", allowance: "900 credits a day", description: "4× Starter’s daily credits, higher queue priority, and two friend invites." },
-  max: { audience: "For building all day, on any model", allowance: "1,900 credits a day · fair use", description: "Every hosted model, premium ones included, inside a fair-use allowance priced from each model’s cost. No wallet, no overage bill." },
+  pro: { audience: "For coding every day", allowance: "900 credits a day", description: "4× Builder’s daily credits, higher queue priority, and two friend invites." },
+  max: { audience: "For building all day, on any model", allowance: "1,330 credits a day · fair use", description: "Every hosted model, premium ones included, inside a fair-use allowance priced from each model’s cost. No wallet, no overage bill." },
   unlimited: { audience: "Every hosted model, one plan", allowance: "7,500 daily credits · fair use", description: "All hosted models within a daily fair-use allowance. No longer offered to new subscribers." },
 } as const;
 

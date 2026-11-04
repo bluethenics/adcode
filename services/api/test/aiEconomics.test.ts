@@ -13,7 +13,7 @@ describe("cost-based credits", () => {
   it("preserves purchased pack units and gives bounded daily allowances", () => {
     expect(COST_PAID_CONFIG.packs.map(p => p.tokens / CREDIT_UNITS)).toEqual([5000, 14000, 30000]);
     expect(COST_PAID_CONFIG.freeWeeklyTokens / CREDIT_UNITS).toBe(100);
-    expect(PLANS.map(p => p.weeklyTokens / CREDIT_UNITS)).toEqual([225, 225, 900, 1900, 7500]);
+    expect(PLANS.map(p => p.weeklyTokens / CREDIT_UNITS)).toEqual([225, 225, 900, 1330, 7500]);
     expect(hasUnlimitedPlan({ plan: { id: "pro", endsAt: 10, source: "subscription" }, boostTokens: 0 }, 1)).toBe(false);
   });
   it("keeps positive contribution even at 31 days of full subscription usage without the discount", () => {

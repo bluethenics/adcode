@@ -601,11 +601,11 @@ Access: `All Features → AI file tools`; `Turn on or off`; `Settings`.
 <!-- feature:ai.plans -->
 ### AI plans, promo codes and invites
 
-Choose Starter, Pro or Max for more daily AI credits, with no provider key to set up. Max covers every hosted model, premium ones included, under fair use.
+Choose Builder, Pro or Max for more daily AI credits, with no provider key to set up. Max covers every hosted model, premium ones included, under fair use.
 
 Why use it: A plan gives regular work a larger daily allowance, shared across included models and devices. Expensive models use more credits.
 
-How to use it: Run AI: Upgrade Plan or open adcode.bluethenics.com/ai-tokens using the same account as the editor. Three plans are on sale: Starter $9/month for 225 daily credits, Pro $29/month for 900, and Max $59/month for 1,900 daily fair-use credits on every hosted model, including premium models that otherwise use the separate USD wallet. Max is practically unlimited, not literally: credits follow each model's price, so cheap models stretch them to hundreds of agent steps a day and premium models use them faster. Usage pauses when the daily allowance cannot cover a request, never charges saved balances or an overage bill, and refills 24 hours after first use. The pricing page has a slider that suggests a plan from how many agent steps you run a day. Manage or cancel renewal in your Dodo portal; access lasts through the paid period. Existing Weekly and Unlimited subscriptions keep renewing on their original terms. Pro includes two friend invites: each eligible friend's first subscription can award both accounts 100 extra credits while your Pro plan is active. Promo code expiry and redemption limits apply. Available Heabsy models also work on Free.
+How to use it: Run AI: Upgrade Plan or open adcode.bluethenics.com/ai-tokens using the same account as the editor. Three plans are on sale: Builder $9/month for 225 daily credits, Pro $29/month for 900, and Max $59/month for 1,330 daily fair-use credits on every hosted model, including premium models that otherwise use the separate USD wallet. Max is practically unlimited, not literally: credits follow each model's price, so cheap models stretch them to hundreds of agent steps a day and premium models use them faster. Usage pauses when the daily allowance cannot cover a request, never charges saved balances or an overage bill, and refills 24 hours after first use. The pricing page has a slider that suggests a plan from how many agent steps you run a day. Manage or cancel renewal in your Dodo portal; access lasts through the paid period. Existing Weekly and Unlimited subscriptions keep renewing on their original terms. Pro includes two friend invites: each eligible friend's first subscription can award both accounts 100 extra credits while your Pro plan is active. Promo code expiry and redemption limits apply. Available Heabsy models also work on Free.
 
 Access: `All Features → AI plans, promo codes and invites`; `Upgrade plan`.
 
@@ -660,7 +660,7 @@ Buy one-time AI credits for extra included-model usage after the daily allowance
 
 Why use it: Keep working on the fastest included models during a heavy week without setting up your own provider key or a card with a model company.
 
-How to use it: Run AI: Buy AI Credits or open adcode.bluethenics.com/ai-tokens. Boost gives 5,000 credits for $10, Plus 14,000 for $25, and Power 30,000 for $50, paid once through Dodo. Purchased credits never expire. They are used after daily credits on Free, Starter and Pro. Max does not spend saved purchased credits automatically; it waits for the daily fair-use refill. Separate USD-wallet routes have a separate balance. Your balance appears in AI usage and on the composer meter. Contact the team from the account page about unused-credit refunds.
+How to use it: Run AI: Buy AI Credits or open adcode.bluethenics.com/ai-tokens. Boost gives 5,000 credits for $10, Plus 14,000 for $25, and Power 30,000 for $50, paid once through Dodo. Purchased credits never expire. They are used after daily credits on Free, Builder and Pro. Max does not spend saved purchased credits automatically; it waits for the daily fair-use refill. Separate USD-wallet routes have a separate balance. Your balance appears in AI usage and on the composer meter. Contact the team from the account page about unused-credit refunds.
 
 Access: `All Features → Buying AI tokens`; `Buy credits`.
 
@@ -737,7 +737,7 @@ Included models share 10 free AI credits a day per account. Model prices determi
 
 Why use it: Build with included models with a shared daily allowance across Tagflow AI and all other included models. Provider availability and model context limits still apply.
 
-How to use it: Sign in with a verified account and choose an included model. The Free plan includes 10 credits, refilling 24 hours after first use, shared across devices. Input, cached input and output use their model's displayed rates: expensive models use more credits. Daily credits do not roll over. On Free, Starter and Pro, purchased credits are used after the daily allowance; Max waits for its daily fair-use refill and keeps purchased credits saved. Provider availability and context limits still apply. The Conversation menu lets you compact a long conversation to use less input. The composer meter and AI usage show your balance. Existing paid periods may retain their previous allowance until their fixed period end.
+How to use it: Sign in with a verified account and choose an included model. The Free plan includes 10 credits, refilling 24 hours after first use, shared across devices. Input, cached input and output use their model's displayed rates: expensive models use more credits. Daily credits do not roll over. On Free, Builder and Pro, purchased credits are used after the daily allowance; Max waits for its daily fair-use refill and keeps purchased credits saved. Provider availability and context limits still apply. The Conversation menu lets you compact a long conversation to use less input. The composer meter and AI usage show your balance. Existing paid periods may retain their previous allowance until their fixed period end.
 
 Access: `All Features → Free AI credits`; `Show credits`.
 

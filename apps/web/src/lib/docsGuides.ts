@@ -1002,7 +1002,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "Connect the models your agents will use in Connect a model.",
       "Open Agents from the Vibe window's rail. Under Your agents, use the starter agents or choose New agent and give it a name, look, instructions, connection, model and the tools it may use.",
-      "Starter agents follow your currently connected model and appear immediately, even before a model is available. In the agent editor, Use the currently connected model follows changes in Connect a model; turn it off to choose a fixed connection and model.",
+      "Builder agents follow your currently connected model and appear immediately, even before a model is available. In the agent editor, Use the currently connected model follows changes in Connect a model; turn it off to choose a fixed connection and model.",
       "Make sure you have at least two agents. For example, give one implementation instructions and another review instructions. Enable Run after teammates for the reviewer so it receives the builder's handoff first.",
       "Choose Select for a Team, tick two to four agents, press Set up Team and describe the shared task.",
       "The Team appears as one box under Needs you with its members' mascots. Press Start. Select the box any time to see each step it took; press Stop if the task should end.",
@@ -1381,7 +1381,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "Run AI: Upgrade Plan in ADCode or open adcode.bluethenics.com/ai-tokens. Sign in with the same verified account you use in the editor.",
       "Not sure which? On adcode.bluethenics.com/pricing, move the slider to how many agent steps you run on a typical day; it names the smallest plan that covers you, or tells you Free already does.",
-      "Choose Starter ($9 a month, 225 credits each day), Pro ($29 a month, 900 credits each day) or Max ($59 a month, 1,900 fair-use credits each day on every hosted model, premium ones included). Every plan refills daily.",
+      "Choose Builder ($9 a month, 225 credits each day), Pro ($29 a month, 900 credits each day) or Max ($59 a month, 1,330 fair-use credits each day on every hosted model, premium ones included). Every plan refills daily.",
       "Complete payment with Dodo. After payment is confirmed, your daily included AI allowance rises automatically. The page, AI usage and composer meter show your plan. Existing usage still counts toward the week; purchased tokens cover anything beyond your allowance.",
       "To change billing details or cancel, select Manage subscription on the same page. Cancelling keeps access until the paid period ends; afterward the account returns to its free allowance unless another plan or gift applies.",
       "With a Pro subscription, copy your invite code and share it with up to two friends. Each friend signs in and redeems it in the invite-code box before starting a paid plan. When their first subscription becomes active while your Pro plan is still active, you and that friend each receive 100 credits. Each friend earns the reward only once.",
@@ -1390,8 +1390,8 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     benefits: [
       "A predictable subscription raises the daily allowance on included AI models without adding a provider account or API key.",
       "Max is practically unlimited: one price covers every hosted model, fair use follows each model's cost, and there is never a wallet charge or overage bill.",
-      "Pro includes two friend invites; Starter is the cheapest way past the free allowance.",
-      "Purchased tokens remain available beyond Starter and Pro and never expire; Max keeps them saved. Tagflow AI shares the same daily allowance.",
+      "Pro includes two friend invites; Builder is the cheapest way past the free allowance.",
+      "Purchased tokens remain available beyond Builder and Pro and never expire; Max keeps them saved. Tagflow AI shares the same daily allowance.",
     ],
     betterThan: "Choose a plan when you regularly need a larger included AI allowance, or keep buying token packs for occasional bursts. Both use your existing ADCode account and models. The page shows the price and daily allowance before checkout, and Manage subscription gives you a direct route to billing and cancellation.",
   },

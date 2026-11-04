@@ -11,9 +11,9 @@ const WHERE_TO_MANAGE = "Where do I manage billing or redeem a code?";
 /** The questions, once: rendered below and published as FAQPage data by the page. */
 export const PRICING_FAQ: readonly { q: string; a: string }[] = [
   { q: "Do I need to buy a plan to use ADCode?", a: "No. The editor is free, and free included AI has a daily allowance. All included Heabsy models are available on the free plan. Premium models use a separate USD wallet unless you choose Max. Your own provider connections remain available." },
-  { q: "Is Max really unlimited?", a: "Close to it, but not literally. Max covers every ADCode-hosted model, premium ones included, inside 1,900 fair-use credits a day. Credits follow each model's price, so a budget model runs hundreds of agent steps a day and a premium model fewer. Usage pauses at the allowance, refills 24 hours after your first request, and never charges a wallet or an overage bill." },
-  { q: "When does my allowance refill?", a: "The shared allowance day starts with your first included AI request. Every plan refills daily: Starter 225 credits, Pro 900 and Max 1,900 fair-use credits. It is shared across signed-in devices and does not roll over. Purchased credits are separate and never expire." },
-  { q: "What happens when I use the daily allowance?", a: "On Free, Starter and Pro, included models use your purchased credits next. Max pauses at its daily fair-use allowance without charging purchased balances. If no credits remain, you can add a pack, upgrade for more daily credits or use your own connected model. A paused task carries on by itself when your allowance refills or you add credits. A bigger plan does not remove a provider's temporary rate limits." },
+  { q: "Is Max really unlimited?", a: "Close to it, but not literally. Max covers every ADCode-hosted model, premium ones included, inside 1,330 fair-use credits a day. Credits follow each model's price, so a budget model runs hundreds of agent steps a day and a premium model fewer. Usage pauses at the allowance, refills 24 hours after your first request, and never charges a wallet or an overage bill." },
+  { q: "When does my allowance refill?", a: "The shared allowance day starts with your first included AI request. Every plan refills daily: Builder 225 credits, Pro 900 and Max 1,330 fair-use credits. It is shared across signed-in devices and does not roll over. Purchased credits are separate and never expire." },
+  { q: "What happens when I use the daily allowance?", a: "On Free, Builder and Pro, included models use your purchased credits next. Max pauses at its daily fair-use allowance without charging purchased balances. If no credits remain, you can add a pack, upgrade for more daily credits or use your own connected model. A paused task carries on by itself when your allowance refills or you add credits. A bigger plan does not remove a provider's temporary rate limits." },
   { q: "Can I switch plans later?", a: "Yes. Manage or cancel in your Dodo billing portal at any time; cancellation keeps access until the paid period ends. A plan raises the allowance for the day, so credits already used today still count." },
   { q: WHERE_TO_MANAGE, a: "Use AI plans and credits with the same ADCode account you use in the editor. Review your balance, manage a subscription, or redeem a promo or invite code there. Checkout and official invoices are handled by Dodo Payments." },
 ];
@@ -70,7 +70,7 @@ export function PricingContent({ offer, now = Date.now() }: { offer: PricingOffe
             <li key={plan.id} className="pricing-plan" data-featured={featured} data-plan={plan.id} style={{ "--i": index } as CSSProperties}>
               <div className="pricing-card-title">
                 <h3>{plan.name}</h3>
-                {featured ? <span className="pricing-flag">Best value</span> : plan.id === "pro" ? <span className="pricing-flag pricing-flag-quiet">4× Starter</span> : null}
+                {featured ? <span className="pricing-flag">Best value</span> : plan.id === "pro" ? <span className="pricing-flag pricing-flag-quiet">4× Builder</span> : null}
               </div>
               <p className="pricing-audience">{PLAN_BENEFITS[plan.id].audience}</p>
               <p className="pricing-plan-price"><strong>{price(plan.priceCents)}</strong><span>/{plan.interval}</span></p>
@@ -157,7 +157,7 @@ export function PricingContent({ offer, now = Date.now() }: { offer: PricingOffe
       </section>
 
       <section className="pricing-section pricing-packs-section" aria-labelledby="pricing-packs-heading">
-        <header className="pricing-section-head"><h2 id="pricing-packs-heading">Or top up once</h2><p>One-time credits work after the daily allowance on Free, Starter and Pro. Max waits for its daily refill. Purchased credits never expire.</p></header>
+        <header className="pricing-section-head"><h2 id="pricing-packs-heading">Or top up once</h2><p>One-time credits work after the daily allowance on Free, Builder and Pro. Max waits for its daily refill. Purchased credits never expire.</p></header>
         <ul className="pricing-packs" aria-label="One-time Heabsy token packs">
           {offer.packs.map(pack => <li key={pack.id}><div><strong>{topUpName(pack.id)}<span>{creditAmount(pack.tokens)} credits</span></strong><p>{price(pack.priceCents)} once</p></div><Link href="/ai-tokens#packs" aria-label={`View ${topUpName(pack.id)} top-up`}>View top-up <Icon node={ArrowUpRight} /></Link></li>)}
         </ul>

@@ -8,7 +8,7 @@ import { PLAN_BENEFITS, agentStepsPerDay, pricePerDay, projectPlanBenefits } fro
 import { Icon } from "@/components/Icon";
 import { ArrowUpRight, Check } from "lucide";
 
-export const planName = (id: string): string => ({ weekly: "Weekly", monthly: "Starter", pro: "Pro", max: "Max", unlimited: "Unlimited" } as Record<string, string>)[id] ?? "Plan";
+export const planName = (id: string): string => ({ weekly: "Weekly", monthly: "Builder", pro: "Pro", max: "Max", unlimited: "Unlimited" } as Record<string, string>)[id] ?? "Plan";
 
 /**
  * The plans to show an account: the three on sale, plus a retired plan the account is still on,

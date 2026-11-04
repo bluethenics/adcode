@@ -25,7 +25,7 @@ export function FreePlan() {
           <dd><strong>Included</strong> in the shared daily credit allowance</dd>
         </div>
       </dl>
-      <p className="free-plan-limit">Plans raise the daily included AI allowance: Starter 225 credits a day, Pro 900, and Max 1,900 fair-use credits on every hosted model, premium included. Starter and Pro can use purchased credits after the daily allowance; Max waits for its refill and never charges them. Purchased credits never expire. Provider availability, model context limits and shared capacity still apply.</p>
+      <p className="free-plan-limit">Plans raise the daily included AI allowance: Builder 225 credits a day, Pro 900, and Max 1,330 fair-use credits on every hosted model, premium included. Builder and Pro can use purchased credits after the daily allowance; Max waits for its refill and never charges them. Purchased credits never expire. Provider availability, model context limits and shared capacity still apply.</p>
       <p className="free-plan-foot"><Link href="/pricing" className="home-text-link">Compare plans and credit packs <Icon node={ArrowUpRight} /></Link></p>
       <details className="free-plan-details">
         <summary>How the free plan works</summary>

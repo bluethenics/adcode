@@ -75,7 +75,7 @@ export function percentLeft(remaining: number, limit: number): number {
 /** A current, recognised plan name. Older relays omit plans. */
 export function aiPlanName(plan: NonNullable<TagflowAllowanceView["tokens"]>["plan"], now: number): string | null {
   if (plan == null || plan.endsAt <= now) return null;
-  return plan.id === "weekly" ? "Weekly" : plan.id === "monthly" ? "Starter" : plan.id === "pro" ? "Pro" : plan.id === "max" ? "Max" : plan.id === "unlimited" ? "Unlimited" : null;
+  return plan.id === "weekly" ? "Weekly" : plan.id === "monthly" ? "Builder" : plan.id === "pro" ? "Pro" : plan.id === "max" ? "Max" : plan.id === "unlimited" ? "Unlimited" : null;
 }
 
 /**
