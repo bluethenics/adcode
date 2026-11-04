@@ -206,11 +206,11 @@
     "content content";
 }
 .toast-sponsored.toast-partner[data-state="entering"] { pointer-events: none; }
+/* No radius or overflow clip of our own: the card inside is the SDK's, drawn as it draws it. */
 .toast-partner-frame {
   display: block;
   width: 100%;
   border: 0;
-  border-radius: 12px;
   background: transparent;
   color-scheme: normal;
 }

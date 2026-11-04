@@ -24,7 +24,7 @@ export interface SponsoredExchange {
   /** The conversation's own stored id: the same on every turn and retry of one chat. */
   readonly sessionId: string;
   readonly theme: "light" | "dark";
-  /** `notification`: one card, laid out like ADCode's own sponsored messages (sponsored.css). */
+  /** `notification`: the page asks the SDK for one card. The card is always drawn as the SDK draws it. */
   readonly layout?: "reply" | "notification";
 }
 

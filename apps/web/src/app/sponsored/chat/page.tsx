@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Imprezia, { MonetizedContentWithCards } from "@adimpress/imprezia-sdk";
 import { hasCards } from "@adimpress/imprezia-sdk/utils/cardHelpers";
-import { fitsNotification } from "@/lib/sponsoredCard";
 import "./sponsored.css";
 
 /**
@@ -20,10 +19,9 @@ import "./sponsored.css";
 const EMBEDDER = "app://adcode";
 
 /**
- * `reply` is a card under an AI reply, drawn as Imprezia draws it. `notification` is a partner
- * notification: one card, restyled (sponsored.css) to read like ADCode's own sponsored messages.
- * Imprezia's own component still draws and measures it either way - its viewable-impression
- * beacon is private to that component, so a card we drew ourselves would never be paid for.
+ * Where the card appears: `reply` under an AI reply, `notification` in a partner notification,
+ * which asks for one card. Either way the card is the SDK's, exactly as it draws it: Imprezia
+ * asks that it is not restyled, because the SDK handles many formats and edits can break them.
  */
 type Layout = "reply" | "notification";
 type Exchange = { request: string; response: string; sessionId: string; theme: "light" | "dark"; layout: Layout };
@@ -77,7 +75,7 @@ export default function SponsoredChat() {
     void Imprezia.monetize({ request: exchange.request, response: exchange.response, sessionId: exchange.sessionId, ...(notification ? { maxCards: 1 } : {}) })
       .then((monetized) => {
         if (!live) return;
-        if (hasCards(monetized) && (!notification || fitsNotification(monetized))) setResult(monetized);
+        if (hasCards(monetized)) setResult(monetized);
         else tell({ type: "adcode-sponsored-empty" });
       }, () => { if (live) tell({ type: "adcode-sponsored-empty" }); });
     return () => { live = false; };
@@ -96,7 +94,7 @@ export default function SponsoredChat() {
 
   if (exchange === null || result === null) return null;
   return (
-    <div ref={box} className="sponsored-chat" data-theme={exchange.theme} data-layout={exchange.layout}>
+    <div ref={box} className="sponsored-chat" data-theme={exchange.theme}>
       <MonetizedContentWithCards
         response={result}
         theme={exchange.theme}

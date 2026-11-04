@@ -67,7 +67,7 @@ describe("what the frame reports back", () => {
 });
 
 describe("the notification layout", () => {
-  it("asks the page for one card laid out like ADCode's own, and nothing changes for replies", () => {
+  it("asks the page for one card in a notification, and nothing changes for replies", () => {
     const base = { request: "q", response: "a", sessionId: "s", theme: "dark" as const };
     expect(sponsoredMessage({ ...base, layout: "notification" })).toMatchObject({ layout: "notification" });
     expect(sponsoredMessage(base)).not.toHaveProperty("layout");
