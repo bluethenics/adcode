@@ -65,6 +65,10 @@ export function createTagflowMemoryStore(): TagflowStore & { resetTagflow(): voi
     async getModelFeedback(requestId,uid) { const row = modelFeedback.get(requestId); return structuredClone(row?.uid === uid ? row : null); },
     async deleteModelFeedback(requestId,uid) { if (modelFeedback.get(requestId)?.uid === uid) modelFeedback.delete(requestId); },
     async readModelReports(range) { return summarizeModelReports([...modelRequests.values()],[...modelFeedback.values()],range,collectionStartedAt,profiles); },
+    async readModelReport(range, model) {
+      const all = summarizeModelReports([...modelRequests.values()],[...modelFeedback.values()],range,collectionStartedAt,profiles);
+      return { ...all, models: all.models.filter(one => one.provider === model.provider && one.modelId === model.modelId && one.upstreamModel === model.upstreamModel) };
+    },
     async getTagflowConfig() { return structuredClone(config); },
     async putTagflowConfig(value) { config = structuredClone(value); },
     async getTagflowPolicy(uid) { return structuredClone(policies.get(uid) ?? null); },

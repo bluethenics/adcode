@@ -218,3 +218,32 @@
   .ai-tokens-country.field { grid-template-columns: minmax(0,1fr); }
   .ai-tokens-country .input { max-width: 100%; }
 }
+
+/* ── 4 November relayout: the numbers up front, three plans side by side ───────────────── */
+.ai-tokens .ai-eyebrow { font: 12px var(--font-mono), monospace; letter-spacing: 0; text-transform: none; }
+.ai-tokens-head { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: end; gap: 48px; margin-bottom: 40px; }
+.ai-tokens-head h1 { font-size: clamp(36px, 4.6vw, 56px); font-weight: 500; letter-spacing: -.04em; text-wrap: balance; }
+.ai-tokens-hero-copy > p:not(.ai-eyebrow) { margin-bottom: 20px; }
+.ai-tokens-jump { display: flex; flex-wrap: wrap; gap: 8px; }
+.ai-tokens-jump a { padding: 7px 14px; border: 1px solid var(--hairline); border-radius: 999px; color: var(--muted); font-size: 13px; text-decoration: none; transition: color 160ms ease, border-color 160ms ease; }
+.ai-tokens-tiers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.ai-tokens-tiers > div { display: grid; gap: 4px; padding: 16px 18px; border: 1px solid var(--hairline); border-radius: 14px; background: var(--card); }
+.ai-tokens-tiers > div[data-featured="true"] { border-color: var(--text); }
+.ai-tokens-tiers dt { color: var(--muted); font-size: 12px; }
+.ai-tokens-tiers dd { margin: 0; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.ai-tokens-tiers dd strong { margin-right: 4px; color: var(--text); font-size: 26px; font-weight: 500; letter-spacing: -.03em; }
+.ai-tokens-tiers small { color: var(--muted); font-size: 11px; }
+.ai-section-heading > p { max-width: 48ch; font-size: 13px; }
+.ai-plan-card { transition: transform 220ms cubic-bezier(.23, 1, .32, 1), border-color 200ms ease; }
+.ai-plan-card[data-featured="true"] { background: var(--card); box-shadow: 0 0 0 1px var(--text); }
+@media (hover: hover) and (pointer: fine) {
+  .ai-tokens-jump a:hover { color: var(--text); border-color: var(--border-strong, var(--text)); }
+  .ai-plan-card:hover { transform: translateY(-3px); }
+}
+/* A retired plan someone is still on sits after the three, full width, quietly. */
+.ai-plan-card[data-plan="weekly"], .ai-plan-card[data-plan="unlimited"] { grid-column: 1 / -1; opacity: .85; }
+@media (max-width: 900px) { .ai-tokens-head { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
+@media (prefers-reduced-motion: reduce) { .ai-plan-card:hover { transform: none; } }
+/* Stacked on a phone, the featured plan comes first, as on the pricing page. */
+@media (max-width: 760px) { .ai-plan-card[data-plan="max"] { order: -2; } .ai-plan-card[data-plan="pro"] { order: -1; } }
+.ai-tokens-hero-copy > .ai-tokens-lead { margin: -8px 0 12px; color: var(--text); font-size: clamp(20px, 2.2vw, 26px); line-height: 1.3; letter-spacing: -.02em; }

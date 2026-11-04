@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import type { ModelReport, ModelReportMetrics, ModelReportResponse } from "@adcode/api/src/tagflowReportTypes.ts";
 import { AUDIENCE_DIMENSIONS, audienceTitles, audienceLabel } from "@adcode/api/src/modelAudience.ts";
@@ -57,49 +57,111 @@ export function ModelReportDetail({ model,report }: { model: ModelReport; report
   </article>;
 }
 
+type Loaded = ModelReportResponse & { scope?: "summary" | "model"; builtAt?: number };
+
+/**
+ * Every model's headline figures load first, and one model's full report as it is opened.
+ *
+ * The page used to ask for every model's complete report in one request. At 825,000 recorded
+ * requests that took the database past its time limit, so the page never loaded at all. Full
+ * reports are fetched per model and kept for the session; "Download all" builds them one by one.
+ */
 export function FreeModelReports() {
   const { token } = useAuth();
   const [from,setFrom] = useState(() => periodStart(30)), [to,setTo] = useState(utcToday);
   const [draftFrom,setDraftFrom] = useState(from), [draftTo,setDraftTo] = useState(to);
   const [refresh,setRefresh] = useState(0), [selected,setSelected] = useState("");
-  const [report,setReport] = useState<ModelReportResponse | null>(null), [loading,setLoading] = useState(true), [error,setError] = useState("");
+  const [report,setReport] = useState<Loaded | null>(null), [loading,setLoading] = useState(true), [error,setError] = useState("");
+  const [details,setDetails] = useState<Record<string, ModelReport>>({});
+  const [detailState,setDetailState] = useState<{ key: string; loading: boolean; error: string }>({ key: "", loading: false, error: "" });
+  const [progress,setProgress] = useState("");
+  const fresh = useRef(false);
+
+  const request = useCallback(async (query: string, signal?: AbortSignal): Promise<Loaded> => {
+    // The admin panel's made-up data for building it (adminPreview.ts). Dead code in a production build.
+    if (process.env["NODE_ENV"] === "development") {
+      const preview = (await import("@/lib/adminFixtures")).previewResponse<Loaded>("/admin/tagflow/reports", "GET");
+      if (preview !== null) { if (preview.ok) return preview.value; throw new Error("Preview data has no reports."); }
+    }
+    const idToken = await token(); if (idToken === null) throw new Error("Sign in again to view provider reports.");
+    const response = await fetch(`/v1/admin/tagflow/reports?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}${query}`,{ headers: { authorization: `Bearer ${idToken}` }, ...(signal ? { signal } : {}) });
+    const result = await response.json() as Loaded & { error?: { message?: string } };
+    if (!response.ok) throw new Error(result.error?.message ?? "Provider reports could not be loaded. Try again.");
+    return result;
+  },[token,from,to]);
+
   useEffect(() => {
     const controller = new AbortController(); let active = true;
-    setLoading(true); setError("");
-    void (async () => {
-      const idToken = await token(); if (idToken === null) throw new Error("Sign in again to view provider reports.");
-      const response = await fetch(`/v1/admin/tagflow/reports?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,{ headers: { authorization: `Bearer ${idToken}` },signal: controller.signal });
-      const result = await response.json() as ModelReportResponse & { error?: { message?: string } };
-      if (!response.ok) throw new Error(result.error?.message ?? "Provider reports could not be loaded. Try again.");
-      if (active) {
-        setReport(result);
-        const requested = new URLSearchParams(window.location.search).get("model");
-        const fallback = result.models.find(model => model.modelId === requested) ?? result.models[0];
-        setSelected(previous => result.models.some(model => keyOf(model) === previous) ? previous : fallback ? keyOf(fallback) : "");
-      }
-    })().catch(cause => { if (active) setError(cause instanceof Error ? cause.message : "Provider reports could not be loaded."); }).finally(() => { if (active) setLoading(false); });
+    setLoading(true); setError(""); setDetails({});
+    const force = fresh.current; fresh.current = false;
+    void request(force ? "&fresh=1" : "",controller.signal).then(result => {
+      if (!active) return;
+      setReport(result);
+      const requested = new URLSearchParams(window.location.search).get("model");
+      const fallback = result.models.find(model => model.modelId === requested) ?? result.models[0];
+      setSelected(previous => result.models.some(model => keyOf(model) === previous) ? previous : fallback ? keyOf(fallback) : "");
+    }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : "Provider reports could not be loaded."); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; controller.abort(); };
-  },[token,from,to,refresh]);
-  const model = report?.models.find(model => keyOf(model) === selected) ?? null;
-  const exportModels = model === null ? [] : [model];
-  function exportFile(format: "html" | "csv" | "json",all: boolean): void {
+  },[request,refresh]);
+
+  const detailQuery = (model: ModelReport, force = false): string =>
+    `&provider=${encodeURIComponent(model.provider)}&model=${encodeURIComponent(model.modelId)}&upstream=${encodeURIComponent(model.upstreamModel)}${force ? "&fresh=1" : ""}`;
+  const loadDetail = useCallback(async (model: ModelReport, force = false): Promise<ModelReport> => {
+    const result = await request(detailQuery(model, force));
+    const full = result.models.find(one => keyOf(one) === keyOf(model)) ?? model;
+    setDetails(previous => ({ ...previous, [keyOf(model)]: full }));
+    return full;
+  },[request]);
+
+  const summaryModel = report?.models.find(model => keyOf(model) === selected) ?? null;
+  const model = summaryModel === null ? null : details[selected] ?? null;
+  useEffect(() => {
+    if (summaryModel === null || details[keyOf(summaryModel)] !== undefined) return;
+    let active = true;
+    setDetailState({ key: keyOf(summaryModel), loading: true, error: "" });
+    void loadDetail(summaryModel)
+      .then(() => { if (active) setDetailState(state => ({ ...state, loading: false })); })
+      .catch(cause => { if (active) setDetailState(state => ({ ...state, loading: false, error: cause instanceof Error ? cause.message : "This model's report could not be loaded." })); });
+    return () => { active = false; };
+  },[summaryModel,details,loadDetail]);
+
+  async function exportFile(format: "html" | "csv" | "json",all: boolean): Promise<void> {
     if (!report || loading || error) return;
-    const models = all ? report.models : exportModels;
+    let models: ModelReport[];
+    if (all) {
+      models = [];
+      try {
+        for (const [index, one] of report.models.entries()) {
+          setProgress(`Preparing ${index + 1} of ${report.models.length}: ${one.modelName}…`);
+          models.push(details[keyOf(one)] ?? await loadDetail(one));
+        }
+      } catch (cause) { setProgress(cause instanceof Error ? `Stopped: ${cause.message}` : "Stopped: a model's report could not be loaded."); return; }
+      setProgress("");
+    } else {
+      if (model === null) return;
+      models = [model];
+    }
     const suffix = all ? "all-free-models" : "selected-free-model";
     const filename = `adcode-provider-report-${suffix}-${report.range.from}-${report.range.to}.${format}`;
     const body = format === "html" ? providerReportHtml(report,models) : format === "csv" ? providerReportCsv(report,models) : JSON.stringify({ ...report,models },null,2);
     downloadProviderFile(filename,body,format === "html" ? "text/html;charset=utf-8" : format === "csv" ? "text/csv;charset=utf-8" : "application/json");
   }
-  const unavailable = !report || loading || !!error;
+  const unavailable = !report || loading || !!error || progress !== "";
+  const busyDetail = detailState.loading && detailState.key === selected;
+  const built = report?.builtAt === undefined ? null : new Date(report.builtAt);
   return <div className="free-model-reports">
-    <form className="model-report-toolbar" onSubmit={event => { event.preventDefault(); setFrom(draftFrom); setTo(draftTo); setRefresh(value => value+1); }}><label>From (UTC)<input className="input" type="date" required value={draftFrom} max={draftTo} onChange={event => setDraftFrom(event.target.value)} /></label><label>To (UTC)<input className="input" type="date" required value={draftTo} min={draftFrom} max={utcToday()} onChange={event => setDraftTo(event.target.value)} /></label><button className="btn btn-primary" disabled={loading}>Apply dates</button><button type="button" className="btn" disabled={loading} onClick={() => setRefresh(value => value+1)}>Refresh</button>{[7,30,90].map(days => <button type="button" className="btn" key={days} disabled={loading} onClick={() => { const start = periodStart(days), end = utcToday(); setDraftFrom(start); setDraftTo(end); setFrom(start); setTo(end); setRefresh(value => value+1); }}>Last {days} days</button>)}</form>
-    {loading && <p role="status">Loading provider reports…</p>}{error && <p className="notice" role="alert">{error}</p>}
+    <form className="model-report-toolbar" onSubmit={event => { event.preventDefault(); setFrom(draftFrom); setTo(draftTo); setRefresh(value => value+1); }}><label>From (UTC)<input className="input" type="date" required value={draftFrom} max={draftTo} onChange={event => setDraftFrom(event.target.value)} /></label><label>To (UTC)<input className="input" type="date" required value={draftTo} min={draftFrom} max={utcToday()} onChange={event => setDraftTo(event.target.value)} /></label><button className="btn btn-primary" disabled={loading}>Apply dates</button><button type="button" className="btn" disabled={loading} onClick={() => { fresh.current = true; setRefresh(value => value+1); }}>Rebuild figures</button>{[7,30,90].map(days => <button type="button" className="btn" key={days} disabled={loading} onClick={() => { const start = periodStart(days), end = utcToday(); setDraftFrom(start); setDraftTo(end); setFrom(start); setTo(end); setRefresh(value => value+1); }}>Last {days} days</button>)}</form>
+    {loading && <p role="status">Loading every model's figures…</p>}{error && <p className="notice" role="alert">{error}</p>}
+    {progress && <p role="status" className="notice">{progress}</p>}
     {report && <>
-      <p className="model-report-coverage">{report.collectionStartedAt === null ? "Model-level collection has not started yet." : `Model-level collection started ${new Date(report.collectionStartedAt).toISOString()}.`} Earlier account totals cannot be reconstructed per model. {report.collectionStartedAt === null || report.collectionStartedAt > report.range.previousFromAt ? "Period comparisons have partial historical coverage. " : ""}Admin tests are excluded; current-day figures are still growing.</p>
-      <section><header className="model-report-toolbar"><h2>All free models</h2><button className="btn" disabled={unavailable} onClick={() => exportFile("html",true)}>Download all provider reports</button><button className="btn" disabled={unavailable} onClick={() => exportFile("csv",true)}>Export all CSV</button></header>
+      <p className="model-report-coverage">{built !== null && <>Figures built {built.toISOString().slice(0,16).replace("T"," ")} UTC; Rebuild figures recounts them now. </>}{report.collectionStartedAt === null ? "Model-level collection has not started yet." : `Model-level collection started ${new Date(report.collectionStartedAt).toISOString()}.`} Earlier account totals cannot be reconstructed per model. {report.collectionStartedAt === null || report.collectionStartedAt > report.range.previousFromAt ? "Period comparisons have partial historical coverage. " : ""}Admin tests are excluded; current-day figures are still growing.</p>
+      <section><header className="model-report-toolbar"><h2>All free models</h2><button className="btn" disabled={unavailable} onClick={() => void exportFile("html",true)}>Download all provider reports</button><button className="btn" disabled={unavailable} onClick={() => void exportFile("csv",true)}>Export all CSV</button></header>
       <Table label="All free model demand and reliability" headers={["Model","Provider","Attempts","Accounts","Tokens","Provider error rate","Helpful ratings"]} rows={report.models.map(model => [model.modelName,model.provider,model.current.attempts,model.current.activeUsers,metricNumber(model.current.inputTokens+model.current.outputTokens),percent(model.current.providerErrors,model.current.successes+model.current.providerErrors),`${model.current.helpful} / ${model.current.helpful+model.current.notHelpful}`])} />
       {report.models.length === 0 && <p className="row-sub">No free models are configured or recorded yet. Add a model in Free models to begin.</p>}</section>
-      {model && <><div className="model-report-toolbar"><label>Model and provider revision<select className="select" value={selected} onChange={event => setSelected(event.target.value)}>{report.models.map(model => <option key={keyOf(model)} value={keyOf(model)}>{model.modelName} · {model.provider} · {model.upstreamModel}</option>)}</select></label><button className="btn btn-primary" disabled={unavailable} onClick={() => exportFile("html",false)}>Download provider briefing</button><button className="btn" disabled={unavailable} onClick={() => printProviderReport(providerReportHtml(report,[model]))}>Print / save PDF</button><button className="btn" disabled={unavailable} onClick={() => exportFile("csv",false)}>CSV</button><button className="btn" disabled={unavailable} onClick={() => exportFile("json",false)}>JSON</button></div><ModelReportDetail model={model} report={report} /></>}
+      {summaryModel && <><div className="model-report-toolbar"><label>Model and provider revision<select className="select" value={selected} onChange={event => setSelected(event.target.value)}>{report.models.map(model => <option key={keyOf(model)} value={keyOf(model)}>{model.modelName} · {model.provider} · {model.upstreamModel}</option>)}</select></label><button className="btn btn-primary" disabled={unavailable || model === null} onClick={() => void exportFile("html",false)}>Download provider briefing</button><button className="btn" disabled={unavailable || model === null} onClick={() => model && printProviderReport(providerReportHtml(report,[model]))}>Print / save PDF</button><button className="btn" disabled={unavailable || model === null} onClick={() => void exportFile("csv",false)}>CSV</button><button className="btn" disabled={unavailable || model === null} onClick={() => void exportFile("json",false)}>JSON</button></div>
+        {busyDetail && <p role="status" className="model-report-coverage">Building {summaryModel.modelName}'s full report. The busiest models take up to a minute the first time; after that it opens at once.</p>}
+        {!busyDetail && detailState.key === selected && detailState.error && <p className="notice" role="alert">{detailState.error} <button type="button" className="btn btn-small" onClick={() => { setDetailState({ key: "", loading: false, error: "" }); setDetails(previous => { const next = { ...previous }; delete next[selected]; return next; }); }}>Try again</button></p>}
+        {model && <ModelReportDetail model={model} report={report} />}</>}
       <section><h3>Definitions and coverage</h3><p className="row-sub">Generated {new Date(report.generatedAt).toISOString()} · Compared with {new Date(report.range.previousFromAt).toISOString()} through {new Date(report.range.previousToAt).toISOString()} (exclusive end).</p>{Object.entries(report.definitions).map(([label,text]) => <details key={label}><summary>{label}</summary><p className="row-sub">{text}</p></details>)}<p className="row-sub">Downloads are ready to share. They contain no account identifiers, prompts, replies, code or API keys. Only comments approved for provider sharing are included.</p></section>
     </>}
   </div>;

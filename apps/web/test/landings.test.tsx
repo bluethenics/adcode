@@ -31,7 +31,7 @@ describe("landing pages", () => {
       if (page === null) continue;
       const text = landingPlainText(page);
       expect(text).toContain("Tagflow AI and other free included models share");
-      expect(text).toContain("share 100 free credits a day");
+      expect(text).toContain("share 140 free credits a day");
       expect(text).not.toContain("No request cap on the AI features");
       const markup = renderToStaticMarkup(<LandingArticle page={page} />);
       expect(markup).toContain(`href="${WEB_VERSION_URL}"`);

@@ -59,7 +59,7 @@ export const WEB_DOCS: readonly WebDoc[] = [
   {
     slug: "free-ai-without-the-meter",
     title: "Free AI, every day",
-    description: "All included models, including Heabsy and Tagflow AI, share 100 free credits daily. Plans add daily usage, and purchased credits never expire.",
+    description: "All included models, including Heabsy and Tagflow AI, share 140 free credits daily. Plans add daily usage, and purchased credits never expire.",
     section: "The assistant",
     published: "2026-10-20",
     updated: "2026-10-30",

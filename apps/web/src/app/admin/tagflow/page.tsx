@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/components/AdminShell";
 import { AdminModelTabs } from "@/components/AdminModelTabs";
+import { AdminSummary } from "@/components/AdminUI";
 import { useAuth } from "@/components/AuthProvider";
 import type { TagflowConfig, TagflowLimits, TagflowModel, TagflowUsage, TagflowUserPolicy } from "@adcode/api/src/tagflowTypes.ts";
 import { MAX_CUSTOM_PROVIDERS, allowanceAccount, customProviderId, modelProvider, providerConnections, type CustomProvider, type IncludedProviderId } from "@adcode/api/src/includedProviders.ts";
-import { UNLIMITED_DAILY_REQUESTS, UNLIMITED_REQUESTS_PER_MINUTE } from "@adcode/api/src/tagflowConfig.ts";
+import { MAX_TAGFLOW_MODELS, UNLIMITED_DAILY_REQUESTS, UNLIMITED_REQUESTS_PER_MINUTE } from "@adcode/api/src/tagflowConfig.ts";
 import { DEFAULT_CREDIT_PLAN, MAX_CREDITS, MAX_CREDIT_RATE, modelCreditRate, type CreditPlan, type CreditsView } from "@adcode/api/src/credits.ts";
 import { CustomProviderEditor } from "@/components/CustomProviderEditor";
 import { PaidTokensActivity, PaidTokensSettings } from "@/components/PaidTokensAdmin";
@@ -20,14 +21,32 @@ interface UserView { policy: TagflowUserPolicy | null; limits: TagflowLimits; us
 const money = (micros: number): string => `$${(micros / 1_000_000).toFixed(4)}`;
 
 export default function TagflowPage() {
-  return <AdminShell title="ADCode models" subtitle="Manage included models and paid models that use your server keys."><AdminModelTabs active="free" /><SectionBar /><TagflowEditor /></AdminShell>;
+  return <AdminShell title="ADCode models" subtitle="Included models, their providers and keys, allowances, plans, and who is using them."><AdminModelTabs active="free" /><TagflowEditor /></AdminShell>;
 }
+
+/**
+ * The page in five views rather than one scroll.
+ *
+ * It used to be every section stacked on one page: 59 models fully expanded, then providers,
+ * limits, plans, people and usage. "Add model" appended an empty model below all 59, out of
+ * sight, and Save went through the browser's validation of every field on the page - so one
+ * stored price with more decimals than its field allowed made Save do nothing at all.
+ */
+const VIEWS = [
+  ["models", "Models"],
+  ["providers", "Providers & keys"],
+  ["allowances", "Allowances & limits"],
+  ["plans", "Plans & promos"],
+  ["people", "People & usage"],
+] as const;
+type View = typeof VIEWS[number][0];
+const isView = (value: string | null): value is View => VIEWS.some(([id]) => id === value);
 
 /** Tokens are no longer a limit - credits are - so a day keeps only its request and spending ceilings. */
 function LimitFields({ value, onChange, disabled = false }: { value: TagflowLimits; onChange: (next: TagflowLimits) => void; disabled?: boolean }) {
   return <div className="tagflow-fields">
     <RequestField label="Requests per day" value={value.dailyRequests} unlimited={UNLIMITED_DAILY_REQUESTS} fallback={50} disabled={disabled} onChange={(dailyRequests) => onChange({ ...value, dailyRequests })} />
-    <NumberField label="Spending limit per day (USD)" value={value.dailyCostMicros / 1_000_000} max={1000} step="0.000001" disabled={disabled} onChange={(amount) => onChange({ ...value, dailyCostMicros: Math.round(amount * 1_000_000) })} />
+    <NumberField label="Spending limit per day (USD)" value={value.dailyCostMicros / 1_000_000} max={1000} step="any" disabled={disabled} onChange={(amount) => onChange({ ...value, dailyCostMicros: Math.round(amount * 1_000_000) })} />
     <RequestField label="Requests per minute" value={value.requestsPerMinute} unlimited={UNLIMITED_REQUESTS_PER_MINUTE} fallback={10} disabled={disabled} onChange={(requestsPerMinute) => onChange({ ...value, requestsPerMinute })} />
   </div>;
 }
@@ -48,12 +67,16 @@ function RequestField({ label, value, unlimited, fallback, disabled, onChange }:
   return <div className="tagflow-field"><label className="admin-models-check"><input type="checkbox" disabled={disabled} checked={unbounded} onChange={(event) => onChange(event.target.checked ? unlimited : fallback)} /> Unlimited {label.toLowerCase()}</label><NumberField label={label} value={unbounded ? fallback : value} max={unlimited - 1} disabled={disabled || unbounded} onChange={onChange} /></div>;
 }
 
+/** Prices pass `step="any"`: provider prices carry more decimals than any fixed step allows. */
 function NumberField({ label, value, onChange, min = 0, max, step = "1", disabled = false }: { label: string; value: number; onChange: (value: number) => void; min?: number; max: number; step?: string; disabled?: boolean }) {
-  return <label className="tagflow-field"><span>{label}</span><input className="input" type="number" required min={min} max={max} step={step} disabled={disabled} value={value} onChange={(event) => onChange(event.currentTarget.valueAsNumber)} /></label>;
+  return <label className="tagflow-field"><span>{label}</span><input className="input" type="number" required min={min} max={max} step={step} disabled={disabled} value={Number.isFinite(value) ? value : ""} onChange={(event) => onChange(event.currentTarget.valueAsNumber)} /></label>;
 }
+
+const priceLabel = (value: number): string => value === 0 ? "free" : `$${Number(value.toFixed(4))}`;
 
 function TagflowEditor() {
   const { token } = useAuth();
+  const [view, setView] = useState<View>("models");
   const [saved, setSaved] = useState<Saved | null>(null);
   const [draft, setDraft] = useState<TagflowConfig | null>(null);
   const [notice, setNotice] = useState("");
@@ -73,13 +96,35 @@ function TagflowEditor() {
   const [userLimits, setUserLimits] = useState<TagflowLimits | null>(null);
   const [inheritCredits, setInheritCredits] = useState(true);
   const [userCredits, setUserCredits] = useState<CreditPlan>(DEFAULT_CREDIT_PLAN);
-  const [modelSearch,setModelSearch] = useState("");
+  const [modelSearch, setModelSearch] = useState("");
+  const [modelFilter, setModelFilter] = useState<"all" | "offered" | "hidden" | "wallet">("all");
+  /** Models open for editing, by their position in the catalogue. */
+  const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
+  /** Models added since the last save, shown first so a new one is never out of sight. */
+  const [added, setAdded] = useState<ReadonlySet<number>>(new Set());
   const [keyProvider, setKeyProvider] = useState("");
   const [keyValue, setKeyValue] = useState("");
   const [keyBusy, setKeyBusy] = useState(false);
   const [keyNotice, setKeyNotice] = useState("");
 
+  // The view lives in the address, so a link or the back button lands on it.
+  useEffect(() => {
+    const asked = new URLSearchParams(window.location.search).get("view");
+    if (isView(asked)) setView(asked);
+  }, []);
+  const choose = (next: View): void => {
+    setView(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", next);
+    window.history.replaceState(null, "", url);
+  };
+
   const call = useCallback(async <T,>(path: string, body?: unknown): Promise<T> => {
+    // The admin panel's made-up data for building it (adminPreview.ts). Dead code in a production build.
+    if (process.env["NODE_ENV"] === "development") {
+      const preview = (await import("@/lib/adminFixtures")).previewResponse<T>(path, body === undefined ? "GET" : "POST");
+      if (preview !== null) { if (preview.ok) return preview.value; throw new Error("Preview data has no answer for this request."); }
+    }
     const idToken = await token();
     if (idToken === null) throw new Error("Sign in again to manage included AI.");
     const response = await fetch(`/v1${path}`, { method: body === undefined ? "GET" : "POST", headers: { authorization: `Bearer ${idToken}`, "content-type": "application/json", ...(path === "/ai/tagflow/chat/completions" ? { "x-adcode-ai-source": "admin-test" } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -96,11 +141,12 @@ function TagflowEditor() {
     return () => { active = false; };
   }, [token]);
   useEffect(() => {
+    if (view !== "people") return;
     let active = true;
     setUsageError("");
     void call<{ rows: TagflowUsage[] }>(`/admin/tagflow/usage?day=${encodeURIComponent(day)}`).then((value) => { if (active) setRows(value.rows); }).catch(() => { if (active) { setRows([]); setUsageError("Could not read usage for this date. Try Refresh."); } });
     return () => { active = false; };
-  }, [token, day]);
+  }, [token, day, view]);
 
   if (loadError) return <p className="notice" data-tone="error" role="alert">Could not load included AI. Apply the Tagflow database migration and reload this page.</p>;
   if (draft === null || saved === null) return <p className="lede">Loading included AI…</p>;
@@ -123,10 +169,30 @@ function TagflowEditor() {
     setProviders(customProviders.map((provider, at) => at === index ? { ...value, id } : provider),
       draft.models.map((model) => model.provider === before.id ? { ...model, provider: id } : model));
   };
+  const providerName = (model: TagflowModel): string => providerConnections(customProviders).find((provider) => provider.id === modelProvider(model))?.name ?? modelProvider(model);
+
+  function addModel(): void {
+    if (draft === null || draft.models.length >= MAX_TAGFLOW_MODELS) return;
+    const index = draft.models.length;
+    change({ models: [...draft.models, { id: "", name: "", contextWindow: 32_768, maxOutput: 4096, inputPrice: 0, outputPrice: 0 }] });
+    setOpen((current) => new Set(current).add(index));
+    setAdded((current) => new Set(current).add(index));
+    setModelSearch(""); setModelFilter("all");
+    window.setTimeout(() => document.getElementById(`model-${index}-name`)?.focus(), 50);
+  }
+  function removeModel(index: number): void {
+    if (draft === null) return;
+    const model = draft.models[index]!;
+    change({ models: draft.models.filter((_, at) => at !== index), defaultModel: draft.defaultModel === model.id ? "" : draft.defaultModel });
+    // Positions after the removed one shift down by one.
+    const shift = (set: ReadonlySet<number>): Set<number> => new Set([...set].filter((at) => at !== index).map((at) => at > index ? at - 1 : at));
+    setOpen(shift); setAdded(shift);
+  }
+  const toggle = (index: number): void => setOpen((current) => { const next = new Set(current); if (next.has(index)) next.delete(index); else next.add(index); return next; });
 
   async function save(): Promise<void> {
     setBusy(true); setNotice("");
-    try { const result = await call<Saved>("/admin/tagflow", draft); setSaved(result); setDraft(result.config); setNotice("Saved. Limits apply to new requests immediately. Editors refresh the model list within five minutes."); }
+    try { const result = await call<Saved>("/admin/tagflow", draft); setSaved(result); setDraft(result.config); setAdded(new Set()); setNotice("Saved. Limits apply to new requests immediately. Editors refresh the model list within five minutes."); }
     catch (error) { setNotice(error instanceof Error ? error.message : "Nothing was saved."); }
     finally { setBusy(false); }
   }
@@ -137,7 +203,6 @@ function TagflowEditor() {
       const answer = result.choices?.[0]?.message?.content?.trim();
       if (!answer) throw new Error("The model answered without text. Check its chat and tool-call support.");
       setNotice(`${model.name} connected. Test reply: ${answer.slice(0, 120)}`);
-      await refreshUsage();
     } catch (error) { setNotice(error instanceof Error ? error.message : "The model test failed. Check its ID and server key."); }
     finally { setTestingModel(null); }
   }
@@ -187,90 +252,133 @@ function TagflowEditor() {
     finally { setBusy(false); }
   }
 
-  return <div className="admin-models tagflow-admin">
-    <form onSubmit={(event) => { event.preventDefault(); void save(); }} className="admin-models">
-      <div className="admin-toolbar admin-models-toolbar"><label className="admin-models-check"><input type="checkbox" checked={draft.enabled} onChange={(event) => change({ enabled: event.target.checked })} /> Enable included AI</label><div className="admin-models-actions"><button type="button" className="btn" disabled={!dirty || busy} onClick={() => setDraft(saved.config)}>Discard changes</button><button className="btn btn-primary" disabled={!dirty || busy}>{busy ? "Saving…" : "Save settings"}</button></div></div>
-      {notice && <p className="notice" role="status">{notice}</p>}
-      <section id="free-connections" className="admin-models-provider"><h3>Server connections</h3><p className="row-sub">You supply these provider connections. Paid models charge purchased USD credits at your upstream rates plus 35%; included models use their existing allowance. Add the named encrypted secret in Cloudflare → Workers → adcode → Settings → Variables and Secrets. Keys stay on your server.</p><div className="admin-models-scroll"><table className="admin-models-table"><thead><tr><th scope="col">Provider</th><th scope="col">Server key</th><th scope="col">Cloudflare secret name</th></tr></thead><tbody>{providerConnections(customProviders).map((provider) => <tr key={provider.id}><td>{provider.docs ? <a href={provider.docs} target="_blank" rel="noreferrer">{provider.name}</a> : <>{provider.name || "New provider"} <small>(custom)</small></>}</td><td>{keyStatus(provider.id) === undefined ? "Save to check" : keyStatus(provider.id) ? "Configured" : "Not configured"}</td><td><code>{provider.secretName}</code>{provider.id === "tagflow" && <small> (your existing tagflow-api is also accepted)</small>}</td></tr>)}</tbody></table></div><p className="row-sub">Models with a missing server key are hidden from users. Reload this page after adding a key. The default must have a configured key before you save an enabled catalog.</p>
-        <div className="tagflow-key">
-          <h4>Add or replace a key</h4>
-          {saved.keysManageable ? <>
-            <div className="tagflow-fields">
-              <label className="tagflow-field"><span>Provider</span><select className="select" value={keyTarget} onChange={(event) => { setKeyProvider(event.target.value); setKeyNotice(""); }}>{keyTargets.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</select></label>
-              <label className="tagflow-field"><span>API key</span><input className="input" type="password" autoComplete="off" spellCheck={false} maxLength={4096} value={keyValue} placeholder="Paste the key from the provider" onChange={(event) => setKeyValue(event.target.value)} /></label>
-            </div>
-            <div className="admin-models-actions"><button type="button" className="btn btn-primary" disabled={keyBusy || keyValue.trim().length < 8} onClick={() => void saveKey(false)}>{keyBusy ? "Saving…" : "Save key"}</button><button type="button" className="btn" disabled={keyBusy} onClick={() => void saveKey(true)}>Remove key</button></div>
-            <p className="row-sub">Saved straight to Cloudflare as that provider's encrypted secret. It is never stored in the database or shown again, and it can only fill a provider's own key.</p>
-          </> : <p className="row-sub">To save keys here instead of in Cloudflare, set this up once: in Cloudflare, open My Profile → API Tokens and create a token with Account → Workers Scripts → Edit for this account. Then run <code>npx wrangler secret put CLOUDFLARE_SECRETS_TOKEN</code> in apps/web, paste the token, and reload this page.</p>}
-          {keyNotice && <p className="notice" role="status">{keyNotice}</p>}
-        </div></section>
-      <section className="admin-models-provider"><header className="admin-card-head"><div><h3>Custom providers</h3><p className="row-sub">Offer models from any provider with an OpenAI-compatible chat API, such as Together AI, Fireworks, DeepInfra, Mistral, DeepSeek or your own vLLM server on a public HTTPS address. Add the provider and save, add its key as the Cloudflare secret it shows, reload, then add models that use it below. Users' prompts, code and tool results for those models go to the address you register.</p></div><button type="button" className="btn" disabled={customProviders.length >= MAX_CUSTOM_PROVIDERS} onClick={() => setProviders([...customProviders, { id: customProviderId("", customProviders.map((provider) => provider.id)), name: "", baseUrl: "" }])}>Add provider</button></header>
-        {customProviders.map((provider, index) => <CustomProviderEditor key={index} value={provider} keyStatus={savedProviderIds.includes(provider.id) ? keyStatus(provider.id) : undefined} inUse={draft.models.some((model) => model.provider === provider.id)} onChange={(value) => editProvider(index, value)} onRemove={() => setProviders(customProviders.filter((_, at) => at !== index))} />)}
-        {customProviders.length === 0 && <p className="row-sub">No custom providers yet.</p>}
-      </section>
-      <section className="admin-models-provider"><h3>Tagflow connection</h3>
-        <label className="tagflow-field"><span>API base URL supplied by Tagflow (including /v1 when required)</span><input className="input" type="url" maxLength={500} value={draft.baseUrl} placeholder="https://your-deployment.tagflow-ai.com/v1" onChange={(event) => change({ baseUrl: event.target.value })} /></label>
-        <p className="row-sub">Only HTTPS addresses on tagflow-ai.com or its subdomains are accepted. Get your exact deployment URL and model IDs from Tagflow.</p>
-      </section>
-      <section id="free-limits" className="admin-models-provider"><h3>Free AI credits per person</h3><p className="row-sub">One balance for every free model, as in a Claude Max plan. A session window opens with a person's first request and refills when it ends; the weekly window works the same over seven days. A request starts while any credit is left and is charged what it really used. A credit is about 1,000 tokens on a model with rate 1; set each model's rate below. Zero credits blocks free AI.</p><CreditFields value={draft.credits ?? DEFAULT_CREDIT_PLAN} onChange={(credits) => change({ credits })} /></section>
-      <section className="admin-models-provider"><h3>Paid tokens</h3><p className="row-sub">Tagflow AI and all other included models share one daily allowance per person; after it they draw on purchased tokens.</p><PaidTokensSettings value={draft.paid} onChange={(paid) => change({ paid })} /><PaidTokensActivity call={call} /></section>
-      <section className="admin-models-provider"><h3>Daily safety ceilings per person</h3><p className="row-sub">Behind the credits: what ADCode will spend on one account in a UTC day, and how many requests it may send. Requests are unlimited when the controls below are checked. Zero blocks that type of usage.</p><LimitFields value={draft.limits} onChange={(limits) => change({ limits })} /><div className="tagflow-fields"><NumberField label="Maximum input tokens per request" min={1} max={10_000_000} value={draft.maxInputTokens} onChange={(maxInputTokens) => change({ maxInputTokens })} /><NumberField label="Maximum output tokens per request" min={1} max={65_536} value={draft.maxOutputTokens} onChange={(maxOutputTokens) => change({ maxOutputTokens })} /></div><p className="row-sub">A request reserves its maximum response before it starts. Without provider token counts, usage is estimated conservatively. Spending uses the prices you enter below.</p></section>
-      <section id="free-models" className="admin-models-provider"><header className="admin-card-head"><h3>Models offered to users</h3><button type="button" className="btn" disabled={draft.models.length >= 50} onClick={() => change({ models: [...draft.models, { id: "", name: "", contextWindow: 32_768, maxOutput: 4096, inputPrice: 0, outputPrice: 0 }] })}>Add model</button></header>
-        <label className="tagflow-field"><span>Default model</span><select className="select" value={draft.defaultModel} onChange={(event) => change({ defaultModel: event.target.value })}><option value="">Choose a model</option>{draft.models.filter((model) => model.id && model.enabled !== false).map((model, index) => <option key={index} value={model.id}>{model.name || model.id}</option>)}</select></label>
-        <button type="button" className="btn" disabled={busy} onClick={() => void checkHeabsyAccess()}>Check Heabsy account access</button>
-        <label className="tagflow-field"><span>Find a model</span><input className="input" type="search" value={modelSearch} onChange={event=>setModelSearch(event.target.value)} placeholder="Model or provider name" /></label>
-        {draft.models.map((model, index) => <fieldset hidden={modelSearch.length>0 && !`${model.name} ${model.provider ?? "tagflow"}`.toLowerCase().includes(modelSearch.toLowerCase())} className="tagflow-model" key={index}>
-          <legend>{model.name || `Model ${index + 1}`}</legend>
-          {model.id && <Link className="btn" href={`/admin/tagflow/reports?model=${encodeURIComponent(model.id)}`}>View provider report</Link>}
-          <label className="admin-models-check"><input type="checkbox" checked={model.enabled !== false} onChange={(event) => { const enabled = event.target.checked; change({ models: draft.models.map((one, at) => at === index ? { ...one, enabled } : one), defaultModel: !enabled && draft.defaultModel === model.id ? "" : draft.defaultModel }); }} /> Offer this model</label>
-          <label className="tagflow-field"><span>Charge from</span><select className="select" value={model.billing ?? "included"} onChange={event=>{const next={...model};if(event.target.value==="wallet")next.billing="wallet";else delete next.billing;change({models:draft.models.map((one,at)=>at===index?next:one)});}}><option value="included">Included tokens / subscription</option><option value="wallet">Paid USD credits — provider cost + 35%</option></select></label>
-          {model.billing === "wallet" && <p className="row-sub">Uses purchased dollar credits only. User input / output prices: ${Number((model.inputPrice*1.35).toFixed(5))} / ${Number((model.outputPrice*1.35).toFixed(5))} per million tokens. Add the key under Server connections. Admin tests use your provider account without charging user credits.</p>}
-          <div className="tagflow-fields">
-            <label className="tagflow-field"><span>Provider</span><select className="select" value={modelProvider(model)} onChange={(event) => editModel(index, { provider: event.target.value as IncludedProviderId })}>{providerConnections(customProviders).map((provider) => <option key={provider.id} value={provider.id}>{provider.name || "New provider"}</option>)}</select></label>
-            <label className="tagflow-field"><span>Model ID in ADCode</span><input className="input" required maxLength={200} value={model.id} onChange={(event) => { const id = event.target.value; change({ models: draft.models.map((one, at) => at === index ? { ...one, id } : one), defaultModel: draft.defaultModel === model.id && model.id !== "" ? id : draft.defaultModel }); }} /></label>
-            <label className="tagflow-field"><span>Exact provider model ID (optional)</span><input className="input" maxLength={200} value={model.upstreamModel ?? ""} placeholder="Same as Model ID in ADCode" onChange={(event) => { const upstreamModel = event.target.value; const next = { ...model }; if (upstreamModel) next.upstreamModel = upstreamModel; else delete next.upstreamModel; change({ models: draft.models.map((one, at) => at === index ? next : one) }); }} /></label>
-            <label className="tagflow-field"><span>Display name</span><input className="input" required maxLength={120} value={model.name} onChange={(event) => editModel(index, { name: event.target.value })} /></label>
-            <NumberField label="Context tokens" min={1} max={10_000_000} value={model.contextWindow} onChange={(contextWindow) => editModel(index, { contextWindow })} />
-            <NumberField label="Maximum output tokens" min={1} max={65_536} value={model.maxOutput} onChange={(maxOutput) => editModel(index, { maxOutput })} />
-            <NumberField label="Input price (USD per 1M tokens)" max={10_000} step="0.000001" value={model.inputPrice} onChange={(inputPrice) => editModel(index, { inputPrice })} />
-            {model.billing === "wallet" && <NumberField label="Cached input price (USD per 1M tokens)" max={10_000} step="0.000001" value={model.cacheInputPrice ?? model.inputPrice} onChange={cacheInputPrice=>editModel(index,{cacheInputPrice})} />}
-            <NumberField label="Output price (USD per 1M tokens)" max={10_000} step="0.000001" value={model.outputPrice} onChange={(outputPrice) => editModel(index, { outputPrice })} />
-            <label className="tagflow-field"><span>Credits per 1,000 tokens</span><input className="input" type="number" min={0} max={MAX_CREDIT_RATE} step="0.001" value={model.creditRate ?? ""} placeholder={`${modelCreditRate(model.provider === undefined ? {} : { provider: model.provider }, draft)} (default)`} onChange={(event) => { const next = { ...model }; if (event.target.value === "") delete next.creditRate; else next.creditRate = event.currentTarget.valueAsNumber; change({ models: draft.models.map((one, at) => at === index ? next : one) }); }} /><small>Lower for models that cost less to serve. Zero never uses credits.</small></label>
-          </div>
-          <div className="admin-models-actions"><button type="button" className="btn" disabled={dirty || busy || testingModel !== null || !draft.enabled || model.enabled === false} onClick={() => void testModel(model)}>{testingModel === model.id ? "Testing…" : "Test model"}</button><button type="button" className="btn" onClick={() => change({ models: draft.models.filter((_, at) => at !== index), defaultModel: draft.defaultModel === model.id ? "" : draft.defaultModel })}>Remove model</button></div>
-        </fieldset>)}
-        <p className="row-sub">Use unique ADCode IDs; set an optional provider ID when you need an alias. Enter your actual upstream prices for spending limits. Zero means no upstream charge. Offer models that support text chat and tool calls. Paid USD models use the dollar wallet with a fixed 35% markup and never draw on included tokens or Heabsy plans.</p>
-        <p className="row-sub">Save changes before using Test model. Each test asks for a short “ok” reply. Paid-model tests use your provider balance without charging a user wallet.</p>
-      </section>
-    </form>
-    <div id="free-plans"><PlansAdmin call={call} /></div>
-    <section id="free-person" className="admin-models-provider"><h3>Individual allowance</h3><form className="admin-toolbar" onSubmit={(event) => { event.preventDefault(); void loadUser(); }}><label className="tagflow-field"><span>User ID from People</span><input className="input" required maxLength={128} value={uid} onChange={(event) => setUid(event.target.value)} /></label><button className="btn" disabled={userBusy}>Load user</button></form>
-      {userNotice && <p role="status" className="notice">{userNotice}</p>}
-      {user !== null && userLimits !== null && <form onSubmit={(event) => { event.preventDefault(); void saveUser(); }}><p className="row-sub">Account: {loadedUid}. Today: {user.usage.requests} requests, {(user.usage.inputTokens + user.usage.outputTokens).toLocaleString()} tokens, {money(user.usage.costMicros)} estimated spend.</p>{user.credits && <><p className="row-sub">{windowLine("Session", user.credits.session)}</p><p className="row-sub">{windowLine("Week", user.credits.weekly)}</p></>}<div className="tagflow-checks"><label><input type="checkbox" checked={blocked} onChange={(event) => setBlocked(event.target.checked)} /> Block included AI for this person</label><label><input type="checkbox" checked={inheritCredits} onChange={(event) => setInheritCredits(event.target.checked)} /> Default credits</label><label><input type="checkbox" checked={inherit} onChange={(event) => setInherit(event.target.checked)} /> Default daily ceilings</label></div><CreditFields value={inheritCredits ? saved.config.credits ?? DEFAULT_CREDIT_PLAN : userCredits} disabled={inheritCredits} onChange={setUserCredits} /><LimitFields value={inherit ? saved.config.limits : userLimits} disabled={inherit} onChange={setUserLimits} /><button className="btn btn-primary" disabled={userBusy}>{userBusy ? "Saving…" : "Save user allowance"}</button></form>}
-    </section>
-    <section id="free-usage" className="admin-models-provider"><header className="admin-card-head"><div><h3>Usage by account</h3><p className="row-sub">Up to 200 accounts with the highest spend on this UTC date. Only counts are stored; prompts and responses are never stored in these tables.</p></div><div className="admin-models-actions"><input className="input" type="date" value={day} aria-label="Usage date (UTC)" onChange={(event) => { if (event.target.value) setDay(event.target.value); }} /><button className="btn" type="button" onClick={() => void refreshUsage()}>Refresh</button></div></header>
-      {usageError && <p className="notice" role="alert">{usageError}</p>}<div className="admin-models-scroll"><table className="admin-models-table"><thead><tr><th scope="col">Account</th><th scope="col">Requests</th><th scope="col">Tokens in / out</th><th scope="col">Estimated spend</th><th scope="col">Reserved tokens / spend</th><th scope="col">Estimated requests</th><th scope="col">Quick actions</th></tr></thead><tbody>{rows.map((row) => { const { uid: account, pool } = allowanceAccount(row.uid); return <tr key={row.uid}><td><button className="btn" onClick={() => void loadUser(account)}>{account}</button>{pool !== null && <small> · {providerConnections(customProviders).find((provider) => provider.id === pool)?.name ?? pool} allowance</small>}</td><td>{row.requests}</td><td>{row.inputTokens.toLocaleString()} / {row.outputTokens.toLocaleString()}</td><td>{money(row.costMicros)}</td><td>{row.reservedTokens.toLocaleString()} / {money(row.reservedCostMicros)}</td><td>{row.estimatedRequests}</td><td><RowActions uid={account} call={call} /></td></tr>; })}</tbody></table></div>{rows.length === 0 && !usageError && <p className="row-sub">No included AI usage on this date.</p>}
-    </section>
-  </div>;
-}
+  const offered = draft.models.filter((model) => model.enabled !== false).length;
+  const configuredKeys = providerConnections(customProviders).filter((provider) => keyStatus(provider.id) === true).length;
+  const search = modelSearch.trim().toLowerCase();
+  const visible = draft.models
+    .map((model, index) => ({ model, index }))
+    .filter(({ model, index }) => added.has(index) || (
+      (search === "" || `${model.name} ${model.id} ${model.upstreamModel ?? ""} ${providerName(model)}`.toLowerCase().includes(search)) &&
+      (modelFilter === "all" || (modelFilter === "offered" ? model.enabled !== false : modelFilter === "hidden" ? model.enabled === false : model.billing === "wallet"))))
+    .sort((a, b) => Number(added.has(b.index)) - Number(added.has(a.index)));
+  const configView = view === "models" || view === "providers" || view === "allowances";
 
-/**
- * One click to any part of this long page (2026-10-27: "reduce the clicks"). Sticky, and it
- * marks the part on screen as you scroll.
- */
-const SECTIONS = [["free-usage", "Usage"], ["free-person", "One person"], ["free-plans", "Plans & promos"], ["free-limits", "Limits"], ["free-models", "Models"], ["free-connections", "Connections"]] as const;
-function SectionBar() {
-  const [current, setCurrent] = useState<string>(SECTIONS[0][0]);
-  useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-      if (visible !== undefined) setCurrent(visible.target.id);
-    }, { rootMargin: "-20% 0px -70% 0px" });
-    const watch = () => SECTIONS.forEach(([id]) => { const element = document.getElementById(id); if (element !== null) observer.observe(element); });
-    watch(); const late = window.setTimeout(watch, 1500);
-    return () => { observer.disconnect(); window.clearTimeout(late); };
-  }, []);
-  return <nav className="admin-section-bar" aria-label="Free models sections">{SECTIONS.map(([id, label]) => <a key={id} href={`#${id}`} aria-current={current === id ? "location" : undefined} onClick={(event) => { event.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }); setCurrent(id); }}>{label}</a>)}</nav>;
+  return <div className="admin-models tagflow-admin">
+    <AdminSummary items={[
+      { label: "Included AI", value: draft.enabled ? "On" : "Off", tone: draft.enabled ? "ok" : "warn", hint: draft.enabled ? "Offered to signed-in users" : "Nobody can use included models" },
+      { label: "Models offered", value: `${offered} of ${draft.models.length}`, hint: draft.defaultModel ? `Default: ${draft.models.find((model) => model.id === draft.defaultModel)?.name ?? draft.defaultModel}` : "No default model", ...(draft.defaultModel ? {} : { tone: "warn" as const }) },
+      { label: "Provider keys", value: `${configuredKeys} of ${providerConnections(customProviders).length}`, hint: "Configured in Cloudflare" },
+    ]} />
+
+    <div className="tagflow-bar" data-dirty={dirty}>
+      <nav className="admin-filters tagflow-views" aria-label="Included AI sections">
+        {VIEWS.map(([id, label]) => <button key={id} type="button" className={`btn btn-small ${view === id ? "btn-primary" : ""}`} aria-pressed={view === id} onClick={() => choose(id)}>{label}</button>)}
+      </nav>
+      <div className="tagflow-save">
+        <label className="admin-models-check"><input type="checkbox" checked={draft.enabled} onChange={(event) => change({ enabled: event.target.checked })} /> Included AI on</label>
+        {dirty && <span className="tagflow-dirty" role="status">Unsaved changes</span>}
+        <button type="button" className="btn btn-small" disabled={!dirty || busy} onClick={() => { setDraft(saved.config); setAdded(new Set()); }}>Discard</button>
+        <button type="submit" form="tagflow-config" className="btn btn-small btn-primary" disabled={!dirty || busy}>{busy ? "Saving…" : "Save"}</button>
+      </div>
+    </div>
+    {notice && <p className="notice" role="status">{notice}</p>}
+
+    <form id="tagflow-config" hidden={!configView} onSubmit={(event) => { event.preventDefault(); void save(); }} className="admin-models">
+      {view === "models" && <section className="admin-models-provider tagflow-models">
+        <header className="admin-card-head"><div><h3>Models offered to users</h3><p className="row-sub">Open a model to edit it. New models appear at the top until you save. Save before using Test.</p></div>
+          <button type="button" className="btn btn-primary" disabled={draft.models.length >= MAX_TAGFLOW_MODELS} onClick={addModel}>Add model</button></header>
+        <div className="tagflow-model-tools">
+          <label className="tagflow-field"><span>Find a model</span><input className="input" type="search" value={modelSearch} onChange={(event) => setModelSearch(event.target.value)} placeholder="Name, ID or provider" /></label>
+          <label className="tagflow-field"><span>Show</span><select className="select" value={modelFilter} onChange={(event) => setModelFilter(event.target.value as typeof modelFilter)}><option value="all">All models</option><option value="offered">Offered</option><option value="hidden">Hidden</option><option value="wallet">Paid USD credits</option></select></label>
+          <label className="tagflow-field"><span>Default model</span><select className="select" value={draft.defaultModel} onChange={(event) => change({ defaultModel: event.target.value })}><option value="">Choose a model</option>{draft.models.filter((model) => model.id && model.enabled !== false).map((model, index) => <option key={index} value={model.id}>{model.name || model.id}</option>)}</select></label>
+          <button type="button" className="btn" disabled={busy} onClick={() => void checkHeabsyAccess()}>Check Heabsy access</button>
+        </div>
+        <p className="row-sub">{visible.length === draft.models.length ? `${draft.models.length} models` : `Showing ${visible.length} of ${draft.models.length} models`} · up to {MAX_TAGFLOW_MODELS}</p>
+        <ul className="tagflow-model-list">
+          {visible.map(({ model, index }) => {
+            const expanded = open.has(index);
+            return <li key={index} className="tagflow-model-row" data-open={expanded} data-hidden={model.enabled === false} data-new={added.has(index)}>
+              <div className="tagflow-model-summary">
+                <button type="button" className="tagflow-model-name" aria-expanded={expanded} onClick={() => toggle(index)}>
+                  <strong>{model.name || "New model"}</strong>
+                  <span>{model.id || "No ID yet"} · {providerName(model)}</span>
+                </button>
+                <span className="tagflow-model-meta">{model.billing === "wallet" ? "Paid USD" : "Included"} · {priceLabel(model.inputPrice)} in · {priceLabel(model.outputPrice)} out</span>
+                <label className="admin-models-check"><input type="checkbox" checked={model.enabled !== false} onChange={(event) => { const enabled = event.target.checked; change({ models: draft.models.map((one, at) => at === index ? { ...one, enabled } : one), defaultModel: !enabled && draft.defaultModel === model.id ? "" : draft.defaultModel }); }} /> Offer</label>
+                <div className="admin-row-actions">
+                  <button type="button" className="btn btn-small" onClick={() => toggle(index)}>{expanded ? "Close" : "Edit"}</button>
+                  <button type="button" className="btn btn-small" disabled={dirty || busy || testingModel !== null || !draft.enabled || model.enabled === false || !model.id} onClick={() => void testModel(model)}>{testingModel === model.id ? "Testing…" : "Test"}</button>
+                  {model.id && <Link className="btn btn-small" href={`/admin/tagflow/reports?model=${encodeURIComponent(model.id)}`}>Report</Link>}
+                </div>
+              </div>
+              {expanded && <fieldset className="tagflow-model">
+                <legend className="sr-only">{model.name || `Model ${index + 1}`}</legend>
+                <label className="tagflow-field"><span>Charge from</span><select className="select" value={model.billing ?? "included"} onChange={event => { const next = { ...model }; if (event.target.value === "wallet") next.billing = "wallet"; else delete next.billing; change({ models: draft.models.map((one, at) => at === index ? next : one) }); }}><option value="included">Included tokens / subscription</option><option value="wallet">Paid USD credits — provider cost + 35%</option></select></label>
+                {model.billing === "wallet" && <p className="row-sub">Uses purchased dollar credits only. User input / output prices: ${Number((model.inputPrice * 1.35).toFixed(5))} / ${Number((model.outputPrice * 1.35).toFixed(5))} per million tokens. Admin tests use your provider account without charging user credits.</p>}
+                <div className="tagflow-fields">
+                  <label className="tagflow-field"><span>Display name</span><input id={`model-${index}-name`} className="input" required maxLength={120} value={model.name} onChange={(event) => editModel(index, { name: event.target.value })} /></label>
+                  <label className="tagflow-field"><span>Provider</span><select className="select" value={modelProvider(model)} onChange={(event) => editModel(index, { provider: event.target.value as IncludedProviderId })}>{providerConnections(customProviders).map((provider) => <option key={provider.id} value={provider.id}>{provider.name || "New provider"}</option>)}</select></label>
+                  <label className="tagflow-field"><span>Model ID in ADCode</span><input className="input" required maxLength={200} value={model.id} onChange={(event) => { const id = event.target.value; change({ models: draft.models.map((one, at) => at === index ? { ...one, id } : one), defaultModel: draft.defaultModel === model.id && model.id !== "" ? id : draft.defaultModel }); }} /></label>
+                  <label className="tagflow-field"><span>Exact provider model ID (optional)</span><input className="input" maxLength={200} value={model.upstreamModel ?? ""} placeholder="Same as Model ID in ADCode" onChange={(event) => { const upstreamModel = event.target.value; const next = { ...model }; if (upstreamModel) next.upstreamModel = upstreamModel; else delete next.upstreamModel; change({ models: draft.models.map((one, at) => at === index ? next : one) }); }} /></label>
+                  <NumberField label="Context tokens" min={1} max={10_000_000} value={model.contextWindow} onChange={(contextWindow) => editModel(index, { contextWindow })} />
+                  <NumberField label="Maximum output tokens" min={1} max={65_536} value={model.maxOutput} onChange={(maxOutput) => editModel(index, { maxOutput })} />
+                  <NumberField label="Input price (USD per 1M tokens)" max={10_000} step="any" value={model.inputPrice} onChange={(inputPrice) => editModel(index, { inputPrice })} />
+                  {model.billing === "wallet" && <NumberField label="Cached input price (USD per 1M tokens)" max={10_000} step="any" value={model.cacheInputPrice ?? model.inputPrice} onChange={cacheInputPrice => editModel(index, { cacheInputPrice })} />}
+                  <NumberField label="Output price (USD per 1M tokens)" max={10_000} step="any" value={model.outputPrice} onChange={(outputPrice) => editModel(index, { outputPrice })} />
+                  <label className="tagflow-field"><span>Credits per 1,000 tokens</span><input className="input" type="number" min={0} max={MAX_CREDIT_RATE} step="any" value={model.creditRate ?? ""} placeholder={`${modelCreditRate(model.provider === undefined ? {} : { provider: model.provider }, draft)} (default)`} onChange={(event) => { const next = { ...model }; if (event.target.value === "") delete next.creditRate; else next.creditRate = event.currentTarget.valueAsNumber; change({ models: draft.models.map((one, at) => at === index ? next : one) }); }} /><small>Lower for models that cost less to serve. Zero never uses credits.</small></label>
+                </div>
+                <div className="admin-models-actions"><button type="button" className="btn" onClick={() => removeModel(index)}>Remove model</button></div>
+              </fieldset>}
+            </li>;
+          })}
+        </ul>
+        {visible.length === 0 && <p className="row-sub">No models match. Clear the search or choose All models.</p>}
+        <p className="row-sub">Use unique ADCode IDs; set an optional provider ID when you need an alias. Enter your actual upstream prices for spending limits. Zero means no upstream charge. Offer models that support text chat and tool calls. Paid USD models use the dollar wallet with a fixed 35% markup and never draw on included tokens or Heabsy plans.</p>
+      </section>}
+
+      {view === "providers" && <>
+        <section className="admin-models-provider"><h3>Server connections</h3><p className="row-sub">You supply these provider connections. Paid models charge purchased USD credits at your upstream rates plus 35%; included models use their existing allowance. Keys stay on your server.</p><div className="admin-models-scroll"><table className="admin-models-table"><thead><tr><th scope="col">Provider</th><th scope="col">Server key</th><th scope="col">Cloudflare secret name</th></tr></thead><tbody>{providerConnections(customProviders).map((provider) => <tr key={provider.id}><td>{provider.docs ? <a href={provider.docs} target="_blank" rel="noreferrer">{provider.name}</a> : <>{provider.name || "New provider"} <small>(custom)</small></>}</td><td>{keyStatus(provider.id) === undefined ? "Save to check" : keyStatus(provider.id) ? "Configured" : "Not configured"}</td><td><code>{provider.secretName}</code>{provider.id === "tagflow" && <small> (your existing tagflow-api is also accepted)</small>}</td></tr>)}</tbody></table></div><p className="row-sub">Models with a missing server key are hidden from users. Reload this page after adding a key. The default must have a configured key before you save an enabled catalog.</p>
+          <div className="tagflow-key">
+            <h4>Add or replace a key</h4>
+            {saved.keysManageable ? <>
+              <div className="tagflow-fields">
+                <label className="tagflow-field"><span>Provider</span><select className="select" value={keyTarget} onChange={(event) => { setKeyProvider(event.target.value); setKeyNotice(""); }}>{keyTargets.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</select></label>
+                <label className="tagflow-field"><span>API key</span><input className="input" type="password" autoComplete="off" spellCheck={false} maxLength={4096} value={keyValue} placeholder="Paste the key from the provider" onChange={(event) => setKeyValue(event.target.value)} /></label>
+              </div>
+              <div className="admin-models-actions"><button type="button" className="btn btn-primary" disabled={keyBusy || keyValue.trim().length < 8} onClick={() => void saveKey(false)}>{keyBusy ? "Saving…" : "Save key"}</button><button type="button" className="btn" disabled={keyBusy} onClick={() => void saveKey(true)}>Remove key</button></div>
+              <p className="row-sub">Saved straight to Cloudflare as that provider's encrypted secret. It is never stored in the database or shown again, and it can only fill a provider's own key.</p>
+            </> : <p className="row-sub">To save keys here instead of in Cloudflare, set this up once: in Cloudflare, open My Profile → API Tokens and create a token with Account → Workers Scripts → Edit for this account. Then run <code>npx wrangler secret put CLOUDFLARE_SECRETS_TOKEN</code> in apps/web, paste the token, and reload this page.</p>}
+            {keyNotice && <p className="notice" role="status">{keyNotice}</p>}
+          </div></section>
+        <section className="admin-models-provider"><header className="admin-card-head"><div><h3>Custom providers</h3><p className="row-sub">Offer models from any provider with an OpenAI-compatible chat API, such as Together AI, Fireworks, DeepInfra, Mistral, DeepSeek or your own vLLM server on a public HTTPS address. Add the provider and save, add its key as the Cloudflare secret it shows, reload, then add models that use it. Users' prompts, code and tool results for those models go to the address you register.</p></div><button type="button" className="btn" disabled={customProviders.length >= MAX_CUSTOM_PROVIDERS} onClick={() => setProviders([...customProviders, { id: customProviderId("", customProviders.map((provider) => provider.id)), name: "", baseUrl: "" }])}>Add provider</button></header>
+          {customProviders.map((provider, index) => <CustomProviderEditor key={index} value={provider} keyStatus={savedProviderIds.includes(provider.id) ? keyStatus(provider.id) : undefined} inUse={draft.models.some((model) => model.provider === provider.id)} onChange={(value) => editProvider(index, value)} onRemove={() => setProviders(customProviders.filter((_, at) => at !== index))} />)}
+          {customProviders.length === 0 && <p className="row-sub">No custom providers yet.</p>}
+        </section>
+        <section className="admin-models-provider"><h3>Tagflow connection</h3>
+          <label className="tagflow-field"><span>API base URL supplied by Tagflow (including /v1 when required)</span><input className="input" type="url" maxLength={500} value={draft.baseUrl} placeholder="https://your-deployment.tagflow-ai.com/v1" onChange={(event) => change({ baseUrl: event.target.value })} /></label>
+          <p className="row-sub">Only HTTPS addresses on tagflow-ai.com or its subdomains are accepted. Get your exact deployment URL and model IDs from Tagflow.</p>
+        </section>
+      </>}
+
+      {view === "allowances" && <>
+        <section className="admin-models-provider"><h3>Paid tokens and the free daily allowance</h3><p className="row-sub">Tagflow AI and all other included models share one daily allowance per person; after it they draw on purchased tokens. Plans raise the allowance; their daily credits are set in code.</p><PaidTokensSettings value={draft.paid} onChange={(paid) => change({ paid })} /><PaidTokensActivity call={call} /></section>
+        <section className="admin-models-provider"><h3>Daily safety ceilings per person</h3><p className="row-sub">Behind the credits: what ADCode will spend on one account in a UTC day, and how many requests it may send. Requests are unlimited when the controls below are checked. Zero blocks that type of usage.</p><LimitFields value={draft.limits} onChange={(limits) => change({ limits })} /><div className="tagflow-fields"><NumberField label="Maximum input tokens per request" min={1} max={10_000_000} value={draft.maxInputTokens} onChange={(maxInputTokens) => change({ maxInputTokens })} /><NumberField label="Maximum output tokens per request" min={1} max={65_536} value={draft.maxOutputTokens} onChange={(maxOutputTokens) => change({ maxOutputTokens })} /></div><p className="row-sub">A request reserves its maximum response before it starts. Without provider token counts, usage is estimated conservatively. Spending uses the prices you enter on each model.</p></section>
+        <section className="admin-models-provider"><h3>Legacy credit windows</h3><p className="row-sub">The session and weekly credit windows from before daily credits. Kept for accounts still on them; a credit is about 1,000 tokens on a model with rate 1.</p><CreditFields value={draft.credits ?? DEFAULT_CREDIT_PLAN} onChange={(credits) => change({ credits })} /></section>
+      </>}
+    </form>
+
+    {view === "plans" && <PlansAdmin call={call} />}
+
+    {view === "people" && <>
+      <section className="admin-models-provider"><h3>One person's allowance</h3><form className="admin-toolbar" onSubmit={(event) => { event.preventDefault(); void loadUser(); }}><label className="tagflow-field"><span>User ID from People</span><input className="input" required maxLength={128} value={uid} onChange={(event) => setUid(event.target.value)} /></label><button className="btn" disabled={userBusy}>Load user</button></form>
+        {userNotice && <p role="status" className="notice">{userNotice}</p>}
+        {user !== null && userLimits !== null && <form onSubmit={(event) => { event.preventDefault(); void saveUser(); }}><p className="row-sub">Account: {loadedUid}. Today: {user.usage.requests} requests, {(user.usage.inputTokens + user.usage.outputTokens).toLocaleString()} tokens, {money(user.usage.costMicros)} estimated spend.</p>{user.credits && <><p className="row-sub">{windowLine("Session", user.credits.session)}</p><p className="row-sub">{windowLine("Week", user.credits.weekly)}</p></>}<div className="tagflow-checks"><label><input type="checkbox" checked={blocked} onChange={(event) => setBlocked(event.target.checked)} /> Block included AI for this person</label><label><input type="checkbox" checked={inheritCredits} onChange={(event) => setInheritCredits(event.target.checked)} /> Default credits</label><label><input type="checkbox" checked={inherit} onChange={(event) => setInherit(event.target.checked)} /> Default daily ceilings</label></div><CreditFields value={inheritCredits ? saved.config.credits ?? DEFAULT_CREDIT_PLAN : userCredits} disabled={inheritCredits} onChange={setUserCredits} /><LimitFields value={inherit ? saved.config.limits : userLimits} disabled={inherit} onChange={setUserLimits} /><button className="btn btn-primary" disabled={userBusy}>{userBusy ? "Saving…" : "Save user allowance"}</button></form>}
+      </section>
+      <section className="admin-models-provider"><header className="admin-card-head"><div><h3>Usage by account</h3><p className="row-sub">Up to 200 accounts with the highest spend on this UTC date. Only counts are stored; prompts and responses are never stored in these tables.</p></div><div className="admin-models-actions"><input className="input" type="date" value={day} aria-label="Usage date (UTC)" onChange={(event) => { if (event.target.value) setDay(event.target.value); }} /><button className="btn" type="button" onClick={() => void refreshUsage()}>Refresh</button></div></header>
+        {usageError && <p className="notice" role="alert">{usageError}</p>}<div className="admin-models-scroll"><table className="admin-models-table"><thead><tr><th scope="col">Account</th><th scope="col">Requests</th><th scope="col">Tokens in / out</th><th scope="col">Estimated spend</th><th scope="col">Reserved tokens / spend</th><th scope="col">Estimated requests</th><th scope="col">Quick actions</th></tr></thead><tbody>{rows.map((row) => { const { uid: account, pool } = allowanceAccount(row.uid); return <tr key={row.uid}><td><button className="btn btn-small" onClick={() => void loadUser(account)}>{account}</button>{pool !== null && <small> · {providerConnections(customProviders).find((provider) => provider.id === pool)?.name ?? pool} allowance</small>}</td><td>{row.requests}</td><td>{row.inputTokens.toLocaleString()} / {row.outputTokens.toLocaleString()}</td><td>{money(row.costMicros)}</td><td>{row.reservedTokens.toLocaleString()} / {money(row.reservedCostMicros)}</td><td>{row.estimatedRequests}</td><td><RowActions uid={account} call={call} /></td></tr>; })}</tbody></table></div>{rows.length === 0 && !usageError && <p className="row-sub">No included AI usage on this date.</p>}
+      </section>
+    </>}
+  </div>;
 }
 
 /** Reset this person's week, or gift them a week of Pro, straight from their usage row. */

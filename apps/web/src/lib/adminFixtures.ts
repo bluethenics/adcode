@@ -284,7 +284,62 @@ const adNetworks = (data: AdminPreviewData): unknown => ({
   ],
 });
 
+/**
+ * Free models (admin/tagflow): the catalogue as the page edits it. "worst" is the real shape of
+ * the problem the page was rebuilt for - 59 models, long names, prices with many decimals,
+ * hidden and paid ones mixed in.
+ */
+const MODEL_NAMES = ["GLM 5.3 Flash Uncensored", "Qwen 3.8 27B Queen", "MiMo V2.6 Flash Uncensored", "DeepSeek V4.1 Flash", "Kimi K3 Thinking", "CyberHeabsy", "Claude Sonnet 5.5 (Heabsy partner)", "GPT-5 Codex", "Gemini 3 Pro Preview", "Llama 5 70B Instruct Turbo with an unusually long marketing name"];
+function tagflowModels(data: AdminPreviewData) {
+  const count = data === "empty" ? 0 : data === "worst" ? 59 : 12;
+  return Array.from({ length: count }, (_, index) => {
+    const name = `${MODEL_NAMES[index % MODEL_NAMES.length]}${index >= MODEL_NAMES.length ? ` r${Math.floor(index / MODEL_NAMES.length) + 1}` : ""}`;
+    const wallet = index % 9 === 6;
+    return { id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, ""), name, ...(index % 3 === 0 ? { provider: "custom-heabsy" } : {}),
+      contextWindow: 131_072, maxOutput: 32_768, inputPrice: Number((0.05 + index * 0.0137).toFixed(6)), outputPrice: Number((0.2 + index * 0.051).toFixed(6)),
+      ...(wallet ? { billing: "wallet", cacheInputPrice: 0.0123456789 } : {}), ...(index % 7 === 0 && index > 0 ? { enabled: false } : {}) };
+  });
+}
+function tagflow(data: AdminPreviewData) {
+  const models = tagflowModels(data);
+  return { keyConfigured: true, updatedAt: ago(DAY), updatedBy: "founder@example.com", keysManageable: true,
+    connections: [{ id: "tagflow", configured: true }, { id: "custom-heabsy", configured: data !== "worst" }],
+    config: { enabled: models.length > 0, baseUrl: "https://demo.tagflow-ai.com/v1", defaultModel: models[0]?.id ?? "", models,
+      providers: [{ id: "custom-heabsy", name: "Heabsy", baseUrl: "https://api.heabsy.example/v1" }],
+      limits: { dailyTokens: 2_200_000, dailyRequests: 1_000_000, dailyCostMicros: 1_100_000, requestsPerMinute: 1_000 }, maxInputTokens: 1_050_000, maxOutputTokens: 50_000,
+      credits: { sessionCredits: 100, sessionHours: 5, weeklyCredits: 700 },
+      paid: { enabled: true, accounting: "cost-v1", providers: ["custom-heabsy"], freeWeeklyTokens: 1_540_000, packs: [{ id: "starter", priceCents: 300, tokens: 16_500_000 }, { id: "50m", priceCents: 1000, tokens: 55_000_000 }] } } };
+}
+/** Provider reports: every model's figures, full enough for the detail view and the downloads. */
+function modelReports(data: AdminPreviewData) {
+  const today = Date.parse(dayKey(now())), from = today - 29 * DAY, to = now();
+  const metrics = (scale: number) => ({ attempts: Math.round(4_200 * scale), providerCalls: Math.round(4_100 * scale), successes: Math.round(3_900 * scale), providerErrors: Math.round(120 * scale), relayErrors: 3, rejected: Math.round(80 * scale), cancelled: 12, unfinished: 2,
+    activeUsers: Math.round(310 * scale), repeatUsers: Math.round(180 * scale), newUsers: Math.round(90 * scale), returningUsers: Math.round(220 * scale), inputTokens: Math.round(41_000_000 * scale), outputTokens: Math.round(3_100_000 * scale), costMicros: Math.round(9_400_000 * scale),
+    estimatedRequests: 14, toolRequests: Math.round(2_800 * scale), toolCalls: Math.round(5_100 * scale), streamedRequests: Math.round(4_000 * scale), outputLimitStops: 21, refusals: 2, peakRpm: Math.round(48 * scale) + 1, peakTpm: Math.round(410_000 * scale), peakConcurrency: Math.round(19 * scale) + 1,
+    latencySamples: Math.round(3_900 * scale), firstTokenSamples: Math.round(3_800 * scale), throughputSamples: Math.round(3_600 * scale), durationP50: 6_100, durationP95: 21_400, firstTokenP50: 980, firstTokenP95: 3_300, inputP50: 9_800, inputP95: 61_000, outputP50: 620, outputP95: 2_900, outputTpsP50: 74, outputTpsP95: 141,
+    helpful: Math.round(40 * scale), notHelpful: Math.round(9 * scale), feedbackUsers: Math.round(31 * scale) });
+  const models = tagflowModels(data).map((model, index) => {
+    const scale = data === "worst" && index === 0 ? 93 : 1 / (index + 1);
+    return { modelId: model.id, modelName: model.name, provider: model.provider ?? "tagflow", upstreamModel: model.id, current: metrics(scale), previous: metrics(scale * 0.8),
+      daily: series(30, 140 * scale, 40 * scale, 1, index + 1).map((attempts, day) => ({ day: dayKey(from + day * DAY), attempts, successes: Math.round(attempts * 0.93), providerErrors: Math.round(attempts * 0.03), rejected: Math.round(attempts * 0.02), activeUsers: Math.round(attempts / 9), inputTokens: attempts * 9_800, outputTokens: attempts * 700, helpful: day % 3, notHelpful: day % 5 === 0 ? 1 : 0 })),
+      errors: [{ outcome: "provider_error", code: "upstream-rate-limit", upstreamStatus: 429, count: Math.round(90 * scale) + 1, firstAt: from + DAY, lastAt: to - 3_600_000 }],
+      sources: [{ source: "chat", requests: Math.round(3_100 * scale) }, { source: "agent", requests: Math.round(1_100 * scale) }],
+      hourly: Array.from({ length: 24 }, (_, hour) => ({ hour, requests: Math.round((120 + Math.sin(hour / 3.8) * 90) * scale) + 1 })),
+      inputBands: [{ band: "<8k", requests: Math.round(1_900 * scale) }, { band: "8k–32k", requests: Math.round(1_400 * scale) }, { band: "32k–64k", requests: Math.round(500 * scale) }],
+      feedbackCategories: [{ category: "quality", helpful: 22, notHelpful: 4 }],
+      sharedComments: data === "worst" ? [{ at: to - DAY, rating: "not-helpful", category: "quality", comment: "Stopped halfway through a refactor and lost the plan; a very long comment to check wrapping in the report table and the printable briefing." }] : [],
+      sharedCommentCount: data === "worst" ? 1 : 0,
+      audience: { countries: [{ value: "US", requests: 1_200, activeUsers: 90, successes: 1_100, providerErrors: 30, inputTokens: 12_000_000, outputTokens: 900_000, previousRequests: 1_000, previousActiveUsers: 80 }], userRoles: [], experienceLevels: [], aiPersonas: [], useCases: [], declaredUses: [], platforms: [] } };
+  });
+  return { collectionStartedAt: ago(40 * DAY), audienceStartedAt: ago(20 * DAY), builtAt: ago(42 * 60_000), scope: "summary", models,
+    range: { from: dayKey(from), to: dayKey(today), fromAt: from, toAt: to, previousFromAt: from - (to - from), previousToAt: from },
+    generatedAt: now(), definitions: { "Request demand": "Every attempt to use the model, counted once.", "Active accounts": "Distinct signed-in accounts that sent at least one request." } };
+}
+
 const FIXTURES: Record<string, (data: AdminPreviewData) => unknown> = {
+  "/admin/tagflow": tagflow,
+  "/admin/tagflow/usage": () => ({ rows: [] }),
+  "/admin/tagflow/reports": modelReports,
   "/admin/ad-networks": adNetworks,
   ...MORE_FIXTURES,
   ...GROWTH_FIXTURES,

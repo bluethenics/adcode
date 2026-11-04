@@ -1,7 +1,7 @@
 import { Icon } from "@/components/Icon";
 import { ArrowUpRight } from "lucide";
 import Link from "next/link";
-import { FREE_WEEKLY_TOKENS, PLANS_ON_SALE, price, creditAmount } from "@/lib/pricing";
+import { FREE_WEEKLY_TOKENS, PLANS_ON_SALE, price, creditAmount, planCredits } from "@/lib/pricing";
 
 export function FreePlan() {
   return (
@@ -25,7 +25,7 @@ export function FreePlan() {
           <dd><strong>Included</strong> in the shared daily credit allowance</dd>
         </div>
       </dl>
-      <p className="free-plan-limit">Plans raise the daily included AI allowance: Builder 225 credits a day, Pro 900, and Max 1,330 fair-use credits on every hosted model, premium included. Builder and Pro can use purchased credits after the daily allowance; Max waits for its refill and never charges them. Purchased credits never expire. Provider availability, model context limits and shared capacity still apply.</p>
+      <p className="free-plan-limit">Plans raise the daily included AI allowance: Builder {planCredits("monthly")} credits a day, Pro {planCredits("pro")}, and Max {planCredits("max")} fair-use credits on every hosted model, premium included. Builder and Pro can use purchased credits after the daily allowance; Max waits for its refill and never charges them. Purchased credits never expire. Provider availability, model context limits and shared capacity still apply.</p>
       <p className="free-plan-foot"><Link href="/pricing" className="home-text-link">Compare plans and credit packs <Icon node={ArrowUpRight} /></Link></p>
       <details className="free-plan-details">
         <summary>How the free plan works</summary>

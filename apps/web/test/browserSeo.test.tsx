@@ -38,7 +38,7 @@ describe("browser app search discovery", () => {
       expect(text).toContain(url("/online-ai-code-editor"));
       expect(text).toContain(WEB_VERSION_URL);
       expect(text).toContain("Tagflow AI and all other included models share");
-      expect(text).toContain("100 free credits");
+      expect(text).toContain("140 free credits");
       expect(text).toContain(url("/pricing"));
     }
   });

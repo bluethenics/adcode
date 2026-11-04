@@ -40,10 +40,11 @@ export function parseReportRange(from: string | null, to: string | null, now: nu
   return { from: first, to: last, fromAt, toAt, previousFromAt: fromAt - (toAt - fromAt), previousToAt: fromAt };
 }
 
-export function completeModelReport(data: ModelReportData, config: TagflowConfig, range: ModelReportRange, now: number): ModelReportResponse {
+export function completeModelReport(data: ModelReportData, config: TagflowConfig, range: ModelReportRange, now: number, only?: Pick<ModelIdentity, "provider" | "modelId" | "upstreamModel">): ModelReportResponse {
   const models = [...data.models];
   for (const model of config.models) {
     const identity = { modelId: model.id, modelName: model.name, provider: modelProvider(model), upstreamModel: model.upstreamModel ?? model.id };
+    if (only !== undefined && reportModelKey({ ...identity, modelName: "" }) !== reportModelKey({ ...only, modelName: "" })) continue;
     const existing = models.find(one => reportModelKey(one) === reportModelKey(identity));
     const configuration = { contextWindow: model.contextWindow, inputLimit: Math.min(model.contextWindow,config.maxInputTokens), outputLimit: Math.min(model.maxOutput,config.maxOutputTokens), enabled: config.enabled && model.enabled !== false };
     if (existing) { existing.modelName = model.name; existing.configuration = configuration; }

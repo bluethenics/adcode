@@ -1,6 +1,6 @@
 /** Server-owned included AI configuration and accounting; never contains an API key. */
 import type { CustomProvider, IncludedProviderId, TagflowLimits } from "./includedProviders.ts";
-import type { ModelFeedbackRecord, ModelReportData, ModelReportRange, ModelRequestRecord } from "./tagflowReportTypes.ts";
+import type { ModelFeedbackRecord, ModelIdentity, ModelReportData, ModelReportRange, ModelRequestRecord } from "./tagflowReportTypes.ts";
 import type { ModelAudienceProfile } from "./modelAudience.ts";
 import type { CreditCharge, CreditPlan, CreditWindows } from "./credits.ts";
 import type { FreeWindow, PaidConfig, TokenBalance } from "./paidTokens.ts";
@@ -139,7 +139,10 @@ export interface TagflowStore extends WalletStore {
   putModelFeedback(record: ModelFeedbackRecord): Promise<void>;
   getModelFeedback(requestId: string, uid: string): Promise<ModelFeedbackRecord | null>;
   deleteModelFeedback(requestId: string, uid: string): Promise<void>;
-  readModelReports(range: ModelReportRange): Promise<ModelReportData>;
+  /** Every model in the range: headline figures only where the database builds a summary. */
+  readModelReports(range: ModelReportRange, fresh?: boolean): Promise<ModelReportData>;
+  /** One model's complete report. `fresh` skips any cached copy. */
+  readModelReport(range: ModelReportRange, model: Pick<ModelIdentity, "provider" | "modelId" | "upstreamModel">, fresh?: boolean): Promise<ModelReportData>;
   getTagflowConfig(): Promise<TagflowConfigRecord | null>;
   putTagflowConfig(record: TagflowConfigRecord): Promise<void>;
   getTagflowPolicy(uid: string): Promise<TagflowUserPolicy | null>;

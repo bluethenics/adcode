@@ -11,17 +11,20 @@ describe("cost-based credits", () => {
     expect(HEABSY_PRICES).toHaveLength(37);
   });
   it("preserves purchased pack units and gives bounded daily allowances", () => {
-    expect(COST_PAID_CONFIG.packs.map(p => p.tokens / CREDIT_UNITS)).toEqual([5000, 14000, 30000]);
-    expect(COST_PAID_CONFIG.freeWeeklyTokens / CREDIT_UNITS).toBe(100);
-    expect(PLANS.map(p => p.weeklyTokens / CREDIT_UNITS)).toEqual([225, 225, 900, 1330, 7500]);
+    expect(COST_PAID_CONFIG.packs.map(p => p.tokens / CREDIT_UNITS)).toEqual([1500, 5000, 14000, 30000]);
+    // Starter is a smaller first purchase, not a discount: the same price per credit as Boost.
+    expect(COST_PAID_CONFIG.packs[0]!.priceCents / (COST_PAID_CONFIG.packs[0]!.tokens / CREDIT_UNITS)).toBe(COST_PAID_CONFIG.packs[1]!.priceCents / (COST_PAID_CONFIG.packs[1]!.tokens / CREDIT_UNITS));
+    expect(COST_PAID_CONFIG.freeWeeklyTokens / CREDIT_UNITS).toBe(140);
+    expect(PLANS.map(p => p.weeklyTokens / CREDIT_UNITS)).toEqual([420, 300, 975, 2000, 10050]);
     expect(hasUnlimitedPlan({ plan: { id: "pro", endsAt: 10, source: "subscription" }, boostTokens: 0 }, 1)).toBe(false);
   });
-  it("keeps positive contribution even at 31 days of full subscription usage without the discount", () => {
+  // The owner raised every plan by half on 4 November 2026, accepting a thin worst case: full use
+  // every day of a 31-day month must still cost less than the price after payment fees.
+  it("keeps positive contribution at 31 days of full subscription usage, after fees", () => {
     for (const plan of PLANS) {
       const days = plan.interval === "week" ? 7 : 31;
       const listCost = plan.weeklyTokens / CREDIT_UNITS / 1000 * days;
-      expect(listCost).toBeLessThan(plan.priceCents / 100);
-      expect(listCost * (1 - PARTNER_DISCOUNT)).toBeLessThan(plan.priceCents / 100);
+      expect(listCost * (1 - PARTNER_DISCOUNT)).toBeLessThan(plan.priceCents / 100 * 0.95);
     }
   });
   it("requires the full quote and counts concurrent reservations", () => {

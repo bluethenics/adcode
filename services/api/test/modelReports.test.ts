@@ -101,6 +101,19 @@ describe("provider report and feedback endpoints",() => {
     expect(await store.getModelFeedback(id,"user")).toBeNull();
     expect((await store.listAudit()).some(row => row.action === "read-free-model-provider-reports")).toBe(true);
   });
+  it("serves every model's summary first and one model's full report on request",async () => {
+    const { call,chat } = await setup();
+    const response = await chat(); expect(response.status).toBe(200); await response.text();
+    const summary = await (await call("/admin/tagflow/reports","admin")).json() as ModelReportResponse & { scope: string };
+    expect(summary.scope).toBe("summary");
+    expect(summary.models.find(model => model.modelId === "coder")!.current.attempts).toBe(1);
+    const coder = summary.models.find(model => model.modelId === "coder")!;
+    const one = await (await call(`/admin/tagflow/reports?provider=${coder.provider}&model=coder&upstream=${coder.upstreamModel}&fresh=1`,"admin")).json() as ModelReportResponse & { scope: string };
+    expect(one.scope).toBe("model");
+    expect(one.models.map(model => model.modelId)).toEqual(["coder"]);
+    expect(one.models[0]!.current).toMatchObject({ attempts:1,successes:1 });
+    expect((await call("/admin/tagflow/reports?provider=tagflow&model=&upstream=x","admin")).status).toBe(400);
+  });
   it("saves only the signed-in account's consented profile and supports withdrawal without deleting operational metrics",async () => {
     const { call,chat,store } = await setup();
     const profile = { role:"founder",experience:"advanced",primaryUse:"build-product",consent:true };

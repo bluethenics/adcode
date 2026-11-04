@@ -17,6 +17,7 @@ export const tagflowUnavailable: TagflowStore = {
   async getModelFeedback() { throw new Error("Model reports require the Supabase adapter"); },
   async deleteModelFeedback() { throw new Error("Model reports require the Supabase adapter"); },
   async readModelReports() { throw new Error("Model reports require the Supabase adapter"); },
+  async readModelReport() { throw new Error("Model reports require the Supabase adapter"); },
   async getTagflowConfig() { return null; },
   async putTagflowConfig() { throw new Error("Tagflow requires the Supabase adapter"); },
   async getTagflowPolicy() { throw new Error("Tagflow requires the Supabase adapter"); },

@@ -184,13 +184,13 @@ describe("included Tagflow AI", () => {
       expect((await store.getPaidTokens("user", true)).free?.usedTokens).toBe(143);
       expect((await store.getPaidTokens("user", true)).balance.purchased).toBe(999999);
       expect((await store.getModelWallet("user", now)).balanceMicros).toBe(0);
-      expect(await (await call("/ai/tagflow/usage", "user")).json()).toMatchObject({ tokens: { free: { limit: 82500000 }, paidModels: ["coder"] }, wallet: { models: [] } });
+      expect(await (await call("/ai/tagflow/usage", "user")).json()).toMatchObject({ tokens: { free: { limit: 110550000 }, paidModels: ["coder"] }, wallet: { models: [] } });
     });
     it("does not spend purchased balances beyond Unlimited fair use, then refills the next day", async () => {
       await store.giftPlan("user", "unlimited", 2, "admin-1", "gift", now);
       await store.grantTokens("user", 999999999, "admin-1", "saved top-up", now);
-      await store.reserveTagflow({ id: "fair-used", uid: "user", day: "2026-10-10", minute: 0, tokens: 82500000, costMicros: 0, unlimited: true, limits: config.limits, paid: { freeWeeklyTokens: 82500000, now, dailyOnly: true, requireFull: true, costCredits: true } });
-      await store.settleTagflow("fair-used", { inputTokens: 1, outputTokens: 0, costMicros: 0, estimated: false, failed: false, tokenCharge: 82500000 });
+      await store.reserveTagflow({ id: "fair-used", uid: "user", day: "2026-10-10", minute: 0, tokens: 110550000, costMicros: 0, unlimited: true, limits: config.limits, paid: { freeWeeklyTokens: 110550000, now, dailyOnly: true, requireFull: true, costCredits: true } });
+      await store.settleTagflow("fair-used", { inputTokens: 1, outputTokens: 0, costMicros: 0, estimated: false, failed: false, tokenCharge: 110550000 });
       const blocked = await chat(); expect(blocked.status).toBe(429);
       expect((await store.getPaidTokens("user", true)).balance.purchased).toBe(999999999);
       expect(upstream).not.toHaveBeenCalled();
@@ -218,11 +218,12 @@ describe("included Tagflow AI", () => {
       now=end;
       const next=await chat("user",{...body,model:"heabsy-qwen38"});expect(next.status).toBe(200);await next.text();
       expect((await store.getPaidTokens("user",true)).free?.usedTokens).toBe(99);
-      expect(await (await call("/ai/tokens/orders","user")).json()).toMatchObject({tokens:{accounting:"cost-v1",free:{limit:2475000}}});
+      // A Weekly period from before the 3 November allowance change keeps the better of old and new.
+      expect(await (await call("/ai/tokens/orders","user")).json()).toMatchObject({tokens:{accounting:"cost-v1",free:{limit:4620000}}});
     });
     it("keeps Pro finite and refills daily", async () => {
       await store.giftPlan("user", "pro", 1, "admin-1", "gift", now);
-      expect(await (await call("/ai/tokens/orders", "user")).json()).toMatchObject({ tokens: { enabled: true, free: { limit: 9900000 } } });
+      expect(await (await call("/ai/tokens/orders", "user")).json()).toMatchObject({ tokens: { enabled: true, free: { limit: 10725000 } } });
     });
   });
 
@@ -331,9 +332,9 @@ describe("included Tagflow AI", () => {
     it("marks the paid provider's models and publishes the packs", async () => {
       vi.stubEnv("INCLUDED_AI_CUSTOM_HEABSY_API_KEY", "k");
       await save(withHeabsy({ ...DEFAULT_PAID_CONFIG, enabled: true }));
-      const published = await (await call("/ai/tagflow/config")).json() as { paid: { enabled: boolean; packs: unknown[] }; models: { id: string; paid: boolean }[] };
+      const published = await (await call("/ai/tagflow/config")).json() as { paid: { enabled: boolean; packs: { id: string }[] }; models: { id: string; paid: boolean }[] };
       expect(published.paid).toMatchObject({ enabled: true, freeWeeklyTokens: 5_000_000 });
-      expect(published.paid.packs).toHaveLength(3);
+      expect(published.paid.packs.map((pack) => pack.id)).toEqual(["starter", "50m", "140m", "300m"]);
       expect(published.models.map(({ id, paid }) => [id, paid])).toEqual([["coder", true], ["glm", true]]);
     });
 
@@ -358,7 +359,7 @@ describe("included Tagflow AI", () => {
       const refused = await ask("glm");
       expect(refused.status).toBe(429);
       const { error } = await refused.json() as { error: { code: string; limit: string; retryable: boolean; resetsAt: number; buyUrl: string; message: string } };
-      expect(error).toMatchObject({ code: "daily-limit", limit: "paid", retryable: true, buyUrl: "https://adcode.bluethenics.com/ai-tokens" });
+      expect(error).toMatchObject({ code: "daily-limit", limit: "paid", retryable: true, buyUrl: "https://adcode.bluethenics.com/ai-tokens#packs" });
       expect(error.resetsAt).toBeGreaterThan(now);
       expect(error.message).toContain("https://adcode.bluethenics.com/ai-tokens");
       expect(error.message).toContain("included AI");

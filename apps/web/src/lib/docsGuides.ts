@@ -1306,11 +1306,11 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   "ai-credits": {
     steps: [
       "Sign in with a verified email to use included AI without an API key.",
-      "Choose an included model and start building. Tagflow AI is sponsored and does not consume credits. Other included models share 100 free credits a day, then use purchased tokens.",
+      "Choose an included model and start building. Tagflow AI is sponsored and does not consume credits. Other included models share 140 free credits a day, then use purchased tokens.",
       "Open AI usage for recorded activity and, on any included model, the daily allowance and purchased balance. Usage history is informational and does not stop your work.",
       "Models still have context limits, and providers can temporarily rate-limit or become unavailable. Those messages identify the provider and explain how to retry.",
     ],
-    benefits: ["One daily allowance covers Tagflow AI and all other included models.", "Included models share 100 free credits a day, with plans and packs when you need more.", "Your own connected models remain available."],
+    benefits: ["One daily allowance covers Tagflow AI and all other included models.", "Included models share 140 free credits a day, with plans and packs when you need more.", "Your own connected models remain available."],
     betterThan: "Included AI removes provider-key setup. Tagflow AI and all other included models give every account a shared weekly free allowance, and purchased tokens never expire. Account access restrictions, provider availability, and model context limits remain in effect.",
   },
 
@@ -1375,7 +1375,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
       "Open Account and sign in with an email verified by your provider.",
       "Included AI is selected automatically on a new installation when enabled, using the administrator's default model. Send a message without entering an API key. To switch, open Connect a model → Free · no API key and choose Use this model.",
       "Choose a model and send your first message. You do not need a provider API key.",
-      "Tagflow AI and other included models (GLM 5.3 Flash, Qwen 3.8, Mimo) share 100 free credits a day, then use purchased tokens at adcode.bluethenics.com/ai-tokens. Chats and agents keep working across devices.",
+      "Tagflow AI and other included models (GLM 5.3 Flash, Qwen 3.8, Mimo) share 140 free credits a day, then use purchased tokens at adcode.bluethenics.com/ai-tokens. Chats and agents keep working across devices.",
       "Provider availability and model context limits still apply. Clearing usage history does not change provider limits.",
     ],
     benefits: ["Start without purchasing a provider key.", "Keep working on Tagflow AI without daily or daily refills.", "Administrators manage models, provider connections, and account access."],
@@ -1383,7 +1383,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
   },
   "ai-buy-tokens": {
     steps: [
-      "Use Tagflow AI or any other included model as usual - every account shares 100 free credits each day, starting with your first included request.",
+      "Use Tagflow AI or any other included model as usual - every account shares 140 free credits each day, starting with your first included request.",
       "When the week's free tokens are used up, the chat shows Buy tokens. Press it, or run AI: Buy AI Credits, or open adcode.bluethenics.com/ai-tokens.",
       "Sign in with the same account you use in ADCode, pick a pack - $10 for 510 credits, $25 for 154M, $50 for 330M - and pay. Dodo handles the payment and any sales tax.",
       "Back on the page, your tokens show as added within seconds. A task that paused carries on by itself; send your next message as usual.",
@@ -1400,7 +1400,7 @@ export const DOC_GUIDES: Readonly<Record<string, DocGuide>> = {
     steps: [
       "Run AI: Upgrade Plan in ADCode or open adcode.bluethenics.com/ai-tokens. Sign in with the same verified account you use in the editor.",
       "Not sure which? On adcode.bluethenics.com/pricing, move the slider to how many agent steps you run on a typical day; it names the smallest plan that covers you, or tells you Free already does.",
-      "Choose Builder ($9 a month, 225 credits each day), Pro ($29 a month, 900 credits each day) or Max ($59 a month, 1,330 fair-use credits each day on every hosted model, premium ones included). Every plan refills daily.",
+      "Choose Builder ($9 a month, 300 credits each day), Pro ($29 a month, 975 credits each day) or Max ($59 a month, 2,000 fair-use credits each day on every hosted model, premium ones included). Every plan refills daily.",
       "Complete payment with Dodo. After payment is confirmed, your daily included AI allowance rises automatically. The page, AI usage and composer meter show your plan. Existing usage still counts toward the week; purchased tokens cover anything beyond your allowance.",
       "To change billing details or cancel, select Manage subscription on the same page. Cancelling keeps access until the paid period ends; afterward the account returns to its free allowance unless another plan or gift applies.",
       "With a Pro subscription, copy your invite code and share it with up to two friends. Each friend signs in and redeems it in the invite-code box before starting a paid plan. When their first subscription becomes active while your Pro plan is still active, you and that friend each receive 100 credits. Each friend earns the reward only once.",

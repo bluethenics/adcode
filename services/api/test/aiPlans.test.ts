@@ -1,26 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { effectiveWeeklyAllowance, hasActivePlan, hasAllModelAccess, PLANS_ON_SALE, hasUnlimitedPlan, requiresSubscription, parsePromo, planById, PLANS } from "../src/aiPlans.ts";
+import { effectiveWeeklyAllowance, hasActivePlan, hasAllModelAccess, PLANS_ON_SALE, hasUnlimitedPlan, requiresSubscription, parsePromo, planById, PLANS, ALLOWANCE_CHANGED_AT, planAllowance } from "../src/aiPlans.ts";
 
 describe("AI plans", () => {
   it("prices and sizes the five plans, three of them on sale", () => {
     expect(PLANS.map((p) => [p.id, p.priceCents, p.interval, p.weeklyTokens, p.invites])).toEqual([
-      ["weekly", 300, "week", 2_475_000, 0], ["monthly", 900, "month", 2_475_000, 0], ["pro", 2900, "month", 9_900_000, 2], ["max", 5900, "month", 14_630_000, 0], ["unlimited", 29900, "month", 82_500_000, 0]]);
+      ["weekly", 300, "week", 4_620_000, 0], ["monthly", 900, "month", 3_300_000, 0], ["pro", 2900, "month", 10_725_000, 2], ["max", 5900, "month", 22_000_000, 0], ["unlimited", 29900, "month", 110_550_000, 0]]);
     expect(PLANS_ON_SALE.map((p) => [p.name, p.priceCents])).toEqual([["Builder", 900], ["Pro", 2900], ["Max", 5900]]);
     expect(planById("pro")?.name).toBe("Pro");
     expect(planById("free")).toBeNull();
   });
 
+  it("keeps a paid period bought before the change on its old allowance until it renews", () => {
+    const pro = planById("pro")!, weekly = planById("weekly")!, day = 86_400_000;
+    // Ends within a month of the change: it gets the better of old and new - since 4 November, the new 975.
+    expect(planAllowance(pro, ALLOWANCE_CHANGED_AT + 20 * day)).toBe(10_725_000);
+    // The next period, bought after the change, gets the new allowance.
+    expect(planAllowance(pro, ALLOWANCE_CHANGED_AT + 40 * day)).toBe(10_725_000);
+    // Weekly went up, so every Weekly period gets the higher figure at once.
+    expect(planAllowance(weekly, ALLOWANCE_CHANGED_AT + day)).toBe(4_620_000);
+    expect(effectiveWeeklyAllowance({ plan: { id: "pro", endsAt: ALLOWANCE_CHANGED_AT + 20 * day, source: "subscription" }, boostTokens: 0 }, 1_100_000, ALLOWANCE_CHANGED_AT)).toBe(10_725_000);
+  });
+
   it("gives Max every hosted model inside its own fair-use allowance", () => {
-    const now = 1_000;
-    const max = { plan: { id: "max" as const, endsAt: now + 1, source: "subscription" as const }, boostTokens: 0 };
+    const now = ALLOWANCE_CHANGED_AT + 2 * 86_400_000;
+    const max = { plan: { id: "max" as const, endsAt: now + 30 * 86_400_000, source: "subscription" as const }, boostTokens: 0 };
     expect(hasAllModelAccess(max, now)).toBe(true);
-    expect(effectiveWeeklyAllowance(max, 1_100_000, now)).toBe(14_630_000);
+    expect(effectiveWeeklyAllowance(max, 1_100_000, now)).toBe(22_000_000);
+    // A Max period ending soon after the 3 November change gets no old $99 allowance either.
+    expect(planAllowance(planById("max")!, ALLOWANCE_CHANGED_AT + 86_400_000)).toBe(22_000_000);
     expect(hasAllModelAccess({ ...max, plan: { ...max.plan, id: "pro" } }, now)).toBe(false);
   });
 
   it("takes the best of plan, boost and the free allowance", () => {
     expect(effectiveWeeklyAllowance({ plan: null, boostTokens: 0 }, 10_000_000, 5)).toBe(10_000_000);
-    expect(effectiveWeeklyAllowance({ plan: { id: "pro", endsAt: 10, source: "subscription" }, boostTokens: 0 }, 10_000_000, 5)).toBe(10_000_000);
+    expect(effectiveWeeklyAllowance({ plan: { id: "pro", endsAt: 10, source: "subscription" }, boostTokens: 0 }, 10_000_000, 5)).toBe(10_725_000);
     expect(effectiveWeeklyAllowance({ plan: { id: "monthly", endsAt: 10, source: "gift" }, boostTokens: 80_000_000 }, 10_000_000, 5)).toBe(80_000_000);
     expect(effectiveWeeklyAllowance({ plan: { id: "pro", endsAt: 4, source: "subscription" }, boostTokens: 0 }, 10_000_000, 5)).toBe(10_000_000);
   });

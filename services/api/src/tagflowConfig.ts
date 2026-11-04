@@ -4,6 +4,9 @@ import { parsePaidConfig } from "./paidTokens.ts";
 import { parseCampaign } from "./usageCampaign.ts";
 import { MAX_CUSTOM_PROVIDERS, OUTPUT_TOKEN_FIELDS, PROVIDER_AUTHENTICATION, isCustomProviderId, isCustomProviderUrl, modelProvider, providerConnections, type CustomProvider, type IncludedProviderId, type OutputTokenField, type ProviderAuthentication } from "./includedProviders.ts";
 
+/** Models one catalogue may hold. The admin page reads this; it used to stop at 50 on its own. */
+export const MAX_TAGFLOW_MODELS = 100;
+
 // Keep the existing numeric wire format compatible with deployed relays.
 // These reserved values disable request-count checks; zero still blocks usage.
 export const UNLIMITED_DAILY_REQUESTS = 1_000_000;
@@ -78,7 +81,7 @@ export function parseTagflowConfig(raw: unknown): TagflowConfig | null {
   if (paid === null) return null;
   const campaign = raw["campaign"] === undefined ? undefined : parseCampaign(raw["campaign"]);
   if (campaign === null) return null;
-  if (limits === null || providers === null || !Array.isArray(raw["models"]) || raw["models"].length > 100) return null;
+  if (limits === null || providers === null || !Array.isArray(raw["models"]) || raw["models"].length > MAX_TAGFLOW_MODELS) return null;
   const models: TagflowModel[] = [];
   for (const item of raw["models"]) {
     if (!record(item) || !fields(item, ["id", "name", "provider", "upstreamModel", "enabled", "contextWindow", "maxOutput", "inputPrice", "outputPrice", "creditRate", "billing", "cacheInputPrice", "pricingSchedule", "releaseDate"])) return null;

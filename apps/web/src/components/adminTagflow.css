@@ -32,3 +32,31 @@
 .admin-row-note { color: var(--muted); animation: admin-note-in 200ms cubic-bezier(0.23, 1, 0.32, 1) both; }
 @keyframes admin-note-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .admin-section-bar a:active { transform: none; } .admin-row-note { animation: none; } }
+
+/* ── Free models in views (admin/tagflow/page.tsx) ─────────────────────────────────────── */
+/* The views and Save stay in reach while a long list scrolls. */
+.tagflow-bar { position: sticky; top: 0; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 0 14px; padding: 10px 0; background: color-mix(in srgb, var(--bg, #0f0f0e) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--hairline); }
+.tagflow-views { flex-wrap: wrap; }
+.tagflow-save { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tagflow-dirty { padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--warn, #f3c16c) 16%, transparent); color: var(--warn, #f3c16c); font-size: 12px; font-weight: 600; }
+.tagflow-model-tools { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 12px; align-items: end; margin: 6px 0 4px; }
+.tagflow-model-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.tagflow-model-row { border: 1px solid var(--hairline); border-radius: 10px; background: var(--card); transition: border-color 160ms ease; }
+.tagflow-model-row[data-open="true"] { border-color: var(--border-strong, var(--faint)); }
+.tagflow-model-row[data-new="true"] { border-color: color-mix(in srgb, var(--accent, #fff) 55%, transparent); animation: tagflow-row-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+.tagflow-model-row[data-hidden="true"] .tagflow-model-name strong { color: var(--muted); }
+.tagflow-model-summary { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.2fr) auto auto; gap: 12px; align-items: center; padding: 8px 10px; }
+.tagflow-model-name { display: grid; gap: 2px; min-width: 0; padding: 4px 2px; border: 0; background: none; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.tagflow-model-name strong { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tagflow-model-name span, .tagflow-model-meta { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tagflow-model-meta { font-variant-numeric: tabular-nums; }
+.tagflow-model-row .tagflow-model { margin: 0; padding: 4px 14px 14px; border: 0; border-top: 1px solid var(--hairline); border-radius: 0; animation: tagflow-row-in 200ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+@keyframes tagflow-row-in { from { opacity: 0; transform: translateY(-3px); } }
+@media (max-width: 900px) {
+  .tagflow-model-tools { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .tagflow-model-summary { grid-template-columns: minmax(0, 1fr) auto; }
+  .tagflow-model-meta { grid-column: 1 / -1; grid-row: 2; }
+  .tagflow-model-summary .admin-row-actions { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) { .tagflow-model-tools { grid-template-columns: minmax(0, 1fr); } .tagflow-bar { position: static; } }
+@media (prefers-reduced-motion: reduce) { .tagflow-model-row, .tagflow-model-row .tagflow-model { animation: none; } }
