@@ -80,8 +80,10 @@ export function BalanceSummary({ tokens, now }: { tokens: TokensView; now: numbe
   const amount = tokens.accounting === "cost-v1" ? creditAmount : formatTokens;
   const unit = tokens.accounting === "cost-v1" ? "credits" : "tokens";
   const campaign = tokens.campaign !== undefined && tokens.campaign !== null && tokens.campaign.endsAt > now ? tokens.campaign : null;
+  const unlimited = tokens.plan?.id === "pro" && !tokens.enabled;
+  const left = tokens.free.limit > 0 ? Math.min(1, Math.max(0, tokens.free.remaining / tokens.free.limit)) : 0;
   return (
-    <div className="stats">
+    <div className="stats ai-balance" aria-label="Your credits">
       {campaign !== null && <div className="stat">
         <span className="stat-label">{campaign.name}</span>
         <span className="stat-value">Unlimited included AI use</span>
@@ -89,8 +91,9 @@ export function BalanceSummary({ tokens, now }: { tokens: TokensView; now: numbe
       </div>}
       <div className="stat">
         <span className="stat-label">{tokens.plan ? `${planName(tokens.plan.id)} today` : "Free today"}</span>
-        <span className="stat-value">{tokens.plan?.id === "pro" && !tokens.enabled ? "Unlimited tokens" : `${amount(tokens.free.remaining)} of ${amount(tokens.free.limit)} ${unit}`}</span>
-        <span className="stat-hint">{tokens.plan?.id === "pro" && !tokens.enabled ? "No daily token cap. Provider availability and rate limits still apply" : tokens.free.resetsAt === null ? "Starts with your first included AI request" : `Your daily allowance refills ${refillText(tokens.free.resetsAt, now)}`}{tokens.plan && <>. {tokens.plan.source === "gift" ? "Gifted plan" : "Paid period"} ends {new Date(tokens.plan.endsAt).toLocaleDateString()}.</>}</span>
+        <span className="stat-value">{unlimited ? "Unlimited tokens" : `${amount(tokens.free.remaining)} of ${amount(tokens.free.limit)} ${unit}`}</span>
+        {!unlimited && <span className="ai-balance-meter" role="meter" aria-label="Left today" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(left * 100)}><span style={{ width: `${left * 100}%` }} /></span>}
+        <span className="stat-hint">{unlimited ? "No daily token cap. Provider availability and rate limits still apply" : tokens.free.resetsAt === null ? "Starts with your first included AI request" : `Your daily allowance refills ${refillText(tokens.free.resetsAt, now)}`}{tokens.plan && <>. {tokens.plan.source === "gift" ? "Gifted plan" : "Paid period"} ends {new Date(tokens.plan.endsAt).toLocaleDateString()}.</>}</span>
       </div>
       <div className="stat">
         <span className="stat-label">Purchased</span>
@@ -108,8 +111,22 @@ const guessCountry = (): string => {
   return region ?? "US";
 };
 
+/**
+ * Development only: `?preview=signed-in` draws the signed-in page with made-up numbers, so its
+ * layout can be checked without an account. Dead code in a production build.
+ */
+const PREVIEW_UID = "preview-account";
+function previewActivity(now: number): TokenActivityView {
+  return { tokens: { enabled: true, accounting: "cost-v1", free: { limit: 1_540_000, used: 990_000, held: 0, remaining: 550_000, resetsAt: now + 5 * 3_600_000 }, purchased: 16_500_000, plan: null, campaign: null }, ledger: [],
+    orders: [{ orderId: "aip_preview", packId: "starter", priceCents: 300, tokens: 16_500_000, status: "paid", createdAt: now - 86_400_000, paidAt: now - 86_400_000 }] };
+}
+
 export default function AiTokens() {
-  const { user, loading: authLoading, token } = useAuth();
+  const auth = useAuth();
+  const [devPreview, setDevPreview] = useState(false);
+  useEffect(() => { if (process.env["NODE_ENV"] === "development" && new URLSearchParams(window.location.search).get("preview") === "signed-in") setDevPreview(true); }, []);
+  const user = devPreview ? { uid: PREVIEW_UID } : auth.user;
+  const { loading: authLoading, token } = auth;
   const [offer, setOffer] = useState<PaidOffer | null>(null);
   const [activity, setActivity] = useState<TokenActivityView | null>(null);
   const [country, setCountry] = useState("US");
@@ -138,9 +155,18 @@ export default function AiTokens() {
       setOffer(body.paid);
     } catch { setOfferError("Couldn't load plans and top-ups. Check your connection and try again."); }
   }, []);
-  useEffect(() => { void loadOffer(); }, [loadOffer]);
+  useEffect(() => {
+    if (process.env["NODE_ENV"] === "development" && new URLSearchParams(window.location.search).get("preview") === "signed-in") {
+      void Promise.all([import("@adcode/api/src/paidTokens.ts"), import("@adcode/api/src/aiPlans.ts")]).then(([paid, plans]) => {
+        setOfferError(null); setOffer({ enabled: true, freeWeeklyTokens: paid.COST_PAID_CONFIG.freeWeeklyTokens, packs: [...paid.COST_PAID_CONFIG.packs], plans: [...plans.PLANS_ON_SALE] });
+      });
+      return;
+    }
+    void loadOffer();
+  }, [loadOffer]);
 
   const load = useCallback(async (): Promise<TokenActivityView | null> => {
+    if (process.env["NODE_ENV"] === "development" && account === PREVIEW_UID) { const view = previewActivity(Date.now()); setActivity(view); return view; }
     try {
       const idToken = await token();
       const [found, usage] = await Promise.all([
@@ -237,7 +263,8 @@ export default function AiTokens() {
 
   return (
     <>
-      {selectedPlan !== null && <p className="notice" role="status">You&apos;re viewing the {planName(selectedPlan)} plan. {user === null ? "Sign in with the account you use in ADCode, then review the plan and billing country." : subscribed ? "Use Manage subscription below to review your existing billing plan." : "Review your billing country and choose the plan below to continue."}</p>}
+      {/* Signed in and free to buy, the chosen card is outlined and badged; a sentence on top would only repeat it. */}
+      {selectedPlan !== null && (user === null || subscribed) && <p className="notice" role="status">You&apos;re viewing the {planName(selectedPlan)} plan. {user === null ? "Sign in with the account you use in ADCode, then review the plan and billing country." : subscribed ? "Use Manage subscription below to review your existing billing plan." : "Review your billing country and choose the plan below to continue."}</p>}
           {error !== null && <div className="notice" data-tone="error" role="alert">{error}</div>}
           {arrival !== null && (
             <div className="notice" data-tone={arrival === "added" ? "success" : undefined} role="status">
@@ -257,12 +284,13 @@ export default function AiTokens() {
             <p className="notice">AI upgrades are temporarily unavailable. Tagflow AI stays free in the meantime.</p>
           ) : (
             <>
-              {user !== null && <div className="ai-billing-details"><div><strong>Simple billing. Your choice.</strong><p className="field-hint">Prices in USD. Applicable tax is shown before payment.</p></div><div className="field ai-tokens-country">
-                <label htmlFor="t-country">Billing country</label>
-                <input id="t-country" className="input" aria-describedby="t-country-help" required pattern="[A-Z]{2}" autoComplete="country" maxLength={2} value={country} onChange={(event) => setCountry(event.target.value.toUpperCase())} />
-                <span id="t-country-help" className="field-hint">Two-letter code, like US or IN.</span>
-              </div></div>}
-              <section id="plans" className="ai-plans-section" aria-labelledby="ai-plans-heading"><div className="ai-section-heading"><div><p className="ai-eyebrow">Plans</p><h2 id="ai-plans-heading">More credits every day</h2></div><p>Every plan refills daily. Max covers every hosted model, premium ones included, under fair use. Cancel any time in the billing portal.</p></div>{(offer.plans?.length ?? 0) > 0 ? <PlanCards plans={plansOnOffer(offer.plans!, activity?.tokens.plan?.id ?? null)} current={activity?.tokens.plan?.id ?? null} busy={checkoutBusy} subscribed={subscribed} selected={selectedPlan} onChoose={(plan) => void choosePlan(plan)} /> : <p className="notice" role="status">Subscription plans are unavailable right now. Check the one-time top-ups below, or try again later.</p>}</section>
+              <section id="plans" className="ai-plans-section" aria-labelledby="ai-plans-heading"><div className="ai-section-heading"><div><p className="ai-eyebrow">Plans</p><h2 id="ai-plans-heading">More credits every day</h2><p className="ai-section-lead">Every plan refills daily. Max covers every hosted model, premium ones included, under fair use. Cancel any time in the billing portal.</p></div>
+                {/* Checkout needs it for tax, so it sits where the buying happens rather than in a box of its own. */}
+                {user !== null && <div className="field ai-tokens-country">
+                  <label htmlFor="t-country">Billing country</label>
+                  <input id="t-country" className="input" aria-describedby="t-country-help" required pattern="[A-Z]{2}" autoComplete="country" maxLength={2} value={country} onChange={(event) => setCountry(event.target.value.toUpperCase())} />
+                  <span id="t-country-help" className="field-hint">Two letters, like US or IN. Prices in USD; tax is shown before you pay.</span>
+                </div>}</div>{(offer.plans?.length ?? 0) > 0 ? <PlanCards plans={plansOnOffer(offer.plans!, activity?.tokens.plan?.id ?? null)} current={activity?.tokens.plan?.id ?? null} busy={checkoutBusy} subscribed={subscribed} selected={selectedPlan} onChoose={(plan) => void choosePlan(plan)} /> : <p className="notice" role="status">Subscription plans are unavailable right now. Check the one-time top-ups below, or try again later.</p>}</section>
               <div className="ai-checkout-trust"><span>Secure checkout by Dodo Payments</span><span>Cancel your plan in the billing portal</span><span>Works in web + desktop</span></div>
               <section id="packs" className="ai-packs-section" aria-labelledby="ai-packs-heading"><div className="ai-section-heading"><div><p className="ai-eyebrow">Top-ups</p><h2 id="ai-packs-heading">Credits that never expire</h2></div><p>A one-time purchase for a busy stretch, used after your daily allowance on Free, Builder and Pro. Max keeps them saved.</p></div>{offer.packs.length > 0 ? <PackList packs={offer.packs} busy={checkoutBusy} onBuy={(pack) => void buy(pack)} /> : <p className="notice" role="status">No top-ups are available right now. Please check back later.</p>}</section>
               <p className="ai-purchase-note">Prices in USD before applicable tax. Plans renew at the interval shown; top-ups never renew. Provider availability and model limits apply. For a refund of unused top-ups, <a href="/support">contact support</a>.</p>

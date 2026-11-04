@@ -4,7 +4,7 @@ import { adNetworkEncryptionKeys, decryptAdNetworkKey, encryptAdNetworkKey } fro
 import { AdNetworkProviderError, previewBeehiiv, requestNetworkCreative, verifyNetworkEvent } from "./adNetworkHttp.ts";
 import { checkReceipt, CLOCK_SKEW_MS } from "./plausibility.ts";
 import { previewImprezia } from "./impreziaPreview.ts";
-import { isImpreziaSandboxKey, unpackImpression } from "./impreziaChatAds.ts";
+import { impreziaKeyMode, isImpreziaSandboxKey, unpackImpression, type ImpreziaKeyMode } from "./impreziaChatAds.ts";
 import { impreziaSdkPreviewEndpoint } from "./impreziaSdkPreview.ts";
 import type { AdNetworkConfig } from "./adNetworkConfig.ts";
 import type { Clock, IdGen, Store } from "./store.ts";
@@ -12,6 +12,14 @@ const isImpreziaChat = (config: AdNetworkConfig): boolean => config.provider ===
 export interface AdNetworkRuntime { fetchImpl?: typeof fetch; encryptionKeys?: () => readonly string[]; assetOrigin?: string }
 export interface AdNetworkDeps extends AdNetworkRuntime { store: Store; clock: Clock; ids: IdGen }
 const keysFor = (deps: AdNetworkRuntime): readonly string[] => (deps.encryptionKeys ?? adNetworkEncryptionKeys)();
+/** The saved Imprezia key's environment, read on the server; undefined when there is none or it cannot be read. */
+function keyModeOf(deps: AdNetworkRuntime, config: AdNetworkConfig, encrypted: Parameters<typeof decryptAdNetworkKey>[1] | null): ImpreziaKeyMode | undefined {
+  if (!isImpreziaChat(config) || encrypted === null) return undefined;
+  try { return impreziaKeyMode(decryptAdNetworkKey(config.id, encrypted, keysFor(deps))); } catch { return undefined; }
+}
+/** The one Imprezia Chat Ads connection "Go live" creates when none exists yet. */
+const IMPREZIA_DEFAULT: AdNetworkConfig = { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: false, priority: 10, viewPayoutMicros: "0", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "" } };
+const validKey = (key: unknown): key is string => typeof key === "string" && key.trim().length > 0 && key.length <= 8192 && !/[\r\n]/.test(key);
 
 /** External demand fills an otherwise empty slot; direct campaigns and test serves always keep priority. */
 export async function serveAdNetwork(deps: AdNetworkDeps, uid: string, body: ServeRequestBody, ttlMs: number): Promise<ServeResponseBody> {
@@ -81,8 +89,9 @@ export async function handleAdNetworkAdmin(deps: AdNetworkDeps, adminUid: string
   if (path === "/v1/admin/ad-networks") {
     if (method === "GET") {
       const networks = await Promise.all((await port.list()).map(async config => {
-        const keyConfigured = await port.key(config.id) !== null;
-        return { ...config, keyConfigured, readiness: adNetworkReadiness(config, keyConfigured) };
+        const encrypted = await port.key(config.id);
+        const keyConfigured = encrypted !== null, keyMode = keyModeOf(deps, config, encrypted);
+        return { ...config, keyConfigured, readiness: adNetworkReadiness(config, keyConfigured), ...(keyMode === undefined ? {} : { keyMode }) };
       }));
       return response(200, { networks, credentialsManageable: keysFor(deps).length > 0 });
     }
@@ -96,6 +105,24 @@ export async function handleAdNetworkAdmin(deps: AdNetworkDeps, adminUid: string
     }
     return response(405, { error: "method-not-allowed" });
   }
+  // Going live with Imprezia in one step: save the production key, then turn delivery on. A
+  // sandbox key is refused here, because "live" with test ads would earn nothing and look done.
+  if (path === "/v1/admin/ad-networks/imprezia-live" && method === "POST") {
+    const body = typeof raw === "object" && raw !== null ? raw as Record<string, unknown> : {};
+    const key = typeof body["key"] === "string" ? body["key"].trim() : body["key"];
+    if (!validKey(key)) return response(400, { error: "invalid-key", message: "Paste the publisher API key from Imprezia's API Keys page." });
+    if (impreziaKeyMode(key) === "sandbox") return response(400, { error: "sandbox-key", message: "That is a sandbox key (api_pub_sandbox_…): it serves test ads that earn nothing. Paste the production key to go live, or save a sandbox key from the connection's API key box to test." });
+    const keys = keysFor(deps);
+    if (!keys[0]) return response(503, { error: "encryption-not-configured", message: "Set AD_NETWORK_ENCRYPTION_KEY once before saving provider API keys." });
+    const chats = (await port.list()).filter(isImpreziaChat).sort((a, b) => a.priority - b.priority);
+    const config = chats[0] ?? IMPREZIA_DEFAULT;
+    if (chats[0] === undefined) await port.put(config, adminUid, deps.clock.now());
+    await port.putKey(config.id, encryptAdNetworkKey(config.id, key, keys[0]));
+    await port.put({ ...config, enabled: true }, adminUid, deps.clock.now());
+    await deps.store.writeAudit({ adminUid, action: "ad-network-key-save", subjectUid: config.id, at: deps.clock.now() });
+    await deps.store.writeAudit({ adminUid, action: "ad-network-save", subjectUid: config.id, at: deps.clock.now() });
+    return response(200, { ok: true, id: config.id, keyMode: impreziaKeyMode(key), enabled: true });
+  }
   const match = /^\/v1\/admin\/ad-networks\/([a-z0-9-]+)\/(key|test)$/.exec(path);
   if (!match || !AD_NETWORK_ID.test(match[1]!)) return response(404, { error: "not-found" });
   const id = match[1]!;
@@ -103,12 +130,12 @@ export async function handleAdNetworkAdmin(deps: AdNetworkDeps, adminUid: string
   if (!config) return response(404, { error: "not-found" });
   if (match[2] === "key" && method === "PUT") {
     const key = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>)["key"] : undefined;
-    if (key !== null && (typeof key !== "string" || key.trim().length === 0 || key.length > 8192 || /[\r\n]/.test(key))) return response(400, { error: "invalid-key" });
+    if (key !== null && !validKey(key)) return response(400, { error: "invalid-key" });
     const keys = keysFor(deps);
     if (key !== null && !keys[0]) return response(503, { error: "encryption-not-configured", message: "Set AD_NETWORK_ENCRYPTION_KEY once before saving provider API keys." });
     await port.putKey(id, key === null ? null : encryptAdNetworkKey(id, key as string, keys[0]!));
     await deps.store.writeAudit({ adminUid, action: key === null ? "ad-network-key-remove" : "ad-network-key-save", subjectUid: id, at: deps.clock.now() });
-    return response(200, { ok: true, keyConfigured: key !== null });
+    return response(200, { ok: true, keyConfigured: key !== null, ...(key !== null && isImpreziaChat(config) ? { keyMode: impreziaKeyMode((key as string).trim()) } : {}) });
   }
   if (match[2] === "test" && method === "POST") {
     if (config.provider === "imprezia" && !config.imprezia) return response(409, { error: "inventory-required", message: "Enter the app bundle or site domain provisioned by Imprezia Exchange before testing." });

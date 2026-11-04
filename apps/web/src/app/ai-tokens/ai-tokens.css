@@ -247,3 +247,31 @@
 /* Stacked on a phone, the featured plan comes first, as on the pricing page. */
 @media (max-width: 760px) { .ai-plan-card[data-plan="max"] { order: -2; } .ai-plan-card[data-plan="pro"] { order: -1; } }
 .ai-tokens-hero-copy > .ai-tokens-lead { margin: -8px 0 12px; color: var(--text); font-size: clamp(20px, 2.2vw, 26px); line-height: 1.3; letter-spacing: -.02em; }
+
+/* ── Signed-in view (4 November, second pass) ─────────────────────────────────────────── */
+/* Three plans fill the row; the older four-column rule left an empty column beside Max. */
+@media (min-width: 761px) { .ai-plan-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* Four top-ups: four across on a wide screen, two by two below that, one on a phone. */
+@media (min-width: 681px) { .token-packs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .token-packs { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.token-pack { background: var(--card); }
+.token-pack .btn { align-self: end; }
+/* Your credits: what is left today, as a bar, next to what you bought. */
+.ai-balance.stats { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+.ai-balance-meter { display: block; height: 6px; margin: 4px 0 2px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--text) 10%, transparent); }
+.ai-balance-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--text); transition: width 400ms cubic-bezier(.23, 1, .32, 1); }
+@media (prefers-reduced-motion: reduce) { .ai-balance-meter > span { transition: none; } }
+/* The plans heading carries the billing country on its right. */
+.ai-section-lead { max-width: 56ch; margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.ai-section-heading .ai-tokens-country.field { flex-shrink: 0; max-width: 260px; }
+.ai-section-heading .ai-tokens-country label { font-size: 13px; }
+@media (max-width: 680px) { .ai-section-heading .ai-tokens-country.field { max-width: none; } }
+/* Paid models: the same section heading as plans and top-ups, below a divider like theirs. */
+.ai-wallet-section { display: grid; gap: 14px; padding-top: 32px; border-top: 1px solid var(--hairline); scroll-margin-top: 100px; }
+.ai-wallet-section .ai-section-heading { margin-bottom: 4px; }
+.ai-wallet-section > .field-hint { max-width: 80ch; margin: 0; font-size: 12px; line-height: 1.7; }
+.ai-wallet-section > .btn { justify-self: start; }
+.ai-wallet-section h3 { margin: 12px 0 0; font-size: 17px; font-weight: 500; }
+.ai-tokens-history .ai-token-table-scroll table { width: 100%; }
+.ai-tokens-history { display: grid; gap: 12px; }
+.ai-tokens-history h2 { margin: 0; }

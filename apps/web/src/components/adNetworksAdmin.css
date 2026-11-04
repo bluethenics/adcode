@@ -44,3 +44,14 @@
   .ad-network-table td:last-child { grid-column: 1 / -1; }
   .ad-network-table td:last-child .ad-network-actions { justify-content: flex-start; flex-wrap: wrap; }
 }
+
+/* Imprezia go-live: the one form the page is opened for once the production key arrives. */
+.imprezia-go-live { border-color: color-mix(in srgb, var(--accent) 35%, var(--hairline)); }
+.imprezia-go-live[data-stage="live"] { border-color: color-mix(in srgb, var(--success, #3fb27f) 45%, var(--hairline)); }
+.imprezia-go-live .admin-card-head { justify-content: space-between; }
+.imprezia-go-live-form { display: grid; gap: 14px; max-width: 580px; margin-top: 14px; }
+.imprezia-go-live-reach { display: grid; gap: 6px; margin: 18px 0 0; padding: 14px 0 0 18px; border-top: 1px solid var(--hairline); color: var(--muted); font-size: 13.5px; line-height: 1.6; }
+.imprezia-go-live-reach strong { color: var(--text); font-weight: 550; }
+.ad-network-mode { margin-top: 6px; font-size: 12px; }
+.ad-network-mode[data-mode="sandbox"], .ad-network-mode[data-mode="beta"] { color: var(--warn, #f3c16c) !important; }
+.imprezia-go-live small[data-warn="true"] { color: var(--warn, #f3c16c) !important; }

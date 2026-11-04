@@ -63,12 +63,10 @@ export function ModelWallet({ country }: { country: string }) {
       window.location.assign(destination.href);
     } catch(e) {if(account.current===uid) setError(e instanceof Error?e.message:"Checkout could not be opened.");} finally {if(account.current===uid)setBusy(false);}
   };
-  return <section id="wallet" className="ai-tokens-history" aria-labelledby="wallet-title">
-    <span className="ai-section-kicker">PAY ONLY FOR WHAT YOU USE</span>
-    <h2 id="wallet-title">Paid model credits</h2>
-    <p>Use popular models with your ADCode balance. Prices include a 35% markup on provider inference rates. No personal API key or subscription is required.</p>
-    <p className="field-hint">These USD credits are separate from included tokens and Heabsy plans. A maximum charge is held during a request; unused credit is released when it finishes. Provider token counts are used when available; an estimated charge is marked in your history.</p>
-    {!user && <p>Sign in below to view your balance and available models.</p>}
+  return <section id="wallet" className="ai-wallet-section" aria-labelledby="wallet-title">
+    <div className="ai-section-heading"><div><p className="ai-eyebrow">Paid models</p><h2 id="wallet-title">Pay only for what you use</h2><p className="ai-section-lead">Use popular models with your ADCode balance. Prices include a 35% markup on provider inference rates. No personal API key or subscription is required.</p></div></div>
+    <p className="field-hint ai-wallet-fineprint">These USD credits are separate from your daily credits and plans. A maximum charge is held during a request; unused credit is released when it finishes. Provider token counts are used when available; an estimated charge is marked in your history.</p>
+    {!user && <p className="field-hint">Sign in below to see your balance and the models you can use.</p>}
     {error && <p className="notice" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
     {user && <button type="button" className="btn btn-outline" onClick={()=>void load()}>Refresh paid credits</button>}
     {wallet && <>

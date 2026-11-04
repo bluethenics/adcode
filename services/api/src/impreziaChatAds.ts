@@ -5,6 +5,15 @@ export function impreziaBaseUrl(key: string): string {
   return "https://api.imprezia.ai";
 }
 
+/**
+ * Which of Imprezia's environments a publisher key belongs to. The admin sees this word, never
+ * the key: "sandbox" serves test ads with no revenue, "live" is the production key that earns.
+ */
+export type ImpreziaKeyMode = "sandbox" | "beta" | "live";
+export function impreziaKeyMode(key: string): ImpreziaKeyMode {
+  return key.startsWith("api_pub_sandbox_") ? "sandbox" : key.startsWith("api_pub_beta_") ? "beta" : "live";
+}
+
 /** Sandbox ads are house ads with no revenue behind them; they never pay a user. */
 export const isImpreziaSandboxKey = (key: string): boolean => key.startsWith("api_pub_sandbox_");
 

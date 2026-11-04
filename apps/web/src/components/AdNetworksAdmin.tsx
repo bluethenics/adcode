@@ -7,7 +7,8 @@ import { adNetworkReadiness, parseAdNetworkConfig, type AdNetworkConfig, type Ad
 import type { ServedCreative } from "@adcode/api/src/contract.ts";
 import "./adNetworksAdmin.css";
 
-export interface AdNetworkView extends AdNetworkConfig { keyConfigured: boolean; readiness: string }
+/** keyMode: which Imprezia environment the saved key belongs to, read on the server. The key itself never comes back. */
+export interface AdNetworkView extends AdNetworkConfig { keyConfigured: boolean; readiness: string; keyMode?: "sandbox" | "beta" | "live" }
 interface NetworksView { networks: AdNetworkView[]; credentialsManageable: boolean }
 interface TestView { sandbox?: boolean; sdk?: { endpoint: string; placementId: string }; creative?: ServedCreative | null; advertisements?: { id: string; name: string; headline: string; text: string; description: string }[] }
 const ImpreziaSdkPreview = dynamic(() => import("./ImpreziaSdkPreview"), { ssr: false, loading: () => <p role="status">Loading Imprezia&apos;s SDK…</p> });
@@ -75,7 +76,7 @@ export function AdNetworkTable({ networks, selected, busy, onEdit, onKey, onTogg
     <thead><tr><th scope="col">Network</th><th scope="col">Status</th><th scope="col">API key</th><th scope="col">Users paid</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
     <tbody>{networks.map((network) => <tr key={network.id} aria-selected={selected === network.id}>
       <td><strong>{network.name}</strong><small>{providerName(network.provider)}{isChat(network) ? " Chat Ads" : ""} / {network.id}</small></td>
-      <td><span className="ad-network-state" data-state={network.readiness}>{readinessLabel[network.readiness] ?? "Unknown"}</span></td>
+      <td><span className="ad-network-state" data-state={network.readiness}>{readinessLabel[network.readiness] ?? "Unknown"}</span>{network.keyMode !== undefined && <small className="ad-network-mode" data-mode={network.keyMode}>{network.keyMode === "live" ? "Production key" : network.keyMode === "sandbox" ? "Sandbox key: test ads" : "Beta key"}</small>}</td>
       <td><button type="button" className="ad-network-key" data-set={network.keyConfigured} onClick={() => onKey(network)} aria-label={`${network.keyConfigured ? "Change" : "Add"} the API key for ${network.name}`}>{network.keyConfigured ? "Set · Change" : "Add key"}</button></td>
       <td>{pays(network) ? payoutSummary(network) : isChat(network) ? "Provider reports only" : "Preview only"}</td>
       <td><div className="ad-network-actions">
@@ -87,11 +88,70 @@ export function AdNetworkTable({ networks, selected, busy, onEdit, onKey, onTogg
   </table></div>;
 }
 
+/** Where Imprezia stands, in the words an operator asks it in: is it live, and if not, what one thing makes it so. */
+export type ImpreziaStage = "not-set-up" | "no-key" | "sandbox" | "beta" | "off" | "live";
+export function impreziaStage(network: AdNetworkView | undefined): ImpreziaStage {
+  if (network === undefined) return "not-set-up";
+  if (!network.keyConfigured) return "no-key";
+  if (network.keyMode === "sandbox") return "sandbox";
+  if (network.keyMode === "beta") return "beta";
+  return network.enabled ? "live" : "off";
+}
+const STAGE_COPY: Record<ImpreziaStage, { label: string; text: string; action: string }> = {
+  "not-set-up": { label: "Not set up", text: "Paste the production publisher key from Imprezia's API Keys page. ADCode creates the connection, encrypts the key and turns delivery on in one step.", action: "Save key and go live" },
+  "no-key": { label: "No key", text: "The Imprezia connection exists but has no key. Paste the production key to start serving.", action: "Save key and go live" },
+  sandbox: { label: "Sandbox: test ads", text: "The saved key is a sandbox key. Its cards are Imprezia's test ads and earn nothing. Paste the production key to replace it and go live.", action: "Replace key and go live" },
+  beta: { label: "Beta key", text: "The saved key is for Imprezia's beta environment. Paste the production key to replace it and go live.", action: "Replace key and go live" },
+  off: { label: "Production key, off", text: "A production key is saved but delivery is off, so nobody sees Imprezia ads. Turn it on, or paste a new key to rotate it and go live.", action: "Replace key and go live" },
+  live: { label: "Live", text: "Imprezia's real ads fill sponsored slots no ADCode advertiser has taken. Paste a new key here only to rotate it.", action: "Rotate key" },
+};
+
+/**
+ * The one thing this page is opened for once Imprezia sends the production key: paste it, press
+ * one button, and ads are live. The server refuses a sandbox key here, so "live" always means real.
+ */
+function ImpreziaGoLive({ network, manageable, request, onLive, onToggle, busy }: { network: AdNetworkView | undefined; manageable: boolean; request: Request; onLive: () => Promise<void>; onToggle: (network: AdNetworkView) => void; busy: boolean }) {
+  const stage = impreziaStage(network);
+  const copy = STAGE_COPY[stage];
+  const [secret, setSecret] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const sandboxPasted = secret.trim().startsWith("api_pub_sandbox_");
+  async function goLive(): Promise<void> {
+    if (saving || secret.trim() === "" || sandboxPasted) return;
+    setSaving(true); setNotice(null);
+    try {
+      await request<{ id: string }>("/admin/ad-networks/imprezia-live", "POST", { key: secret.trim() });
+      setSecret(""); await onLive();
+      setNotice({ text: stage === "live" ? "New key saved. The next ad uses it." : "Imprezia is live. People who have partner ads on in Settings start seeing its cards with the next ad.", error: false });
+    } catch (error) { setNotice({ text: error instanceof Error ? error.message : "The key wasn't saved. Try again.", error: true }); }
+    finally { setSaving(false); }
+  }
+  return <section className="admin-models-provider imprezia-go-live" data-stage={stage} aria-labelledby="imprezia-go-live-title">
+    <header className="admin-card-head"><h3 id="imprezia-go-live-title">Imprezia partner ads</h3><span className="ad-network-state" data-state={stage === "live" ? "ready" : stage === "off" ? "disabled" : "key-required"}>{copy.label}</span></header>
+    <p className="row-sub">{copy.text}</p>
+    {!manageable && <p className="notice" role="alert">Encrypted key storage isn&apos;t configured on the server. Set AD_NETWORK_ENCRYPTION_KEY before saving the key.</p>}
+    <form className="imprezia-go-live-form" onSubmit={(event) => { event.preventDefault(); void goLive(); }}>
+      <label className="tagflow-field"><span>{stage === "live" ? "New production key" : "Production publisher key"}</span><input className="input" type="password" required autoComplete="new-password" spellCheck={false} maxLength={8192} placeholder="api_pub_…" disabled={saving || !manageable} value={secret} onChange={(event) => setSecret(event.target.value)} aria-describedby="imprezia-key-hint" /><small id="imprezia-key-hint" data-warn={sandboxPasted}>{sandboxPasted ? "That is a sandbox key: it serves test ads that earn nothing. Use the production key." : "Encrypted on the server and never shown again."}</small></label>
+      <div className="ad-network-actions">
+        <button className="btn btn-primary" disabled={saving || !manageable || secret.trim() === "" || sandboxPasted}>{saving ? "Saving…" : copy.action}</button>
+        {stage === "off" && network && <button type="button" className="btn" disabled={busy} onClick={() => onToggle(network)}>Turn on with the saved key</button>}
+      </div>
+    </form>
+    {notice && <p className="notice" data-tone={notice.error ? "error" : "success"} role={notice.error ? "alert" : "status"}>{notice.text}</p>}
+    <ul className="imprezia-go-live-reach" aria-label="Who sees Imprezia ads">
+      <li><strong>Cards under AI replies</strong> reach people on desktop 2.4.13 or later who turned on Sponsored cards under AI replies in Settings.</li>
+      <li><strong>Partner notifications</strong> reach people who turned on Sponsored notifications from ADCode&apos;s ad partner, once a desktop release after 2.4.13 ships them.</li>
+      <li>Both are off for each person until they switch them on. Turning Imprezia off in the table below stops every new card at once.</li>
+    </ul>
+  </section>;
+}
+
 function TextField({ label, value, onChange, required = true, hint, pattern, type = "text", disabled = false }: { label: string; value: string; onChange: (value: string) => void; required?: boolean; hint?: string; pattern?: string; type?: string; disabled?: boolean }) {
   return <label className="tagflow-field"><span>{label}</span><input className="input" type={type} required={required} maxLength={type === "url" ? 2048 : 200} {...(type === "number" ? { min: 0, max: 10, step: "0.000001" } : {})} {...(pattern === undefined ? {} : { pattern })} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} />{hint && <small>{hint}</small>}</label>;
 }
 
-function SecretEditor({ network, manageable, request, onChange, focus = 0 }: { network: AdNetworkView; manageable: boolean; request: Request; onChange: (configured: boolean) => void; focus?: number }) {
+function SecretEditor({ network, manageable, request, onChange, focus = 0 }: { network: AdNetworkView; manageable: boolean; request: Request; onChange: (configured: boolean, keyMode?: AdNetworkView["keyMode"]) => void; focus?: number }) {
   const [secret, setSecret] = useState("");
   const field = useRef<HTMLInputElement>(null);
   // Arriving from a row's key button: the box is where the eye and the cursor already are.
@@ -102,8 +162,8 @@ function SecretEditor({ network, manageable, request, onChange, focus = 0 }: { n
     if (busy || (!remove && secret.trim() === "")) return;
     setBusy(true); setNotice(null);
     try {
-      const result = await request<{ keyConfigured: boolean }>(`/admin/ad-networks/${encodeURIComponent(network.id)}/key`, "PUT", { key: remove ? null : secret.trim() });
-      setSecret(""); onChange(result.keyConfigured ?? !remove); setNotice({ text: remove ? "API key removed. Delivery from this network stops until a new key is saved." : "New API key saved and used from the next ad. Press Test to check it.", error: false });
+      const result = await request<{ keyConfigured: boolean; keyMode?: AdNetworkView["keyMode"] }>(`/admin/ad-networks/${encodeURIComponent(network.id)}/key`, "PUT", { key: remove ? null : secret.trim() });
+      setSecret(""); onChange(result.keyConfigured ?? !remove, result.keyMode); setNotice({ text: remove ? "API key removed. Delivery from this network stops until a new key is saved." : "New API key saved and used from the next ad. Press Test to check it.", error: false });
     } catch (error) { setNotice({ text: error instanceof Error ? error.message : "The key wasn't saved. Try again.", error: true }); }
     finally { setBusy(false); }
   }
@@ -261,8 +321,10 @@ export function AdNetworksAdmin() {
     finally { setTesting(null); }
   }
   const saved = selected === null ? undefined : view?.networks.find((network) => network.id === selected);
+  const imprezia = view?.networks.filter(isChat).sort((a, b) => a.priority - b.priority)[0];
   const draft = newNetwork ?? saved;
   return <div className="admin-models ad-networks-admin">
+    {view !== null && <ImpreziaGoLive network={imprezia} manageable={view.credentialsManageable} request={request} busy={toggling !== null} onToggle={(network) => void toggle(network)} onLive={load} />}
     <section className="admin-models-provider"><header className="admin-card-head"><h3>Ad network connections</h3><button type="button" className="btn" disabled={loading} onClick={() => void load()}>{loading ? "Loading…" : "Refresh"}</button></header>
       <p className="row-sub">Connect ad providers with encrypted API keys. Generic JSON APIs can pay users per view or click; Imprezia uses its SDK for sponsored chat cards.</p>
       {error && <p className="notice" data-tone="error" role="alert">{error} Use Refresh to retry.</p>}
@@ -271,7 +333,7 @@ export function AdNetworksAdmin() {
     </section>
     {test && <section className="admin-models-provider" aria-label={`Test result for ${test.name}`}><h3>{test.name}</h3>{test.error ? <p className="notice" data-tone="error" role="alert">{test.error}</p> : test.value && <NetworkTestPreview result={test.value} />}</section>}
     {/* The key first: rotating it is the most common reason to open a network. */}
-    {saved && newNetwork === null && view !== null && <section className="admin-models-provider"><SecretEditor key={saved.id} focus={keyFocus} network={saved} manageable={view.credentialsManageable} request={request} onChange={(configured) => setView((previous) => previous === null ? previous : { ...previous, networks: previous.networks.map((network) => network.id !== saved.id ? network : { ...network, keyConfigured: configured, readiness: adNetworkReadiness(network, configured) }) })} /></section>}
+    {saved && newNetwork === null && view !== null && <section className="admin-models-provider"><SecretEditor key={saved.id} focus={keyFocus} network={saved} manageable={view.credentialsManageable} request={request} onChange={(configured, keyMode) => setView((previous) => previous === null ? previous : { ...previous, networks: previous.networks.map((network) => { if (network.id !== saved.id) return network; const { keyMode: _old, ...rest } = network; return { ...rest, keyConfigured: configured, readiness: adNetworkReadiness(network, configured), ...(configured && keyMode !== undefined ? { keyMode } : {}) }; }) })} /></section>}
     {draft && <NetworkEditor key={`${newNetwork ? "new" : "saved"}:${draft.provider}:${draft.id}`} initial={draft} saved={saved !== undefined && newNetwork === null} onSave={save} onCancel={() => { setSelected(null); setNewNetwork(null); }} />}
   </div>;
 }

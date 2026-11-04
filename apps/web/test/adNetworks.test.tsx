@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AdNetworkTable, NetworkTestPreview, ProviderReadiness, newAdNetwork, payoutBasis, payoutMicros, payoutRates, payoutSummary } from "../src/components/AdNetworksAdmin";
+import { AdNetworkTable, NetworkTestPreview, impreziaStage, type AdNetworkView, ProviderReadiness, newAdNetwork, payoutBasis, payoutMicros, payoutRates, payoutSummary } from "../src/components/AdNetworksAdmin";
 
 describe("ad network administration", () => {
   it("converts dollars exactly and rejects precision or payout-limit mistakes", () => {
@@ -66,5 +66,15 @@ describe("ad network administration", () => {
     const html = renderToStaticMarkup(<NetworkTestPreview result={{ advertisements: [{ id: "ad", name: "Sponsor", headline: "<script>alert(1)</script>", text: "Sample", description: "" }] }} />);
     expect(html).toContain("&lt;script&gt;"); expect(html).not.toContain("<script>");
     expect(html).toContain("haven&#x27;t been delivered to desktop users");
+  });
+  it("says whether Imprezia is live, and never calls a sandbox key live", () => {
+    const chat: AdNetworkView = { ...newAdNetwork("imprezia"), id: "imprezia", keyConfigured: true, readiness: "ready", enabled: true, keyMode: "live" };
+    expect(impreziaStage(undefined)).toBe("not-set-up");
+    expect(impreziaStage({ ...chat, keyConfigured: false })).toBe("no-key");
+    expect(impreziaStage({ ...chat, keyMode: "sandbox" })).toBe("sandbox");
+    expect(impreziaStage({ ...chat, enabled: false })).toBe("off");
+    expect(impreziaStage(chat)).toBe("live");
+    const row = renderToStaticMarkup(<AdNetworkTable networks={[{ ...chat, keyMode: "sandbox" }]} selected={null} busy={null} onEdit={() => {}} onKey={() => {}} onToggle={() => {}} onTest={() => {}} />);
+    expect(row).toContain("Sandbox key: test ads");
   });
 });

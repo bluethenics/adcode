@@ -278,7 +278,7 @@ const GROWTH_FIXTURES: Record<string, (data: AdminPreviewData) => unknown> = {
 const adNetworks = (data: AdminPreviewData): unknown => ({
   credentialsManageable: data !== "worst",
   networks: data === "empty" ? [] : [
-    { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "2000", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "editor_sponsored_card" }, keyConfigured: true, readiness: "ready" },
+    { id: "imprezia", name: "Imprezia", provider: "imprezia", enabled: true, priority: 10, viewPayoutMicros: "2000", clickPayoutMicros: "0", imprezia: { kind: "chat", id: "editor_sponsored_card" }, keyConfigured: true, readiness: "ready", keyMode: "sandbox" },
     { id: "northwind-ads", name: "Northwind Ads", provider: "http-json", enabled: false, priority: 50, viewPayoutMicros: "1500", clickPayoutMicros: "40000", keyConfigured: false, readiness: "key-required",
       http: { serveUrl: "https://ads.northwind.example/v1/serve", verifyUrl: "https://ads.northwind.example/v1/verify", method: "POST", authHeader: "authorization", authPrefix: "Bearer ", requestTemplate: { tags: "{{tags}}" }, creativePath: "ad", fields: { id: "id", advertiser: "brand", headline: "title", body: "text", clickUrl: "url", logoLight: "logo", logoDark: "" }, verifyTemplate: { id: "{{eventId}}" }, verifiedPath: "ok", eventIdPath: "event" } },
   ],

@@ -66,6 +66,27 @@ describe("ad network settings", () => {
     expect((await call("admin", "/generic/test", "POST", {})).status).toBe(200);
     expect((await store.getBalance("admin")).availableMicros).toBe(0n);
   });
+  it("goes live with Imprezia in one step from a production key, and says which kind of key is saved", async () => {
+    const api = createFetchHandler({ ...deps(), verifier, adNetworks: deps() });
+    const call = (token: string, path: string, method = "GET", body?: unknown) => api(new Request(`https://api.example.com/v1/admin/ad-networks${path}`, { method, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }));
+    expect((await call("user", "/imprezia-live", "POST", { key: "api_pub_live_1" })).status).toBe(403);
+    // A sandbox key would look live and earn nothing.
+    const sandbox = await call("admin", "/imprezia-live", "POST", { key: "api_pub_sandbox_1" });
+    expect(sandbox.status).toBe(400); expect(await sandbox.json()).toMatchObject({ error: "sandbox-key" });
+    expect(await store.adNetworks!.list()).toEqual([]);
+    // No connection yet: one is created, keyed and turned on.
+    const live = await call("admin", "/imprezia-live", "POST", { key: "  api_pub_abc123  " });
+    expect(live.status).toBe(200); expect(await live.json()).toMatchObject({ id: "imprezia", keyMode: "live", enabled: true });
+    expect(await store.adNetworks!.get("imprezia")).toMatchObject({ provider: "imprezia", enabled: true, imprezia: { kind: "chat" } });
+    expect(decryptAdNetworkKey("imprezia", (await store.adNetworks!.key("imprezia"))!, [encryption])).toBe("api_pub_abc123");
+    const listed = await (await call("admin", "")).text();
+    expect(listed).toContain('"keyMode":"live"'); expect(listed).not.toContain("api_pub_abc123");
+    // An existing connection is reused, and replacing its key with a sandbox one reads as sandbox.
+    expect((await call("admin", "/imprezia/key", "PUT", { key: "api_pub_sandbox_2" })).status).toBe(200);
+    expect(await (await call("admin", "")).text()).toContain('"keyMode":"sandbox"');
+    expect((await call("admin", "/imprezia-live", "POST", { key: "api_pub_next" })).status).toBe(200);
+    expect((await store.adNetworks!.list()).map((network) => network.id)).toEqual(["imprezia"]);
+  });
 });
 describe("external inventory and earnings", () => {
   it("serves a normalized creative with an owned delivery and pays a provider-confirmed view once", async () => {
