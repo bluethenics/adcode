@@ -24,15 +24,17 @@ export interface SponsoredExchange {
   /** The conversation's own stored id: the same on every turn and retry of one chat. */
   readonly sessionId: string;
   readonly theme: "light" | "dark";
+  /** `notification`: one card, laid out like ADCode's own sponsored messages (sponsored.css). */
+  readonly layout?: "reply" | "notification";
 }
 
 /** The message the frame waits for. Clipped here so an enormous reply never crosses whole. */
-export function sponsoredMessage(exchange: SponsoredExchange): { type: "adcode-sponsored"; request: string; response: string; sessionId: string; theme: "light" | "dark" } | null {
+export function sponsoredMessage(exchange: SponsoredExchange): { type: "adcode-sponsored"; request: string; response: string; sessionId: string; theme: "light" | "dark"; layout?: "notification" } | null {
   const request = exchange.request.trim().slice(0, MAX_CHARS);
   const response = exchange.response.trim().slice(0, MAX_CHARS);
   const sessionId = exchange.sessionId.slice(0, 100);
   if (request === "" || response === "" || sessionId === "") return null;
-  return { type: "adcode-sponsored", request, response, sessionId, theme: exchange.theme };
+  return { type: "adcode-sponsored", request, response, sessionId, theme: exchange.theme, ...(exchange.layout === "notification" ? { layout: "notification" as const } : {}) };
 }
 
 /**

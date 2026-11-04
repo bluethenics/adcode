@@ -506,7 +506,7 @@ export function createNotificationCentre(host: HTMLElement): NotificationCentre 
       // The card is the same walled-off page as under a chat reply: Imprezia's SDK runs on
       // adcode.bluethenics.com, never in this window, and clicks open the browser.
       const frame = sponsoredReplyFrame(
-        { request: toast.request, response: toast.response, sessionId: toast.sessionId, theme: toast.theme },
+        { request: toast.request, response: toast.response, sessionId: toast.sessionId, theme: toast.theme, layout: "notification" },
         undefined,
         settle,
       );

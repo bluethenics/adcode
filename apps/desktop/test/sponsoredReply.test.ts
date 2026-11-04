@@ -65,3 +65,12 @@ describe("what the frame reports back", () => {
     expect(frame.removed).toBe(true);
   });
 });
+
+describe("the notification layout", () => {
+  it("asks the page for one card laid out like ADCode's own, and nothing changes for replies", () => {
+    const base = { request: "q", response: "a", sessionId: "s", theme: "dark" as const };
+    expect(sponsoredMessage({ ...base, layout: "notification" })).toMatchObject({ layout: "notification" });
+    expect(sponsoredMessage(base)).not.toHaveProperty("layout");
+    expect(sponsoredMessage({ ...base, layout: "reply" })).not.toHaveProperty("layout");
+  });
+});

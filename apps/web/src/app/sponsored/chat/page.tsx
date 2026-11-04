@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Imprezia, { MonetizedContentWithCards } from "@adimpress/imprezia-sdk";
 import { hasCards } from "@adimpress/imprezia-sdk/utils/cardHelpers";
+import { fitsNotification } from "@/lib/sponsoredCard";
 import "./sponsored.css";
 
 /**
@@ -18,7 +19,14 @@ import "./sponsored.css";
  */
 const EMBEDDER = "app://adcode";
 
-type Exchange = { request: string; response: string; sessionId: string; theme: "light" | "dark" };
+/**
+ * `reply` is a card under an AI reply, drawn as Imprezia draws it. `notification` is a partner
+ * notification: one card, restyled (sponsored.css) to read like ADCode's own sponsored messages.
+ * Imprezia's own component still draws and measures it either way - its viewable-impression
+ * beacon is private to that component, so a card we drew ourselves would never be paid for.
+ */
+type Layout = "reply" | "notification";
+type Exchange = { request: string; response: string; sessionId: string; theme: "light" | "dark"; layout: Layout };
 type Monetized = Awaited<ReturnType<typeof Imprezia.monetize>>;
 
 function readExchange(data: unknown): Exchange | null {
@@ -27,8 +35,10 @@ function readExchange(data: unknown): Exchange | null {
   const { request, response, sessionId, theme } = value;
   if (typeof request !== "string" || typeof response !== "string" || typeof sessionId !== "string") return null;
   if (request.length === 0 || response.length === 0 || sessionId.length === 0 || sessionId.length > 100) return null;
-  return { request: request.slice(0, 4_000), response: response.slice(0, 4_000), sessionId, theme: theme === "light" ? "light" : "dark" };
+  const layout: Layout = (data as { layout?: unknown }).layout === "notification" ? "notification" : "reply";
+  return { request: request.slice(0, 4_000), response: response.slice(0, 4_000), sessionId, theme: theme === "light" ? "light" : "dark", layout };
 }
+
 
 /**
  * Outgoing messages say only that the frame is ready, that it found nothing, or how tall
@@ -63,10 +73,11 @@ export default function SponsoredChat() {
   useEffect(() => {
     if (exchange === null) return;
     let live = true;
-    void Imprezia.monetize({ request: exchange.request, response: exchange.response, sessionId: exchange.sessionId })
+    const notification = exchange.layout === "notification";
+    void Imprezia.monetize({ request: exchange.request, response: exchange.response, sessionId: exchange.sessionId, ...(notification ? { maxCards: 1 } : {}) })
       .then((monetized) => {
         if (!live) return;
-        if (hasCards(monetized)) setResult(monetized);
+        if (hasCards(monetized) && (!notification || fitsNotification(monetized))) setResult(monetized);
         else tell({ type: "adcode-sponsored-empty" });
       }, () => { if (live) tell({ type: "adcode-sponsored-empty" }); });
     return () => { live = false; };
@@ -85,7 +96,7 @@ export default function SponsoredChat() {
 
   if (exchange === null || result === null) return null;
   return (
-    <div ref={box} className="sponsored-chat" data-theme={exchange.theme}>
+    <div ref={box} className="sponsored-chat" data-theme={exchange.theme} data-layout={exchange.layout}>
       <MonetizedContentWithCards
         response={result}
         theme={exchange.theme}

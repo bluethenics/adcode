@@ -35,3 +35,162 @@ body:has(.sponsored-chat) main {
   display: flow-root;
   padding: 0;
 }
+
+/*
+ * A partner notification (data-layout="notification"): Imprezia's own card component, which
+ * still draws and measures the ad, laid out like ADCode's sponsored messages in the desktop's
+ * notifications.css - a square mark, the advertiser in bold, the headline, a short body and a
+ * pill button. The notification around it already says "Sponsored", so the card's own "Ad"
+ * label steps aside. The SDK sets most of this inline, hence !important. Values mirror the
+ * desktop's tokens (tokens.css): its UI font, 13/11px text, and its dark and light colours.
+ */
+.sponsored-chat[data-layout="notification"] {
+  --n-text: #ebe8e1;
+  --n-muted: #8f8c85;
+  --n-accent: #ece9e2;
+  --n-line: rgb(235 232 225 / 0.14);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
+}
+.sponsored-chat[data-layout="notification"][data-theme="light"] {
+  --n-text: #24231f;
+  --n-muted: #69665f;
+  --n-accent: #26241f;
+  --n-line: rgb(36 35 31 / 0.14);
+}
+.sponsored-chat[data-layout="notification"] .imprezia-card {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: var(--n-text) !important;
+  text-decoration: none !important;
+  transform: none !important;
+  font: inherit;
+}
+.sponsored-chat[data-layout="notification"] :is(.imprezia-card-horizontal__layout, .imprezia-card-vertical__layout) {
+  display: grid !important;
+  grid-template-columns: 44px minmax(0, 1fr) !important;
+  grid-template-areas:
+    "mark brand"
+    "mark title"
+    "body body"
+    "cta cta" !important;
+  align-items: center !important;
+  column-gap: 12px !important;
+  row-gap: 2px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+/* No logo and no image: the text takes the full width. */
+.sponsored-chat[data-layout="notification"] .imprezia-card:not(:has(:is(.imprezia-card-horizontal__media, .imprezia-card-vertical__media, .imprezia-card-horizontal__logo, .imprezia-card-vertical__logo))) :is(.imprezia-card-horizontal__layout, .imprezia-card-vertical__layout) {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-areas: "brand" "title" "body" "cta" !important;
+}
+.sponsored-chat[data-layout="notification"] :is(
+  .imprezia-card-horizontal__content, .imprezia-card-vertical__content,
+  .imprezia-card-horizontal__brand-row, .imprezia-card-vertical__brand-row,
+  .imprezia-card-horizontal__copy, .imprezia-card-vertical__copy
+) {
+  display: contents !important;
+}
+.sponsored-chat[data-layout="notification"] :is(.imprezia-card-horizontal__media, .imprezia-card-vertical__media, .imprezia-card-horizontal__logo, .imprezia-card-vertical__logo) {
+  grid-area: mark;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  flex: none !important;
+  overflow: hidden;
+  border: 1px solid var(--n-line) !important;
+  border-radius: 12px !important;
+  background: #000 !important;
+}
+.sponsored-chat[data-layout="notification"] :is(.imprezia-card-horizontal__logo, .imprezia-card-vertical__logo) { object-fit: contain !important; }
+.sponsored-chat[data-layout="notification"] :is(.imprezia-card-horizontal__image, .imprezia-card-vertical__image) {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 0 !important;
+}
+/* A real logo is the mark; the creative's image then steps aside. */
+.sponsored-chat[data-layout="notification"] .imprezia-card:has(:is(.imprezia-card-horizontal__logo, .imprezia-card-vertical__logo)) :is(.imprezia-card-horizontal__media, .imprezia-card-vertical__media) {
+  display: none !important;
+}
+.sponsored-chat[data-layout="notification"] :is(.imprezia-card-horizontal__brand, .imprezia-card-vertical__brand) {
+  grid-area: brand;
+  align-self: end;
+  margin: 0 !important;
+  color: var(--n-text) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+.sponsored-chat[data-layout="notification"] :is(.imprezia-card-horizontal__ad-label, .imprezia-card-vertical__ad-label) { display: none !important; }
+.sponsored-chat[data-layout="notification"] :is(.imprezia-card-horizontal__title, .imprezia-card-vertical__title) {
+  grid-area: title;
+  align-self: start;
+  margin: 0 !important;
+  color: var(--n-text) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+}
+.sponsored-chat[data-layout="notification"] :is(.imprezia-card-horizontal__description, .imprezia-card-vertical__description) {
+  grid-area: body;
+  display: -webkit-box !important;
+  margin: 10px 0 0 !important;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--n-muted) !important;
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+}
+.sponsored-chat[data-layout="notification"] :is(.imprezia-card-horizontal__cta, .imprezia-card-vertical__cta) {
+  grid-area: cta;
+  justify-self: start;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0 !important;
+  padding: 7px 12px !important;
+  border: 1px solid color-mix(in srgb, var(--n-accent) 45%, transparent) !important;
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--n-accent) 14%, transparent) !important;
+  color: var(--n-accent) !important;
+  font-size: 11px !important;
+  font-weight: 650 !important;
+  line-height: 1.2 !important;
+}
+/* Text-only formats: no frame of their own, the notification's type and colours. */
+.sponsored-chat[data-layout="notification"] :is(.imprezia-card-text, .imprezia-card-text-cta) * {
+  color: var(--n-text) !important;
+  font-family: inherit !important;
+}
+/* The SDK sets its own display font on inner elements: the notification uses the editor's. */
+.sponsored-chat[data-layout="notification"] .imprezia-card * {
+  font-family: inherit !important;
+  letter-spacing: normal !important;
+}
+/* "Opens your browser", as on ADCode's own Visit site button, rather than the card's arrow. */
+.sponsored-chat[data-layout="notification"] :is(.imprezia-card-horizontal__cta-arrow, .imprezia-card-vertical__cta-arrow) { display: none !important; }
+.sponsored-chat[data-layout="notification"] :is(.imprezia-card-horizontal__cta, .imprezia-card-vertical__cta)::after {
+  content: "\2197";
+  font-size: 12px;
+  line-height: 1;
+}
