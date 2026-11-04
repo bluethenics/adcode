@@ -141,7 +141,7 @@ Where the law requires it, we may need tax information from you before paying, a
 
 ## Dormant accounts
 
-If an account has not been used for 24 months and has a balance below the payout minimum, we may close it and the remaining balance lapses. We will email the address on the account first, if there is one, and a single sign-in resets the clock. Anything at or above the payout minimum stays payable; we will not close an account to keep money that could have been withdrawn.
+If an account has not been used for 24 months and has a balance below the payout minimum, we may review it for closure. Before anything is closed, we will email the address on the account first, if there is one, and a single sign-in resets the clock. Anything at or above the payout minimum stays payable; we will not close an account to keep money that could have been withdrawn.
 
 ## Advertisers
 
